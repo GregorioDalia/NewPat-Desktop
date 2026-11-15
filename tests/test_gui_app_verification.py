@@ -28,8 +28,8 @@ class NativeAppVerificationTests(unittest.TestCase):
         self.workspace = self.root / "isolated workspace"
         self.report, self.png = self.root / "report.json", self.root / "window.png"
 
-    def invoke(self):
-        return VERIFY.verify(self.app, Path(sys.executable), self.workspace, self.report, self.png)
+    def invoke(self, **options):
+        return VERIFY.verify(self.app, Path(sys.executable), self.workspace, self.report, self.png, **options)
 
     def produce(self, ready=True):
         self.report.write_text(json.dumps({"status": "passed", "nativeWebView": True,
@@ -49,6 +49,13 @@ class NativeAppVerificationTests(unittest.TestCase):
         self.assertEqual(environment["NIPAT_SETTINGS_FILE"], str(self.workspace / "preferences.json"))
         self.assertEqual(environment["NIPAT_DATA_DIR"], str(self.workspace / "data"))
         self.assertNotIn("PYTHONPATH", environment)
+        self.assertEqual(json.loads(self.report.read_text())["scope"], "packaged-native-application")
+
+    def test_source_smoke_has_distinct_scope_without_claiming_packaged_validation(self):
+        with patch.object(VERIFY.subprocess, "run", side_effect=lambda *_a, **_k: self.produce()):
+            result = self.invoke(scope="source-native-application")
+        self.assertEqual(result["scope"], "source-native-application")
+        self.assertEqual(json.loads(self.report.read_text())["scope"], "source-native-application")
 
     def test_title_or_fixture_readiness_cannot_qualify_the_full_app(self):
         with patch.object(VERIFY.subprocess, "run", side_effect=lambda *_a, **_k: self.produce(False)):

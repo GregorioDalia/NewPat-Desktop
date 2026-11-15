@@ -9,7 +9,9 @@ import subprocess
 
 
 def verify(app: Path, python: Path, workspace: Path, report: Path, screenshot: Path,
-           *, timeout: int = 90) -> dict:
+           *, timeout: int = 90, scope: str = "packaged-native-application") -> dict:
+    if scope not in {"packaged-native-application", "source-native-application"}:
+        raise ValueError("Unknown native GUI evidence scope")
     app, python, workspace, report, screenshot = (path.resolve() for path in
                                                  (app, python, workspace, report, screenshot))
     if not (app / "src/nipat/gui/web/index.html").is_file():
@@ -34,6 +36,8 @@ def verify(app: Path, python: Path, workspace: Path, report: Path, screenshot: P
         "--smoke-screenshot", str(screenshot), "--smoke-timeout", str(timeout),
     ], env=environment, cwd=workspace, check=True, timeout=timeout + 360)
     result = json.loads(report.read_text(encoding="utf-8"))
+    result["scope"] = scope
+    report.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     if (result.get("status") != "passed" or result.get("nativeWebView") is not True
             or result.get("appReady") is not True):
         raise ValueError("The production application did not reach native GUI readiness")
@@ -50,11 +54,13 @@ def main():
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--screenshot", type=Path, required=True)
     parser.add_argument("--timeout", type=int, default=90)
+    parser.add_argument("--scope", choices=("packaged-native-application", "source-native-application"),
+                        default="packaged-native-application")
     args = parser.parse_args()
     result = verify(args.app, args.python, args.workspace, args.report, args.screenshot,
-                    timeout=args.timeout)
+                    timeout=args.timeout, scope=args.scope)
     print(json.dumps({"status": "passed", "host": result.get("host"),
-                      "appReady": True, "scope": "packaged-native-application"}))
+                      "appReady": True, "scope": result["scope"]}))
 
 
 if __name__ == "__main__":

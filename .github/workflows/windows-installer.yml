@@ -647,7 +647,10 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: nipat-macos-client-${{ matrix.architecture }}
-          path: build/macos-client-check.json
+          path: |
+            build/macos-client-check.json
+            build/macos-output/macos-native-smoke.json
+            build/macos-output/macos-native-smoke.png
           retention-days: 14
           if-no-files-found: ignore
 
