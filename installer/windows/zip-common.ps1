@@ -1,7 +1,6 @@
 # Shared lifecycle for the additive, managed Windows ZIP installation.
 . (Join-Path $PSScriptRoot 'bootstrap-common.ps1')
 . (Join-Path $PSScriptRoot 'activity-lock.ps1')
-. (Join-Path $PSScriptRoot 'repair-installation.ps1') -LibraryOnly
 
 function Get-NipatZipRoot {
     if ([string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) { throw 'LOCALAPPDATA non disponibile.' }
@@ -49,6 +48,8 @@ function Read-NipatZipPointer([string] $Root, [string] $Name = 'current.json') {
 }
 
 function Assert-NipatZipApplication([string] $Project, [switch] $Installed) {
+    # Scope the library's script parameters locally; maintenance owns ReportFile.
+    . (Join-Path $PSScriptRoot 'repair-installation.ps1') -LibraryOnly
     Assert-NipatInstallPathWithoutLinks $Project -Tree
     $manifest = Read-NipatInstallerManifest (Join-Path $Project '.distribution\installer-manifest.json')
     $inventoryFile = Join-Path $Project '.distribution\application-files.json'
