@@ -154,17 +154,14 @@ function ConvertTo-NipatNativeArgument([string] $Value) {
     return '"' + $escaped + '"'
 }
 
-function New-NipatSetupJob {
-    . (Join-Path $PSScriptRoot 'activity-lock.ps1')
-    Initialize-NipatActivityNative
-    return New-Object Nipat.SetupCheckJob
-}
-
 function Stop-NipatSetupCheck([Diagnostics.Process] $Process) {
-    # Only used by the PowerShell 7 non-Windows test host. Production Windows
-    # checks use the precompiled job helper, including after the leader exits.
     if (-not $Process.HasExited) {
-        $Process.Kill($true)
+        if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
+            # Closing the Python supervisor closes its private job.
+            $Process.Kill()
+        } else {
+            $Process.Kill($true)
+        }
         if (-not $Process.WaitForExit(5000)) {
             throw 'Arresto del controllo di preparazione non confermato.'
         }
@@ -172,7 +169,8 @@ function Stop-NipatSetupCheck([Diagnostics.Process] $Process) {
 }
 
 function Invoke-NipatSetupCheck([string] $Executable, [string[]] $Arguments,
-    [string] $LogDirectory, [string] $Name, [int] $TimeoutSeconds = 0) {
+    [string] $LogDirectory, [string] $Name, [int] $TimeoutSeconds = 0,
+    [string] $SupervisorPython = $Executable) {
     if ($Name -cnotmatch '^[a-z][a-z0-9-]*$') { throw 'Nome del controllo di preparazione non valido.' }
     if ($TimeoutSeconds -eq 0) {
         $TimeoutSeconds = $(if ($Name -ceq 'doctor') { 300 } else { 1800 })
@@ -183,9 +181,21 @@ function Invoke-NipatSetupCheck([string] $Executable, [string[]] $Arguments,
     $stderrPath = Join-Path $LogDirectory ($Name + '.stderr.log')
     $exitPath = Join-Path $LogDirectory ($Name + '.exit-code.txt')
     if (Test-Path -LiteralPath $exitPath) { Remove-Item -LiteralPath $exitPath -Force }
+    if (-not (Test-Path -LiteralPath $Executable -PathType Leaf)) { throw "Impossibile avviare il controllo $Name." }
     Write-Host ("NIPAT: controllo $Name in corso (limite $TimeoutSeconds secondi). Diagnostica: $stdoutPath ; $stderrPath")
     $start = New-Object Diagnostics.ProcessStartInfo
-    $start.FileName = $Executable
+    $waitMilliseconds = $TimeoutSeconds * 1000
+    if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
+        $source = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+        $supervisor = Join-Path $source 'src\nipat\windows_setup_check.py'
+        $start.FileName = $SupervisorPython
+        $Arguments = @('-X', 'utf8', '-u', $supervisor, [string]$TimeoutSeconds, '--', $Executable) + $Arguments
+        # The supervisor enforces the check deadline. Allow bounded time for
+        # interpreter startup, job termination and the final pipe drain.
+        $waitMilliseconds += 10000
+    } else {
+        $start.FileName = $Executable
+    }
     $start.Arguments = (($Arguments | ForEach-Object { ConvertTo-NipatNativeArgument $_ }) -join ' ')
     $start.UseShellExecute = $false
     $start.CreateNoWindow = $true
@@ -197,8 +207,6 @@ function Invoke-NipatSetupCheck([string] $Executable, [string[]] $Arguments,
     $stdoutFile = $null
     $stderrFile = $null
     $started = $false
-    $job = $null
-    $jobAttached = $false
     $copyCancellation = New-Object Threading.CancellationTokenSource
     try {
         # A one-byte FileStream buffer prevents small diagnostics from waiting
@@ -207,43 +215,25 @@ function Invoke-NipatSetupCheck([string] $Executable, [string[]] $Arguments,
             [IO.FileAccess]::Write, [IO.FileShare]::ReadWrite, 1, [IO.FileOptions]::Asynchronous)
         $stderrFile = [IO.FileStream]::new($stderrPath, [IO.FileMode]::Create,
             [IO.FileAccess]::Write, [IO.FileShare]::ReadWrite, 1, [IO.FileOptions]::Asynchronous)
-        if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
-            $job = New-NipatSetupJob
-        }
         $watch = [Diagnostics.Stopwatch]::StartNew()
-        if ($null -ne $job) {
-            $process.Dispose()
-            $process = $job.Start($Executable, ((ConvertTo-NipatNativeArgument $Executable) + ' ' + $start.Arguments))
-            $jobAttached = $true
-            $outputPipe = $job.Output
-            $errorPipe = $job.Error
-        } else {
-            if (-not $process.Start()) { throw "Impossibile avviare il controllo $Name." }
-            $outputPipe = $process.StandardOutput.BaseStream
-            $errorPipe = $process.StandardError.BaseStream
-        }
+        if (-not $process.Start()) { throw "Impossibile avviare il controllo $Name." }
+        $outputPipe = $process.StandardOutput.BaseStream
+        $errorPipe = $process.StandardError.BaseStream
         $started = $true
         $stdout = $outputPipe.CopyToAsync($stdoutFile, 4096, $copyCancellation.Token)
         $stderr = $errorPipe.CopyToAsync($stderrFile, 4096, $copyCancellation.Token)
-        $completed = $process.WaitForExit($TimeoutSeconds * 1000)
-        $remaining = [Math]::Max(0, $TimeoutSeconds * 1000 - [int]$watch.ElapsedMilliseconds)
+        $completed = $process.WaitForExit($waitMilliseconds)
+        $remaining = [Math]::Max(0, $waitMilliseconds - [int]$watch.ElapsedMilliseconds)
         if ($completed) {
             # Descendants may inherit pipe handles. Draining must have the same
             # deadline as execution, even if the immediate child already exited.
             $completed = [Threading.Tasks.Task]::WaitAll([Threading.Tasks.Task[]]@($stdout, $stderr), $remaining)
         }
-        if (-not $completed) {
-            [IO.File]::WriteAllText($exitPath, "124`n", $encoding)
-            throw "Controllo $Name scaduto dopo $TimeoutSeconds secondi (codice 124). La preparazione puo essere ripresa. Dettagli: $stdoutPath ; $stderrPath"
-        }
-        $code = $process.ExitCode
+        $code = if ($completed) { $process.ExitCode } else { 124 }
         [IO.File]::WriteAllText($exitPath, ([string]$code + "`n"), $encoding)
     } finally {
         try {
-            if ($jobAttached) {
-                $job.Stop()
-                if (-not $process.WaitForExit(5000)) { throw 'Arresto del controllo non confermato.' }
-            } elseif ($started -and -not $process.HasExited) {
+            if ($started -and -not $process.HasExited) {
                 Stop-NipatSetupCheck $process
             }
         } finally {
@@ -256,8 +246,10 @@ function Invoke-NipatSetupCheck([string] $Executable, [string[]] $Arguments,
             if ($null -ne $stderrFile) { $stderrFile.Dispose() }
             $copyCancellation.Dispose()
             $process.Dispose()
-            if ($null -ne $job) { $job.Dispose() }
         }
+    }
+    if ($code -eq 124) {
+        throw "Controllo $Name scaduto dopo $TimeoutSeconds secondi (codice 124). La preparazione puo essere ripresa. Dettagli: $stdoutPath ; $stderrPath"
     }
     foreach ($path in @($stdoutPath, $stderrPath)) {
         $text = [IO.File]::ReadAllText($path, [Text.Encoding]::UTF8)

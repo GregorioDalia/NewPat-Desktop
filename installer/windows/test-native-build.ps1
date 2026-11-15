@@ -7,9 +7,11 @@ try {
     $dll = Join-Path $temporary 'NipatActivityNative.dll'
     & (Join-Path $PSScriptRoot 'build-native.ps1') -OutputPath $dll
     $original = Join-Path $PSScriptRoot 'NipatActivityNative.dll'
-    if ((Get-FileHash -LiteralPath $dll).Hash -cne (Get-FileHash -LiteralPath $original).Hash) {
+    $activitySha256 = (Get-FileHash -LiteralPath $original -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ((Get-FileHash -LiteralPath $dll -Algorithm SHA256).Hash.ToLowerInvariant() -cne $activitySha256) {
         throw 'Activity helper builds from identical sources differ.'
     }
+    Write-Host "Windows activity helper SHA-256: $activitySha256"
     $launcher = Join-Path $temporary 'NIPAT.exe'
     & (Join-Path $PSScriptRoot 'build-launcher.ps1') -OutputPath $launcher
     if ((Get-FileHash -LiteralPath $launcher).Hash -cne (Get-FileHash -LiteralPath $LauncherPath).Hash) {

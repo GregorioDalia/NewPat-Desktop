@@ -229,6 +229,7 @@ tests/test_wsl_transport.py
 .github/scripts/test_update_manifest_contract.py
 installer/windows/update-handoff.ps1
 src/nipat/activity.py
+src/nipat/windows_setup_check.py
 src/nipat/linux_update.py
 src/nipat/update_handoff.py
 src/nipat/update_ui.py
@@ -456,4 +457,5 @@ docs/COLLAUDO_INSTALLAZIONE.md
 # Release-specific notes.
 docs/RELEASE_0.8.70.md
 docs/RELEASE_0.8.80.md
+docs/RELEASE_0.8.81.md
 docs/AUDIT_0.8.80.md
