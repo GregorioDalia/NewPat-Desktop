@@ -1,4 +1,6 @@
 import ctypes as C
+from concurrent.futures import Future
+import queue
 import sys
 
 import pytest
@@ -42,3 +44,32 @@ def test_unsupported_platform_is_explicit_and_never_opens_browser():
     assert host.request_close() is False
     with pytest.raises(host.NativeHostError, match="non è aperta"):
         host.pick_directory()
+
+
+def test_close_from_async_callback_wakes_event_loop_and_rejects_queued_calls():
+    calls = []
+    class Cocoa:
+        def cls(self, name):
+            assert name == "NSEvent"
+            return 201
+        def send(self, obj, selector, result=host.PTR, argtypes=(), *args):
+            calls.append((obj, selector, argtypes, args))
+            return 301 if selector.startswith("otherEventWithType:") else None
+    window = host._Window.__new__(host._Window)
+    window.closed, window.app, window.cocoa = False, 101, Cocoa()
+    window.tasks = queue.Queue()
+    pending = Future()
+    window.tasks.put((pending, lambda: pytest.fail("A queued operation ran during close")))
+    window._will_close(None)
+    assert window.closed and window.tasks.empty()
+    with pytest.raises(host.NativeHostError, match="chiusa"):
+        pending.result()
+    assert calls[0][1] == "stop:"
+    assert calls[1][1].startswith("otherEventWithType:") and calls[1][3][0] == 13
+    assert calls[1][2] == (host.NSUInteger, host.CGPoint, host.NSUInteger, C.c_double,
+                           host.NSInteger, host.PTR, C.c_short, host.NSInteger, host.NSInteger)
+    assert calls[2] == (101, "postEvent:atStart:", (host.PTR, host.BOOL), (301, False))
+    window._will_close(None)
+    assert len(calls) == 3
+    with pytest.raises(host.NativeHostError, match="chiusa"):
+        window.invoke(lambda: None)

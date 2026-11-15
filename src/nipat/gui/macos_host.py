@@ -234,6 +234,8 @@ class _Window:
         return bool(self.error or not self.on_close or self.on_close() is not False)
 
     def _will_close(self, _notification):
+        if self.closed:
+            return
         self.closed = True
         while True:
             try:
@@ -241,7 +243,16 @@ class _Window:
                 future.set_exception(NativeHostError("La finestra desktop è stata chiusa."))
             except queue.Empty:
                 break
-        self.cocoa.send(self.app, "stop:", None, (PTR,), None)
+        c = self.cocoa
+        c.send(self.app, "stop:", None, (PTR,), None)
+        # stop: called from a timer or WebKit completion does not wake run's
+        # next-event wait. Post an application-defined event so closing cannot
+        # depend on a subsequent keyboard/mouse event from the user.
+        event = c.send(c.cls("NSEvent"),
+            "otherEventWithType:location:modifierFlags:timestamp:windowNumber:context:subtype:data1:data2:",
+            PTR, (NSUInteger, CGPoint, NSUInteger, C.c_double, NSInteger, PTR, C.c_short, NSInteger, NSInteger),
+            13, CGPoint(0, 0), 0, 0.0, 0, None, 0, 0, 0)
+        c.send(self.app, "postEvent:atStart:", None, (PTR, BOOL), event, False)
 
     def request_close(self):
         if not self.closed and self.window:
