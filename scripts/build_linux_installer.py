@@ -35,7 +35,8 @@ ICON_SOURCE = "assets/branding/nipat-symbol.svg"
 BUILD_RECORD = "linux-installer-build.json"
 DEPENDENCIES = (
     "python3.12 (>= 3.12), python3.12 (<< 3.13), "
-    "docker.io | docker-ce, docker-compose-v2 | docker-compose-plugin"
+    "docker.io | docker-ce, docker-compose-v2 | docker-compose-plugin, "
+    "python3-gi, gir1.2-gtk-3.0, gir1.2-webkit2-4.1"
 )
 
 
@@ -62,7 +63,7 @@ def verified_inputs(project: Path, manifest_path: Path, *, require_clean: bool =
         assets.validate_installation_profile(manifest.get("installation_profile"))
     except (TypeError, AttributeError, KeyError) as exc:
         raise ValueError("Struttura del manifest installer non valida.") from exc
-    if not re.fullmatch(r"(?:0\.[67]\.[0-9]+(?:(?:a|b|rc)[0-9]+)?|0\.8\.[0-9]+)", manifest["version"]):
+    if not re.fullmatch(r"(?:0\.[67]\.[0-9]+(?:(?:a|b|rc)[0-9]+)?|0\.[89]\.[0-9]+)", manifest["version"]):
         raise ValueError("Il pacchetto NIPAT Desktop richiede una versione Desktop ufficiale.")
     if manifest["version"].startswith("0.8.") and int(manifest["version"].split(".")[2]) < 2:
         raise ValueError("Il pacchetto NIPAT Desktop ufficiale parte dalla versione 0.8.2.")
@@ -120,9 +121,9 @@ def generated_files(manifest: dict, manifest_bytes: bytes) -> dict[str, tuple[by
                 f"/{APP_PATH.as_posix()}/{LAUNCH_SOURCE} \"$@\"\n")
     desktop = (
         "[Desktop Entry]\nType=Application\nName=NIPAT Desktop\n"
-        "Comment=Scientific analysis with the NIPAT guided command line\n"
+        "Comment=Local scientific analysis with the NIPAT desktop interface\n"
         f"Exec=/usr/bin/{COMMAND} --desktop\nTryExec=/usr/bin/{COMMAND}\n"
-        f"Terminal=true\nIcon=/{APP_PATH.as_posix()}/{ICON_SOURCE}\nCategories=Science;Biology;\n"
+        f"Terminal=false\nIcon=/{APP_PATH.as_posix()}/{ICON_SOURCE}\nCategories=Science;Biology;\n"
     )
     return {
         f"{APP_PATH.as_posix()}/.distribution/{assets.MANIFEST_NAME}": (manifest_bytes, 0o644),
@@ -149,7 +150,7 @@ def control_bytes(manifest: dict, installed_kib: int) -> bytes:
         "Maintainer: NIPAT contributors\n"
         f"Installed-Size: {installed_kib}\nPre-Depends: util-linux\nDepends: {DEPENDENCIES}\n"
         "Homepage: https://github.com/GregorioDalia/nipat-desktop\n"
-        "Description: NIPAT Desktop scientific CLI for Ubuntu 24.04 LTS\n"
+        "Description: NIPAT Desktop scientific application for Ubuntu 24.04 LTS\n"
         " Includes the verified scientific image for local Docker Engine execution.\n"
         " Requires explicit user access to a compatible local Docker daemon.\n"
         " This package does not configure Docker permissions or modify user data.\n"

@@ -75,14 +75,26 @@ def sha256(path):
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
+def requires_gui_contract(version):
+    """The reviewed 0.9 desktop line retains the complete 0.8.99 release gates."""
+    return bool(isinstance(version, str)
+                and re.fullmatch(r"0\.9\.[0-9]+(?:(?:a|b|rc)[0-9]+)?", version))
+
+
+def requires_gui_prerelease(version):
+    """The first GUI release must not replace the stable channel or Latest."""
+    return bool(isinstance(version, str)
+                and re.fullmatch(r"0\.9\.0(?:(?:a|b|rc)[0-9]+)?", version))
+
+
 def requires_windows_zip(version):
     match = re.fullmatch(r"0\.8\.([0-9]+)(?:(?:a|b|rc)[0-9]+)?", version or "")
-    return bool(match and int(match[1]) >= 95)
+    return bool(match and int(match[1]) >= 95) or requires_gui_contract(version)
 
 
 def requires_windows_bootstrap(version):
     match = re.fullmatch(r"0\.8\.([0-9]+)(?:(?:a|b|rc)[0-9]+)?", version or "")
-    return bool(match and int(match[1]) >= 99)
+    return bool(match and int(match[1]) >= 99) or requires_gui_contract(version)
 
 
 def verify_windows_payload(setup, manifest):
@@ -128,6 +140,15 @@ def verify_windows_zip(setup, manifest):
     require(json.loads((setup / "windows-zip-build.json").read_bytes()) == record,
             "ZIP build evidence differs from the complete archive")
     return record
+
+
+def verify_windows_testing(setup, manifest):
+    helper = load_module("nipat_testing_package", PROJECT / "installer/windows/testing_package.py")
+    package = setup / helper.filename(manifest["version"])
+    require(package.is_file() and not package.is_symlink()
+            and 0 < package.stat().st_size < MAX_ASSET_BYTES,
+            "Missing or invalid Windows testing entrypoint")
+    return helper.verify(package, PROJECT / "installer/windows", setup, manifest)
 
 
 def command(*args):
@@ -388,6 +409,8 @@ def prepare_installer_set(setup, runtime, linux, evidence, output, commit, accep
 def publication_channel(version, channel):
     """Release maturity is explicit; a numeric version is not proof of stability."""
     require(channel in {"stable", "testing"}, "Unknown publication channel")
+    require(not requires_gui_prerelease(version) or channel == "testing",
+            "NIPAT 0.9.0 GUI releases must use the testing publication channel")
     if channel == "stable":
         require(re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version),
                 "A pre-release version cannot use the stable update channel")
@@ -651,6 +674,10 @@ def prepare_assets(setup, runtime, output, commit, read_source=source_bytes, des
         for name in (record["file"], "windows-payload-build.json"):
             files[name] = setup / name
             digests[name] = sha256(files[name])
+    if requires_gui_prerelease(version):
+        record = verify_windows_testing(setup, manifest)
+        files[record["file"]] = setup / record["file"]
+        digests[record["file"]] = record["sha256"]
     if requires_installation_profile(version):
         require(desktop is None, "Docker Desktop deliverables are not supported by this release")
         for folder in (setup, runtime):
@@ -713,7 +740,8 @@ def create_draft(tag, version, commit, notes, payload_path, channel="testing"):
     publication_channel(version, channel)
     payload_path.write_text(json.dumps({
         "tag_name": tag, "target_commitish": commit,
-        "name": f"NIPAT CLI {version} — Windows con " +
+        "name": (f"NIPAT Desktop {version} Preview — Windows con " if requires_gui_prerelease(version)
+                 else f"NIPAT CLI {version} — Windows con ") +
                 ("WSL2, Ubuntu e macOS con Lima" if requires_macos(version) else
                  "WSL2 e Docker Desktop" if requires_desktop_bundle(version) else
                  "WSL2 e Ubuntu" if requires_installation_profile(version) else "WSL2"), "body": notes,

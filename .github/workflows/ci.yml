@@ -77,7 +77,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.run_checks == 'true' && needs.changes.outputs.acceptance_only != 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     env:
       PYTHONPATH: src
     steps:
@@ -89,6 +89,32 @@ jobs:
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.12.10'
+      - name: Prepare the native GTK test desktop
+        timeout-minutes: 5
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            python3-gi gir1.2-gtk-3.0 gir1.2-webkit2-4.1 \
+            python3-cairo python3-gi-cairo xvfb xauth dbus-x11
+      - name: Exercise the source application in native GTK
+        # This fails before runtime/package builds; package smoke checks remain separate.
+        timeout-minutes: 5
+        run: |
+          xvfb-run --auto-servernum --server-args="-screen 0 1440x1000x24" \
+            dbus-run-session -- /usr/bin/python3.12 scripts/verify_gui_app.py \
+              --app "$GITHUB_WORKSPACE" --python /usr/bin/python3.12 \
+              --workspace "$RUNNER_TEMP/nipat-source-native-gui" \
+              --report build/source-native-gui/linux-source-smoke.json \
+              --screenshot build/source-native-gui/linux-source-smoke.png \
+              --scope source-native-application
+      - name: Retain source native GTK diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nipat-linux-source-native-gui
+          path: build/source-native-gui/
+          retention-days: 14
+          if-no-files-found: ignore
       - name: Install pinned quality tools
         run: python -m pip install -r .github/quality-requirements.txt
       - name: Correctness-focused Python static checks
@@ -123,7 +149,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.run_checks == 'true' && needs.changes.outputs.acceptance_only != 'true'
     runs-on: windows-2022
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
       PYTHONPATH: src
     steps:
@@ -140,6 +166,30 @@ jobs:
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.12.10'
+      - name: Verify source native WebView2 dependency signatures
+        shell: powershell
+        run: |
+          python scripts/verify_gui_distribution.py --signatures --report build/source-native-gui/windows-native-dependencies.json
+          if ($LASTEXITCODE -ne 0) { throw 'Source native GUI dependency verification failed.' }
+      - name: Exercise the source application in native WebView2
+        timeout-minutes: 8
+        shell: powershell
+        run: |
+          $python = (Get-Command python -CommandType Application).Source
+          python scripts/verify_gui_app.py --app "$env:GITHUB_WORKSPACE" --python "$python" `
+            --workspace "$env:RUNNER_TEMP/nipat-source-native-gui" `
+            --report build/source-native-gui/windows-source-smoke.json `
+            --screenshot build/source-native-gui/windows-source-smoke.png `
+            --scope source-native-application
+          if ($LASTEXITCODE -ne 0) { throw 'Source native WebView2 application smoke failed.' }
+      - name: Retain source native WebView2 diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nipat-windows-source-native-gui
+          path: build/source-native-gui/
+          retention-days: 14
+          if-no-files-found: ignore
       - name: Run shared Windows unit, installer and launcher checks
         shell: powershell
         run: ./.github/scripts/check_windows.ps1
@@ -177,6 +227,22 @@ jobs:
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.12.10'
+      - name: Exercise the source application in native WKWebView
+        timeout-minutes: 5
+        run: |
+          python scripts/verify_gui_app.py --app "$GITHUB_WORKSPACE" --python "$(command -v python)" \
+            --workspace "$RUNNER_TEMP/nipat-source-native-gui" \
+            --report build/source-native-gui/macos-source-smoke.json \
+            --screenshot build/source-native-gui/macos-source-smoke.png \
+            --scope source-native-application
+      - name: Retain source native WKWebView diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nipat-macos-source-native-gui-${{ matrix.architecture }}
+          path: build/source-native-gui/
+          retention-days: 14
+          if-no-files-found: ignore
       - name: Check native client and packaging contracts (no guest VM)
         env:
           EXPECTED_ARCHITECTURE: ${{ matrix.architecture }}

@@ -117,6 +117,18 @@ class QualificationEvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "identity mismatch"):
             qualification.verify(output, changed)
 
+    def test_gui_testing_entrypoint_is_bound_to_qualification(self):
+        record = dict(self.installer_set, version="0.9.0", macos_arm64={"sha256": "e" * 64},
+                      macos_x86_64={"sha256": "f" * 64}, windows_zip={"sha256": "1" * 64},
+                      windows_payload={"sha256": "2" * 64}, windows_testing={"sha256": "3" * 64})
+        output = self.root / "gui-output"
+        descriptor = qualification.build(output, record, {"science": self.source})
+        self.assertEqual(descriptor["windows_testing_sha256"], "3" * 64)
+        changed = copy.deepcopy(record)
+        changed["windows_testing"]["sha256"] = "0" * 64
+        with self.assertRaisesRegex(ValueError, "identity mismatch"):
+            qualification.verify(output, changed)
+
     def test_rejects_source_package_substitution_and_false_scope(self):
         for key, value in (("source_commit", "e" * 40), ("windows_installer_sha256", "e" * 64),
                            ("linux_installer_sha256", "e" * 64), ("synthetic_only", False)):

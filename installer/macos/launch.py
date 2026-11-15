@@ -1,7 +1,7 @@
 """Launch the official macOS installation with bundled dependencies."""
 from __future__ import annotations
 
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 import hashlib
 import json
 import os
@@ -25,7 +25,7 @@ def load_manifest(app: Path) -> dict:
     manifest = json.loads((app / ".distribution/macos-manifest.json").read_text())
     if (manifest.get("schema_version") != 1 or manifest.get("channel") != "desktop"
             or manifest.get("architecture") not in {"arm64", "x86_64"}
-            or not re.fullmatch(r"0\.8\.\d+", manifest.get("version", ""))
+            or not re.fullmatch(r"0\.[89]\.\d+", manifest.get("version", ""))
             or not re.fullmatch(r"[a-f0-9]{40}", manifest.get("source_commit", ""))):
         raise ValueError("Manifest macOS non valido; reinstallare NIPAT.")
     source_hashes = manifest.get("source_sha256")
@@ -95,6 +95,15 @@ def run_foreground(command: list[str], *, env: dict[str, str], cwd: Path | None 
         signal.signal(signal.SIGINT, previous)
 
 
+def gui_startup(app: Path):
+    """Use only the packaged native preparation window; no browser or shell."""
+    source = str(app / "src")
+    if source not in sys.path:
+        sys.path.insert(0, source)
+    from nipat.gui import startup
+    return startup
+
+
 def launch(arguments: list[str], app: Path) -> int:
     if sys.platform != "darwin" or os.geteuid() == 0:
         raise ValueError("Avviare NIPAT su macOS con il proprio utente, senza sudo.")
@@ -114,8 +123,13 @@ def launch(arguments: list[str], app: Path) -> int:
     with installation_session(exclusive=maintenance):
         if arguments and arguments[0] == "--runtime":
             return run_foreground([*runtime, *arguments[1:]], env=env)
-        prepared = run_foreground([*runtime, "prepare"], env=env)
+        graphical = not arguments or arguments == ["gui"]
+        with (gui_startup(app).preparation_notice(app) if graphical else nullcontext()):
+            prepared = run_foreground([*runtime, "prepare"], env=env)
         if prepared:
+            if graphical:
+                gui_startup(app).show_startup_error(app,
+                    "Preparazione dell’ambiente non completata. Consultare il log in " + str(workspace))
             return prepared
         state = json.loads((workspace / ".runtime/macos/runtime.json").read_text())
         identifier = state.get("runtime_image", "")
@@ -123,16 +137,22 @@ def launch(arguments: list[str], app: Path) -> int:
             raise ValueError("Identita del runtime preparato non valida.")
         env["NIPAT_RUNTIME_IMAGE"] = identifier
         return run_foreground([str(python), "-I", "-B", "-c", CLI_CODE,
-                               str(app / "src"), *(arguments or ["wizard"])],
+                               str(app / "src"), *(arguments or ["gui"])],
                               env=env, cwd=workspace / "data")
 
 
 def main(arguments: list[str] | None = None) -> int:
+    selected = sys.argv[1:] if arguments is None else arguments
+    app = Path(__file__).resolve().parents[2]
     try:
-        return launch(sys.argv[1:] if arguments is None else arguments,
-                      Path(__file__).resolve().parents[2])
+        return launch(selected, app)
     except (OSError, ValueError, KeyError, TypeError) as exc:
         print(f"NIPAT: {exc}", file=sys.stderr)
+        if not selected or selected == ["gui"]:
+            try:
+                gui_startup(app).show_startup_error(app, str(exc))
+            except Exception as notice_error:
+                print("NIPAT: " + str(notice_error), file=sys.stderr)
         return 1
     except KeyboardInterrupt:
         return 130

@@ -96,7 +96,7 @@ def read_manifest(project: Path) -> dict:
     valid = (
         manifest.get("schema_version") == 1
         and manifest.get("channel") == CHANNEL
-        and re.fullmatch(r"0\.8\.[0-9]+(?:[ab][0-9]+|rc[0-9]+)?", str(manifest.get("version", "")))
+        and re.fullmatch(r"0\.[89]\.[0-9]+(?:[ab][0-9]+|rc[0-9]+)?", str(manifest.get("version", "")))
         and re.fullmatch(r"[0-9a-f]{40}", str(manifest.get("source_commit", "")))
         and manifest.get("architecture") in _BASE_IMAGES
         and manifest.get("lima_version") == LIMA_VERSION

@@ -142,7 +142,8 @@ def safe_extract(archive: Path, destination: Path) -> None:
 
 
 def package_version(version: str) -> str:
-    if not re.fullmatch(r"0\.8\.[0-9]+", version) or int(version.split(".")[2]) < 2:
+    if (not re.fullmatch(r"0\.[89]\.[0-9]+", version)
+            or tuple(map(int, version.split("."))) < (0, 8, 2)):
         raise ValueError("Expected an official 0.8.2 or later version.")
     return version
 
@@ -249,6 +250,7 @@ def stage_payload(project: Path, root: Path, manifest: dict, files: list[Path], 
         "CFBundleShortVersionString": re.match(r"\d+\.\d+\.\d+", manifest["version"])[0],
         "CFBundleVersion": manifest["version"], "LSMinimumSystemVersion": "14.0",
         "CFBundleIconFile": "NIPAT.icns", "LSApplicationCategoryType": "public.app-category.education",
+        "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True},
         "NSHumanReadableCopyright": "NIPAT contributors; GNU GPL version 3 or later",
     }
     (app / "Contents/Info.plist").write_bytes(plistlib.dumps(plist, sort_keys=True))

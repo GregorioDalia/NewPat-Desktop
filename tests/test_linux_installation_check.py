@@ -6,6 +6,8 @@ from pathlib import Path
 import tempfile
 import unittest
 
+import nipat
+
 
 SPEC = importlib.util.spec_from_file_location(
     "linux_installation_check", Path(__file__).resolve().parents[1] / "scripts/verify_linux_installer.py",
@@ -57,6 +59,18 @@ class LinuxInstallationEvidenceTests(unittest.TestCase):
         for version in ("0.5.0a1", "0.8.0", "0.7.0dev1"):
             with self.subTest(version=version), self.assertRaises(RuntimeError):
                 check.checks_for_version(version)
+
+    def test_gui_and_current_release_require_complete_installed_package_checks(self):
+        expected = {
+            "package_installation", "initial_setup", "immutable_runtime_binding",
+            "all_five_workflows", "private_inputs_unchanged", "user_owned_results",
+            "repeated_launch", "package_reinstallation",
+            "package_removal_preserves_user_data", "shared_docker_unchanged",
+            "automatic_workflow_plan", "preferences_preserved",
+        }
+        for version in ("0.9.0", nipat.__version__):
+            with self.subTest(version=version):
+                self.assertEqual(set(check.checks_for_version(version)), expected)
 
     def test_all_five_workflows_must_have_successful_run_records(self):
         for workflow in ("dnp-call", "snp-call", "contamination", "cpi", "cpin"):

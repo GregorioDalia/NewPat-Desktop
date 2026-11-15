@@ -5,7 +5,7 @@ No administrative commands, daemon configuration changes or image deletion occur
 """
 from __future__ import annotations
 
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 import codecs
 from datetime import datetime, timezone
 import hashlib
@@ -103,7 +103,7 @@ def load_manifest(app: Path) -> tuple[dict, str]:
         manifest = json.loads(raw)
         valid = (
             type(manifest) is dict and manifest.get("schema_version") == 1
-            and re.fullmatch(r"(?:0\.[67]\.\d+(?:(?:a|b|rc)\d+)?|0\.8\.\d+)", manifest.get("version", ""))
+            and re.fullmatch(r"(?:0\.[67]\.\d+(?:(?:a|b|rc)\d+)?|0\.[89]\.\d+)", manifest.get("version", ""))
             and (not manifest["version"].startswith("0.8.")
                  or int(manifest["version"].split(".")[2]) >= 2)
             and manifest.get("release_tag") == "v" + manifest["version"]
@@ -395,8 +395,18 @@ def ensure_ready(app: Path, data: Path, state: Path, environment: dict[str, str]
                 raise
 
 
+def gui_startup(app: Path):
+    """Use only the packaged native preparation window; no browser or shell."""
+    source = str(app / "src")
+    if source not in sys.path:
+        sys.path.insert(0, source)
+    from nipat.gui import startup
+    return startup
+
+
 def launch(arguments: list[str]) -> int:
     app = Path(__file__).resolve().parents[2]
+    graphical = not arguments or arguments == ["gui"]
     try:
         # Help/version are parser-only commands and never require access to Docker.
         if any(argument in ("--help", "-h", "--version") for argument in arguments):
@@ -412,17 +422,24 @@ def launch(arguments: list[str]) -> int:
         setup_only = arguments == ["--setup"]
         if "--setup" in arguments and not setup_only:
             raise SetupError("Usare --setup senza altri argomenti per preparare NIPAT.")
-        identifier = ensure_ready(app, data, state, environment, force=setup_only)
+        notice = (gui_startup(app).preparation_notice(app) if graphical else nullcontext())
+        with notice:
+            identifier = ensure_ready(app, data, state, environment, force=setup_only)
         if setup_only:
             return 0
         environment["NIPAT_RUNTIME_IMAGE"] = identifier
-        return run_cli(app, arguments or ["wizard"], environment)
+        return run_cli(app, arguments or ["gui"], environment)
     except KeyboardInterrupt:
         print("\nOperazione interrotta.", file=sys.stderr)
         return 130
     except (SetupError, OSError) as exc:
         print("ERRORE: " + str(exc), file=sys.stderr)
         print("Guida: " + str(app / GUIDE), file=sys.stderr)
+        if graphical:
+            try:
+                gui_startup(app).show_startup_error(app, str(exc) + "\n" + str(app / GUIDE))
+            except Exception as notice_error:
+                print("NIPAT: " + str(notice_error), file=sys.stderr)
         return 1
 
 

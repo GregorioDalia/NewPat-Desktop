@@ -84,6 +84,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser("build-runtime", help="costruisce l'immagine R/samtools")
     subparsers.add_parser("wizard", help="avvia la CLI guidata per i cinque workflow")
+    gui = subparsers.add_parser("gui", help="avvia l’applicazione desktop con visualizzatore IGV")
+    gui.add_argument("--smoke-test", action="store_true", help=argparse.SUPPRESS)
+    gui.add_argument("--smoke-report", type=_path, help=argparse.SUPPRESS)
+    gui.add_argument("--smoke-screenshot", type=_path, help=argparse.SUPPRESS)
+    gui.add_argument("--smoke-timeout", type=int, default=60, help=argparse.SUPPRESS)
     subparsers.add_parser("self-test", help="esegue le verifiche numeriche distribuite")
 
     resources = subparsers.add_parser("resources", help="mostra o configura RAM e CPU dell'ambiente di calcolo")
@@ -339,6 +344,12 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         layout = ProjectLayout.discover(data_dir=args.data_dir, runs_dir=args.runs_dir)
         activity.enter_context(activity_session(project_dir=layout.project_dir))
+        if args.command == "gui":
+            if args.dry_run or args.scientific_config or args.scientific_overrides:
+                parser.error("Configura le analisi nella GUI; le opzioni scientifiche globali restano disponibili nei comandi CLI.")
+            from nipat.gui.app import main as gui_main
+            return gui_main(layout, smoke_test=args.smoke_test, smoke_report=args.smoke_report,
+                            timeout=args.smoke_timeout, smoke_screenshot=args.smoke_screenshot)
         if args.command == "resources":
             from nipat.resources import ResourceManager
             from nipat.resource_ui import resource_lines

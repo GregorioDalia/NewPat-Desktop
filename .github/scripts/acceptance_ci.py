@@ -37,6 +37,9 @@ def read_record(path, revision):
 
 
 def validate_build(record, run, jobs):
+    if publisher.requires_gui_prerelease(record["version"]):
+        publisher.require(record.get("publication_channel") == "testing",
+                          "NIPAT 0.9.0 GUI acceptance requires the explicit testing channel")
     publisher.validate_run(run, record["source_commit"], record["build_run_id"])
     publisher.require(run["event"] == "workflow_dispatch", "Accepted installer build must be manually dispatched")
     for name in publisher.required_build_jobs(record["version"]):

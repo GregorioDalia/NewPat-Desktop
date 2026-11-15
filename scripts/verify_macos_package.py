@@ -72,6 +72,9 @@ def verify_payload(payload: Path, common: dict, record: dict) -> dict:
             or info.get("LSMinimumSystemVersion") != "14.0"
             or info.get("CFBundleExecutable") != "NIPAT"):
         raise ValueError("Invalid macOS application identity or OS requirement.")
+    if (common["version"].startswith("0.9.")
+            and info.get("NSAppTransportSecurity", {}).get("NSAllowsLocalNetworking") is not True):
+        raise ValueError("Native GUI local networking permission is missing.")
     executable = app / "Contents/MacOS/NIPAT"
     if not executable.is_file() or not executable.stat().st_mode & 0o111:
         raise ValueError("Native application launcher is missing or not executable.")
@@ -131,6 +134,17 @@ def verify(package: Path, common_manifest: Path, *, build_record: Path | None = 
             str(resources / "app/src"), "--version"], text=True).strip()
         if cli_version != "NIPAT " + common["version"]:
             raise ValueError("Packaged CLI does not report the expected version.")
+        if common["version"].startswith("0.9."):
+            # Run inside the unpacked package with its own Python, Cocoa and
+            # WebKit. No VM or external browser participates in this check.
+            smoke = resources / "app/scripts/verify_gui_app.py"
+            subprocess.run([
+                str(python), "-I", "-B", str(smoke),
+                "--app", str(resources / "app"), "--python", str(python),
+                "--workspace", str(Path(temporary) / "native GUI workspace"),
+                "--report", str(package.parent / "macos-native-smoke.json"),
+                "--screenshot", str(package.parent / "macos-native-smoke.png"),
+            ], check=True, timeout=180)
         validate_template = '''import json, pathlib, subprocess, sys
 sys.path.insert(0, sys.argv.pop(1))
 from nipat.macos_runtime import LimaRuntime

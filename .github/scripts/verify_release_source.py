@@ -19,7 +19,8 @@ PROFILE = {
 def validate_dispatch(event, ref, version, profile):
     if event != "workflow_dispatch":
         raise ValueError("Installer candidates require a deliberate manual dispatch.")
-    if not isinstance(version, str) or not re.fullmatch(r"0\.8\.[0-9]+", version) or int(version.split(".")[2]) < 2:
+    if (not isinstance(version, str) or not re.fullmatch(r"0\.[89]\.[0-9]+", version)
+            or tuple(map(int, version.split("."))) < (0, 8, 2)):
         raise ValueError("Official multi-platform installers require 0.8.2 or later.")
     if ref != "refs/heads/main" and not re.fullmatch(
             r"refs/heads/release/" + re.escape(version) + r"(?:-[a-z0-9-]+)?", ref):

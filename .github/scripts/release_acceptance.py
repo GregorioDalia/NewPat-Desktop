@@ -127,6 +127,18 @@ def require(condition, message):
         raise ValueError(message)
 
 
+def gui_contract(version):
+    """The reviewed 0.9 desktop line retains the complete 0.8.99 release gates."""
+    return bool(isinstance(version, str)
+                and re.fullmatch(r"0\.9\.[0-9]+(?:(?:a|b|rc)[0-9]+)?", version))
+
+
+def gui_prerelease_contract(version):
+    """Only the first GUI release is explicitly restricted to the testing channel."""
+    return bool(isinstance(version, str)
+                and re.fullmatch(r"0\.9\.0(?:(?:a|b|rc)[0-9]+)?", version))
+
+
 def reliability_contract(version):
     match = re.fullmatch(r"0\.7\.([0-9]+)(?:(?:a|b|rc)[0-9]+)?", version or "")
     return bool(match and int(match[1]) >= 2) or multiplatform_contract(version)
@@ -134,12 +146,12 @@ def reliability_contract(version):
 
 def multiplatform_contract(version):
     match = re.fullmatch(r"0\.8\.([0-9]+)(?:(?:a|b|rc)[0-9]+)?", version or "")
-    return bool(match and int(match[1]) >= 2)
+    return bool(match and int(match[1]) >= 2) or gui_contract(version)
 
 
 def revised_r_contract(version):
     match = re.fullmatch(r"0\.8\.([0-9]+)(?:(?:a|b|rc)[0-9]+)?", version or "")
-    return bool(match and int(match[1]) >= 9)
+    return bool(match and int(match[1]) >= 9) or gui_contract(version)
 
 
 def audited_r_contract(version):
@@ -154,12 +166,12 @@ def snp2_contract(version):
 
 def five_module_contract(version):
     match = re.fullmatch(r"0\.8\.([0-9]+)(?:(?:a|b|rc)[0-9]+)?", version or "")
-    return bool(match and int(match[1]) >= 50)
+    return bool(match and int(match[1]) >= 50) or gui_contract(version)
 
 
 def explicit_publication_contract(version):
     match = re.fullmatch(r"0\.8\.([0-9]+)(?:(?:a|b|rc)[0-9]+)?", version or "")
-    return bool(match and int(match[1]) >= 70)
+    return bool(match and int(match[1]) >= 70) or gui_contract(version)
 
 
 def publication_fields(version):
@@ -168,12 +180,16 @@ def publication_fields(version):
 
 def zip_fields(version):
     match = re.fullmatch(r"0\.8\.([0-9]+)(?:(?:a|b|rc)[0-9]+)?", version or "")
-    return {"windows_zip_sha256"} if match and int(match[1]) >= 95 else set()
+    return {"windows_zip_sha256"} if (match and int(match[1]) >= 95) or gui_contract(version) else set()
 
 
 def payload_fields(version):
     match = re.fullmatch(r"0\.8\.([0-9]+)(?:(?:a|b|rc)[0-9]+)?", version or "")
-    return {"windows_payload_sha256"} if match and int(match[1]) >= 99 else set()
+    return {"windows_payload_sha256"} if (match and int(match[1]) >= 99) or gui_contract(version) else set()
+
+
+def testing_entrypoint_fields(version):
+    return {"windows_testing_sha256"} if gui_prerelease_contract(version) else set()
 
 
 def verify_presentation_variants(case):
@@ -272,7 +288,7 @@ def reviewable_path(path, *, reliability=False, multiplatform=False, revised_r=F
 def acceptance_path(version):
     require(isinstance(version, str) and (re.fullmatch(r"0\.[567]\.[0-9]+(?:(?:a|b|rc)[0-9]+)?", version)
                                          or multiplatform_contract(version)),
-            "Joint publication supports the 0.5–0.7 and official 0.8.2+ desktop contracts")
+            "Joint publication supports the 0.5–0.7, 0.8.2+ and 0.9 GUI desktop contracts")
     return f".github/release-acceptance/v{version}.json"
 
 
@@ -297,6 +313,10 @@ def identity(installer_set):
         require(isinstance(installer_set.get("windows_payload"), dict),
                 "Acceptance requires the separate Windows desktop payload")
         result["windows_payload_sha256"] = installer_set["windows_payload"]["sha256"]
+    if testing_entrypoint_fields(installer_set["version"]):
+        require(isinstance(installer_set.get("windows_testing"), dict),
+                "Acceptance requires the release-specific Windows testing entrypoint")
+        result["windows_testing_sha256"] = installer_set["windows_testing"]["sha256"]
     return result
 
 
@@ -306,7 +326,7 @@ def template(installer_set, run_id):
     acceptance_path(fields["version"])
     require(isinstance(fields["source_commit"], str)
             and re.fullmatch(r"[0-9a-f]{40}", fields["source_commit"]), "Invalid source commit")
-    for field in DIGESTS | (MACOS_DIGESTS if multiplatform_contract(fields["version"]) else set()) | zip_fields(fields["version"]) | payload_fields(fields["version"]):
+    for field in DIGESTS | (MACOS_DIGESTS if multiplatform_contract(fields["version"]) else set()) | zip_fields(fields["version"]) | payload_fields(fields["version"]) | testing_entrypoint_fields(fields["version"]):
         require(isinstance(fields[field], str) and re.fullmatch(r"[0-9a-f]{64}", fields[field]),
                 f"Invalid digest: {field}")
     if multiplatform_contract(fields["version"]):
@@ -440,7 +460,7 @@ def validate_research(record, version, commit, run_id, installer_set=None):
                 "Research releases from 0.7.2 require reliability acceptance schema 4")
     expected_fields = (FIVE_MODULE_RESEARCH_FIELDS if five_modules else SCIENTIFIC_RESEARCH_FIELDS if revised_r else MULTIPLATFORM_RESEARCH_FIELDS if multiplatform else RELIABILITY_RESEARCH_FIELDS if reliability else
                        REVIEWED_RESEARCH_FIELDS if reviewed_delta else RESEARCH_FIELDS)
-    require(isinstance(record, dict) and set(record) == expected_fields | publication_fields(version) | zip_fields(version) | payload_fields(version)
+    require(isinstance(record, dict) and set(record) == expected_fields | publication_fields(version) | zip_fields(version) | payload_fields(version) | testing_entrypoint_fields(version)
             and type(record["schema_version"]) is int and record["schema_version"] == schema,
             "Research acceptance record fields are invalid")
     require(record["version"] == version and record["source_commit"] == commit
@@ -448,13 +468,15 @@ def validate_research(record, version, commit, run_id, installer_set=None):
             and type(record["build_run_id"]) is int and type(run_id) is int
             and run_id > 0 and record["build_run_id"] == run_id,
             "Acceptance belongs to a different version, source or build run")
-    for field in DIGESTS | (RELIABILITY_DIGESTS if reliability else set()) | (MACOS_DIGESTS if multiplatform else set()) | zip_fields(version) | payload_fields(version):
+    for field in DIGESTS | (RELIABILITY_DIGESTS if reliability else set()) | (MACOS_DIGESTS if multiplatform else set()) | zip_fields(version) | payload_fields(version) | testing_entrypoint_fields(version):
         require(isinstance(record[field], str) and re.fullmatch(r"[0-9a-f]{64}", record[field]),
                 f"Invalid acceptance digest: {field}")
     require(record["decision"] == "accepted-for-research" and record["scope"] == "pre-1.0-research",
             "Research acceptance is pending, rejected or outside its stated scope")
     if explicit_publication_contract(version):
         channel = record["publication_channel"]
+        require(not gui_prerelease_contract(version) or channel == "testing",
+                "NIPAT 0.9.0 GUI releases must use the testing publication channel")
         require(channel == "testing" or (channel == "stable" and re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version)),
                 "Acceptance must authorize an explicit compatible publication channel")
     review = record["review"]
@@ -1055,7 +1077,7 @@ def verify_baseline(record, read_source):
     reviewed_delta = record["schema_version"] in (3, 4, 5, 6, 7)
     expected_fields = (FIVE_MODULE_RESEARCH_FIELDS if five_modules else SCIENTIFIC_RESEARCH_FIELDS if revised_r else MULTIPLATFORM_RESEARCH_FIELDS if multiplatform else RELIABILITY_RESEARCH_FIELDS if reliability else
                        REVIEWED_RESEARCH_FIELDS if reviewed_delta else RESEARCH_FIELDS)
-    require(set(record) == expected_fields | publication_fields(record["version"]) | zip_fields(record["version"]) | payload_fields(record["version"]),
+    require(set(record) == expected_fields | publication_fields(record["version"]) | zip_fields(record["version"]) | payload_fields(record["version"]) | testing_entrypoint_fields(record["version"]),
             "Research acceptance record fields are invalid")
     validate_research(record, record["version"], record["source_commit"], record["build_run_id"])
     baseline = record["observed_baseline"]["source_commit"]

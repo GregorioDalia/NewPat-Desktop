@@ -203,7 +203,7 @@ try {
         $powershell = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
         $launch = New-Object Diagnostics.ProcessStartInfo
         $launch.FileName = $powershell
-        $launch.Arguments = '-NoLogo -NoProfile -ExecutionPolicy Bypass -File ' + (Quote-HandoffArgument $runner) + ' wizard'
+        $launch.Arguments = '-NoLogo -NoProfile -ExecutionPolicy Bypass -File ' + (Quote-HandoffArgument $runner) + ' gui'
         $launch.WorkingDirectory = $data
         $launch.UseShellExecute = $false
         $launch.EnvironmentVariables.Remove('NIPAT_SETUP_ACTIVITY_TOKEN')

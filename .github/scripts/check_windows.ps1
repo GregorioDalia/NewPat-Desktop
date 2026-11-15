@@ -11,6 +11,10 @@ function Invoke-CheckedProcess {
     }
 }
 
+Write-Host '::group::Official Microsoft GUI dependency signatures'
+Invoke-CheckedProcess 'python' @('scripts/verify_gui_distribution.py', '--signatures', '--report', 'build/gui/windows-native-dependencies.json')
+Write-Host '::endgroup::'
+
 Write-Host '::group::Python unit and CI policy tests'
 Invoke-CheckedProcess 'python' @('-m', 'pip', 'install', '-r', '.github/quality-requirements.txt')
 Invoke-CheckedProcess 'python' @('-m', 'pytest', 'tests')

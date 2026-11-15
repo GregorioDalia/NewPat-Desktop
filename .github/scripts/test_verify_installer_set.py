@@ -49,6 +49,18 @@ class InstallationEvidenceTests(unittest.TestCase):
         updated["checks"]["all_five_workflows"] = True
         self.verify(updated)
 
+    def test_090_retains_five_workflows_and_bootstrap_evidence(self):
+        self.manifest["version"] = "0.9.0"
+        complete = copy.deepcopy(self.evidence)
+        complete["checks"] = dict.fromkeys(VERIFY.installation_checks("0.9.0"), True)
+        self.verify(complete)
+        self.assertIn("all_five_workflows", complete["checks"])
+        self.assertNotIn("all_four_workflows", complete["checks"])
+        self.assertTrue(VERIFY.requires_windows_bootstrap("0.9.0"))
+        self.assertTrue(VERIFY.requires_reliability_evidence("0.9.0"))
+        self.assertTrue(VERIFY.requires_windows_bootstrap("0.8.99"))
+        self.assertFalse(VERIFY.requires_windows_bootstrap("0.8.98"))
+
     def test_07_requires_workflow_and_preference_evidence(self):
         for version in ("0.7.0a1", "0.7.0b1", "0.7.0rc1", "0.7.0", "0.7.5"):
             self.manifest["version"] = version
@@ -134,6 +146,20 @@ class DependencyEvidenceTests(unittest.TestCase):
 
     def test_accepts_bound_clean_container_dependency_check(self):
         self.verify(self.evidence)
+
+    def test_090_requires_installed_gtk_and_webkit_packages(self):
+        self.manifest["version"] = "0.9.0"
+        with self.assertRaises(ValueError):
+            self.verify(self.evidence)
+        complete = copy.deepcopy(self.evidence)
+        gui_packages = ("python3-gi", "gir1.2-gtk-3.0", "gir1.2-webkit2-4.1")
+        complete["dependency_packages"].update(dict.fromkeys(gui_packages, "1.2.3"))
+        self.verify(complete)
+        for package in gui_packages:
+            missing = copy.deepcopy(complete)
+            del missing["dependency_packages"][package]
+            with self.subTest(package=package), self.assertRaises(ValueError):
+                self.verify(missing)
 
     def test_rejects_unbound_or_misrepresented_scenarios(self):
         for key, value in (

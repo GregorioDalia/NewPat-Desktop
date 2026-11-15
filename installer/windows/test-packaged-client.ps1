@@ -79,6 +79,16 @@ if ($LASTEXITCODE -ne 0) {
 if (-not (Test-Path -LiteralPath $output -PathType Leaf)) {
     throw 'La verifica non ha prodotto il resoconto atteso.'
 }
+# Exercise the actual packaged Python, official DLL and native WebView2 window.
+# This is a real embedded-control check on CI, not a Smart App Control claim.
+$guiReport = Join-Path (Split-Path -Parent $output) 'windows-native-smoke.json'
+$dependencyReport = Join-Path (Split-Path -Parent $output) 'windows-native-dependencies.json'
+& $python -B -X utf8 (Join-Path $app 'scripts\verify_gui_distribution.py') --project $app --signatures --report $dependencyReport
+if ($LASTEXITCODE -ne 0) { throw 'Packaged official GUI dependency verification failed.' }
+& $python -B -X utf8 (Join-Path $app 'scripts\verify_gui_app.py') --app $app --python $python `
+    --workspace (Join-Path $work 'native GUI workspace') --report $guiReport `
+    --screenshot (Join-Path (Split-Path -Parent $output) 'windows-native-smoke.png')
+if ($LASTEXITCODE -ne 0) { throw 'Packaged native WebView2 desktop window failed.' }
 $payloadCheck = [ordered]@{
     schema_version = 1; version = $manifest.version; source_commit = $manifest.source_commit
     package_sha256 = $payloadHash; scope = 'staged-bootstrap-payload'

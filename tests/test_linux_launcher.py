@@ -247,7 +247,7 @@ class LinuxLauncherTests(unittest.TestCase):
 
     def test_manifest_rejects_other_release_families(self):
         for version in ("0.4.1", "0.5.0a1", "0.8.0a1", "0.8.0", "0.8.1", "0.8.2rc1",
-                        "0.9.0", "1.0.0", "0.7.0dev1", "0.7.0a"):
+                        "0.10.0", "1.0.0", "0.7.0dev1", "0.7.0a"):
             self.manifest.update(version=version, release_tag="v" + version)
             self.write_manifest()
             with self.subTest(version=version), self.assertRaises(launcher.SetupError):
@@ -255,7 +255,7 @@ class LinuxLauncherTests(unittest.TestCase):
 
     def test_manifest_accepts_supported_desktop_series_with_exact_tag(self):
         for version in ("0.6.0", "0.6.1rc2", "0.7.0a1", "0.7.0b2", "0.7.0rc1", "0.7.0",
-                        "0.8.2", "0.8.3", "0.8.10"):
+                        "0.8.2", "0.8.3", "0.8.10", "0.8.99", "0.9.0"):
             self.manifest.update(version=version, release_tag="v" + version)
             self.write_manifest()
             with self.subTest(version=version):
@@ -497,6 +497,10 @@ class LinuxLauncherSignalTests(unittest.TestCase):
                 until(b"Menu principale. Per uscire scegliere 0.")
                 os.write(descriptor, b"1\n1\n")
                 until(b"Percorso del primo BAM:")
+                # input() flushes its prompt before entering the terminal read.
+                # Let the child reach that read before the second synthetic
+                # keystroke, as a person interacting with the CLI would.
+                time.sleep(.05)
                 os.write(descriptor, b"\x03")
                 until(b"Operazione annullata. Ritorno al menu principale.")
                 os.write(descriptor, b"0\n")
