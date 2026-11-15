@@ -42,6 +42,12 @@ elif stage == 'mpileup':
     contig = args[args.index('-r') + 1] if '-r' in args else None
     if contig == os.environ.get('MPILEUP_FAIL_CONTIG', ''):
         raise SystemExit(19)
+    if contig == 'chr2' and os.environ.get('MPILEUP_RELEASE_FILE'):
+        deadline = time.monotonic() + 10
+        while not pathlib.Path(os.environ['MPILEUP_RELEASE_FILE']).exists():
+            if time.monotonic() >= deadline:
+                raise SystemExit('Timed out waiting for the test to observe chr1 completion')
+            time.sleep(0.01)
     if contig:
         time.sleep(json.loads(os.environ.get('MPILEUP_DELAYS', '{}')).get(contig, 0.1))
     names = pathlib.Path(args[args.index('-b')+1]).read_text().splitlines() if '-b' in args else ['-']
@@ -80,7 +86,7 @@ class DnpPileupTests(unittest.TestCase):
         self.enterContext(patch.dict(os.environ, {'FAKE_LOG': str(self.log),
                            'PATH': str(self.bin) + os.pathsep + os.environ.get('PATH', '')}, clear=False))
         for key in ('VIEW_FAIL', 'VIEW_CONTINUOUS', 'MPILEUP_FAIL', 'MPILEUP_SLEEP',
-                    'MPILEUP_FAIL_CONTIG', 'MPILEUP_DELAYS'):
+                    'MPILEUP_FAIL_CONTIG', 'MPILEUP_DELAYS', 'MPILEUP_RELEASE_FILE'):
             os.environ.pop(key, None)
 
     def samples(self, indexed):
@@ -224,8 +230,19 @@ class DnpPileupTests(unittest.TestCase):
     def test_budgeted_chromosomes_preserve_order_and_bound_actual_processes(self):
         self.samples([True, True])
         self.bed.write_text('chr3\t0\t10\nchr10\t0\t10\nchr1\t0\t10\nchr2\t0\t10\n')
-        os.environ['MPILEUP_DELAYS'] = json.dumps({'chr2': 0.3, 'chr1': 0.05})
-        result = self.generate({'mode': 'auto', 'workers': 8, 'max_workers': 2})
+        release = self.root / 'release-chr2'
+        os.environ['MPILEUP_RELEASE_FILE'] = str(release)
+        finish_record = dnp_pileup._finish_record
+
+        def observe_completion(record, process, started, cancellation):
+            finish_record(record, process, started, cancellation)
+            if record.get('contig') == 'chr1' and record['returncode'] == 0:
+                release.touch()
+
+        # Completion timestamps record when the parent polls a child. Hold chr2
+        # until chr1 has been observed; sleeps cannot guarantee this under load.
+        with patch.object(dnp_pileup, '_finish_record', side_effect=observe_completion):
+            result = self.generate({'mode': 'auto', 'workers': 8, 'max_workers': 2})
         self.assertEqual(result['strategy'], 'indexed-chromosomes')
         self.assertEqual(result['parallel']['workers'], 2)
         self.assertEqual(result['parallel']['observed_max_processes'], 2)

@@ -5,7 +5,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$ExpectedManifestSha256 = 'd6c40349c21bd8218ed348fd286ad2279ac9c5088389d661ce24c0e683a07dc2'
+$ExpectedManifestSha256 = 'f12afbef98d2a3117c1bf2bd6ac52c6e6e4945af015ec03e759dabe0ec59581a'
 $installationCommit = ''; $SourceCommit = ''; $installationVersion = ''
 $filenames = @('installed_suite.py', 'installed_models.py', 'installed_workflows.py', 'fixtures.json')
 $utf8 = New-Object Text.UTF8Encoding($false)

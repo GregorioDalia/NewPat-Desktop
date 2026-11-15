@@ -469,5 +469,5 @@ def build_cases(fixtures: Path, generated: Path, metadata):
     add("reject-duplicate-sample", ["workflow", "analyze", "--caller", "dnp", "--sample", "same", bams[0], "--sample", "same", bams[1],
         "--reference", c / "reference.fa", "--dnp-panel", c / "dnp-panel.tsv"], expect_failure=r"(?i)(duplicat|ripetut|univoc)")
     add("reject-corrupt-bam", ["workflow", "dnp-contamination", "--bam", c / "corrupt.bam", *dna],
-        expect_failure=r"(?i)fail to read the header of")
+        expect_failure=r"(?i)fail to read the header (?:of|from)\s")
     return cases

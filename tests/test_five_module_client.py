@@ -63,6 +63,23 @@ class FiveModuleClientTests(unittest.TestCase):
         path.write_text(text, encoding="utf-8")
         return path
 
+    def test_direct_cpi_rejects_cross_pair_role_conflicts_before_creating_a_run(self):
+        for marker, tables, popfreq in (("SNP", self.snp_tables, self.snp_freq),
+                                        ("DNP", self.dnp_tables, self.dnp_freq)):
+            with self.subTest(marker=marker):
+                inputs = self.root / f"conflicting-{marker}"
+                inputs.mkdir()
+                for name, (_, source) in zip(("A", "B", "C"), tables):
+                    shutil.copyfile(source, inputs / f"{name}.txt")
+                before = {path: path.read_bytes() for path in inputs.iterdir()}
+                with self.assertRaisesRegex(ValidationError, "ruoli madre/padre incompatibili"):
+                    self.workflows.cpi(input_dir=inputs, pairs="A:B,B:C",
+                                       mother_prefix="", father_prefix="", popfreq=popfreq)
+                self.assertFalse(self.layout.runs_dir.exists())
+                self.assertEqual(self.runner.calls, [])
+                self.assertEqual(self.runner.records, [])
+                self.assertEqual({path: path.read_bytes() for path in inputs.iterdir()}, before)
+
     def arguments(self, caller="both", analyses=None):
         analyses = analyses if analyses is not None else ["contamination", "cpi", "cpin"]
         return dict(caller=caller, analyses=analyses,

@@ -3,7 +3,7 @@
   "files": {
     "installed_suite.py": "e78178b70af9fe17efb12c3e7a21b2e21515aabd1ab94ef5ea4c1227dbd7631a",
     "installed_models.py": "7d5f1aae8faf76b7b7093874d2d644e9ca4f05b91d55cb25a9964bd53acb5b8b",
-    "installed_workflows.py": "985b26f66f9f3ede061485ca4c6c4b677add70ae2f34f0be1dd44963e13d8189",
+    "installed_workflows.py": "febddafdb4f30b47db998cd0ae8e55130396d6b76652a5d8d78dd246fd4d9079",
     "fixtures.json": "a820357e9de658e466bb136ecfbed02bb20d5a5b1deb3806c130839b8df86554"
   }
 }

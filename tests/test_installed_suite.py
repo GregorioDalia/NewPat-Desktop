@@ -236,8 +236,20 @@ class InstalledSuiteTests(unittest.TestCase):
         self.record(run, status="failed", commands=[{"status": "failed"}])
         log = run / "output/workflow/steps/dnp/command.log"
         log.parent.mkdir(parents=True)
-        log.write_text("samtools mpileup: fail to read the header of /inputs/corrupt.bam", encoding="utf-8")
-        suite.verify_expected_failure(result, r"fail to read the header of", run, IMAGE)
+        pattern = r"(?i)fail to read the header (?:of|from)\s"
+        for diagnostic in (
+            "[mpileup] fail to read the header of /inputs/corrupt.bam",
+            '[main_samview] fail to read the header from "/inputs/corrupt.bam".',
+        ):
+            with self.subTest(diagnostic=diagnostic):
+                log.write_text(diagnostic, encoding="utf-8")
+                suite.verify_expected_failure(result, pattern, run, IMAGE)
+                for changes in ({"returncode": 0}, {"timed_out": True}):
+                    with self.assertRaises(ValueError):
+                        suite.verify_expected_failure({**result, **changes}, pattern, run, IMAGE)
+                log.write_text(diagnostic + "\nTraceback: runtime failure", encoding="utf-8")
+                with self.assertRaises(ValueError):
+                    suite.verify_expected_failure(result, pattern, run, IMAGE)
 
     def test_input_change_or_new_file_fails_integrity(self):
         original = self.driver.inputs / "input.txt"

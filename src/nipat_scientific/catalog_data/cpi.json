@@ -812,10 +812,10 @@
       },
       "evidence": {
         "path": "src/nipat_scientific/cpi.py",
-        "sha256": "e15ea2eeaa02f184e03512875c74c5d92052f4e25821b36b4a43facfa038b4e7",
+        "sha256": "cf21054d212f2d2b578ad2cec9404ab05ddbb79485767dab361170434dee9b15",
         "source_lines": [
           1,
-          205
+          209
         ],
         "dependencies": [
           {

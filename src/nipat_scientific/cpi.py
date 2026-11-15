@@ -56,6 +56,7 @@ def normalize_pairs(pairs: object, mother_prefix: object, father_prefix: object)
     selected: list[str] = []
     output_names: set[str] = set()
     sample_names: dict[str, str] = {}
+    sample_roles: dict[str, str] = {}
     for pair in pairs.split(","):
         identifiers = [part.strip() for part in pair.split(":")]
         if len(identifiers) != 2 or not all(identifiers):
@@ -72,6 +73,9 @@ def normalize_pairs(pairs: object, mother_prefix: object, father_prefix: object)
             folded = name.casefold()
             if folded in sample_names and sample_names[folded] != name:
                 raise ValidationError(f"Nomi campione CPI ambigui: {sample_names[folded]} e {name}.")
+            if folded in sample_roles and sample_roles[folded] != label:
+                raise ValidationError(f"Campione CPI {name}: ruoli madre/padre incompatibili tra coppie.")
+            sample_roles[folded] = label
             if folded not in sample_names:
                 sample_names[folded] = name
                 selected.append(name)
