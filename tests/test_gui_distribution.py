@@ -1,6 +1,7 @@
 """Native GUI distribution provenance and launcher preparation behavior."""
 from contextlib import contextmanager
 import importlib.util
+import json
 from pathlib import Path
 import shutil
 import tempfile
@@ -24,6 +25,34 @@ LINUX = module("gui_linux_launch", "installer/linux/launch.py")
 
 
 class GuiDistributionTests(unittest.TestCase):
+    def observations(self):
+        return [{"name": name, "status": "Valid", "subject": "CN=Microsoft, O=Microsoft Corporation, C=US",
+                 "thumbprint": "A" * 40} for name in sorted(VERIFY.EXPECTED_BINARY_NAMES)]
+
+    def test_signature_json_preserves_two_individual_binary_observations(self):
+        observations = self.observations()
+        self.assertEqual(VERIFY.signature_observations("\ufeff" + json.dumps(observations)), observations)
+
+    def test_signature_json_rejects_collapsed_missing_duplicate_or_foreign_binaries(self):
+        observations = self.observations()
+        invalid = [observations[0], [], observations[:1], [observations],
+                   [observations[0], observations[0]], [observations[0], None],
+                   [observations[0], dict(observations[1], name="foreign.dll")],
+                   [observations[0], dict(observations[1], name=["WebView2Loader.dll"])]]
+        for value in invalid:
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "Incomplete"):
+                VERIFY.signature_observations(json.dumps(value))
+
+    def test_signature_json_rejects_invalid_signature_or_non_microsoft_signer(self):
+        for changes in ({"status": "NotSigned"}, {"status": ["Valid", "Valid"]},
+                        {"subject": "O=Another Corporation, C=US"}, {"subject": None},
+                        {"subject": "CN=O=Microsoft Corporation, C=US"},
+                        {"subject": ["O=Microsoft Corporation", "O=Microsoft Corporation"]}):
+            observations = self.observations()
+            observations[1].update(changes)
+            with self.subTest(changes=changes), self.assertRaisesRegex(ValueError, "Authenticode"):
+                VERIFY.signature_observations(json.dumps(observations))
+
     def test_pinned_dependencies_have_complete_verified_inventory(self):
         report = VERIFY.verify(PROJECT)
         self.assertEqual(report["status"], "passed")
