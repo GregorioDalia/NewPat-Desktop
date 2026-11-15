@@ -253,7 +253,7 @@ def test_export_roundtrip_preserves_scientific_identity_details_and_warnings(arc
         plan = validate_plan(plan_for("SNP", called=False))["plan"]
         steps = [{"id": step["id"], "workflow": step["workflow"], "status": "succeeded", "artifacts": {}}
                  for step in plan["steps"]]
-        metadata = json.loads((run / "run.json").read_text())
+        metadata = json.loads((run / "run.json").read_text(encoding="utf-8"))
         metadata["parameters"] = {"plan": plan,
             "expected_steps": [{"id": step["id"], "workflow": step["workflow"]} for step in steps],
             "sample_mapping": [{"sample_id": s["id"], "original_path": s["id"] + ".tsv", "container_path": s["path"]}
@@ -313,7 +313,7 @@ def test_gui_snapshot_is_readonly_name_and_query_use_human_labels(archive):
 
 def test_failed_runs_remain_failed_and_quality_warnings_are_visible(archive):
     run = make_run(archive)
-    metadata = json.loads((run / "run.json").read_text()); metadata["status"] = "failed"
+    metadata = json.loads((run / "run.json").read_text(encoding="utf-8")); metadata["status"] = "failed"
     write_json(run / "run.json", metadata)
     table(run / "output/contamination_summary.txt", ["individuo", "informative_sites", "mean_contamination", "sd_contamination"], [["A", "0", "NA", "NA"]])
     validation(run, "contamination", {}, [{"code": "output.no_sites", "message": "Nessun sito informativo."}])
@@ -343,7 +343,7 @@ def test_bilingual_field_labels_do_not_change_cell_values(archive):
 
 def test_legacy_execution_snapshot_and_upset_meaning(archive):
     run = make_run(archive, "dnp-call")
-    metadata = json.loads((run / "run.json").read_text())
+    metadata = json.loads((run / "run.json").read_text(encoding="utf-8"))
     metadata["execution_options"] = {"cpus": 2, "memory_mb": 4096, "max_workers": 3}
     write_json(run / "run.json", metadata)
     (run / "output/DNPs_covered_UpSet_plot.pdf").write_bytes(b"%PDF-1.4\n")
@@ -374,7 +374,7 @@ def test_validated_workflow_preserves_snp_branch_without_callers(archive):
     run = make_run(archive, "analysis")
     plan = validate_plan(plan_for("SNP", called=False))["plan"]
     steps = [{"id": step["id"], "workflow": step["workflow"]} for step in plan["steps"]]
-    metadata = json.loads((run / "run.json").read_text())
+    metadata = json.loads((run / "run.json").read_text(encoding="utf-8"))
     metadata["parameters"] = {"plan": plan, "expected_steps": steps,
         "sample_mapping": [{"sample_id": s["id"], "original_path": s["id"] + ".tsv", "container_path": s["path"]}
                            for s in plan["samples"]]}

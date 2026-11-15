@@ -302,9 +302,9 @@ class GuiJobTests(GuiRuntimeFixture):
         result = manager.wait(job["id"], 10)
         self.assertEqual(result["status"], "planned", result)
         directory = self.layout.runs_dir / result["run_id"]
-        metadata = json.loads((directory / "run.json").read_text())
-        gui = json.loads((directory / "gui.json").read_text())
-        plan = json.loads((directory / "work/engine-plan.json").read_text())
+        metadata = json.loads((directory / "run.json").read_text(encoding="utf-8"))
+        gui = json.loads((directory / "gui.json").read_text(encoding="utf-8"))
+        plan = json.loads((directory / "work/engine-plan.json").read_text(encoding="utf-8"))
         self.assertEqual(metadata["parameters"]["analyses_by_marker"], {"DNP": [], "SNP": ["contamination"]})
         self.assertEqual(gui["name"], draft["name"])
         self.assertEqual(gui["draft"]["scientific_settings"]["snp-call"]["max_depth"], 1500)
@@ -324,7 +324,7 @@ class GuiJobTests(GuiRuntimeFixture):
         manager.cancel(job["id"])
         result = manager.wait(job["id"], 5)
         self.assertEqual(result["status"], "interrupted", result)
-        metadata = json.loads((self.layout.runs_dir / result["run_id"] / "run.json").read_text())
+        metadata = json.loads((self.layout.runs_dir / result["run_id"] / "run.json").read_text(encoding="utf-8"))
         self.assertEqual(metadata["status"], "interrupted")
 
     def test_cancel_only_stops_a_positively_owned_container(self):
@@ -353,7 +353,7 @@ class GuiJobTests(GuiRuntimeFixture):
             result = manager.wait(job["id"], 8)
         self.assertEqual(result["status"], "interrupted", result)
         self.assertEqual(calls, [False, True])
-        metadata = json.loads((self.layout.runs_dir / result["run_id"] / "run.json").read_text())
+        metadata = json.loads((self.layout.runs_dir / result["run_id"] / "run.json").read_text(encoding="utf-8"))
         self.assertEqual(metadata["status"], "interrupted")
 
     def test_cancel_retries_when_runtime_has_not_confirmed_stop(self):
@@ -395,7 +395,7 @@ class GuiJobTests(GuiRuntimeFixture):
         result = manager.wait(job["id"], 5)
         self.assertEqual(result["status"], "failed")
         self.assertIn("runtime unavailable", result["error"])
-        metadata = json.loads((self.layout.runs_dir / result["run_id"] / "run.json").read_text())
+        metadata = json.loads((self.layout.runs_dir / result["run_id"] / "run.json").read_text(encoding="utf-8"))
         self.assertEqual(metadata["status"], "failed")
 
 
@@ -463,7 +463,7 @@ class GuiPrepareTests(GuiRuntimeFixture):
         directory = self.completed_caller(status="failed")
         with self.assertRaisesRegex(ValidationError, "conteggi completi"):
             self.service().run_prepare("previous", "cpi")
-        data = json.loads((directory / "run.json").read_text())
+        data = json.loads((directory / "run.json").read_text(encoding="utf-8"))
         data["status"] = "succeeded"
         (directory / "run.json").write_text(json.dumps(data))
         (directory / "work/scientific-validation.json").unlink()

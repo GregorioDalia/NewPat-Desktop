@@ -42,7 +42,7 @@ def test_ci_failure_is_noninteractive_and_records_reason(tmp_path, monkeypatch):
     monkeypatch.setattr(app, "native_host", lambda: (_ for _ in ()).throw(AssertionError("Modal must not open in CI")))
     report = tmp_path / "native.json"
     assert app.main(smoke_test=True, smoke_report=report) == 1
-    data = json.loads(report.read_text())
+    data = json.loads(report.read_text(encoding="utf-8"))
     assert data["status"] == "failed" and data["appReady"] is False
     assert data["error"] == "Native runtime unavailable"
 

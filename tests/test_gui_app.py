@@ -113,4 +113,4 @@ def test_sessions_export_durable_paths_not_capabilities(app, tmp_path):
         app.save_igv_session({"session": {"url": app.server.url}})
     session = {"reference": {"fasta": str(tmp_path / "reference.fa")}, "tracks": [], "locus": "chr1"}
     app.save_igv_session({"session": session})
-    assert json.loads(Path(app.host.destination).read_text()) == session
+    assert json.loads(Path(app.host.destination).read_text(encoding="utf-8")) == session
