@@ -21,6 +21,27 @@ from .distribution import CHANNEL, UNIX_DIRECTORY
 HANDOFF_EXIT_CODE = 85
 
 
+def windows_installation_platform(project_dir: Path) -> str:
+    """A marked managed ZIP installation must never fall back to the EXE feed."""
+    marker = Path(project_dir) / ".runtime/zip-install.json"
+    _safe_parent(marker)
+    if not marker.exists():
+        return "windows-x86_64"
+    try:
+        value = json.loads(marker.read_text(encoding="utf-8-sig"))
+        root = Path(os.environ["LOCALAPPDATA"]) / "NIPAT-Desktop-Zip"
+        _safe_parent(root)
+        project = Path(project_dir).resolve()
+        if (value != {"schema_version": 1, "installation_method": "zip", "root": str(root)}
+                or type(value["schema_version"]) is not int
+                or project.parent != root.resolve() / "versions"
+                or not re.fullmatch(r"0\.8\.(?:0|[1-9][0-9]*)-[a-f0-9]{40}", project.name)):
+            raise ValueError("identita ZIP non valida")
+        return "windows-zip-x86_64"
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise NipatError("Configurazione del canale ZIP non valida: riprendere la preparazione ZIP.") from exc
+
+
 def _windows_layout(project_dir: Path) -> dict:
     project = project_dir.resolve()
     try:
@@ -116,12 +137,15 @@ def _start_windows_update(offer, package: Path, project_dir: Path) -> bool:
     copied_worker = directory / "update-handoff.ps1"
     shutil.copyfile(worker, copied_worker)
     descriptor = directory / "handoff.json"
-    descriptor.write_text(json.dumps({
+    record = {
         "schema_version": 1, "installation_channel": CHANNEL, "parent_pid": os.getpid(),
         "project_dir": str(layout["app_dir"]), "package": str(package),
         "sha256": offer.asset.sha256, "size": offer.asset.size,
         "version": offer.version, "source_commit": offer.source_commit, "data_dir": str(layout["data_dir"]),
-    }, indent=2) + "\n", encoding="utf-8")
+    }
+    if offer.asset.platform == "windows-zip-x86_64":
+        record["installation_method"] = "zip"
+    descriptor.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
     powershell = Path(os.environ.get("WINDIR", r"C:\Windows")) / "System32/WindowsPowerShell/v1.0/powershell.exe"
     acknowledged = False
     try:
@@ -160,7 +184,7 @@ def begin_update(offer, downloaded: Path, project_dir: Path) -> bool:
     package = _canonical_package(downloaded)
     project_dir = Path(project_dir).resolve()
     if sys.platform == "win32":
-        if offer.asset.platform != "windows-x86_64":
+        if offer.asset.platform != windows_installation_platform(project_dir):
             raise NipatError("Il pacchetto selezionato non e destinato a Windows x64.")
         _verify_package(package, offer.asset.sha256, offer.asset.size)
         return _start_windows_update(offer, package, project_dir)

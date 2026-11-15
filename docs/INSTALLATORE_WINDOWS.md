@@ -95,6 +95,66 @@ l'ambiente precedente. I file scientifici selezionati possono risiedere su
 qualsiasi disco locale fisso accessibile all'account; il trasporto WSL non
 supporta condivisioni UNC, unità di rete o dischi rimovibili.
 
+## ZIP completo aggiuntivo
+
+Dalla 0.8.95 è disponibile anche `NIPAT-<versione>-Windows-completo.zip`,
+con Python, filesystem WSL e motore scientifico inclusi. È un secondo metodo
+di installazione Windows; `NIPAT-Setup.exe` resta disponibile e completo.
+
+1. Scaricare lo ZIP completo dagli asset della release ufficiale e confrontare
+   il suo SHA-256 con `SHA256SUMS`.
+2. Estrarlo completamente su un disco locale fisso, anche in una cartella
+   con spazi o caratteri accentati. Non eseguire i file dentro la visualizzazione
+   dell'archivio compresso.
+3. Fare doppio clic su `1_INSTALLA.cmd`, senza avviarlo come amministratore.
+4. Attendere la verifica dei file e la preparazione. Se Windows richiede un
+   riavvio, aprire poi **NIPAT Desktop ZIP - completa preparazione** dal menu Start.
+5. Dopo il messaggio di completamento, aprire **NIPAT Desktop ZIP** dal menu Start.
+   La cartella estratta può essere eliminata: gli archivi necessari alla ripresa
+   sono conservati nella cache dell'installazione.
+
+Non serve installare prima Python, R o Docker Desktop. Anche con lo ZIP,
+l'abilitazione o l'aggiornamento dei componenti WSL di Microsoft può richiedere
+Internet. Il pacchetto non è un ambiente WSL trasportabile su una chiavetta.
+
+| Contenuto | Percorso sotto `%LOCALAPPDATA%\NIPAT-Desktop-Zip` |
+| --- | --- |
+| Versioni applicative | `versions\<versione>-<commit>` |
+| Versione attiva / preparazione in attesa | `current.json` / `pending.json` |
+| Ambiente WSL e cache | `wsl` / `cache` |
+| Dati e risultati predefiniti | `data` / `runs` |
+| Preferenze del canale ZIP | `preferences.json` |
+
+L'installazione EXE conserva i suoi percorsi, dati e collegamenti. I dati non
+vengono trasferiti automaticamente; si possono selezionare gli stessi input
+esterni dalle due applicazioni. Entrambe rispettano il coordinamento delle
+sessioni: chiudere NIPAT prima di installare o aggiornare, senza interrompere
+analisi in corso.
+
+**Aggiornamenti:** scegliere **Verifica aggiornamenti** nel menu. Il canale ZIP
+scarica e verifica lo ZIP della nuova release, attende la chiusura del client
+e prepara una nuova cartella applicativa. Dati, risultati e preferenze restano
+nelle cartelle stabili. Il cambio di versione avviene dopo gli autotest; se
+la nuova preparazione fallisce, il puntatore alla precedente non viene cambiato.
+Il feed EXE rimane separato e compatibile con i client precedenti.
+
+**Ripresa:** il collegamento **completa preparazione** riprende la versione
+in attesa. Il log è in `versions\<versione>-<commit>\.runtime\installer\setup.log`.
+Conservare anche il messaggio iniziale se il problema precede la creazione del log.
+Non rimuovere manualmente le cartelle delle versioni: i collegamenti e le
+operazioni di ripresa possono ancora riferirsi a esse.
+
+Lo ZIP non registra un disinstallatore Inno. Per rimuoverlo completamente,
+conservare prima dati e risultati e identificare la distribuzione WSL propria
+tramite `.runtime\backend.json` della versione attiva. La rimozione del runtime
+WSL è distinta dalla cancellazione delle cartelle; non usare comandi generici
+di reset WSL né cancellare ambienti appartenenti ad altre installazioni.
+
+Il metodo non garantisce di superare Smart App Control: evita il contenitore
+EXE ma conserva componenti nativi, compresa la DLL di coordinamento. La firma
+di Python o PowerShell non firma questi componenti. La prova sul dispositivo
+con SAC attivo resta distinta dai test CI.
+
 ## Identità e percorsi
 
 Il file [`install-profile.json`](../installer/windows/install-profile.json)

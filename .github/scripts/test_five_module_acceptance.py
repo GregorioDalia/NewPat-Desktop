@@ -144,6 +144,17 @@ class FiveModuleAcceptanceTests(unittest.TestCase):
     def verify(self):
         return self.legacy.verify()
 
+    def test_0895_requires_explicit_complete_zip_digest(self):
+        record = copy.deepcopy(self.record)
+        record.update(version="0.8.95", publication_channel="stable")
+        with self.assertRaisesRegex(ValueError, "fields"):
+            acceptance.validate(record, record["version"], COMMIT, record["build_run_id"])
+        record["windows_zip_sha256"] = "f" * 64
+        acceptance.validate(record, record["version"], COMMIT, record["build_run_id"])
+        record["windows_zip_sha256"] = "invalid"
+        with self.assertRaisesRegex(ValueError, "digest"):
+            acceptance.validate(record, record["version"], COMMIT, record["build_run_id"])
+
     def test_five_modules_require_separate_model_evidence_and_preserve_domain_limits(self):
         checked = self.verify()
         self.assertEqual(checked["cases_verified"], 17)

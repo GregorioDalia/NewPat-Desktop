@@ -423,6 +423,16 @@ jobs:
           }
           [IO.File]::WriteAllText((Join-Path $output 'installer-build.json'), ($record | ConvertTo-Json -Depth 6), (New-Object Text.UTF8Encoding($false)))
           "$hash  NIPAT-Setup.exe" | Set-Content -LiteralPath "$output/SHA256SUMS" -Encoding ascii
+      - name: Build the additional complete Windows ZIP
+        shell: powershell
+        run: |
+          Copy-Item 'build/windows-installer/app/.distribution/application-files.json' 'build/output/application-files.json'
+          python installer/windows/zip_package.py build --stage build/windows-installer --assets build/assets --output build/output
+          if ($LASTEXITCODE -ne 0) { throw 'Complete Windows ZIP build failed.' }
+          $manifest = Get-Content -LiteralPath 'build/assets/installer-manifest.json' -Raw -Encoding UTF8 | ConvertFrom-Json
+          & installer/windows/test-zip-package.ps1 -Package (Join-Path 'build/output' ('NIPAT-' + $manifest.version + '-Windows-completo.zip')) `
+            -ManifestPath 'build/assets/installer-manifest.json' -OutputPath 'build/output/windows-zip-check.json'
+          if ($LASTEXITCODE -ne 0) { throw 'Complete Windows ZIP packaged checks failed.' }
       - name: Verify the final WSL package without publishing
         shell: powershell
         run: |

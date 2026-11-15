@@ -63,7 +63,10 @@ try {
     Assert-NotCanceled
     Assert-LocalPath $Descriptor | Out-Null
     $record = Get-Content -LiteralPath $Descriptor -Raw -Encoding UTF8 | ConvertFrom-Json
-    if (@($record.PSObject.Properties).Count -ne 10 -or $record.schema_version -ne 1 -or
+    $zipInstall = $null -ne $record.PSObject.Properties['installation_method']
+    $fieldCount = if ($zipInstall) { 11 } else { 10 }
+    if (($zipInstall -and $record.installation_method -cne 'zip') -or
+        @($record.PSObject.Properties).Count -ne $fieldCount -or $record.schema_version -ne 1 -or
         $record.installation_channel -cne 'desktop' -or $record.parent_pid -le 0 -or
         $record.sha256 -cnotmatch '^[a-f0-9]{64}$' -or $record.size -le 0 -or
         $record.source_commit -cnotmatch '^[a-f0-9]{40}$' -or
@@ -73,9 +76,18 @@ try {
     $project = Assert-LocalPath $record.project_dir
     $package = Assert-LocalPath $record.package
     $data = Assert-LocalPath $record.data_dir
+    $extension = if ($zipInstall) { '.zip' } else { '.exe' }
     if (-not (Test-Path -LiteralPath $project -PathType Container) -or
-        -not (Test-Path -LiteralPath $package -PathType Leaf) -or [IO.Path]::GetExtension($package) -ine '.exe') {
+        -not (Test-Path -LiteralPath $package -PathType Leaf) -or [IO.Path]::GetExtension($package) -ine $extension) {
         throw 'Installer o applicazione non disponibili.'
+    }
+    if ($zipInstall) {
+        . (Join-Path $project 'installer\windows\zip-common.ps1')
+        $zipRoot = Get-NipatZipRoot
+        $zipMarker = Get-Content -LiteralPath (Join-Path $project '.runtime\zip-install.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+        if (@($zipMarker.PSObject.Properties).Count -ne 3 -or $zipMarker.schema_version -ne 1 -or
+            $zipMarker.installation_method -cne 'zip' -or $zipMarker.root -ine $zipRoot -or
+            (Read-NipatZipPointer $zipRoot).app_dir -ine $project) { throw 'Installazione ZIP attiva non valida.' }
     }
     $parent = [Diagnostics.Process]::GetProcessById([int] $record.parent_pid)
     # Opening the process handle before acknowledgement avoids a reused PID.
@@ -103,11 +115,24 @@ try {
     finally { $sha.Dispose() }
     if ($digest -cne $record.sha256) { throw 'SHA-256 dell installer modificato. Nessun file viene eseguito.' }
     Assert-NotCanceled
+    $zipDirectory = Join-Path $directory 'verified-zip'
+    if ($zipInstall) {
+        $python = Join-Path $project '.runtime\python\python.exe'
+        $extractor = Join-Path $project 'installer\windows\zip_package.py'
+        Write-HandoffLog 'Verifica ed estrazione dello ZIP completo...'
+        & $python $extractor extract-update --package $package --destination $zipDirectory --version $record.version --source $record.source_commit --sha256 $record.sha256
+        if ($LASTEXITCODE -ne 0) { throw 'Verifica dello ZIP non riuscita. Nessun aggiornamento avviato.' }
+    }
     # Inno repeats this exclusive acquisition before modifying any application file.
     $activity.Dispose(); $activity = $null
     $start = New-Object Diagnostics.ProcessStartInfo
     $start.FileName = $package
     $start.Arguments = '/NIPATUPDATE=1 /NORESTART /RESTARTEXITCODE=3010 /DIR=' + (Quote-HandoffArgument $project)
+    if ($zipInstall) {
+        $start.FileName = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
+        $zipWorker = Join-Path $zipDirectory 'app\installer\windows\install-zip.ps1'
+        $start.Arguments = '-NoLogo -NoProfile -ExecutionPolicy Bypass -File ' + (Quote-HandoffArgument $zipWorker) + ' -BundleDirectory ' + (Quote-HandoffArgument $zipDirectory)
+    }
     $start.WorkingDirectory = $directory
     $start.UseShellExecute = $false
     Assert-NotCanceled
@@ -121,6 +146,7 @@ try {
     } elseif ($code -ne 0) {
         throw "Installazione non completata (codice $code). Consultare il setup e riprendere la preparazione dal menu Start."
     } else {
+        if ($zipInstall) { $project = (Read-NipatZipPointer $zipRoot).app_dir }
         # The existing entry point performs the full ready/manifest/runtime binding check.
         $runner = Join-Path $project 'scripts\windows\run.ps1'
         $stateFile = Join-Path $project '.runtime\installer\state.json'

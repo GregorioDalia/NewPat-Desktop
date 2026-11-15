@@ -298,6 +298,15 @@ def verify_set(windows, linux, assets, output, commit, project=PROJECT):
         result["linux_upgrade_check"] = {
             "file": upgrade_path.name, "sha256": hashlib.sha256(upgrade_path.read_bytes()).hexdigest(),
         }
+    if publisher.requires_windows_zip(manifest["version"]):
+        zip_record = publisher.verify_windows_zip(windows, manifest)
+        check = read_json(windows / "windows-zip-check.json")
+        require(check == {"schema_version": 1, "version": manifest["version"], "source_commit": commit,
+                          "package_sha256": zip_record["sha256"], "scope": "staged-zip-payload",
+                          "complete_payload_verified": True, "embedded_python_executed": True,
+                          "smart_app_control": "not-performed", "live_wsl_installation": "not-performed"},
+                "ZIP staged-client evidence is missing or mismatched")
+        result["windows_zip"] = {**zip_record, "client_check_sha256": publisher.sha256(windows / "windows-zip-check.json")}
     output.mkdir(parents=True)
     (output / "installer-set-check.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     return result

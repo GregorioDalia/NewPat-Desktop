@@ -345,7 +345,8 @@ class VersionedInstallerSetTests(unittest.TestCase):
             (linux / "SHA256SUMS").write_text(f"{record['sha256']}  {record['file']}\n", encoding="ascii")
             for name in ("linux-installation-check.json", "linux-dependency-check.json"):
                 (linux / name).write_text("{}", encoding="utf-8")
-            publisher = SimpleNamespace(prepare_assets=lambda *args: manifest, sha256=lambda path: "d" * 64)
+            publisher = SimpleNamespace(prepare_assets=lambda *args: manifest, sha256=lambda path: "d" * 64,
+                                        requires_windows_zip=lambda version: False)
             builder = SimpleNamespace(verify_package=lambda *args: record)
             with patch.object(VERIFY, "load_module", side_effect=lambda name, path: (
                     publisher if name == "nipat_review_publisher" else builder)), \

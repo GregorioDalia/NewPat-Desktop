@@ -1,5 +1,9 @@
 . (Join-Path $PSScriptRoot "common.ps1")
 $project = Get-NipatProject
+if (Test-Path -LiteralPath (Join-Path $project '.runtime\zip-install.json') -PathType Leaf) {
+    & (Join-Path $project 'installer\windows\zip-entry.ps1') -Mode resume
+    exit $LASTEXITCODE
+}
 # Installed packages own their verified WSL bootstrap, recovery and ready state.
 if (Test-Path -LiteralPath (Join-Path $project ".distribution\installer-manifest.json") -PathType Leaf) {
     & (Join-Path $project "installer\windows\bootstrap.ps1")
