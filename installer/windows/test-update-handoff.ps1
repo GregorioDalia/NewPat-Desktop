@@ -191,10 +191,11 @@ function Assert-NipatInstallPathWithoutLinks([string]$Path) { Assert-LocalPath $
 param([string]$BundleDirectory,[string]$InstallRoot)
 $ErrorActionPreference='Stop'
 $root=$env:NIPAT_HANDOFF_FIXTURE
+try {
 if($InstallRoot -ine (Join-Path $root 'NIPAT')) { throw 'ZIP update did not preserve the selected installation root' }
 [IO.File]::WriteAllLines((Join-Path $root 'invoked.txt'),[string[]]@($BundleDirectory,$InstallRoot))
 if((Split-Path -Leaf $root) -ceq 'zip-failed') { exit 1 }
-$previous=Get-Content -LiteralPath (Join-Path $InstallRoot 'current.json') -Raw | ConvertFrom-Json
+$previous=Get-Content -LiteralPath (Join-Path $InstallRoot 'current.json') -Raw -Encoding UTF8 | ConvertFrom-Json
 $app=Join-Path $InstallRoot ('versions\0.8.100-'+('b'*40))
 [IO.Directory]::CreateDirectory($app)|Out-Null
 Copy-Item -LiteralPath (Join-Path $previous.app_dir 'scripts') -Destination $app -Recurse
@@ -209,6 +210,10 @@ $state=@{schema_version=1;installation_channel='desktop';phase='ready';version='
 $pointer=@{schema_version=1;version='0.8.100';source_commit=('b'*40);app_dir=$app}|ConvertTo-Json
 [IO.File]::WriteAllText((Join-Path $InstallRoot 'current.json'),$pointer)
 exit 0
+} catch {
+    [IO.File]::WriteAllText((Join-Path $root 'zip-worker-error.txt'), ($_ | Out-String), (New-Object Text.UTF8Encoding($false)))
+    throw
+}
 '@)
         } else { Copy-Item -LiteralPath $fixture -Destination $package }
         $release = Join-Path $root 'release-parent'
@@ -244,6 +249,18 @@ exit 0
             Assert-Test ($worker.WaitForExit(30000)) "$case worker completes"
         } finally {if($null -ne $shared){$shared.Dispose()}}
         if($case -in @('success','bootstrap','zip')) {
+            if ($worker.ExitCode -ne 0) {
+                foreach ($diagnostic in @('handoff.log','error.txt')) {
+                    $file = Join-Path $work $diagnostic
+                    if (Test-Path -LiteralPath $file) {
+                        Write-Host ($diagnostic + ':')
+                        Write-Host (Get-Content -LiteralPath $file -Raw -Encoding UTF8)
+                    }
+                }
+                $zipError = Join-Path $root 'zip-worker-error.txt'
+                if (Test-Path -LiteralPath $zipError) { Write-Host (Get-Content -LiteralPath $zipError -Raw -Encoding UTF8) }
+                throw "The $case worker failed with exit $($worker.ExitCode); no relaunch is expected."
+            }
             Wait-TestRelaunch $root
             Wait-TestFile (Join-Path $root 'reopened.txt')
         }
@@ -256,7 +273,7 @@ exit 0
                 Assert-Test ($arguments.Count -eq 2 -and $arguments[0] -ieq (Join-Path $work 'verified-zip') -and
                     $arguments[1] -ieq $zipRoot) 'ZIP worker receives separate bundle and persistent install roots'
                 Assert-Test (-not (Test-Path -LiteralPath (Join-Path $work 'verified-zip\NIPAT'))) 'ZIP update never installs under its temporary extraction directory'
-                $pointer = Get-Content -LiteralPath (Join-Path $zipRoot 'current.json') -Raw | ConvertFrom-Json
+                $pointer = Get-Content -LiteralPath (Join-Path $zipRoot 'current.json') -Raw -Encoding UTF8 | ConvertFrom-Json
                 $expectedVersion = if ($case -ceq 'zip') { '0.8.100' } else { '0.8.99' }
                 Assert-Test ($pointer.version -ceq $expectedVersion) 'ZIP success selects the new version; a failed preparation keeps the existing version'
             } else {

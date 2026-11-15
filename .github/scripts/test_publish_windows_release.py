@@ -76,6 +76,14 @@ class ReleaseGuards(unittest.TestCase):
         (self.setup / "NIPAT.exe").write_bytes(b"MZ launcher fixture")
         self.write_installer_evidence()
 
+    def test_bootstrap_fingerprint_covers_exact_compiler_provisioning(self):
+        path = publisher.PROJECT / ".github/scripts/windows_bootstrap.py"
+        spec = importlib.util.spec_from_file_location("bootstrap_identity_contract", path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.assertEqual(publisher.BOOTSTRAP_SOURCES, module.BOOTSTRAP_SOURCES)
+        self.assertIn(".github/scripts/install_inno.ps1", publisher.BOOTSTRAP_SOURCES)
+
     def test_online_bootstrap_is_bound_separately_from_versioned_payload(self):
         self.make_desktop_package("0.8.99")
         manifest_bytes = (self.setup / publisher.MANIFEST).read_bytes()

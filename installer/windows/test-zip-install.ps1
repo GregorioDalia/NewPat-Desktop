@@ -58,7 +58,7 @@ try {
     Assert-NipatZipRoot $root -Create
     Assert-NipatZipRoot $root
     $old = [pscustomobject]@{ schema_version = 1; version = '0.8.99'; source_commit = ('a' * 40); app_dir = (Get-NipatZipProject $root '0.8.99' ('a' * 40)) }
-    $next = [pscustomobject]@{ schema_version = 1; version = '0.8.100'; source_commit = ('b' * 40); app_dir = (Get-NipatZipProject $root '0.8.100' ('b' * 40)) }
+    $next = [pscustomobject]@{ schema_version = 1; version = '0.9.0'; source_commit = ('b' * 40); app_dir = (Get-NipatZipProject $root '0.9.0' ('b' * 40)) }
     Write-NipatJsonAtomic (Join-Path $old.app_dir '.runtime\zip-install.json') ([ordered]@{ schema_version = 1; installation_method = 'zip'; root = $root })
     Assert-Test ((Get-NipatZipRoot $old.app_dir) -ceq $root) 'installed ZIP resolves its local root'
     $foreignRoot = Join-Path $temporary 'foreign-owned-root'
@@ -167,7 +167,7 @@ exit 1
     Copy-Item -LiteralPath $assets -Destination (Join-Path $bundle 'assets') -Recurse
     $app = Join-Path $bundle 'app'
     $assets = Join-Path $bundle 'assets'
-    Write-FixtureManifest $app $assets '0.8.100' ('b' * 40)
+    Write-FixtureManifest $app $assets '0.9.0' ('b' * 40)
     $env:NIPAT_ZIP_FIXTURE_PHASE = 'failed'
     & $powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $app 'installer/windows/install-zip.ps1') -BundleDirectory $bundle -InstallRoot $root
     Assert-Test ($LASTEXITCODE -eq 1) 'failed upgrade reported as failure'
@@ -177,8 +177,8 @@ exit 1
     $pending = Read-NipatZipPointer $root 'pending.json'
     $env:NIPAT_ZIP_FIXTURE_PHASE = 'ready'
     & $powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $pending.app_dir 'installer/windows/install-zip.ps1') -Resume
-    Assert-Test ($LASTEXITCODE -eq 0 -and (Read-NipatZipPointer $root).version -ceq '0.8.100') 'successful upgrade activates the new app directory'
-    Assert-Test ((Get-Content -LiteralPath (Join-Path $root '2_AVVIA.cmd') -Raw).Contains('0.8.100-' + ('b' * 40))) 'successful upgrade refreshes local launcher'
+    Assert-Test ($LASTEXITCODE -eq 0 -and (Read-NipatZipPointer $root).version -ceq '0.9.0') 'successful upgrade activates the new app directory'
+    Assert-Test ((Get-Content -LiteralPath (Join-Path $root '2_AVVIA.cmd') -Raw).Contains('0.9.0-' + ('b' * 40))) 'successful upgrade refreshes local launcher'
     Assert-Test ([IO.File]::ReadAllText((Join-Path $root 'data\preserve.txt')) -ceq 'research data') 'update retains research data'
 } finally {
     $env:LOCALAPPDATA = $oldLocal

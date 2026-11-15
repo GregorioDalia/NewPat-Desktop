@@ -27,6 +27,7 @@ BOOTSTRAP_VERSION = "1.0.0"
 BOOTSTRAP_SOURCES = (
     "installer/windows/NIPAT.iss", "installer/windows/bootstrap-profile.iss",
     "installer/windows/bootstrap_download.py", "LICENSE", "assets/branding/nipat-icon.ico",
+    ".github/scripts/install_inno.ps1",
 )
 MAX_ASSET_BYTES = 2 * 1024**3
 PYTHON_NAME = "python-3.12.10-embed-amd64.zip"

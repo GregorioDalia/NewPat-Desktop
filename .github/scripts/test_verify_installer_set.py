@@ -381,6 +381,40 @@ class WindowsInstallerFixtureTests(unittest.TestCase):
                 VERIFY.verify_windows_installer_fixture({**evidence, field: replacement}, manifest)
 
 
+class FrozenInstallerFixtureTests(unittest.TestCase):
+    def test_099_requires_one_frozen_setup_and_explicit_fixture_substitutions(self):
+        manifest = {"version": "0.8.99", "source_commit": "a" * 40,
+                    "source_sha256": {"installer/windows/NIPAT.iss": "b" * 64}}
+        evidence = {
+            "schema_version": 1, "scenario": "compiled-installer-fixture-on-server-2022",
+            "source_commit": "a" * 40, "source_definition_sha256": "b" * 64,
+            "fixture_definition_sha256": "c" * 64, "uninstaller_sha256": "d" * 64,
+            "status": "passed", "production_setup_executed": False, "wsl_execution": False,
+            "smart_app_control": "not-performed",
+            "substitutions": ["Windows workstation/elevation setup gate", "uninstaller elevation gate",
+                              "synthetic runtime bootstrap and payload", "host Python interpreter for fixture"],
+            "checks": dict.fromkeys(("installed_0.8.99", "installed_0.9.0", "upgrade_backup",
+                "reboot_exit_code", "silent_removal_preserves_data", "frozen_setup_reused",
+                "bootstrap_marker", "display_version_matches_payload", "resume_archives_cached"), True),
+        }
+        VERIFY.verify_windows_installer_fixture(evidence, manifest)
+        for key in evidence["checks"]:
+            for value in (None, False, 1):
+                changed = copy.deepcopy(evidence)
+                if value is None:
+                    del changed["checks"][key]
+                else:
+                    changed["checks"][key] = value
+                with self.subTest(check=key, value=value), self.assertRaisesRegex(ValueError, "fixture is incomplete"):
+                    VERIFY.verify_windows_installer_fixture(changed, manifest)
+        changed = copy.deepcopy(evidence)
+        changed["substitutions"].pop()
+        with self.assertRaisesRegex(ValueError, "substitutions"):
+            VERIFY.verify_windows_installer_fixture(changed, manifest)
+        with self.assertRaises(ValueError):
+            VERIFY.verify_windows_installer_fixture(evidence, dict(manifest, version="0.8.95"))
+
+
 class VersionedInstallerSetTests(unittest.TestCase):
     def test_06_retains_legacy_windows_record_while_07_requires_client_evidence(self):
         with tempfile.TemporaryDirectory() as temporary:

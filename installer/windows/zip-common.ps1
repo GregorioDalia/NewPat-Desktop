@@ -16,7 +16,7 @@ function Get-NipatZipRoot([string] $Project = '') {
     $root = Resolve-NipatInstallPath $value.root
     Assert-NipatZipRoot $root
     $folder = Split-Path -Leaf $projectPath
-    $match = [regex]::Match($folder, '^(0\.8\.(?:0|[1-9][0-9]*))-([a-f0-9]{40})$')
+    $match = [regex]::Match($folder, '^((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))-([a-f0-9]{40})$')
     if (-not $match.Success -or $projectPath -ine (Get-NipatZipProject $root $match.Groups[1].Value $match.Groups[2].Value)) {
         throw 'L applicazione ZIP non appartiene alla cartella registrata.'
     }
@@ -52,7 +52,7 @@ function Assert-NipatZipRoot([string] $Root, [switch] $Create) {
 }
 
 function Get-NipatZipProject([string] $Root, [string] $Version, [string] $Source) {
-    if ($Version -cnotmatch '^0\.8\.(0|[1-9][0-9]*)$' -or $Source -cnotmatch '^[a-f0-9]{40}$') {
+    if ($Version -cnotmatch '^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)$' -or $Source -cnotmatch '^[a-f0-9]{40}$') {
         throw 'Identita della versione ZIP non valida.'
     }
     return Join-Path (Join-Path $Root 'versions') ($Version + '-' + $Source)
@@ -128,7 +128,7 @@ function Set-NipatZipShortcuts([string] $Root, [string] $Project) {
     foreach ($mode in @('launch', 'resume')) {
         $targetProject = if ($mode -ceq 'launch') { $launchProject } else { $Project }
         $folder = Split-Path -Leaf $targetProject
-        if ($folder -cnotmatch '^0\.8\.(?:0|[1-9][0-9]*)-[a-f0-9]{40}$' -or
+        if ($folder -cnotmatch '^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)-[a-f0-9]{40}$' -or
             (Split-Path -Parent $targetProject) -ine (Join-Path $Root 'versions')) {
             throw 'Destinazione del launcher ZIP non valida.'
         }

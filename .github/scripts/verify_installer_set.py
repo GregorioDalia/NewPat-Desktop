@@ -84,13 +84,20 @@ def verify_windows_installer_fixture(evidence, manifest):
     for key in ("fixture_definition_sha256", "uninstaller_sha256"):
         require(isinstance(evidence.get(key), str) and re.fullmatch(r"[a-f0-9]{64}", evidence[key]),
                 "Missing compiled installer fixture byte identity")
-    require(evidence.get("substitutions") == ["Windows workstation/elevation setup gate",
-            "uninstaller elevation gate", "synthetic runtime bootstrap and payload"],
+    substitutions = ["Windows workstation/elevation setup gate",
+                     "uninstaller elevation gate", "synthetic runtime bootstrap and payload"]
+    if requires_windows_bootstrap(manifest["version"]):
+        substitutions.append("host Python interpreter for fixture")
+        expected = dict.fromkeys(("installed_0.8.99", "installed_0.9.0", "upgrade_backup",
+            "reboot_exit_code", "silent_removal_preserves_data", "frozen_setup_reused",
+            "bootstrap_marker", "display_version_matches_payload", "resume_archives_cached"), True)
+    else:
+        expected = dict.fromkeys(("installed_0.0.1", "installed_0.0.2",
+                                  "upgrade_backup", "silent_removal_preserves_data"), True)
+        if tuple(map(int, manifest["version"].split("."))) >= (0, 8, 70):
+            expected["reboot_exit_code"] = True
+    require(evidence.get("substitutions") == substitutions,
             "Windows fixture substitutions are not explicit")
-    expected = dict.fromkeys(("installed_0.0.1", "installed_0.0.2",
-                              "upgrade_backup", "silent_removal_preserves_data"), True)
-    if tuple(map(int, manifest["version"].split("."))) >= (0, 8, 70):
-        expected["reboot_exit_code"] = True
     require(evidence.get("checks") == expected
             and all(value is True for value in evidence["checks"].values()),
             "Windows compiled installer fixture is incomplete or failed")
