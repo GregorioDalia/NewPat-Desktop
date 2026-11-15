@@ -71,6 +71,7 @@ def publication_arguments(record, existing):
         version = record["version"]
         expected = {
             "NIPAT-Setup.exe": "windows_installer_sha256",
+            f"NIPAT-{version}-Windows-completo.zip": "windows_zip_sha256",
             f"nipat-desktop_{version}_amd64.deb": "linux_installer_sha256",
             f"NIPAT-{version}-macos-arm64.pkg": "macos_arm64_installer_sha256",
             f"NIPAT-{version}-macos-x86_64.pkg": "macos_x86_64_installer_sha256",

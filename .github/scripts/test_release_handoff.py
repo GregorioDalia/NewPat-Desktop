@@ -202,6 +202,33 @@ class AutomaticPublicationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "authorized publication channel"):
             automatic.publication_arguments(record, None)
 
+    def test_retry_requires_the_accepted_complete_windows_zip(self):
+        record = dict(record_fixture(), version="0.8.95", publication_channel="stable",
+                      windows_zip_sha256="e" * 64)
+        existing = {"tag_name": "v0.8.95", "target_commitish": record["source_commit"],
+                    "draft": False, "prerelease": False, "id": 42}
+        names = {
+            "NIPAT-Setup.exe": "windows_installer_sha256",
+            "NIPAT-0.8.95-Windows-completo.zip": "windows_zip_sha256",
+            "nipat-desktop_0.8.95_amd64.deb": "linux_installer_sha256",
+            "NIPAT-0.8.95-macos-arm64.pkg": "macos_arm64_installer_sha256",
+            "NIPAT-0.8.95-macos-x86_64.pkg": "macos_x86_64_installer_sha256",
+            "installer-manifest.json": "installer_manifest_sha256",
+            "nipat-scientific-runtime-0.8.95-amd64.tar.gz": "scientific_archive_sha256",
+            "qualification-evidence.zip": "qualification_evidence_sha256",
+        }
+        existing["assets"] = [{"name": name, "state": "uploaded", "digest": "sha256:" + record[field]}
+                              for name, field in names.items()]
+        with patch.object(publisher, "check_tag"):
+            self.assertIsNone(automatic.publication_arguments(record, existing))
+            for replacement in (None, {"name": "NIPAT-0.8.95-Windows-completo.zip",
+                                       "state": "uploaded", "digest": "sha256:" + "f" * 64}):
+                assets = [asset for asset in existing["assets"] if not asset["name"].endswith("completo.zip")]
+                if replacement is not None:
+                    assets.append(replacement)
+                with self.subTest(replacement=replacement), self.assertRaisesRegex(ValueError, "accepted asset bytes"):
+                    automatic.publication_arguments(record, dict(existing, assets=assets))
+
     def test_workflows_only_push_main_and_retain_protected_gate(self):
         ci = (ROOT / ".github/workflows/ci.yml").read_text()
         self.assertIn("  push:\n    branches: [main]", ci)
