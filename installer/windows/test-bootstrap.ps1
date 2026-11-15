@@ -1,4 +1,4 @@
-# No Pester, elevation, WSL, Docker or network access required.
+# No Pester, elevation, WSL, Docker or network access required. Windows uses Python 3.
 # Runs on Windows PowerShell 5.1 and PowerShell 7.
 . (Join-Path $PSScriptRoot 'bootstrap-common.ps1')
 $temporary = Join-Path ([IO.Path]::GetTempPath()) ('nipat-bootstrap-test-' + [Guid]::NewGuid().ToString('N'))
@@ -183,8 +183,12 @@ try {
     Assert-Test ((ConvertTo-NipatNativeArgument 'a"b') -ceq '"a\"b"') 'native embedded quote'
     $checkLogs = Join-Path $temporary 'setup checks with spaces'
     $checkExecutable = (Get-Process -Id $PID).Path
+    $supervisorParameters = @{}
+    if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
+        $supervisorParameters.SupervisorPython = (Get-Command python.exe -CommandType Application -ErrorAction Stop).Source
+    }
     $checkScript = "[Console]::OutputEncoding = [Text.Encoding]::UTF8; [Console]::WriteLine('before'); [Console]::Error.WriteLine('warning'); [Console]::WriteLine([char]0x00E9); [Console]::WriteLine('after'); exit 0"
-    Invoke-NipatSetupCheck $checkExecutable @('-NoLogo', '-NoProfile', '-Command', $checkScript) $checkLogs 'doctor' 6> $null
+    Invoke-NipatSetupCheck $checkExecutable @('-NoLogo', '-NoProfile', '-Command', $checkScript) $checkLogs 'doctor' @supervisorParameters 6> $null
     $checkOutput = [IO.File]::ReadAllText((Join-Path $checkLogs 'doctor.stdout.log'))
     Assert-Test ($checkOutput.Contains('before') -and $checkOutput.Contains('after')) 'setup stdout is retained through completion'
     Assert-Test ($checkOutput.Contains([string][char]0x00E9)) 'setup diagnostics preserve Unicode output'
@@ -194,7 +198,7 @@ try {
     $checkScript = "[Console]::Out.Write(('o' * 70000)); [Console]::Error.Write(('e' * 70000)); exit 7"
     $checkError = ''
     try {
-        Invoke-NipatSetupCheck $checkExecutable @('-NoLogo', '-NoProfile', '-Command', $checkScript) $checkLogs 'self-test' 6> $null
+        Invoke-NipatSetupCheck $checkExecutable @('-NoLogo', '-NoProfile', '-Command', $checkScript) $checkLogs 'self-test' @supervisorParameters 6> $null
     } catch { $checkError = $_.Exception.Message }
     Assert-Test ($checkError.Contains('codice 7') -and $checkError.Contains('self-test.stderr.log')) 'setup failure preserves its native exit code and diagnostic path'
     Assert-Test ([IO.File]::ReadAllText((Join-Path $checkLogs 'self-test.stdout.log')) -ceq ('o' * 70000)) 'failed setup check retains all stdout'
@@ -216,7 +220,7 @@ while (`$watch.Elapsed.TotalSeconds -lt 5) {
 }
 if (-not `$seen) { exit 8 }; exit 0
 "@
-    Invoke-NipatSetupCheck $checkExecutable @('-NoLogo', '-NoProfile', '-Command', $checkScript) $checkLogs 'doctor' -TimeoutSeconds 10 6> $null
+    Invoke-NipatSetupCheck $checkExecutable @('-NoLogo', '-NoProfile', '-Command', $checkScript) $checkLogs 'doctor' -TimeoutSeconds 10 @supervisorParameters 6> $null
     Assert-Test ([IO.File]::ReadAllText((Join-Path $checkLogs 'doctor.stdout.log')) -ceq 'live diagnostic') 'setup diagnostics are visible before exit without a newline'
     $other = [Diagnostics.Process]::Start($checkExecutable, '-NoLogo -NoProfile -Command "Start-Sleep -Seconds 30"')
     try {
@@ -224,7 +228,7 @@ if (-not `$seen) { exit 8 }; exit 0
         $watch = [Diagnostics.Stopwatch]::StartNew()
         $checkError = ''
         try {
-            Invoke-NipatSetupCheck $checkExecutable @('-NoLogo', '-NoProfile', '-Command', $checkScript) $checkLogs 'self-test' -TimeoutSeconds 2 6> $null
+            Invoke-NipatSetupCheck $checkExecutable @('-NoLogo', '-NoProfile', '-Command', $checkScript) $checkLogs 'self-test' -TimeoutSeconds 2 @supervisorParameters 6> $null
         } catch { $checkError = $_.Exception.Message }
         Assert-Test ($checkError.Contains('scaduto') -and $checkError.Contains('self-test.stderr.log')) 'blocked setup reports a deadline and diagnostic paths'
         Assert-Test ($watch.Elapsed.TotalSeconds -lt 15) 'setup deadline returns after bounded cleanup'
@@ -254,7 +258,7 @@ if (-not `$seen) { exit 8 }; exit 0
 "@
         $checkError = ''
         try {
-            Invoke-NipatSetupCheck $checkExecutable @('-NoLogo', '-NoProfile', '-Command', $checkScript) $checkLogs 'doctor' -TimeoutSeconds 3 6> $null
+            Invoke-NipatSetupCheck $checkExecutable @('-NoLogo', '-NoProfile', '-Command', $checkScript) $checkLogs 'doctor' -TimeoutSeconds 3 @supervisorParameters 6> $null
         } catch { $checkError = $_.Exception.Message }
         Assert-Test ($checkError.Contains('scaduto')) 'inherited setup pipes remain bounded after parent exit'
         $descendant = [int][IO.File]::ReadAllText($pidPath)
@@ -269,14 +273,14 @@ if (-not `$seen) { exit 8 }; exit 0
         }
         Assert-Test (-not $alive) 'setup job stops owned descendants after their parent exited'
     }
-    Invoke-NipatSetupCheck $checkExecutable @('-NoLogo', '-NoProfile', '-Command', 'exit 0') $checkLogs 'self-test' -TimeoutSeconds 10 6> $null
+    Invoke-NipatSetupCheck $checkExecutable @('-NoLogo', '-NoProfile', '-Command', 'exit 0') $checkLogs 'self-test' -TimeoutSeconds 10 @supervisorParameters 6> $null
     Assert-Test ([IO.File]::ReadAllText((Join-Path $checkLogs 'self-test.exit-code.txt')).Trim() -ceq '0') 'setup check can be retried after timeout'
     for ($attempt = 0; $attempt -lt 3; $attempt++) {
-        Invoke-NipatSetupCheck $checkExecutable @('-NoLogo', '-NoProfile', '-Command', 'exit 0') $checkLogs 'doctor' -TimeoutSeconds 10 6> $null
+        Invoke-NipatSetupCheck $checkExecutable @('-NoLogo', '-NoProfile', '-Command', 'exit 0') $checkLogs 'doctor' -TimeoutSeconds 10 @supervisorParameters 6> $null
         Assert-Test ([IO.File]::ReadAllText((Join-Path $checkLogs 'doctor.exit-code.txt')).Trim() -ceq '0') 'short-lived setup check retains its success code'
     }
     Assert-Rejected {
-        Invoke-NipatSetupCheck (Join-Path $temporary 'missing.exe') @() $checkLogs 'doctor' 6> $null
+        Invoke-NipatSetupCheck (Join-Path $temporary 'missing.exe') @() $checkLogs 'doctor' @supervisorParameters 6> $null
     } 'setup launch failure cannot reuse a successful prior exit code'
     Assert-Test (-not (Test-Path -LiteralPath (Join-Path $checkLogs 'doctor.exit-code.txt'))) 'launch failure removes stale exit-code evidence'
     $script:NipatWsl = (Get-Process -Id $PID).Path
