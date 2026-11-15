@@ -30,6 +30,30 @@ $app = Join-Path $work 'app'
 Copy-Item -LiteralPath $sourceApp -Destination $app -Recurse
 . (Join-Path $app 'scripts\windows\common.ps1')
 $python = Install-NipatPython $app
+# Exercise the production setup supervisor with the exact embedded interpreter
+# and relocated payload. Host Python tests cannot establish this dependency path.
+. (Join-Path $app 'installer\windows\bootstrap-common.ps1')
+$checkLogs = Join-Path $work 'setup checks'
+Invoke-NipatSetupCheck $python @('-c', 'print("embedded setup check")') $checkLogs 'doctor' -TimeoutSeconds 10
+if (([IO.File]::ReadAllText((Join-Path $checkLogs 'doctor.stdout.log'))).Trim() -cne 'embedded setup check') {
+    throw 'Il controllo incorporato non ha conservato il suo output.'
+}
+foreach ($case in @(
+    @{ Code = 7; Script = 'raise SystemExit(7)'; Limit = 10 },
+    @{ Code = 124; Script = 'import time; time.sleep(30)'; Limit = 2 }
+)) {
+    $failed = $false
+    try {
+        Invoke-NipatSetupCheck $python @('-c', $case.Script) $checkLogs 'self-test' -TimeoutSeconds $case.Limit
+    } catch {
+        $failed = $_.Exception.Message.Contains(('codice ' + $case.Code))
+    }
+    $exitPath = Join-Path $checkLogs 'self-test.exit-code.txt'
+    if (-not $failed -or ([IO.File]::ReadAllText($exitPath)).Trim() -cne [string]$case.Code) {
+        throw "Il controllo incorporato non ha restituito il codice atteso $($case.Code)."
+    }
+}
+Write-Host 'PASS: embedded Python setup supervision: success, failure and timeout.'
 & $python -B -X utf8 (Join-Path $app 'scripts\verify_windows_payload.py') `
     --app-dir $app --work-dir $work --installer $installer --output $output
 if ($LASTEXITCODE -ne 0) {
