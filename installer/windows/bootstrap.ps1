@@ -1,6 +1,7 @@
 param(
     [string] $AssetDirectory = '',
-    [switch] $Resume
+    [switch] $Resume,
+    [switch] $ManualResume
 )
 
 . (Join-Path $PSScriptRoot 'bootstrap-common.ps1')
@@ -27,6 +28,10 @@ function Save-NipatPhase([string] $Phase) {
 
 function Request-NipatReboot {
     Save-NipatPhase 'awaiting_reboot'
+    if ($ManualResume) {
+        Write-Host 'WSL richiede un riavvio. Dopo il riavvio aprire NIPAT Desktop ZIP - completa preparazione dal menu Start.'
+        return
+    }
     $automaticResume = Register-NipatResume $script:project
     Write-Host 'WSL richiede un riavvio di Windows. Salva il lavoro e riavvia quando preferisci.'
     if ($automaticResume) {
@@ -149,8 +154,9 @@ try {
             Invoke-NipatSetupCheck $python @('-X', 'utf8', '-u', '-m', 'nipat', 'doctor', '--runtime') $checkLogs 'doctor'
             Invoke-NipatSetupCheck $python @('-X', 'utf8', '-u', '-m', 'nipat', 'self-test') $checkLogs 'self-test'
         }
-        Unregister-NipatResume
-        Write-Host ($profile.display_name + ' e pronto. Apri ' + $profile.display_name + ' dal menu Start per scegliere un analisi.')
+        if (-not $ManualResume) { Unregister-NipatResume }
+        if ($ManualResume) { Write-Host 'Preparazione del runtime ZIP completata.' }
+        else { Write-Host ($profile.display_name + ' e pronto. Apri ' + $profile.display_name + ' dal menu Start per scegliere un analisi.') }
         Write-Host "Applicazione: $($configuration.app_dir)"
         Write-Host "Ambiente WSL: $($configuration.runtime_dir)"
         Write-Host "Cache installazione: $($configuration.cache_dir)"

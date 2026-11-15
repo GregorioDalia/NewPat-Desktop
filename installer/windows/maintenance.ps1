@@ -251,7 +251,17 @@ if (-not $LibraryOnly) {
             Assert-NipatMaintenanceNotCancelled $ReadyFile
             # The child inherits the authenticated setup lease; it still performs
             # its own mutex, ownership, manifest, image and scientific checks.
-            & (Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe') -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Project 'installer\windows\bootstrap.ps1') -Resume
+            $worker = Join-Path $Project 'installer\windows\bootstrap.ps1'
+            if (Test-Path -LiteralPath (Join-Path $Project '.runtime\zip-install.json')) {
+                . (Join-Path $Project 'installer\windows\zip-common.ps1')
+                $zipRoot = Get-NipatZipRoot
+                $zipPointer = Read-NipatZipPointer $zipRoot
+                if ($zipPointer.app_dir -ine $Project) { throw 'Riprendere la versione ZIP attiva dal menu Start.' }
+                Assert-NipatActivityPathWithoutLinks (Join-Path $zipRoot 'pending.json')
+                Write-NipatJsonAtomic (Join-Path $zipRoot 'pending.json') $zipPointer
+                $worker = Join-Path $Project 'installer\windows\install-zip.ps1'
+            }
+            & (Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe') -NoProfile -ExecutionPolicy Bypass -File $worker -Resume
             if ($LASTEXITCODE -ne 0) { throw ('Preparazione non completata (codice ' + $LASTEXITCODE + '). Consultare setup.log.') }
         }
         $result = 0

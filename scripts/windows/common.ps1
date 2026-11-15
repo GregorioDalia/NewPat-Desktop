@@ -14,6 +14,9 @@ function Resolve-NipatDirectory([string] $Directory) {
 function Set-NipatEnvironment([string] $Project) {
     # These variables affect this child process only; the system is unchanged.
     $env:NIPAT_PROJECT_DIR = $Project
+    if (Test-Path -LiteralPath (Join-Path $Project '.runtime\zip-install.json') -PathType Leaf) {
+        $env:PYTHONDONTWRITEBYTECODE = '1'
+    }
     $installed = $null
     $backendFile = Join-Path $Project ".runtime\backend.json"
     $installerManifestPath = Join-Path $Project '.distribution\installer-manifest.json'
@@ -161,7 +164,7 @@ function Install-NipatPython([string] $Project) {
     # Relative paths keep the extracted project movable. No pip, site-packages or venv.
     @("python312.zip", ".", "..\..\src", "..\..") |
         Set-Content -LiteralPath (Join-Path $pythonDirectory "python312._pth") -Encoding ASCII
-    & $python -c "import sys; assert sys.version_info[:3] == (3,12,10); import nipat; print('Python locale:', sys.version.split()[0])" | Out-Host
+    & $python -B -c "import sys; assert sys.version_info[:3] == (3,12,10); import nipat; print('Python locale:', sys.version.split()[0])" | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Python portabile non funziona correttamente." }
     "3.12.10" | Set-Content -LiteralPath $ready -Encoding ASCII
     return $python

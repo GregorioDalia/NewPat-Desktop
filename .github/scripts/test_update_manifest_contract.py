@@ -36,6 +36,9 @@ class PublishedUpdateContract(unittest.TestCase):
     def test_official_four_platform_release_uses_compatible_separate_feeds(self):
         self.check_published_pair("stable", version="0.8.2")
 
+    def test_complete_zip_uses_its_own_feed_without_changing_existing_installers(self):
+        self.check_published_pair("stable", version="0.8.95")
+
     def check_published_pair(self, channel, version="0.6.1"):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
@@ -46,10 +49,14 @@ class PublishedUpdateContract(unittest.TestCase):
             packages = [("windows", "NIPAT-Setup.exe"), ("linux", f"nipat-desktop_{version}_amd64.deb")]
             platforms = [("windows-x86_64", "windows"), ("linux-x86_64", "linux")]
             feeds = ["update-manifest.json"]
-            if version == "0.8.2":
+            if publisher.requires_macos(version):
                 packages += [(f"macos_{arch}", f"NIPAT-{version}-macos-{arch}.pkg") for arch in ("arm64", "x86_64")]
                 platforms += [(f"darwin-{arch}", f"macos_{arch}") for arch in ("arm64", "x86_64")]
                 feeds.append("update-manifest-macos.json")
+            if publisher.requires_windows_zip(version):
+                packages.append(("windows_zip", f"NIPAT-{version}-Windows-completo.zip"))
+                platforms.append(("windows-zip-x86_64", "windows_zip"))
+                feeds.append("update-manifest-windows-zip.json")
             for system, name in packages:
                 path = root / name
                 path.write_bytes(b"fixture bytes for verified " + system.encode())

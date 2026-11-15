@@ -9,10 +9,10 @@ if ([string]::IsNullOrWhiteSpace($OutputPath)) {
 $target = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutputPath)
 . (Join-Path $PSScriptRoot 'build-compiler.ps1')
 $compiler = Get-NipatCSharpCompiler
-$metadata = Get-Content -LiteralPath (Join-Path $project 'pyproject.toml') -Raw -Encoding UTF8
-$versionMatch = [regex]::Match($metadata, '(?m)^version\s*=\s*"(\d+\.\d+\.\d+(?:(?:a|b|rc)\d+)?)"\s*$')
-if (-not $versionMatch.Success) { throw 'Versione NIPAT non riconosciuta in pyproject.toml.' }
-$version = $versionMatch.Groups[1].Value
+# Native component identity changes only with its own implementation/resources.
+# Application version is reported by the verified Python client, not this bridge.
+$version = (Get-Content -LiteralPath (Join-Path $PSScriptRoot 'launcher-version.txt') -Raw -Encoding ASCII).Trim()
+if ($version -cnotmatch '^\d+\.\d+\.\d+$') { throw 'Versione componente launcher non valida.' }
 $numeric = [regex]::Match($version, '^\d+\.\d+\.\d+').Value + '.0'
 $temporary = Join-Path ([IO.Path]::GetTempPath()) ('nipat-launcher-build-' + [Guid]::NewGuid().ToString('N'))
 try {

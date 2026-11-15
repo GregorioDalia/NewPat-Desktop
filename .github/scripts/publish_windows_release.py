@@ -21,6 +21,7 @@ REPO = "GregorioDalia/nipat-desktop"
 MANIFEST = "installer-manifest.json"
 UPDATE_MANIFEST = "update-manifest.json"
 MACOS_UPDATE_MANIFEST = "update-manifest-macos.json"
+WINDOWS_ZIP_UPDATE_MANIFEST = "update-manifest-windows-zip.json"
 MAX_ASSET_BYTES = 2 * 1024**3
 PYTHON_NAME = "python-3.12.10-embed-amd64.zip"
 PYTHON_SHA256 = "4acbed6dd1c744b0376e3b1cf57ce906f9dc9e95e68824584c8099a63025a3c3"
@@ -65,6 +66,27 @@ def requires_macos(version):
 def sha256(path):
     with path.open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def requires_windows_zip(version):
+    match = re.fullmatch(r"0\.8\.([0-9]+)(?:(?:a|b|rc)[0-9]+)?", version or "")
+    return bool(match and int(match[1]) >= 95)
+
+
+def verify_windows_zip(setup, manifest):
+    helper = load_module("nipat_zip_package", PROJECT / "installer/windows/zip_package.py")
+    inventory = (setup / "application-files.json").read_bytes()
+    hashes = {entry["path"]: entry["sha256"] for entry in json.loads(inventory)["files"]}
+    for path, digest in manifest["source_sha256"].items():
+        require(hashes.get(path) == digest, f"ZIP inventory source mismatch: {path}")
+    require(hashes.get("NIPAT.exe") == sha256(setup / "NIPAT.exe")
+            and hashes.get(f".distribution/{PYTHON_NAME}") == PYTHON_SHA256
+            and hashes.get(".distribution/installer-manifest.json") == sha256(setup / MANIFEST),
+            "ZIP generated payload differs from reviewed installer")
+    record = helper.verify(setup / helper.filename(manifest["version"]), manifest, inventory)
+    require(json.loads((setup / "windows-zip-build.json").read_bytes()) == record,
+            "ZIP build evidence differs from the complete archive")
+    return record
 
 
 def command(*args):
@@ -274,6 +296,8 @@ def prepare_installer_set(setup, runtime, linux, evidence, output, commit, accep
     if reviewer.requires_windows_audit(manifest["version"]):
         additions["windows-installer-fixture-check.json"] = setup / "windows-installer-fixture-check.json"
         additions["windows-trust-check.json"] = setup / "windows-trust-check.json"
+    if requires_windows_zip(manifest["version"]):
+        additions["windows-zip-check.json"] = setup / "windows-zip-check.json"
     if requires_macos(manifest["version"]):
         for architecture in ("arm64", "x86_64"):
             record = actual[f"macos_{architecture}"]
@@ -341,6 +365,8 @@ def write_update_manifest(output, manifest, verified_pair, channel):
     if requires_macos(version):
         expected.update({f"macos_{arch}": (f"darwin-{arch}", f"NIPAT-{version}-macos-{arch}.pkg")
                          for arch in ("arm64", "x86_64")})
+    if requires_windows_zip(version):
+        expected["windows_zip"] = ("windows-zip-x86_64", f"NIPAT-{version}-Windows-completo.zip")
     entries = []
     for system, (platform, filename) in expected.items():
         require(isinstance(verified_pair.get(system), dict), f"Missing verified installer: {system}")
@@ -357,7 +383,7 @@ def write_update_manifest(output, manifest, verified_pair, channel):
     update = {"schema_version": 1, "product": "nipat-desktop", "version": version,
               "release_tag": tag, "channel": channel, "source_commit": manifest["source_commit"],
               "minimum_updater_version": 1,
-              "assets": [entry for entry in entries if not entry["platform"].startswith("darwin-")],
+              "assets": [entry for entry in entries if entry["platform"] in {"windows-x86_64", "linux-x86_64"}],
               "release_notes_url": f"https://github.com/{REPO}/releases/tag/{tag}"}
     (output / UPDATE_MANIFEST).write_text(json.dumps(update, indent=2) + "\n", encoding="utf-8")
     # The 0.7 updater rejects unknown platforms. Keep its two-platform feed
@@ -365,6 +391,9 @@ def write_update_manifest(output, manifest, verified_pair, channel):
     if requires_macos(version):
         mac_update = dict(update, assets=[entry for entry in entries if entry["platform"].startswith("darwin-")])
         (output / MACOS_UPDATE_MANIFEST).write_text(json.dumps(mac_update, indent=2) + "\n", encoding="utf-8")
+    if requires_windows_zip(version):
+        zip_update = dict(update, assets=[entry for entry in entries if entry["platform"] == "windows-zip-x86_64"])
+        (output / WINDOWS_ZIP_UPDATE_MANIFEST).write_text(json.dumps(zip_update, indent=2) + "\n", encoding="utf-8")
     return update
 
 
@@ -544,6 +573,11 @@ def prepare_assets(setup, runtime, output, commit, read_source=source_bytes, des
             "Runtime/manifest checksum mismatch")
     if requires_wsl_installer_evidence(version):
         verify_installer_build(setup, manifest, manifest_bytes, commit)
+    if requires_windows_zip(version):
+        record = verify_windows_zip(setup, manifest)
+        for name in (record["file"], "windows-zip-build.json"):
+            files[name] = setup / name
+            digests[name] = sha256(files[name])
     if requires_installation_profile(version):
         require(desktop is None, "Docker Desktop deliverables are not supported by this release")
         for folder in (setup, runtime):
@@ -784,6 +818,13 @@ def main(argv=None):
                       "non attestano l'esecuzione della macchina virtuale su un Mac fisico. "
                       "Le prove effettivamente effettuate e quelle ancora da svolgere sono distinte "
                       "nel record di accettazione.\n")
+        if requires_windows_zip(version):
+            notes += (f"\nMetodo aggiuntivo Windows: **NIPAT-{version}-Windows-completo.zip**. "
+                      "Estrarre completamente e avviare **1_INSTALLA.cmd** con doppio clic. "
+                      "Include Python, filesystem WSL e motore scientifico; Windows puo' richiedere Internet "
+                      "per i propri prerequisiti WSL. Aprire poi **NIPAT Desktop ZIP** dal menu Start. "
+                      "Il canale ZIP conserva la propria installazione e usa un feed aggiornamenti separato. "
+                      "La compatibilita' con Smart App Control sul dispositivo finale resta da verificare.\n")
         notes = notes.strip()
         files = {path.name: path for path in output.iterdir()}
         operation = "prepare" if args.operation == "prepare-and-publish" else args.operation

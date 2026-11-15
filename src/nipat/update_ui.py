@@ -97,6 +97,9 @@ def run_updates(
             ui.message("Canale selezionato: " + ("Testing" if preferences.update_channel == "testing" else "Stabile"))
             ui.message("Consultazione delle release pubblicate su GitHub in corso...", kind="muted")
         selected_platform = platform or detect_platform()
+        if selected_platform == "windows-x86_64":
+            from nipat.update_handoff import windows_installation_platform
+            selected_platform = windows_installation_platform(layout.project_dir)
         update_client = client if client is not None else UpdateClient()
         result = update_client.check(current_version, preferences.update_channel, selected_platform)
         if result.status != "available" or result.offer is None:
