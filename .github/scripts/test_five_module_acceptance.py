@@ -164,6 +164,26 @@ class FiveModuleAcceptanceTests(unittest.TestCase):
         self.assertEqual(analysis["reference_comparisons_verified"], 16)
         self.assertFalse(analysis["domain_validation_claimed"])
 
+    def test_0895_zip_record_reaches_strict_baseline_verification(self):
+        record = copy.deepcopy(self.record)
+        record.update(version="0.8.95", publication_channel="stable",
+                      windows_zip_sha256="f" * 64, reviewed_source_changes=[])
+        files = {path: b"unchanged source" for path in acceptance.REQUIRED_OPERATIVE_PATHS | {"pyproject.toml"}}
+        files["distribution-files.txt"] = ("\n".join(sorted(files.keys() | {"distribution-files.txt"})) + "\n").encode()
+        checked = acceptance.verify_baseline(record, lambda commit, path: files[path])
+        self.assertFalse(checked["candidate_windows_installation_claimed"])
+        self.assertEqual(checked["reviewed_source_changes"], [])
+        for change in ({"windows_zip_sha256": "invalid"}, {"unexpected_field": True}):
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                acceptance.verify_baseline(dict(record, **change), lambda commit, path: files[path])
+        without_zip = dict(record)
+        del without_zip["windows_zip_sha256"]
+        with self.assertRaisesRegex(ValueError, "fields"):
+            acceptance.verify_baseline(without_zip, lambda commit, path: files[path])
+        with self.assertRaisesRegex(ValueError, "exact baseline-to-candidate"):
+            acceptance.verify_baseline(record, lambda commit, path:
+                b"unreviewed source" if commit == COMMIT and path == "pyproject.toml" else files[path])
+
     def test_legacy_schema_cannot_qualify_five_modules(self):
         self.record["schema_version"] = 6
         with self.assertRaisesRegex(ValueError, "schema 7"):

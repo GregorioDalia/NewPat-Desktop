@@ -1046,7 +1046,7 @@ def verify_baseline(record, read_source):
     reviewed_delta = record["schema_version"] in (3, 4, 5, 6, 7)
     expected_fields = (FIVE_MODULE_RESEARCH_FIELDS if five_modules else SCIENTIFIC_RESEARCH_FIELDS if revised_r else MULTIPLATFORM_RESEARCH_FIELDS if multiplatform else RELIABILITY_RESEARCH_FIELDS if reliability else
                        REVIEWED_RESEARCH_FIELDS if reviewed_delta else RESEARCH_FIELDS)
-    require(set(record) == expected_fields | publication_fields(record["version"]),
+    require(set(record) == expected_fields | publication_fields(record["version"]) | zip_fields(record["version"]),
             "Research acceptance record fields are invalid")
     validate_research(record, record["version"], record["source_commit"], record["build_run_id"])
     baseline = record["observed_baseline"]["source_commit"]
