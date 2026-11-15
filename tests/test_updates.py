@@ -98,6 +98,22 @@ class UpdateDiscoveryTests(unittest.TestCase):
     def check(self, channel="testing", current="0.6.0", platform="windows-x86_64"):
         return self.client.check(current, channel, platform)
 
+    def test_gui_preview_never_consumes_an_automatic_update_feed(self):
+        for version in ("0.9.0", "0.9.0rc1"):
+            for channel in ("stable", "testing"):
+                with self.subTest(version=version, channel=channel):
+                    result = self.check(channel, current=version)
+                    self.assertEqual(result.status, "manual_update")
+                    self.assertIsNone(result.offer)
+        self.assertEqual(self.network.calls, [])
+
+    def test_0899_stable_feed_behavior_is_preserved(self):
+        self.install(release_fixture("0.8.100"))
+        result = self.check("stable", current="0.8.99")
+        self.assertEqual(result.status, "available")
+        self.assertEqual(result.offer.version, "0.8.100")
+        self.assertTrue(self.network.calls)
+
     def test_mac_uses_its_own_feed_and_architecture_specific_package(self):
         for architecture in ("arm64", "x86_64"):
             with self.subTest(architecture=architecture):

@@ -1,0 +1,240 @@
+"""Desktop GUI entrypoint and narrowly scoped native file operations."""
+from __future__ import annotations
+
+import json
+import logging
+import os
+from pathlib import Path
+import re
+import shutil
+import sys
+import zipfile
+
+from nipat import __version__
+from nipat.errors import ValidationError
+from .host import native_host
+from .server import DesktopServer
+from .service import GuiService
+
+
+class DesktopApplication:
+    def __init__(self, layout=None, *, host=None, service=None, assets=None):
+        self.host = host or native_host()
+        self.service = service or GuiService(layout)
+        self.server = DesktopServer(self.call, assets=assets)
+
+    def dialog(self, params):
+        title = str(params.get("title") or "Seleziona file")[:200]
+        if params.get("directory"):
+            result = self.host.pick_directory(title)
+            return {"paths": [str(result)] if result else []}
+        if params.get("save"):
+            result = self.host.save_file(title, str(params.get("suggested_name") or ""), params.get("filters"))
+            return {"paths": [str(result)] if result else []}
+        result = self.host.pick_files(title, params.get("filters"), bool(params.get("multiple", False)))
+        if isinstance(result, (str, Path)):
+            result = [result]
+        return {"paths": [str(p) for p in result or []]}
+
+    def _result_file(self, params):
+        return self.service._results().file_path(params["run_id"], params["file_id"])
+
+    def file_url(self, params):
+        path = self._result_file(params)
+        # Only non-executable media can be embedded. Original HTML/SVG is an
+        # attachment, preventing another document from acquiring desktop RPC.
+        safe = {".pdf": "application/pdf", ".png": "image/png", ".jpg": "image/jpeg",
+                ".jpeg": "image/jpeg", ".txt": "text/plain; charset=utf-8",
+                ".csv": "text/plain; charset=utf-8", ".tsv": "text/plain; charset=utf-8",
+                ".json": "application/json; charset=utf-8", ".log": "text/plain; charset=utf-8"}
+        return self.server.register(path, mime=safe.get(path.suffix.lower(), "application/octet-stream"),
+                                    attachment=path.suffix.lower() not in safe)
+
+    def export_file(self, params):
+        path = self._result_file(params)
+        destination = self.host.save_file("Salva il file originale", path.name, None)
+        if not destination:
+            return {"cancelled": True}
+        destination = Path(destination).expanduser().resolve()
+        if destination == path.resolve():
+            raise ValidationError("Scegli una destinazione diversa dal file originale.")
+        # The native Save dialog requests overwrite confirmation.
+        shutil.copyfile(path, destination)
+        return {"path": str(destination), "name": destination.name}
+
+    def export_run(self, params):
+        store = self.service._results()
+        run_id = params["run_id"]
+        files = store.files(run_id)
+        name = "NIPAT_" + re.sub(r"[^\w.-]+", "_", run_id) + "_risultati.zip"
+        destination = self.host.save_file("Salva i risultati dell’esperimento", name,
+                                          [{"name": "Archivio ZIP", "extensions": ["zip"]}])
+        if not destination:
+            return {"cancelled": True}
+        destination = Path(destination).expanduser().resolve()
+        paths = [(store.file_path(run_id, f["id"]), f["relative_path"]) for f in files]
+        if any(destination == p.resolve() for p, _ in paths):
+            raise ValidationError("Non sovrascrivere un file dell’esperimento originale.")
+        # Publish the archive only after every scoped original has been copied.
+        import tempfile
+        temporary = None
+        try:
+            with tempfile.NamedTemporaryFile(dir=destination.parent, suffix=".zip", delete=False) as out:
+                temporary = Path(out.name)
+            with zipfile.ZipFile(temporary, "w", compression=zipfile.ZIP_DEFLATED, allowZip64=True) as archive:
+                for path, relative in paths:
+                    archive.write(path, relative)
+            os.replace(temporary, destination)
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
+        return {"path": str(destination), "files": len(paths)}
+
+    @staticmethod
+    def _local_file(value, label):
+        if not isinstance(value, str) or not value.strip():
+            raise ValidationError(f"Seleziona {label}.")
+        if re.match(r"^[A-Za-z][A-Za-z0-9+.-]*://", value):
+            raise ValidationError("IGV utilizza file locali; seleziona il file sul computer.")
+        path = Path(value).expanduser().resolve(strict=True)
+        if not path.is_file():
+            raise ValidationError(f"Il percorso di {label} non è un file.")
+        return path
+
+    def prepare_igv(self, params):
+        reference = params.get("reference", {})
+        if not isinstance(reference, dict):
+            raise ValidationError("Seleziona il riferimento e il suo indice.")
+        fasta = self._local_file(reference.get("fasta"), "il riferimento FASTA")
+        fai = self._local_file(reference.get("index") or str(fasta) + ".fai", "l’indice FAI")
+        # Parse the small FASTA index instead of reading reference/BAM into RAM.
+        chromosomes = []
+        with fai.open(encoding="utf-8-sig") as stream:
+            for i, line in enumerate(stream):
+                if i >= 1_000_000:
+                    raise ValidationError("Indice FASTA troppo grande.")
+                fields = line.rstrip("\r\n").split("\t")
+                if len(fields) < 5 or not fields[0] or not all(re.fullmatch(r"[0-9]+", v) for v in fields[1:5]):
+                    raise ValidationError("Indice FASTA non valido: servono nome, lunghezza, offset e ampiezza delle righe.")
+                if int(fields[1]) < 1 or int(fields[3]) < 1 or int(fields[4]) < int(fields[3]):
+                    raise ValidationError("Indice FASTA con dimensioni non valide.")
+                chromosomes.append(fields[0])
+        if not chromosomes:
+            raise ValidationError("L’indice FASTA è vuoto.")
+        ref = {"id": "nipat-local", "name": fasta.name,
+               "fastaURL": self.server.register(fasta)["url"], "indexURL": self.server.register(fai)["url"]}
+        if fasta.name.lower().endswith((".gz", ".bgz")):
+            gzi = self._local_file(reference.get("compressedIndex") or str(fasta) + ".gzi", "l’indice GZI del riferimento compresso")
+            ref["compressedIndexURL"] = self.server.register(gzi)["url"]
+        tracks = params.get("tracks", [])
+        if not isinstance(tracks, list) or len(tracks) > 200:
+            raise ValidationError("Elenco di tracce non valido.")
+        prepared = []
+        formats = {"bam": "alignment", "cram": "alignment", "vcf": "variant", "bed": "annotation",
+                   "gff": "annotation", "gff3": "annotation", "gtf": "annotation", "bw": "wig",
+                   "bigwig": "wig", "wig": "wig", "bedgraph": "wig", "seg": "seg", "bb": "annotation", "bigbed": "annotation"}
+        for item in tracks:
+            if not isinstance(item, dict):
+                raise ValidationError("Traccia non valida.")
+            path = self._local_file(item.get("path"), "la traccia")
+            stem = path.name.lower().removesuffix(".gz").removesuffix(".bgz")
+            fmt = str(item.get("format") or stem.rsplit(".", 1)[-1]).lower()
+            if fmt not in formats:
+                raise ValidationError(f"Formato della traccia non supportato: {path.name}")
+            index = item.get("index")
+            if not index and fmt in {"bam", "cram"}:
+                suffix = ".bai" if fmt == "bam" else ".crai"
+                index = next((str(p) for p in (Path(str(path) + suffix), path.with_suffix(suffix)) if p.is_file()), None)
+            if not index and path.name.lower().endswith((".gz", ".bgz")) and fmt in {"vcf", "bed", "gff", "gff3", "gtf"}:
+                index = next((str(p) for p in (Path(str(path) + ".tbi"), Path(str(path) + ".csi")) if p.is_file()), None)
+                if not index:
+                    raise ValidationError(f"Seleziona l’indice Tabix/CSI per {path.name}.")
+            if fmt in {"bam", "cram"} and not index:
+                raise ValidationError(f"Seleziona l’indice {'BAI' if fmt == 'bam' else 'CRAI'} per {path.name}.")
+            track = {"name": str(item.get("name") or path.name), "format": fmt, "type": formats[fmt],
+                     "url": self.server.register(path)["url"], "indexed": bool(index)}
+            if index:
+                track["indexURL"] = self.server.register(self._local_file(index, "l’indice della traccia"))["url"]
+            prepared.append(track)
+        locus = params.get("locus") or chromosomes[0]
+        return {"reference": ref, "tracks": prepared, "locus": locus,
+                "loadDefaultGenomes": False, "genomeList": [], "search": False}
+
+    def save_igv_session(self, params):
+        session = params.get("session")
+        if not isinstance(session, dict):
+            raise ValidationError("Sessione IGV non valida.")
+        # Export durable local selections, not expired per-process capabilities.
+        encoded = json.dumps(session, ensure_ascii=False, allow_nan=False, indent=2)
+        if self.server.token in encoded or re.search(r'https?://', encoded, flags=re.I):
+            raise ValidationError("La sessione deve contenere percorsi locali, non URL temporanei.")
+        destination = self.host.save_file("Salva la sessione IGV", "NIPAT_IGV_sessione.json",
+                                          [{"name": "Sessione JSON", "extensions": ["json"]}])
+        if not destination:
+            return {"cancelled": True}
+        Path(destination).write_text(encoded + "\n", encoding="utf-8")
+        return {"path": str(destination)}
+
+    def call(self, method, params):
+        callbacks = {"dialog.open": self.dialog, "dialog.directory": lambda p: self.dialog({**p, "directory": True}),
+                     "files.url": self.file_url, "files.open": self.file_url, "files.export": self.export_file,
+                     "runs.export": self.export_run, "igv.prepare": self.prepare_igv,
+                     "igv.session.save": self.save_igv_session,
+                     "app.close": lambda _p: (self.host.request_close(), {"closing": True})[1]}
+        if method in callbacks:
+            return callbacks[method](params)
+        return self.service.call(method, params)
+
+    def on_close(self):
+        status = self.service.call("close_status")
+        if not status["active"]:
+            return True
+        if not self.host.confirm("Analisi in corso", "Vuoi interrompere le analisi prima di chiudere NIPAT?"):
+            return False
+        for job in status["jobs"]:
+            self.service.call("jobs.cancel", {"job_id": job["id"]})
+        if self.service.call("close_status")["active"]:
+            self.host.notify("Interruzione richiesta", "Attendi la conclusione dell’interruzione nella schermata Attività, poi chiudi NIPAT.")
+            return False
+        return True
+
+    def run(self, *, smoke_test=False, smoke_report=None, timeout=60, smoke_screenshot=None):
+        layout = self.service.layout
+        log_dir = layout.workspace_dir / "logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        handler = logging.FileHandler(log_dir / "gui.log", encoding="utf-8")
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
+        logger = logging.getLogger("nipat.gui")
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+        try:
+            with self.server:
+                return self.host.run_window(self.server.url, title=f"NIPAT {__version__} · Preview",
+                                            on_close=self.on_close,
+                                            user_data_dir=layout.workspace_dir / ".gui" / "webview",
+                                            smoke_test=smoke_test, smoke_report=smoke_report, timeout=timeout,
+                                            screenshot_path=smoke_screenshot)
+        finally:
+            logger.removeHandler(handler)
+            handler.close()
+
+
+def main(layout=None, *, smoke_test=False, smoke_report=None, timeout=60, smoke_screenshot=None):
+    try:
+        return DesktopApplication(layout).run(smoke_test=smoke_test, smoke_report=smoke_report,
+                                              timeout=timeout, smoke_screenshot=smoke_screenshot)
+    except Exception as exc:
+        logging.getLogger(__name__).exception("Desktop startup failed")
+        if smoke_test:
+            if smoke_report:
+                output = Path(smoke_report)
+                output.parent.mkdir(parents=True, exist_ok=True)
+                output.write_text(json.dumps({"status": "failed", "appReady": False, "error": str(exc)},
+                                             ensure_ascii=False, indent=2), encoding="utf-8")
+            print(f"NIPAT native GUI smoke failed: {exc}", file=sys.stderr)
+            return 1
+        try:
+            native_host().notify("NIPAT · avvio non riuscito", str(exc))
+        except Exception:
+            print(f"NIPAT: {exc}", file=sys.stderr)
+        return 1

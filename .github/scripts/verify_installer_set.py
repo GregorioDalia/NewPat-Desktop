@@ -44,19 +44,19 @@ def require(condition, message):
 
 def installation_checks(version):
     require(isinstance(version, str) and re.fullmatch(
-        r"0\.[678]\.[0-9]+(?:(?:a|b|rc)[0-9]+)?", version),
-        "This review contract supports NIPAT 0.6, 0.7 and 0.8")
+        r"0\.[6789]\.[0-9]+(?:(?:a|b|rc)[0-9]+)?", version),
+        "This review contract supports NIPAT 0.6 through 0.9")
     require(not version.startswith("0.8.") or (re.fullmatch(r"0\.8\.[0-9]+", version) and int(version.split(".")[2]) >= 2),
             "The official 0.8 review contract starts at 0.8.2")
     checks = INSTALLATION_CHECKS | (WORKFLOW_INSTALLATION_CHECKS if not version.startswith("0.6.") else set())
-    if tuple(map(int, version.split(".")[:2])) == (0, 8) and int(version.split(".")[2]) >= 50:
+    if tuple(map(int, re.match(r"(\d+)\.(\d+)\.(\d+)", version).groups())) >= (0, 8, 50):
         checks = (checks - {"all_four_workflows"}) | {"all_five_workflows"}
     return checks
 
 
 def requires_reliability_evidence(version):
     match = re.fullmatch(r"0\.7\.([0-9]+)(?:(?:a|b|rc)[0-9]+)?", version)
-    return version.startswith("0.8.") or bool(match and int(match.group(1)) >= 2)
+    return version.startswith(("0.8.", "0.9.")) or bool(match and int(match.group(1)) >= 2)
 
 
 def requires_windows_audit(version):
@@ -65,8 +65,8 @@ def requires_windows_audit(version):
 
 
 def requires_windows_bootstrap(version):
-    match = re.fullmatch(r"0\.8\.([0-9]+)(?:(?:a|b|rc)[0-9]+)?", version or "")
-    return bool(match and int(match[1]) >= 99)
+    match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:(?:a|b|rc)[0-9]+)?", version or "")
+    return bool(match and tuple(map(int, match.groups())) >= (0, 8, 99))
 
 
 def verify_windows_installer_fixture(evidence, manifest):
@@ -174,8 +174,11 @@ def verify_dependency_check(evidence, manifest, manifest_bytes, package_record):
         r"ubuntu:24\.04@sha256:[0-9a-f]{64}", evidence["base_image"]),
         "The dependency check must use a pinned Ubuntu 24.04 image")
     packages = evidence.get("dependency_packages")
+    expected_packages = {"python3.12", "docker.io", "docker-compose-v2", "nipat-desktop"}
+    if str(manifest.get("version", "")).startswith("0.9."):
+        expected_packages |= {"python3-gi", "gir1.2-gtk-3.0", "gir1.2-webkit2-4.1"}
     require(isinstance(packages, dict)
-            and set(packages) == {"python3.12", "docker.io", "docker-compose-v2", "nipat-desktop"}
+            and set(packages) == expected_packages
             and all(isinstance(version, str) and version.strip() for version in packages.values()),
             "Missing dependency versions from the clean Ubuntu installation")
     checks = evidence.get("checks")
@@ -357,6 +360,11 @@ def verify_set(windows, linux, assets, output, commit, project=PROJECT):
         verify_windows_payload_check(check, manifest, payload_record["sha256"])
         result["windows_payload"] = {**payload_record,
             "client_check_sha256": publisher.sha256(windows / "windows-payload-check.json")}
+    if manifest["version"].startswith("0.9.") and publisher.requires_gui_prerelease(manifest["version"]):
+        testing = load_module("nipat_review_testing", PROJECT / "installer/windows/testing_package.py")
+        result["windows_testing"] = testing.verify(
+            windows / testing.filename(manifest["version"]),
+            project / "installer/windows", windows, manifest)
     output.mkdir(parents=True)
     (output / "installer-set-check.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     return result

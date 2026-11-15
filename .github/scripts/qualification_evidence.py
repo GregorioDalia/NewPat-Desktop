@@ -43,6 +43,8 @@ def identity(installer_set):
         result["windows_zip_sha256"] = installer_set["windows_zip"]["sha256"]
     if "windows_payload" in installer_set:
         result["windows_payload_sha256"] = installer_set["windows_payload"]["sha256"]
+    if "windows_testing" in installer_set:
+        result["windows_testing_sha256"] = installer_set["windows_testing"]["sha256"]
     return result
 
 

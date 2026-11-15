@@ -80,7 +80,7 @@ def run_updates(
         return False
     if is_experimental_version(current_version):
         if not startup:
-            ui.heading("Aggiornamenti dell'esperimento 0.8")
+            ui.heading("Aggiornamenti della versione sperimentale")
             ui.message(f"Versione installata: NIPAT {current_version}")
             ui.message("Questa installazione sperimentale e' separata dalla versione stabile. "
                        "Gli aggiornamenti automatici sono disabilitati per evitare il cambio di distribuzione.")

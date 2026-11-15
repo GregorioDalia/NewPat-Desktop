@@ -129,7 +129,7 @@ class AcceptanceTests(unittest.TestCase):
                     acceptance.validate(record, "0.5.0a1", COMMIT, 123)
 
     def test_future_distribution_contracts_are_not_implicitly_authorized(self):
-        for version in ("0.4.1", "0.8.0", "1.0.0", "../0.5.0a1"):
+        for version in ("0.4.1", "0.8.0", "0.10.0", "1.0.0", "../0.5.0a1"):
             with self.subTest(version=version), self.assertRaisesRegex(ValueError, "Joint publication supports"):
                 acceptance.acceptance_path(version)
 

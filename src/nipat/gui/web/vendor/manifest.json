@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "package": "igv",
+  "version": "3.8.9",
+  "license": "MIT",
+  "source": "https://github.com/igvteam/igv.js/releases/tag/v3.8.9",
+  "npm": "https://registry.npmjs.org/igv/-/igv-3.8.9.tgz",
+  "npm_integrity": "sha512-d+m5gPeMc8k1K9TaLP11WCKW5JXtyXxAbrcBgSPP1XEQrHBhijD4l3+ZJ1VH79JGzDJnfqf9DicljjSinMZO9g==",
+  "assets": {
+    "README.md": {
+      "bytes": 1832,
+      "sha256": "deb0defb8b7fd9415723b0c020ee177abc091d386fec619a0f9b91f40e6e2233"
+    },
+    "igv.LICENSE.txt": {
+      "bytes": 1147,
+      "sha256": "fd69572836ffc3e7e17d19177bcd55c62c74c5c8a3db0d7a5f867759d7f9d443"
+    },
+    "igv.min.js": {
+      "bytes": 1497988,
+      "sha256": "240c31f8dc20d233b023e8482cb4b388f87679f69779afe3685a5c0c979e93ff"
+    },
+    "licenses/canvas2svg.LICENSE.txt": {
+      "bytes": 1079,
+      "sha256": "e74ea1f767c879c2e6c8a787ffe2868f9323ddd5b507e18878e52c5876c2da1e"
+    },
+    "licenses/circular-view.LICENSE.txt": {
+      "bytes": 1065,
+      "sha256": "718a9c12726a4cc7c88859c365778bedeb2988aa7c6d9b3c8ac41b19b0b8b495"
+    },
+    "licenses/cram-bundle.js.LICENSE.txt": {
+      "bytes": 654,
+      "sha256": "89f37b2690ea830d3a1437d5a57903e765037b7efb135aaf183ce52f686518f0"
+    },
+    "licenses/dompurify-3.4.16-LICENSE-MPL.txt": {
+      "bytes": 16726,
+      "sha256": "fab3dd6bdab226f1c08630b1dd917e11fcb4ec5e1e020e2c16f83a0a13863e85"
+    },
+    "licenses/dompurify-3.4.16-LICENSE.txt": {
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    "licenses/gmod-cram.LICENSE.txt": {
+      "bytes": 1070,
+      "sha256": "404439bb6a5c127f0a99ae2ddda56b0a1926f75e0065f9f6ce85a09855aa19f5"
+    },
+    "licenses/hdf5-indexed-reader.LICENSE.txt": {
+      "bytes": 1070,
+      "sha256": "24424412c2098bd787de2603a9c7f04f0cdfaaa77546762f88fcdff918ea7ad3"
+    },
+    "licenses/hic-straw-2.1.3-LICENSE.txt": {
+      "bytes": 1057,
+      "sha256": "feb87a2e0c305de3464cc44077da5393c52d8ca6362d37427157d04ec6f4510d"
+    },
+    "licenses/igv-utils.package.json": {
+      "bytes": 759,
+      "sha256": "153570b0d7680dc950ceebd0b41043b98f9d817a23711cfbf8e658ec671ab1be"
+    },
+    "licenses/pako-2.0.4-LICENSE.txt": {
+      "bytes": 1104,
+      "sha256": "a04665b3b2de56c66730c1f720f528175739e4104f79073614aa611da1e85539"
+    },
+    "licenses/pako-2.1.0-LICENSE.txt": {
+      "bytes": 1104,
+      "sha256": "a04665b3b2de56c66730c1f720f528175739e4104f79073614aa611da1e85539"
+    },
+    "licenses/regenerator-runtime-0.14.1-LICENSE.txt": {
+      "bytes": 1080,
+      "sha256": "51887a3d47051ac2fce1210562e5b9fe0830a8a8fabeb272c2d586eeb18a05fd"
+    },
+    "licenses/sources.json": {
+      "bytes": 1547,
+      "sha256": "d0cf2bdc769a43cafafc709ffe6391dac0baad4aca70b99f6f2cc98d4ce5d3a9"
+    },
+    "licenses/twobit-js.LICENSE.txt": {
+      "bytes": 1070,
+      "sha256": "404439bb6a5c127f0a99ae2ddda56b0a1926f75e0065f9f6ce85a09855aa19f5"
+    },
+    "licenses/vanilla-picker-2.12.1-LICENSE.md.txt": {
+      "bytes": 767,
+      "sha256": "a4294f0f987ce43d315e3d6db2bd46a2254fdec0b8996427daaa8a910ca1d7ca"
+    },
+    "licenses/vanilla-picker-2.12.3-LICENSE.md.txt": {
+      "bytes": 767,
+      "sha256": "a4294f0f987ce43d315e3d6db2bd46a2254fdec0b8996427daaa8a910ca1d7ca"
+    }
+  }
+}

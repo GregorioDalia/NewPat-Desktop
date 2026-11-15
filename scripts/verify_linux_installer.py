@@ -37,7 +37,7 @@ CHECKS = (
 
 def checks_for_version(version: str) -> tuple[str, ...]:
     require(isinstance(version, str) and re.fullmatch(r"0\.[678]\.\d+(?:(?:a|b|rc)\d+)?", version) is not None,
-            "The installed-package check supports Desktop 0.6, 0.7 and 0.8 releases.")
+            "The installed-package check supports Desktop 0.6 through 0.9 releases.")
     require(not version.startswith("0.8.") or (re.fullmatch(r"0\.8\.[0-9]+", version) and int(version.split(".")[2]) >= 2),
             "The official Desktop check starts at 0.8.2.")
     checks = CHECKS[:-2] if version.startswith("0.6.") else CHECKS

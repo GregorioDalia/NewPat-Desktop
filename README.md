@@ -7,7 +7,7 @@
 
 NIPAT Desktop esegue sul computer analisi SNP e DNP, stima della contaminazione
 e calcolo dell'indice combinato di paternità prenatale e postnatale.
-Si usa da un **menu testuale guidato** o da **riga di comando**. Le analisi
+La versione stabile si usa da un **menu testuale guidato** o da **riga di comando**. Le analisi
 usano il runtime scientifico locale con R e samtools. Dopo la preparazione
 dell'ambiente, i calcoli si possono eseguire offline.
 
@@ -16,6 +16,12 @@ uno ZIP completo, che prepara NIPAT nella cartella estratta, e un setup EXE
 che scarica il pacchetto applicativo della release. Python è incluso in entrambi;
 lo ZIP include anche il motore scientifico. I cinque moduli scientifici
 restano invariati.
+
+La **[0.9.0 Preview](docs/RELEASE_0.9.0.md)** introduce l'applicazione grafica
+con IGV integrato, italiano e inglese, configurazione delle analisi e archivio
+dei risultati. È una prerelease per le prove della GUI: **la 0.8.99 rimane
+la versione stabile**. La finestra dell'applicazione non apre un browser
+esterno. Consulta la [guida alla GUI](docs/GUI.md) per installarla e utilizzarla.
 
 ## Download
 

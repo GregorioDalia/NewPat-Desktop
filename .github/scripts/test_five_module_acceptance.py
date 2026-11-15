@@ -200,6 +200,45 @@ class FiveModuleAcceptanceTests(unittest.TestCase):
         self.assertEqual(analysis["reference_comparisons_verified"], 16)
         self.assertFalse(analysis["domain_validation_claimed"])
 
+    def test_gui_release_retains_all_schema7_evidence_and_explicit_testing_channel(self):
+        record = copy.deepcopy(self.record)
+        record.update(version="0.9.0", publication_channel="testing", windows_zip_sha256="e" * 64,
+                      windows_payload_sha256="f" * 64, windows_testing_sha256="d" * 64)
+        acceptance.validate(record, record["version"], COMMIT, record["build_run_id"])
+        for field in ("publication_channel", "windows_zip_sha256", "windows_payload_sha256",
+                      "windows_testing_sha256", "macos_arm64_installer_sha256",
+                      "macos_x86_64_installer_sha256", "qualification_evidence_sha256",
+                      "scientific_equivalence", "scientific_analysis_qualification"):
+            missing = dict(record)
+            del missing[field]
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                acceptance.validate(missing, record["version"], COMMIT, record["build_run_id"])
+        for change in ({"publication_channel": "stable"}, {"schema_version": 6},
+                       {"windows_testing_sha256": "invalid"}):
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                acceptance.validate(dict(record, **change), record["version"], COMMIT, record["build_run_id"])
+        # Later GUI patches keep the explicit research acceptance policy; the
+        # request to publish 0.9.0 as a preview does not decide their maturity.
+        future = dict(record, version="0.9.1", publication_channel="stable")
+        del future["windows_testing_sha256"]
+        acceptance.validate(future, future["version"], COMMIT, future["build_run_id"])
+
+    def test_gui_template_cannot_authorize_untested_build_or_omit_testing_entrypoint(self):
+        installers = dict(self.legacy.installer_set, version="0.9.0",
+                          windows_zip={"sha256": "e" * 64}, windows_payload={"sha256": "f" * 64})
+        with self.assertRaisesRegex(ValueError, "testing entrypoint"):
+            acceptance.template(installers, 123)
+        installers["windows_testing"] = {"sha256": "d" * 64}
+        record = acceptance.template(installers, 123)
+        self.assertEqual(record["schema_version"], 7)
+        self.assertEqual(record["decision"], "pending")
+        self.assertIsNone(record["publication_channel"])
+        self.assertEqual(record["windows_testing_sha256"], "d" * 64)
+        self.assertIn("scientific_analysis_qualification", record)
+        self.assertEqual(set(record["macos_validation"]), {"arm64", "x86_64"})
+        with self.assertRaises(ValueError):
+            acceptance.validate(record, "0.9.0", COMMIT, 123, installers)
+
     def test_0895_zip_record_reaches_strict_baseline_verification(self):
         record = copy.deepcopy(self.record)
         record.update(version="0.8.95", publication_channel="stable",

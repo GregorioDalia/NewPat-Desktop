@@ -39,7 +39,15 @@ class ExperimentalDistributionTests(unittest.TestCase):
         self.assertEqual(profile["channel"], CHANNEL)
         self.assertEqual(profile["data_dir_name"], WINDOWS_DIRECTORY)
         self.assertEqual(profile["channel"], "desktop")
-        self.assertFalse(is_experimental_version(__version__))
+        self.assertTrue(is_experimental_version(__version__))
+
+    def test_gui_preview_is_isolated_without_reclassifying_stable_releases(self):
+        for version in ("0.8.0a1", "0.9.0", "0.9.0a1", "0.9.0b2", "0.9.0rc1"):
+            with self.subTest(version=version):
+                self.assertTrue(is_experimental_version(version))
+        for version in ("0.8.99", "0.8.100", "0.9.1", "1.0.0"):
+            with self.subTest(version=version):
+                self.assertFalse(is_experimental_version(version))
 
     def test_experimental_updater_never_contacts_feed_or_handoff(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -48,10 +56,11 @@ class ExperimentalDistributionTests(unittest.TestCase):
             client, handoff, read = Mock(), Mock(), Mock()
             messages = []
             ui = Terminal(read=read, write=messages.append)
-            for startup in (False, True):
-                self.assertFalse(run_updates(ui, layout, Preferences(), client=client,
-                                             handoff=handoff, startup=startup,
-                                             current_version="0.8.0a1"))
+            for version in ("0.8.0a1", "0.9.0", "0.9.0rc1"):
+                for startup in (False, True):
+                    self.assertFalse(run_updates(ui, layout, Preferences(), client=client,
+                                                 handoff=handoff, startup=startup,
+                                                 current_version=version))
             client.check.assert_not_called()
             client.download.assert_not_called()
             handoff.assert_not_called()

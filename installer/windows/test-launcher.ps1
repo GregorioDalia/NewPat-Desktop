@@ -161,7 +161,7 @@ exit ([int]$env:NIPAT_LAUNCH_TEST_EXIT)
     $result = Invoke-TestLauncher -Executable $guidedCommand -BatchFile -ExitCode 23
     Assert-Test ($result.ExitCode -eq 23) ('guided command preserves failure through its final pause: ' + $result.Output)
     $record = Get-Content -LiteralPath $script:CapturePath -Raw -Encoding UTF8 | ConvertFrom-Json
-    Assert-Test ($record.arguments.Count -eq 1 -and $record.arguments[0] -ceq 'wizard') 'guided command opens wizard with a fixed argument'
+    Assert-Test ($record.arguments.Count -eq 1 -and $record.arguments[0] -ceq 'gui') 'guided command opens GUI with a fixed argument'
     Assert-Test (Test-SamePath $record.working_directory $script:CallerDirectory) 'guided command preserves caller working directory'
     Assert-Test (Test-SamePath $record.script_path $runner) 'guided command finds its runner in a path containing spaces, ampersand and Unicode'
 
@@ -336,7 +336,7 @@ class FixturePython {
     Assert-Test ((Test-SamePath $capture[0] $script:CallerDirectory) -and
         (Test-SamePath $capture[2] $candidateData) -and (Test-SamePath $capture[3] $candidateRuns) -and
         (Test-SamePath $capture[4] $candidateBase) -and (Test-SamePath $capture[7] $app)) 'guided command preserves cwd while isolating Desktop paths from inherited stable settings'
-    Assert-Test ($capture[8] -ceq '-m' -and $capture[9] -ceq 'nipat' -and $capture[10] -ceq 'wizard') 'guided command reaches the same Python CLI'
+    Assert-Test ($capture[8] -ceq '-m' -and $capture[9] -ceq 'nipat' -and $capture[10] -ceq 'gui') 'guided command reaches the native GUI entrypoint'
 
     $explicitRuns = Join-Path $temporary 'explicit user results'
     $result = Invoke-TestLauncher -Executable $executable -Arguments @('--runs-dir', $explicitRuns, 'wizard') -Environment $environment

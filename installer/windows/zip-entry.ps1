@@ -17,7 +17,7 @@ try {
         exit $code
     }
     $pointer = Read-NipatZipPointer $root
-    & (Join-Path $pointer.app_dir 'scripts\windows\run.ps1') wizard
+    & (Join-Path $pointer.app_dir 'scripts\windows\run.ps1') gui
     exit $LASTEXITCODE
 } catch {
     Write-Host ('ERRORE: ' + $_.Exception.Message) -ForegroundColor Red

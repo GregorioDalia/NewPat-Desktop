@@ -1,0 +1,100 @@
+"""Native GUI distribution provenance and launcher preparation behavior."""
+from contextlib import contextmanager
+import importlib.util
+from pathlib import Path
+import shutil
+import tempfile
+from types import SimpleNamespace
+import unittest
+from unittest.mock import Mock, patch
+
+
+PROJECT = Path(__file__).resolve().parents[1]
+
+
+def module(name, path):
+    spec = importlib.util.spec_from_file_location(name, PROJECT / path)
+    result = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(result)
+    return result
+
+
+VERIFY = module("gui_distribution", "scripts/verify_gui_distribution.py")
+LINUX = module("gui_linux_launch", "installer/linux/launch.py")
+
+
+class GuiDistributionTests(unittest.TestCase):
+    def test_pinned_dependencies_have_complete_verified_inventory(self):
+        report = VERIFY.verify(PROJECT)
+        self.assertEqual(report["status"], "passed")
+        self.assertFalse(report["authenticode_checked"])
+        self.assertEqual(report["smart_app_control"], "not-performed")
+        self.assertEqual({item["path"] for item in report["files"]}, VERIFY.EXPECTED_FILES)
+
+    def test_modified_dependency_is_rejected_before_loading(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            destination = root / "src/nipat/gui/native/windows"
+            shutil.copytree(PROJECT / "src/nipat/gui/native/windows", destination)
+            loader = destination / "x64/WebView2Loader.dll"
+            data = bytearray(loader.read_bytes())
+            data[-1] ^= 1
+            loader.write_bytes(data)
+            with self.assertRaisesRegex(ValueError, "pinned provenance"):
+                VERIFY.verify(root)
+
+
+class DesktopPreparationTests(unittest.TestCase):
+    def launch(self, arguments, *, failure=False):
+        events = []
+
+        @contextmanager
+        def progress(_app):
+            events.append("progress opened")
+            try:
+                yield
+            finally:
+                events.append("progress closed")
+
+        def prepare(*_args, **_kwargs):
+            events.append("prepare")
+            if failure:
+                raise LINUX.SetupError("Runtime non disponibile")
+            return "sha256:" + "a" * 64
+
+        def run(_app, command, _environment):
+            events.append(("run", command))
+            return 0
+
+        helper = SimpleNamespace(preparation_notice=progress, show_startup_error=Mock())
+        with patch.object(LINUX, "require_host"), \
+                patch.object(LINUX, "gui_startup", return_value=helper) as gui, \
+                patch.object(LINUX, "ensure_ready", side_effect=prepare), \
+                patch.object(LINUX, "run_cli", side_effect=run):
+            result = LINUX.launch(arguments)
+        return result, events, helper, gui
+
+    def test_default_desktop_closes_preparation_notice_before_gui(self):
+        for arguments in ([], ["gui"]):
+            with self.subTest(arguments=arguments):
+                result, events, helper, _ = self.launch(arguments)
+                self.assertEqual(result, 0)
+                self.assertEqual(events, ["progress opened", "prepare", "progress closed", ("run", ["gui"])])
+                helper.show_startup_error.assert_not_called()
+
+    def test_cli_keeps_its_requested_mode_without_native_notice(self):
+        result, events, _, gui = self.launch(["wizard"])
+        self.assertEqual(result, 0)
+        self.assertEqual(events, ["prepare", ("run", ["wizard"])])
+        gui.assert_not_called()
+
+    def test_failure_closes_progress_and_shows_native_error(self):
+        result, events, helper, _ = self.launch([], failure=True)
+        self.assertEqual(result, 1)
+        self.assertEqual(events, ["progress opened", "prepare", "progress closed"])
+        helper.show_startup_error.assert_called_once()
+        self.assertIn("Runtime non disponibile", helper.show_startup_error.call_args.args[1])
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -23,6 +23,7 @@ from urllib.parse import urljoin, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from nipat.errors import NipatError
+from nipat.distribution import is_experimental_version
 
 
 REPOSITORY = "GregorioDalia/nipat-desktop"
@@ -343,6 +344,9 @@ class UpdateClient:
         return UpdateOffer(version, tag, expected_channel, source, minimum, selected, data["release_notes_url"])
 
     def check(self, current_version: str, channel: str, platform: str) -> UpdateCheck:
+        if is_experimental_version(current_version):
+            return UpdateCheck("manual_update", "Questa versione sperimentale usa installer dedicati. "
+                               "Gli aggiornamenti automatici sono disabilitati; la versione stabile resta separata.")
         try:
             current = version_key(current_version)
             _required(isinstance(channel, str) and channel in {"stable", "testing"}, "Canale aggiornamenti non valido.")

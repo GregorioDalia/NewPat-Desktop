@@ -10,4 +10,5 @@ EXPERIMENT_URL = "https://github.com/GregorioDalia/nipat-desktop/releases"
 
 def is_experimental_version(version: str) -> bool:
     """These builds must never consume the stable desktop update feed."""
-    return bool(re.fullmatch(r"0\.8\.\d+(?:a|b|rc)\d+", version))
+    return isinstance(version, str) and bool(re.fullmatch(
+        r"(?:0\.8\.\d+(?:a|b|rc)\d+|0\.9\.0(?:(?:a|b|rc)\d+)?)", version))

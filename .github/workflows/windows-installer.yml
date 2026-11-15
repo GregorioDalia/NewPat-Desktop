@@ -42,7 +42,7 @@ jobs:
     # Independent Windows and Linux checks overlap; their installer consumers
     # still require every producer to succeed before assembling the release.
     runs-on: windows-2022
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
       PYTHONPATH: src
     steps:
@@ -65,6 +65,19 @@ jobs:
       - name: Run shared Windows unit, installer and script checks
         shell: powershell
         run: ./.github/scripts/check_windows.ps1
+      - name: Verify official Microsoft desktop dependencies
+        shell: powershell
+        run: |
+          python scripts/verify_gui_distribution.py --signatures --report build/gui/windows-native-dependencies.json
+          if ($LASTEXITCODE -ne 0) { throw 'Native GUI dependency verification failed.' }
+      - name: Retain native desktop dependency evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nipat-windows-gui-dependencies
+          path: build/gui/
+          retention-days: 14
+          if-no-files-found: ignore
       - name: Retain compiled installer fixture results, including failures
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -398,6 +411,14 @@ jobs:
           & installer/windows/test-zip-package.ps1 -Package (Join-Path 'build/output' ('NIPAT-' + $manifest.version + '-Windows-completo.zip')) `
             -ManifestPath 'build/assets/installer-manifest.json' -OutputPath 'build/output/windows-zip-check.json'
           if ($LASTEXITCODE -ne 0) { throw 'Complete Windows ZIP packaged checks failed.' }
+      - name: Bind the testing entrypoint to the exact release downloads
+        shell: powershell
+        run: |
+          $manifest = Get-Content -LiteralPath 'build/assets/installer-manifest.json' -Raw -Encoding UTF8 | ConvertFrom-Json
+          if ($manifest.version -match '^0\.9\.0(?:(?:a|b|rc)[0-9]+)?$') {
+            python installer/windows/testing_package.py --manifest build/assets/installer-manifest.json --output build/output
+            if ($LASTEXITCODE -ne 0) { throw 'Release-specific testing entrypoint failed.' }
+          }
       - name: Verify the final WSL package without publishing
         shell: powershell
         run: |
@@ -449,6 +470,9 @@ jobs:
           name: nipat-windows-client-logs
           path: |
             build/output/windows-client-check.json
+            build/output/windows-native-smoke.json
+            build/output/windows-native-smoke.png
+            build/output/windows-native-dependencies.json
             ${{ runner.temp }}/NIPAT packaged client è/logs/
             ${{ runner.temp }}/NIPAT packaged client è/runs/
           retention-days: 14
@@ -500,6 +524,21 @@ jobs:
             --work-dir "$RUNNER_TEMP/NIPAT Linux installation check" \
             --output build/linux-output/linux-installation-check.json \
             --system-package-test
+      - name: Exercise the packaged native GTK application
+        # Xvfb supplies a desktop to the native GTK window; no browser is launched.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb xauth dbus-x11 python3-cairo python3-gi-cairo
+          package=(build/linux-output/*.deb)
+          test "${#package[@]}" -eq 1
+          dpkg-deb --extract "${package[0]}" "$RUNNER_TEMP/nipat-native-gui-package"
+          app="$RUNNER_TEMP/nipat-native-gui-package/opt/nipat-desktop"
+          xvfb-run --auto-servernum --server-args="-screen 0 1440x1000x24" \
+            dbus-run-session -- /usr/bin/python3.12 "$app/scripts/verify_gui_app.py" \
+              --app "$app" --python /usr/bin/python3.12 \
+              --workspace "$RUNNER_TEMP/nipat-native-gui-workspace" \
+              --report "$GITHUB_WORKSPACE/build/linux-output/linux-native-smoke.json" \
+              --screenshot "$GITHUB_WORKSPACE/build/linux-output/linux-native-smoke.png"
       - name: Fetch the exact published 0.7.2 upgrade baseline
         env:
           GH_TOKEN: ${{ github.token }}
@@ -531,6 +570,8 @@ jobs:
           path: |
             build/linux-output/linux-dependency-check.json
             build/linux-output/linux-installation-check.json
+            build/linux-output/linux-native-smoke.json
+            build/linux-output/linux-native-smoke.png
             build/linux-output/linux-upgrade-check.json
             build/linux-output/linux-upgrade.log
             ${{ runner.temp }}/NIPAT Linux installation check/user state with spaces/nipat-desktop/setup.log
@@ -714,7 +755,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' && inputs.qualify_macos_runtime == true &&
       github.repository == 'GregorioDalia/nipat-desktop' &&
-      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/0.8.'))
+      ((github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/0.8.')) || startsWith(github.ref, 'refs/heads/release/0.9.'))
     # installer-required depends on release-source, which verifies that the branch
     # exactly matches the package version and the Desktop installation profile.
     needs: installer-required

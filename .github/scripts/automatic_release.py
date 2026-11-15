@@ -74,6 +74,7 @@ def publication_arguments(record, existing):
             "NIPAT-Setup.exe": "windows_installer_sha256",
             f"NIPAT-{version}-Windows-completo.zip": "windows_zip_sha256",
             f"NIPAT-{version}-Windows-payload.zip": "windows_payload_sha256",
+            f"NIPAT-{version}-Testing-installazione.zip": "windows_testing_sha256",
             f"nipat-desktop_{version}_amd64.deb": "linux_installer_sha256",
             f"NIPAT-{version}-macos-arm64.pkg": "macos_arm64_installer_sha256",
             f"NIPAT-{version}-macos-x86_64.pkg": "macos_x86_64_installer_sha256",
@@ -82,6 +83,9 @@ def publication_arguments(record, existing):
             "qualification-evidence.zip": "qualification_evidence_sha256",
         }
         assets = existing.get("assets") or []
+        if publisher.requires_gui_prerelease(version):
+            publisher.require("windows_testing_sha256" in record,
+                              "Acceptance is missing the Windows testing entrypoint digest")
         digests = {asset["name"]: asset.get("digest") for asset in assets if asset.get("state") == "uploaded"}
         publisher.require(len(digests) == len(assets)
                           and all(digests.get(name) == "sha256:" + record[field]

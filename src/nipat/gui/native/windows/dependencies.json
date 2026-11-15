@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "sdk": {
+    "name": "Microsoft.Web.WebView2",
+    "version": "1.0.4314.35",
+    "url": "https://api.nuget.org/v3-flatcontainer/microsoft.web.webview2/1.0.4314.35/microsoft.web.webview2.1.0.4314.35.nupkg",
+    "sha256": "90778deb1b77e36292828b4b5833c9255c27533f40e0ddd55891ae718944edc4"
+  },
+  "runtime_bootstrap": {
+    "url": "https://go.microsoft.com/fwlink/p/?LinkId=2124703",
+    "resolved_url": "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/068be74d-a831-494f-8f57-c173756d5a33/MicrosoftEdgeWebview2Setup.exe",
+    "policy": "Only install when Evergreen Runtime is absent; official signed per-user bootstrap, /silent /install. Network required for initial runtime provisioning. No external browser is opened."
+  },
+  "files": [
+    {
+      "path": "x64/WebView2Loader.dll",
+      "sha256": "d3fce90bdeecb08596e377dea6a316354dd8949e32ff09b89d51be00c14e21b6",
+      "size": 194912
+    },
+    {
+      "path": "x64/MicrosoftEdgeWebview2Setup.exe",
+      "sha256": "cf2f2445fef0c5c14e372045f84998771eeb8bb01d59be4afd00692fa160082e",
+      "size": 1897688
+    },
+    {
+      "path": "LICENSE.txt",
+      "sha256": "0af8f1b807512aae39c2ac1aa4d0cae65cabecb6fd554b8439a5162a0d6eca55",
+      "size": 1487
+    }
+  ]
+}

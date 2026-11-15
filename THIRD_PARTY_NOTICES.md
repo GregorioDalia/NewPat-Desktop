@@ -49,6 +49,36 @@ files used by NIPAT. Preserve these records when distributing a modified copy.
 
 ## Software supplied with the runtime
 
+The 0.9.0 desktop interface adds the following components:
+
+- **igv.js 3.8.9:** the unmodified browser bundle from
+  <https://github.com/igvteam/igv.js/releases/tag/v3.8.9>, distributed under
+  the [MIT license](src/nipat/gui/web/vendor/igv.LICENSE.txt). The bundled
+  dependency notices are preserved in
+  [web/vendor/licenses](src/nipat/gui/web/vendor/licenses); the adjacent
+  [manifest](src/nipat/gui/web/vendor/manifest.json) records provenance and
+  digests. NIPAT's integration adapter is separate from the upstream bundle.
+- **Microsoft WebView2 SDK loader:** the x64 loader from the
+  Microsoft.Web.WebView2 1.0.4314.35 NuGet package is included for Windows.
+  The package's `.nuspec` declares its unchanged
+  [LICENSE.txt](src/nipat/gui/native/windows/LICENSE.txt), containing the
+  Microsoft BSD-style redistribution terms supplied with that SDK.
+- **Microsoft WebView2 Evergreen Runtime bootstrap:** this official
+  Microsoft installer is a separate component, governed by the
+  **Microsoft Software License Terms for Microsoft Edge WebView2 Runtime**,
+  shown by the download controls on the
+  [official Runtime download page](https://developer.microsoft.com/en-us/microsoft-edge/webview2/).
+  The SDK license above does not apply to the Runtime. Microsoft documents
+  [packaging the bootstrapper with an application](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution).
+  NIPAT's GPL does not relicense Microsoft binaries. The
+  [dependency manifest](src/nipat/gui/native/windows/dependencies.json)
+  records exact source locations, sizes and SHA-256 digests. The runtime
+  bootstrap is used only when the Microsoft runtime is absent.
+- **System GUI frameworks:** macOS uses Cocoa and WKWebView supplied by
+  the operating system. Ubuntu uses GTK 3, WebKitGTK 4.1 and PyGObject
+  installed as distribution packages, with their corresponding package
+  licenses and notices. These frameworks are not vendored in NIPAT source.
+
 The Windows, Linux and experimental macOS packages also contain software with its own
 licenses. The NIPAT license does not replace those licenses.
 

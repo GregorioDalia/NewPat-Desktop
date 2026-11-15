@@ -28,7 +28,7 @@ CHECKS = (
     "installed_cli_help_and_version", "no_automatic_docker_access",
     "no_runtime_preparation", "apt_sources_unchanged", "embedded_manifest_matches",
 )
-PACKAGES = ("python3.12", "docker.io", "docker-compose-v2", "nipat-desktop")
+PACKAGES = ("python3.12", "docker.io", "docker-compose-v2", "nipat-desktop", "python3-gi", "gir1.2-gtk-3.0", "gir1.2-webkit2-4.1")
 
 # Fixed paths keep untrusted filenames and manifest strings out of shell code.
 # policy-rc.d suppresses service startup in this dependency-only test container.
@@ -37,7 +37,7 @@ CONTAINER_SCRIPT = r'''set -euo pipefail
 test "$ID" = ubuntu && test "$VERSION_ID" = 24.04
 test "$(dpkg --print-architecture)" = amd64
 test ! -e /var/run/docker.sock
-for package in python3.12 docker.io docker-ce docker-compose-v2 docker-compose-plugin nipat-desktop; do
+for package in python3.12 docker.io docker-ce docker-compose-v2 docker-compose-plugin nipat-desktop python3-gi gir1.2-gtk-3.0 gir1.2-webkit2-4.1; do
     status=$(dpkg-query -W -f='${db:Status-Status}' "$package" 2>/dev/null || true)
     if test "$status" = installed; then
         echo "Dependency unexpectedly present before APT: $package" >&2
@@ -76,12 +76,18 @@ import json
 from pathlib import Path
 import subprocess
 
+import gi
+gi.require_version('Gtk', '3.0')
+gi.require_version('WebKit2', '4.1')
+from gi.repository import Gtk, WebKit2
+assert Gtk.get_major_version() == 3 and WebKit2.get_major_version() >= 2
+
 manifest_bytes = Path('/input/installer-manifest.json').read_bytes()
 manifest = json.loads(manifest_bytes)
 assert Path('/opt/nipat-desktop/.distribution/installer-manifest.json').read_bytes() == manifest_bytes
 assert Path('/tmp/nipat-version').read_text().strip().endswith(manifest['version'])
 packages = {}
-for package in ('python3.12', 'docker.io', 'docker-compose-v2', 'nipat-desktop'):
+for package in ('python3.12', 'docker.io', 'docker-compose-v2', 'nipat-desktop', 'python3-gi', 'gir1.2-gtk-3.0', 'gir1.2-webkit2-4.1'):
     fields = subprocess.check_output(
         ['dpkg-query', '-W', '-f=${Status}\t${Version}', package], text=True,
     ).split('\t')

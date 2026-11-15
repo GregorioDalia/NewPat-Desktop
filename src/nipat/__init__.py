@@ -1,3 +1,3 @@
 """NIPAT desktop orchestration package."""
 
-__version__ = "0.8.99"
+__version__ = "0.9.0"

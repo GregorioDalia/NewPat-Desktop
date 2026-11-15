@@ -205,7 +205,7 @@ class LinuxInstallerTests(unittest.TestCase):
         self.assertFalse((app / "private.txt").exists())
         self.assertFalse((app / ".distribution" / self.rootfs.name).exists())
         self.assertEqual((extracted / "usr/bin" / linux.COMMAND).stat().st_mode & 0o777, 0o755)
-        self.assertIn("Terminal=true", (extracted / "usr/share/applications/nipat-desktop.desktop").read_text())
+        self.assertIn("Terminal=false", (extracted / "usr/share/applications/nipat-desktop.desktop").read_text())
         desktop = (extracted / "usr/share/applications/nipat-desktop.desktop").read_text()
         self.assertIn("Name=NIPAT Desktop\n", desktop)
         self.assertIn("Exec=/usr/bin/nipat --desktop\nTryExec=/usr/bin/nipat\n", desktop)
