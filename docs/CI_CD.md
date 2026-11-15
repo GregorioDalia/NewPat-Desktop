@@ -226,9 +226,12 @@ non sostituiscono quelle di interazione Finder o delle policy del dispositivo.
 
 Integrare il record accettato con una PR contenente soltanto i JSON di accettazione
 avvia la CI Linux dedicata su `main`. Al suo successo, **Publish accepted release**
-usa esattamente quel commit e pubblica la build indicata. Le versioni senza
-suffisso vengono pubblicate su `stable` come `Latest`; `a`, `b` e `rc` usano
-`testing`. Una modifica mista richiede l'avvio manuale descritto sotto.
+usa esattamente quel commit e pubblica la build indicata. Dalla 0.8.70 il
+canale è scelto esplicitamente dal campo `publication_channel` del record:
+`stable` richiede una versione numerica e imposta `Latest`; `testing` mantiene
+la release sperimentale. La 0.9.0, anche senza suffisso, richiede `testing`
+e conserva la 0.8.99 come stabile. Una modifica mista richiede l'avvio manuale
+descritto sotto.
 L'automazione verifica che il run provenga dal push su `main` di questo repository,
 con `acceptance` e `required` riusciti. Il publisher verifica nuovamente i pacchetti
 e i digest remoti. I rilanci riconoscono una release già pubblicata e possono

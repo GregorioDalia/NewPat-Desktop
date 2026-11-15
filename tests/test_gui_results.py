@@ -4,10 +4,13 @@ import hashlib
 import io
 import json
 from pathlib import Path
+from types import SimpleNamespace
+import zipfile
 
 import pytest
 
 from nipat.gui.results import ResultsStore, column_description
+from nipat.gui.app import DesktopApplication
 
 
 @pytest.fixture
@@ -204,6 +207,11 @@ def test_scoped_reads_reject_links_traversal_and_unregistered_ids(archive, tmp_p
     forged = hashlib.sha256(b"work/secret.tsv").hexdigest()[:32]
     with pytest.raises(ValueError):
         store.file_path("example", forged)
+    (run / "work/scientific-validation.json").symlink_to(secret)
+    assert not any(f["relative_path"] == "work/scientific-validation.json" for f in store.files("example"))
+    forged = hashlib.sha256(b"work/scientific-validation.json").hexdigest()[:32]
+    with pytest.raises(ValueError):
+        store.file_path("example", forged)
 
 
 def test_import_registers_in_place_persists_and_never_changes_native_files(archive, tmp_path):
@@ -227,6 +235,63 @@ def test_import_registers_in_place_persists_and_never_changes_native_files(archi
     external.symlink_to(moved, target_is_directory=True)
     with pytest.raises(ValueError, match="importata"):
         fresh.file_path(run_id, f["id"])
+
+
+@pytest.mark.parametrize("workflow", [False, True], ids=["standalone", "gui-workflow"])
+def test_export_roundtrip_preserves_scientific_identity_details_and_warnings(archive, tmp_path, workflow):
+    run = make_run(archive, "analysis" if workflow else "contamination")
+    output = run / ("output/workflow/steps/contamination/output" if workflow else "output")
+    table(output / "contamination_summary.txt",
+          ["individuo", "informative_sites", "mean_contamination", "sd_contamination"],
+          [["native-A", "2", "0.02", "0.01"]])
+    sites = output / "contamination_native-A.txt"
+    table(sites, ["chr", "pos1", "pos2", "contamination"], [["chr1", "1", "2", "0.02"]])
+    warning = {"code": "input.example", "message": "Original scientific warning"}
+    if workflow:
+        from test_workflow_five_modules import plan_for
+        from nipat_scientific.plan import validate_plan
+        plan = validate_plan(plan_for("SNP", called=False))["plan"]
+        steps = [{"id": step["id"], "workflow": step["workflow"], "status": "succeeded", "artifacts": {}}
+                 for step in plan["steps"]]
+        metadata = json.loads((run / "run.json").read_text())
+        metadata["parameters"] = {"plan": plan,
+            "expected_steps": [{"id": step["id"], "workflow": step["workflow"]} for step in steps],
+            "sample_mapping": [{"sample_id": s["id"], "original_path": s["id"] + ".tsv", "container_path": s["path"]}
+                               for s in plan["samples"]]}
+        write_json(run / "run.json", metadata)
+        relative = sites.relative_to(run / "output/workflow").as_posix()
+        steps[0]["artifacts"] = {"contamination-tables": [{"path": relative, "sample": "mother", "native_name": "native-A"}]}
+        steps[0]["quality_warnings"] = [warning]
+        write_json(run / "output/workflow/workflow-state.json", {"schema_version": 1,
+                   "interface": "workflow-plan-execution-v2", "status": "succeeded", "steps": steps})
+        write_json(run / "gui.json", {"schema_version": 1, "name": "GUI experiment", "draft": {"caller": "tables"}})
+    else:
+        validation(run, "contamination", {"contamination-tables": [
+            artifact(run, sites.relative_to(run).as_posix(), sample="A", native_name="native-A")]}, [warning])
+    (run / "work").mkdir(exist_ok=True)
+    (run / "work/unrelated.tsv").write_text("private\n42\n")
+    store = ResultsStore(archive)
+    before = store.overview("example")
+    entry = next(g for g in before["modules"] if g["module"] == "contamination")["entries"][0]
+    assert entry["sample_id"] == ("mother" if workflow else "A")
+    assert entry["site_file_id"] is not None and before["warnings"]
+    destination = tmp_path / "export.zip"
+    application = DesktopApplication.__new__(DesktopApplication)
+    application.host = SimpleNamespace(save_file=lambda *_: destination)
+    application.service = SimpleNamespace(_results=lambda: store)
+    application.export_run({"run_id": "example"})
+    restored_root = tmp_path / "restored"
+    restored = restored_root / "example"
+    with zipfile.ZipFile(destination) as exported:
+        assert "work/unrelated.tsv" not in exported.namelist()
+        assert ("output/workflow/workflow-state.json" if workflow else "work/scientific-validation.json") in exported.namelist()
+        for name in exported.namelist():
+            assert exported.read(name) == (run / name).read_bytes()
+        exported.extractall(restored)
+    reopened = ResultsStore(restored_root)
+    assert reopened.get_run("example") == store.get_run("example")
+    assert reopened.overview("example") == before
+    assert reopened.table("example", entry["site_file_id"]) == store.table("example", entry["site_file_id"])
 
 
 def test_gui_snapshot_is_readonly_name_and_query_use_human_labels(archive):

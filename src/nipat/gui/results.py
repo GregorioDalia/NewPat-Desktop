@@ -279,7 +279,8 @@ def _file_label_it(name):
              "resources.tsv": "Tempo e memoria", "Unassigned_genotypes.pdf": "Genotipi non assegnati",
              "All_CPIplots.pdf": "Tutti i grafici di paternità", "run.json": "Provenienza dell’esperimento",
              "execution.log": "Registro dell’esecuzione", "gui.json": "Configurazione dell’interfaccia",
-             "sample-map.tsv": "Corrispondenza dei campioni", "run-report.html": "Rapporto dell’esperimento"}
+             "sample-map.tsv": "Corrispondenza dei campioni", "run-report.html": "Rapporto dell’esperimento",
+             "scientific-validation.json": "Controlli dei risultati scientifici"}
     if name in fixed:
         return fixed[name]
     for fragment, label in (("N_genotypes", "Distribuzione dei genotipi"), ("Alt_read_count", "Distribuzione delle letture ALT"),
@@ -308,6 +309,7 @@ def _file_label(name, language="it"):
         "Tutti i grafici di paternità": "All paternity plots", "Provenienza dell’esperimento": "Experiment provenance",
         "Registro dell’esecuzione": "Execution log", "Configurazione dell’interfaccia": "Interface configuration",
         "Corrispondenza dei campioni": "Sample mapping", "Rapporto dell’esperimento": "Experiment report",
+        "Controlli dei risultati scientifici": "Scientific result checks",
         "Distribuzione dei genotipi": "Genotype distribution", "Distribuzione delle letture ALT": "ALT read distribution",
         "Distribuzione delle letture REF": "REF read distribution", "Distribuzione delle altre letture": "Other-read distribution",
         "Loci con genotipo assegnato in comune fra campioni": "Shared loci with assigned genotypes", "Contaminazione per sito": "Per-site contamination",
@@ -646,7 +648,11 @@ class ResultsStore:
                     if _is_link(path) or not stat.S_ISREG(path.stat().st_mode):
                         continue
                     paths.append(path)
-        for name in ("run.json", "gui.json", "execution.log", "run-report.html", "sample-map.tsv"):
+        # Standalone runs keep artifact identities and quality warnings here;
+        # retain that evidence when exported results are opened elsewhere.
+        # Other work files remain private and are not included in the export.
+        for name in ("run.json", "gui.json", "execution.log", "run-report.html", "sample-map.tsv",
+                     "work/scientific-validation.json"):
             try:
                 path = _scoped(run, name)
                 if path.is_file():

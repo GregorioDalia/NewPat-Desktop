@@ -16,6 +16,7 @@ from unittest.mock import Mock, patch
 
 from nipat.errors import RuntimeExecutionError, ValidationError
 from nipat.execution.runner import DockerComposeRunner
+from nipat.execution.transport import DockerTransport
 from nipat.gui.jobs import GuiRunner, Job, JobManager
 from nipat.gui.plan import prepare_analysis
 from nipat.gui.service import GuiService
@@ -219,7 +220,18 @@ class GuiServiceTests(GuiFixture):
             service.call("resources.apply", {"preview_id": preview["preview_id"], "confirmed": True})
 
 
-class GuiJobTests(GuiFixture):
+class GuiRuntimeFixture(GuiFixture):
+    def setUp(self):
+        super().setUp()
+        # These adapter tests simulate runtime operations; selecting the host's
+        # installed WSL/Lima environment is covered by the transport tests.
+        transport = patch.object(DockerTransport, "from_environment",
+                                 side_effect=lambda **kwargs: DockerTransport(**kwargs))
+        transport.start()
+        self.addCleanup(transport.stop)
+
+
+class GuiJobTests(GuiRuntimeFixture):
     def test_active_status_covers_final_report_persistence(self):
         reporting = threading.Event()
         release = threading.Event()
@@ -387,7 +399,7 @@ class GuiJobTests(GuiFixture):
         self.assertEqual(metadata["status"], "failed")
 
 
-class GuiPrepareTests(GuiFixture):
+class GuiPrepareTests(GuiRuntimeFixture):
     def completed_caller(self, *, gui=False, status="succeeded", count=4):
         directory = self.layout.runs_dir / "previous"
         directory.mkdir(parents=True)
@@ -468,6 +480,7 @@ class GuiPrepareTests(GuiFixture):
         manager = JobManager(runner_factory=factory)
         started = manager.start(prepare_analysis(self.draft("tables", snp=["cpi"]), self.layout))
         previous = manager.wait(started["id"], 5)
+        self.assertEqual(previous["status"], "planned", previous)
         draft = self.service().run_prepare(previous["run_id"], "contamination")
         self.assertEqual(draft["samples"], self.tables["SNP"])
         self.assertEqual(draft["branches"], {"DNP": [], "SNP": ["contamination"]})
