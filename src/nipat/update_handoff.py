@@ -21,25 +21,79 @@ from .distribution import CHANNEL, UNIX_DIRECTORY
 HANDOFF_EXIT_CODE = 85
 
 
-def windows_installation_platform(project_dir: Path) -> str:
-    """A marked managed ZIP installation must never fall back to the EXE feed."""
+def windows_zip_root(project_dir: Path) -> Path | None:
+    """Resolve an owned ZIP installation in its user-selected local directory.
+
+    Do not derive this location from LOCALAPPDATA: local ZIP updates and pending
+    setup must retain the user-selected root instead of installing into cache.
+    """
     marker = Path(project_dir) / ".runtime/zip-install.json"
     _safe_parent(marker)
     if not marker.exists():
-        return "windows-x86_64"
+        return None
     try:
         value = json.loads(marker.read_text(encoding="utf-8-sig"))
-        root = Path(os.environ["LOCALAPPDATA"]) / "NIPAT-Desktop-Zip"
-        _safe_parent(root)
-        project = Path(project_dir).resolve()
-        if (value != {"schema_version": 1, "installation_method": "zip", "root": str(root)}
-                or type(value["schema_version"]) is not int
-                or project.parent != root.resolve() / "versions"
-                or not re.fullmatch(r"0\.8\.(?:0|[1-9][0-9]*)-[a-f0-9]{40}", project.name)):
+        if (not isinstance(value, dict)
+                or set(value) != {"schema_version", "installation_method", "root"}
+                or type(value["schema_version"]) is not int or value["schema_version"] != 1
+                or value["installation_method"] != "zip" or not isinstance(value["root"], str)):
             raise ValueError("identita ZIP non valida")
-        return "windows-zip-x86_64"
+        root = Path(value["root"])
+        if not root.is_absolute() or root.parent == root:
+            raise ValueError("radice ZIP non assoluta o radice del disco")
+        if os.name == "nt" and not re.fullmatch(r"[A-Za-z]:", root.drive):
+            raise ValueError("radice ZIP su disco locale richiesta")
+        _safe_parent(root)
+        ownership = root / "installation.json"
+        _safe_parent(ownership)
+        owner = json.loads(ownership.read_text(encoding="utf-8-sig"))
+        if (owner != {"schema_version": 1, "product": "nipat-desktop", "installation_method": "zip"}
+                or type(owner["schema_version"]) is not int):
+            raise ValueError("radice ZIP non appartenente a NIPAT")
+        project = Path(project_dir).resolve()
+        version = r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
+        if (project.parent != root.resolve() / "versions"
+                or not re.fullmatch(version + r"-[a-f0-9]{40}", project.name)):
+            raise ValueError("identita ZIP non valida")
+        return root.resolve()
     except (OSError, ValueError, KeyError, TypeError) as exc:
         raise NipatError("Configurazione del canale ZIP non valida: riprendere la preparazione ZIP.") from exc
+
+
+def windows_installation_platform(project_dir: Path) -> str:
+    """Explicit channel markers never silently fall back to another installer."""
+    bootstrap = Path(project_dir) / ".runtime/bootstrap-install.json"
+    _safe_parent(bootstrap)
+    root = windows_zip_root(project_dir)
+    if root is not None:
+        if bootstrap.exists():
+            raise NipatError("Configurazione installazione ambigua: presenti due canali Windows.")
+        return "windows-zip-x86_64"
+    if bootstrap.exists():
+        _windows_bootstrap(project_dir)
+        return "windows-bootstrap-x86_64"
+    return "windows-x86_64"
+
+
+def _windows_bootstrap(project_dir: Path) -> tuple[Path, str]:
+    marker = Path(project_dir) / ".runtime/bootstrap-install.json"
+    _safe_parent(marker)
+    try:
+        value = json.loads(marker.read_text(encoding="utf-8-sig"))
+        if (not isinstance(value, dict)
+                or set(value) != {"schema_version", "installation_method", "setup_sha256"}
+                or type(value["schema_version"]) is not int or value["schema_version"] != 1
+                or value["installation_method"] != "bootstrap"
+                or not isinstance(value["setup_sha256"], str)
+                or not re.fullmatch(r"[a-f0-9]{64}", value["setup_sha256"])):
+            raise ValueError("identita bootstrap non valida")
+        setup = Path(project_dir) / ".runtime/setup/NIPAT-Setup.exe"
+        _safe_parent(setup)
+        if not setup.is_file():
+            raise ValueError("setup stabile mancante")
+        return setup, value["setup_sha256"]
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise NipatError("Configurazione del setup stabile non valida: riparare con NIPAT-Setup.exe.") from exc
 
 
 def _windows_layout(project_dir: Path) -> dict:
@@ -145,6 +199,10 @@ def _start_windows_update(offer, package: Path, project_dir: Path) -> bool:
     }
     if offer.asset.platform == "windows-zip-x86_64":
         record["installation_method"] = "zip"
+    elif offer.asset.platform == "windows-bootstrap-x86_64":
+        _, setup_sha256 = _windows_bootstrap(project_dir)
+        record["installation_method"] = "bootstrap"
+        record["setup_sha256"] = setup_sha256
     descriptor.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
     powershell = Path(os.environ.get("WINDIR", r"C:\Windows")) / "System32/WindowsPowerShell/v1.0/powershell.exe"
     acknowledged = False

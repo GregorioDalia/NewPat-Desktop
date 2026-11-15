@@ -44,7 +44,7 @@ function Set-NipatEnvironment([string] $Project) {
             $installed.runtime_image -cnotmatch '^sha256:[a-f0-9]{64}$' -or
             -not [IO.Path]::IsPathRooted($installed.data_dir) -or
             -not [IO.Path]::IsPathRooted($installed.runs_dir)) {
-            throw 'Configurazione dell installer non valida: riaprire NIPAT Desktop - completa preparazione dal menu Start.'
+            throw 'Configurazione dell installer non valida: riaprire la preparazione della propria installazione NIPAT (collegamento locale per ZIP, menu Start per EXE).'
         }
         Assert-NipatInstallationChannel $installed 'configurazione di avvio'
         $runtimeDirectory = ''

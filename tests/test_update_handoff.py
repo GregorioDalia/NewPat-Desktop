@@ -10,7 +10,8 @@ from unittest.mock import MagicMock, patch
 
 from nipat.errors import NipatError
 from nipat.update_handoff import (HANDOFF_EXIT_CODE, _start_windows_update, _verify_package,
-                                 _windows_layout, begin_update, update_cache_directory)
+                                 _windows_layout, begin_update, update_cache_directory,
+                                 windows_installation_platform, windows_zip_root)
 
 
 class HandoffTests(unittest.TestCase):
@@ -130,6 +131,94 @@ class HandoffTests(unittest.TestCase):
                 patch('nipat.update_handoff.subprocess.Popen', side_effect=started):
             self.assertTrue(begin_update(self.offer, self.package, self.project))
         self.assertEqual(len(list(self.cache.glob('handoff-*/cancel'))), 0)
+
+    def install_bootstrap_marker(self):
+        setup = self.project / '.runtime/setup/NIPAT-Setup.exe'
+        setup.parent.mkdir()
+        setup.write_bytes(b'unchanging bootstrap fixture')
+        checksum = hashlib.sha256(setup.read_bytes()).hexdigest()
+        marker = self.project / '.runtime/bootstrap-install.json'
+        marker.write_text(json.dumps(dict(schema_version=1, installation_method='bootstrap',
+                                          setup_sha256=checksum)))
+        return marker, setup, checksum
+
+    def test_bootstrap_channel_is_explicit_and_never_falls_back_when_broken(self):
+        self.assertEqual(windows_installation_platform(self.project), 'windows-x86_64')
+        marker, setup, _ = self.install_bootstrap_marker()
+        self.assertEqual(windows_installation_platform(self.project), 'windows-bootstrap-x86_64')
+        marker.write_text('{"schema_version":1,"installation_method":"bootstrap"}')
+        with self.assertRaisesRegex(NipatError, 'setup stabile'):
+            windows_installation_platform(self.project)
+        marker.write_text('broken json')
+        with self.assertRaises(NipatError):
+            windows_installation_platform(self.project)
+
+    def test_payload_handoff_pins_original_bootstrap_and_exact_release(self):
+        _, _, setup_sha256 = self.install_bootstrap_marker()
+        self.offer.asset.platform = 'windows-bootstrap-x86_64'
+        self.package = self.package.rename(self.cache / 'NIPAT-0.6.1-Windows-payload.zip')
+
+        def started(argv, **kwargs):
+            descriptor = Path(argv[-1])
+            self.assertNotIn(self.project, descriptor.parents)
+            record = json.loads(descriptor.read_text())
+            self.assertEqual(record['installation_method'], 'bootstrap')
+            self.assertEqual(record['setup_sha256'], setup_sha256)
+            self.assertEqual(record['package'], str(self.package))
+            self.assertEqual(record['version'], self.offer.version)
+            self.assertEqual(record['source_commit'], self.offer.source_commit)
+            self.assertEqual(len(record), 12)
+            descriptor.with_name('ready.json').write_text(json.dumps(
+                dict(schema_version=1, worker_pid=12345, parent_pid=os.getpid())))
+            return MagicMock(pid=12345)
+
+        with patch('nipat.update_handoff.sys.platform', 'win32'), \
+                patch('nipat.update_handoff.subprocess.Popen', side_effect=started):
+            self.assertTrue(begin_update(self.offer, self.package, self.project))
+
+    def test_classic_bootstrap_rejects_zip_channel_before_starting_worker(self):
+        self.install_bootstrap_marker()
+        self.offer.asset.platform = 'windows-zip-x86_64'
+        with patch('nipat.update_handoff.sys.platform', 'win32'), \
+                patch('nipat.update_handoff._start_windows_update') as start:
+            with self.assertRaises(NipatError):
+                begin_update(self.offer, self.package, self.project)
+            start.assert_not_called()
+
+    def test_owned_local_zip_root_survives_version_changes_and_custom_locations(self):
+        for location in ('Extracted è & space/NIPAT', 'Other local folder/NIPAT'):
+            root = self.root / location
+            root.mkdir(parents=True)
+            (root / 'installation.json').write_text(json.dumps(
+                dict(schema_version=1, product='nipat-desktop', installation_method='zip')))
+            for version in ('0.8.99', '0.8.100', '0.9.0'):
+                project = root / 'versions' / (version + '-' + 'a' * 40)
+                marker = project / '.runtime/zip-install.json'
+                marker.parent.mkdir(parents=True)
+                marker.write_text(json.dumps(dict(schema_version=1, installation_method='zip', root=str(root))))
+                self.assertEqual(windows_zip_root(project), root)
+                self.assertEqual(windows_installation_platform(project), 'windows-zip-x86_64')
+            (root / 'installation.json').write_text('{"schema_version":1,"product":"foreign","installation_method":"zip"}')
+            with self.assertRaises(NipatError):
+                windows_zip_root(project)
+
+    def test_zip_root_rejects_redirected_ownership_and_conflicting_channel(self):
+        root = self.root / 'NIPAT'
+        project = root / 'versions' / ('0.8.99-' + 'a' * 40)
+        marker = project / '.runtime/zip-install.json'
+        marker.parent.mkdir(parents=True)
+        owner = dict(schema_version=1, product='nipat-desktop', installation_method='zip')
+        (root / 'installation.json').write_text(json.dumps(owner))
+        value = dict(schema_version=1, installation_method='zip', root=str(root))
+        marker.write_text(json.dumps(value))
+        (project / '.runtime/bootstrap-install.json').write_text('{}')
+        with self.assertRaisesRegex(NipatError, 'ambigua'):
+            windows_installation_platform(project)
+        (project / '.runtime/bootstrap-install.json').unlink()
+        for invalid in ('.', str(root.parent), str(root / 'versions')):
+            marker.write_text(json.dumps(dict(value, root=invalid)))
+            with self.assertRaises(NipatError):
+                windows_zip_root(project)
 
     def test_timeout_cancels_worker_before_future_parent_exit(self):
         process = MagicMock(pid=12345)

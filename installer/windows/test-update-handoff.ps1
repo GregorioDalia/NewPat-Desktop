@@ -70,11 +70,20 @@ using System.IO;
 class RecordingInstaller {
   static int Main(string[] args) {
     string root = Environment.GetEnvironmentVariable("NIPAT_HANDOFF_FIXTURE");
+    if (args.Length > 1 && args[1] == "extract-update") {
+      File.WriteAllLines(Path.Combine(root,"extracted.txt"),args);
+      string destination = args[Array.IndexOf(args,"--destination")+1];
+      string scripts = Path.Combine(destination,"app","installer","windows");
+      Directory.CreateDirectory(scripts);
+      File.Copy(Path.Combine(root,"zip-worker.ps1"),Path.Combine(scripts,"install-zip.ps1"));
+      return 0;
+    }
     if (args.Length > 0 && args[0] == "-m") {
       File.WriteAllLines(Path.Combine(root,"reopened.txt"), args);
       return 0;
     }
     File.WriteAllLines(Path.Combine(root,"invoked.txt"), args);
+    File.WriteAllText(Path.Combine(root,"invoked-location.txt"),System.Reflection.Assembly.GetExecutingAssembly().Location);
     string[] behavior = File.ReadAllLines(Path.Combine(root,"behavior.txt"));
     if (behavior[1] != "keep") {
       string app = Path.Combine(root,"app & space");
@@ -95,9 +104,11 @@ $limit=[DateTime]::UtcNow.AddMinutes(2)
 while(-not(Test-Path -LiteralPath $Release)){if([DateTime]::UtcNow -gt $limit){exit 1};Start-Sleep -Milliseconds 50}
 exit $Code
 '@)
-    foreach ($case in @('success', 'busy', 'tampered', 'canceled', 'unconfirmed', 'pending', 'reboot', 'failed', 'old-ready')) {
+    foreach ($case in @('success', 'busy', 'tampered', 'canceled', 'unconfirmed', 'pending', 'reboot', 'failed', 'old-ready', 'bootstrap', 'bootstrap-tampered', 'zip', 'zip-failed')) {
         $root = Join-Path $temporary $case
-        $app = Join-Path $root 'app & space'
+        $zipCase = $case.StartsWith('zip')
+        $app = if ($zipCase) { Join-Path $root ('NIPAT\versions\0.8.99-' + ('a'*40)) } else { Join-Path $root 'app & space' }
+        $targetVersion = if ($zipCase) { '0.8.100' } else { '0.6.1' }
         $work = Join-Path $root 'outside app worker'
         $data = Join-Path $root 'research data'
         foreach ($dir in @($work,$data,(Join-Path $app 'scripts\windows'),(Join-Path $app 'installer\windows'),
@@ -134,6 +145,8 @@ function Read-NipatInstallerManifest([string]$Path) { return (Get-Content -Liter
 function Assert-NipatRuntimeBinding($Manifest,$State,$Configuration) {
  if($Manifest.source_commit -cne $State.source_commit){throw 'binding mismatch'}
 }
+function Resolve-NipatInstallPath([string]$Path) { return [IO.Path]::GetFullPath($Path) }
+function Assert-NipatInstallPathWithoutLinks([string]$Path) { Assert-LocalPath $Path | Out-Null }
 '@)
         $state = [ordered]@{schema_version=1;installation_channel='desktop';phase='ready';version='0.6.0';source_commit=('a'*40);runtime_image=('sha256:'+('c'*64))}
         Write-TestJson (Join-Path $app '.runtime\installer\state.json') $state
@@ -142,17 +155,74 @@ function Assert-NipatRuntimeBinding($Manifest,$State,$Configuration) {
         $code = if($case -eq 'reboot'){3010}elseif($case -eq 'failed'){1}else{0}
         $phase = if($case -eq 'pending'){'verifying_installation'}elseif($case -eq 'old-ready'){'keep'}else{'ready'}
         [IO.File]::WriteAllLines((Join-Path $root 'behavior.txt'),[string[]]@([string]$code,$phase))
-        $package = Join-Path $root 'NIPAT-Setup.exe'
-        Copy-Item -LiteralPath $fixture -Destination $package
+        $bootstrapCase = $case.StartsWith('bootstrap')
+        $packageName = if ($bootstrapCase) { 'NIPAT-0.6.1-Windows-payload.zip' } elseif ($zipCase) { 'NIPAT-0.8.100-Windows-completo.zip' } else { 'NIPAT-Setup.exe' }
+        $package = Join-Path $root $packageName
+        if ($bootstrapCase) {
+            # This executable records argv; payload parsing is exercised by the
+            # downloader/package tests. Here use non-executable payload bytes to
+            # prove the worker runs the retained bootstrap, not the ZIP.
+            [IO.File]::WriteAllText($package,'verified payload fixture')
+            $retained = Join-Path $app '.runtime\setup\NIPAT-Setup.exe'
+            [IO.Directory]::CreateDirectory((Split-Path -Parent $retained)) | Out-Null
+            Copy-Item -LiteralPath $fixture -Destination $retained
+            $setupHash = (Get-FileHash -LiteralPath $retained -Algorithm SHA256).Hash.ToLowerInvariant()
+            Write-TestJson (Join-Path $app '.runtime\bootstrap-install.json') @{
+                schema_version=1;installation_method='bootstrap';setup_sha256=$setupHash
+            }
+        } elseif ($zipCase) {
+            [IO.File]::WriteAllText($package,'verified ZIP fixture')
+            $zipRoot = Join-Path $root 'NIPAT'
+            Write-TestJson (Join-Path $zipRoot 'installation.json') @{
+                schema_version=1;product='nipat-desktop';installation_method='zip'
+            }
+            Write-TestJson (Join-Path $zipRoot 'current.json') @{
+                schema_version=1;version='0.8.99';source_commit=('a'*40);app_dir=$app
+            }
+            Write-TestJson (Join-Path $app '.runtime\zip-install.json') @{
+                schema_version=1;installation_method='zip';root=$zipRoot
+            }
+            Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'zip-common.ps1') -Destination (Join-Path $app 'installer\windows\zip-common.ps1')
+            Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'activity-lock.ps1') -Destination (Join-Path $app 'installer\windows\activity-lock.ps1')
+            [IO.Directory]::CreateDirectory((Join-Path $app '.runtime\python')) | Out-Null
+            Copy-Item -LiteralPath $fixture -Destination (Join-Path $app '.runtime\python\python.exe')
+            [IO.File]::WriteAllText((Join-Path $app 'installer\windows\zip_package.py'),'# extraction is recorded; archive verification has dedicated round-trip tests')
+            [IO.File]::WriteAllText((Join-Path $root 'zip-worker.ps1'), @'
+param([string]$BundleDirectory,[string]$InstallRoot)
+$ErrorActionPreference='Stop'
+$root=$env:NIPAT_HANDOFF_FIXTURE
+if($InstallRoot -ine (Join-Path $root 'NIPAT')) { throw 'ZIP update did not preserve the selected installation root' }
+[IO.File]::WriteAllLines((Join-Path $root 'invoked.txt'),[string[]]@($BundleDirectory,$InstallRoot))
+if((Split-Path -Leaf $root) -ceq 'zip-failed') { exit 1 }
+$previous=Get-Content -LiteralPath (Join-Path $InstallRoot 'current.json') -Raw | ConvertFrom-Json
+$app=Join-Path $InstallRoot ('versions\0.8.100-'+('b'*40))
+[IO.Directory]::CreateDirectory($app)|Out-Null
+Copy-Item -LiteralPath (Join-Path $previous.app_dir 'scripts') -Destination $app -Recurse
+Copy-Item -LiteralPath (Join-Path $previous.app_dir 'installer') -Destination $app -Recurse
+Copy-Item -LiteralPath (Join-Path $previous.app_dir 'python-fixture.exe') -Destination $app
+[IO.Directory]::CreateDirectory((Join-Path $app '.runtime\installer'))|Out-Null
+[IO.Directory]::CreateDirectory((Join-Path $app '.distribution'))|Out-Null
+$state=@{schema_version=1;installation_channel='desktop';phase='ready';version='0.8.100';source_commit=('b'*40);runtime_image=('sha256:'+('c'*64))}|ConvertTo-Json
+[IO.File]::WriteAllText((Join-Path $app '.runtime\installer\state.json'),$state)
+[IO.File]::WriteAllText((Join-Path $app '.distribution\installer-manifest.json'),$state)
+[IO.File]::WriteAllText((Join-Path $app '.runtime\backend.json'),'{"schema_version":1}')
+$pointer=@{schema_version=1;version='0.8.100';source_commit=('b'*40);app_dir=$app}|ConvertTo-Json
+[IO.File]::WriteAllText((Join-Path $InstallRoot 'current.json'),$pointer)
+exit 0
+'@)
+        } else { Copy-Item -LiteralPath $fixture -Destination $package }
         $release = Join-Path $root 'release-parent'
         $parentCode = if ($case -eq 'unconfirmed') { 0 } else { 85 }
         $parent = Start-TestProcess ('-NoLogo -NoProfile -ExecutionPolicy Bypass -File ' + (Quote-Test $holder) + ' -Release ' + (Quote-Test $release) + ' -Code ' + $parentCode)
         $descriptor = Join-Path $work 'handoff.json'
-        Write-TestJson $descriptor ([ordered]@{
+        $handoffRecord = [ordered]@{
             schema_version=1;installation_channel='desktop';parent_pid=$parent.Id;project_dir=$app;package=$package
             sha256=(Get-FileHash -LiteralPath $package -Algorithm SHA256).Hash.ToLowerInvariant();size=(Get-Item -LiteralPath $package).Length
-            version='0.6.1';source_commit=('b'*40);data_dir=$data
-        })
+            version=$targetVersion;source_commit=('b'*40);data_dir=$data
+        }
+        if ($bootstrapCase) { $handoffRecord.installation_method = 'bootstrap'; $handoffRecord.setup_sha256 = $setupHash }
+        if ($zipCase) { $handoffRecord.installation_method = 'zip' }
+        Write-TestJson $descriptor $handoffRecord
         $workerPath = Join-Path $work 'update-handoff.ps1'
         Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'update-handoff.ps1') -Destination $workerPath
         # The bundled worker sets only its own process policy, also when the
@@ -168,22 +238,42 @@ function Assert-NipatRuntimeBinding($Manifest,$State,$Configuration) {
                 $shared=[IO.File]::Open((Join-Path $env:LOCALAPPDATA 'NIPAT-Desktop\activity.lock'),[IO.FileMode]::OpenOrCreate,[IO.FileAccess]::Read,[IO.FileShare]::ReadWrite)
             }
             if($case -eq 'tampered'){[IO.File]::AppendAllText($package,'modified after download')}
+            if($case -eq 'bootstrap-tampered'){[IO.File]::AppendAllText($retained,'modified after offer')}
             if($case -eq 'canceled'){[IO.File]::WriteAllText((Join-Path $work 'cancel'),'cancel')}
             [IO.File]::WriteAllText($release,'exit')
             Assert-Test ($worker.WaitForExit(30000)) "$case worker completes"
         } finally {if($null -ne $shared){$shared.Dispose()}}
-        if($case -eq 'success') {
+        if($case -in @('success','bootstrap','zip')) {
             Wait-TestRelaunch $root
             Wait-TestFile (Join-Path $root 'reopened.txt')
         }
-        if($case -in @('busy','tampered','canceled','unconfirmed')) {
+        if($case -in @('busy','tampered','canceled','unconfirmed','bootstrap-tampered')) {
             Assert-Test (-not(Test-Path -LiteralPath (Join-Path $root 'invoked.txt'))) "$case never starts an installer"
         } else {
             Assert-Test (Test-Path -LiteralPath (Join-Path $root 'invoked.txt')) "$case invokes the verified executable"
             $arguments=Get-Content -LiteralPath (Join-Path $root 'invoked.txt') -Encoding UTF8
-            Assert-Test ($arguments -ccontains ('/DIR='+$app) -and $arguments -ccontains '/NIPATUPDATE=1') "$case preserves the application path as one argv value"
+            if ($zipCase) {
+                Assert-Test ($arguments.Count -eq 2 -and $arguments[0] -ieq (Join-Path $work 'verified-zip') -and
+                    $arguments[1] -ieq $zipRoot) 'ZIP worker receives separate bundle and persistent install roots'
+                Assert-Test (-not (Test-Path -LiteralPath (Join-Path $work 'verified-zip\NIPAT'))) 'ZIP update never installs under its temporary extraction directory'
+                $pointer = Get-Content -LiteralPath (Join-Path $zipRoot 'current.json') -Raw | ConvertFrom-Json
+                $expectedVersion = if ($case -ceq 'zip') { '0.8.100' } else { '0.8.99' }
+                Assert-Test ($pointer.version -ceq $expectedVersion) 'ZIP success selects the new version; a failed preparation keeps the existing version'
+            } else {
+                Assert-Test ($arguments -ccontains ('/DIR='+$app) -and $arguments -ccontains '/NIPATUPDATE=1') "$case preserves the application path as one argv value"
+            }
+            if ($bootstrapCase) {
+                Assert-Test ($arguments -ccontains ('/NIPATPACKAGE='+$package) -and
+                    $arguments -ccontains '/NIPATVERSION=0.6.1' -and
+                    $arguments -ccontains ('/NIPATSOURCE='+('b'*40)) -and
+                    $arguments -ccontains ('/NIPATSHA256='+$handoffRecord.sha256) -and
+                    $arguments -ccontains ('/NIPATSIZE='+$handoffRecord.size)) 'bootstrap receives the exact accepted payload identity without latest lookup'
+                $executed = [IO.File]::ReadAllText((Join-Path $root 'invoked-location.txt'))
+                Assert-Test ($executed -ieq (Join-Path $work 'NIPAT-Setup.exe')) 'bootstrap executes outside application before replacement'
+                Assert-Test ((Get-FileHash -LiteralPath $executed -Algorithm SHA256).Hash.ToLowerInvariant() -ceq $setupHash) 'bootstrap executable bytes remain unchanged'
+            }
         }
-        if($case -eq 'success') {
+        if($case -in @('success','bootstrap','zip')) {
             Assert-Test ($worker.ExitCode -eq 0) 'two-version ready update reopens through production run.ps1'
         } else {
             Assert-Test (-not(Test-Path -LiteralPath (Join-Path $root 'reopened.txt'))) "$case does not reopen NIPAT"

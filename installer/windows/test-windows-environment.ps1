@@ -1,15 +1,14 @@
 # Synthetic platform/readiness tests. These do not install WSL or prove a real
 # Windows 10/11 installation. Suitable for the Windows Server CI runner as well.
 . (Join-Path $PSScriptRoot 'bootstrap-common.ps1')
-Add-Type -Path (Join-Path $PSScriptRoot 'EnableWsl.cs')
 $assertions = 0
 function Assert-Test([bool] $Condition, [string] $Message) {
     if (-not $Condition) { throw "FAIL: $Message" }
     $script:assertions += 1
 }
 
-# Both non-elevated and elevated gates must agree, including Server builds that
-# are numerically newer than the supported client minimum.
+# The ordinary-user gate rejects Server builds even when their build number
+# exceeds the supported client minimum. Python prerequisites have matching tests.
 foreach ($case in @(
     @($true, $true, 'AMD64', 19045, 1, 'Client', $true),
     @($true, $true, 'AMD64', 22000, 1, 'Client', $true),
@@ -27,8 +26,6 @@ foreach ($case in @(
     $accepted = $true
     try { Assert-NipatWindowsPlatform $case[0] $case[1] $case[2] $case[3] $case[4] } catch { $accepted = $false }
     Assert-Test ($accepted -eq $case[6]) "bootstrap platform: $($case -join ',')"
-    $helper = [NipatWindowsPolicy]::Supports($case[0], $case[1], $case[2], $case[3], $case[5])
-    Assert-Test ($helper -eq $case[6]) "elevated platform: $($case -join ',')"
 }
 
 # A reported Windows 10 Pro 22H2 system is 10.0.19045.6466. Its revision
@@ -36,8 +33,6 @@ foreach ($case in @(
 # A later revision on the same 19045 client build remains eligible as well.
 foreach ($windowsVersion in @([version] '10.0.19045.6466', [version] '10.0.19045.9999')) {
     Assert-NipatWindowsPlatform $true $true 'AMD64' $windowsVersion.Build 1
-    Assert-Test ([NipatWindowsPolicy]::Supports($true, $true, 'AMD64', $windowsVersion.Build, 'Client')) `
-        "Windows 10 Pro 22H2 client accepted independently of cumulative update revision: $windowsVersion"
 }
 
 # Only the WSL/system boundary is mocked. The production readiness parser and
@@ -81,7 +76,6 @@ try {
         $script:versionText = $case[0]; $script:versionExit = $case[1]; $script:probeCalls = @()
         $state = Get-NipatWslReadiness
         Assert-Test ($state.Ready -eq $case[2]) "localized WSL readiness: $($case[0])"
-        Assert-Test ([NipatWindowsPolicy]::ModernWsl($case[1], $case[0]) -eq $case[2]) 'helper agrees on modern WSL'
         Assert-Test (($probeCalls -join ',') -ceq $(if ($case[2]) { '--version,--status' } else { '--version' })) 'only read-only probes run, status only after a valid package version'
     }
     $script:versionText = 'WSL version: 2.6.1.0'; $script:versionExit = 0
@@ -91,12 +85,8 @@ try {
     $script:statusExit = 0; $script:servicePresent = $false
     Assert-Test (-not (Get-NipatWslReadiness).Ready) 'package and status alone are insufficient without VM compute service'
 
-    Assert-Test ([NipatWindowsPolicy]::Command($true, '--update --web-download') -ceq '--update --web-download') 'modern WSL update uses official web download when supported'
-    Assert-Test ([NipatWindowsPolicy]::Command($false, '--update') -ceq '--update') 'legacy update does not receive unsupported flags'
-    Assert-Test ([NipatWindowsPolicy]::Command($false, '--install --no-distribution --web-download') -ceq '--install --no-distribution --web-download') 'missing WSL installs without a default distro'
-    Assert-Test ([NipatWindowsPolicy]::Command($false, '--install --no-distribution') -ceq '--install --no-distribution') 'older installer without web-download uses supported distribution-free install'
-    Assert-Test ($null -eq [NipatWindowsPolicy]::Command($false, '--install')) 'never install Ubuntu as an accidental fallback'
-    Assert-Test ($null -eq [NipatWindowsPolicy]::Command($true, '--install --no-distribution')) 'an existing package is not silently reinstalled when update is unavailable'
+    # The corresponding fixed-scope Python prerequisite decisions and command
+    # allowlist run in tests/test_windows_wsl_prerequisites.py on every platform.
     Write-Host "PASS: $assertions Windows platform/WSL decision assertions (simulated, no OS installation)."
 } finally {
     Set-Item Function:Invoke-NipatWsl $probe

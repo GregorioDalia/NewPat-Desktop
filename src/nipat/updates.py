@@ -29,7 +29,8 @@ REPOSITORY = "GregorioDalia/nipat-desktop"
 API = f"https://api.github.com/repos/{REPOSITORY}"
 WEB = f"https://github.com/{REPOSITORY}"
 UPDATER_VERSION = 1
-PLATFORMS = frozenset({"windows-x86_64", "windows-zip-x86_64", "linux-x86_64", "darwin-arm64", "darwin-x86_64"})
+PLATFORMS = frozenset({"windows-x86_64", "windows-zip-x86_64", "windows-bootstrap-x86_64",
+                       "linux-x86_64", "darwin-arm64", "darwin-x86_64"})
 MAX_ASSET_SIZE = 2**31 - 1
 JSON_LIMIT = 2 * 1024 * 1024
 MANIFEST_LIMIT = 128 * 1024
@@ -70,6 +71,8 @@ def manifest_filename(platform: str) -> str:
     # Existing Windows/Linux clients reject unknown platforms. Preserve their feed.
     if platform == "windows-zip-x86_64":
         return "update-manifest-windows-zip.json"
+    if platform == "windows-bootstrap-x86_64":
+        return "update-manifest-windows-bootstrap.json"
     return "update-manifest-macos.json" if platform.startswith("darwin-") else "update-manifest.json"
 
 
@@ -79,6 +82,8 @@ def _installer_name(version: str, platform: str) -> str:
         return "NIPAT-Setup.exe"
     if platform == "windows-zip-x86_64":
         return f"NIPAT-{version}-Windows-completo.zip"
+    if platform == "windows-bootstrap-x86_64":
+        return f"NIPAT-{version}-Windows-payload.zip"
     if platform == "linux-x86_64":
         debian_version = re.sub(r"(a|b|rc)([0-9]+)$", r"~\1\2", version)
         return f"nipat-desktop_{debian_version}_amd64.deb"

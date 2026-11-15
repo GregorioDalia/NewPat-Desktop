@@ -22,35 +22,34 @@ try {
     $distribution = Join-Path $fixture '.distribution'
     [IO.Directory]::CreateDirectory($helperDirectory) | Out-Null
     [IO.Directory]::CreateDirectory($distribution) | Out-Null
-    $assembly = Join-Path $helperDirectory 'NipatActivityNative.dll'
-    Assert-Rejected { Get-NipatActivityAssemblyPath $helperDirectory } 'missing helper never triggers local compilation'
-    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'NipatActivityNative.dll') -Destination $assembly
+    $helper = Join-Path $fixture 'src\nipat\windows_install_activity.py'
+    Assert-Rejected { Get-NipatActivityRuntime $helperDirectory } 'missing Python helper never triggers local compilation'
+    [IO.Directory]::CreateDirectory((Split-Path -Parent $helper)) | Out-Null
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot '../../src/nipat/windows_install_activity.py') -Destination $helper
     $manifestPath = Join-Path $distribution 'installer-manifest.json'
     $inventoryPath = Join-Path $distribution 'application-files.json'
     [IO.File]::WriteAllText($manifestPath, ('{"source_commit":"' + ('a' * 40) + '"}'))
-    Assert-Rejected { Get-NipatActivityAssemblyPath $helperDirectory } 'installed helper requires its package inventory'
+    Assert-Rejected { Get-NipatActivityRuntime $helperDirectory } 'installed helper requires its package inventory'
     $record = [ordered]@{
         schema_version = 1; installation_channel = 'desktop'; source_commit = 'a' * 40
-        files = @([ordered]@{ path = 'installer/windows/NipatActivityNative.dll'
-            sha256 = (Get-FileHash -LiteralPath $assembly -Algorithm SHA256).Hash.ToLowerInvariant() })
+        files = @([ordered]@{ path = 'src/nipat/windows_install_activity.py'
+            sha256 = (Get-FileHash -LiteralPath $helper -Algorithm SHA256).Hash.ToLowerInvariant() })
     }
     $record | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $inventoryPath -Encoding UTF8
-    Assert-Test ((Get-NipatActivityAssemblyPath $helperDirectory) -ceq $assembly) 'exact packaged helper accepted'
+    Assert-Rejected { Get-NipatActivityRuntime $helperDirectory } 'installed helper never falls back to PATH when pinned Python is missing'
     $record.source_commit = 'b' * 40
     $record | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $inventoryPath -Encoding UTF8
-    Assert-Rejected { Get-NipatActivityAssemblyPath $helperDirectory } 'helper inventory from another build rejected'
+    Assert-Rejected { Get-NipatActivityRuntime $helperDirectory } 'helper inventory from another build rejected'
     $record.source_commit = 'a' * 40
     $record | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $inventoryPath -Encoding UTF8
-    [IO.File]::AppendAllText($assembly, 'changed')
-    Assert-Rejected { Get-NipatActivityAssemblyPath $helperDirectory } 'changed helper rejected before loading'
+    [IO.File]::AppendAllText($helper, 'changed')
+    Assert-Rejected { Get-NipatActivityRuntime $helperDirectory } 'changed helper rejected before execution'
     $env:LOCALAPPDATA = Join-Path $temporary 'local data with spaces'
     [Environment]::SetEnvironmentVariable('NIPAT_SETUP_ACTIVITY_TOKEN', $null, 'Process')
-    Initialize-NipatActivityNative
     $path = Get-NipatActivityLockPath
     Assert-Test (-not (Test-Path -LiteralPath $path)) 'path discovery does not create the lock file'
-    $shared = [NipatActivityNative]::CreateFileW($path, 2147483648, 3,
-        [IntPtr]::Zero, 4, 0x80, [IntPtr]::Zero)
-    Assert-Test (-not $shared.IsInvalid) 'a running client acquires a shared handle'
+    $shared = [IO.File]::Open($path, [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::ReadWrite)
+    Assert-Test (-not $shared.SafeFileHandle.IsInvalid) 'a running client acquires a shared handle'
     Assert-Rejected { Enter-NipatInstallationActivity } 'standalone setup and removal refuse a running session'
     Assert-Test ([string]::IsNullOrEmpty($env:NIPAT_SETUP_ACTIVITY_TOKEN)) 'failed acquisition leaves no setup token'
     $shared.Dispose(); $shared = $null
@@ -58,11 +57,8 @@ try {
     $lease = Enter-NipatInstallationActivity
     Assert-Test (-not $lease.Borrowed) 'standalone setup owns its exclusive lease'
     Assert-Test ($lease.Token -cmatch ("^$PID`:[a-f0-9]{32}$")) 'standalone token identifies its live PowerShell process'
-    Assert-Test (-not [NipatActivityNative]::IsAuthorizedSetupChild($lease.Token)) 'a token does not exempt its owner as its own ancestor'
-    $blocked = [NipatActivityNative]::CreateFileW($path, 2147483648, 3,
-        [IntPtr]::Zero, 4, 0x80, [IntPtr]::Zero)
-    try { Assert-Test $blocked.IsInvalid 'a standalone preparation blocks new client sessions' }
-    finally { $blocked.Dispose() }
+    Assert-Test (-not (Test-NipatInheritedActivity)) 'a token does not exempt its owner as its own ancestor'
+    Assert-Rejected { [IO.File]::Open($path, [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite) } 'a standalone preparation blocks new client sessions'
 
     $child = Join-Path $temporary 'child-activity.ps1'
     [IO.File]::WriteAllText($child, @'
@@ -85,7 +81,7 @@ try {
     Assert-Test ($LASTEXITCODE -eq 0) 'a real descendant can enter while its ancestor holds the exclusive lease'
     $result = Get-Content -LiteralPath $childResult -Raw -Encoding UTF8 | ConvertFrom-Json
     Assert-Test ($result.borrowed -and $result.token -ceq $lease.Token) 'bootstrap child borrows the existing lease without replacing its token'
-    Assert-Test (-not $lease.Handle.IsClosed) 'child completion does not dispose the owner file handle'
+    Assert-Test (-not $lease.Handle.SafeFileHandle.IsClosed) 'child completion does not dispose the owner file handle'
 
     [Environment]::SetEnvironmentVariable('NIPAT_SETUP_ACTIVITY_TOKEN', ("$PID`:" + ('0' * 32)), 'Process')
     & $powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File $child `

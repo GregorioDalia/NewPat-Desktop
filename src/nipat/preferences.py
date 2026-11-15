@@ -49,13 +49,13 @@ def preferences_path() -> Path:
         base = os.environ.get("LOCALAPPDATA")
         if not base:
             raise ValidationError("LOCALAPPDATA non disponibile per le impostazioni NIPAT.")
-        directory = WINDOWS_DIRECTORY
         project = os.environ.get("NIPAT_PROJECT_DIR")
+        path = Path(base) / WINDOWS_DIRECTORY / "preferences.json"
         if project:
-            from nipat.update_handoff import windows_installation_platform
-            if windows_installation_platform(Path(project)) == "windows-zip-x86_64":
-                directory = "NIPAT-Desktop-Zip"
-        path = Path(base) / directory / "preferences.json"
+            from nipat.update_handoff import windows_zip_root
+            zip_root = windows_zip_root(Path(project))
+            if zip_root is not None:
+                path = zip_root / "preferences.json"
     elif sys.platform == "darwin":
         path = Path.home() / "Library" / "Application Support" / WINDOWS_DIRECTORY / "preferences.json"
     else:

@@ -78,9 +78,12 @@ def verify_payload(app: Path) -> tuple[dict, dict]:
                 "Duplicate application inventory path.")
         require(digest(path) == entry["sha256"], f"Changed packaged file: {entry['path']}")
         recorded[entry["path"]] = entry["sha256"]
-    generated = {"release.json", "NIPAT.exe", "installer/windows/EnableWsl.exe",
-                 "installer/windows/NipatActivityNative.dll",
-                 ".distribution/installer-manifest.json", f".distribution/{PYTHON_ARCHIVE}"}
+    generated = {"release.json", ".distribution/installer-manifest.json",
+                 f".distribution/{PYTHON_ARCHIVE}"}
+    current = re.match(r"(\d+)\.(\d+)\.(\d+)", manifest["version"])
+    if not current or tuple(map(int, current.groups())) < (0, 8, 99):
+        generated.update({"NIPAT.exe", "installer/windows/EnableWsl.exe",
+                          "installer/windows/NipatActivityNative.dll"})
     require(set(recorded) == set(sources) | generated, "Incomplete application inventory.")
     require(all(recorded[path] == value for path, value in sources.items()), "Source digest mismatch.")
     require(recorded[f".distribution/{PYTHON_ARCHIVE}"] == PYTHON_SHA256,
@@ -320,11 +323,11 @@ def main() -> None:
     require(importlib.import_module("nipat").__version__ == manifest["version"], "Manifest/version mismatch.")
     exercise_client(app, work, manifest)
     require(verify_payload(app) == (manifest, inventory), "The payload changed during client verification.")
-    report = {"schema_version": 1, "platform": "windows-amd64", "scenario": "staged-embedded-python-client",
+    report = {"schema_version": 2, "platform": "windows-amd64", "scenario": "staged-embedded-python-client",
               "version": manifest["version"], "source_commit": manifest["source_commit"],
               "installer_manifest_sha256": digest(app / ".distribution/installer-manifest.json"),
               "application_inventory_sha256": digest(app / ".distribution/application-files.json"),
-              "launcher_sha256": digest(app / "NIPAT.exe"), "installer_sha256": digest(args.installer),
+              "entrypoint_sha256": digest(app / "2_AVVIA.cmd"), "installer_sha256": digest(args.installer),
               "python_version": "3.12.10", "scientific_execution": False, "wsl_execution": False,
               "checks": {name: True for name in CHECKS}}
     args.output.parent.mkdir(parents=True, exist_ok=True)

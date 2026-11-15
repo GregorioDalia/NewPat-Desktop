@@ -190,6 +190,14 @@ public static class NipatInstallerActivityContract {
     }
     [IO.File]::WriteAllLines((Join-Path $stage 'runtime-assets.iss'), [string[]] $assetLines,
         (New-Object Text.UTF8Encoding($false)))
+    $bootstrapStage = Join-Path $stage 'bootstrap'
+    [IO.Directory]::CreateDirectory((Join-Path $bootstrapStage 'python')) | Out-Null
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'bootstrap-profile.iss') -Destination $bootstrapStage
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'bootstrap_download.py') -Destination $bootstrapStage
+    # The production definition is compiled with a deliberately non-executable
+    # stand-in. The separately declared execution fixture uses the runner's
+    # Python. The packaged-client job exercises the real embedded interpreter.
+    [IO.File]::WriteAllText((Join-Path $bootstrapStage 'python\python.exe'), 'compile-only interpreter fixture')
     & $CompilerPath '/Qp' "/DStageDir=$stage" "/DRuntimeAssetsDir=$assets" "/DOutputDir=$output" `
         (Join-Path $PSScriptRoot 'NIPAT.iss')
     if ($LASTEXITCODE -ne 0) { throw 'La compilazione della definizione installer e fallita.' }

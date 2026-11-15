@@ -64,6 +64,11 @@ def requires_windows_audit(version):
     return bool(match and tuple(map(int, match.groups())) >= (0, 8, 20))
 
 
+def requires_windows_bootstrap(version):
+    match = re.fullmatch(r"0\.8\.([0-9]+)(?:(?:a|b|rc)[0-9]+)?", version or "")
+    return bool(match and int(match[1]) >= 99)
+
+
 def verify_windows_installer_fixture(evidence, manifest):
     """Compiled fixture results are not execution of the shipped setup or SAC."""
     require(isinstance(evidence, dict) and evidence.get("schema_version") == 1
@@ -173,17 +178,24 @@ def verify_dependency_check(evidence, manifest, manifest_bytes, package_record):
 
 
 def verify_windows_client_check(evidence, manifest, manifest_bytes, *, installer_sha256,
-                                launcher_sha256, inventory_bytes):
+                                inventory_bytes, launcher_sha256=None, entrypoint_sha256=None):
     """Bind staged Windows client checks without claiming WSL or installed-desktop execution."""
+    bootstrap = requires_windows_bootstrap(manifest["version"])
     expected = {
-        "schema_version": 1, "platform": "windows-amd64",
+        "schema_version": 2 if bootstrap else 1, "platform": "windows-amd64",
         "scenario": "staged-embedded-python-client", "version": manifest["version"],
         "source_commit": manifest["source_commit"],
         "installer_manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
-        "installer_sha256": installer_sha256, "launcher_sha256": launcher_sha256,
+        "installer_sha256": installer_sha256,
         "application_inventory_sha256": hashlib.sha256(inventory_bytes).hexdigest(),
         "python_version": "3.12.10", "scientific_execution": False, "wsl_execution": False,
     }
+    if bootstrap:
+        expected["entrypoint_sha256"] = entrypoint_sha256
+        require(isinstance(entrypoint_sha256, str) and re.fullmatch(r"[a-f0-9]{64}", entrypoint_sha256),
+                "Windows script entry point identity missing")
+    else:
+        expected["launcher_sha256"] = launcher_sha256
     require(isinstance(evidence, dict) and set(evidence) == set(expected) | {"checks"}
             and all(type(evidence.get(key)) is type(value) and evidence.get(key) == value
                     for key, value in expected.items()), "Windows client evidence mismatch")
@@ -213,16 +225,38 @@ def verify_windows_client_check(evidence, manifest, manifest_bytes, *, installer
     sources = manifest.get("source_sha256")
     require(isinstance(sources, dict) and sources, "Windows source inventory is missing")
     bundle = load_module("nipat_review_distribution", PROJECT / "scripts/distribution_support.py")
-    generated = {"release.json", "NIPAT.exe", "installer/windows/EnableWsl.exe",
-                 ".distribution/installer-manifest.json", f".distribution/{bundle.PYTHON_NAME}"}
-    if requires_windows_audit(manifest["version"]):
-        generated.add("installer/windows/NipatActivityNative.dll")
+    generated = {"release.json", ".distribution/installer-manifest.json",
+                 f".distribution/{bundle.PYTHON_NAME}"}
+    if not bootstrap:
+        generated.update({"NIPAT.exe", "installer/windows/EnableWsl.exe"})
+        if requires_windows_audit(manifest["version"]):
+            generated.add("installer/windows/NipatActivityNative.dll")
+    else:
+        require(not ({"NIPAT.exe", "installer/windows/EnableWsl.exe",
+                      "installer/windows/NipatActivityNative.dll"} & set(hashes)),
+                "Windows payload still contains obsolete unsigned native helpers")
     require(set(hashes) == set(sources) | generated
             and all(hashes.get(path) == digest for path, digest in sources.items())
-            and hashes["NIPAT.exe"] == launcher_sha256
+            and (hashes.get("2_AVVIA.cmd") == entrypoint_sha256 if bootstrap
+                 else hashes["NIPAT.exe"] == launcher_sha256)
             and hashes[".distribution/installer-manifest.json"] == expected["installer_manifest_sha256"]
             and hashes[f".distribution/{bundle.PYTHON_NAME}"] == bundle.PYTHON_SHA256,
             "Windows application inventory differs from the verified source and embedded client")
+
+
+def verify_windows_payload_check(check, manifest, package_sha256):
+    """The shipped downloader is exercised, without claiming a live WSL/SAC install."""
+    expected = {
+        "schema_version": 1, "version": manifest["version"],
+        "source_commit": manifest["source_commit"], "package_sha256": package_sha256,
+        "scope": "staged-bootstrap-payload", "complete_payload_verified": True,
+        "embedded_python_executed": True, "production_downloader_executed": True,
+        "wsl_execution": False, "smart_app_control": "not-performed",
+    }
+    require(isinstance(check, dict) and set(check) == set(expected)
+            and all(type(check.get(key)) is type(value) and check.get(key) == value
+                    for key, value in expected.items()),
+            "Online bootstrap staged-payload evidence is missing or mismatched")
 
 
 def verify_set(windows, linux, assets, output, commit, project=PROJECT):
@@ -263,7 +297,10 @@ def verify_set(windows, linux, assets, output, commit, project=PROJECT):
                 "Missing Windows application inventory evidence")
         verify_windows_client_check(
             client_check, manifest, manifest_bytes, installer_sha256=windows_record["sha256"],
-            launcher_sha256=publisher.sha256(windows / "NIPAT.exe"),
+            launcher_sha256=(None if requires_windows_bootstrap(manifest["version"])
+                             else publisher.sha256(windows / "NIPAT.exe")),
+            entrypoint_sha256=(manifest["source_sha256"].get("2_AVVIA.cmd")
+                               if requires_windows_bootstrap(manifest["version"]) else None),
             inventory_bytes=inventory_path.read_bytes(),
         )
         windows_record["client_check"] = client_check
@@ -307,6 +344,12 @@ def verify_set(windows, linux, assets, output, commit, project=PROJECT):
                           "smart_app_control": "not-performed", "live_wsl_installation": "not-performed"},
                 "ZIP staged-client evidence is missing or mismatched")
         result["windows_zip"] = {**zip_record, "client_check_sha256": publisher.sha256(windows / "windows-zip-check.json")}
+    if requires_windows_bootstrap(manifest["version"]):
+        payload_record = publisher.verify_windows_payload(windows, manifest)
+        check = read_json(windows / "windows-payload-check.json")
+        verify_windows_payload_check(check, manifest, payload_record["sha256"])
+        result["windows_payload"] = {**payload_record,
+            "client_check_sha256": publisher.sha256(windows / "windows-payload-check.json")}
     output.mkdir(parents=True)
     (output / "installer-set-check.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     return result

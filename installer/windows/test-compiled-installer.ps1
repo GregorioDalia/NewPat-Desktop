@@ -10,6 +10,8 @@ param(
 # Server 2022 cannot run the supported Windows 10/11 installer. Only the fixture's
 # OS/elevation gates and runtime bootstrap are replaced; installation, validation,
 # repair, backups, locking, shortcuts and silent removal use the production code.
+# The fixture substitutes the runner's Python for the compile-only interpreter;
+# the production downloader processes two distinct payloads with ONE setup EXE.
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_OS -ne 'Windows') {
@@ -34,7 +36,7 @@ $report = [ordered]@{
     production_setup_executed = $false; wsl_execution = $false
     smart_app_control = 'not-performed'; status = 'failed'
     source_definition_sha256 = (Get-FileHash -LiteralPath $definition -Algorithm SHA256).Hash.ToLowerInvariant()
-    substitutions = @('Windows workstation/elevation setup gate', 'uninstaller elevation gate', 'synthetic runtime bootstrap and payload')
+    substitutions = @('Windows workstation/elevation setup gate', 'uninstaller elevation gate', 'synthetic runtime bootstrap and payload', 'host Python interpreter for fixture')
     checks = $checks
 }
 if ($LASTEXITCODE -ne 0 -or $report.source_commit -cnotmatch '^[a-f0-9]{40}$') { throw 'Fixture source commit unavailable.' }
@@ -45,6 +47,8 @@ $fixtureSource = [regex]::Replace($original, $setupPattern,
 $uninstallPattern = '(?s)(function InitializeUninstall\(\): Boolean;.*?begin\s*)Result := not IsAdmin;'
 if ([regex]::Matches($fixtureSource, $uninstallPattern).Count -ne 1) { throw 'The uninstall gate fixture anchor changed.' }
 $fixtureSource = [regex]::Replace($fixtureSource, $uninstallPattern, '${1}Result := True;')
+$hostPython = (Get-Command python -CommandType Application).Source.Replace("'", "''")
+$fixtureSource = $fixtureSource.Replace("ExpandConstant('{tmp}\nipat-bootstrap-python\python.exe')", ("'" + $hostPython + "'"))
 [IO.File]::WriteAllText($fixture, $fixtureSource, (New-Object Text.UTF8Encoding($false)))
 $report.fixture_definition_sha256 = (Get-FileHash -LiteralPath $fixture -Algorithm SHA256).Hash.ToLowerInvariant()
 $bootstrap = @'
@@ -65,13 +69,26 @@ exit 0
 '@
 [IO.File]::WriteAllText((Join-Path $app 'installer\windows\bootstrap.ps1'), $bootstrap,
     (New-Object Text.UTF8Encoding($false)))
-$profilePath = Join-Path $StageDirectory 'install-profile.iss'
+$profilePath = Join-Path $StageDirectory 'bootstrap\bootstrap-profile.iss'
 $profile = [IO.File]::ReadAllText($profilePath)
 # A unique uninstall identity prevents the fixture from masquerading as a release.
 $fixtureId = [Guid]::NewGuid().ToString().ToUpperInvariant()
 $profile = [regex]::Replace($profile, '(?m)^#define NipatAppId .*$', '#define NipatAppId "{{' + $fixtureId + '}"')
 $sentinels = @{}
 $createdRegistry = $false
+$zipBuilder = Join-Path $work 'build-fixture-payload.py'
+$zipScript = @'
+import pathlib
+import sys
+import zipfile
+stage, assets, output = map(pathlib.Path, sys.argv[1:])
+with zipfile.ZipFile(output, 'x', compression=zipfile.ZIP_STORED) as archive:
+    for root, prefix in ((stage / 'app', 'app'), (assets, 'assets')):
+        for path in sorted(root.rglob('*')):
+            if path.is_file():
+                archive.write(path, prefix + '/' + path.relative_to(root).as_posix())
+'@
+[IO.File]::WriteAllText($zipBuilder, $zipScript, (New-Object Text.UTF8Encoding($false)))
 
 function Invoke-FixtureProcess([string] $Path, [string[]] $Arguments, [string] $Label, [int] $ExpectedCode = 0) {
     $process = Start-Process -FilePath $Path -ArgumentList $Arguments -PassThru
@@ -103,6 +120,21 @@ function Write-FixtureInventory {
         ($inventory | ConvertTo-Json -Depth 6), (New-Object Text.UTF8Encoding($false)))
 }
 
+function Write-FixtureManifest([string] $Version) {
+    $assetRecords = [ordered]@{}
+    foreach ($kind in @('rootfs', 'scientific_image')) {
+        $name = if ($kind -eq 'rootfs') { 'rootfs-compile-only.tar.gz' } else { 'scientific-compile-only.tar.gz' }
+        $path = Join-Path $AssetDirectory $name
+        $assetRecords[$kind] = [ordered]@{ file = $name; size = (Get-Item -LiteralPath $path).Length
+            sha256 = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() }
+    }
+    $manifest = [ordered]@{ schema_version = 1; version = $Version; source_commit = ('0' * 40)
+        installation_profile = (Get-Content -LiteralPath (Join-Path $app 'installer\windows\install-profile.json') -Raw | ConvertFrom-Json)
+        assets = $assetRecords }
+    [IO.File]::WriteAllText((Join-Path $app '.distribution\installer-manifest.json'),
+        ($manifest | ConvertTo-Json -Depth 8), (New-Object Text.UTF8Encoding($false)))
+}
+
 function Assert-FixtureSentinels {
     foreach ($path in $sentinels.Keys) {
         if (-not (Test-Path -LiteralPath $path -PathType Leaf) -or
@@ -125,20 +157,28 @@ try {
             $sentinels[$sentinel] = (Get-FileHash -LiteralPath $sentinel -Algorithm SHA256).Hash
         }
     }
-    foreach ($version in @('0.0.1', '0.0.2')) {
-        $output = Join-Path $work ('compiled-' + $version)
-        [IO.Directory]::CreateDirectory($output) | Out-Null
-        $versionProfile = [regex]::Replace($profile, '(?m)^#define NipatVersion .*$', '#define NipatVersion "' + $version + '"')
-        [IO.File]::WriteAllText($profilePath, $versionProfile, (New-Object Text.UTF8Encoding($false)))
+    $output = Join-Path $work 'compiled-frozen-bootstrap'
+    [IO.Directory]::CreateDirectory($output) | Out-Null
+    [IO.File]::WriteAllText($profilePath, $profile, (New-Object Text.UTF8Encoding($false)))
+    & $CompilerPath '/Qp' "/DStageDir=$StageDirectory" "/DRuntimeAssetsDir=$AssetDirectory" "/DOutputDir=$output" $fixture
+    if ($LASTEXITCODE -ne 0) { throw 'Frozen fixture compilation failed.' }
+    $setup = Join-Path $output 'NIPAT-Setup.exe'
+    $frozenHash = (Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash.ToLowerInvariant()
+    foreach ($version in @('0.8.99', '0.9.0')) {
         [IO.File]::WriteAllText((Join-Path $app 'fixture-version.txt'), $version)
+        Write-FixtureManifest $version
         Write-FixtureInventory
-        & $CompilerPath '/Qp' "/DStageDir=$StageDirectory" "/DRuntimeAssetsDir=$AssetDirectory" "/DOutputDir=$output" $fixture
-        if ($LASTEXITCODE -ne 0) { throw "Fixture compilation failed: $version" }
-        $setup = Join-Path $output 'NIPAT-Setup.exe'
+        $payload = Join-Path $work ('payload-' + $version + '.zip')
+        & python $zipBuilder $StageDirectory $AssetDirectory $payload
+        if ($LASTEXITCODE -ne 0) { throw 'Fixture payload creation failed.' }
+        $payloadHash = (Get-FileHash -LiteralPath $payload -Algorithm SHA256).Hash.ToLowerInvariant()
+        $payloadSize = (Get-Item -LiteralPath $payload).Length
         $log = Join-Path $reportRoot ('install-' + $version + '.log')
-        $arguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/SP-', '/NORESTART', "/DIR=`"$installed`"", "/LOG=`"$log`"")
-        if ($version -eq '0.0.2') {
-            $arguments += '/NIPATUPDATE=1' # Exercise the update invocation from 0.8.60.
+        $arguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/SP-', '/NORESTART', "/DIR=`"$installed`"", "/LOG=`"$log`"",
+            "/NIPATPACKAGE=`"$payload`"", "/NIPATVERSION=$version", ('/NIPATSOURCE=' + ('0' * 40)),
+            "/NIPATSHA256=$payloadHash", "/NIPATSIZE=$payloadSize")
+        if ($version -eq '0.9.0') {
+            $arguments += '/NIPATUPDATE=1'
             $env:NIPAT_FIXTURE_BOOTSTRAP_REBOOT = '1'
             try {
                 Invoke-FixtureProcess $setup $arguments "Installation $version" 3010
@@ -149,6 +189,27 @@ try {
         } else {
             Invoke-FixtureProcess $setup $arguments "Installation $version"
         }
+        $marker = Get-Content -LiteralPath (Join-Path $installed '.runtime\bootstrap-install.json') -Raw | ConvertFrom-Json
+        if ($marker.installation_method -cne 'bootstrap' -or $marker.setup_sha256 -cne $frozenHash -or
+            (Get-FileHash -LiteralPath (Join-Path $installed '.runtime\setup\NIPAT-Setup.exe') -Algorithm SHA256).Hash.ToLowerInvariant() -cne $frozenHash -or
+            (Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash.ToLowerInvariant() -cne $frozenHash) {
+            throw 'The same frozen installer must be retained for both payload versions.'
+        }
+        $checks.frozen_setup_reused = $true
+        $checks.bootstrap_marker = $true
+        $uninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{' + $fixtureId + '}_is1'
+        if ((Get-ItemProperty -LiteralPath $uninstallKey -Name DisplayVersion).DisplayVersion -cne $version) {
+            throw 'Windows must display the application payload version, not the bootstrap version.'
+        }
+        $checks.display_version_matches_payload = $true
+        $manifest = Get-Content -LiteralPath (Join-Path $app '.distribution\installer-manifest.json') -Raw | ConvertFrom-Json
+        foreach ($asset in @($manifest.assets.rootfs, $manifest.assets.scientific_image)) {
+            $retained = Join-Path (Join-Path $work 'cache_dir') ($asset.sha256 + '-' + $asset.file)
+            if ((Get-FileHash -LiteralPath $retained -Algorithm SHA256).Hash.ToLowerInvariant() -cne $asset.sha256) {
+                throw 'Both runtime archives must remain in cache before a reboot.'
+            }
+        }
+        $checks.resume_archives_cached = $true
         if ([IO.File]::ReadAllText((Join-Path $installed 'fixture-version.txt')) -cne $version -or
             [IO.File]::ReadAllText((Join-Path $installed '.runtime\fixture-bootstrap.txt')) -cne 'lease-held-runtime-not-executed') {
             throw 'Installed payload or bootstrap lease differs from the fixture.'
@@ -165,7 +226,7 @@ try {
     }
     $history = Join-Path $env:LOCALAPPDATA 'NIPAT-Desktop\installations\backups'
     $oldVersions = @(Get-ChildItem -LiteralPath $history -Filter 'fixture-version.txt' -Recurse -File |
-        Where-Object { [IO.File]::ReadAllText($_.FullName) -ceq '0.0.1' })
+        Where-Object { [IO.File]::ReadAllText($_.FullName) -ceq '0.8.99' })
     if ($oldVersions.Count -lt 1) { throw 'Upgrade did not retain the previous managed file in the repair backup.' }
     $checks.upgrade_backup = $true
     $unknown = Join-Path $installed 'user-note.txt'

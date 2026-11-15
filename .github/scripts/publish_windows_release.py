@@ -22,6 +22,12 @@ MANIFEST = "installer-manifest.json"
 UPDATE_MANIFEST = "update-manifest.json"
 MACOS_UPDATE_MANIFEST = "update-manifest-macos.json"
 WINDOWS_ZIP_UPDATE_MANIFEST = "update-manifest-windows-zip.json"
+WINDOWS_BOOTSTRAP_UPDATE_MANIFEST = "update-manifest-windows-bootstrap.json"
+BOOTSTRAP_VERSION = "1.0.0"
+BOOTSTRAP_SOURCES = (
+    "installer/windows/NIPAT.iss", "installer/windows/bootstrap-profile.iss",
+    "installer/windows/bootstrap_download.py", "LICENSE", "assets/branding/nipat-icon.ico",
+)
 MAX_ASSET_BYTES = 2 * 1024**3
 PYTHON_NAME = "python-3.12.10-embed-amd64.zip"
 PYTHON_SHA256 = "4acbed6dd1c744b0376e3b1cf57ce906f9dc9e95e68824584c8099a63025a3c3"
@@ -73,13 +79,47 @@ def requires_windows_zip(version):
     return bool(match and int(match[1]) >= 95)
 
 
+def requires_windows_bootstrap(version):
+    match = re.fullmatch(r"0\.8\.([0-9]+)(?:(?:a|b|rc)[0-9]+)?", version or "")
+    return bool(match and int(match[1]) >= 99)
+
+
+def verify_windows_payload(setup, manifest):
+    """Bind the separate desktop payload to the reviewed inventory and runtime."""
+    helper = load_module("nipat_desktop_payload", PROJECT / "installer/windows/desktop_payload.py")
+    inventory = (setup / "application-files.json").read_bytes()
+    value = json.loads(inventory)
+    require(isinstance(value, dict) and set(value) == {
+                "schema_version", "installation_channel", "source_commit", "files"}
+            and type(value["schema_version"]) is int and value["schema_version"] == 1
+            and value["installation_channel"] == "desktop"
+            and value["source_commit"] == manifest["source_commit"],
+            "Desktop payload inventory identity mismatch")
+    hashes = {entry["path"]: entry["sha256"] for entry in value["files"]}
+    expected = set(manifest["source_sha256"]) | {
+        "release.json", ".distribution/installer-manifest.json", f".distribution/{PYTHON_NAME}"}
+    require(len(hashes) == len(value["files"]) and set(hashes) == expected
+            and all(hashes.get(path) == digest for path, digest in manifest["source_sha256"].items())
+            and hashes[f".distribution/{PYTHON_NAME}"] == PYTHON_SHA256
+            and hashes[".distribution/installer-manifest.json"] == sha256(setup / MANIFEST),
+            "Desktop payload differs from the reviewed source and embedded Python")
+    require(not ({"NIPAT.exe", "installer/windows/EnableWsl.exe",
+                  "installer/windows/NipatActivityNative.dll"} & set(hashes)),
+            "Desktop payload contains obsolete unsigned native helpers")
+    record = helper.verify(setup / helper.filename(manifest["version"]), manifest, inventory)
+    require(json.loads((setup / "windows-payload-build.json").read_bytes()) == record,
+            "Desktop payload build evidence differs from the archive")
+    return record
+
+
 def verify_windows_zip(setup, manifest):
     helper = load_module("nipat_zip_package", PROJECT / "installer/windows/zip_package.py")
     inventory = (setup / "application-files.json").read_bytes()
     hashes = {entry["path"]: entry["sha256"] for entry in json.loads(inventory)["files"]}
     for path, digest in manifest["source_sha256"].items():
         require(hashes.get(path) == digest, f"ZIP inventory source mismatch: {path}")
-    require(hashes.get("NIPAT.exe") == sha256(setup / "NIPAT.exe")
+    require((requires_windows_bootstrap(manifest["version"])
+             or hashes.get("NIPAT.exe") == sha256(setup / "NIPAT.exe"))
             and hashes.get(f".distribution/{PYTHON_NAME}") == PYTHON_SHA256
             and hashes.get(".distribution/installer-manifest.json") == sha256(setup / MANIFEST),
             "ZIP generated payload differs from reviewed installer")
@@ -298,6 +338,8 @@ def prepare_installer_set(setup, runtime, linux, evidence, output, commit, accep
         additions["windows-trust-check.json"] = setup / "windows-trust-check.json"
     if requires_windows_zip(manifest["version"]):
         additions["windows-zip-check.json"] = setup / "windows-zip-check.json"
+    if requires_windows_bootstrap(manifest["version"]):
+        additions["windows-payload-check.json"] = setup / "windows-payload-check.json"
     if requires_macos(manifest["version"]):
         for architecture in ("arm64", "x86_64"):
             record = actual[f"macos_{architecture}"]
@@ -362,6 +404,8 @@ def write_update_manifest(output, manifest, verified_pair, channel):
     deb_version = re.sub(r"(a|b|rc)([0-9]+)$", r"~\1\2", version)
     expected = {"windows": ("windows-x86_64", "NIPAT-Setup.exe"),
                 "linux": ("linux-x86_64", f"nipat-desktop_{deb_version}_amd64.deb")}
+    if requires_windows_bootstrap(version):
+        expected["windows_payload"] = ("windows-bootstrap-x86_64", f"NIPAT-{version}-Windows-payload.zip")
     if requires_macos(version):
         expected.update({f"macos_{arch}": (f"darwin-{arch}", f"NIPAT-{version}-macos-{arch}.pkg")
                          for arch in ("arm64", "x86_64")})
@@ -394,11 +438,16 @@ def write_update_manifest(output, manifest, verified_pair, channel):
     if requires_windows_zip(version):
         zip_update = dict(update, assets=[entry for entry in entries if entry["platform"] == "windows-zip-x86_64"])
         (output / WINDOWS_ZIP_UPDATE_MANIFEST).write_text(json.dumps(zip_update, indent=2) + "\n", encoding="utf-8")
+    if requires_windows_bootstrap(version):
+        bootstrap_update = dict(update, assets=[entry for entry in entries
+                                               if entry["platform"] == "windows-bootstrap-x86_64"])
+        (output / WINDOWS_BOOTSTRAP_UPDATE_MANIFEST).write_text(
+            json.dumps(bootstrap_update, indent=2) + "\n", encoding="utf-8")
     return update
 
 
 def verify_installer_build(setup, manifest, manifest_bytes, commit):
-    """Bind the self-contained EXE to the inputs checked by the successful build."""
+    """Bind the EXE and its versioned payload to the inputs checked by the build."""
     require(not any(path.suffix.casefold() == ".bin" for path in setup.rglob("*")),
             "Self-contained installer cannot have companion data slices")
     evidence_path = setup / "installer-build.json"
@@ -406,6 +455,24 @@ def verify_installer_build(setup, manifest, manifest_bytes, commit):
             "Missing self-contained installer build evidence")
     evidence = json.loads(evidence_path.read_text(encoding="utf-8-sig"))
     installer = setup / "NIPAT-Setup.exe"
+    if requires_windows_bootstrap(manifest["version"]):
+        require(0 < installer.stat().st_size < 64 * 1024 * 1024,
+                "Online bootstrap exceeds its 64 MiB size limit")
+        payload = verify_windows_payload(setup, manifest)
+        inputs = {path: manifest["source_sha256"][path] for path in BOOTSTRAP_SOURCES}
+        inputs[f".distribution/{PYTHON_NAME}"] = PYTHON_SHA256
+        expected = {
+            "schema_version": 2, "distribution": "online-bootstrap",
+            "bootstrap_version": BOOTSTRAP_VERSION,
+            "version": manifest["version"], "source_commit": commit,
+            "file": "NIPAT-Setup.exe", "sha256": sha256(installer), "size": installer.stat().st_size,
+            "installer_manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
+            "application_inventory_sha256": sha256(setup / "application-files.json"),
+            "installation_profile": manifest["installation_profile"],
+            "bootstrap_inputs_sha256": inputs, "payload_record": payload,
+        }
+        require(evidence == expected, "Online bootstrap/payload build evidence mismatch")
+        return
     launcher = setup / "NIPAT.exe"
     require(launcher.is_file() and not launcher.is_symlink() and launcher.stat().st_size > 0,
             "Missing WSL build launcher evidence")
@@ -576,6 +643,11 @@ def prepare_assets(setup, runtime, output, commit, read_source=source_bytes, des
     if requires_windows_zip(version):
         record = verify_windows_zip(setup, manifest)
         for name in (record["file"], "windows-zip-build.json"):
+            files[name] = setup / name
+            digests[name] = sha256(files[name])
+    if requires_windows_bootstrap(version):
+        record = verify_windows_payload(setup, manifest)
+        for name in (record["file"], "windows-payload-build.json"):
             files[name] = setup / name
             digests[name] = sha256(files[name])
     if requires_installation_profile(version):
@@ -804,7 +876,15 @@ def main(argv=None):
             else:
                 notes += "Lo ZIP Docker Desktop e' una distribuzione alternativa per chi dispone gia' di Docker Desktop. "
             notes += "Gli archivi runtime separati sono conservati come asset di recupero e verifica.\n"
-        if requires_installation_profile(manifest["version"]):
+        if requires_windows_bootstrap(version):
+            notes += ("\nPer Windows **NIPAT-Setup.exe** e' un installer online: scarica e verifica "
+                      "il pacchetto applicativo separato della release stabile. Include il Python "
+                      "necessario al download; non include il motore scientifico. L'installer di base "
+                      "ha una propria versione e viene riutilizzato per gli aggiornamenti compatibili. "
+                      "Per Ubuntu 24.04 x86_64 usare **nipat-desktop_*.deb** tramite APT. "
+                      "I risultati dell'accettazione sono in `desktop-acceptance.json`; "
+                      "non costituiscono una validazione clinica o di dominio.\n")
+        elif requires_installation_profile(manifest["version"]):
             notes += ("\nPer Windows scaricare **NIPAT-Setup.exe**; per Ubuntu 24.04 x86_64 scaricare "
                       "il pacchetto **nipat-desktop_*.deb** e installarlo tramite APT. "
                       "Entrambi contengono lo stesso archivio scientifico verificato. "
@@ -812,8 +892,8 @@ def main(argv=None):
                       "non costituiscono una validazione clinica o di dominio.\n")
         if requires_macos(manifest["version"]):
             notes += (f"\nPer macOS scaricare **NIPAT-{version}-macos-arm64.pkg** (Apple Silicon) "
-                      f"oppure **NIPAT-{version}-macos-x86_64.pkg** (Intel). I quattro installer "
-                      "contengono lo stesso archivio scientifico e provengono dallo stesso commit. "
+                      f"oppure **NIPAT-{version}-macos-x86_64.pkg** (Intel). I pacchetti applicativi "
+                      "usano lo stesso archivio scientifico e provengono dallo stesso commit. "
                       "I controlli nativi dei pacchetti macOS sono registrati nei report per architettura; "
                       "non attestano l'esecuzione della macchina virtuale su un Mac fisico. "
                       "Le prove effettivamente effettuate e quelle ancora da svolgere sono distinte "
@@ -822,7 +902,12 @@ def main(argv=None):
             notes += (f"\nMetodo aggiuntivo Windows: **NIPAT-{version}-Windows-completo.zip**. "
                       "Estrarre completamente e avviare **1_INSTALLA.cmd** con doppio clic. "
                       "Include Python, filesystem WSL e motore scientifico; Windows puo' richiedere Internet "
-                      "per i propri prerequisiti WSL. Aprire poi **NIPAT Desktop ZIP** dal menu Start. "
+                      "per i propri prerequisiti WSL. " +
+                      ("L'installazione viene creata nella sottocartella **NIPAT** della cartella estratta; "
+                       "avviare il collegamento locale, senza menu Start. Se Windows segnala la provenienza "
+                       "Internet, seguire la procedura di verifica e sblocco documentata. "
+                       if requires_windows_bootstrap(version) else
+                       "Aprire poi **NIPAT Desktop ZIP** dal menu Start. ") +
                       "Il canale ZIP conserva la propria installazione e usa un feed aggiornamenti separato. "
                       "La compatibilita' con Smart App Control sul dispositivo finale resta da verificare.\n")
         notes = notes.strip()

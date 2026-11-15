@@ -23,11 +23,28 @@ if (Test-Path -LiteralPath $output) {
     throw "Il resoconto esiste gia: $output"
 }
 
-# Use exactly the app inventoried before/after Inno compilation. Never modify
-# that stage: only this relocated copy receives an extracted embedded Python.
+# Exercise the actual stable downloader with the exact pinned interpreter and
+# the independently distributed payload. This is not an installed-Windows/SAC test.
 New-Item -ItemType Directory -Path $work | Out-Null
+$manifest = Get-Content -LiteralPath (Join-Path $sourceApp '.distribution\installer-manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+$payload = Join-Path (Split-Path -Parent $installer) ('NIPAT-' + $manifest.version + '-Windows-payload.zip')
+$payloadHash = (Get-FileHash -LiteralPath $payload -Algorithm SHA256).Hash.ToLowerInvariant()
+$payloadSize = (Get-Item -LiteralPath $payload).Length
+$extracted = Join-Path $work 'downloaded payload'
+$bootstrapPython = Join-Path $stage 'bootstrap\python\python.exe'
+$downloader = Join-Path $stage 'bootstrap\bootstrap_download.py'
+& $bootstrapPython -I $downloader --package $payload --destination $extracted `
+    --version $manifest.version --source $manifest.source_commit --sha256 $payloadHash --size $payloadSize `
+    --error-file (Join-Path $work 'bootstrap-error.txt') --report-file (Join-Path $work 'bootstrap-result.ini')
+if ($LASTEXITCODE -ne 0) { throw 'The production bootstrap did not verify/extract the release payload.' }
+$inventoryPath = Join-Path $sourceApp '.distribution\application-files.json'
+$extractedInventory = Join-Path $extracted 'app\.distribution\application-files.json'
+if ((Get-FileHash -LiteralPath $inventoryPath -Algorithm SHA256).Hash -cne
+    (Get-FileHash -LiteralPath $extractedInventory -Algorithm SHA256).Hash) {
+    throw 'Extracted payload differs from the application reviewed before compilation.'
+}
 $app = Join-Path $work 'app'
-Copy-Item -LiteralPath $sourceApp -Destination $app -Recurse
+Copy-Item -LiteralPath (Join-Path $extracted 'app') -Destination $app -Recurse
 . (Join-Path $app 'scripts\windows\common.ps1')
 $python = Install-NipatPython $app
 # Exercise the production setup supervisor with the exact embedded interpreter
@@ -62,5 +79,13 @@ if ($LASTEXITCODE -ne 0) {
 if (-not (Test-Path -LiteralPath $output -PathType Leaf)) {
     throw 'La verifica non ha prodotto il resoconto atteso.'
 }
+$payloadCheck = [ordered]@{
+    schema_version = 1; version = $manifest.version; source_commit = $manifest.source_commit
+    package_sha256 = $payloadHash; scope = 'staged-bootstrap-payload'
+    complete_payload_verified = $true; embedded_python_executed = $true
+    production_downloader_executed = $true; wsl_execution = $false; smart_app_control = 'not-performed'
+}
+$payloadReport = Join-Path (Split-Path -Parent $output) 'windows-payload-check.json'
+[IO.File]::WriteAllText($payloadReport, ($payloadCheck | ConvertTo-Json -Depth 5), (New-Object Text.UTF8Encoding($false)))
 Write-Host 'Client Windows incorporato verificato: catalogo, menu e pianificazione dei workflow.'
 Write-Host 'Questa prova non esegue Inno Setup, WSL, Docker o i calcoli scientifici.'

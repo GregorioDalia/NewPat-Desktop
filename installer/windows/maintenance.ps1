@@ -256,7 +256,7 @@ if (-not $LibraryOnly) {
                 . (Join-Path $Project 'installer\windows\zip-common.ps1')
                 $zipRoot = Get-NipatZipRoot
                 $zipPointer = Read-NipatZipPointer $zipRoot
-                if ($zipPointer.app_dir -ine $Project) { throw 'Riprendere la versione ZIP attiva dal menu Start.' }
+                if ($zipPointer.app_dir -ine $Project) { throw 'Riprendere la versione ZIP attiva dal collegamento locale nella cartella NIPAT.' }
                 Assert-NipatActivityPathWithoutLinks (Join-Path $zipRoot 'pending.json')
                 Write-NipatJsonAtomic (Join-Path $zipRoot 'pending.json') $zipPointer
                 $worker = Join-Path $Project 'installer\windows\install-zip.ps1'

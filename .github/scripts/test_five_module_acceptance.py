@@ -155,6 +155,42 @@ class FiveModuleAcceptanceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "digest"):
             acceptance.validate(record, record["version"], COMMIT, record["build_run_id"])
 
+    def test_0899_payload_is_required_in_acceptance_and_baseline_review(self):
+        record = copy.deepcopy(self.record)
+        record.update(version="0.8.99", publication_channel="stable",
+                      windows_zip_sha256="e" * 64, reviewed_source_changes=[])
+        files = {path: b"unchanged source" for path in acceptance.REQUIRED_OPERATIVE_PATHS | {"pyproject.toml"}}
+        files["distribution-files.txt"] = ("\n".join(sorted(files.keys() | {"distribution-files.txt"})) + "\n").encode()
+        with self.assertRaisesRegex(ValueError, "fields"):
+            acceptance.verify_baseline(record, lambda commit, path: files[path])
+        record["windows_payload_sha256"] = "f" * 64
+        checked = acceptance.verify_baseline(record, lambda commit, path: files[path])
+        self.assertFalse(checked["candidate_windows_installation_claimed"])
+        for value in ("invalid", True, None):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "digest"):
+                acceptance.validate(dict(record, windows_payload_sha256=value),
+                                    record["version"], COMMIT, record["build_run_id"])
+        installer_set = {
+            "version": "0.8.99", "source_commit": COMMIT,
+            "installer_manifest_sha256": record["installer_manifest_sha256"],
+            "scientific_archive": {"sha256": record["scientific_archive_sha256"]},
+            "windows": {"sha256": record["windows_installer_sha256"]},
+            "windows_zip": {"sha256": record["windows_zip_sha256"]},
+            "linux": {"sha256": record["linux_installer_sha256"]},
+            "linux_upgrade_check": {"sha256": record["linux_upgrade_check_sha256"]},
+            **{f"macos_{arch}": {"sha256": record[f"macos_{arch}_installer_sha256"]}
+               for arch in ("arm64", "x86_64")},
+        }
+        with self.assertRaisesRegex(ValueError, "separate Windows desktop payload"):
+            acceptance.identity(installer_set)
+        installer_set["windows_payload"] = {"sha256": "0" * 64}
+        with self.assertRaisesRegex(ValueError, "hashes do not identify"):
+            acceptance.validate(record, record["version"], COMMIT,
+                                record["build_run_id"], installer_set)
+        installer_set["windows_payload"]["sha256"] = record["windows_payload_sha256"]
+        acceptance.validate(record, record["version"], COMMIT,
+                            record["build_run_id"], installer_set)
+
     def test_five_modules_require_separate_model_evidence_and_preserve_domain_limits(self):
         checked = self.verify()
         self.assertEqual(checked["cases_verified"], 17)

@@ -57,6 +57,10 @@ def release_fixture(version="0.7.0", *, prerelease=False, platform="windows-x86_
     name = "NIPAT-Setup.exe" if platform == "windows-x86_64" else f"nipat-desktop_{deb_version}_amd64.deb"
     if platform.startswith("darwin-"):
         name = f"NIPAT-{version}-macos-{platform.removeprefix('darwin-')}.pkg"
+    if platform == "windows-zip-x86_64":
+        name = f"NIPAT-{version}-Windows-completo.zip"
+    if platform == "windows-bootstrap-x86_64":
+        name = f"NIPAT-{version}-Windows-payload.zip"
     asset = {"platform": platform, "name": name, "size": len(payload),
              "sha256": hashlib.sha256(payload).hexdigest(),
              "url": f"{WEB}/releases/download/{tag}/{name}"}
@@ -112,6 +116,33 @@ class UpdateDiscoveryTests(unittest.TestCase):
                 self.assertEqual(detect_platform(), "darwin-" + architecture)
         self.assertEqual(manifest_filename("windows-x86_64"), "update-manifest.json")
         self.assertEqual(manifest_filename("linux-x86_64"), "update-manifest.json")
+
+    def test_windows_channels_select_only_their_own_manifest_and_package(self):
+        for platform, feed, name in (
+            ("windows-x86_64", "update-manifest.json", "NIPAT-Setup.exe"),
+            ("windows-zip-x86_64", "update-manifest-windows-zip.json", "NIPAT-0.8.99-Windows-completo.zip"),
+            ("windows-bootstrap-x86_64", "update-manifest-windows-bootstrap.json", "NIPAT-0.8.99-Windows-payload.zip"),
+        ):
+            with self.subTest(platform=platform):
+                self.setUp()
+                self.install(release_fixture("0.8.99", platform=platform))
+                result = self.check(platform=platform, current="0.8.95")
+                self.assertEqual(result.status, "available")
+                self.assertEqual(result.offer.asset.name, name)
+                self.assertEqual(result.offer.asset.platform, platform)
+                requested = [url.rsplit("/", 1)[-1] for url, _ in self.network.calls
+                             if "/releases/download/" in url]
+                self.assertEqual(requested, [feed])
+
+    def test_bootstrap_payload_cannot_be_substituted_with_exe_or_full_zip(self):
+        for name in ("NIPAT-Setup.exe", "NIPAT-0.8.99-Windows-completo.zip"):
+            with self.subTest(name=name):
+                self.setUp()
+                release, manifest = release_fixture("0.8.99", platform="windows-bootstrap-x86_64")
+                manifest["assets"][0]["name"] = name
+                manifest["assets"][0]["url"] = f"{WEB}/releases/download/v0.8.99/{name}"
+                self.install((release, manifest))
+                self.assertEqual(self.check(platform="windows-bootstrap-x86_64").status, "invalid_metadata")
 
     def test_versions_compare_numerically_and_order_prerelease_phases(self):
         versions = ["0.9.0", "0.10.0a2", "0.10.0a10", "0.10.0b1", "0.10.0rc1", "0.10.0", "1.0.0"]

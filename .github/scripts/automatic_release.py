@@ -1,5 +1,6 @@
 """Publish a committed acceptance after its main-branch CI succeeds."""
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -72,6 +73,7 @@ def publication_arguments(record, existing):
         expected = {
             "NIPAT-Setup.exe": "windows_installer_sha256",
             f"NIPAT-{version}-Windows-completo.zip": "windows_zip_sha256",
+            f"NIPAT-{version}-Windows-payload.zip": "windows_payload_sha256",
             f"nipat-desktop_{version}_amd64.deb": "linux_installer_sha256",
             f"NIPAT-{version}-macos-arm64.pkg": "macos_arm64_installer_sha256",
             f"NIPAT-{version}-macos-x86_64.pkg": "macos_x86_64_installer_sha256",
@@ -85,6 +87,35 @@ def publication_arguments(record, existing):
                           and all(digests.get(name) == "sha256:" + record[field]
                                   for name, field in expected.items() if field in record),
                           "An existing public release differs from the accepted asset bytes")
+        if publisher.requires_windows_bootstrap(version):
+            # A retry must not declare success when the entry point for the
+            # online setup is missing or points to another payload/source.
+            publisher.require("windows_payload_sha256" in record,
+                              "Acceptance is missing the desktop payload digest")
+            by_name = {asset["name"]: asset for asset in assets}
+            for filename, platform, feed in (
+                (f"NIPAT-{version}-Windows-payload.zip", "windows-bootstrap-x86_64",
+                 publisher.WINDOWS_BOOTSTRAP_UPDATE_MANIFEST),
+                (f"NIPAT-{version}-Windows-completo.zip", "windows-zip-x86_64",
+                 publisher.WINDOWS_ZIP_UPDATE_MANIFEST),
+            ):
+                asset = by_name.get(filename, {})
+                size = asset.get("size")
+                publisher.require(type(size) is int and 0 < size < publisher.MAX_ASSET_BYTES,
+                                  "Existing payload has invalid size metadata")
+                entry = {"platform": platform, "name": filename, "size": size,
+                         "sha256": digests[filename].removeprefix("sha256:"),
+                         "url": f"https://github.com/{publisher.REPO}/releases/download/v{version}/{filename}"}
+                document = {
+                    "schema_version": 1, "product": "nipat-desktop", "version": version,
+                    "release_tag": "v" + version, "channel": channel,
+                    "source_commit": record["source_commit"], "minimum_updater_version": 1,
+                    "assets": [entry],
+                    "release_notes_url": f"https://github.com/{publisher.REPO}/releases/tag/v{version}",
+                }
+                raw = (json.dumps(document, indent=2) + "\n").encode("utf-8")
+                publisher.require(digests.get(feed) == "sha256:" + hashlib.sha256(raw).hexdigest(),
+                                  "Existing Windows update feed differs from the accepted payload")
         return None
     args = ["--operation", "prepare-and-publish", "--run-id", str(record["build_run_id"]),
             "--source-commit", record["source_commit"], "--channel", channel]

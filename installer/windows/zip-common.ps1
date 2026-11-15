@@ -2,13 +2,38 @@
 . (Join-Path $PSScriptRoot 'bootstrap-common.ps1')
 . (Join-Path $PSScriptRoot 'activity-lock.ps1')
 
-function Get-NipatZipRoot {
-    if ([string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) { throw 'LOCALAPPDATA non disponibile.' }
-    return Resolve-NipatInstallPath (Join-Path $env:LOCALAPPDATA 'NIPAT-Desktop-Zip')
+function Get-NipatZipRoot([string] $Project = '') {
+    if (-not $Project) { $Project = Split-Path -Parent (Split-Path -Parent $PSScriptRoot) }
+    $projectPath = Resolve-NipatInstallPath $Project
+    Assert-NipatInstallPathWithoutLinks $projectPath
+    $marker = Join-Path $projectPath '.runtime\zip-install.json'
+    Assert-NipatActivityPathWithoutLinks $marker
+    $value = Get-Content -LiteralPath $marker -Raw -Encoding UTF8 | ConvertFrom-Json
+    if (@($value.PSObject.Properties).Count -ne 3 -or $value.schema_version -ne 1 -or
+        $value.installation_method -cne 'zip' -or -not ($value.root -is [string])) {
+        throw 'Identita dell installazione ZIP non valida.'
+    }
+    $root = Resolve-NipatInstallPath $value.root
+    Assert-NipatZipRoot $root
+    $folder = Split-Path -Leaf $projectPath
+    $match = [regex]::Match($folder, '^(0\.8\.(?:0|[1-9][0-9]*))-([a-f0-9]{40})$')
+    if (-not $match.Success -or $projectPath -ine (Get-NipatZipProject $root $match.Groups[1].Value $match.Groups[2].Value)) {
+        throw 'L applicazione ZIP non appartiene alla cartella registrata.'
+    }
+    return $root
+}
+
+function Get-NipatZipInstallRoot([string] $Bundle, [string] $RequestedRoot) {
+    if ($RequestedRoot) {
+        $root = Resolve-NipatInstallPath $RequestedRoot
+        Assert-NipatZipRoot $root
+        return $root
+    }
+    return Resolve-NipatInstallPath (Join-Path $Bundle 'NIPAT')
 }
 
 function Assert-NipatZipRoot([string] $Root, [switch] $Create) {
-    if ($Root -ine (Get-NipatZipRoot)) { throw 'Cartella ZIP diversa dalla destinazione gestita.' }
+    if ($Root -ine (Resolve-NipatInstallPath $Root)) { throw 'Percorso ZIP non canonico.' }
     Assert-NipatInstallPathWithoutLinks $Root
     $marker = Join-Path $Root 'installation.json'
     if (Test-Path -LiteralPath $marker -PathType Leaf) {
@@ -94,25 +119,32 @@ function Write-NipatZipOwnership([string] $Directory, [string] $Role) {
 }
 
 function Set-NipatZipShortcuts([string] $Root, [string] $Project) {
-    $programs = [Environment]::GetFolderPath('Programs')
-    if (-not $programs) { throw 'Menu Start del tuo account non disponibile.' }
-    $folder = Join-Path $programs 'NIPAT Desktop ZIP'
-    Assert-NipatInstallPathWithoutLinks $folder
-    [IO.Directory]::CreateDirectory($folder) | Out-Null
-    $shell = New-Object -ComObject WScript.Shell
-    try {
-        foreach ($mode in @('launch', 'resume')) {
-            $name = if ($mode -ceq 'launch') { 'NIPAT Desktop ZIP.lnk' } else { 'NIPAT Desktop ZIP - completa preparazione.lnk' }
-            $shortcutFile = Join-Path $folder $name
-            Assert-NipatActivityPathWithoutLinks $shortcutFile
-            $shortcut = $shell.CreateShortcut($shortcutFile)
-            $shortcut.TargetPath = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
-            $shortcut.Arguments = '-NoLogo -NoProfile -ExecutionPolicy Bypass -File "' + (Join-Path $Project 'installer\windows\zip-entry.ps1') + '" -Mode ' + $mode
-            $shortcut.WorkingDirectory = $Root
-            $shortcut.IconLocation = (Join-Path $Project 'assets\branding\nipat-icon.ico') + ',0'
-            $shortcut.Save()
+    # Local CMD launchers use relative paths. No Start menu entry or COM helper.
+    Assert-NipatZipRoot $Root
+    $launchProject = $Project
+    if (Test-Path -LiteralPath (Join-Path $Root 'current.json')) {
+        $launchProject = (Read-NipatZipPointer $Root).app_dir
+    }
+    foreach ($mode in @('launch', 'resume')) {
+        $targetProject = if ($mode -ceq 'launch') { $launchProject } else { $Project }
+        $folder = Split-Path -Leaf $targetProject
+        if ($folder -cnotmatch '^0\.8\.(?:0|[1-9][0-9]*)-[a-f0-9]{40}$' -or
+            (Split-Path -Parent $targetProject) -ine (Join-Path $Root 'versions')) {
+            throw 'Destinazione del launcher ZIP non valida.'
         }
-    } finally { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($shell) }
+        $name = if ($mode -ceq 'launch') { '2_AVVIA.cmd' } else { '1_COMPLETA_PREPARAZIONE.cmd' }
+        $path = Join-Path $Root $name
+        Assert-NipatActivityPathWithoutLinks $path
+        $lines = @('@echo off', 'setlocal DisableDelayedExpansion',
+            ('"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0versions\' + $folder + '\installer\windows\zip-entry.ps1" -Mode ' + $mode),
+            'exit /b %ERRORLEVEL%')
+        $temporary = Join-Path $Root ('.launcher-' + [Guid]::NewGuid().ToString('N') + '.cmd')
+        try {
+            [IO.File]::WriteAllText($temporary, (($lines -join "`r`n") + "`r`n"), [Text.Encoding]::ASCII)
+            if ([IO.File]::Exists($path)) { [IO.File]::Replace($temporary, $path, [NullString]::Value) }
+            else { [IO.File]::Move($temporary, $path) }
+        } finally { if ([IO.File]::Exists($temporary)) { [IO.File]::Delete($temporary) } }
+    }
 }
 
 function Complete-NipatZipActivation([string] $Root, $Pointer) {

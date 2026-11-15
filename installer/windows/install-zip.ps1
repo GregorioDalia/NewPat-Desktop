@@ -1,12 +1,13 @@
-param([string] $BundleDirectory = '', [switch] $Resume, [switch] $VerifyOnly)
+param([string] $BundleDirectory = '', [string] $InstallRoot = '', [switch] $Resume, [switch] $VerifyOnly)
 
 . (Join-Path $PSScriptRoot 'zip-common.ps1')
 . (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) 'scripts\windows\common.ps1')
 $lease = $null
 $result = 1
 try {
-    $root = Get-NipatZipRoot
     if ($Resume) {
+        $root = Get-NipatZipRoot
+        if ($InstallRoot -and (Resolve-NipatInstallPath $InstallRoot) -ine $root) { throw 'La ripresa ZIP richiede la cartella registrata.' }
         $pointer = Read-NipatZipPointer $root 'pending.json'
         $project = $pointer.app_dir
         $manifest = Assert-NipatZipApplication $project -Installed
@@ -25,6 +26,7 @@ try {
             }
         }
         if ($VerifyOnly) { Write-Host 'PASS: ZIP completo verificato; nessuna installazione eseguita.'; exit 0 }
+        $root = Get-NipatZipInstallRoot $bundle $InstallRoot
         $project = Get-NipatZipProject $root $manifest.version $manifest.source_commit
         $pointer = [pscustomobject][ordered]@{ schema_version = 1; version = $manifest.version; source_commit = $manifest.source_commit; app_dir = $project }
         $layout = [pscustomobject][ordered]@{
@@ -75,10 +77,11 @@ try {
     $result = $LASTEXITCODE
     if ($result -eq 0) {
         Complete-NipatZipActivation $root $pointer
-        Write-Host 'NIPAT Desktop ZIP pronto. Aprire il collegamento dal menu Start.'
+        Set-NipatZipShortcuts $root $project
+        Write-Host ('NIPAT Desktop ZIP pronto. Aprire ' + (Join-Path $root '2_AVVIA.cmd'))
         Write-Host "Dati e risultati: $root"
     } elseif ($result -eq 3010) {
-        Write-Host 'Dopo il riavvio aprire NIPAT Desktop ZIP - completa preparazione dal menu Start.'
+        Write-Host ('Dopo il riavvio aprire ' + (Join-Path $root '1_COMPLETA_PREPARAZIONE.cmd'))
     } else {
         throw "Preparazione ZIP non completata (codice $result). La precedente versione attiva resta selezionata. Diagnostica: $project\.runtime\installer\setup.log"
     }

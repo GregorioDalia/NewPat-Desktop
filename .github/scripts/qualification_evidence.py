@@ -41,6 +41,8 @@ def identity(installer_set):
             result[f"macos_{architecture}_installer_sha256"] = installer_set[f"macos_{architecture}"]["sha256"]
     if "windows_zip" in installer_set:
         result["windows_zip_sha256"] = installer_set["windows_zip"]["sha256"]
+    if "windows_payload" in installer_set:
+        result["windows_payload_sha256"] = installer_set["windows_payload"]["sha256"]
     return result
 
 

@@ -159,6 +159,25 @@ class DependencyEvidenceTests(unittest.TestCase):
                     self.verify(changed)
 
 
+class OnlinePayloadEvidenceTests(unittest.TestCase):
+    def test_only_shipped_downloader_evidence_with_exact_payload_is_accepted(self):
+        manifest = {"version": "0.8.99", "source_commit": "a" * 40}
+        check = {"schema_version": 1, **manifest, "package_sha256": "b" * 64,
+                 "scope": "staged-bootstrap-payload", "complete_payload_verified": True,
+                 "embedded_python_executed": True, "production_downloader_executed": True,
+                 "wsl_execution": False, "smart_app_control": "not-performed"}
+        VERIFY.verify_windows_payload_check(check, manifest, "b" * 64)
+        for key, value in (
+            ("schema_version", True), ("source_commit", "c" * 40), ("version", "0.8.95"),
+            ("package_sha256", "c" * 64), ("production_downloader_executed", False),
+            ("production_downloader_executed", 1), ("complete_payload_verified", False),
+            ("embedded_python_executed", False), ("wsl_execution", True),
+            ("smart_app_control", "passed"), ("scope", "live-desktop"),
+        ):
+            with self.subTest(field=key, value=value), self.assertRaisesRegex(ValueError, "staged-payload"):
+                VERIFY.verify_windows_payload_check(dict(check, **{key: value}), manifest, "b" * 64)
+
+
 class WindowsClientEvidenceTests(unittest.TestCase):
     def setUp(self):
         self.manifest_bytes = b"reviewed shared manifest"
@@ -201,6 +220,40 @@ class WindowsClientEvidenceTests(unittest.TestCase):
             installer_sha256=self.installer_sha256, launcher_sha256=self.launcher_sha256,
             inventory_bytes=self.inventory_bytes if inventory_bytes is None else inventory_bytes,
         )
+
+    def test_0899_client_binds_script_entrypoint_without_unsigned_helpers(self):
+        manifest = copy.deepcopy(self.manifest)
+        manifest["version"] = "0.8.99"
+        manifest["source_sha256"]["2_AVVIA.cmd"] = "9" * 64
+        inventory = copy.deepcopy(self.inventory)
+        inventory["files"] = [item for item in inventory["files"]
+                              if item["path"] not in {"NIPAT.exe", "installer/windows/EnableWsl.exe"}]
+        inventory["files"].append({"path": "2_AVVIA.cmd", "sha256": "9" * 64})
+        evidence = copy.deepcopy(self.evidence)
+        evidence.update(schema_version=2, version="0.8.99", entrypoint_sha256="9" * 64)
+        del evidence["launcher_sha256"]
+        evidence["checks"].update(dict.fromkeys(VERIFY.FIVE_MODULE_CLIENT_CHECKS, True))
+
+        def check(changed_inventory, changed_evidence=None):
+            raw = json.dumps(changed_inventory).encode()
+            current = dict(evidence if changed_evidence is None else changed_evidence,
+                           application_inventory_sha256=hashlib.sha256(raw).hexdigest())
+            VERIFY.verify_windows_client_check(current, manifest, self.manifest_bytes,
+                installer_sha256=self.installer_sha256, entrypoint_sha256="9" * 64,
+                inventory_bytes=raw)
+
+        check(inventory)
+        for helper in ("NIPAT.exe", "installer/windows/EnableWsl.exe", "installer/windows/NipatActivityNative.dll"):
+            changed = copy.deepcopy(inventory)
+            changed["files"].append({"path": helper, "sha256": "0" * 64})
+            with self.subTest(helper=helper), self.assertRaisesRegex(ValueError, "obsolete unsigned"):
+                check(changed)
+        with self.assertRaisesRegex(ValueError, "evidence mismatch"):
+            check(inventory, dict(evidence, entrypoint_sha256="0" * 64))
+        changed = copy.deepcopy(inventory)
+        changed["files"][-1]["sha256"] = "0" * 64
+        with self.assertRaisesRegex(ValueError, "differs from the verified source"):
+            check(changed)
 
     def test_0850_requires_settings_and_five_module_client_evidence(self):
         self.manifest["version"] = "0.8.50"
