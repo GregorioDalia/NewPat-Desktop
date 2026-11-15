@@ -76,6 +76,50 @@ class ReleaseGuards(unittest.TestCase):
         (self.setup / "NIPAT.exe").write_bytes(b"MZ launcher fixture")
         self.write_installer_evidence()
 
+    def test_bootstrap_fingerprint_covers_exact_compiler_provisioning(self):
+        path = publisher.PROJECT / ".github/scripts/windows_bootstrap.py"
+        spec = importlib.util.spec_from_file_location("bootstrap_identity_contract", path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.assertEqual(publisher.BOOTSTRAP_SOURCES, module.BOOTSTRAP_SOURCES)
+        self.assertIn(".github/scripts/install_inno.ps1", publisher.BOOTSTRAP_SOURCES)
+
+    def test_online_bootstrap_is_bound_separately_from_versioned_payload(self):
+        self.make_desktop_package("0.8.99")
+        manifest_bytes = (self.setup / publisher.MANIFEST).read_bytes()
+        for name in publisher.BOOTSTRAP_SOURCES:
+            self.manifest["source_sha256"][name] = "a" * 64
+        inventory = self.setup / "application-files.json"
+        inventory.write_bytes(b"reviewed inventory fixture")
+        payload = {"file": "NIPAT-0.8.99-Windows-payload.zip", "sha256": "b" * 64,
+                   "version": "0.8.99", "source_commit": COMMIT}
+        inputs = {name: self.manifest["source_sha256"][name] for name in publisher.BOOTSTRAP_SOURCES}
+        inputs[f".distribution/{publisher.PYTHON_NAME}"] = publisher.PYTHON_SHA256
+        record = {
+            "schema_version": 2, "distribution": "online-bootstrap", "bootstrap_version": "1.0.0",
+            "version": "0.8.99", "source_commit": COMMIT, "file": "NIPAT-Setup.exe",
+            "sha256": publisher.sha256(self.setup / "NIPAT-Setup.exe"),
+            "size": (self.setup / "NIPAT-Setup.exe").stat().st_size,
+            "installer_manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
+            "application_inventory_sha256": publisher.sha256(inventory),
+            "installation_profile": publisher.DESKTOP_INSTALLATION_PROFILE,
+            "bootstrap_inputs_sha256": inputs, "payload_record": payload,
+        }
+        (self.setup / "NIPAT.exe").unlink()
+        path = self.setup / "installer-build.json"
+        with patch.object(publisher, "verify_windows_payload", return_value=payload):
+            path.write_text(json.dumps(record))
+            publisher.verify_installer_build(self.setup, self.manifest, manifest_bytes, COMMIT)
+            for field, value in (
+                ("bootstrap_version", "0.8.99"), ("source_commit", "f" * 40),
+                ("application_inventory_sha256", "0" * 64),
+                ("bootstrap_inputs_sha256", dict(inputs, **{publisher.BOOTSTRAP_SOURCES[0]: "0" * 64})),
+                ("payload_record", dict(payload, sha256="0" * 64)),
+            ):
+                path.write_text(json.dumps(dict(record, **{field: value})))
+                with self.subTest(field=field), self.assertRaisesRegex(ValueError, "bootstrap/payload"):
+                    publisher.verify_installer_build(self.setup, self.manifest, manifest_bytes, COMMIT)
+
     def make_dual_package(self, version="0.4.0"):
         self.make_wsl_package(version)
         self.desktop = self.root / "desktop"

@@ -1,8 +1,9 @@
 # Distribuzione e requisiti
 
 NIPAT Desktop distribuisce la stessa CLI e lo stesso motore scientifico
-su Windows, macOS e Ubuntu. Ogni pacchetto contiene l'immagine scientifica:
-non occorre scaricarla separatamente o importarla manualmente.
+su Windows, macOS e Ubuntu. Lo ZIP completo Windows e i pacchetti macOS/Ubuntu
+contengono l'immagine scientifica. Il setup EXE Windows scarica il pacchetto
+applicativo e gli archivi necessari, verificandoli prima dell'installazione.
 
 Scaricare il pacchetto del proprio sistema dagli **Assets** dell'[ultima release stabile](https://github.com/GregorioDalia/nipat-desktop/releases/latest).
 Gli archivi **Source code** servono a consultare o costruire i sorgenti. Per la
@@ -13,20 +14,21 @@ revisione di una build candidata, seguire invece la [procedura di accettazione](
 | Sistema | Ambiente scientifico | Pacchetto |
 | --- | --- | --- |
 | Windows 10 22H2 x64, build 19045, o Windows 11 x64 | WSL2 con Docker Engine gestito da NIPAT | `NIPAT-Setup.exe` |
+| Windows x64, installazione nella cartella estratta | WSL2 con Docker Engine gestito da NIPAT | `NIPAT-VERSIONE-Windows-completo.zip` |
 | macOS 14 o successivo, Intel | VM Lima AMD64 con Docker Engine | `.pkg` x86_64 |
 | macOS 14 o successivo, Apple Silicon | VM Lima ARM64, Rosetta e Docker Engine | `.pkg` arm64 |
 | Ubuntu 24.04 LTS x86_64 | Docker Engine locale | `nipat-desktop_VERSIONE_amd64.deb` |
 
-Tutti i pacchetti incorporano lo stesso archivio scientifico Linux AMD64.
+I diversi percorsi distribuiscono lo stesso archivio scientifico Linux AMD64.
 L'immagine contiene gli script R, samtools, dipendenze, validazione degli
 input e orchestrazione. Ogni analisi usa un container con rete disabilitata,
 input selezionati in sola lettura e cartella del run scrivibile.
 
 ## Pacchetto Windows
 
-Avviare `NIPAT-Setup.exe` dal proprio account. Il setup include Python,
-filesystem WSL e archivio scientifico, verifica il sistema e prepara i
-componenti WSL mancanti. Non occorre installare Docker Desktop, R o samtools.
+Avviare `NIPAT-Setup.exe` dal proprio account. Il setup include il Python
+necessario alla preparazione e scarica da GitHub il pacchetto della release,
+verifica il sistema e prepara i componenti WSL mancanti. Non occorre installare Docker Desktop, R o samtools.
 L'attivazione o l'aggiornamento di WSL può richiedere Internet, autorizzazione
 amministrativa e riavvio. Windows ARM, Server e 32 bit non sono supportati.
 
@@ -36,6 +38,15 @@ riconosciute e non svuota cartelle estranee. Attendere **NIPAT: ready**, poi
 avviare **NIPAT Desktop** dal menu Start o dal collegamento sul desktop.
 La [guida Windows](INSTALLATORE_WINDOWS.md) descrive aggiornamento, riparazione,
 rimozione e gestione degli avvisi di sicurezza.
+
+Per installare dallo ZIP completo, estrarlo nella posizione definitiva e
+avviare `1_INSTALLA.cmd`: dalla 0.8.99 viene creata la sottocartella `NIPAT`,
+con collegamenti locali di avvio e ripresa. Non viene creato un collegamento
+nel menu Start. Applicazione, dati, risultati e preferenze rimangono in quella
+cartella; non eliminarla dopo la preparazione. Il motore e Python sono inclusi,
+ma i prerequisiti Windows possono richiedere Internet. La registrazione WSL è
+specifica del computer: la cartella non è un ambiente portatile fra PC.
+Gli aggiornamenti dei due percorsi rimangono separati.
 
 ## Pacchetto macOS
 

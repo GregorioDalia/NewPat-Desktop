@@ -10,6 +10,7 @@ $directory = Split-Path -Parent ([IO.Path]::GetFullPath($Descriptor))
 $cancelFile = Join-Path $directory 'cancel'
 $logFile = Join-Path $directory 'handoff.log'
 $packageStream = $null
+$bootstrapStream = $null
 $activity = $null
 $parent = $null
 $result = 1
@@ -63,9 +64,11 @@ try {
     Assert-NotCanceled
     Assert-LocalPath $Descriptor | Out-Null
     $record = Get-Content -LiteralPath $Descriptor -Raw -Encoding UTF8 | ConvertFrom-Json
-    $zipInstall = $null -ne $record.PSObject.Properties['installation_method']
-    $fieldCount = if ($zipInstall) { 11 } else { 10 }
-    if (($zipInstall -and $record.installation_method -cne 'zip') -or
+    $method = if ($null -ne $record.PSObject.Properties['installation_method']) { [string]$record.installation_method } else { 'legacy' }
+    $zipInstall = $method -ceq 'zip'
+    $bootstrapInstall = $method -ceq 'bootstrap'
+    $fieldCount = if ($bootstrapInstall) { 12 } elseif ($zipInstall) { 11 } else { 10 }
+    if ($method -cnotin @('legacy', 'zip', 'bootstrap') -or
         @($record.PSObject.Properties).Count -ne $fieldCount -or $record.schema_version -ne 1 -or
         $record.installation_channel -cne 'desktop' -or $record.parent_pid -le 0 -or
         $record.sha256 -cnotmatch '^[a-f0-9]{64}$' -or $record.size -le 0 -or
@@ -76,18 +79,30 @@ try {
     $project = Assert-LocalPath $record.project_dir
     $package = Assert-LocalPath $record.package
     $data = Assert-LocalPath $record.data_dir
-    $extension = if ($zipInstall) { '.zip' } else { '.exe' }
+    $extension = if ($zipInstall -or $bootstrapInstall) { '.zip' } else { '.exe' }
     if (-not (Test-Path -LiteralPath $project -PathType Container) -or
         -not (Test-Path -LiteralPath $package -PathType Leaf) -or [IO.Path]::GetExtension($package) -ine $extension) {
         throw 'Installer o applicazione non disponibili.'
     }
     if ($zipInstall) {
         . (Join-Path $project 'installer\windows\zip-common.ps1')
-        $zipRoot = Get-NipatZipRoot
+        $zipRoot = Get-NipatZipRoot $project
         $zipMarker = Get-Content -LiteralPath (Join-Path $project '.runtime\zip-install.json') -Raw -Encoding UTF8 | ConvertFrom-Json
         if (@($zipMarker.PSObject.Properties).Count -ne 3 -or $zipMarker.schema_version -ne 1 -or
             $zipMarker.installation_method -cne 'zip' -or $zipMarker.root -ine $zipRoot -or
             (Read-NipatZipPointer $zipRoot).app_dir -ine $project) { throw 'Installazione ZIP attiva non valida.' }
+    }
+    if ($bootstrapInstall) {
+        $setupMarkerPath = Assert-LocalPath (Join-Path $project '.runtime\bootstrap-install.json')
+        $setupMarker = Get-Content -LiteralPath $setupMarkerPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        if (@($setupMarker.PSObject.Properties).Count -ne 3 -or $setupMarker.schema_version -ne 1 -or
+            $setupMarker.installation_method -cne 'bootstrap' -or $record.setup_sha256 -cnotmatch '^[a-f0-9]{64}$' -or
+            $setupMarker.setup_sha256 -cne $record.setup_sha256 -or
+            (Test-Path -LiteralPath (Join-Path $project '.runtime\zip-install.json'))) {
+            throw 'Installazione con setup stabile non valida. Nessun installer viene avviato.'
+        }
+        $setupSource = Assert-LocalPath (Join-Path $project '.runtime\setup\NIPAT-Setup.exe')
+        if (-not (Test-Path -LiteralPath $setupSource -PathType Leaf)) { throw 'Setup stabile mancante. Riparare l installazione.' }
     }
     $parent = [Diagnostics.Process]::GetProcessById([int] $record.parent_pid)
     # Opening the process handle before acknowledgement avoids a reused PID.
@@ -115,6 +130,26 @@ try {
     finally { $sha.Dispose() }
     if ($digest -cne $record.sha256) { throw 'SHA-256 dell installer modificato. Nessun file viene eseguito.' }
     Assert-NotCanceled
+    if ($bootstrapInstall) {
+        # Keep the installed bootstrap immutable while checking/copying it, then
+        # release it before Inno replaces application files. The independent copy
+        # lets every future update reuse the SAME reviewed executable.
+        $bootstrapStream = [IO.File]::Open($setupSource, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+        $sha = [Security.Cryptography.SHA256]::Create()
+        try { $setupDigest = [BitConverter]::ToString($sha.ComputeHash($bootstrapStream)).Replace('-', '').ToLowerInvariant() }
+        finally { $sha.Dispose() }
+        if ($setupDigest -cne $record.setup_sha256) { throw 'SHA-256 del setup stabile modificato. Nessun file viene eseguito.' }
+        $copiedSetup = Join-Path $directory 'NIPAT-Setup.exe'
+        $bootstrapStream.Position = 0
+        $output = [IO.File]::Open($copiedSetup, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
+        try { $bootstrapStream.CopyTo($output) } finally { $output.Dispose() }
+        $bootstrapStream.Dispose(); $bootstrapStream = $null
+        $bootstrapStream = [IO.File]::Open($copiedSetup, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+        $sha = [Security.Cryptography.SHA256]::Create()
+        try { $copiedDigest = [BitConverter]::ToString($sha.ComputeHash($bootstrapStream)).Replace('-', '').ToLowerInvariant() }
+        finally { $sha.Dispose() }
+        if ($copiedDigest -cne $record.setup_sha256) { throw 'Copia del setup stabile modificata. Nessun file viene eseguito.' }
+    }
     $zipDirectory = Join-Path $directory 'verified-zip'
     if ($zipInstall) {
         $python = Join-Path $project '.runtime\python\python.exe'
@@ -131,7 +166,15 @@ try {
     if ($zipInstall) {
         $start.FileName = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
         $zipWorker = Join-Path $zipDirectory 'app\installer\windows\install-zip.ps1'
-        $start.Arguments = '-NoLogo -NoProfile -ExecutionPolicy Bypass -File ' + (Quote-HandoffArgument $zipWorker) + ' -BundleDirectory ' + (Quote-HandoffArgument $zipDirectory)
+        $start.Arguments = '-NoLogo -NoProfile -ExecutionPolicy Bypass -File ' + (Quote-HandoffArgument $zipWorker) +
+            ' -BundleDirectory ' + (Quote-HandoffArgument $zipDirectory) + ' -InstallRoot ' + (Quote-HandoffArgument $zipRoot)
+    } elseif ($bootstrapInstall) {
+        $start.FileName = $copiedSetup
+        $start.Arguments += ' /NIPATPACKAGE=' + (Quote-HandoffArgument $package) +
+            ' /NIPATVERSION=' + (Quote-HandoffArgument $record.version) +
+            ' /NIPATSOURCE=' + (Quote-HandoffArgument $record.source_commit) +
+            ' /NIPATSHA256=' + (Quote-HandoffArgument $record.sha256) +
+            ' /NIPATSIZE=' + (Quote-HandoffArgument ([string]$record.size))
     }
     $start.WorkingDirectory = $directory
     $start.UseShellExecute = $false
@@ -141,10 +184,12 @@ try {
     try { $installer.WaitForExit(); $code = $installer.ExitCode } finally { $installer.Dispose() }
     $packageStream.Dispose(); $packageStream = $null
     if ($code -eq 3010) {
-        Write-HandoffLog 'Riavvio di Windows richiesto. Riavviare il PC e completare la preparazione dal menu Start.'
+        if ($zipInstall) { Write-HandoffLog ('Riavvio di Windows richiesto. Riprendere la preparazione dal collegamento locale in ' + $zipRoot) }
+        else { Write-HandoffLog 'Riavvio di Windows richiesto. Riavviare il PC e completare la preparazione dal menu Start.' }
         $result = 3010
     } elseif ($code -ne 0) {
-        throw "Installazione non completata (codice $code). Consultare il setup e riprendere la preparazione dal menu Start."
+        $resume = if ($zipInstall) { 'dal collegamento locale in ' + $zipRoot } else { 'dal menu Start' }
+        throw "Installazione non completata (codice $code). Consultare il setup e riprendere la preparazione $resume."
     } else {
         if ($zipInstall) { $project = (Read-NipatZipPointer $zipRoot).app_dir }
         # The existing entry point performs the full ready/manifest/runtime binding check.
@@ -153,7 +198,7 @@ try {
         $state = Get-Content -LiteralPath $stateFile -Raw -Encoding UTF8 | ConvertFrom-Json
         if ($state.phase -cne 'ready' -or $state.installation_channel -cne 'desktop' -or
             $state.version -cne $record.version -or $state.source_commit -cne $record.source_commit) {
-            throw 'Preparazione non conclusa. Completare NIPAT Desktop dal menu Start prima di avviare analisi.'
+            throw 'Preparazione non conclusa. Completare NIPAT tramite il collegamento di preparazione della propria installazione prima di avviare analisi.'
         }
         $powershell = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
         $launch = New-Object Diagnostics.ProcessStartInfo
@@ -173,6 +218,7 @@ try {
     Write-HandoffLog ('ERRORE: ' + $message)
 } finally {
     if ($null -ne $packageStream) { $packageStream.Dispose() }
+    if ($null -ne $bootstrapStream) { $bootstrapStream.Dispose() }
     if ($null -ne $activity) { $activity.Dispose() }
     if ($null -ne $parent) { $parent.Dispose() }
 }

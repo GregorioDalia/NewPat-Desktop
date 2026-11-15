@@ -1,9 +1,19 @@
 # Installatore Windows
 
-Il pacchetto Windows di NIPAT Desktop contiene l'applicazione, Python portabile,
-i componenti di avvio, il filesystem WSL e l'immagine scientifica. Il file
-`NIPAT-Setup.exe` è autosufficiente per i componenti NIPAT: non occorre
-scaricare archivi runtime separati o creare una cartella `assets`.
+Dalla 0.8.99 Windows dispone di due percorsi indipendenti:
+
+- `NIPAT-Setup.exe`: installazione guidata; include il Python del bootstrap e
+  scarica da GitHub un pacchetto applicativo separato, con motore scientifico
+  e filesystem WSL. Richiede Internet per acquisire una release non già presente.
+- `NIPAT-<versione>-Windows-completo.zip`: contiene già Python, applicazione
+  e archivi del motore; prepara una sottocartella `NIPAT` nella posizione estratta.
+
+Il setup EXE ha un'identità propria, separata dalla versione applicativa.
+Le installazioni nuove selezionano una release stabile compatibile; gli
+aggiornamenti installano esattamente la versione proposta e accettata.
+Il setup conservato nell'installazione può essere riutilizzato per i pacchetti
+compatibili successivi. Una modifica al contratto del bootstrap o una sua
+correzione può richiedere un nuovo EXE.
 
 Scaricare `NIPAT-Setup.exe` dagli asset dell'[ultima release stabile](https://github.com/GregorioDalia/nipat-desktop/releases/latest).
 Il setup aggiorna le installazioni NIPAT Desktop riconosciute e conserva
@@ -83,8 +93,7 @@ I collegamenti avviano `2_AVVIA.cmd` con la cartella dati come directory
 corrente e il logo NIPAT come icona. `nipat.cmd` espone gli stessi workflow
 per l'uso nei terminali. Entrambi passano attraverso `scripts/windows/run.ps1`,
 che verifica stato `ready`, manifest e associazione al runtime prima di
-preparare l'ambiente del client. Il launcher `NIPAT.exe` resta incluso come
-componente aggiuntivo, ma non è il destinatario dei collegamenti ordinari.
+preparare l'ambiente del client. Non è necessario un launcher NIPAT compilato.
 Il collegamento **Cartella NIPAT Desktop** nel menu Start apre la cartella applicativa
 selezionata, con documentazione e comandi disponibili.
 
@@ -97,63 +106,54 @@ supporta condivisioni UNC, unità di rete o dischi rimovibili.
 
 ## ZIP completo aggiuntivo
 
-Dalla 0.8.95 è disponibile anche `NIPAT-<versione>-Windows-completo.zip`,
-con Python, filesystem WSL e motore scientifico inclusi. È un secondo metodo
-di installazione Windows; `NIPAT-Setup.exe` resta disponibile e completo.
+Lo ZIP completo mantiene un percorso di installazione e aggiornamento proprio,
+separato dal setup EXE.
 
-1. Scaricare lo ZIP completo dagli asset della release ufficiale e confrontare
-   il suo SHA-256 con `SHA256SUMS`.
-2. Estrarlo completamente su un disco locale fisso, anche in una cartella
-   con spazi o caratteri accentati. Non eseguire i file dentro la visualizzazione
-   dell'archivio compresso.
-3. Fare doppio clic su `1_INSTALLA.cmd`, senza avviarlo come amministratore.
-4. Attendere la verifica dei file e la preparazione. Se Windows richiede un
-   riavvio, aprire poi **NIPAT Desktop ZIP - completa preparazione** dal menu Start.
-5. Dopo il messaggio di completamento, aprire **NIPAT Desktop ZIP** dal menu Start.
-   La cartella estratta può essere eliminata: gli archivi necessari alla ripresa
-   sono conservati nella cache dell'installazione.
+1. Scaricare `NIPAT-<versione>-Windows-completo.zip` dagli asset ufficiali e
+   verificare SHA-256 contro `SHA256SUMS` della stessa release.
+2. Estrarlo completamente nella posizione definitiva su un disco locale fisso.
+   Non avviare i file dalla visualizzazione dell'archivio compresso.
+3. Avviare `1_INSTALLA.cmd` senza scegliere «Esegui come amministratore».
+4. La preparazione crea `NIPAT` nella cartella estratta. Attendere `NIPAT: ready`.
+5. Avviare `NIPAT\2_AVVIA.cmd`. Dopo un eventuale riavvio, usare
+   `NIPAT\1_COMPLETA_PREPARAZIONE.cmd` per terminare la preparazione.
 
-Non serve installare prima Python, R o Docker Desktop. Anche con lo ZIP,
-l'abilitazione o l'aggiornamento dei componenti WSL di Microsoft può richiedere
-Internet. Il pacchetto non è un ambiente WSL trasportabile su una chiavetta.
+Non occorre installare prima Python, R o Docker Desktop. Non vengono creati
+collegamenti ZIP nel menu Start. **Conservare la cartella `NIPAT`: contiene
+l'installazione, i dati e i risultati.** La registrazione WSL appartiene al PC:
+spostare semplicemente la cartella su un altro computer non trasferisce un
+runtime pronto.
 
-| Contenuto | Percorso sotto `%LOCALAPPDATA%\NIPAT-Desktop-Zip` |
+| Contenuto | Percorso sotto `cartella estratta\NIPAT` |
 | --- | --- |
 | Versioni applicative | `versions\<versione>-<commit>` |
-| Versione attiva / preparazione in attesa | `current.json` / `pending.json` |
-| Ambiente WSL e cache | `wsl` / `cache` |
-| Dati e risultati predefiniti | `data` / `runs` |
-| Preferenze del canale ZIP | `preferences.json` |
+| Ambiente WSL | `wsl` |
+| Cache degli archivi | `cache` |
+| Dati e risultati | `data` e `runs` |
+| Preferenze | `preferences.json` |
+| Avvio e ripresa | `2_AVVIA.cmd` e `1_COMPLETA_PREPARAZIONE.cmd` |
 
-L'installazione EXE conserva i suoi percorsi, dati e collegamenti. I dati non
-vengono trasferiti automaticamente; si possono selezionare gli stessi input
-esterni dalle due applicazioni. Entrambe rispettano il coordinamento delle
-sessioni: chiudere NIPAT prima di installare o aggiornare, senza interrompere
-analisi in corso.
+Gli aggiornamenti dalla 0.8.99 in avanti mantengono la radice scelta.
+Non trasferiscono automaticamente dati da installazioni precedenti o da
+un altro canale a una nuova estrazione. Il pacchetto
+viene verificato prima dell'estrazione e la versione precedente rimane
+selezionata fino al completamento della nuova preparazione.
 
-**Aggiornamenti:** scegliere **Verifica aggiornamenti** nel menu. Il canale ZIP
-scarica e verifica lo ZIP della nuova release, attende la chiusura del client
-e prepara una nuova cartella applicativa. Dati, risultati e preferenze restano
-nelle cartelle stabili. Il cambio di versione avviene dopo gli autotest; se
-la nuova preparazione fallisce, il puntatore alla precedente non viene cambiato.
-Il feed EXE rimane separato e compatibile con i client precedenti.
+Se Windows blocca `1_INSTALLA.cmd` perché proviene da Internet, chiudere
+l'avviso e verificare prima l'hash dello ZIP ufficiale. Nelle proprietà dello
+ZIP scegliere **Sblocca**, se disponibile, quindi estrarre in una cartella
+nuova. `LEGGIMI.txt` contiene anche una procedura PowerShell con verifica
+SHA-256, sblocco limitato allo ZIP e ai file della nuova estrazione, e avvio
+dello stesso installatore. Non occorre disattivare Smart App Control o Defender.
+Lo sblocco rimuove soltanto il contrassegno Internet: non aggiunge una firma
+né elimina un eventuale blocco di Code Integrity su altri componenti.
 
-**Ripresa:** il collegamento **completa preparazione** riprende la versione
-in attesa. Il log è in `versions\<versione>-<commit>\.runtime\installer\setup.log`.
-Conservare anche il messaggio iniziale se il problema precede la creazione del log.
-Non rimuovere manualmente le cartelle delle versioni: i collegamenti e le
-operazioni di ripresa possono ancora riferirsi a esse.
-
-Lo ZIP non registra un disinstallatore Inno. Per rimuoverlo completamente,
-conservare prima dati e risultati e identificare la distribuzione WSL propria
-tramite `.runtime\backend.json` della versione attiva. La rimozione del runtime
-WSL è distinta dalla cancellazione delle cartelle; non usare comandi generici
-di reset WSL né cancellare ambienti appartenenti ad altre installazioni.
-
-Il metodo non garantisce di superare Smart App Control: evita il contenitore
-EXE ma conserva componenti nativi, compresa la DLL di coordinamento. La firma
-di Python o PowerShell non firma questi componenti. La prova sul dispositivo
-con SAC attivo resta distinta dai test CI.
+Il log di preparazione è in
+`versions\<versione>-<commit>\.runtime\installer\setup.log`.
+Non rimuovere le versioni manualmente mentre un aggiornamento è in corso.
+Lo ZIP non registra un disinstallatore Inno: prima di rimuoverlo conservare
+dati e risultati e identificare la sua distribuzione WSL tramite il backend
+della versione attiva. Non usare reset WSL generici o rimuovere altri ambienti.
 
 ## Identità e percorsi
 
@@ -215,11 +215,11 @@ prevalgono sulle preferenze. I comandi diretti non leggono queste preferenze.
 
 ## Preparazione e identità dell'immagine
 
-Il manifest incorporato contiene commit sorgente, versione, profilo e identità
-degli archivi. Il setup verifica i rispettivi SHA-256 prima dell'utilizzo.
-Gli archivi incorporati vengono estratti nella cache dell'utente con nomi
-comprendenti il digest; la cache permette la ripresa senza una nuova estrazione
-manuale. Il setup non scarica un manifest sostitutivo.
+Il manifest del pacchetto verificato contiene commit sorgente, versione,
+profilo e identità degli archivi. Il setup verifica SHA-256 e coerenza dei
+file prima dell'utilizzo. Gli archivi sono conservati nella cache con nomi
+comprendenti il digest; la cache permette la ripresa dopo un riavvio.
+L'EXE acquisisce il pacchetto da GitHub; lo ZIP completo contiene già gli archivi.
 
 Il filesystem WSL include Docker Engine e Compose dedicati. Dopo l'importazione,
 `nipat-engine ensure` avvia il motore interno. Il setup carica l'archivio
@@ -235,7 +235,11 @@ disabilitato. Il launcher ne controlla il legame con il manifest installato.
 ## Aggiornamento e riparazione
 
 **9 — Verifica aggiornamenti** consulta il canale selezionato e verifica il
-download del nuovo setup. L'installazione usa lo stesso profilo `desktop`,
+download del pacchetto previsto dal metodo di installazione. Il canale EXE
+della 0.8.99 usa un payload separato e riavvia la copia verificata del setup
+conservata localmente; il canale ZIP usa lo ZIP completo e gli script.
+Il contratto di aggiornamento è supportato dalla 0.8.99 in avanti.
+Non è prevista una migrazione automatica dai client precedenti. L'installazione usa lo stesso profilo `desktop`,
 conservando le cartelle riconosciute e i risultati. È possibile scaricare
 manualmente il setup dalla pagina Releases.
 
@@ -437,32 +441,22 @@ della stessa build; non riutilizzare nomi di distribuzioni gestite da altri cana
 ## Costruzione e accettazione del pacchetto
 
 Il workflow [Installers (review build)](../.github/workflows/windows-installer.yml)
-compila e prova il launcher, verifica il motore scientifico, esporta gli archivi,
+verifica l'avvio e il motore scientifico, esporta gli archivi,
 prepara i sorgenti ammessi da `distribution-files.txt` e compila l'EXE con
 Inno Setup. `installer-build.json` lega l'eseguibile a commit, versione,
-manifest, launcher, profilo e archivi incorporati. I dettagli e gli artefatti
+manifest, profilo, bootstrap e pacchetti separati. I dettagli e gli artefatti
 sono descritti in [CI/CD](CI_CD.md).
 
-La compilazione dei componenti C# richiede Roslyn, disponibile con Visual
-Studio Build Tools sulla macchina di build. Il computer destinatario non
-richiede un compilatore. `NipatActivityNative.dll` viene confezionata insieme
-all'applicazione; prima del caricamento il codice verifica l'hash contro
-l'inventario associato al manifest. Le build ripetute del launcher e del
-componente nativo vengono confrontate per SHA-256. Per eseguire dal checkout Windows i test e le funzioni di preparazione
-e manutenzione dell'installatore, compilare prima il componente con:
-
-```powershell
-& .\installer\windows\build-native.ps1
-```
-
-Questo comando appartiene al flusso di sviluppo, non alla procedura ordinaria
-di installazione. Non abilita né aggira Smart App Control.
+Il coordinamento fra installazione e analisi usa handle Windows e controlli
+Python, senza caricare `NipatActivityNative.dll`. L'abilitazione dei prerequisiti
+usa gli strumenti Windows con elevazione limitata alla loro configurazione.
+Il pacchetto non richiede la compilazione di helper sulla macchina destinataria.
+Questi cambiamenti non costituiscono una certificazione Smart App Control.
 
 Per una prova tecnica usare **NIPAT-Setup.exe** della build riuscita identificata
 dal commit. Il riepilogo Actions riporta i download disponibili e il periodo
 di conservazione; per gli artefatti può essere richiesto l'accesso a GitHub.
-L'artefatto `nipat-windows-setup` conserva installatore ed evidenze. Il launcher
-separato è un'evidenza di compilazione, non un'installazione autonoma.
+L'artefatto `nipat-windows-setup` conserva installatore ed evidenze. Le evidenze del bootstrap restano separate dai contenuti della release.
 
 Il [protocollo di accettazione](ACCETTAZIONE_INSTALLATORI.md) distingue la
 distribuzione per ricerca dalla qualificazione desktop completa. Registrare

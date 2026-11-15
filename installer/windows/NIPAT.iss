@@ -1,18 +1,19 @@
 #ifndef StageDir
   #error StageDir must identify a staged, verified installer directory
 #endif
-#ifndef RuntimeAssetsDir
-  #error RuntimeAssetsDir must identify the two verified runtime archives
+#ifndef BootstrapDir
+  #define BootstrapDir StageDir + "\bootstrap"
 #endif
 #ifndef OutputDir
   #define OutputDir "..\..\build\output"
 #endif
-#include StageDir + "\install-profile.iss"
+#include BootstrapDir + "\bootstrap-profile.iss"
 
 [Setup]
 AppId={#NipatAppId}
 AppName={#NipatDisplayName}
-AppVersion={#NipatVersion}
+AppVersion={#NipatBootstrapVersion}
+AppVerName={#NipatDisplayName}
 AppPublisher=NIPAT contributors
 AppPublisherURL=https://github.com/GregorioDalia/nipat-desktop
 LicenseFile={#StageDir}\app\LICENSE
@@ -34,22 +35,21 @@ SolidCompression=yes
 DiskSpanning=no
 WizardStyle=modern
 SetupIconFile={#StageDir}\app\assets\branding\nipat-icon.ico
-UninstallDisplayName={#NipatDisplayName} {#NipatVersion}
+UninstallDisplayName={#NipatDisplayName}
 UninstallDisplayIcon={app}\assets\branding\nipat-icon.ico
 CloseApplications=no
 RestartApplications=no
 
 [Files]
-; Extract only these small files for shared validation before touching selected directories.
-Source: "{#StageDir}\app\installer\windows\install-profile.ps1"; Flags: dontcopy noencryption
-Source: "{#StageDir}\app\installer\windows\install-profile.json"; Flags: dontcopy noencryption
-Source: "{#StageDir}\app\installer\windows\install-layout.ps1"; Flags: dontcopy noencryption
-Source: "{#StageDir}\app\installer\windows\validate-install-layout.ps1"; Flags: dontcopy noencryption
-Source: "{#StageDir}\app\installer\windows\repair-installation.ps1"; Flags: dontcopy noencryption
-Source: "{#StageDir}\app\.distribution\application-files.json"; Flags: dontcopy noencryption
-Source: "{#StageDir}\app\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-; The archives are embedded and written once, directly into the verified resume cache.
-#include StageDir + "\runtime-assets.iss"
+; Only this independently versioned bootstrap and official Python are embedded.
+Source: "{#BootstrapDir}\python\*"; DestDir: "{tmp}\nipat-bootstrap-python"; Flags: dontcopy noencryption recursesubdirs createallsubdirs
+Source: "{#BootstrapDir}\bootstrap_download.py"; DestDir: "{tmp}"; Flags: dontcopy noencryption
+; Downloaded members are inventoried and hashed before the wizard opens.
+Source: "{tmp}\nipat-payload\app\*"; DestDir: "{app}"; Flags: external ignoreversion recursesubdirs createallsubdirs
+; Both archives survive reboot in the verified cache, with content-addressed names.
+Source: "{tmp}\nipat-payload\runtime-cache\*"; DestDir: "{code:GetNipatCacheDir}"; Flags: external ignoreversion uninsneveruninstall
+; Reuse these exact setup bytes for later guided payload updates.
+Source: "{srcexe}"; DestDir: "{app}\.runtime\setup"; DestName: "NIPAT-Setup.exe"; Flags: external ignoreversion
 
 [Dirs]
 ; Shortcuts have a valid working directory even before WSL setup/reboot completes.
@@ -105,6 +105,12 @@ var
   SetupLeaseEvent: THandle;
   SetupNonce: String;
   GuidedUpdateProject: String;
+  PayloadVersion: String;
+  PayloadSource: String;
+  PayloadHash: String;
+  PayloadSize: String;
+  PayloadPackage: String;
+  PayloadHandles: array of THandle;
 
 function NipatGetDriveType(RootPath: String): Cardinal;
   external 'GetDriveTypeW@kernel32.dll stdcall';
@@ -234,6 +240,52 @@ begin
   end;
 end;
 
+procedure ReleaseNipatPayloadLocks;
+var
+  I: Integer;
+begin
+  for I := 0 to GetArrayLength(PayloadHandles) - 1 do
+    NipatCloseHandle(PayloadHandles[I]);
+  SetArrayLength(PayloadHandles, 0);
+end;
+
+procedure LockNipatPayloadFile(Path: String);
+var
+  Handle: THandle;
+  Count: Integer;
+begin
+  if NipatPathHasReparsePoint(Path) then
+    RaiseException('Il pacchetto temporaneo contiene un collegamento. Nessun file viene installato.');
+  { Read sharing only: source files cannot be changed/deleted between verification and copy. }
+  Handle := NipatCreateFile(Path, $80000000, 1, 0, 3, $80, 0);
+  if Handle = UINT_PTR(-1) then
+    RaiseException('Impossibile proteggere il pacchetto temporaneo da modifiche: ' + Path);
+  Count := GetArrayLength(PayloadHandles);
+  SetArrayLength(PayloadHandles, Count + 1);
+  PayloadHandles[Count] := Handle;
+end;
+
+procedure LockNipatPayloadTree(Path: String);
+var
+  Entry: TFindRec;
+begin
+  if not FindFirst(AddBackslash(Path) + '*', Entry) then
+    RaiseException('Cartella del pacchetto temporaneo non disponibile.');
+  try
+    repeat
+      if (Entry.Name <> '.') and (Entry.Name <> '..') then begin
+        if (Entry.Attributes and FILE_ATTRIBUTE_REPARSE_POINT) <> 0 then
+          RaiseException('Collegamento non consentito nel pacchetto temporaneo.');
+        if (Entry.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0 then
+          LockNipatPayloadTree(AddBackslash(Path) + Entry.Name)
+        else LockNipatPayloadFile(AddBackslash(Path) + Entry.Name);
+      end;
+    until not FindNext(Entry);
+  finally
+    FindClose(Entry);
+  end;
+end;
+
 function AcquireNipatActivityLock(): String;
 var
   LockPath, LockDirectory: String;
@@ -296,6 +348,7 @@ end;
 procedure DeinitializeSetup;
 begin
   ReleaseNipatActivityLock;
+  ReleaseNipatPayloadLocks;
 end;
 
 procedure DeinitializeUninstall;
@@ -445,7 +498,7 @@ begin
       'che saranno sostituiti. Gli altri file presenti restano nella cartella. ' +
       'Il backup non comporta un ripristino automatico.';
   end;
-  Result := 'Operazione: ' + ModeText + NewLine + NewLine + PreservationText + NewLine + NewLine +
+  Result := 'NIPAT ' + PayloadVersion + NewLine + 'Operazione: ' + ModeText + NewLine + NewLine + PreservationText + NewLine + NewLine +
     MemoDirInfo + NewLine + NewLine +
     'Ambiente di calcolo WSL:' + NewLine + Space + GetNipatRuntimeDir('') + NewLine + NewLine +
     'Cache dei componenti:' + NewLine + Space + GetNipatCacheDir('') + NewLine + NewLine +
@@ -516,12 +569,9 @@ end;
 procedure ExtractNipatLayoutHelpers;
 begin
   if LayoutHelpersExtracted then Exit;
-  ExtractTemporaryFile('install-profile.ps1');
-  ExtractTemporaryFile('install-profile.json');
-  ExtractTemporaryFile('install-layout.ps1');
-  ExtractTemporaryFile('validate-install-layout.ps1');
-  ExtractTemporaryFile('repair-installation.ps1');
-  ExtractTemporaryFile('application-files.json');
+  { Invoke the verified, read-locked helpers in place; do not create unlocked copies. }
+  if not FileExists(ExpandConstant('{tmp}\nipat-payload\app\installer\windows\validate-install-layout.ps1')) then
+    RaiseException('Componente del pacchetto verificato non disponibile.');
   LayoutHelpersExtracted := True;
 end;
 
@@ -554,7 +604,7 @@ begin
     DeleteFile(ErrorFile);
     DeleteFile(InfoFile);
     Parameters := '-NoLogo -NoProfile -ExecutionPolicy Bypass -File ' +
-      QuoteNipatArgument(ExpandConstant('{tmp}\validate-install-layout.ps1')) +
+      QuoteNipatArgument(ExpandConstant('{tmp}\nipat-payload\app\installer\windows\validate-install-layout.ps1')) +
       ' -LayoutFile ' + QuoteNipatArgument(LayoutFile) +
       ' -InfoFile ' + QuoteNipatArgument(InfoFile) +
       ' -ErrorFile ' + QuoteNipatArgument(ErrorFile);
@@ -652,9 +702,9 @@ begin
     DeleteFile(ErrorFile);
     DeleteFile(ReportFile);
     Parameters := '-NoLogo -NoProfile -ExecutionPolicy Bypass -File ' +
-      QuoteNipatArgument(ExpandConstant('{tmp}\repair-installation.ps1')) +
+      QuoteNipatArgument(ExpandConstant('{tmp}\nipat-payload\app\installer\windows\repair-installation.ps1')) +
       ' -LayoutFile ' + QuoteNipatArgument(LayoutFile) +
-      ' -PayloadFile ' + QuoteNipatArgument(ExpandConstant('{tmp}\application-files.json')) +
+      ' -PayloadFile ' + QuoteNipatArgument(ExpandConstant('{tmp}\nipat-payload\app\.distribution\application-files.json')) +
       ' -ReportFile ' + QuoteNipatArgument(ReportFile) +
       ' -ErrorFile ' + QuoteNipatArgument(ErrorFile);
     if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
@@ -678,12 +728,53 @@ begin
   end;
 end;
 
+function VerifyNipatExtractedPayload(): String;
+var
+  Parameters, ErrorFile: String;
+  VerifyResult: Integer;
+begin
+  ErrorFile := ExpandConstant('{tmp}\nipat-payload-error.txt');
+  DeleteFile(ErrorFile);
+  Parameters := '-I ' + QuoteNipatArgument(ExpandConstant('{tmp}\bootstrap_download.py')) +
+    ' --check-extracted ' + QuoteNipatArgument(ExpandConstant('{tmp}\nipat-payload')) +
+    ' --package ' + QuoteNipatArgument(PayloadPackage) +
+    ' --version ' + QuoteNipatArgument(PayloadVersion) +
+    ' --source ' + QuoteNipatArgument(PayloadSource) +
+    ' --sha256 ' + QuoteNipatArgument(PayloadHash) +
+    ' --size ' + QuoteNipatArgument(PayloadSize) +
+    ' --error-file ' + QuoteNipatArgument(ErrorFile);
+  if not Exec(ExpandConstant('{tmp}\nipat-bootstrap-python\python.exe'), Parameters,
+    ExpandConstant('{tmp}'), SW_HIDE, ewWaitUntilTerminated, VerifyResult) then VerifyResult := 1;
+  Result := '';
+  if VerifyResult <> 0 then
+    Result := NipatReadValidationError(ErrorFile,
+      'Il contenuto temporaneo e cambiato. Nessun file applicativo viene modificato.');
+end;
+
 function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  CheckResult: Integer;
+  Parameters, ErrorFile: String;
 begin
   Result := AcquireNipatActivityLock;
   if Result <> '' then Exit;
   try
-    Result := NipatValidateSelection;
+    { Recheck membership after time spent in the wizard, immediately before any backup/copy. }
+    Result := VerifyNipatExtractedPayload;
+    if Result = '' then Result := NipatValidateSelection;
+    if Result = '' then begin
+      ErrorFile := ExpandConstant('{tmp}\nipat-version-error.txt');
+      DeleteFile(ErrorFile);
+      Parameters := '-I ' + QuoteNipatArgument(ExpandConstant('{tmp}\bootstrap_download.py')) +
+        ' --check-installed ' + QuoteNipatArgument(ExpandConstant('{app}')) +
+        ' --version ' + QuoteNipatArgument(PayloadVersion) +
+        ' --source ' + QuoteNipatArgument(PayloadSource) +
+        ' --error-file ' + QuoteNipatArgument(ErrorFile);
+      if not Exec(ExpandConstant('{tmp}\nipat-bootstrap-python\python.exe'), Parameters,
+        ExpandConstant('{tmp}'), SW_HIDE, ewWaitUntilTerminated, CheckResult) then CheckResult := 1;
+      if CheckResult <> 0 then Result := NipatReadValidationError(ErrorFile,
+        'Impossibile verificare la versione installata. Nessun file viene sostituito.');
+    end;
     if (Result = '') and (CompareText(WizardGroupValue, '{#NipatDisplayName}') <> 0) then
       Result := 'Il gruppo Start di NIPAT Desktop deve restare separato dalle altre installazioni. Riavviare senza /GROUP.';
     if Result = '' then Result := NipatValidateWithSharedRules;
@@ -704,7 +795,7 @@ begin
   ErrorFile := ExpandConstant('{tmp}\nipat-defaults-error.txt');
   DeleteFile(ErrorFile);
   Parameters := '-NoLogo -NoProfile -ExecutionPolicy Bypass -File ' +
-    QuoteNipatArgument(ExpandConstant('{tmp}\validate-install-layout.ps1')) +
+    QuoteNipatArgument(ExpandConstant('{tmp}\nipat-payload\app\installer\windows\validate-install-layout.ps1')) +
     ' -Project ' + QuoteNipatArgument(Project) +
     ' -DefaultsFile ' + QuoteNipatArgument(DefaultsFile) +
     ' -ErrorFile ' + QuoteNipatArgument(ErrorFile);
@@ -717,6 +808,65 @@ begin
       'Conservare la configurazione esistente e verificare che Windows consenta PowerShell.'));
 end;
 
+procedure PrepareNipatPayload;
+var
+  Parameters, ErrorFile, ReportFile: String;
+  DownloadResult: Integer;
+begin
+  if (ExpandConstant('{param:NIPATUPDATE|}') = '1') and
+    (ExpandConstant('{param:NIPATVERSION|}') = '') then
+    RaiseException('Questo aggiornamento non specifica la versione del pacchetto. ' +
+      'Chiudi NIPAT e avvia manualmente NIPAT-Setup.exe. Nessun file e stato modificato.');
+  ExtractTemporaryFiles('{tmp}\nipat-bootstrap-python\*');
+  ExtractTemporaryFile('bootstrap_download.py');
+  LockNipatPayloadTree(ExpandConstant('{tmp}\nipat-bootstrap-python'));
+  LockNipatPayloadFile(ExpandConstant('{tmp}\bootstrap_download.py'));
+  ErrorFile := ExpandConstant('{tmp}\nipat-download-error.txt');
+  ReportFile := ExpandConstant('{tmp}\nipat-payload.ini');
+  Parameters := '-I ' + QuoteNipatArgument(ExpandConstant('{tmp}\bootstrap_download.py')) +
+    ' --destination ' + QuoteNipatArgument(ExpandConstant('{tmp}\nipat-payload')) +
+    ' --error-file ' + QuoteNipatArgument(ErrorFile) +
+    ' --report-file ' + QuoteNipatArgument(ReportFile);
+  if ExpandConstant('{param:NIPATPACKAGE|}') <> '' then
+    Parameters := Parameters + ' --package ' + QuoteNipatArgument(ExpandConstant('{param:NIPATPACKAGE|}'));
+  if ExpandConstant('{param:NIPATVERSION|}') <> '' then
+    Parameters := Parameters + ' --version ' + QuoteNipatArgument(ExpandConstant('{param:NIPATVERSION|}'));
+  if ExpandConstant('{param:NIPATSOURCE|}') <> '' then
+    Parameters := Parameters + ' --source ' + QuoteNipatArgument(ExpandConstant('{param:NIPATSOURCE|}'));
+  if ExpandConstant('{param:NIPATSHA256|}') <> '' then
+    Parameters := Parameters + ' --sha256 ' + QuoteNipatArgument(ExpandConstant('{param:NIPATSHA256|}'));
+  if ExpandConstant('{param:NIPATSIZE|}') <> '' then
+    Parameters := Parameters + ' --size ' + QuoteNipatArgument(ExpandConstant('{param:NIPATSIZE|}'));
+  if not Exec(ExpandConstant('{tmp}\nipat-bootstrap-python\python.exe'), Parameters,
+    ExpandConstant('{tmp}'), SW_SHOW, ewWaitUntilTerminated, DownloadResult) then DownloadResult := 1;
+  if DownloadResult <> 0 then
+    RaiseException(NipatReadValidationError(ErrorFile,
+      'Download o verifica del pacchetto non riusciti. Verifica la connessione e riprova. Nessun file applicativo e stato modificato.'));
+  PayloadVersion := GetIniString('NIPAT', 'version', '', ReportFile);
+  PayloadSource := GetIniString('NIPAT', 'source_commit', '', ReportFile);
+  PayloadHash := GetIniString('NIPAT', 'sha256', '', ReportFile);
+  PayloadSize := GetIniString('NIPAT', 'size', '', ReportFile);
+  if (PayloadVersion = '') or (Length(PayloadSource) <> 40) then
+    RaiseException('Il pacchetto verificato non contiene una versione valida.');
+  PayloadPackage := ExpandConstant('{param:NIPATPACKAGE|}');
+  if PayloadPackage = '' then PayloadPackage := ExpandConstant('{tmp}\nipat-payload-download.zip');
+  LockNipatPayloadFile(PayloadPackage);
+  LockNipatPayloadTree(ExpandConstant('{tmp}\nipat-payload'));
+  Parameters := '-I ' + QuoteNipatArgument(ExpandConstant('{tmp}\bootstrap_download.py')) +
+    ' --check-extracted ' + QuoteNipatArgument(ExpandConstant('{tmp}\nipat-payload')) +
+    ' --package ' + QuoteNipatArgument(PayloadPackage) +
+    ' --version ' + QuoteNipatArgument(PayloadVersion) +
+    ' --source ' + QuoteNipatArgument(PayloadSource) +
+    ' --sha256 ' + QuoteNipatArgument(PayloadHash) +
+    ' --size ' + QuoteNipatArgument(PayloadSize) +
+    ' --error-file ' + QuoteNipatArgument(ErrorFile);
+  if not Exec(ExpandConstant('{tmp}\nipat-bootstrap-python\python.exe'), Parameters,
+    ExpandConstant('{tmp}'), SW_SHOW, ewWaitUntilTerminated, DownloadResult) then DownloadResult := 1;
+  if DownloadResult <> 0 then
+    RaiseException(NipatReadValidationError(ErrorFile,
+      'Il contenuto temporaneo e cambiato. Nessun file applicativo e stato modificato.'));
+end;
+
 procedure InitializeWizard();
 var
   Base, Project, DefaultsFile, Stored: String;
@@ -724,6 +874,7 @@ var
   I: Integer;
   NeedPrevious, GuidedUpdate: Boolean;
 begin
+  PrepareNipatPayload;
   Base := ExpandConstant('{localappdata}\{#NipatDataDirectory}');
   SetArrayLength(Names, 4);
   SetArrayLength(Defaults, 4);
@@ -824,13 +975,22 @@ end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 var
-  AssetDir, Parameters: String;
+  AssetDir, Parameters, Marker: String;
   Started: Boolean;
 begin
   if CurStep = ssPostInstall then begin
     BootstrapResult := 1;
     try
       WriteNipatInstallLayoutAt(ExpandConstant('{app}\.runtime\install-layout.json'));
+      Marker := '{"schema_version":1,"installation_method":"bootstrap","setup_sha256":' +
+        NipatJsonString(Lowercase(GetSHA256OfFile(ExpandConstant('{app}\.runtime\setup\NIPAT-Setup.exe')))) + '}';
+      if not SaveStringToFile(ExpandConstant('{app}\.runtime\bootstrap-install.json'), Marker, False) then
+        RaiseException('Impossibile registrare il canale di aggiornamento del setup.');
+      { Windows lists the installed application version, independently of the frozen setup. }
+      if not RegWriteStringValue(HKCU,
+        'Software\Microsoft\Windows\CurrentVersion\Uninstall\' + ExpandConstant('{#NipatAppId}_is1'),
+        'DisplayVersion', PayloadVersion) then
+        RaiseException('Impossibile registrare la versione installata di NIPAT.');
       AssetDir := ExpandConstant('{param:ASSETDIR|}');
       Parameters := '-NoLogo -NoProfile -ExecutionPolicy Bypass -File ' +
         QuoteNipatArgument(ExpandConstant('{app}\installer\windows\bootstrap.ps1'));

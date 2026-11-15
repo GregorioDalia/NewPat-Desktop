@@ -473,3 +473,18 @@ installer/windows/test-zip-install.ps1
 installer/windows/test-zip-package.ps1
 tests/test_windows_zip.py
 docs/RELEASE_0.8.95.md
+
+# Independent Windows bootstrap and local ZIP (0.8.99).
+docs/RELEASE_0.8.99.md
+installer/windows/bootstrap-profile.iss
+installer/windows/bootstrap_download.py
+installer/windows/desktop_payload.py
+src/nipat/windows_install_activity.py
+src/nipat/windows_wsl_prerequisites.py
+tests/test_desktop_payload.py
+tests/test_windows_bootstrap_download.py
+tests/test_windows_install_activity.py
+tests/test_windows_wsl_prerequisites.py
+.github/scripts/install_inno.ps1
+.github/scripts/windows_bootstrap.py
+.github/scripts/test_windows_bootstrap.py

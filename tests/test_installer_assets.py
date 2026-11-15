@@ -86,7 +86,7 @@ class InstallerAssetTests(unittest.TestCase):
         bootstrap = (project / "installer/windows/bootstrap-common.ps1").read_text(encoding="utf-8")
         self.assertIn("$manifest.version -cne (Get-NipatApplicationVersion)", bootstrap)
         setup = (project / "installer/windows/NIPAT.iss").read_text(encoding="utf-8")
-        self.assertIn('#include StageDir + "\\install-profile.iss"', setup)
+        self.assertIn('#include BootstrapDir + "\\bootstrap-profile.iss"', setup)
         definition = assets.installation_profile_include(dict(
             self.manifest, version=version, release_tag=f"v{version}",
             assets={key: dict(value, url=value["url"].replace("v0.6.0", f"v{version}"))
@@ -370,6 +370,24 @@ class InstallerAssetTests(unittest.TestCase):
         (app / "installer/windows/EnableWsl.exe").write_bytes(b"elevation helper fixture")
         (app / "installer/windows/NipatActivityNative.dll").write_bytes(b"activity helper fixture")
         return stage, app
+
+    def test_current_payload_has_no_compiled_helpers_and_rejects_injected_binary(self):
+        (self.project / "pyproject.toml").write_text('[project]\nversion = "0.8.99"\n')
+        manifest = assets.make_manifest(
+            self.project, source_commit=COMMIT, runtime_image=SCIENTIFIC,
+            rootfs=self.rootfs, scientific_image=self.scientific,
+            rootfs_provenance=self.provenance,
+        )
+        self.manifest_path.write_text(json.dumps(manifest))
+        stage = self.root / "current-stage"
+        with patch.object(assets.bundle, "require_python_archive"):
+            app = assets.stage_app(self.project, self.manifest_path, stage, self.python_archive)
+            inventory = assets.write_application_payload(stage)
+            self.assertEqual(assets.verify_application_payload(stage), inventory)
+            self.assertFalse(any(path.suffix.lower() in {".exe", ".dll"} for path in app.rglob("*")))
+            (app / "installer/windows/NipatActivityNative.dll").write_bytes(b"unapproved helper")
+            with self.assertRaisesRegex(ValueError, "payload non corrisponde"):
+                assets.application_payload(stage)
 
     def test_application_inventory_covers_sources_and_compiled_components(self):
         stage, app = self.application_stage()

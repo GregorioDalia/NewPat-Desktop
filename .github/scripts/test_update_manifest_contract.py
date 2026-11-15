@@ -39,6 +39,9 @@ class PublishedUpdateContract(unittest.TestCase):
     def test_complete_zip_uses_its_own_feed_without_changing_existing_installers(self):
         self.check_published_pair("stable", version="0.8.95")
 
+    def test_online_setup_payload_is_discoverable_on_a_separate_feed(self):
+        self.check_published_pair("stable", version="0.8.99")
+
     def check_published_pair(self, channel, version="0.6.1"):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
@@ -57,6 +60,10 @@ class PublishedUpdateContract(unittest.TestCase):
                 packages.append(("windows_zip", f"NIPAT-{version}-Windows-completo.zip"))
                 platforms.append(("windows-zip-x86_64", "windows_zip"))
                 feeds.append("update-manifest-windows-zip.json")
+            if publisher.requires_windows_bootstrap(version):
+                packages.append(("windows_payload", f"NIPAT-{version}-Windows-payload.zip"))
+                platforms.append(("windows-bootstrap-x86_64", "windows_payload"))
+                feeds.append("update-manifest-windows-bootstrap.json")
             for system, name in packages:
                 path = root / name
                 path.write_bytes(b"fixture bytes for verified " + system.encode())

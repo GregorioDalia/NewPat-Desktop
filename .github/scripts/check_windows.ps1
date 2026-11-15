@@ -1,5 +1,4 @@
-# Shared by fast CI and full installer builds. Every native exit code is checked.
-param([string] $LauncherPath = 'build/launcher/NIPAT.exe')
+# Shared by fast CI and installer builds. Every child exit code is checked.
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -28,14 +27,6 @@ foreach ($file in $files) {
 }
 Write-Host '::endgroup::'
 
-$nativeOutput = Join-Path (Split-Path -Parent $LauncherPath) 'installer/windows/NipatActivityNative.dll'
-Write-Host '::group::Precompiled Windows activity helper'
-Invoke-CheckedProcess 'powershell' @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
-    'installer/windows/build-native.ps1')
-[IO.Directory]::CreateDirectory((Split-Path -Parent $nativeOutput)) | Out-Null
-Copy-Item -LiteralPath 'installer/windows/NipatActivityNative.dll' -Destination $nativeOutput -Force
-Write-Host '::endgroup::'
-
 $tests = @(
     'test-windows-environment.ps1', 'test-bootstrap.ps1', 'test-scientific-image.ps1', 'test-migration.ps1',
     'test-install-layout.ps1', 'test-uninstall.ps1', 'test-repair-installation.ps1',
@@ -51,15 +42,6 @@ foreach ($test in $tests) {
 Write-Host '::group::Real installer definition compilation'
 $compiler = & "$PSScriptRoot/install_inno.ps1" -Destination (Join-Path $env:RUNNER_TEMP 'InnoSetup')
 & ./installer/windows/test-installer-layout.ps1 -CompilerPath $compiler
-Write-Host '::endgroup::'
-
-Write-Host '::group::Compiled launcher and launcher behavior'
-Invoke-CheckedProcess 'powershell' @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
-    'installer/windows/build-launcher.ps1', '-OutputPath', $LauncherPath)
-Invoke-CheckedProcess 'powershell' @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
-    'installer/windows/test-launcher.ps1', '-LauncherPath', $LauncherPath)
-Invoke-CheckedProcess 'powershell' @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
-    'installer/windows/test-native-build.ps1', '-LauncherPath', $LauncherPath)
 Write-Host '::endgroup::'
 
 Write-Host '::group::Windows environment decisions in PowerShell 7 (simulated OS states)'

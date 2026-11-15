@@ -11,10 +11,11 @@ Si usa da un **menu testuale guidato** o da **riga di comando**. Le analisi
 usano il runtime scientifico locale con R e samtools. Dopo la preparazione
 dell'ambiente, i calcoli si possono eseguire offline.
 
-La [0.8.95](docs/RELEASE_0.8.95.md) aggiunge uno ZIP completo per Windows:
-si installa con doppio clic, include Python e il motore scientifico e si
-aggiorna dal menu. Mantiene il setup EXE, gli altri installer e i cinque
-moduli scientifici della 0.8.90.
+La [0.8.99](docs/RELEASE_0.8.99.md) offre due percorsi Windows indipendenti:
+uno ZIP completo, che prepara NIPAT nella cartella estratta, e un setup EXE
+che scarica il pacchetto applicativo della release. Python è incluso in entrambi;
+lo ZIP include anche il motore scientifico. I cinque moduli scientifici
+restano invariati.
 
 ## Download
 
@@ -25,7 +26,7 @@ riporta anche checksum e verifiche dei pacchetti.
 | Sistema | Pacchetto | Guida |
 | --- | --- | --- |
 | Windows 10 22H2 x64 (build 19045) o Windows 11 x64 | [Setup Windows](https://github.com/GregorioDalia/nipat-desktop/releases/latest/download/NIPAT-Setup.exe) | [Windows](docs/INSTALLATORE_WINDOWS.md) |
-| Windows x64, metodo aggiuntivo | [ZIP completo 0.8.95](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.8.95/NIPAT-0.8.95-Windows-completo.zip) | [Installazione ZIP](docs/INSTALLATORE_WINDOWS.md#zip-completo-aggiuntivo) |
+| Windows x64, metodo aggiuntivo | [ZIP completo 0.8.99](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.8.99/NIPAT-0.8.99-Windows-completo.zip) | [Installazione ZIP](docs/INSTALLATORE_WINDOWS.md#zip-completo-aggiuntivo) |
 | macOS 14 o successivo, Apple Silicon | [PKG Apple Silicon](https://github.com/GregorioDalia/nipat-desktop/releases/latest) | [macOS](docs/INSTALLATORE_MACOS.md) |
 | macOS 14 o successivo, Intel | [PKG Intel](https://github.com/GregorioDalia/nipat-desktop/releases/latest) | [macOS](docs/INSTALLATORE_MACOS.md) |
 | Ubuntu 24.04 LTS x86_64 | [Pacchetto DEB](https://github.com/GregorioDalia/nipat-desktop/releases/latest) | [Ubuntu](docs/INSTALLATORE_LINUX.md) |

@@ -65,9 +65,14 @@ verifica dei nuovi byte e un'accettazione corrispondente.
 
 ### Windows
 
-`installer-build.json` collega EXE, manifest, launcher e archivi incorporati
-tramite dimensioni e SHA-256. Il pacchetto è un unico `NIPAT-Setup.exe`, senza
-file `.bin` separati; il solo launcher non costituisce un'installazione.
+Dalla 0.8.99 `installer-build.json` distingue l'EXE di bootstrap dai contenuti
+della release: `NIPAT-VERSIONE-Windows-payload.zip` per il setup e
+`NIPAT-VERSIONE-Windows-completo.zip` per il percorso ZIP locale.
+Il bootstrap include Python e acquisisce un payload verificato; il percorso ZIP
+include già applicazione e archivi scientifici. Manifest, rapporti e checksum
+vincolano tutti i componenti. Non ricostruire o sostituire un asset già accettato.
+Il feed `update-manifest-windows-bootstrap.json` resta separato dal feed EXE
+legacy e da `update-manifest-windows-zip.json`.
 
 `windows-client-check.json` verifica il payload con il Python incorporato in
 una destinazione isolata, incluse pianificazione e richieste con percorsi

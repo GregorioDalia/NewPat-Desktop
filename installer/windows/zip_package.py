@@ -33,7 +33,7 @@ def file_digest(path):
 
 
 def filename(version):
-    if not re.fullmatch(r"0\.8\.(?:0|[1-9][0-9]*)", version):
+    if not re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", version):
         raise ValueError("Versione ZIP non valida")
     return f"NIPAT-{version}-Windows-completo.zip"
 

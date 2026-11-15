@@ -3,14 +3,15 @@
 NIPAT verifica separatamente il client, il motore scientifico, gli installatori
 e il funzionamento sui dispositivi reali. I pacchetti sono per Windows 10/11
 x64, Ubuntu 24.04 x86_64 e macOS 14 o successivo su Intel e Apple Silicon.
-Tutti i pacchetti incorporano lo stesso archivio scientifico Linux AMD64.
+I pacchetti condividono lo stesso archivio scientifico Linux AMD64; il setup
+EXE Windows lo acquisisce tramite un payload separato.
 
 ## Workflow GitHub Actions
 
 | Workflow | Attivazione | Risultato |
 | --- | --- | --- |
 | [CI](../.github/workflows/ci.yml) | Pull request, push su `main`, avvio manuale. | Controlli applicabili ai file modificati; per i soli record di accettazione, verifica Linux delle evidenze della build. |
-| [Installers (review build)](../.github/workflows/windows-installer.yml) | Avvio manuale su un commit revisionato. | Quattro installatori con manifest, checksum e rapporti; nessuna pubblicazione automatica. |
+| [Installers (review build)](../.github/workflows/windows-installer.yml) | Avvio manuale su un commit revisionato. | Installatori, ZIP completo e payload Windows con manifest, checksum e rapporti; nessuna pubblicazione automatica. |
 | [Prepare or publish verified release](../.github/workflows/publish-windows-release.yml) | Avvio manuale su `main`. | Bozza e pubblicazione dei pacchetti accettati, in fasi separate oppure in un'unica esecuzione esplicita, senza ricompilarli. |
 | [Publish accepted release](../.github/workflows/publish-accepted-release.yml) | CI riuscita dopo un push su `main` contenente soltanto record di accettazione. | Verifica e pubblicazione automatica degli installer accettati. |
 | [Published runtime security report](../.github/workflows/security-monitoring.yml) | Pianificazione e avvio manuale. | Inventari e segnalazioni sulle immagini pubblicate, da esaminare separatamente. |
@@ -116,7 +117,7 @@ comune ai quattro pacchetti. La build produce:
 
 | Artefatto Actions | Pacchetto |
 | --- | --- |
-| `nipat-windows-setup` | `NIPAT-Setup.exe`. |
+| `nipat-windows-setup` | `NIPAT-Setup.exe`, ZIP completo, payload Windows e rapporti. |
 | `nipat-linux-setup` | `nipat-desktop_VERSIONE_amd64.deb`. |
 | `nipat-macos-setup-arm64` | `NIPAT-VERSIONE-macos-arm64.pkg`. |
 | `nipat-macos-setup-x86_64` | `NIPAT-VERSIONE-macos-x86_64.pkg`. |

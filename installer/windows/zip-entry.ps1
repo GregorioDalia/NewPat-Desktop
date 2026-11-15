@@ -4,7 +4,7 @@ try {
     $root = Get-NipatZipRoot
     if ($Mode -ceq 'resume') {
         if (-not (Test-Path -LiteralPath (Join-Path $root 'pending.json'))) {
-            Write-Host 'Nessuna preparazione ZIP in attesa. Aprire NIPAT Desktop ZIP.'
+            Write-Host 'Nessuna preparazione ZIP in attesa. Aprire 2_AVVIA.cmd nella cartella NIPAT.'
             Read-Host 'Premere Invio per chiudere' | Out-Null
             exit 0
         }
@@ -21,7 +21,7 @@ try {
     exit $LASTEXITCODE
 } catch {
     Write-Host ('ERRORE: ' + $_.Exception.Message) -ForegroundColor Red
-    Write-Host 'Aprire NIPAT Desktop ZIP - completa preparazione dal menu Start oppure eseguire nuovamente 1_INSTALLA.cmd.'
+    Write-Host 'Aprire 1_COMPLETA_PREPARAZIONE.cmd nella cartella NIPAT oppure eseguire nuovamente 1_INSTALLA.cmd dal pacchetto estratto.'
     Read-Host 'Premere Invio per chiudere' | Out-Null
     exit 1
 }

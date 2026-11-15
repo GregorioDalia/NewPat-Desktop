@@ -171,6 +171,11 @@ def zip_fields(version):
     return {"windows_zip_sha256"} if match and int(match[1]) >= 95 else set()
 
 
+def payload_fields(version):
+    match = re.fullmatch(r"0\.8\.([0-9]+)(?:(?:a|b|rc)[0-9]+)?", version or "")
+    return {"windows_payload_sha256"} if match and int(match[1]) >= 99 else set()
+
+
 def verify_presentation_variants(case):
     """Bind corrected plots to serial results and retained parallel renderings."""
     variants = case.get("execution_variants")
@@ -288,6 +293,10 @@ def identity(installer_set):
     if zip_fields(installer_set["version"]):
         require(isinstance(installer_set.get("windows_zip"), dict), "Acceptance requires the complete Windows ZIP")
         result["windows_zip_sha256"] = installer_set["windows_zip"]["sha256"]
+    if payload_fields(installer_set["version"]):
+        require(isinstance(installer_set.get("windows_payload"), dict),
+                "Acceptance requires the separate Windows desktop payload")
+        result["windows_payload_sha256"] = installer_set["windows_payload"]["sha256"]
     return result
 
 
@@ -297,7 +306,7 @@ def template(installer_set, run_id):
     acceptance_path(fields["version"])
     require(isinstance(fields["source_commit"], str)
             and re.fullmatch(r"[0-9a-f]{40}", fields["source_commit"]), "Invalid source commit")
-    for field in DIGESTS | (MACOS_DIGESTS if multiplatform_contract(fields["version"]) else set()) | zip_fields(fields["version"]):
+    for field in DIGESTS | (MACOS_DIGESTS if multiplatform_contract(fields["version"]) else set()) | zip_fields(fields["version"]) | payload_fields(fields["version"]):
         require(isinstance(fields[field], str) and re.fullmatch(r"[0-9a-f]{64}", fields[field]),
                 f"Invalid digest: {field}")
     if multiplatform_contract(fields["version"]):
@@ -431,7 +440,7 @@ def validate_research(record, version, commit, run_id, installer_set=None):
                 "Research releases from 0.7.2 require reliability acceptance schema 4")
     expected_fields = (FIVE_MODULE_RESEARCH_FIELDS if five_modules else SCIENTIFIC_RESEARCH_FIELDS if revised_r else MULTIPLATFORM_RESEARCH_FIELDS if multiplatform else RELIABILITY_RESEARCH_FIELDS if reliability else
                        REVIEWED_RESEARCH_FIELDS if reviewed_delta else RESEARCH_FIELDS)
-    require(isinstance(record, dict) and set(record) == expected_fields | publication_fields(version) | zip_fields(version)
+    require(isinstance(record, dict) and set(record) == expected_fields | publication_fields(version) | zip_fields(version) | payload_fields(version)
             and type(record["schema_version"]) is int and record["schema_version"] == schema,
             "Research acceptance record fields are invalid")
     require(record["version"] == version and record["source_commit"] == commit
@@ -439,7 +448,7 @@ def validate_research(record, version, commit, run_id, installer_set=None):
             and type(record["build_run_id"]) is int and type(run_id) is int
             and run_id > 0 and record["build_run_id"] == run_id,
             "Acceptance belongs to a different version, source or build run")
-    for field in DIGESTS | (RELIABILITY_DIGESTS if reliability else set()) | (MACOS_DIGESTS if multiplatform else set()) | zip_fields(version):
+    for field in DIGESTS | (RELIABILITY_DIGESTS if reliability else set()) | (MACOS_DIGESTS if multiplatform else set()) | zip_fields(version) | payload_fields(version):
         require(isinstance(record[field], str) and re.fullmatch(r"[0-9a-f]{64}", record[field]),
                 f"Invalid acceptance digest: {field}")
     require(record["decision"] == "accepted-for-research" and record["scope"] == "pre-1.0-research",
@@ -1046,7 +1055,7 @@ def verify_baseline(record, read_source):
     reviewed_delta = record["schema_version"] in (3, 4, 5, 6, 7)
     expected_fields = (FIVE_MODULE_RESEARCH_FIELDS if five_modules else SCIENTIFIC_RESEARCH_FIELDS if revised_r else MULTIPLATFORM_RESEARCH_FIELDS if multiplatform else RELIABILITY_RESEARCH_FIELDS if reliability else
                        REVIEWED_RESEARCH_FIELDS if reviewed_delta else RESEARCH_FIELDS)
-    require(set(record) == expected_fields | publication_fields(record["version"]) | zip_fields(record["version"]),
+    require(set(record) == expected_fields | publication_fields(record["version"]) | zip_fields(record["version"]) | payload_fields(record["version"]),
             "Research acceptance record fields are invalid")
     validate_research(record, record["version"], record["source_commit"], record["build_run_id"])
     baseline = record["observed_baseline"]["source_commit"]

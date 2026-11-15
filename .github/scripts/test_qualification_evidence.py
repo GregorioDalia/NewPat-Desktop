@@ -91,6 +91,20 @@ class QualificationEvidenceTests(unittest.TestCase):
         rejected = subprocess.run(command, capture_output=True, text=True)
         self.assertNotEqual(rejected.returncode, 0)
 
+    def test_online_release_qualification_binds_both_independent_windows_packages(self):
+        record = dict(self.installer_set, version="0.8.99", macos_arm64={"sha256": "e" * 64},
+                      macos_x86_64={"sha256": "f" * 64}, windows_zip={"sha256": "1" * 64},
+                      windows_payload={"sha256": "2" * 64})
+        output = self.root / "online-output"
+        descriptor = qualification.build(output, record, {"science": self.source})
+        self.assertEqual(descriptor["windows_payload_sha256"], "2" * 64)
+        self.assertEqual(descriptor["windows_zip_sha256"], "1" * 64)
+        for key in ("windows_payload", "windows_zip"):
+            changed = copy.deepcopy(record)
+            changed[key]["sha256"] = "0" * 64
+            with self.subTest(package=key), self.assertRaisesRegex(ValueError, "identity mismatch"):
+                qualification.verify(output, changed)
+
     def test_official_mac_release_evidence_binds_both_package_hashes(self):
         record = dict(self.installer_set, version="0.8.2", macos_arm64={"sha256": "e" * 64},
                       macos_x86_64={"sha256": "f" * 64})

@@ -2,36 +2,82 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-function Get-NipatActivityAssemblyPath([string] $Directory = $PSScriptRoot) {
-    $assembly = Join-Path $Directory 'NipatActivityNative.dll'
-    Assert-NipatActivityPathWithoutLinks $assembly
-    if (-not (Test-Path -LiteralPath $assembly -PathType Leaf)) {
-        throw 'Componente di coordinamento NIPAT mancante. Ripristinare il pacchetto con NIPAT-Setup.exe; per i sorgenti eseguire build-native.ps1 sulla macchina di sviluppo.'
-    }
+function Get-NipatActivityRuntime([string] $Directory = $PSScriptRoot,
+    [ValidateSet('src/nipat/windows_install_activity.py', 'src/nipat/windows_wsl_prerequisites.py')]
+    [string] $HelperRelativePath = 'src/nipat/windows_install_activity.py') {
     $project = Split-Path -Parent (Split-Path -Parent $Directory)
-    $inventoryPath = Join-Path $project '.distribution\application-files.json'
-    $manifestPath = Join-Path $project '.distribution\installer-manifest.json'
-    if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
-        if (-not (Test-Path -LiteralPath $inventoryPath -PathType Leaf)) {
-            throw 'Inventario del pacchetto NIPAT mancante. Ripristinare con NIPAT-Setup.exe.'
-        }
-        $inventory = Get-Content -LiteralPath $inventoryPath -Raw -Encoding UTF8 | ConvertFrom-Json
-        $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
-        $entries = @($inventory.files | Where-Object { $_.path -ceq 'installer/windows/NipatActivityNative.dll' })
-        if ($inventory.schema_version -ne 1 -or $inventory.installation_channel -cne 'desktop' -or
-            $inventory.source_commit -cne $manifest.source_commit -or $entries.Count -ne 1 -or
-            $entries[0].sha256 -cnotmatch '^[a-f0-9]{64}$' -or
-            (Get-FileHash -LiteralPath $assembly -Algorithm SHA256).Hash.ToLowerInvariant() -cne $entries[0].sha256) {
-            throw 'Il componente di coordinamento non corrisponde al pacchetto verificato. Ripristinare con NIPAT-Setup.exe.'
-        }
+    $helper = Join-Path $project $HelperRelativePath
+    Assert-NipatActivityPathWithoutLinks $helper
+    if (-not (Test-Path -LiteralPath $helper -PathType Leaf)) {
+        throw 'Componente di coordinamento Python assente. Ripristinare il pacchetto NIPAT.'
     }
-    return $assembly
+    $manifestPath = Join-Path $project '.distribution\installer-manifest.json'
+    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+        # Developer/CI checkouts only. Installed applications never select a
+        # Python from PATH and never download an interpreter before acquiring a lease.
+        $python = (Get-Command python.exe -CommandType Application -ErrorAction Stop).Source
+        return [pscustomobject]@{ Python = $python; Helper = $helper; Temporary = $null }
+    }
+    $inventoryPath = Join-Path $project '.distribution\application-files.json'
+    if (-not (Test-Path -LiteralPath $inventoryPath -PathType Leaf)) {
+        throw 'Inventario del pacchetto NIPAT mancante. Ripristinare il pacchetto.'
+    }
+    $inventory = Get-Content -LiteralPath $inventoryPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $entries = @($inventory.files | Where-Object { $_.path -ceq $HelperRelativePath })
+    if ($inventory.schema_version -ne 1 -or $inventory.installation_channel -cne 'desktop' -or
+        $inventory.source_commit -cne $manifest.source_commit -or $entries.Count -ne 1 -or
+        $entries[0].sha256 -cnotmatch '^[a-f0-9]{64}$' -or
+        (Get-FileHash -LiteralPath $helper -Algorithm SHA256).Hash.ToLowerInvariant() -cne $entries[0].sha256) {
+        throw 'Il componente di coordinamento Python non corrisponde al pacchetto verificato.'
+    }
+    $archive = Join-Path $project '.distribution\python-3.12.10-embed-amd64.zip'
+    Assert-NipatActivityPathWithoutLinks $archive
+    if (-not (Test-Path -LiteralPath $archive -PathType Leaf) -or
+        (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -cne
+            '4acbed6dd1c744b0376e3b1cf57ce906f9dc9e95e68824584c8099a63025a3c3') {
+        throw 'Archivio Python del pacchetto assente o non integro. Ripristinare NIPAT.'
+    }
+    $temporary = Join-Path ([IO.Path]::GetTempPath()) ('nipat-activity-python-' + [Guid]::NewGuid().ToString('N'))
+    Assert-NipatActivityPathWithoutLinks $temporary
+    try {
+        # The installed Python may be repaired while setup owns the lease. Use
+        # a private copy, leaving every installed byte untouched before locking.
+        Expand-Archive -LiteralPath $archive -DestinationPath $temporary
+        return [pscustomobject]@{ Python = (Join-Path $temporary 'python.exe'); Helper = $helper; Temporary = $temporary }
+    } catch {
+        if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary -Recurse -Force }
+        throw
+    }
 }
 
-function Initialize-NipatActivityNative {
-    if ('NipatActivityNative' -as [type]) { return }
-    $assembly = Get-NipatActivityAssemblyPath
-    Add-Type -Path $assembly
+function Test-NipatInheritedActivity {
+    $token = [Environment]::GetEnvironmentVariable('NIPAT_SETUP_ACTIVITY_TOKEN', 'Process')
+    if ($token -cnotmatch '^[1-9][0-9]{0,9}:[a-f0-9]{32}$') { return $false }
+    $runtime = $null
+    $process = $null
+    try {
+        $runtime = Get-NipatActivityRuntime
+        $start = New-Object Diagnostics.ProcessStartInfo
+        $start.FileName = $runtime.Python
+        # Windows paths cannot contain double quotes; no shell interprets these arguments.
+        $start.Arguments = '-B -X utf8 "' + $runtime.Helper + '" ' + [string]$PID
+        $start.UseShellExecute = $false
+        $start.CreateNoWindow = $true
+        $process = [Diagnostics.Process]::Start($start)
+        if (-not $process.WaitForExit(30000)) {
+            $process.Kill()
+            [void]$process.WaitForExit(5000)
+            throw 'Il controllo del coordinamento NIPAT ha superato il tempo disponibile.'
+        }
+        if ($process.ExitCode -notin @(0, 1)) { throw 'Impossibile verificare il coordinamento della preparazione NIPAT.' }
+        return $process.ExitCode -eq 0
+    } finally {
+        if ($null -ne $process) { $process.Dispose() }
+        if ($null -ne $runtime -and $runtime.Temporary -and (Test-Path -LiteralPath $runtime.Temporary)) {
+            Remove-Item -LiteralPath $runtime.Temporary -Recurse -Force
+        }
+    }
 }
 
 function Assert-NipatActivityPathWithoutLinks([string] $Path) {
@@ -60,9 +106,8 @@ function Get-NipatActivityLockPath {
 }
 
 function Enter-NipatInstallationActivity {
-    Initialize-NipatActivityNative
     $previousToken = [Environment]::GetEnvironmentVariable('NIPAT_SETUP_ACTIVITY_TOKEN', 'Process')
-    if ([NipatActivityNative]::IsAuthorizedSetupChild($previousToken)) {
+    if (Test-NipatInheritedActivity) {
         # The actual ancestor keeps both the exclusive file handle and event alive.
         return [pscustomobject]@{ Borrowed = $true; Handle = $null; Event = $null; Token = $previousToken }
     }
@@ -70,7 +115,7 @@ function Enter-NipatInstallationActivity {
     $event = $null
     try {
         $path = Get-NipatActivityLockPath
-        try { $handle = [NipatActivityNative]::OpenExclusive($path) }
+        try { $handle = [IO.File]::Open($path, [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None) }
         catch {
             throw 'NIPAT non e disponibile per la preparazione: attendere il termine delle analisi e chiudere tutte le finestre NIPAT, quindi riprovare. Nessuna sessione viene interrotta.'
         }

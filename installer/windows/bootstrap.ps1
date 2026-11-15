@@ -29,7 +29,7 @@ function Save-NipatPhase([string] $Phase) {
 function Request-NipatReboot {
     Save-NipatPhase 'awaiting_reboot'
     if ($ManualResume) {
-        Write-Host 'WSL richiede un riavvio. Dopo il riavvio aprire NIPAT Desktop ZIP - completa preparazione dal menu Start.'
+        Write-Host 'WSL richiede un riavvio. Dopo il riavvio aprire il collegamento locale di ripresa nella cartella NIPAT.'
         return
     }
     $automaticResume = Register-NipatResume $script:project
@@ -98,19 +98,26 @@ try {
             throw 'La virtualizzazione hardware risulta disabilitata. Abilitarla nel BIOS/UEFI o chiedere al reparto IT di abilitarla nella macchina virtuale, quindi riaprire il setup.'
         }
         Save-NipatPhase 'enabling_wsl'
-        Write-Host 'Windows richiedera UAC per abilitare o aggiornare WSL2 da Microsoft. Il componente elevato non importa distribuzioni e non esegue analisi.'
-        $helper = Join-Path $PSScriptRoot 'EnableWsl.exe'
-        if (-not (Test-Path -LiteralPath $helper -PathType Leaf)) { throw 'Componente prerequisiti assente: reinstallare usando NIPAT-Setup.exe.' }
-        $process = Start-Process -FilePath $helper -Verb RunAs -Wait -PassThru
-        if ($process.ExitCode -in @(3010, 1641)) {
+        Write-Host 'Windows richiedera UAC per abilitare o aggiornare WSL2 da Microsoft. Solo i comandi Windows DISM/WSL vengono elevati; NIPAT resta nell account normale. Possono essere richieste piu conferme UAC.'
+        $prerequisites = $null
+        try {
+            $prerequisites = Get-NipatActivityRuntime -HelperRelativePath 'src/nipat/windows_wsl_prerequisites.py'
+            & $prerequisites.Python -B -X utf8 -u $prerequisites.Helper
+            $prerequisiteCode = $LASTEXITCODE
+        } finally {
+            if ($null -ne $prerequisites -and $prerequisites.Temporary -and (Test-Path -LiteralPath $prerequisites.Temporary)) {
+                Remove-Item -LiteralPath $prerequisites.Temporary -Recurse -Force
+            }
+        }
+        if ($prerequisiteCode -in @(3010, 1641)) {
             Request-NipatReboot
             $result = 3010
-        } elseif ($process.ExitCode -eq 50) {
+        } elseif ($prerequisiteCode -eq 50) {
             throw 'Questa installazione Windows/WSL non espone ancora le opzioni richieste. Installare gli aggiornamenti Windows e la versione WSL distribuita da Microsoft, quindi riaprire il setup. Istruzioni: https://learn.microsoft.com/windows/wsl/install'
-        } elseif ($process.ExitCode -eq 1460) {
+        } elseif ($prerequisiteCode -eq 1460) {
             throw 'La configurazione WSL ha superato il tempo disponibile. Controllare la connessione e attendere la conclusione delle operazioni Windows prima di riaprire il setup.'
-        } elseif ($process.ExitCode -ne 0) {
-            throw "Attivazione WSL non completata (codice $($process.ExitCode)). Verificare autorizzazioni/policy aziendali con il reparto IT e riprovare."
+        } elseif ($prerequisiteCode -ne 0) {
+            throw "Attivazione WSL non completata (codice $($prerequisiteCode)). Verificare autorizzazioni/policy aziendali con il reparto IT e riprovare."
         } else {
             $wsl = Get-NipatWslReadiness
             $ready = $wsl.Ready

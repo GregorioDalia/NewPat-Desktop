@@ -229,6 +229,51 @@ class AutomaticPublicationTests(unittest.TestCase):
                 with self.subTest(replacement=replacement), self.assertRaisesRegex(ValueError, "accepted asset bytes"):
                     automatic.publication_arguments(record, dict(existing, assets=assets))
 
+    def test_retry_requires_separate_payload_and_exact_online_feed(self):
+        record = dict(record_fixture(), version="0.8.99", publication_channel="stable",
+                      windows_zip_sha256="e" * 64, windows_payload_sha256="f" * 64)
+        version = record["version"]
+        existing = {"tag_name": "v" + version, "target_commitish": record["source_commit"],
+                    "draft": False, "prerelease": False, "id": 42}
+        names = {
+            "NIPAT-Setup.exe": "windows_installer_sha256",
+            f"NIPAT-{version}-Windows-completo.zip": "windows_zip_sha256",
+            f"NIPAT-{version}-Windows-payload.zip": "windows_payload_sha256",
+            f"nipat-desktop_{version}_amd64.deb": "linux_installer_sha256",
+            f"NIPAT-{version}-macos-arm64.pkg": "macos_arm64_installer_sha256",
+            f"NIPAT-{version}-macos-x86_64.pkg": "macos_x86_64_installer_sha256",
+            "installer-manifest.json": "installer_manifest_sha256",
+            f"nipat-scientific-runtime-{version}-amd64.tar.gz": "scientific_archive_sha256",
+            "qualification-evidence.zip": "qualification_evidence_sha256",
+        }
+        existing["assets"] = [{"name": name, "state": "uploaded", "size": 100,
+                               "digest": "sha256:" + record[field]} for name, field in names.items()]
+        for filename, platform, feed in (
+            (f"NIPAT-{version}-Windows-payload.zip", "windows-bootstrap-x86_64",
+             publisher.WINDOWS_BOOTSTRAP_UPDATE_MANIFEST),
+            (f"NIPAT-{version}-Windows-completo.zip", "windows-zip-x86_64",
+             publisher.WINDOWS_ZIP_UPDATE_MANIFEST),
+        ):
+            document = {"schema_version": 1, "product": "nipat-desktop", "version": version,
+                "release_tag": "v" + version, "channel": "stable", "source_commit": record["source_commit"],
+                "minimum_updater_version": 1, "assets": [{"platform": platform, "name": filename,
+                "size": 100, "sha256": record[names[filename]],
+                "url": f"https://github.com/{publisher.REPO}/releases/download/v{version}/{filename}"}],
+                "release_notes_url": f"https://github.com/{publisher.REPO}/releases/tag/v{version}"}
+            digest = automatic.hashlib.sha256((json.dumps(document, indent=2) + "\n").encode()).hexdigest()
+            existing["assets"].append({"name": feed, "state": "uploaded", "digest": "sha256:" + digest})
+        with patch.object(publisher, "check_tag"):
+            self.assertIsNone(automatic.publication_arguments(record, existing))
+            for name in (f"NIPAT-{version}-Windows-payload.zip", publisher.WINDOWS_BOOTSTRAP_UPDATE_MANIFEST):
+                altered = copy.deepcopy(existing)
+                altered["assets"] = [asset for asset in altered["assets"] if asset["name"] != name]
+                with self.subTest(missing=name), self.assertRaises(ValueError):
+                    automatic.publication_arguments(record, altered)
+                altered = copy.deepcopy(existing)
+                next(asset for asset in altered["assets"] if asset["name"] == name)["digest"] = "sha256:" + "0" * 64
+                with self.subTest(replaced=name), self.assertRaises(ValueError):
+                    automatic.publication_arguments(record, altered)
+
     def test_workflows_only_push_main_and_retain_protected_gate(self):
         ci = (ROOT / ".github/workflows/ci.yml").read_text()
         self.assertIn("  push:\n    branches: [main]", ci)

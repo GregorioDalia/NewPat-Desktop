@@ -10,6 +10,7 @@ import re
 import shutil
 import subprocess
 import tarfile
+import zipfile
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -407,8 +408,13 @@ def stage_app(project: Path, manifest_path: Path, stage: Path, python_zip: Path)
     return app
 
 
+def uses_online_bootstrap(version: str) -> bool:
+    match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:(?:a|b|rc)\d+)?", version)
+    return bool(match and tuple(map(int, match.groups())) >= (0, 8, 99))
+
+
 def application_payload(stage: Path) -> dict:
-    """Identify the complete Windows payload after compiling native components."""
+    """Identify the complete payload; current releases contain no custom native helpers."""
     app = stage / "app"
     if app.is_symlink():
         raise ValueError("La cartella applicativa non puo essere un collegamento.")
@@ -418,9 +424,11 @@ def application_payload(stage: Path) -> dict:
     source_hashes = manifest.get("source_sha256", {})
     if not isinstance(source_hashes, dict) or not source_hashes:
         raise ValueError("Inventario dei sorgenti mancante.")
-    generated = {"release.json", "NIPAT.exe", "installer/windows/EnableWsl.exe",
-                 "installer/windows/NipatActivityNative.dll",
-                 f".distribution/{MANIFEST_NAME}", f".distribution/{bundle.PYTHON_NAME}"}
+    generated = {"release.json", f".distribution/{MANIFEST_NAME}",
+                 f".distribution/{bundle.PYTHON_NAME}"}
+    if not uses_online_bootstrap(manifest["version"]):
+        generated.update({"NIPAT.exe", "installer/windows/EnableWsl.exe",
+                          "installer/windows/NipatActivityNative.dll"})
     inventory_path = f".distribution/{APPLICATION_FILES_NAME}"
     files = []
     seen = set()

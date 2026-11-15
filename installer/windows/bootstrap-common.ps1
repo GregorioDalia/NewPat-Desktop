@@ -5,7 +5,7 @@ $ErrorActionPreference = 'Stop'
 function Get-NipatApplicationVersion {
     $versionFile = Join-Path $PSScriptRoot '../../src/nipat/__init__.py'
     $source = Get-Content -LiteralPath $versionFile -Raw -Encoding UTF8
-    $match = [regex]::Match($source, '(?m)^__version__ = "(0\.8\.(?:0|[1-9][0-9]*))"\s*$')
+    $match = [regex]::Match($source, '(?m)^__version__ = "((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))"\s*$')
     if (-not $match.Success) { throw 'Identita della build NIPAT non valida.' }
     return $match.Groups[1].Value
 }
