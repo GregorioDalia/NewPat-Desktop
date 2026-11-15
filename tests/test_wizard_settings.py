@@ -14,7 +14,7 @@ from nipat.preferences import Preferences, PreferencesStore
 from nipat.wizard import run_wizard
 from nipat.terminal import Terminal
 from nipat.wizard_forms import Cancelled
-from nipat.wizard_settings import GuidedSettings
+from nipat.wizard_settings import GuidedSettings, _native_cutoffs
 
 
 class WizardSettingsTests(unittest.TestCase):
@@ -221,6 +221,25 @@ class WizardSettingsTests(unittest.TestCase):
         self.invoke(["5", "5", "5", "4", "9", "0", "0"])
         self.assertNotIn("cutoffs", self.store.load().workflow_defaults("4"))
         self.assert_no_analyses()
+
+    def test_native_cutoff_defaults_accept_snp_and_dnp_and_survive_restart(self):
+        snp_panel = self.file("SNP-cutoff.tsv", "chr\tpos\nchr1\t100\n")
+        for label, panel in (("SNP", snp_panel), ("DNP", self.panel)):
+            with self.subTest(label=label), chdir(self.root):
+                status, output = self.invoke([
+                    "5", "5", "4", "3", "5", f"{label}={panel.name}", "9", "0", "0"])
+                self.assertEqual(status, 0, output)
+                saved = PreferencesStore(self.store.path).load().workflow_defaults("4")
+                self.assertEqual(saved["cutoff_map"], f"{label}={panel}")
+                self.assertEqual(_native_cutoffs(saved["cutoff_map"]), saved["cutoff_map"])
+        self.assert_no_analyses()
+
+    def test_native_cutoff_defaults_still_reject_invalid_panels_and_labels(self):
+        invalid = self.file("invalid.tsv", "chr\tpos\nchr1\tnot-a-position\n")
+        for value in (f"bad={invalid}", f"missing={self.root / 'absent.tsv'}",
+                      f"same={self.panel},same={self.panel}"):
+            with self.subTest(value=value), self.assertRaises(ValidationError):
+                _native_cutoffs(value)
 
     def test_missing_saved_file_is_reprompted_without_losing_other_defaults(self):
         self.store.save(Preferences(workflows={"2": {"mode": "2", "panel": self.root / "missing.tsv"}}))

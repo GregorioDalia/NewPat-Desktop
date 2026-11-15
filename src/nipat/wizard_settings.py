@@ -7,7 +7,6 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from nipat.adapters.panels import read_position_panel
 from nipat.errors import NipatError, ValidationError
 from nipat.scientific_options import edit_scientific_settings, settings_lines
 from nipat.execution.options import ExecutionOptions
@@ -16,7 +15,8 @@ from nipat.preferences import Preferences, PreferencesStore
 from nipat.terminal import Terminal
 from nipat.validation.files import require_file
 from nipat.wizard_forms import (
-    Back, Cancelled, Field, WorkflowForm, edit_parallel_options, navigation, parallel_summary, unquote,
+    Back, Cancelled, Field, WorkflowForm, check_count_panel, edit_parallel_options, navigation,
+    parallel_summary, unquote,
 )
 
 
@@ -43,7 +43,7 @@ def _native_cutoffs(value: str) -> str:
             raise ValidationError("Ogni cutoff richiede un'etichetta valida e distinta.")
         labels.add(label)
         path = require_file(Path(unquote(filename)), "Pannello cutoff")
-        read_position_panel(path)
+        check_count_panel(path)
         if "," in str(path):
             raise ValidationError("Per percorsi con virgole usare 'Etichette e file'.")
         entries.append(f"{label}={path}")

@@ -107,6 +107,27 @@ class CpiEngineTests(unittest.TestCase):
         request["samples"] = [{**request["samples"][0], "name": "A.txt"}]
         self.reject(request)
 
+    def test_sample_roles_are_consistent_across_all_pairs(self):
+        for pairs, mother, father in (("A:B,B:C", "", ""), ("B:C,A:B", "", ""),
+                                      ("A:B,XB:C", "", "X")):
+            with self.subTest(pairs=pairs, prefixes=(mother, father)):
+                with self.assertRaisesRegex(ValidationError, "ruoli madre/padre incompatibili"):
+                    normalize_pairs(pairs, mother, father)
+        self.assertEqual(normalize_pairs("A:B,A:C,D:B", "", ""),
+                         ("A:B,A:C,D:B", ["A.txt", "B.txt", "C.txt", "D.txt"]))
+        self.assertEqual(normalize_pairs("A:B,B:C", "Mother", "Father"),
+                         ("A:B,B:C", ["MotherA.txt", "FatherB.txt", "MotherB.txt", "FatherC.txt"]))
+
+    def test_cross_pair_role_conflict_fails_before_staging(self):
+        request = deepcopy(self.request)
+        request.update(pairs="A:B,B:C", mother_prefix="", father_prefix="")
+        for sample, name in zip(request["samples"], ("A.txt", "B.txt", "C.txt")):
+            sample["name"] = name
+        before = self.snapshot()
+        with self.assertRaisesRegex(ValidationError, "ruoli madre/padre incompatibili"):
+            prepare_cpi(request)
+        self.assertEqual(self.snapshot(), before)
+
     def test_same_file_cannot_impersonate_distinct_samples_through_paths_or_hardlinks(self):
         source = Path(self.request["samples"][0]["path"])
         linked = self.inputs / "same-sample-hardlink.txt"

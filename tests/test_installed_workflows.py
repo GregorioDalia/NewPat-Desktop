@@ -97,6 +97,7 @@ class InstalledWorkflowTests(unittest.TestCase):
         corrupt = next(case for case in cases if case["id"] == "reject-corrupt-bam")
         pattern = corrupt["expect_failure"]
         self.assertRegex("[mpileup] fail to read the header of /inputs/bams/sample_0001.bam", pattern)
+        self.assertRegex('[main_samview] fail to read the header from "/inputs/bams/sample_0001.bam".', pattern)
         self.assertNotRegex("Docker startup failed while executing dnp-call --bam corrupt.bam", pattern)
         self.assertNotRegex("WSL could not start samtools pileup", pattern)
         self.assertTrue(all("--run-name" not in case["args"] for case in cases))

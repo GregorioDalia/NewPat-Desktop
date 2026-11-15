@@ -11,9 +11,9 @@ Si usa da un **menu testuale guidato** o da **riga di comando**. Le analisi
 usano il runtime scientifico locale con R e samtools. Dopo la preparazione
 dell'ambiente, i calcoli si possono eseguire offline.
 
-La [0.8.81](docs/RELEASE_0.8.81.md) aggiorna la versione stabile con menu
-testuale e CLI, base funzionale per la successiva interfaccia grafica,
-con una correzione della preparazione su Windows.
+La [0.8.90](docs/RELEASE_0.8.90.md) consolida la versione con menu testuale
+e CLI, base funzionale per la successiva interfaccia grafica, correggendo
+la validazione dei ruoli CPI, i cutoff SNP salvati e due verifiche automatiche.
 
 ## Download
 

@@ -458,4 +458,5 @@ docs/COLLAUDO_INSTALLAZIONE.md
 docs/RELEASE_0.8.70.md
 docs/RELEASE_0.8.80.md
 docs/RELEASE_0.8.81.md
+docs/RELEASE_0.8.90.md
 docs/AUDIT_0.8.80.md
