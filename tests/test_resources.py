@@ -357,7 +357,7 @@ except RuntimeExecutionError:
     def test_orphan_running_nipat_container_prevents_resource_changes(self):
         manager = ResourceManager(DockerTransport())
         with patch.object(manager, "_docker", side_effect=["", "nipat-run-orphan"]):
-            with self.assertRaisesRegex(RuntimeExecutionError, "container NIPAT attivi"):
+            with self.assertRaisesRegex(RuntimeExecutionError, "container NewPat attivi"):
                 manager._assert_idle()
 
 

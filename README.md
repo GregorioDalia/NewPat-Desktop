@@ -1,35 +1,42 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/branding/nipat-logo-dark.svg">
-  <img src="assets/branding/nipat-logo.svg" alt="NIPAT" width="335">
+  <img src="assets/branding/nipat-logo.svg" alt="NewPat" width="335">
 </picture>
 
-# NIPAT Desktop
+# NewPat
 
-NIPAT Desktop esegue sul computer analisi SNP e DNP, stima della contaminazione
+NewPat esegue sul computer analisi SNP e DNP, stima della contaminazione
 e calcolo dell'indice combinato di paternità prenatale e postnatale.
-La versione stabile si usa da un **menu testuale guidato** o da **riga di comando**. Le analisi
-usano il runtime scientifico locale con R e samtools. Dopo la preparazione
+L'applicazione offre una finestra desktop con IGV integrato e conserva il
+menu testuale e la riga di comando. Le analisi usano il runtime scientifico
+locale con R e samtools. Dopo la preparazione
 dell'ambiente, i calcoli si possono eseguire offline.
 
 La [0.8.99](docs/RELEASE_0.8.99.md) offre due percorsi Windows indipendenti:
-uno ZIP completo, che prepara NIPAT nella cartella estratta, e un setup EXE
+uno ZIP completo, che prepara l’applicazione nella cartella estratta, e un setup EXE
 che scarica il pacchetto applicativo della release. Python è incluso in entrambi;
 lo ZIP include anche il motore scientifico. I cinque moduli scientifici
 restano invariati.
 
-La **[0.9.1 Testing](docs/RELEASE_0.9.1.md)** migliora l'applicazione grafica
-con IGV integrato, italiano e inglese, configurazione delle analisi e archivio
-dei risultati. È una prerelease per le prove della GUI: **la 0.8.99 rimane
-la versione stabile**. La finestra dell'applicazione non apre un browser
-esterno. La nuova preview semplifica installazione e navigazione IGV e aggiunge
-la gestione degli esperimenti interrotti. Consulta la [guida alla GUI](docs/GUI.md)
-per installarla e utilizzarla.
+La **[NewPat 0.9.5 Testing](docs/RELEASE_0.9.5.md)** è il candidato in sviluppo
+che introduce il nuovo nome, corregge la creazione degli esperimenti e il
+cambio di percorso dell'app su Mac, rende accessibili gli errori e la
+diagnostica e aggiorna la pianificazione delle risorse. **Non è ancora una
+release qualificata da questo documento.** La prerelease pubblicata precedente
+è [NIPAT 0.9.1](docs/RELEASE_0.9.1.md), mentre **NIPAT 0.8.99 rimane stabile**.
+La [guida GUI](docs/GUI.md) descrive la versione corrente del codice.
+
+Gli esperimenti, le preferenze e i percorsi esistenti restano riconoscibili.
+Alcuni nomi tecnici, gli alias CLI e l'URL del repository conservano NIPAT
+per compatibilità; la denominazione pubblica dalla 0.9.5 è NewPat.
 
 ## Download
 
-Scarica il pacchetto per il tuo sistema. La
+Scarica un pacchetto effettivamente pubblicato per il tuo sistema. La
 [release stabile](https://github.com/GregorioDalia/nipat-desktop/releases/latest)
-riporta anche checksum e verifiche dei pacchetti.
+riporta anche checksum e verifiche dei pacchetti. I collegamenti seguenti
+puntano alla stabile NIPAT precedente; non installano il candidato NewPat
+0.9.5. Per le prerelease consultare i relativi asset nella pagina Releases.
 
 | Sistema | Pacchetto | Guida |
 | --- | --- | --- |
@@ -64,7 +71,7 @@ CPI e CPIN ricevono le tabelle dei caller come input indipendenti.
 
 ## Prima analisi
 
-1. Apri **NIPAT Desktop** e scegli il modulo o **Workflow automatici**.
+1. Apri **NewPat**, scegli **Nuovo esperimento** e i moduli da eseguire.
 2. Seleziona gli input e i parametri. Con un BAM, scegli il FASTA delle
    sequenze, per esempio `genome.fa`, e tieni l'indice `genome.fa.fai` accanto
    al riferimento. Per i FASTA BGZF serve anche `.gzi`.
@@ -79,12 +86,12 @@ percorsi su dischi locali fissi.
 Per eseguire DNPcall da PowerShell, dalla cartella dell'applicazione:
 
 ```powershell
-.\nipat.cmd dnp-call --bam "C:\Dati\campione.bam" `
+.\newpat.cmd dnp-call --bam "C:\Dati\campione.bam" `
   --reference "C:\Dati\genome.fa" --panel "C:\Dati\DNP_list.txt"
 ```
 
-Su Ubuntu usa il comando `nipat`. Su macOS usa
-`"/Applications/NIPAT Desktop.app/Contents/Resources/NIPAT.command"`.
+Su Ubuntu usa il comando `newpat`. Su macOS usa
+`"/Applications/NewPat.app/Contents/Resources/NewPat.command"`.
 L'opzione `--help` elenca i comandi. `settings` mostra i valori scientifici
 effettivi e `parameters` consulta il catalogo di parametri, regole e
 preparazione degli input. Dal menu trovi queste informazioni in

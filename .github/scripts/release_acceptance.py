@@ -136,7 +136,7 @@ def gui_contract(version):
 def gui_prerelease_contract(version):
     """The authorized GUI previews cannot replace the stable channel."""
     return bool(isinstance(version, str)
-                and re.fullmatch(r"0\.9\.[01](?:(?:a|b|rc)[0-9]+)?", version))
+                and re.fullmatch(r"0\.9\.(?:0|1|5)(?:(?:a|b|rc)[0-9]+)?", version))
 
 
 def reliability_contract(version):

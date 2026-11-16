@@ -39,7 +39,7 @@ PROFILE_PATH = Path("installer/windows/install-profile.json")
 EXPECTED_INSTALLATION_PROFILE = {
     "schema_version": 1,
     "channel": "desktop",
-    "display_name": "NIPAT Desktop",
+    "display_name": "NewPat",
     "app_dir_name": "NIPAT-Desktop",
     "data_dir_name": "NIPAT-Desktop",
     "distro_prefix": "NIPAT-Desktop-",
@@ -52,7 +52,7 @@ EXPECTED_INSTALLATION_PROFILE = {
 def validate_installation_profile(profile: dict) -> None:
     if (type(profile) is not dict or profile != EXPECTED_INSTALLATION_PROFILE
             or type(profile.get("schema_version")) is not int):
-        raise ValueError("Profilo di installazione diverso dal canale NIPAT Desktop.")
+        raise ValueError("Profilo di installazione diverso dal canale NewPat.")
 
 
 def installation_profile(project: Path) -> dict:
@@ -271,10 +271,10 @@ def validate_manifest(manifest: dict) -> None:
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:a[0-9]+|b[0-9]+|rc[0-9]+)?", version):
         raise ValueError("Versione nel manifest non valida.")
     # Published pre-0.5 archives remain verifiable. This compatibility is read-only:
-    # every WSL staging/include writer below independently requires the NIPAT Desktop profile.
+    # every WSL staging/include writer below independently requires the NewPat profile.
     major_minor = tuple(int(part) for part in version.split(".")[:2])
     if major_minor == (0, 5):
-        raise ValueError("Gli installer Preview 0.5 non appartengono al canale NIPAT Desktop.")
+        raise ValueError("Gli installer Preview 0.5 non appartengono al canale NewPat.")
     if major_minor >= (0, 5) or "installation_profile" in manifest:
         validate_installation_profile(manifest.get("installation_profile"))
     tag = manifest.get("release_tag")

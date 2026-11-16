@@ -118,7 +118,7 @@ class StorageParityTests(unittest.TestCase):
                         json.dumps({**self.installation, "runtime_dir": "relative"}).encode()):
             with self.subTest(content=content):
                 self.record.write_bytes(content)
-                with self.assertRaisesRegex(ValidationError, "setup NIPAT"):
+                with self.assertRaisesRegex(ValidationError, "setup NewPat"):
                     self.layout.new_run_dir("snp-call")
                 self.assertFalse(self.layout.runs_dir.exists())
         self.record.write_bytes(original)

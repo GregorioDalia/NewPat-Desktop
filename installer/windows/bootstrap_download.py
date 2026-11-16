@@ -21,7 +21,7 @@ import urllib.parse
 import urllib.request
 import zipfile
 
-BOOTSTRAP_VERSION = "1.0.0"
+BOOTSTRAP_VERSION = "1.1.0"
 REPOSITORY = "https://github.com/GregorioDalia/nipat-desktop"
 FEED_NAME = "update-manifest-windows-bootstrap.json"
 PLATFORM = "windows-bootstrap-x86_64"
@@ -58,7 +58,7 @@ def _target(version, source, sha256, size):
             or not isinstance(source, str) or not COMMIT.fullmatch(source)
             or not isinstance(sha256, str) or not SHA256.fullmatch(sha256)
             or type(size) is not int or not 0 < size <= MAX_DOWNLOAD):
-        raise ValueError("Identita del pacchetto NIPAT non valida o non compatibile")
+        raise ValueError("Identita del pacchetto NewPat non valida o non compatibile")
     return {"version": version, "source_commit": source, "sha256": sha256, "size": size}
 
 
@@ -130,7 +130,7 @@ def download(target, destination):
                 output.write(chunk)
                 progress = count * 100 // target["size"]
                 if progress // 5 != previous_progress // 5:
-                    print(f"Scaricamento NIPAT {target['version']}: {progress}%", flush=True)
+                    print(f"Scaricamento NewPat {target['version']}: {progress}%", flush=True)
                     previous_progress = progress
         if count != target["size"] or digest.hexdigest() != target["sha256"]:
             raise ValueError("Download incompleto o SHA-256 diverso dalla release")
@@ -299,9 +299,9 @@ def check_installed(project, version, source):
     if not VERSION.fullmatch(old_version):
         raise ValueError("Versione installata non riconosciuta; nessun file viene sostituito")
     if tuple(map(int, old_version.split("."))) > tuple(map(int, version.split("."))):
-        raise ValueError("E gia installata una versione NIPAT piu recente")
+        raise ValueError("E gia installata una versione NewPat piu recente")
     if old_version == version and installed.get("source_commit") != source:
-        raise ValueError("La stessa versione NIPAT identifica sorgenti differenti")
+        raise ValueError("La stessa versione NewPat identifica sorgenti differenti")
 
 
 def main(argv=None):
@@ -339,11 +339,11 @@ def main(argv=None):
             target = _target(*explicit)
             package = args.package
         else:
-            print("Ricerca dell'ultima versione stabile di NIPAT...", flush=True)
+            print("Ricerca dell'ultima versione stabile di NewPat...", flush=True)
             target = current_target()
             package = args.destination.parent / "nipat-payload-download.zip"
             download(target, package)
-        print("Verifica completa del pacchetto NIPAT " + target["version"] + "...", flush=True)
+        print("Verifica completa del pacchetto NewPat " + target["version"] + "...", flush=True)
         extract_payload(package, args.destination, target)
         args.report_file.write_text("[NIPAT]\nversion=" + target["version"] + "\nsource_commit="
                                     + target["source_commit"] + "\nsha256=" + target["sha256"]

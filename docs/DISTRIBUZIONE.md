@@ -1,11 +1,14 @@
 # Distribuzione e requisiti
 
-NIPAT Desktop distribuisce la stessa CLI e lo stesso motore scientifico
+NewPat distribuisce l’applicazione grafica, la CLI e lo stesso motore scientifico
 su Windows, macOS e Ubuntu. Lo ZIP completo Windows e i pacchetti macOS/Ubuntu
 contengono l'immagine scientifica. Il setup EXE Windows scarica il pacchetto
 applicativo e gli archivi necessari, verificandoli prima dell'installazione.
 
-Scaricare il pacchetto del proprio sistema dagli **Assets** dell'[ultima release stabile](https://github.com/GregorioDalia/nipat-desktop/releases/latest).
+Questa guida descrive NewPat 0.9.5 Testing, ancora candidato. I pacchetti
+pubblicati si trovano negli **Assets** delle [release](https://github.com/GregorioDalia/nipat-desktop/releases);
+la stabile 0.8.99 e la preview 0.9.1 conservano il nome NIPAT. I nomi NewPat
+riportati di seguito si applicano dalla 0.9.5, quando pubblicata.
 Gli archivi **Source code** servono a consultare o costruire i sorgenti. Per la
 revisione di una build candidata, seguire invece la [procedura di accettazione](ACCETTAZIONE_INSTALLATORI.md).
 
@@ -13,11 +16,11 @@ revisione di una build candidata, seguire invece la [procedura di accettazione](
 
 | Sistema | Ambiente scientifico | Pacchetto |
 | --- | --- | --- |
-| Windows 10 22H2 x64, build 19045, o Windows 11 x64 | WSL2 con Docker Engine gestito da NIPAT | `NIPAT-Setup.exe` |
-| Windows x64, installazione nella cartella estratta | WSL2 con Docker Engine gestito da NIPAT | `NIPAT-VERSIONE-Windows-completo.zip` |
+| Windows 10 22H2 x64, build 19045, o Windows 11 x64 | WSL2 con Docker Engine gestito da NewPat | `NewPat-Setup.exe` |
+| Windows x64, installazione nella cartella estratta | WSL2 con Docker Engine gestito da NewPat | `NewPat-VERSIONE-Windows-completo.zip` |
 | macOS 14 o successivo, Intel | VM Lima AMD64 con Docker Engine | `.pkg` x86_64 |
 | macOS 14 o successivo, Apple Silicon | VM Lima ARM64, Rosetta e Docker Engine | `.pkg` arm64 |
-| Ubuntu 24.04 LTS x86_64 | Docker Engine locale | `nipat-desktop_VERSIONE_amd64.deb` |
+| Ubuntu 24.04 LTS x86_64 | Docker Engine locale | `newpat-desktop_VERSIONE_amd64.deb` |
 
 I diversi percorsi distribuiscono lo stesso archivio scientifico Linux AMD64.
 L'immagine contiene gli script R, samtools, dipendenze, validazione degli
@@ -26,22 +29,23 @@ input selezionati in sola lettura e cartella del run scrivibile.
 
 ## Pacchetto Windows
 
-Avviare `NIPAT-Setup.exe` dal proprio account. Il setup include il Python
+Avviare `NewPat-Setup.exe` dal proprio account. Il setup include il Python
 necessario alla preparazione e scarica da GitHub il pacchetto della release,
 verifica il sistema e prepara i componenti WSL mancanti. Non occorre installare Docker Desktop, R o samtools.
 L'attivazione o l'aggiornamento di WSL può richiedere Internet, autorizzazione
 amministrativa e riavvio. Windows ARM, Server e 32 bit non sono supportati.
 
 L'installatore permette di scegliere cartelle di applicazione, ambiente WSL,
-cache, dati e risultati. Conserva i percorsi delle installazioni NIPAT Desktop
-riconosciute e non svuota cartelle estranee. Attendere **NIPAT: ready**, poi
-avviare **NIPAT Desktop** dal menu Start o dal collegamento sul desktop.
+cache, dati e risultati. Conserva i percorsi delle installazioni NewPat
+riconosciute e non svuota cartelle estranee. Attendere **NewPat: ready**, poi
+avviare **NewPat** dal menu Start o dal collegamento sul desktop.
 La [guida Windows](INSTALLATORE_WINDOWS.md) descrive aggiornamento, riparazione,
 rimozione e gestione degli avvisi di sicurezza.
 
 Per installare dallo ZIP completo, estrarlo nella posizione definitiva e
-avviare `1_INSTALLA.cmd`: dalla 0.8.99 viene creata la sottocartella `NIPAT`,
-con collegamenti locali di avvio e ripresa. Non viene creato un collegamento
+avviare `1_INSTALLA.cmd`: la sottocartella tecnica `NIPAT` viene conservata
+per compatibilità. Il collegamento locale `NewPat.lnk` sceglie automaticamente
+l’avvio o il completamento della preparazione. Non viene creato un collegamento
 nel menu Start. Applicazione, dati, risultati e preferenze rimangono in quella
 cartella; non eliminarla dopo la preparazione. Il motore e Python sono inclusi,
 ma i prerequisiti Windows possono richiedere Internet. La registrazione WSL è
@@ -51,7 +55,8 @@ Gli aggiornamenti dei due percorsi rimangono separati.
 ## Pacchetto macOS
 
 Scegliere il `.pkg` della propria architettura, completare l'installazione e
-aprire **NIPAT Desktop** da Applicazioni. Il menu CLI si apre nel Terminale.
+aprire **NewPat** da Applicazioni. Dopo la preparazione si apre la GUI;
+il menu testuale resta disponibile dal launcher con il comando `wizard`.
 Python e Lima sono inclusi; il primo avvio prepara la VM e richiede Internet.
 Homebrew e Docker Desktop non sono prerequisiti. Su Apple Silicon l'immagine
 scientifica AMD64 viene eseguita tramite Rosetta nel guest ARM64.
@@ -61,7 +66,7 @@ messaggio di software non verificato, la [guida macOS](INSTALLATORE_MACOS.md)
 spiega l'autorizzazione specifica da Privacy e sicurezza. Le policy di un
 Mac gestito possono richiedere l'intervento dell'amministratore.
 
-L'applicazione è in `/Applications/NIPAT Desktop.app`; dati e risultati sono
+L'applicazione è in `/Applications/NewPat.app`; dati e risultati sono
 nell'area utente `~/Library/Application Support/NIPAT-Desktop`.
 Il runtime Lima dedicato non adotta le altre VM dell'utente.
 Le installazioni sperimentali hanno identità separata e non vengono rimosse.
@@ -72,7 +77,7 @@ Installare il `.deb` con il gestore pacchetti oppure aprire il terminale nella c
 Nel comando di esempio usare il nome effettivo del file scaricato:
 
 ```bash
-sudo apt install ./nipat-desktop_0.8.60_amd64.deb
+sudo apt install ./newpat-desktop_0.9.5_amd64.deb
 ```
 
 APT installa le dipendenze mancanti dai repository configurati, inclusi Python,
@@ -89,10 +94,10 @@ Dalla radice del checkout:
 python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e .
-nipat build-runtime
-nipat doctor --runtime
-nipat self-test
-nipat wizard
+newpat build-runtime
+newpat doctor --runtime
+newpat self-test
+newpat wizard
 ```
 
 La build richiede Internet. Usare directory di sviluppo distinte dall'applicazione
@@ -139,5 +144,5 @@ qualificano automaticamente l'avvio di una VM Lima reale. Le prove Windows 10,
 le installazioni desktop e la valutazione di dominio restano evidenze distinte,
 come descritto in [CI/CD](CI_CD.md) e nella [scheda di validazione](VALIDAZIONE.md).
 
-Il codice originale NIPAT usa la licenza [GPL-3.0-or-later](../LICENSE).
+Il codice originale NewPat usa la licenza [GPL-3.0-or-later](../LICENSE).
 Le attribuzioni sono in [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md).

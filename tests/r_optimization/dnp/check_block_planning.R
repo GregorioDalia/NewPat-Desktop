@@ -31,7 +31,7 @@ reference_plan <- function(index, labels, ref_alt, max_loci=64, max_bytes=32*102
     active_rows <- combined
   }
   append_block()
-  list(blocks=blocks, max_loci=max_loci, max_bytes=max_bytes,
+  list(blocks=blocks, max_loci=max_loci, max_bytes=max_bytes, requested_max_bytes=max_bytes,
        compatibility_reasons=character(), unmatched_rows=0L)
 }
 

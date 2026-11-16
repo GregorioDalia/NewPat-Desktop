@@ -4,13 +4,13 @@ $ErrorActionPreference = 'Stop'
 
 function Assert-NipatInstallationProfile($Profile) {
     $expected = [ordered]@{
-        schema_version = 1; channel = 'desktop'; display_name = 'NIPAT Desktop'
+        schema_version = 1; channel = 'desktop'; display_name = 'NewPat'
         app_dir_name = 'NIPAT-Desktop'; data_dir_name = 'NIPAT-Desktop'
         distro_prefix = 'NIPAT-Desktop-'; resume_key = 'NIPAT-Desktop-ResumeSetup'
         mutex_prefix = 'Local\NIPAT-Desktop-Setup-'; app_id = '6B1702B6-F75C-4F8C-956F-86626C60AF45'
     }
     if ($null -eq $Profile -or @($Profile.PSObject.Properties).Count -ne $expected.Count) {
-        throw 'Profilo di installazione NIPAT Desktop mancante o non valido.'
+        throw 'Profilo di installazione NewPat mancante o non valido.'
     }
     foreach ($name in $expected.Keys) {
         $typeMatches = $false
@@ -19,7 +19,10 @@ function Assert-NipatInstallationProfile($Profile) {
                 $typeMatches = ($Profile.$name -is [int]) -or ($Profile.$name -is [long])
             } else { $typeMatches = $Profile.$name -is [string] }
         }
-        if (-not $typeMatches -or $Profile.$name -cne $expected[$name]) {
+        # Display text is not the installation identity. Retained manifests from
+        # the old brand must remain repairable/removable in the same namespace.
+        $legacyDisplay = $name -ceq 'display_name' -and $Profile.$name -ceq 'NIPAT Desktop'
+        if (-not $typeMatches -or ($Profile.$name -cne $expected[$name] -and -not $legacyDisplay)) {
             throw "Identita di installazione non supportata: $name. Le altre installazioni non vengono modificate."
         }
     }
@@ -38,7 +41,7 @@ function Assert-NipatInstallationChannel($Value, [string] $Description) {
         else { $present = $null -ne $Value.PSObject.Properties['installation_channel'] }
     }
     if (-not $present -or $Value.installation_channel -cne (Get-NipatInstallationProfile).channel) {
-        throw "$Description appartiene a un altro canale di installazione. NIPAT Desktop non adotta configurazioni sperimentali o di altre installazioni."
+        throw "$Description appartiene a un altro canale di installazione. NewPat non adotta configurazioni sperimentali o di altre installazioni."
     }
 }
 
@@ -48,7 +51,7 @@ function Assert-NipatRuntimeNamespace([string] $Distro, [string] $RootfsSha256, 
     $allowed = @($profile.distro_prefix + $RootfsSha256.Substring(0, 40))
     if ($RuntimeDirectory) { $allowed += Get-NipatRuntimeDistroName $RootfsSha256 $RuntimeDirectory }
     if ($Distro -cnotin $allowed) {
-        throw 'La distribuzione richiesta non appartiene a questa installazione NIPAT Desktop.'
+        throw 'La distribuzione richiesta non appartiene a questa installazione NewPat.'
     }
 }
 
@@ -61,7 +64,7 @@ function Assert-NipatInstallationLocation([string] $Project) {
         return
     }
     if ([IO.Path]::GetFullPath($Project).TrimEnd('\') -ine [IO.Path]::GetFullPath($expected).TrimEnd('\')) {
-        throw 'NIPAT Desktop deve essere installato nella propria cartella dedicata. Avviare il relativo installer normalmente.'
+        throw 'NewPat deve essere installato nella propria cartella dedicata. Avviare il relativo installer normalmente.'
     }
     # Reject junctions/symlinks in existing installation-specific paths before writes.
     $base = Join-Path $env:LOCALAPPDATA $profile.data_dir_name

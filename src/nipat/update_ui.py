@@ -81,7 +81,7 @@ def run_updates(
     if is_experimental_version(current_version):
         if not startup:
             ui.heading("Aggiornamenti della versione sperimentale")
-            ui.message(f"Versione installata: NIPAT {current_version}")
+            ui.message(f"Versione installata: NewPat {current_version}")
             ui.message("Questa installazione sperimentale e' separata dalla versione stabile. "
                        "Gli aggiornamenti automatici sono disabilitati per evitare il cambio di distribuzione.")
             ui.message("I nuovi installer sperimentali saranno disponibili su GitHub: " + EXPERIMENT_URL,
@@ -93,7 +93,7 @@ def run_updates(
             ui.message("Verifica aggiornamenti all'avvio in corso...", kind="muted")
         else:
             ui.heading("Verifica aggiornamenti")
-            ui.message(f"Versione installata: NIPAT {current_version}")
+            ui.message(f"Versione installata: NewPat {current_version}")
             ui.message("Canale selezionato: " + ("Testing" if preferences.update_channel == "testing" else "Stabile"))
             ui.message("Consultazione delle release pubblicate su GitHub in corso...", kind="muted")
         selected_platform = platform or detect_platform()
@@ -111,7 +111,7 @@ def run_updates(
                 ui.message("E' possibile continuare a usare la versione installata e riprovare la verifica in seguito.", kind="muted")
             return False
         offer = result.offer
-        ui.message(f"Disponibile NIPAT {offer.version}.", kind="success")
+        ui.message(f"Disponibile NewPat {offer.version}.", kind="success")
         ui.message("Tipo di release: " + ("stabile" if offer.channel == "stable" else "testing"), kind="muted")
         ui.message(f"Note della release: {offer.release_notes_url}", kind="muted")
         if startup:
@@ -130,10 +130,10 @@ def run_updates(
         )
         ui.message(f"Download verificato: {downloaded}", kind="success")
         if selected_platform.startswith("darwin-"):
-            ui.message("Per installare: chiudere tutte le sessioni NIPAT, quindi aprire il file .pkg verificato indicato sopra.", kind="info")
+            ui.message("Per installare: chiudere tutte le sessioni NewPat, quindi aprire il file .pkg verificato indicato sopra.", kind="info")
             ui.message("Il programma di installazione aggiorna l'applicazione e conserva dati, risultati e configurazione. macOS puo' richiedere l'autorizzazione all'apertura del pacchetto.", kind="muted")
             return False
-        ui.message("Per installare, NIPAT chiudera' questa sessione e avviera' il programma di aggiornamento.", kind="muted")
+        ui.message("Per installare, NewPat chiudera' questa sessione e avviera' il programma di aggiornamento.", kind="muted")
         if selected_platform.startswith("linux"):
             ui.message("Il gestore dei pacchetti di Ubuntu puo' richiedere l'autorizzazione di amministrazione.", kind="muted")
         if not _confirm(ui, "Installare l'aggiornamento?", "Installa l'aggiornamento", "Chiude questa sessione e apre il programma di installazione"):
@@ -143,10 +143,10 @@ def run_updates(
             from nipat.update_handoff import begin_update
             handoff = begin_update
         if not handoff(offer, downloaded, layout.project_dir):
-            ui.message("Installazione non avviata. Il file verificato resta nella cache; la sessione NIPAT rimane aperta.", kind="warning")
+            ui.message("Installazione non avviata. Il file verificato resta nella cache; la sessione NewPat rimane aperta.", kind="warning")
             return False
         handoff_started = True
-        ui.message("Aggiornamento affidato al programma di installazione. Chiusura della sessione NIPAT in corso.", kind="success")
+        ui.message("Aggiornamento affidato al programma di installazione. Chiusura della sessione NewPat in corso.", kind="success")
         return True
     except (KeyboardInterrupt, EOFError):
         if handoff_started:

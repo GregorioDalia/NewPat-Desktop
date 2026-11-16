@@ -29,7 +29,7 @@ assets = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(assets)
 bundle = assets.bundle
 
-APP_NAME = "NIPAT Desktop.app"
+APP_NAME = "NewPat.app"
 APP_RELATIVE = Path("Applications") / APP_NAME
 IDENTIFIER = "org.nipat.desktop"
 BUILD_RECORD = "macos-installer-build.json"
@@ -65,6 +65,7 @@ def verified_inputs(project: Path, manifest_path: Path, description_path: Path,
         raise ValueError("Source inventory differs from the verified scientific build.")
     required = {"installer/macos/dependencies.json", "installer/macos/launch.py",
                 "installer/macos/NIPAT.command", "installer/macos/launcher.c",
+                "installer/macos/migrate_legacy.py",
                 "installer/macos/package-guard.c", "src/nipat/macos_runtime.py",
                 "LICENSE", "THIRD_PARTY_NOTICES.md"}
     if not required.issubset(hashes):
@@ -173,7 +174,7 @@ def distribution_xml(version: str, architecture: str) -> str:
     """Installer rejects incompatible hardware/OS before writing application files."""
     return f'''<?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="2">
-  <title>NIPAT {escape(version)}</title>
+  <title>NewPat {escape(version)}</title>
   <options customize="never" require-scripts="false" hostArchitectures="{architecture}"/>
   <domains enable_anywhere="false" enable_currentUserHome="false" enable_localSystem="true"/>
   <allowed-os-versions><os-version min="14.0"/></allowed-os-versions>
@@ -242,14 +243,17 @@ def stage_payload(project: Path, root: Path, manifest: dict, files: list[Path], 
         json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
     shutil.copyfile(project / "installer/macos/NIPAT.command", resources / "NIPAT.command")
     (resources / "NIPAT.command").chmod(0o755)
+    # Canonical public CLI; retain the original entrypoint for existing scripts.
+    shutil.copyfile(resources / "NIPAT.command", resources / "NewPat.command")
+    (resources / "NewPat.command").chmod(0o755)
     (app / "Contents/MacOS").mkdir()
     plist = {
-        "CFBundleIdentifier": IDENTIFIER, "CFBundleName": "NIPAT Desktop",
-        "CFBundleDisplayName": "NIPAT Desktop", "CFBundleExecutable": "NIPAT",
+        "CFBundleIdentifier": IDENTIFIER, "CFBundleName": "NewPat",
+        "CFBundleDisplayName": "NewPat", "CFBundleExecutable": "NewPat",
         "CFBundlePackageType": "APPL",
         "CFBundleShortVersionString": re.match(r"\d+\.\d+\.\d+", manifest["version"])[0],
         "CFBundleVersion": manifest["version"], "LSMinimumSystemVersion": "14.0",
-        "CFBundleIconFile": "NIPAT.icns", "LSApplicationCategoryType": "public.app-category.education",
+        "CFBundleIconFile": "NewPat.icns", "LSApplicationCategoryType": "public.app-category.education",
         "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True},
         "NSHumanReadableCopyright": "NIPAT contributors; GNU GPL version 3 or later",
     }
@@ -281,7 +285,7 @@ def build(project: Path, manifest_path: Path, output: Path, architecture: str,
                             architecture, python, lima, dependencies)
         subprocess.run(["/usr/bin/clang", "-Os", "-arch", architecture,
                         "-mmacosx-version-min=14.0", str(project / "installer/macos/launcher.c"),
-                        "-o", str(app / "Contents/MacOS/NIPAT")], check=True)
+                        "-o", str(app / "Contents/MacOS/NewPat")], check=True)
         icons = work / "NIPAT.iconset"
         icons.mkdir()
         for size in (16, 32, 128, 256, 512):
@@ -291,7 +295,7 @@ def build(project: Path, manifest_path: Path, output: Path, architecture: str,
                                 str(project / "assets/branding/nipat-icon.png"),
                                 "--out", str(destination)], check=True, capture_output=True)
         subprocess.run(["/usr/bin/iconutil", "-c", "icns", str(icons), "-o",
-                        str(app / "Contents/Resources/NIPAT.icns")], check=True)
+                        str(app / "Contents/Resources/NewPat.icns")], check=True)
         scripts = work / "scripts"
         scripts.mkdir()
         subprocess.run(["/usr/bin/clang", "-Os", "-arch", architecture,
@@ -313,9 +317,9 @@ def build(project: Path, manifest_path: Path, output: Path, architecture: str,
                         "--component-plist", str(components), str(work / "NIPAT-component.pkg")], check=True)
         (work / "Distribution.xml").write_text(distribution_xml(manifest["version"], architecture))
         welcome = (
-            "NIPAT Desktop\n\n"
-            "Installs NIPAT Desktop for macOS 14 or later.\n"
-            "Python, Lima and the scientific image are included. Start NIPAT Desktop\n"
+            "NewPat\n\n"
+            "Installs NewPat for macOS 14 or later.\n"
+            "Python, Lima and the scientific image are included. Start NewPat\n"
             "from Applications after installation. The first start needs an Internet connection\n"
             "to prepare its dedicated Linux VM. On Apple Silicon, Rosetta for Linux is required.\n\n"
             "This package has no Developer ID signature or Apple notarization. Local security\n"

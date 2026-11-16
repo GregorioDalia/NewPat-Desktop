@@ -221,10 +221,10 @@ def _default_loader() -> Path:
 def verify_dependency(path: Path, manifest_path: Path | None = None) -> None:
     """Verify packaged bytes against the build-time, reviewed dependency record."""
     if not path.is_file():
-        raise NativeHostError(f"Componente grafico mancante: {path.name}. Reinstalla NIPAT.")
+        raise NativeHostError(f"Componente grafico mancante: {path.name}. Reinstalla NewPat.")
     manifest_path = manifest_path or path.parent.parent / "dependencies.json"
     if not manifest_path.is_file():
-        raise NativeHostError("Manifest dei componenti grafici mancante. Reinstalla NIPAT.")
+        raise NativeHostError("Manifest dei componenti grafici mancante. Reinstalla NewPat.")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     entries = manifest.get("files", manifest.get("assets", []))
     if isinstance(entries, dict):
@@ -236,7 +236,7 @@ def verify_dependency(path: Path, manifest_path: Path | None = None) -> None:
         raise NativeHostError(f"Verifica di integrità non disponibile: {path.name}.")
     actual = hashlib.sha256(path.read_bytes()).hexdigest()
     if actual != expected.lower():
-        raise NativeHostError(f"Componente grafico alterato: {path.name}. Reinstalla NIPAT.")
+        raise NativeHostError(f"Componente grafico alterato: {path.name}. Reinstalla NewPat.")
 
 
 _active_host: "_Window | None" = None
@@ -263,7 +263,7 @@ def _message_box(title: str, message: str, flags: int) -> int:
 
 def confirm(title: str, message: str | None = None) -> bool:
     if message is None:
-        title, message = "NIPAT", title
+        title, message = "NewPat", title
     return _message_box(title, message, 0x24) == 6
 
 
@@ -472,7 +472,7 @@ class _Window:
         shell.SetCurrentProcessExplicitAppUserModelID.argtypes = (C.c_wchar_p,)
         shell.SetCurrentProcessExplicitAppUserModelID.restype = HRESULT
         _check(shell.SetCurrentProcessExplicitAppUserModelID(APP_USER_MODEL_ID),
-               "Identità dell’applicazione NIPAT")
+               "Identità dell’applicazione NewPat")
         try:
             dpi = self.user.SetProcessDpiAwarenessContext
             dpi.argtypes, dpi.restype = (PTR,), BOOL
@@ -504,7 +504,7 @@ class _Window:
         if not self.hwnd:
             raise C.WinError(C.get_last_error())
         self.status_hwnd = self.user.CreateWindowExW(0, "STATIC",
-            "Preparazione dell’interfaccia NIPAT…", 0x50000001,
+            "Preparazione dell’interfaccia NewPat…", 0x50000001,
             30, 90, width - 60, 90, self.hwnd, None, self.instance, None)
         self.user.ShowWindow(self.hwnd, 5)
         self.user.UpdateWindow(self.hwnd)
@@ -548,13 +548,13 @@ class _Window:
                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 if result.returncode not in (0, 3010):
                     raise NativeHostError("Preparazione di Microsoft WebView2 non riuscita "
-                        f"(codice {result.returncode}). Verifica la connessione e riavvia NIPAT.")
+                        f"(codice {result.returncode}). Verifica la connessione e riavvia NewPat.")
                 def ready():
                     self.runtime_preparing = False
                     self.started = time.monotonic()
                     if not self._runtime_available():
                         raise NativeHostError("Microsoft WebView2 non è disponibile. "
-                            "Riavvia Windows e apri nuovamente NIPAT.")
+                            "Riavvia Windows e apri nuovamente NewPat.")
                     self._create_environment()
                 self.invoke(ready)
             except Exception as exc:
@@ -614,7 +614,7 @@ class _Window:
         if self.status_hwnd:
             self.user.DestroyWindow(self.status_hwnd)
             self.status_hwnd = None
-        _check(_call(self.webview, 5, (C.c_wchar_p,), self.url), "Apertura dell’interfaccia NIPAT")
+        _check(_call(self.webview, 5, (C.c_wchar_p,), self.url), "Apertura dell’interfaccia NewPat")
 
     def _navigation_starting(self, _sender, args):
         uri = PTR()
@@ -633,7 +633,7 @@ class _Window:
         if success.value:
             self.page_loaded = True
         elif not self.page_loaded:
-            raise NativeHostError("Impossibile caricare l’interfaccia locale di NIPAT.")
+            raise NativeHostError("Impossibile caricare l’interfaccia locale di NewPat.")
 
     def _new_window(self, _sender, args):
         _check(_call(args, 6, (BOOL,), True), "Blocco delle finestre esterne")
@@ -868,7 +868,7 @@ def normalize_filters(filters) -> list[tuple[str, str]]:
     return pairs or [("Tutti i file", "*.*")]
 
 
-def run_window(url: str, title: str = "NIPAT", on_close=None, *, loader_path=None,
+def run_window(url: str, title: str = "NewPat", on_close=None, *, loader_path=None,
                smoke_test=False, smoke_report=None, user_data_dir=None, timeout=60,
                screenshot_path=None) -> int:
     """Run one native desktop window on its calling (STA/UI) thread.
@@ -879,7 +879,7 @@ def run_window(url: str, title: str = "NIPAT", on_close=None, *, loader_path=Non
     """
     global _active_host
     if _active_host is not None:
-        raise NativeHostError("Una finestra NIPAT è già aperta in questo processo.")
+        raise NativeHostError("Una finestra NewPat è già aperta in questo processo.")
     host = _Window(url, title, on_close, loader_path, smoke_test, smoke_report,
                    user_data_dir, timeout, screenshot_path)
     _active_host = host

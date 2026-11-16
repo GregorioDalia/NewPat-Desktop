@@ -48,7 +48,7 @@ def preferences_path() -> Path:
     if sys.platform == "win32":
         base = os.environ.get("LOCALAPPDATA")
         if not base:
-            raise ValidationError("LOCALAPPDATA non disponibile per le impostazioni NIPAT.")
+            raise ValidationError("LOCALAPPDATA non disponibile per le impostazioni NewPat.")
         project = os.environ.get("NIPAT_PROJECT_DIR")
         path = Path(base) / WINDOWS_DIRECTORY / "preferences.json"
         if project:
@@ -306,7 +306,7 @@ def _merge_preferences(baseline: Any, requested: Any, current: Any, path: str = 
         return result
     raise ValidationError(
         f"L'impostazione {path} e' stata modificata da un'altra sessione. "
-        "Le modifiche non sono state salvate. Riaprire NIPAT e ripetere la scelta sui valori aggiornati."
+        "Le modifiche non sono state salvate. Riaprire NewPat e ripetere la scelta sui valori aggiornati."
     )
 
 

@@ -80,7 +80,7 @@ function Assert-NipatZipRoot([string]$Root) {
 }
 function Write-NipatJsonAtomic([string]$Path, $Value) { $Value | ConvertTo-Json | Set-Content -LiteralPath $Path -Encoding UTF8 }
 function Set-NipatZipShortcuts([string]$Root, [string]$Project) {
-    $Project | Set-Content -LiteralPath (Join-Path $Root 'NIPAT.lnk') -Encoding UTF8
+    $Project | Set-Content -LiteralPath (Join-Path $Root 'NewPat.lnk') -Encoding UTF8
 }
 '@ | Set-Content -LiteralPath (Join-Path $fixtureApp 'installer\windows\zip-common.ps1') -Encoding UTF8
     @'
@@ -99,7 +99,7 @@ exit 0
     Assert-Test ($LASTEXITCODE -eq 3010) 'first entry reports required reboot'
     $root = Join-Path $destination 'NIPAT'
     Assert-Test (Test-Path -LiteralPath (Join-Path $root 'pending.json')) 'reboot retains pending installation'
-    Assert-Test (Test-Path -LiteralPath (Join-Path $root 'NIPAT.lnk')) 'same app entry available before reboot'
+    Assert-Test (Test-Path -LiteralPath (Join-Path $root 'NewPat.lnk')) 'same app entry available before reboot'
     Assert-Test (-not (Test-Path -LiteralPath $env:NIPAT_TESTING_FIXTURE_LAUNCHES)) 'GUI not started before ready'
     Remove-Item -LiteralPath (Join-Path $destination 'pacchetto') -Recurse -Force
     Remove-Item -LiteralPath (Join-Path $destination $record.file)

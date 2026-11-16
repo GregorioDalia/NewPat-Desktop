@@ -367,13 +367,20 @@ def check_worker_limits(path, cap):
             pending.pop(key)
             completed.add(key)
         # Nested serial work in the same process still consumes one worker.
-        live_pids = {item["pid"] for item in pending.values()}
+        # A serial coordinator awaiting its loaded inner pool is not itself
+        # another computing worker. Forked outer workers still share the same
+        # ceiling and must not multiply it with their own descendants.
+        coordinating = {item["coordinator_pid"] for item in pending.values()
+                        if item["pid"] != item["coordinator_pid"]}
+        live_pids = {item["pid"] for item in pending.values()} - coordinating
         active = len(live_pids)
         peak = max(peak, active)
         require(cap is None or active <= cap, "Observed worker concurrency exceeded requested cap")
         if active:
             outer = [item["workers"] for item in pending.values()
-                     if item["coordinator_pid"] not in live_pids]
+                     if item["coordinator_pid"] not in live_pids
+                     and not (item["pid"] == item["coordinator_pid"]
+                              and item["pid"] in coordinating)]
             if not outer:
                 outer = [item["workers"] for item in pending.values()
                          if item["pid"] == item["coordinator_pid"]]
@@ -382,7 +389,10 @@ def check_worker_limits(path, cap):
     require(completed == expected, "Scientific workers did not complete every planned task")
     return {"plans": len(plans), "max_planned_workers": max(event["workers"] for event in plans),
             "observed_peak_workers": peak, "completed_worker_tasks": len(completed),
-            "observed_child_pids": sorted(children), "event_sha256": tree_hashes(path)}
+            "observed_child_pids": sorted(children), "event_sha256": tree_hashes(path),
+            "phase_plans": [{key: event[key] for key in
+                             ("label", "workers", "tasks", "reason", "worker_ceiling") if key in event}
+                            for event in plans]}
 
 
 def prepare_inputs(root, marker, workflow, families=1, metadata=False, mismatch=False):
@@ -488,7 +498,17 @@ def run_case(root, name, workflow, marker, *, candidate=True, minimum=2,
         require(same_settings(actual_settings, effective_settings),
                 f"{name}: native R effective settings differ from the requested settings")
     worker = check_worker_limits(destination / "parallel", 1 if mode == "serial" else cap) if candidate else None
-    if candidate and families > 1 and mode == "auto":
+    if candidate and workflow == "contamination" and mode == "auto":
+        outer = [item for item in worker["phase_plans"] if item["label"] == "contamination-samples"]
+        require(len(outer) == 1 and outer[0]["workers"] == 1
+                and outer[0]["reason"] == "workload-not-observed"
+                and outer[0]["tasks"] == families,
+                "Unloaded contamination tables must use explained serial outer admission")
+        # These fixtures are intentionally tiny. The separate contamination
+        # check_parallel.R requires two actual children after loading a large
+        # table and exact values against the current frozen NEWPAT oracle.
+        require(not worker["observed_child_pids"], "Tiny unloaded sample batches must not launch child pools")
+    elif candidate and families > 1 and mode == "auto":
         # Millisecond workloads need not overlap on a loaded host. Require real
         # child execution here; the controlled scheduler barrier test proves overlap.
         require(worker["max_planned_workers"] > 1 and len(worker["observed_child_pids"]) > 1,

@@ -72,6 +72,13 @@ class MacRuntimeTests(unittest.TestCase):
         _write_json(self.runtime.state_path, state)
         return state
 
+    def instance_info(self):
+        return {"name": INSTANCE, "status": "Running", "config": {"mounts": self.owner["mounts"]}}
+
+    def application_digest(self):
+        path = self.project / ".distribution/macos-manifest.json"
+        return file_sha256(path) + "  " + str(path)
+
     def test_manifest_rejects_experimental_channel_path_traversal_or_partial_contract(self):
         self.assertEqual(read_manifest(self.project), self.manifest)
         mutations = [
@@ -159,7 +166,7 @@ class MacRuntimeTests(unittest.TestCase):
     def test_checksum_failure_prevents_any_image_load(self):
         self.owned_vm()
         self.archive.write_bytes(b"tampered archive")
-        with patch.object(self.runtime, "_host_check"), patch.object(self.runtime, "_run", return_value="") as execute:
+        with patch.object(self.runtime, "_host_check"), patch.object(self.runtime, "_instance_info", return_value=self.instance_info()), patch.object(self.runtime, "_verify_application"), patch.object(self.runtime, "_run", return_value="") as execute:
             with self.assertRaisesRegex(ValidationError, "checksum"):
                 self.runtime.prepare()
         self.assertFalse(any("load" in call.args[0] for call in execute.call_args_list))
@@ -167,7 +174,7 @@ class MacRuntimeTests(unittest.TestCase):
 
     def test_verified_import_accepts_local_id_only_with_exact_contract(self):
         self.owned_vm()
-        responses = ["started", "Loaded image ID: " + LOADED_ID,
+        responses = [json.dumps(self.instance_info()), "started", self.application_digest(), "Loaded image ID: " + LOADED_ID,
                      LOADED_ID + " linux amd64", json.dumps(self.manifest["engine_description"])]
         with patch.object(self.runtime, "_host_check"), patch.object(self.runtime, "_run", side_effect=responses) as execute:
             state = self.runtime.prepare()
@@ -191,6 +198,8 @@ class MacRuntimeTests(unittest.TestCase):
                 return LOADED_ID + " linux amd64"
             if "describe" in argv:
                 return json.dumps(self.manifest["engine_description"])
+            if "sha256sum" in argv:
+                return self.application_digest()
             self.fail(f"Unexpected runtime command: {argv}")
 
         with redirect_stdout(io.StringIO()), patch.object(self.runtime, "_host_check"), patch.object(self.runtime, "_run", side_effect=execute):
@@ -218,11 +227,12 @@ class MacRuntimeTests(unittest.TestCase):
     def test_repeated_prepare_reuses_verified_vm_without_import(self):
         self.owned_vm()
         state = self.ready_state()
-        with patch.object(self.runtime, "_host_check"), patch.object(self.runtime, "_run", return_value="") as execute, patch.object(self.runtime, "_verify_image") as verify:
+        responses = [json.dumps(self.instance_info()), "started", self.application_digest()]
+        with patch.object(self.runtime, "_host_check"), patch.object(self.runtime, "_run", side_effect=responses) as execute, patch.object(self.runtime, "_verify_image") as verify:
             self.assertEqual(self.runtime.prepare(), state)
         verify.assert_called_once_with(self.manifest, LOADED_ID)
-        self.assertEqual(len(execute.call_args_list), 1)
-        self.assertEqual(execute.call_args.args[0][-3:], ["start", "--tty=false", INSTANCE])
+        self.assertEqual(len(execute.call_args_list), 3)
+        self.assertEqual(execute.call_args_list[1].args[0][-3:], ["start", "--tty=false", INSTANCE])
 
     def test_ensure_requires_correct_build_and_never_imports_or_creates(self):
         self.owned_vm()
@@ -233,6 +243,177 @@ class MacRuntimeTests(unittest.TestCase):
             with self.assertRaisesRegex(ValidationError, "altra build"):
                 self.runtime.ensure()
         execute.assert_not_called()
+
+    def relocated_runtime(self, *, old_application=False):
+        """Model a Desktop installation followed by a different application path."""
+        external = tempfile.TemporaryDirectory(prefix="applications-")
+        self.addCleanup(external.cleanup)
+        new_project = Path(external.name) / "NewPat.app/Contents/Resources/app"
+        new_project.mkdir(parents=True)
+        _write_json(new_project / ".distribution/macos-manifest.json", self.manifest)
+        # The real macOS temp path is not a parent of /Applications. Avoid the
+        # Linux test runner's /tmp parent covering every fixture application.
+        temporary = self.home / "T"
+        temporary.mkdir()
+        environment = patch.dict(os.environ, {"TMPDIR": str(temporary),
+                                "NIPAT_RUNTIME_MAINTENANCE": "1",
+                                "NIPAT_LAUNCHER_PID": str(os.getppid())})
+        environment.start()
+        self.addCleanup(environment.stop)
+        self.owner["mounts"] = self.runtime.default_mounts()
+        if old_application:
+            old = Path(external.name) / "NIPAT Desktop.app/Contents/Resources/app"
+            self.owner["mounts"].append({"location": str(old), "mountPoint": str(old), "writable": False})
+        custom = {"location": "/Volumes/Scientific Data", "mountPoint": "/Volumes/Scientific Data", "writable": True}
+        self.owner["mounts"].append(custom)
+        self.owned_vm()
+        self.ready_state()
+        config = {"param": {"NipatOwner": self.owner["token"]}, "memory": "6144MiB", "cpus": 3,
+                  "mounts": copy.deepcopy(self.owner["mounts"]), "disk": "65GiB"}
+        _write_json(self.runtime.instance_dir / "lima.yaml", config)
+        runtime = LimaRuntime(new_project, self.workspace, self.executable, home=self.home)
+        state = {"status": "Running", "active": "", "fail_edit": False, "fail_probe": False, "commands": []}
+
+        def execute(argv, **kwargs):
+            state["commands"].append(argv)
+            if "list" in argv:
+                current = json.loads((runtime.instance_dir / "lima.yaml").read_text())
+                return json.dumps({"name": INSTANCE, "status": state["status"], "config": current})
+            if "ps" in argv:
+                return state["active"]
+            if "stop" in argv:
+                state["status"] = "Stopped"
+                return ""
+            if "edit" in argv:
+                self.assertEqual(state["status"], "Stopped")
+                current = json.loads((runtime.instance_dir / "lima.yaml").read_text())
+                expression = argv[argv.index("--set") + 1]
+                clauses = expression.split(" | ")
+                for clause in clauses[:-1]:
+                    retired = json.loads(clause.removeprefix(".mounts |= map(select(.location != ").removesuffix("))"))
+                    current["mounts"] = [item for item in current["mounts"] if item["location"] != retired]
+                additions = json.loads(clauses[-1].removeprefix(".mounts += "))
+                current["mounts"].extend(additions)
+                _write_json(runtime.instance_dir / "lima.yaml", current)
+                if state["fail_edit"]:
+                    raise RuntimeExecutionError("edit failed after write")
+                return ""
+            if "start" in argv:
+                state["status"] = "Running"
+                return ""
+            if "sha256sum" in argv:
+                if state["fail_probe"]:
+                    return "0" * 64 + "  manifest"
+                return file_sha256(Path(argv[-1])) + "  " + argv[-1]
+            self.fail(f"Unexpected relocation command: {argv}")
+        return runtime, state, execute, config
+
+    def assert_successful_relocation(self, *, old_application=False):
+        runtime, state, execute, before = self.relocated_runtime(old_application=old_application)
+        with patch.object(runtime, "_host_check"), patch.object(runtime, "_run", side_effect=execute), patch.object(runtime, "_verify_image"):
+            self.assertTrue(runtime.requires_mount_repair())
+            result = runtime.prepare()
+            self.assertFalse(runtime.requires_mount_repair())
+        self.assertEqual(result["phase"], "ready")
+        after = json.loads((runtime.instance_dir / "lima.yaml").read_text())
+        for key in ("memory", "cpus", "disk", "param"):
+            self.assertEqual(after[key], before[key])
+        retained = [item for item in before["mounts"] if not item["location"].endswith("NIPAT Desktop.app/Contents/Resources/app")]
+        self.assertEqual(after["mounts"][:-1], retained)
+        self.assertEqual(after["mounts"][-1], {"location": str(runtime.project), "mountPoint": str(runtime.project), "writable": False})
+        self.assertTrue(list(runtime.directory.glob("mount-backup-*.json")))
+        self.assertFalse(any("delete" in call or "load" in call for call in state["commands"]))
+
+    def test_desktop_to_applications_relocation_preserves_vm_and_configuration(self):
+        self.assert_successful_relocation()
+
+    def test_newpat_rename_preserves_vm_and_custom_configuration(self):
+        self.assert_successful_relocation(old_application=True)
+
+    def test_existing_legacy_app_and_custom_readonly_mounts_are_preserved(self):
+        runtime, state, execute, before = self.relocated_runtime(old_application=True)
+        legacy = next(item["location"] for item in before["mounts"] if "NIPAT Desktop.app" in item["location"])
+        Path(legacy).mkdir(parents=True)
+        custom = {"location": str(self.home / "custom-readonly"),
+                  "mountPoint": str(self.home / "custom-readonly"), "writable": False}
+        before["mounts"].append(custom)
+        owner = runtime._owner()
+        owner["mounts"].append(custom)
+        _write_json(runtime.owner_path, owner)
+        _write_json(runtime.instance_dir / "lima.yaml", before)
+        with patch.object(runtime, "_host_check"), patch.object(runtime, "_run", side_effect=execute), patch.object(runtime, "_verify_image"):
+            runtime.prepare()
+        actual = json.loads((runtime.instance_dir / "lima.yaml").read_text())
+        self.assertEqual(actual["mounts"][:-1], before["mounts"])
+
+    def test_modified_legacy_mount_is_never_retired_as_application_mount(self):
+        runtime, state, execute, before = self.relocated_runtime(old_application=True)
+        for item in before["mounts"]:
+            if "NIPAT Desktop.app" in item["location"]:
+                item["writable"] = True
+        _write_json(runtime.instance_dir / "lima.yaml", before)
+        with patch.object(runtime, "_host_check"), patch.object(runtime, "_run", side_effect=execute):
+            with self.assertRaisesRegex(ValidationError, "condivisione personalizzata"):
+                runtime.prepare()
+        self.assertFalse(any("stop" in call or "edit" in call for call in state["commands"]))
+
+    def test_mount_repair_refuses_running_analysis_before_stop_or_edit(self):
+        runtime, state, execute, before = self.relocated_runtime()
+        state["active"] = "container-with-active-analysis"
+        with patch.object(runtime, "_host_check"), patch.object(runtime, "_run", side_effect=execute):
+            with self.assertRaisesRegex(ValidationError, "analisi o container attivi"):
+                runtime.prepare()
+        self.assertFalse(any("stop" in call or "edit" in call for call in state["commands"]))
+        self.assertEqual(json.loads((runtime.instance_dir / "lima.yaml").read_text()), before)
+
+    def test_mount_repair_requires_exclusive_launcher_lease(self):
+        runtime, state, execute, before = self.relocated_runtime()
+        with patch.dict(os.environ, {"NIPAT_RUNTIME_MAINTENANCE": "0"}), patch.object(runtime, "_host_check"), patch.object(runtime, "_run", side_effect=execute):
+            with self.assertRaisesRegex(ValidationError, "Chiudere tutte le sessioni"):
+                runtime.prepare()
+        self.assertFalse(any("stop" in call or "edit" in call for call in state["commands"]))
+
+    def test_failed_mount_edit_rolls_back_owner_configuration_and_running_state(self):
+        runtime, state, execute, before = self.relocated_runtime()
+        owner_before = runtime.owner_path.read_bytes()
+        config_before = (runtime.instance_dir / "lima.yaml").read_bytes()
+        state["fail_edit"] = True
+        with patch.object(runtime, "_host_check"), patch.object(runtime, "_run", side_effect=execute):
+            with self.assertRaisesRegex(RuntimeExecutionError, "configurazione precedente ripristinata"):
+                runtime.prepare()
+        self.assertEqual(runtime.owner_path.read_bytes(), owner_before)
+        self.assertEqual((runtime.instance_dir / "lima.yaml").read_bytes(), config_before)
+        self.assertEqual(state["status"], "Running")
+        self.assertFalse(any("delete" in call for call in state["commands"]))
+
+    def test_failed_guest_probe_restores_old_mounts_after_newpat_rename(self):
+        runtime, state, execute, before = self.relocated_runtime(old_application=True)
+        owner_before = runtime.owner_path.read_bytes()
+        config_before = (runtime.instance_dir / "lima.yaml").read_bytes()
+        state["fail_probe"] = True
+        with patch.object(runtime, "_host_check"), patch.object(runtime, "_run", side_effect=execute):
+            with self.assertRaisesRegex(RuntimeExecutionError, "configurazione precedente ripristinata"):
+                runtime.prepare()
+        self.assertEqual(runtime.owner_path.read_bytes(), owner_before)
+        self.assertEqual((runtime.instance_dir / "lima.yaml").read_bytes(), config_before)
+        self.assertEqual(state["status"], "Running")
+
+    def test_guest_visibility_failure_prevents_ready_and_image_reimport(self):
+        self.owned_vm()
+        self.ready_state()
+        with patch.object(self.runtime, "_host_check"), patch.object(self.runtime, "requires_mount_repair", return_value=False), patch.object(self.runtime, "_run", side_effect=["", "0" * 64 + "  stale-manifest"]) as execute, patch.object(self.runtime, "_verify_image") as image:
+            with self.assertRaisesRegex(RuntimeExecutionError, "copia diversa"):
+                self.runtime.prepare()
+        image.assert_not_called()
+        self.assertFalse(any("load" in call.args[0] for call in execute.call_args_list))
+
+    def test_owner_claim_alone_does_not_hide_missing_live_mount(self):
+        runtime, state, execute, before = self.relocated_runtime()
+        owner = runtime._owner()
+        owner["mounts"].append({"location": str(runtime.project), "mountPoint": str(runtime.project), "writable": False})
+        _write_json(runtime.owner_path, owner)
+        with patch.object(runtime, "_run", side_effect=execute):
+            self.assertTrue(runtime.requires_mount_repair())
 
     def test_concurrent_prepare_is_rejected_without_stealing_lock(self):
         with self.runtime.lock():

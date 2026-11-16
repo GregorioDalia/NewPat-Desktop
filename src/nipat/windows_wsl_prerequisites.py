@@ -1,7 +1,7 @@
 """Prepare WSL using Microsoft's system executables, with scoped UAC prompts.
 
 This module runs as the ordinary user. Only fixed DISM/WSL commands are elevated;
-no NIPAT executable, interpreter, script or downloaded command runs as admin.
+no NewPat executable, interpreter, script or downloaded command runs as admin.
 """
 
 from __future__ import annotations
@@ -99,7 +99,7 @@ def run_elevated(executable: str, arguments: list[str]) -> int:
     info.lpParameters = subprocess.list2cmdline(arguments)
     info.lpDirectory = str(directory)
     info.nShow = 1
-    print("NIPAT: autorizzazione Windows per " + executable + " " + info.lpParameters, flush=True)
+    print("NewPat: autorizzazione Windows per " + executable + " " + info.lpParameters, flush=True)
     ole = ctypes.WinDLL("ole32", use_last_error=True)
     ole.CoInitializeEx.argtypes = [ctypes.c_void_p, wintypes.DWORD]
     ole.CoInitializeEx.restype = ctypes.c_long

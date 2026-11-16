@@ -8,7 +8,7 @@ from pathlib import Path
 import re
 import zipfile
 
-SOURCES = {"INSTALLA-NIPAT-TESTING.cmd": "testing-install.cmd",
+SOURCES = {"INSTALLA-NewPat-TESTING.cmd": "testing-install.cmd",
            "install-testing.ps1": "install-testing.ps1", "LEGGIMI.txt": "testing-readme.txt"}
 
 

@@ -18,6 +18,8 @@ import secrets
 import threading
 from urllib.parse import unquote, urlsplit
 
+from nipat.errors import NipatError
+
 MAX_RPC_BYTES = 2 * 1024 * 1024
 CSP = (
     "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; "
@@ -226,7 +228,7 @@ class DesktopServer:
                 try:
                     result = owner.dispatcher(payload["method"], params)
                     self._json(200, {"id": identifier, "result": result})
-                except (ValueError, KeyError, OSError, RuntimeError) as exc:
+                except (NipatError, ValueError, KeyError, OSError, RuntimeError) as exc:
                     self._json(200, {"id": identifier, "error": {"code": type(exc).__name__, "message": str(exc)}})
                 except Exception:
                     import logging

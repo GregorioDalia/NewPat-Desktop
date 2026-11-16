@@ -96,7 +96,7 @@ senza diventare parametri modificabili.
 SNPcall in modalità `bam` richiede un campione `bam` e un FASTA. In modalità
 `pileup` richiede un campione `snp-pileup` e `reference: null`. Le impostazioni
 con cui è stato prodotto un pileup esterno non sono ricostruite né attribuite
-automaticamente a NIPAT.
+automaticamente a NewPat.
 
 ## Riferimenti tipizzati e ruoli familiari
 
@@ -326,7 +326,7 @@ parametri di acquisizione non ricalcola un pileup importato.
 Ogni passaggio produce `output/SNPcall_output.txt`, senza rinominare o
 riscrivere i risultati scientifici. La tabella completata è associata all'ID
 campione in `artifacts.snp-tables`, con percorso relativo e SHA-256.
-I file preparati da NIPAT sono elencati in `artifacts.preparation`, con tipo
+I file preparati da NewPat sono elencati in `artifacts.preparation`, con tipo
 `regions-bed` o `pileup`, percorso e SHA-256. Per un pileup importato questa
 lista è vuota: l'input non viene presentato come file generato dal motore.
 

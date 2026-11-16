@@ -134,10 +134,71 @@ main <- function() {
   }, add = TRUE)
   Sys.unsetenv(names(old))
   defaults <- nipat_dnp_plan(index, labels, refs)
-  stopifnot(defaults$max_bytes == 32 * 1024^2, defaults$max_loci == 64L)
+  stopifnot(defaults$requested_max_bytes == 32 * 1024^2, defaults$max_bytes > 0,
+            defaults$max_bytes <= defaults$requested_max_bytes, defaults$max_loci == 64L)
   oversize <- plan
   oversize$blocks[[1L]]$raw_bytes <- 64 * 1024^2
   stopifnot(nipat_dnp_worker_memory_mib(oversize) == 512 + 48 * 64)
+  # Resource-derived partitions must retain numerical values, read identity,
+  # and output ordering. Scale index byte metadata to exercise realistic raw
+  # targets without storing multi-megabyte read names in this scheduler test.
+  # Scientific equations remain covered by the frozen-reference checks.
+  resource_previous <- Sys.getenv(c("NIPAT_FIXED_RESOURCE_BUDGET", "NIPAT_MAX_WORKERS"), unset = NA_character_)
+  on.exit(for (name in names(resource_previous)) {
+    if (is.na(resource_previous[[name]])) Sys.unsetenv(name) else
+      do.call(Sys.setenv, setNames(list(resource_previous[[name]]), name))
+  }, add = TRUE)
+  Sys.setenv(NIPAT_MAX_WORKERS = "4")
+  numerical <- function(pileup, block_labels, block_refs) {
+    ids <- unique(block_labels$uniq)
+    rows <- lapply(ids, function(id) {
+      selected <- paste0(pileup$V1, ":", pileup$V2) %in% block_labels$df.chr[block_labels$uniq == id]
+      data.frame(total_count = sum(pileup$V4[selected]),
+                 ref_count = sum(pileup$V5[selected] == "A"),
+                 reads = paste(pileup$V7[selected], collapse = ","), stringsAsFactors = FALSE)
+    })
+    list(final = cbind(locus = block_refs$POS, do.call(rbind, rows)), sort_keys = block_refs$POS)
+  }
+  con <- file(index$path, "rb")
+  all_rows <- nipat_dnp_read(index, seq_len(index$rows), con)
+  close(con)
+  expected <- nipat_dnp_combine(list(numerical(all_rows, labels, refs)))
+  planning_index <- index
+  planning_index$lengths[] <- 1024^2
+  profiles <- list(
+    list(memory = 2048, blocks = 4L, workers = 2L),
+    list(memory = 4096, blocks = 2L, workers = 2L),
+    list(memory = 8192, blocks = 1L, workers = 1L))
+  for (profile in profiles) {
+    env <- new.env(parent = globalenv())
+    sys.source(file.path(root, "src/nipat_scientific/parallel.R"), env)
+    sys.source(file.path(root, "src/nipat_scientific/dnp_blocks.R"), env)
+    env$nipat_parallel_cpu_count <- function() 64L
+    env$nipat_parallel_lines <- function(path) {
+      if (path == "/proc/self/status") "VmRSS: 262144 kB" else character()
+    }
+    Sys.setenv(NIPAT_FIXED_RESOURCE_BUDGET = jsonlite::toJSON(list(
+      interface = "nipat-fixed-resources-v1", source_version = "resource-profile-fixture",
+      memory_capacity_mib = profile$memory, cpu_limit = 4L, worker_ceiling = 4L,
+      memory_reserve_fraction = 0.20), auto_unbox = TRUE))
+    derived <- env$nipat_dnp_plan(planning_index, labels, refs)
+    stopifnot(derived$requested_max_bytes == 32 * 1024^2,
+              derived$max_bytes > 0, derived$max_bytes <= derived$requested_max_bytes,
+              length(derived$blocks) == profile$blocks)
+    result <- env$nipat_dnp_process_blocks(index, derived, labels, refs, numerical)
+    stopifnot(result$workers == profile$workers,
+              identical(env$nipat_dnp_combine(result$results), expected))
+    # A whole window over the derived byte target is retained intact, and its
+    # actual size reduces the pool budget rather than truncating observations.
+    large <- planning_index
+    large$lengths[1:2] <- 32 * 1024^2
+    indivisible <- env$nipat_dnp_plan(large, labels, refs)
+    stopifnot(identical(indivisible$blocks[[1L]]$row_ids, 1:2),
+              indivisible$blocks[[1L]]$raw_bytes > indivisible$max_bytes,
+              env$nipat_parallel_budget(length(indivisible$blocks),
+                memory_mib = env$nipat_dnp_worker_memory_mib(indivisible))$workers == 1L)
+  }
+  cat("DNP resource profiles: 2/4/8 GiB fixed budgets preserve numeric values, read identity, row order and indivisible windows.\n")
   cat("DNP parallel dispatcher: ordered fork results, isolated connections, parent progress, errors and limits passed.\n")
 }
 main()

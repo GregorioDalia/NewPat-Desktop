@@ -97,7 +97,7 @@ def main() -> int:
         return 0 if authorized(os.environ.get("NIPAT_SETUP_ACTIVITY_TOKEN", ""),
                                int(sys.argv[1])) else 1
     except (OSError, ValueError) as error:
-        print(f"Coordinamento NIPAT non verificabile: {error}", file=sys.stderr)
+        print(f"Coordinamento NewPat non verificabile: {error}", file=sys.stderr)
         return 2
 
 

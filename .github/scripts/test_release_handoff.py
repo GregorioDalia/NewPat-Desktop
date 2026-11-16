@@ -58,7 +58,7 @@ class AcceptanceBuildTests(unittest.TestCase):
             checker.evidence_artifact({"artifacts": [artifact, artifact]}, self.record)
 
     def test_gui_build_requires_testing_and_every_native_platform_job(self):
-        for version in ("0.9.0", "0.9.1"):
+        for version in ("0.9.0", "0.9.1", "0.9.5"):
             with self.subTest(version=version):
                 self.check_gui_build(version)
 
@@ -222,7 +222,7 @@ class AutomaticPublicationTests(unittest.TestCase):
             automatic.publication_arguments(record, None)
 
     def test_gui_candidate_cannot_implicitly_or_explicitly_be_promoted_to_stable(self):
-        for version in ("0.9.0", "0.9.0a1", "0.9.1", "0.9.1rc1"):
+        for version in ("0.9.0", "0.9.0a1", "0.9.1", "0.9.1rc1", "0.9.5", "0.9.5rc1"):
             record = dict(record_fixture(), version=version, publication_channel="testing")
             self.assertEqual(automatic.publication_arguments(record, None)[-1], "testing")
             with self.subTest(version=version), self.assertRaisesRegex(ValueError, "testing publication"):
@@ -263,7 +263,7 @@ class AutomaticPublicationTests(unittest.TestCase):
         self.check_bootstrap_retry("0.8.99", "stable")
 
     def test_gui_retry_requires_testing_entrypoint_and_exact_testing_feeds(self):
-        for version in ("0.9.0", "0.9.1"):
+        for version in ("0.9.0", "0.9.1", "0.9.5"):
             with self.subTest(version=version):
                 self.check_bootstrap_retry(version, "testing")
 
@@ -283,9 +283,12 @@ class AutomaticPublicationTests(unittest.TestCase):
             f"nipat-scientific-runtime-{version}-amd64.tar.gz": "scientific_archive_sha256",
             "qualification-evidence.zip": "qualification_evidence_sha256",
         }
-        if version in {"0.9.0", "0.9.1"}:
+        if version in {"0.9.0", "0.9.1", "0.9.5"}:
             record["windows_testing_sha256"] = "d" * 64
             names[f"NIPAT-{version}-Testing-installazione.zip"] = "windows_testing_sha256"
+        if publisher.uses_newpat_brand(version):
+            names.update({publisher.public_asset_name(name): field for name, field in list(names.items())
+                          if publisher.public_asset_name(name) != name})
         existing["assets"] = [{"name": name, "state": "uploaded", "size": 100,
                                "digest": "sha256:" + record[field]} for name, field in names.items()]
         for filename, platform, feed in (
@@ -305,7 +308,13 @@ class AutomaticPublicationTests(unittest.TestCase):
         with patch.object(publisher, "check_tag"):
             self.assertIsNone(automatic.publication_arguments(record, existing))
             required = [f"NIPAT-{version}-Windows-payload.zip", publisher.WINDOWS_BOOTSTRAP_UPDATE_MANIFEST]
-            if version in {"0.9.0", "0.9.1"}:
+            if publisher.uses_newpat_brand(version):
+                required.extend(name for name in names if name.startswith(("NewPat-", "newpat-desktop_")))
+                altered = copy.deepcopy(existing)
+                next(asset for asset in altered["assets"] if asset["name"] == "NewPat-Setup.exe")["size"] += 1
+                with self.assertRaisesRegex(ValueError, "verified legacy size"):
+                    automatic.publication_arguments(record, altered)
+            if version in {"0.9.0", "0.9.1", "0.9.5"}:
                 required.append(f"NIPAT-{version}-Testing-installazione.zip")
                 missing_digest = dict(record)
                 del missing_digest["windows_testing_sha256"]

@@ -1,4 +1,4 @@
-/* NIPAT local IGV adapter. The upstream bundle remains unmodified. */
+/* NewPat local IGV adapter. The upstream bundle remains unmodified. */
 (function (global) {
   'use strict';
   const VERSION = '3.8.9';
@@ -9,10 +9,10 @@
     bigbed: 'annotation', bb: 'annotation'
   });
   const TEXT = {
-    runtime: ['Il visualizzatore IGV non è disponibile. Ripara l’installazione di NIPAT.', 'IGV is unavailable. Repair the NIPAT installation.'],
+    runtime: ['Il visualizzatore IGV non è disponibile. Ripara l’installazione di NewPat.', 'IGV is unavailable. Repair the NewPat installation.'],
     container: ['L’area del visualizzatore non è disponibile.', 'The viewer area is unavailable.'],
     reference: ['Seleziona un riferimento FASTA e il relativo indice FAI.', 'Select a FASTA reference and its FAI index.'],
-    local: ['IGV può aprire soltanto file locali selezionati in NIPAT.', 'IGV can only open local files selected in NIPAT.'],
+    local: ['IGV può aprire soltanto file locali selezionati in NewPat.', 'IGV can only open local files selected in NewPat.'],
     track: ['Il formato della traccia non è supportato.', 'This track format is not supported.'],
     index: ['La traccia richiede il relativo indice.', 'The track requires its index.'],
     locus: ['Inserisci un cromosoma o una regione, ad esempio chr1:100000-110000.', 'Enter a chromosome or region, for example chr1:100000-110000.'],
@@ -65,7 +65,7 @@
   function notifyNavigation() {
     const value = navigationState();
     for (const callback of navigationListeners) {
-      try { callback(value); } catch (error) { global.console?.error('NIPAT navigation listener:', error); }
+      try { callback(value); } catch (error) { global.console?.error('NewPat navigation listener:', error); }
     }
   }
   function recordNavigation(instance) {
@@ -379,7 +379,7 @@
     const tracks = (raw.tracks || []).filter(track => currentSources.has(track.id)).map(track => ({
       ...currentSources.get(track.id), ...displayOptions(track)
     }));
-    return {schema_version: 1, application: 'NIPAT', igv_version: VERSION,
+    return {schema_version: 1, application: 'NewPat', igv_version: VERSION,
       reference: {...currentReference}, locus: raw.locus, tracks};
   }
   function exportSVG() { return requireBrowser().toSVG(); }

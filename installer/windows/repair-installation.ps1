@@ -201,7 +201,7 @@ function Assert-NipatApplicationRepairSnapshot($Plan) {
         $exists = Test-Path -LiteralPath $path -PathType Leaf
         if ($exists -ne $snapshot.exists -or
             ($exists -and (Get-NipatRepairFileHash $path) -cne $snapshot.sha256)) {
-            throw "Il file e cambiato durante la preparazione: $path. Ripetere il setup dopo aver chiuso NIPAT."
+            throw "Il file e cambiato durante la preparazione: $path. Ripetere il setup dopo aver chiuso NewPat."
         }
     }
 }

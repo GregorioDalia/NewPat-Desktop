@@ -73,9 +73,28 @@ nipat_dnp_index <- function(path, empty_samples = NULL) {
        elapsed_seconds = unname(proc.time()[["elapsed"]] - started))
 }
 
+nipat_dnp_target_bytes <- function(requested) {
+  if (identical(Sys.getenv("NIPAT_EXECUTION_MODE", "auto"), "serial") ||
+      !exists("nipat_parallel_budget", mode = "function")) return(requested)
+  # First check the minimum DNP workload from the existing expansion model.
+  # High-core/low-RAM machines may fit fewer processes than the global ceiling.
+  minimum <- nipat_dnp_worker_memory_mib(list(blocks = list(list(raw_bytes = 1))))
+  budget <- nipat_parallel_budget(.Machine$integer.max, memory_mib = minimum)
+  remaining <- budget$memory_budget_mib - budget$coordinator_rss_mib
+  allocation <- if (length(remaining) && is.finite(remaining)) floor(remaining / budget$workers) else NULL
+  # Invert the existing raw-pileup expansion model. The configured target is
+  # an upper bound; complete windows/compatibility groups remain indivisible.
+  # Unknown/insufficient capacity leaves the target unchanged and the pool's
+  # workload check falls back to serial execution where necessary.
+  if (!length(allocation) || !is.finite(allocation) || allocation <= 512) return(requested)
+  max(1, min(requested, floor((allocation - 512) / 48 * 1024^2)))
+}
+
 nipat_dnp_plan <- function(index, labels, ref_alt,
                            max_loci = nipat_dnp_number("NIPAT_DNP_BLOCK_LOCI", 64),
                            max_bytes = nipat_dnp_number("NIPAT_DNP_BLOCK_BYTES", 32 * 1024^2)) {
+  requested_max_bytes <- max_bytes
+  max_bytes <- nipat_dnp_target_bytes(requested_max_bytes)
   keys <- paste(index$chromosomes[index$chromosome], index$positions, sep = ":")
   by_coordinate <- split(seq_along(keys), keys)
   unmatched <- sum(!keys %in% labels$df.chr)
@@ -87,7 +106,7 @@ nipat_dnp_plan <- function(index, labels, ref_alt,
   if (length(reasons)) {
     return(list(blocks = list(list(locus_ids = seq_len(nrow(ref_alt)),
       row_ids = seq_along(keys), raw_bytes = sum(index$lengths))),
-      max_loci = max_loci, max_bytes = max_bytes,
+      max_loci = max_loci, max_bytes = max_bytes, requested_max_bytes = requested_max_bytes,
       compatibility_reasons = reasons, unmatched_rows = unmatched))
   }
   # Equal effective POS must stay together to preserve all merges.
@@ -127,7 +146,7 @@ nipat_dnp_plan <- function(index, labels, ref_alt,
     active_rows <- combined
   }
   append_block()
-  list(blocks = blocks, max_loci = max_loci, max_bytes = max_bytes,
+  list(blocks = blocks, max_loci = max_loci, max_bytes = max_bytes, requested_max_bytes = requested_max_bytes,
        compatibility_reasons = character(), unmatched_rows = 0L)
 }
 

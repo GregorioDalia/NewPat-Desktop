@@ -23,7 +23,8 @@ import uuid
 
 
 APP = Path("/opt/nipat-desktop")
-COMMAND = "/usr/bin/nipat"
+COMMAND = "/usr/bin/newpat"
+LEGACY_COMMAND = "/usr/bin/nipat"
 PACKAGE = "nipat-desktop"
 DOCKER = ["/usr/bin/docker", "--host", "unix:///var/run/docker.sock"]
 CHECKS = (
@@ -327,7 +328,7 @@ def verify(package: Path, manifest_path: Path, work: Path, output: Path) -> None
     try:
         status = subprocess.run(["dpkg-query", "-W", "-f=${db:Status-Status}", PACKAGE],
                                 capture_output=True, text=True, check=False)
-        require(status.stdout.strip() != "installed", "The NIPAT Desktop package is already installed.")
+        require(status.stdout.strip() != "installed", "The NewPat package is already installed.")
         run([*DOCKER, "info", "--format", "{{json .}}"], environment=environment, cwd=work)
         preexisting = subprocess.run([*DOCKER, "image", "inspect", manifest["runtime_image"]],
                                      cwd=work, env=environment, capture_output=True, check=False)
@@ -346,7 +347,7 @@ def verify(package: Path, manifest_path: Path, work: Path, output: Path) -> None
         simulation = run(["sudo", "-n", "apt-get", "--simulate", "--no-install-recommends",
                           "install", str(package)], environment=environment, cwd=work)
         require(not any(line.startswith("Remv ") for line in simulation.splitlines()),
-                "Installing NIPAT would remove an existing system package.")
+                "Installing NewPat would remove an existing system package.")
         run(["sudo", "-n", "apt-get", "-y", "--no-install-recommends", "install", str(package)],
             environment=environment, cwd=work)
         installed = True
@@ -361,7 +362,7 @@ def verify(package: Path, manifest_path: Path, work: Path, output: Path) -> None
             if len(fields := line.split("\t")) == 3 and fields[1] == "install ok installed"
         }
         print("Installed dependency packages: " + json.dumps(evidence["dependency_packages"]), flush=True)
-        require(APP.is_dir() and Path(COMMAND).is_file(), "Installed application or launcher missing.")
+        require(APP.is_dir() and Path(COMMAND).is_file() and Path(LEGACY_COMMAND).is_file(), "Installed application or launcher missing.")
         installed_manifest = APP / ".distribution/installer-manifest.json"
         require(sha256(installed_manifest) == manifest_hash, "Installed common manifest differs.")
         scientific = manifest["assets"]["scientific_image"]
@@ -370,6 +371,7 @@ def verify(package: Path, manifest_path: Path, work: Path, output: Path) -> None
                 and sha256(installed_archive) == scientific["sha256"],
                 "The installed scientific archive differs from the Windows archive.")
         run([COMMAND, "--version"], environment=environment, cwd=work)
+        run([LEGACY_COMMAND, "--version"], environment=environment, cwd=work)
         require(not state_file.exists(), "--version unexpectedly prepared a runtime.")
         run([COMMAND, "--setup"], environment=environment, cwd=work)
         evidence["checks"]["initial_setup"] = True
@@ -458,7 +460,8 @@ def verify(package: Path, manifest_path: Path, work: Path, output: Path) -> None
         evidence["checks"]["package_reinstallation"] = True
         run(["sudo", "-n", "apt-get", "-y", "remove", PACKAGE], environment=environment, cwd=work)
         installed = False
-        require(not Path(COMMAND).exists(), "Package removal left its launcher installed.")
+        require(not Path(COMMAND).exists() and not Path(LEGACY_COMMAND).exists(),
+                "Package removal left a launcher installed.")
         require(snapshot(data) == preserved and state_file.is_file()
                 and snapshot(configuration) == preferences_before,
                 "Package removal deleted or changed user data, results, preferences or runtime state.")
@@ -492,7 +495,7 @@ def main() -> None:
     parser.add_argument("--work-dir", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--system-package-test", action="store_true",
-                        help="authorize install/reinstall/remove of NIPAT Desktop on this CI host")
+                        help="authorize install/reinstall/remove of NewPat on this CI host")
     args = parser.parse_args()
     if not args.system_package_test:
         parser.error("This check changes system packages; --system-package-test is required.")

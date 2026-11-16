@@ -27,7 +27,7 @@ try {
         }
         $layout = Get-Content -LiteralPath $LayoutFile -Raw -Encoding UTF8 | ConvertFrom-Json
         if (Test-Path -LiteralPath (Join-Path $layout.app_dir '.runtime\zip-install.json')) {
-            throw 'Questa cartella e gestita dal canale ZIP. Aggiornare dal menu NIPAT Desktop ZIP oppure scegliere un altra cartella per il setup EXE.'
+            throw 'Questa cartella e gestita dal canale ZIP. Aggiornare dal menu NewPat ZIP oppure scegliere un altra cartella per il setup EXE.'
         }
         Assert-NipatInstallLayout $layout
         $kind = Get-NipatApplicationKind $layout.app_dir

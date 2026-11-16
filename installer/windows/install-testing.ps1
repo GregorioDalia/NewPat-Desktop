@@ -88,7 +88,7 @@ function Assert-TestingBundle([string]$Archive, [string]$Bundle) {
             if ($relative -ceq 'app/.distribution/installer-manifest.json') { $verifiedManifest = $true }
         }
         if ($verified -eq 0 -or -not $verifiedWorker -or -not $verifiedManifest) {
-            throw 'Il pacchetto non contiene il sorgente NIPAT, il suo installer e il manifest verificati.'
+            throw 'Il pacchetto non contiene il sorgente NewPat, il suo installer e il manifest verificati.'
         }
     } finally { $hash.Dispose(); $zip.Dispose() }
 }
@@ -99,13 +99,13 @@ function Assert-TestingRoot([string]$Root) {
     if (-not (Test-Path -LiteralPath $Root)) { return }
     if (-not (Test-Path -LiteralPath $marker -PathType Leaf)) {
         if (@(Get-ChildItem -LiteralPath $Root -Force).Count -eq 0) { return }
-        throw 'La cartella Testing contiene file senza identita NIPAT. Nessun file viene adottato.'
+        throw 'La cartella Testing contiene file senza identita NewPat. Nessun file viene adottato.'
     }
     Assert-PlainPath $marker
     $owner = Get-Content -LiteralPath $marker -Raw -Encoding UTF8 | ConvertFrom-Json
     if (@($owner.PSObject.Properties).Count -ne 3 -or $owner.schema_version -ne 1 -or
         $owner.product -cne 'nipat-desktop' -or $owner.installation_method -cne 'zip') {
-        throw 'La destinazione non appartiene a un installazione ZIP NIPAT Testing.'
+        throw 'La destinazione non appartiene a un installazione ZIP NewPat Testing.'
     }
     foreach ($name in @('current.json', 'pending.json')) {
         $path = Join-Path $Root $name
@@ -114,7 +114,7 @@ function Assert-TestingRoot([string]$Root) {
         $pointer = Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json
         if (@($pointer.PSObject.Properties).Count -ne 4 -or $pointer.schema_version -ne 1 -or
             $pointer.version -cnotmatch '\A0\.9\.[0-9]+\z' -or $pointer.source_commit -cnotmatch '\A[a-f0-9]{40}\z') {
-            throw 'La cartella selezionata non contiene una versione NIPAT Testing valida.'
+            throw 'La cartella selezionata non contiene una versione NewPat Testing valida.'
         }
         $expected = Join-Path (Join-Path $Root 'versions') ($pointer.version + '-' + $pointer.source_commit)
         if ($pointer.app_dir -ine $expected) { throw 'Il puntatore Testing esce dalla cartella registrata.' }
@@ -153,9 +153,9 @@ function Set-TestingAppShortcuts([string]$Root, [string]$Project) {
 
 function Open-TestingApp([string]$Root, [string]$Project) {
     Set-TestingAppShortcuts $Root $Project
-    Write-Host 'Avvio NIPAT Testing. Per i prossimi avvii usa NIPAT Testing sul Desktop o nel menu Start.'
+    Write-Host 'Avvio NewPat Testing. Per i prossimi avvii usa NewPat Testing sul Desktop o nel menu Start.'
     & (Join-Path $Project 'scripts\windows\run.ps1') gui
-    if ($LASTEXITCODE -ne 0) { throw 'Avvio grafico non riuscito. Consulta il messaggio della finestra NIPAT.' }
+    if ($LASTEXITCODE -ne 0) { throw 'Avvio grafico non riuscito. Consulta il messaggio della finestra NewPat.' }
 }
 
 if ($LibraryOnly) { return }
@@ -165,7 +165,7 @@ try {
     if ($metadata.schema_version -ne 1 -or $metadata.channel -cne 'testing' -or
         $metadata.version -notmatch '\A0\.9\.[0-9]+(?:(?:a|b|rc)[0-9]+)?\z' -or
         $metadata.source_commit -notmatch '\A[a-f0-9]{40}\z') {
-        throw 'Questo avvio e riservato alle versioni sperimentali NIPAT 0.9.'
+        throw 'Questo avvio e riservato alle versioni sperimentali NewPat 0.9.'
     }
     $version = $metadata.version
     $baseUrl = 'https://github.com/GregorioDalia/nipat-desktop/releases/download/v' + $version + '/'
@@ -174,7 +174,7 @@ try {
     $destination = [IO.Path]::GetFullPath($Destination)
     Assert-PlainPath $destination
     [IO.Directory]::CreateDirectory($destination) | Out-Null
-    Write-Host ('NIPAT ' + $version + ' - VERSIONE SPERIMENTALE')
+    Write-Host ('NewPat ' + $version + ' - VERSIONE SPERIMENTALE')
     if ($UseSetup) {
         Write-Host 'Questa modalita aggiorna l installazione desktop esistente con la versione sperimentale.'
         $payload = Get-VerifiedAsset $metadata.payload $destination $baseUrl
@@ -242,7 +242,7 @@ try {
         $current = Get-Content -LiteralPath $currentPath -Raw -Encoding UTF8 | ConvertFrom-Json
         Open-TestingApp $root $current.app_dir
     } elseif ($code -eq 3010) {
-        Write-Host 'Riavvia Windows, poi apri NIPAT Testing dal Desktop/menu Start oppure riapri questo stesso file.'
+        Write-Host 'Riavvia Windows, poi apri NewPat Testing dal Desktop/menu Start oppure riapri questo stesso file.'
     } else {
         throw 'Preparazione non completata. Riapri questo stesso file per riprovare; conserva il messaggio e setup.log.'
     }

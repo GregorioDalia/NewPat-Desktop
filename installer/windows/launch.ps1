@@ -22,7 +22,7 @@ try {
     $project = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     $runner = Join-Path $project 'scripts\windows\run.ps1'
     if (-not (Test-Path -LiteralPath $runner -PathType Leaf)) {
-        throw 'Pacchetto NIPAT incompleto: manca lo script di avvio.'
+        throw 'Pacchetto NewPat incompleto: manca lo script di avvio.'
     }
     $global:LASTEXITCODE = 0
     & $runner @arguments

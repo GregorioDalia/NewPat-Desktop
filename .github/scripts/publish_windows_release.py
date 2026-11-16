@@ -23,7 +23,7 @@ UPDATE_MANIFEST = "update-manifest.json"
 MACOS_UPDATE_MANIFEST = "update-manifest-macos.json"
 WINDOWS_ZIP_UPDATE_MANIFEST = "update-manifest-windows-zip.json"
 WINDOWS_BOOTSTRAP_UPDATE_MANIFEST = "update-manifest-windows-bootstrap.json"
-BOOTSTRAP_VERSION = "1.0.0"
+BOOTSTRAP_VERSION = "1.1.0"
 BOOTSTRAP_SOURCES = (
     "installer/windows/NIPAT.iss", "installer/windows/bootstrap-profile.iss",
     "installer/windows/bootstrap_download.py", "LICENSE", "assets/branding/nipat-icon.ico",
@@ -50,7 +50,7 @@ PREVIEW_INSTALLATION_PROFILE = {
 DESKTOP_INSTALLATION_PROFILE = {
     "schema_version": 1,
     "channel": "desktop",
-    "display_name": "NIPAT Desktop",
+    "display_name": "NewPat",
     "app_dir_name": "NIPAT-Desktop",
     "data_dir_name": "NIPAT-Desktop",
     "distro_prefix": "NIPAT-Desktop-",
@@ -58,6 +58,7 @@ DESKTOP_INSTALLATION_PROFILE = {
     "mutex_prefix": "Local\\NIPAT-Desktop-Setup-",
     "app_id": "6B1702B6-F75C-4F8C-956F-86626C60AF45",
 }
+LEGACY_DESKTOP_INSTALLATION_PROFILE = dict(DESKTOP_INSTALLATION_PROFILE, display_name="NIPAT Desktop")
 
 
 def require(condition, message):
@@ -75,6 +76,44 @@ def sha256(path):
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
+def uses_newpat_brand(version):
+    components = re.fullmatch(r"([0-9]+)\.([0-9]+)\.([0-9]+)(?:(?:a|b|rc)[0-9]+)?", version or "")
+    return bool(components and tuple(map(int, components.groups())) >= (0, 9, 5))
+
+
+def public_asset_name(name):
+    if name.startswith("NIPAT-"):
+        return "NewPat-" + name[len("NIPAT-"):]
+    if name.startswith("nipat-desktop_"):
+        return "newpat-desktop_" + name[len("nipat-desktop_"):]
+    return name
+
+
+def add_public_asset_aliases(output, version):
+    """Advertise the new brand without changing old clients' verified asset names.
+
+    Called only after the entire installer set has been verified. Both names
+    retain identical bytes and are included in the final SHA256SUMS.
+    """
+    if not uses_newpat_brand(version):
+        return
+    for source in sorted(output.iterdir()):
+        name = source.name
+        public_name = public_asset_name(name)
+        if public_name == name:
+            continue
+        require(source.is_file() and not source.is_symlink(), "Invalid public alias source")
+        alias = output / public_name
+        if alias.exists() or alias.is_symlink():
+            require(alias.is_file() and not alias.is_symlink()
+                    and alias.stat().st_size == source.stat().st_size
+                    and sha256(alias) == sha256(source), "Public asset alias collision")
+        else:
+            shutil.copyfile(source, alias)
+        require(alias.stat().st_size == source.stat().st_size and sha256(alias) == sha256(source),
+                "Public asset alias differs from verified bytes")
+
+
 def requires_gui_contract(version):
     """The reviewed 0.9 desktop line retains the complete 0.8.99 release gates."""
     return bool(isinstance(version, str)
@@ -84,7 +123,7 @@ def requires_gui_contract(version):
 def requires_gui_prerelease(version):
     """The authorized GUI previews must not replace the stable channel or Latest."""
     return bool(isinstance(version, str)
-                and re.fullmatch(r"0\.9\.[01](?:(?:a|b|rc)[0-9]+)?", version))
+                and re.fullmatch(r"0\.9\.(?:0|1|5)(?:(?:a|b|rc)[0-9]+)?", version))
 
 
 def requires_windows_zip(version):
@@ -233,6 +272,9 @@ def verify_installation_profile(manifest, commit, read_source):
     profile = manifest.get("installation_profile")
     expected = (PREVIEW_INSTALLATION_PROFILE if manifest["version"].startswith("0.5.")
                 else DESKTOP_INSTALLATION_PROFILE)
+    if (not uses_newpat_brand(manifest["version"])
+            and profile == LEGACY_DESKTOP_INSTALLATION_PROFILE):
+        expected = LEGACY_DESKTOP_INSTALLATION_PROFILE
     require(isinstance(profile, dict) and type(profile.get("schema_version")) is int
             and profile == expected,
             "Installation profile does not use the required isolated desktop namespace")
@@ -399,8 +441,9 @@ def prepare_installer_set(setup, runtime, linux, evidence, output, commit, accep
         if "scientific_analysis_qualification" in scientific_check:
             provenance["scientific_analysis_report_sha256"] = scientific_check["scientific_analysis_qualification"]["report_sha256"]
     (output / "release-provenance.json").write_text(json.dumps(provenance, indent=2) + "\n", encoding="utf-8")
-    if manifest.get("installation_profile") == DESKTOP_INSTALLATION_PROFILE:
+    if manifest.get("installation_profile") in (DESKTOP_INSTALLATION_PROFILE, LEGACY_DESKTOP_INSTALLATION_PROFILE):
         write_update_manifest(output, manifest, actual, channel)
+    add_public_asset_aliases(output, manifest["version"])
     digests = {path.name: sha256(path) for path in output.iterdir() if path.name != "SHA256SUMS"}
     (output / "SHA256SUMS").write_text("".join(f"{h}  {n}\n" for n, h in sorted(digests.items())), encoding="ascii")
     return manifest
@@ -410,7 +453,7 @@ def publication_channel(version, channel):
     """Release maturity is explicit; a numeric version is not proof of stability."""
     require(channel in {"stable", "testing"}, "Unknown publication channel")
     require(not requires_gui_prerelease(version) or channel == "testing",
-            "NIPAT GUI previews must use the testing publication channel")
+            "GUI previews must use the testing publication channel")
     if channel == "stable":
         require(re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version),
                 "A pre-release version cannot use the stable update channel")
@@ -738,10 +781,13 @@ def find_release(tag):
 
 def create_draft(tag, version, commit, notes, payload_path, channel="testing"):
     publication_channel(version, channel)
+    title = (f"NewPat {version}" + (" Testing" if channel == "testing" else "")
+             if uses_newpat_brand(version) else
+             f"NIPAT Desktop {version} Preview" if requires_gui_prerelease(version) else
+             f"NIPAT CLI {version}")
     payload_path.write_text(json.dumps({
         "tag_name": tag, "target_commitish": commit,
-        "name": (f"NIPAT Desktop {version} Preview — Windows con " if requires_gui_prerelease(version)
-                 else f"NIPAT CLI {version} — Windows con ") +
+        "name": title + " — Windows con " +
                 ("WSL2, Ubuntu e macOS con Lima" if requires_macos(version) else
                  "WSL2 e Docker Desktop" if requires_desktop_bundle(version) else
                  "WSL2 e Ubuntu" if requires_installation_profile(version) else "WSL2"), "body": notes,
@@ -936,9 +982,15 @@ def main(argv=None):
                        "avviare il collegamento locale, senza menu Start. Se Windows segnala la provenienza "
                        "Internet, seguire la procedura di verifica e sblocco documentata. "
                        if requires_windows_bootstrap(version) else
-                       "Aprire poi **NIPAT Desktop ZIP** dal menu Start. ") +
+                       "Aprire poi **NewPat ZIP** dal menu Start. ") +
                       "Il canale ZIP conserva la propria installazione e usa un feed aggiornamenti separato. "
                       "La compatibilita' con Smart App Control sul dispositivo finale resta da verificare.\n")
+        if uses_newpat_brand(version):
+            # Public download names change; legacy install directories and the
+            # reviewed release notes remain literal to preserve useful paths.
+            notes = notes.replace("**NIPAT-", "**NewPat-").replace("**nipat-desktop_", "**newpat-desktop_")
+            notes += ("\nI download NewPat conservano alias NIPAT con gli stessi byte verificati "
+                      "per consentire gli aggiornamenti dalle installazioni precedenti.\n")
         notes = notes.strip()
         files = {path.name: path for path in output.iterdir()}
         operation = "prepare" if args.operation == "prepare-and-publish" else args.operation

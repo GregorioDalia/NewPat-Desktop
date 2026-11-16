@@ -91,7 +91,7 @@ class GuiService:
         if method in handlers:
             return handlers[method](**params)
         result_methods = {"runs.list": "list_runs", "runs.get": "get_run",
-                          "runs.files": "files", "runs.table": "table",
+                          "runs.files": "files", "runs.table": "table", "runs.curve": "curve",
                           "runs.overview": "overview", "runs.import": "register_run"}
         if method in result_methods:
             return getattr(self._results(), result_methods[method])(**params)

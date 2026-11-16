@@ -13,20 +13,20 @@ from typing import Iterator
 from .errors import NipatError
 from .distribution import WINDOWS_DIRECTORY
 
-_BUSY = "NIPAT e in aggiornamento. Attendere la fine dell'installazione prima di avviare una sessione."
+_BUSY = "NewPat e in aggiornamento. Attendere la fine dell'installazione prima di avviare una sessione."
 _TOKEN = "NIPAT_SETUP_ACTIVITY_TOKEN"
 
 
 def _safe_parent(path: Path) -> None:
     for entry in (path, *path.parents):
         if entry.is_symlink() or (hasattr(entry, "is_junction") and entry.is_junction()):
-            raise NipatError("Il percorso di coordinamento NIPAT non puo attraversare collegamenti.")
+            raise NipatError("Il percorso di coordinamento NewPat non puo attraversare collegamenti.")
 
 
 def windows_activity_path() -> Path:
     base = os.environ.get("LOCALAPPDATA", "")
     if not base or not Path(base).is_absolute():
-        raise NipatError("LOCALAPPDATA non disponibile per coordinare le sessioni NIPAT.")
+        raise NipatError("LOCALAPPDATA non disponibile per coordinare le sessioni NewPat.")
     path = Path(base) / WINDOWS_DIRECTORY / "activity.lock"
     _safe_parent(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -117,7 +117,7 @@ def activity_session(*, project_dir: Path) -> Iterator[None]:
         if handle == ctypes.c_void_p(-1).value:
             error = ctypes.get_last_error()
             raise NipatError(_BUSY if error in (32, 33) else
-                             f"Impossibile coordinare la sessione NIPAT (errore Windows {error}).")
+                             f"Impossibile coordinare la sessione NewPat (errore Windows {error}).")
         try:
             yield
         finally:
@@ -143,4 +143,4 @@ def activity_session(*, project_dir: Path) -> Iterator[None]:
             finally:
                 fcntl.flock(stream, fcntl.LOCK_UN)
     except OSError as exc:
-        raise NipatError("Coordinamento NIPAT non disponibile: completare o riparare l'installazione.") from exc
+        raise NipatError("Coordinamento NewPat non disponibile: completare o riparare l'installazione.") from exc

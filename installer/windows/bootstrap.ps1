@@ -23,7 +23,7 @@ function Save-NipatPhase([string] $Phase) {
     $script:state.phase = $Phase
     $script:state.updated_utc = [DateTime]::UtcNow.ToString('o')
     Write-NipatJsonAtomic $script:statePath $script:state
-    Write-Host "NIPAT: $Phase"
+    Write-Host "NewPat: $Phase"
 }
 
 function Request-NipatReboot {
@@ -58,7 +58,7 @@ try {
     $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
     $mutex = New-Object Threading.Mutex($false, ($profile.mutex_prefix + $sid))
     try { $lockHeld = $mutex.WaitOne(0) } catch [Threading.AbandonedMutexException] { $lockHeld = $true }
-    if (-not $lockHeld) { throw 'Un altra preparazione NIPAT e gia in corso. Attendere che termini.' }
+    if (-not $lockHeld) { throw 'Un altra preparazione NewPat e gia in corso. Attendere che termini.' }
     Save-NipatInstallLayoutHistory $layout
     Initialize-NipatWritableDirectory (Split-Path -Parent $statePath) 'dello stato installer'
     Start-Transcript -LiteralPath (Join-Path $project '.runtime\installer\setup.log') -Append | Out-Null
@@ -98,7 +98,7 @@ try {
             throw 'La virtualizzazione hardware risulta disabilitata. Abilitarla nel BIOS/UEFI o chiedere al reparto IT di abilitarla nella macchina virtuale, quindi riaprire il setup.'
         }
         Save-NipatPhase 'enabling_wsl'
-        Write-Host 'Windows richiedera UAC per abilitare o aggiornare WSL2 da Microsoft. Solo i comandi Windows DISM/WSL vengono elevati; NIPAT resta nell account normale. Possono essere richieste piu conferme UAC.'
+        Write-Host 'Windows richiedera UAC per abilitare o aggiornare WSL2 da Microsoft. Solo i comandi Windows DISM/WSL vengono elevati; NewPat resta nell account normale. Possono essere richieste piu conferme UAC.'
         $prerequisites = $null
         try {
             $prerequisites = Get-NipatActivityRuntime -HelperRelativePath 'src/nipat/windows_wsl_prerequisites.py'

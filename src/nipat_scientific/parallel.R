@@ -37,80 +37,142 @@ nipat_parallel_cgroups <- function() {
   unique(paths)
 }
 
-nipat_parallel_budget <- function(tasks, memory_mib = NULL, workers = NULL) {
-  mode <- Sys.getenv("NIPAT_EXECUTION_MODE", "auto")
-  if (!mode %in% c("auto", "serial")) stop("Invalid NIPAT_EXECUTION_MODE")
-  maximum <- nipat_parallel_positive(Sys.getenv("NIPAT_MAX_WORKERS"), "NIPAT_MAX_WORKERS", Inf)
-  if (!is.null(workers)) {
-    requested <- nipat_parallel_positive(as.character(workers), "workers")
-    maximum <- min(maximum, requested)
-  }
-  if (length(tasks) != 1L || !is.finite(tasks) || tasks < 0 || tasks != floor(tasks)) {
-    stop("tasks must be a nonnegative whole number")
-  }
+# Capacity is captured once per scientific coordinator. The desktop supplies
+# the same immutable run-start document to every phase/container subprocess.
+# Native invocations use MemTotal and configured cgroup limits, never free RAM.
+.nipat_parallel_capacity_cache <- new.env(parent = emptyenv())
+
+nipat_parallel_rss_mib <- function() {
+  text <- grep("^VmRSS:", nipat_parallel_lines("/proc/self/status"), value = TRUE)
+  if (!length(text)) return(NA_real_)
+  value <- suppressWarnings(as.numeric(strsplit(trimws(text[[1L]]), "[[:space:]]+")[[1L]][2L]) / 1024)
+  if (length(value) != 1L || !is.finite(value) || value <= 0) NA_real_ else value
+}
+
+nipat_parallel_cpu_count <- function() {
   cpu <- tryCatch(length(parallel::mcaffinity()), error = function(e) 0L)
   if (!cpu) cpu <- parallel::detectCores(logical = TRUE)
   if (!length(cpu) || is.na(cpu) || cpu < 1) cpu <- 1L
-  cpu <- min(cpu, nipat_parallel_positive(Sys.getenv("NIPAT_CPU_LIMIT"),
+  cpu
+}
+
+nipat_parallel_capacity <- function() {
+  if (exists("value", envir = .nipat_parallel_capacity_cache, inherits = FALSE)) {
+    return(.nipat_parallel_capacity_cache$value)
+  }
+  cpu <- min(nipat_parallel_cpu_count(), nipat_parallel_positive(Sys.getenv("NIPAT_CPU_LIMIT"),
                                          "NIPAT_CPU_LIMIT", Inf, whole = FALSE))
   cgroups <- nipat_parallel_cgroups()
+  total <- grep("^MemTotal:", nipat_parallel_lines("/proc/meminfo"), value = TRUE)
+  memory <- if (length(total)) suppressWarnings(as.numeric(strsplit(trimws(total[[1L]]), "[[:space:]]+")[[1L]][2L]) / 1024) else NA_real_
+  process_ceiling <- Inf
   for (path in cgroups) {
     text <- nipat_parallel_lines(file.path(path, "cpu.max"))
     if (length(text)) {
-      fields <- strsplit(trimws(text[[1L]]), "[[:space:]]+")[[1L]]
-      numbers <- suppressWarnings(as.numeric(fields))
+      numbers <- suppressWarnings(as.numeric(strsplit(trimws(text[[1L]]), "[[:space:]]+")[[1L]]))
       if (length(numbers) == 2L && all(is.finite(numbers)) && all(numbers > 0)) {
         cpu <- min(cpu, numbers[[1L]] / numbers[[2L]])
       }
     }
+    limit <- nipat_parallel_number(file.path(path, "memory.max"))
+    if (is.finite(limit)) memory <- min(memory, limit / 1024^2, na.rm = TRUE)
+    pids <- nipat_parallel_number(file.path(path, "pids.max"))
+    used <- nipat_parallel_number(file.path(path, "pids.current"))
+    if (is.finite(pids) && is.finite(used)) process_ceiling <- min(process_ceiling, max(1, pids - used - 4))
   }
   quota <- nipat_parallel_number("/sys/fs/cgroup/cpu/cpu.cfs_quota_us")
   period <- nipat_parallel_number("/sys/fs/cgroup/cpu/cpu.cfs_period_us")
   if (is.finite(quota) && is.finite(period) && quota > 0 && period > 0) cpu <- min(cpu, quota / period)
-  cpu <- max(1L, floor(cpu))
-
-  meminfo <- nipat_parallel_lines("/proc/meminfo")
-  available <- grep("^MemAvailable:", meminfo, value = TRUE)
-  memory <- if (length(available)) as.numeric(strsplit(trimws(available[[1L]]), "[[:space:]]+")[[1L]][2L]) / 1024 else NA_real_
-  cgroup_used <- 0
-  cgroup_used_depth <- -1L
-  for (path in cgroups) {
-    limit <- nipat_parallel_number(file.path(path, "memory.max"))
-    used <- nipat_parallel_number(file.path(path, "memory.current"))
-    if (is.finite(used) && nchar(path) > cgroup_used_depth) {
-      cgroup_used <- used / 1024^2
-      cgroup_used_depth <- nchar(path)
-    }
-    if (is.finite(limit) && is.finite(used)) memory <- min(memory, max(0, limit - used) / 1024^2, na.rm = TRUE)
-  }
   limit <- nipat_parallel_number("/sys/fs/cgroup/memory/memory.limit_in_bytes")
-  used <- nipat_parallel_number("/sys/fs/cgroup/memory/memory.usage_in_bytes")
-  if (is.finite(limit) && is.finite(used)) {
-    memory <- min(memory, max(0, limit - used) / 1024^2, na.rm = TRUE)
-    if (cgroup_used_depth < 0L) cgroup_used <- used / 1024^2
-  }
+  # A v1 sentinel above the signed-address range is not an assigned capacity.
+  if (is.finite(limit) && limit < 2^60) memory <- min(memory, limit / 1024^2, na.rm = TRUE)
   explicit_memory <- nipat_parallel_positive(Sys.getenv("NIPAT_MEMORY_LIMIT_MIB"),
                                               "NIPAT_MEMORY_LIMIT_MIB", Inf)
-  if (is.finite(explicit_memory)) memory <- min(memory, max(0, explicit_memory - cgroup_used), na.rm = TRUE)
-  estimate <- 2048
-  if (!is.null(memory_mib)) estimate <- max(estimate, nipat_parallel_positive(as.character(memory_mib), "memory_mib", whole = FALSE))
-  # MemAvailable and memory.current already account for the loaded parent.
-  # Reserve 20% for coordination, other VM work and estimation uncertainty.
-  memory_workers <- if (is.finite(memory)) max(1L, floor(0.8 * memory / estimate)) else 1L
-  process_workers <- Inf
-  for (path in cgroups) {
-    limit <- nipat_parallel_number(file.path(path, "pids.max"))
-    used <- nipat_parallel_number(file.path(path, "pids.current"))
-    if (is.finite(limit) && is.finite(used)) process_workers <- min(process_workers, max(1, limit - used - 4))
+  if (is.finite(explicit_memory)) memory <- min(memory, explicit_memory, na.rm = TRUE)
+  cpu <- max(1L, floor(cpu))
+  reserve <- 0.20
+  ceiling <- cpu
+  source <- "configured-capacity-at-coordinator-start"
+  source_version <- NULL
+  supplied <- Sys.getenv("NIPAT_FIXED_RESOURCE_BUDGET")
+  if (nzchar(supplied)) {
+    value <- tryCatch(jsonlite::fromJSON(supplied), error = function(e) NULL)
+    if (!is.list(value) || !identical(value$interface, "nipat-fixed-resources-v1") ||
+        length(value$worker_ceiling) != 1L || !is.finite(value$worker_ceiling) ||
+        value$worker_ceiling < 1 || value$worker_ceiling != floor(value$worker_ceiling) ||
+        length(value$memory_reserve_fraction) != 1L || !is.finite(value$memory_reserve_fraction) ||
+        value$memory_reserve_fraction < 0 || value$memory_reserve_fraction >= 1) {
+      stop("Invalid fixed resource budget")
+    }
+    ceiling <- min(cpu, value$worker_ceiling)
+    if (!is.null(value$cpu_limit)) {
+      cpu <- min(cpu, nipat_parallel_positive(as.character(value$cpu_limit), "cpu_limit", whole = FALSE))
+      ceiling <- min(ceiling, max(1L, floor(cpu)))
+    }
+    if (is.null(value$memory_capacity_mib)) {
+      memory <- NA_real_
+    } else {
+      fixed_memory <- nipat_parallel_positive(as.character(value$memory_capacity_mib), "memory_capacity_mib", whole = FALSE)
+      memory <- min(memory, fixed_memory, na.rm = TRUE)
+    }
+    reserve <- value$memory_reserve_fraction
+    source <- "assigned-capacity-at-run-start"
+    source_version <- value$source_version
   }
+  if (!is.finite(memory) || memory <= 0) {
+    memory <- NA_real_
+    ceiling <- 1L
+  }
+  ceiling <- max(1L, min(ceiling, process_ceiling))
+  result <- list(interface = "nipat-fixed-resources-v1", source = source, source_version = source_version,
+    cpu_limit = max(1L, floor(cpu)), memory_capacity_mib = if (is.finite(memory)) memory else NULL,
+    memory_budget_mib = if (is.finite(memory)) floor((1 - reserve) * memory) else NULL,
+    memory_reserve_fraction = reserve, worker_ceiling = as.integer(ceiling))
+  .nipat_parallel_capacity_cache$value <- result
+  result
+}
+
+nipat_parallel_budget <- function(tasks, memory_mib = NULL, workers = NULL, workload_observed = TRUE) {
+  if (!is.logical(workload_observed) || length(workload_observed) != 1L || is.na(workload_observed)) {
+    stop("workload_observed must be TRUE or FALSE")
+  }
+  mode <- Sys.getenv("NIPAT_EXECUTION_MODE", "auto")
+  if (!mode %in% c("auto", "serial")) stop("Invalid NIPAT_EXECUTION_MODE")
+  maximum <- nipat_parallel_positive(Sys.getenv("NIPAT_MAX_WORKERS"), "NIPAT_MAX_WORKERS", Inf)
+  if (!is.null(workers)) maximum <- min(maximum, nipat_parallel_positive(as.character(workers), "workers"))
+  if (length(tasks) != 1L || !is.finite(tasks) || tasks < 0 || tasks != floor(tasks)) stop("tasks must be a nonnegative whole number")
+  capacity <- nipat_parallel_capacity()
+  ceiling <- max(1L, min(capacity$worker_ceiling, maximum))
+  rss <- nipat_parallel_rss_mib()
+  # The loaded coordinator footprint is a workload observation, not host free
+  # memory. Account for the parent once, then allow a proportional copy/heap
+  # margin for each child. This is a conservative heuristic, not an RSS limit.
+  estimate <- if (workload_observed && is.finite(rss)) 2 * rss else NA_real_
+  if (workload_observed && !is.null(memory_mib)) {
+    requested_memory <- nipat_parallel_positive(as.character(memory_mib), "memory_mib", whole = FALSE)
+    estimate <- max(estimate, requested_memory, na.rm = TRUE)
+  }
+  memory <- capacity$memory_budget_mib
+  remaining <- if (length(memory) && is.finite(memory) && is.finite(rss)) max(0, memory - rss) else NA_real_
+  memory_workers <- if (is.finite(remaining) && is.finite(estimate) && estimate > 0) max(1L, floor(remaining / estimate)) else 1L
   nested <- identical(Sys.getenv("NIPAT_PARALLEL_CHILD"), "1")
-  reason <- if (mode == "serial") "requested-serial" else if (nested) "shared-budget-child" else if (.Platform$OS.type == "windows") "fork-unavailable" else if (!is.finite(memory)) "memory-unavailable" else "cpu-memory-task-budget"
-  selected <- max(1L, min(max(1L, tasks), cpu, memory_workers, process_workers, maximum))
+  reason <- if (mode == "serial") "requested-serial" else if (nested) "shared-budget-child" else if (.Platform$OS.type == "windows") "fork-unavailable" else if (!workload_observed) "workload-not-observed" else if (!is.finite(remaining) || !is.finite(estimate)) "workload-memory-unavailable" else if (estimate > remaining) "workload-exceeds-budget-serial" else if (memory_workers < ceiling) "workload-memory-budget" else "fixed-capacity-task-budget"
+  selected <- max(1L, min(max(1L, tasks), ceiling, memory_workers))
   if (mode == "serial" || nested || .Platform$OS.type == "windows") selected <- 1L
   list(mode = mode, max_workers = if (is.finite(maximum)) maximum else NULL,
-       workers = as.integer(selected), tasks = tasks, cpu_limit = cpu,
-       memory_available_mib = if (is.finite(memory)) memory else NULL,
-       memory_per_worker_mib = estimate, memory_worker_limit = memory_workers,
+       workers = as.integer(selected), tasks = tasks, cpu_limit = capacity$cpu_limit,
+       resource_policy = capacity$interface, resource_basis = capacity$source,
+       resource_source_version = capacity$source_version,
+       workload_model = if (!workload_observed) "not-observed" else if (is.null(memory_mib))
+         "loaded-coordinator-rss-x2" else "max-loaded-coordinator-rss-x2-and-module-estimate",
+       worker_ceiling = as.integer(ceiling), memory_capacity_mib = capacity$memory_capacity_mib,
+       memory_budget_mib = capacity$memory_budget_mib,
+       memory_reserve_fraction = capacity$memory_reserve_fraction,
+       coordinator_rss_mib = if (is.finite(rss)) rss else NULL,
+       memory_allocation_per_worker_mib = if (is.finite(remaining)) remaining / ceiling else NULL,
+       memory_per_worker_mib = if (is.finite(estimate)) estimate else NULL,
+       memory_worker_limit = memory_workers,
+       workload_fits_memory_budget = is.finite(remaining) && is.finite(estimate) && estimate <= remaining,
        reason = reason)
 }
 
@@ -137,8 +199,8 @@ nipat_parallel_record <- function(event, label, coordinator_pid, budget, task_in
 }
 
 nipat_parallel_lapply <- function(X, FUN, ..., label = "scientific", workers = NULL,
-                                  memory_mib = NULL, on_result = NULL) {
-  budget <- nipat_parallel_budget(length(X), memory_mib, workers)
+                                  memory_mib = NULL, on_result = NULL, workload_observed = TRUE) {
+  budget <- nipat_parallel_budget(length(X), memory_mib, workers, workload_observed)
   coordinator <- Sys.getpid()
   nipat_parallel_record("plan", label, coordinator, budget)
   result <- vector("list", length(X))

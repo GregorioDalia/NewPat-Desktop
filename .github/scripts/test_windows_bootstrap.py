@@ -64,7 +64,7 @@ class BootstrapTests(unittest.TestCase):
     def test_reuse_requires_published_asset_digest_and_matching_all_inputs(self):
         inputs = bootstrap.prepare(self.stage)
         exe = b"previous identical bootstrap"
-        record = {"schema_version": 2, "distribution": "online-bootstrap", "bootstrap_version": "1.0.0",
+        record = {"schema_version": 2, "distribution": "online-bootstrap", "bootstrap_version": bootstrap.BOOTSTRAP_VERSION,
                   "version": "0.8.99", "file": "NIPAT-Setup.exe", "sha256": hashlib.sha256(exe).hexdigest(),
                   "size": len(exe), "bootstrap_inputs_sha256": inputs}
         records = {"installer-build.json": json.dumps(record).encode(), "NIPAT-Setup.exe": exe}

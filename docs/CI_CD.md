@@ -1,6 +1,6 @@
 # Integrazione continua e distribuzione
 
-NIPAT verifica separatamente il client, il motore scientifico, gli installatori
+NewPat verifica separatamente il client, il motore scientifico, gli installatori
 e il funzionamento sui dispositivi reali. I pacchetti sono per Windows 10/11
 x64, Ubuntu 24.04 x86_64 e macOS 14 o successivo su Intel e Apple Silicon.
 I pacchetti condividono lo stesso archivio scientifico Linux AMD64; il setup

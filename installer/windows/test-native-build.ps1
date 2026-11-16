@@ -20,9 +20,14 @@ try {
     if ((Get-FileHash -LiteralPath $launcher).Hash -cne (Get-FileHash -LiteralPath $LauncherPath).Hash) {
         throw 'Launcher builds from identical sources differ.'
     }
-    if ((Get-FileHash -LiteralPath $launcher).Hash.ToLowerInvariant() -cne 'd73e19071731fd917998c03afdd370dfc40e6232d719370099523571c12251cc') {
-        throw 'Launcher differs from its unchanged 0.8.81 component identity.'
+    # NewPat changes the reviewed launcher resources: the 0.8.81 hash is not
+    # reusable trust evidence. Determinism above binds this build to source;
+    # the security qualification must capture the new binary identity.
+    $info = [Diagnostics.FileVersionInfo]::GetVersionInfo($launcher)
+    if ($info.ProductName -cne 'NewPat' -or $info.FileVersion -cne '0.9.5.0') {
+        throw 'Launcher does not carry the reviewed NewPat component identity.'
     }
+    Write-Host ('NewPat launcher SHA-256 (new qualification required): ' + (Get-FileHash -LiteralPath $launcher).Hash.ToLowerInvariant())
     $wslFirst = Join-Path $temporary 'first\EnableWsl.exe'
     $wslSecond = Join-Path $temporary 'second\EnableWsl.exe'
     & (Join-Path $PSScriptRoot 'build-wsl-helper.ps1') -OutputPath $wslFirst

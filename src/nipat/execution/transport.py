@@ -84,9 +84,9 @@ class DockerTransport:
         if backend in ("", "native"):
             if os.name == "nt":
                 raise ValidationError(
-                    "Su Windows NIPAT richiede il runtime WSL dedicato. "
-                    "Avviare NIPAT.exe dall'installazione NIPAT oppure completare "
-                    "la configurazione con NIPAT-Setup.exe. Per l'esecuzione dai sorgenti, "
+                    "Su Windows NewPat richiede il runtime WSL dedicato. "
+                    "Avviare NIPAT.exe dall'installazione NewPat oppure completare "
+                    "la configurazione con NewPat-Setup.exe. Per l'esecuzione dai sorgenti, "
                     "configurare NIPAT_BACKEND=wsl e NIPAT_WSL_DISTRO."
                 )
             return cls(dry_run=dry_run)
@@ -95,7 +95,7 @@ class DockerTransport:
             if not distro:
                 raise ValidationError(
                     "NIPAT_WSL_DISTRO deve identificare esplicitamente la distribuzione "
-                    "di questa installazione. Ripetere la preparazione NIPAT."
+                    "di questa installazione. Ripetere la preparazione NewPat."
                 )
             return WslDockerTransport(distro, dry_run=dry_run)
         if backend == "lima":
@@ -130,7 +130,7 @@ class WslDockerTransport(DockerTransport):
     def __init__(self, distro: str, *, dry_run: bool = False):
         super().__init__(dry_run=dry_run)
         if not _DISTRO_NAME.fullmatch(distro):
-            raise ValidationError("Nome della distribuzione WSL NIPAT non valido.")
+            raise ValidationError("Nome della distribuzione WSL NewPat non valido.")
         self.distro = distro
         self._paths: dict[str, str] = {}
         self._drives: set[str] = set()
@@ -146,7 +146,7 @@ class WslDockerTransport(DockerTransport):
     def unavailable_message(self) -> str:
         return (
             f"Runtime WSL {self.distro} non disponibile. "
-            "Eseguire nuovamente la preparazione NIPAT su Windows."
+            "Eseguire nuovamente la preparazione NewPat su Windows."
         )
 
     def _prefix(self) -> list[str]:
@@ -233,7 +233,7 @@ class LimaDockerTransport(DockerTransport):
 
     @property
     def unavailable_message(self) -> str:
-        return "Runtime Lima NIPAT non disponibile. Avviare nuovamente l'applicazione macOS."
+        return "Runtime Lima NewPat non disponibile. Avviare nuovamente l'applicazione macOS."
 
     def host_path(self, path: Path | str) -> str:
         return self.runtime.host_path(path)

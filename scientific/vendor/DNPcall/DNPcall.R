@@ -169,7 +169,9 @@ pileup_helper <- Sys.getenv("NIPAT_DNP_PILEUP_HELPER", unset = "/opt/nipat/lib/n
 # policy to the Python scheduler instead of creating a second independent pool
 # or interpreting the legacy --parallel flag. The helper caps this upper bound
 # by the actual number of chromosome tasks and counts each samtools process.
-acquisition_budget <- nipat_parallel_budget(.Machine$integer.max)
+# The R coordinator has not observed the memory needed by samtools.
+# Keep acquisition serial until a workload-specific admission estimate exists.
+acquisition_budget <- nipat_parallel_budget(.Machine$integer.max, workload_observed = FALSE)
 acquisition_budget_path <- file.path("work", "dnp-acquisition-budget.json")
 dir.create(dirname(acquisition_budget_path), recursive = TRUE, showWarnings = FALSE)
 jsonlite::write_json(c(list(schema_version = 1L, interface = "nipat-parallel-v1"),
@@ -216,6 +218,7 @@ nipat_dnp_write_metrics("work/dnp-blocks.json", list(
   index_bytes = pileup_index$bytes, column_classes = pileup_index$classes,
   acquisition_seconds = acquisition_seconds, index_seconds = pileup_index$elapsed_seconds,
   block_loci_limit = block_plan$max_loci, block_raw_bytes_limit = block_plan$max_bytes,
+  requested_block_raw_bytes_limit = block_plan$requested_max_bytes,
   compatibility_reasons = I(block_plan$compatibility_reasons),
   unmatched_coordinate_rows = block_plan$unmatched_rows,
   repeated_qname_rows = pileup_index$repeated_qname_rows,
@@ -884,6 +887,7 @@ nipat_dnp_write_metrics("work/dnp-blocks.json", list(
   index_seconds = pileup_index$elapsed_seconds, index_rows = pileup_index$rows,
   index_bytes = pileup_index$bytes, column_classes = pileup_index$classes,
   block_loci_limit = block_plan$max_loci, block_raw_bytes_limit = block_plan$max_bytes,
+  requested_block_raw_bytes_limit = block_plan$requested_max_bytes,
   memory_limit_scope = "raw input proxy; complete windows and legacy compatibility groups are never split or truncated",
   compatibility_reasons = I(block_plan$compatibility_reasons),
   unmatched_coordinate_rows = block_plan$unmatched_rows,

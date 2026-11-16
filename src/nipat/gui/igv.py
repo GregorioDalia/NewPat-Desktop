@@ -243,8 +243,15 @@ class LocalIGV:
                     if alias:
                         common.append(alias)
                         if lengths[alias] != length:
-                            self.fail(f"Il BAM e il FASTA indicano lunghezze diverse per {name}. Seleziona lo stesso genoma usato per l’allineamento.",
-                                      f"BAM and FASTA lengths differ for {name}. Select the same genome used for alignment.")
+                            self.fail(
+                                f"Il BAM e il FASTA indicano lunghezze diverse per {name}: "
+                                f"{path.name} dichiara {length} basi; {fasta.name}, tramite "
+                                f"{fai.name}, dichiara {lengths[alias]} basi per {alias}. "
+                                "Seleziona il FASTA usato per l’allineamento e il suo indice FAI corrispondente.",
+                                f"BAM and FASTA lengths differ for {name}: "
+                                f"{path.name} declares {length} bases; {fasta.name}, through "
+                                f"{fai.name}, declares {lengths[alias]} bases for {alias}. "
+                                "Select the FASTA used for alignment and its matching FAI index.")
                 if references and not common:
                     self.fail("BAM e FASTA non hanno cromosomi in comune. Seleziona il riferimento usato per l’allineamento.",
                               "BAM and FASTA have no chromosomes in common. Select the reference used for alignment.")

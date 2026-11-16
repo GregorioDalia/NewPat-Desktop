@@ -164,6 +164,29 @@ class FiveModuleQualificationTests(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError, "did not complete"):
             qualification.check_worker_limits(tmp_path, 2)
 
+    def test_serial_unobserved_outer_can_delegate_to_a_loaded_inner_pool(self):
+        base = {"cpu_limit": 4, "memory_worker_limit": 4, "coordinator_pid": 10,
+                "mode": "auto", "worker_ceiling": 4}
+        outer = {**base, "event": "plan", "workers": 1, "tasks": 1,
+                 "observed_at_unix": 0, "label": "contamination-samples",
+                 "reason": "workload-not-observed"}
+        inner = {**base, "event": "plan", "workers": 2, "tasks": 2,
+                 "observed_at_unix": 2, "label": "contamination-rows",
+                 "reason": "fixed-capacity-task-budget"}
+        def event(plan, kind, stamp, pid, index):
+            return {**plan, "event": kind, "observed_at_unix": stamp,
+                    "pid": pid, "task_index": index, "outcome": "succeeded"}
+        events = [outer, event(outer, "task-start", 1, 10, 1), inner,
+                  event(inner, "task-start", 3, 11, 1), event(inner, "task-start", 4, 12, 2),
+                  event(inner, "task-end", 5, 11, 1), event(inner, "task-end", 6, 12, 2),
+                  event(outer, "task-end", 7, 10, 1)]
+        (self.tmp_path / "worker.jsonl").write_text("".join(json.dumps(item) + "\n" for item in events))
+        result = qualification.check_worker_limits(self.tmp_path, 2)
+        self.assertEqual(result["completed_worker_tasks"], 3)
+        self.assertEqual(result["observed_peak_workers"], 2)
+        self.assertEqual(result["observed_child_pids"], [11, 12])
+        self.assertEqual(result["phase_plans"][0]["reason"], "workload-not-observed")
+
     def test_worker_gate_rejects_repeated_completed_task_and_undeclared_plan(self):
         plan = {"event": "plan", "workers": 1, "tasks": 2, "cpu_limit": 4,
                 "memory_worker_limit": 4, "observed_at_unix": 0, "coordinator_pid": 10,

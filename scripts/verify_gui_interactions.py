@@ -4,10 +4,12 @@ Linux CI uses a system Chromium/Chrome through Playwright. Native window smoke
 checks remain separate. Only native file dialogs are replaced by a deterministic
 picker; RPC and genomic decoding/rendering are production code. A non-executing
 Job fixture checks progress rendering without claiming a scientific analysis.
+Recorded CPI/CPIN fixtures exercise plots without recalculating scientific results.
 """
 from __future__ import annotations
 
 import argparse
+import csv
 from contextlib import ExitStack
 from datetime import datetime, timezone
 import hashlib
@@ -56,6 +58,52 @@ def digest_files(paths):
     return {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in paths}
 
 
+def prepare_curve_fixtures(layout):
+    """Write deterministic native-schema result rows, not a scientific calculation."""
+    preserved = []
+    for module in ("cpi", "cpin"):
+        run = layout.runs_dir / f"{module}-curve-ui-fixture"
+        native = "MotherM-FatherF_DNPs" if module == "cpi" else "MotherM-FatherF-ChildC_DNPs"
+        write_json(run / "run.json", {"schema_version": 1, "workflow": module, "status": "succeeded",
+            "run_name": f"{module.upper()} · fixture grafici", "started_at": "2026-11-15T10:00:00Z",
+            "finished_at": "2026-11-15T10:01:00Z", "source": {"nipat_version": __version__},
+            "parameters": {"marker_type": "DNP", "sample_mapping": []}})
+        def write_table(relative, columns, rows):
+            target = run / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with target.open("w", newline="", encoding="utf-8") as stream:
+                writer = csv.writer(stream, delimiter="," if target.suffix == ".csv" else "\t")
+                writer.writerow(columns)
+                writer.writerows(rows)
+            return {"path": relative, "sha256": hashlib.sha256(target.read_bytes()).hexdigest()}
+        if module == "cpi":
+            write_table("output/Summary_FetalFraction_CPI.csv",
+                ["Pair", "Median_fetal_fraction_percent", "CPI_medianFF"], [[native, "6", "0.602"]])
+            curve = write_table(f"output/curves/{native}_panel_1.tsv",
+                ["Iteration", "InfSites_mother", "InfSites_father", "CPI", "log_CPI", "Mismatch", "NotMismatch", "Cutoff"],
+                [["2", "10", "9", "0.0007525631256789", "-3.123456789012345", "1", "8", "ALL"],
+                 ["3", "9", "8", "1", "0", "0", "8", "ALL"],
+                 ["4", "8", "7", "NA", "NA", "1", "6", "ALL"]])
+            artifacts = {"cpi-pairs": [{"pair": "M:F", "native_pair": native,
+                "mother": {"sample": "M"}, "father": {"sample": "F"}, "curves": [{**curve, "cutoff": None}]}]}
+        else:
+            analysis = "all_compatible_sites"
+            write_table("output/Summary_Postnatal_CPI.txt",
+                ["Trio", "Analysis", "CPI", "Log10_CPI", "N_sites", "Matching_sites", "Mismatching_sites"],
+                [[native, analysis, "0.00046474155109453", "-3.33278849686833", "3", "2", "1"]])
+            curve = write_table(f"output/curves/{native}_{analysis}_curve.tsv",
+                ["Min_child_reads", "Through_min_child_reads", "Log10_CPI", "N_sites", "Matching_sites", "Mismatching_sites"],
+                [["2", "5", "-3.33278849686833", "3", "2", "1"],
+                 ["6", "6", "-3.42969850987639", "2", "1", "1"],
+                 ["7", "10", "0.221848749616356", "1", "1", "0"]])
+            artifacts = {"cpin-trios": [{"trio": "family", "native_trio": native,
+                "analyses": [{"analysis": analysis, "curve": curve}]}]}
+        write_json(run / "work/scientific-validation.json", {"schema_version": 1, "workflow": module,
+            "status": "passed", "artifacts": artifacts})
+        preserved.extend(path for path in run.rglob("*") if path.is_file())
+    return preserved
+
+
 def prepare_fixture(directory):
     data = directory / "data"
     selection = create_alignment_fixture(data)
@@ -84,7 +132,7 @@ def prepare_fixture(directory):
     output = run / "output" / "DNPcall_output.txt"
     output.parent.mkdir()
     output.write_text("chr\tpos1\tpos2\tGT\ttotal_count\n1\t151\t152\t0/1\t20\n", encoding="utf-8")
-    preserved = list(data.iterdir()) + [run / "run.json", run / "gui.json", output]
+    preserved = list(data.iterdir()) + [run / "run.json", run / "gui.json", output] + prepare_curve_fixtures(layout)
     return service, job, selection, run, preserved
 
 
@@ -139,7 +187,7 @@ def run_verification(report_path, executable):
 
     report_path.parent.mkdir(parents=True, exist_ok=True)
     evidence = {"schema_version": 1, "status": "failed", "nipat_version": __version__,
-                "scope": "Actual browser rendering, production DesktopApplication/GuiService/HTTP and bundled IGV; synthetic indexed alignment fixture, not domain or native-host acceptance.",
+                "scope": "Actual browser rendering, production DesktopApplication/GuiService/HTTP and bundled IGV; synthetic indexed alignment and recorded CPI/CPIN fixtures, not domain or native-host acceptance.",
                 "checks": [], "screenshots": [], "errors": [], "external_requests": []}
     page = None
     token = ""
@@ -253,6 +301,64 @@ def run_verification(report_path, executable):
                 igv = report_path.parent / "igv-alignments.png"
                 page.screenshot(path=str(igv), full_page=True)
                 evidence["screenshots"].append(igv.name)
+
+                for module, first_value, second_value in (
+                        ("cpi", "-3.123456789012345", "0"),
+                        ("cpin", "-3.33278849686833", "-3.42969850987639")):
+                    page.locator('[data-action="navigate"][data-view="archive"]').click()
+                    page.locator(f'[data-action="open-run"][data-id="{module}-curve-ui-fixture"]').click()
+                    page.locator(f'[data-action="result-module"][data-module="{module}|DNP"]').click()
+                    page.wait_for_selector('.interactive-curve .curve-point')
+                    check(page.locator('.interactive-curve').count() == 2,
+                          f"{module.upper()} renders separate CPI and site-count panels from recorded rows")
+                    chart = page.locator('.interactive-curve').first
+                    tooltip = chart.locator('.curve-tooltip')
+                    chart.locator('.curve-hit-dot').first.hover()
+                    probe.wait("!document.querySelector('.curve-tooltip').hidden")
+                    value_key = "log_CPI" if module == "cpi" else "Log10_CPI"
+                    check(tooltip.locator(f'[data-curve-value="{value_key}"]').inner_text() == first_value,
+                          f"{module.upper()} mouse hover exposes original precision in an HTML tooltip")
+                    chart.locator('.curve-point').first.focus()
+                    page.keyboard.press('ArrowRight')
+                    check(probe.evaluate("document.activeElement.dataset.curvePoint") == "1",
+                          f"{module.upper()} arrow navigation focuses the next recorded point")
+                    check(tooltip.locator(f'[data-curve-value="{value_key}"]').inner_text() == second_value,
+                          f"{module.upper()} keyboard detail preserves the next original value")
+                    page.keyboard.press('Escape')
+                    check(tooltip.is_hidden(), f"{module.upper()} Escape dismisses the chart detail")
+                    chart.locator('.curve-point').first.focus()
+                    if module == "cpin":
+                        check("2–5" in tooltip.inner_text(), "CPIN tooltip retains inclusive interval endpoints")
+                    check(page.locator('.results-body [data-action="export-file"]').count() > 0,
+                          f"{module.upper()} original file exports remain available")
+                    page.locator('[data-action="curve-mode"][data-mode="combined"]').click()
+                    check(page.locator('.interactive-curve').count() == 1,
+                          f"{module.upper()} combined view overlays the three recorded series")
+                    combined_chart = page.locator('.interactive-curve').first
+                    check(combined_chart.locator('.curve-right-label').inner_text() == "Conteggi dei siti",
+                          f"{module.upper()} combined view explicitly labels its site-count axis")
+                    series_keys = probe.evaluate("[...new Set([...document.querySelectorAll('.interactive-curve [data-curve-series]')].map(node=>node.dataset.curveSeries))].sort()")
+                    expected_keys = sorted(["log_CPI", "NotMismatch", "Mismatch"] if module == "cpi" else ["Log10_CPI", "Matching_sites", "Mismatching_sites"])
+                    check(series_keys == expected_keys, f"{module.upper()} combined view uses exactly the black, green and orange source series")
+                    combined_chart.locator('.curve-hit-dot').first.hover()
+                    probe.wait("!document.querySelector('.curve-tooltip').hidden")
+                    combined_tooltip = combined_chart.locator('.curve-tooltip')
+                    check(combined_tooltip.locator(f'[data-curve-value="{value_key}"]').inner_text() == first_value,
+                          f"{module.upper()} combined hover preserves the negative original log CPI")
+                    combined_chart.locator('.curve-point').first.focus()
+                    page.keyboard.press('ArrowRight')
+                    check(combined_tooltip.locator(f'[data-curve-value="{value_key}"]').inner_text() == second_value,
+                          f"{module.upper()} combined keyboard navigation retains exact values")
+                    combined_image = report_path.parent / f"{module}-combined-curve.png"
+                    page.screenshot(path=str(combined_image), full_page=True)
+                    evidence["screenshots"].append(combined_image.name)
+                    page.locator('[data-action="curve-mode"][data-mode="separate"]').click()
+                    check(page.locator('.interactive-curve').count() == 2,
+                          f"{module.upper()} separate views remain available after combined inspection")
+                    page.locator('.interactive-curve').first.locator('.curve-point').first.focus()
+                    chart_image = report_path.parent / f"{module}-interactive-curve.png"
+                    page.screenshot(path=str(chart_image), full_page=True)
+                    evidence["screenshots"].append(chart_image.name)
 
                 page.locator('[data-action="navigate"][data-view="archive"]').click()
                 page.locator('[data-action="open-run"][data-id="archived-ui-fixture"]').click()

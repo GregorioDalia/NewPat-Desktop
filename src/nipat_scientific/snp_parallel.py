@@ -37,11 +37,14 @@ def _event(directory, event, budget, coordinator, index=None, outcome=None):
 
 
 def _query_budget(tasks, directory, cancellation):
-    # R remains the single authority for CPU, memory, cgroups and explicit caps.
+    # R remains the single authority for fixed capacities and explicit caps.
+    # This probe has not loaded any sample. Its own RSS cannot estimate a full
+    # SNP worker, so sample scheduling stays serial; each loaded SNP aggregation
+    # can still parallelize using its observations and the same run ceiling.
     from nipat_scientific.executor import _run_process
 
     expression = ('a <- commandArgs(TRUE); source(a[[1]]); '
-                  'cat(jsonlite::toJSON(nipat_parallel_budget(as.integer(a[[2]])), '
+                  'cat(jsonlite::toJSON(nipat_parallel_budget(as.integer(a[[2]]), workload_observed=FALSE), '
                   'auto_unbox=TRUE, null="null", digits=NA))')
     target = directory / "budget.json"
     code = _run_process(["Rscript", "-e", expression, str(Path(__file__).with_name("parallel.R")), str(tasks)],

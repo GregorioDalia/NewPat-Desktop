@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import importlib.util
+from contextlib import contextmanager
+import json
 import os
 from pathlib import Path
 import select
@@ -10,6 +12,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 
 
 PROJECT = Path(__file__).resolve().parents[1]
@@ -20,6 +23,66 @@ SPEC.loader.exec_module(launcher)
 
 @unittest.skipUnless(sys.platform in {"linux", "darwin"}, "POSIX foreground process-group signals")
 class MacLauncherSignalTests(unittest.TestCase):
+    @contextmanager
+    def relocated_launch(self):
+        import fcntl
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            app = root / "Applications/NewPat.app/Contents/Resources/app"
+            app.mkdir(parents=True)
+            user = root / "user"
+            state = user / "Library/Application Support/NIPAT-Desktop/.runtime/macos/runtime.json"
+            state.parent.mkdir(parents=True)
+            state.write_text(json.dumps({"runtime_image": "sha256:" + "a" * 64}))
+            lock = root / "activity.lock"
+            lock.touch()
+            leases = []
+
+            @contextmanager
+            def session(*, exclusive=False):
+                leases.append(exclusive)
+                with lock.open("rb") as stream:
+                    fcntl.flock(stream, (fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH) | fcntl.LOCK_NB)
+                    yield stream
+
+            with patch.object(launcher.sys, "platform", "darwin"), patch.object(launcher.os, "geteuid", return_value=501), patch.object(launcher.platform, "mac_ver", return_value=("14.7", (), "")), patch.object(launcher.platform, "machine", return_value="arm64"), patch.object(launcher.Path, "home", return_value=user), patch.object(launcher, "load_manifest", return_value={"architecture": "arm64"}), patch.object(launcher, "mount_repair_required", return_value=True), patch.object(launcher, "installation_session", side_effect=session):
+                yield app, lock, leases
+
+    def test_relocation_holds_exclusive_lease_then_downgrades_before_cli(self):
+        import fcntl
+        with self.relocated_launch() as (app, lock, leases):
+            calls = []
+
+            def run(command, *, env, cwd=None):
+                preparing = command[-1] == "prepare"
+                calls.append(preparing)
+                with lock.open("rb") as competing:
+                    if preparing:
+                        self.assertEqual(env["NIPAT_RUNTIME_MAINTENANCE"], "1")
+                        with self.assertRaises(BlockingIOError):
+                            fcntl.flock(competing, fcntl.LOCK_SH | fcntl.LOCK_NB)
+                    else:
+                        self.assertNotIn("NIPAT_RUNTIME_MAINTENANCE", env)
+                        fcntl.flock(competing, fcntl.LOCK_SH | fcntl.LOCK_NB)
+                        with self.assertRaises(BlockingIOError):
+                            fcntl.flock(competing, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                return 0
+
+            with patch.object(launcher, "run_foreground", side_effect=run):
+                self.assertEqual(launcher.launch(["doctor", "--runtime"], app), 0)
+            self.assertEqual(leases, [True])
+            self.assertEqual(calls, [True, False])
+
+    def test_relocation_never_starts_maintenance_while_old_app_session_is_open(self):
+        import fcntl
+        with self.relocated_launch() as (app, lock, leases), lock.open("rb") as existing:
+            fcntl.flock(existing, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            with patch.object(launcher, "run_foreground") as run:
+                with self.assertRaises(BlockingIOError):
+                    launcher.launch(["doctor", "--runtime"], app)
+                run.assert_not_called()
+            self.assertEqual(leases, [True])
+
     def test_restores_signal_handler_after_child_exit_and_spawn_failure(self):
         previous = signal.getsignal(signal.SIGINT)
         self.assertEqual(launcher.run_foreground(

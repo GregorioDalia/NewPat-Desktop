@@ -21,13 +21,7 @@ _COLORS = {
     "info": "", "muted": "\x1b[90m", "success": "\x1b[32m",
     "warning": "\x1b[33m", "error": "\x1b[31m", "accent": "\x1b[36m",
 }
-_BANNER = (
-    r" _   _ ___ ____   _  _____",
-    r"| \ | |_ _|  _ \ / \|_   _|",
-    r"|  \| || || |_) / _ \ | |",
-    r"| |\  || ||  __/ ___ \| |",
-    r"|_| \_|___|_| /_/   \_\_|",
-)
+
 
 
 def _clean(value: object, *, multiline: bool = False) -> str:
@@ -233,12 +227,7 @@ class Terminal:
         return f"{color}{text}\x1b[0m" if color else text
 
     def banner(self, version: str, dry_run: bool) -> None:
-        width = shutil.get_terminal_size(fallback=(80, 24)).columns
-        if width >= 48:
-            self._emit(self._styled("\n".join(_BANNER), "accent"))
-        else:
-            self._emit(self._styled("N I P A T", "accent"))
-        self.message(f"NIPAT {_clean(version)} | CLI per la validazione", "muted")
+        self.message(f"NewPat {_clean(version)} | CLI per la validazione", "accent")
         if dry_run:
             self.message("DRY-RUN: preparazione dei comandi, senza eseguire le analisi.", "warning")
 

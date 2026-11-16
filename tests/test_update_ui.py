@@ -68,7 +68,7 @@ class UpdateUITests(unittest.TestCase):
                                     handoff=self.handoff, current_version="0.8.1"))
         self.client.download.assert_called_once()
         self.handoff.assert_not_called()
-        self.assertIn("chiudere tutte le sessioni NIPAT", "\n".join(self.messages))
+        self.assertIn("chiudere tutte le sessioni NewPat", "\n".join(self.messages))
         self.assertIn(str(self.client.download.return_value), "\n".join(self.messages))
 
     def test_install_requires_two_explicit_choices_and_handoff_success(self):

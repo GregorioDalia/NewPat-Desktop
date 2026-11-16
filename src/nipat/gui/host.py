@@ -12,4 +12,4 @@ def native_host():
     if sys.platform == "linux":
         from . import linux_host
         return linux_host
-    raise RuntimeError("La GUI NIPAT supporta Windows, Ubuntu e macOS.")
+    raise RuntimeError("La GUI NewPat supporta Windows, Ubuntu e macOS.")

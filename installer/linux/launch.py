@@ -1,4 +1,4 @@
-"""User launcher and resumable preparation for the Ubuntu NIPAT Desktop package.
+"""User launcher and resumable preparation for the Ubuntu NewPat Desktop package.
 
 The package owns the application and archive; preparation owns only per-user state.
 No administrative commands, daemon configuration changes or image deletion occur here.
@@ -56,7 +56,7 @@ def require_host() -> None:
         raise SetupError("Questo pacchetto richiede Ubuntu 24.04 LTS x86_64.")
     if os.geteuid() == 0:
         raise SetupError(
-            "Avviare NIPAT con il proprio utente, senza sudo. "
+            "Avviare NewPat con il proprio utente, senza sudo. "
             "L'accesso a Docker deve essere predisposto dall'amministratore."
         )
     if sys.version_info[:2] != (3, 12):
@@ -128,7 +128,7 @@ def load_manifest(app: Path) -> tuple[dict, str]:
                     or not DIGEST.fullmatch(checksum)):
                 raise ValueError("percorso o checksum dei sorgenti")
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
-        raise SetupError("Pacchetto NIPAT incompleto o manifest non valido; reinstallare il pacchetto.") from exc
+        raise SetupError("Pacchetto NewPat incompleto o manifest non valido; reinstallare il pacchetto.") from exc
     return manifest, hashlib.sha256(raw).hexdigest()
 
 
@@ -138,7 +138,7 @@ def verify_sources(app: Path, manifest: dict) -> None:
         if path.is_symlink() or not path.is_file() or not path.resolve().is_relative_to(app.resolve()):
             raise SetupError(f"File del pacchetto mancante o non valido: {name}")
         if digest(path) != expected:
-            raise SetupError(f"File del pacchetto modificato: {name}. Reinstallare NIPAT.")
+            raise SetupError(f"File del pacchetto modificato: {name}. Reinstallare NewPat.")
 
 
 def loaded_image(output: str) -> str:
@@ -183,7 +183,7 @@ def verify_daemon(environment: dict[str, str]) -> None:
                        for item in options)):
             raise ValueError("piattaforma o mappatura utenti non supportata")
     except (ValueError, AttributeError) as exc:
-        raise SetupError("NIPAT richiede Docker Engine locale Linux amd64, "
+        raise SetupError("NewPat richiede Docker Engine locale Linux amd64, "
                          "senza modalita rootless o rimappatura userns. "
                          f"Consultare {GUIDE}.") from exc
     docker(["compose", "version"], environment)
@@ -220,7 +220,7 @@ def setup_lock(state: Path):
         try:
             fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as exc:
-            raise SetupError("La preparazione NIPAT e gia in corso in un'altra finestra.") from exc
+            raise SetupError("La preparazione NewPat e gia in corso in un'altra finestra.") from exc
         try:
             yield
         finally:
@@ -359,14 +359,14 @@ def ensure_ready(app: Path, data: Path, state: Path, environment: dict[str, str]
                 log.flush()
 
             try:
-                message("NIPAT: verifica del pacchetto e dell'archivio scientifico...")
+                message("NewPat: verifica del pacchetto e dell'archivio scientifico...")
                 verify_sources(app, manifest)
                 asset = manifest["assets"]["scientific_image"]
                 archive = app / ".distribution" / asset["file"]
                 if (archive.is_symlink() or not archive.is_file()
                         or archive.stat().st_size != asset["size"] or digest(archive) != asset["sha256"]):
-                    raise SetupError("Archivio scientifico non integro. Reinstallare il pacchetto NIPAT.")
-                message("NIPAT: caricamento dell'immagine scientifica; attendere...")
+                    raise SetupError("Archivio scientifico non integro. Reinstallare il pacchetto NewPat.")
+                message("NewPat: caricamento dell'immagine scientifica; attendere...")
                 loaded = docker(["image", "load", "--input", str(archive)], environment, timeout=3600)
                 message(loaded.stdout.strip())
                 if loaded.stderr.strip():
@@ -376,16 +376,16 @@ def ensure_ready(app: Path, data: Path, state: Path, environment: dict[str, str]
                     raise SetupError("L'immagine caricata non corrisponde all'ID o alla piattaforma previsti.")
                 runtime_environment = dict(environment, NIPAT_RUNTIME_IMAGE=identifier)
                 for arguments in (["doctor", "--runtime"], ["self-test"]):
-                    message("NIPAT: " + " ".join(arguments))
+                    message("NewPat: " + " ".join(arguments))
                     code = run_cli(app, arguments, runtime_environment, log,
                                    timeout=SETUP_CHECK_TIMEOUTS[arguments[0]])
                     if code != 0:
-                        raise SetupError("Verifica NIPAT non superata: " + " ".join(arguments)
+                        raise SetupError("Verifica NewPat non superata: " + " ".join(arguments)
                                          + f" (codice {code}). Consultare {state / 'setup.log'}.")
                 record.update(phase="ready", resolved_runtime_image=identifier,
                               updated_utc=datetime.now(timezone.utc).isoformat())
                 atomic_json(state_path, record)
-                message("Ambiente NIPAT disponibile.")
+                message("Ambiente NewPat disponibile.")
                 return identifier
             except (Exception, KeyboardInterrupt) as exc:
                 record.update(phase="failed", last_error=str(exc) or "Preparazione interrotta",
@@ -421,7 +421,7 @@ def launch(arguments: list[str]) -> int:
             return run_cli(app, arguments, environment)
         setup_only = arguments == ["--setup"]
         if "--setup" in arguments and not setup_only:
-            raise SetupError("Usare --setup senza altri argomenti per preparare NIPAT.")
+            raise SetupError("Usare --setup senza altri argomenti per preparare NewPat.")
         notice = (gui_startup(app).preparation_notice(app) if graphical else nullcontext())
         with notice:
             identifier = ensure_ready(app, data, state, environment, force=setup_only)
@@ -439,7 +439,7 @@ def launch(arguments: list[str]) -> int:
             try:
                 gui_startup(app).show_startup_error(app, str(exc) + "\n" + str(app / GUIDE))
             except Exception as notice_error:
-                print("NIPAT: " + str(notice_error), file=sys.stderr)
+                print("NewPat: " + str(notice_error), file=sys.stderr)
         return 1
 
 

@@ -1,16 +1,16 @@
-NIPAT Desktop - Windows ZIP completo
+NewPat - Windows ZIP completo
 
 1. Scegliere una cartella definitiva su un disco locale fisso ed estrarre
    completamente lo ZIP. Lo ZIP Source code di GitHub non e un installer.
 2. Fare doppio clic su 1_INSTALLA.cmd, senza eseguirlo come amministratore.
 3. La preparazione crea la sottocartella NIPAT nella cartella estratta e apre
-   automaticamente l'app. Per i prossimi avvii aprire NIPAT\NIPAT.lnk.
-   Il collegamento usa l'icona NIPAT e non tiene una console aperta.
+   automaticamente l'app. Per i prossimi avvii aprire NIPAT\NewPat.lnk.
+   Il collegamento usa l'icona NewPat e non tiene una console aperta.
 
 Python 3.12.10, filesystem WSL e motore scientifico sono inclusi.
 Non occorre installare Python. Windows potrebbe dover scaricare/aggiornare
 WSL da Microsoft e richiedere autorizzazione amministrativa o riavvio.
-Dopo un riavvio aprire lo stesso NIPAT\NIPAT.lnk: completa la preparazione
+Dopo un riavvio aprire lo stesso NIPAT\NewPat.lnk: completa la preparazione
 e apre l'app. I vecchi script restano disponibili per la diagnostica.
 La ripresa usa la copia installata e gli archivi gia presenti nella cache.
 
@@ -27,7 +27,7 @@ SE WINDOWS BLOCCA 1_INSTALLA.cmd
 
 La provenienza Internet puo bloccare anche gli script. Nessun automatismo
 qui disabilita Smart App Control o Defender. La firma dell'interprete Python
-non firma NIPAT. Il doppio clic non e garantito con tutte le policy Windows.
+non firma NewPat. Il doppio clic non e garantito con tutte le policy Windows.
 
 Prima verificare il SHA-256 dello ZIP confrontandolo con la riga del suo nome
 nel file SHA256SUMS della stessa release ufficiale GitHub. Se coincide, fare
@@ -63,8 +63,8 @@ Non inserirlo in un file .ps1 scaricato: anche quel file potrebbe essere bloccat
     $codice = $LASTEXITCODE
     Write-Host "Codice finale: $codice"
     Write-Host "Cartella NIPAT: $cartella\NIPAT"
-    if ($codice -eq 0) { Write-Host 'Preparazione riuscita: aprire NIPAT\2_AVVIA.cmd.' }
-    elseif ($codice -eq 3010) { Write-Host 'Riavviare Windows, poi aprire NIPAT\1_COMPLETA_PREPARAZIONE.cmd.' }
+    if ($codice -eq 0) { Write-Host 'Preparazione riuscita: aprire NIPAT\NewPat.lnk.' }
+    elseif ($codice -eq 3010) { Write-Host 'Riavviare Windows, poi aprire NIPAT\NewPat.lnk.' }
     else { throw 'Preparazione non completata. Conservare il messaggio e setup.log.' }
 }
 

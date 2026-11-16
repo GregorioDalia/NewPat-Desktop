@@ -207,8 +207,10 @@ class LinuxInstallerTests(unittest.TestCase):
         self.assertEqual((extracted / "usr/bin" / linux.COMMAND).stat().st_mode & 0o777, 0o755)
         self.assertIn("Terminal=false", (extracted / "usr/share/applications/nipat-desktop.desktop").read_text())
         desktop = (extracted / "usr/share/applications/nipat-desktop.desktop").read_text()
-        self.assertIn("Name=NIPAT Desktop\n", desktop)
-        self.assertIn("Exec=/usr/bin/nipat --desktop\nTryExec=/usr/bin/nipat\n", desktop)
+        self.assertIn("Name=NewPat\n", desktop)
+        self.assertEqual((extracted / "usr/bin/newpat").read_bytes(),
+                         (extracted / "usr/bin/nipat").read_bytes())
+        self.assertIn("Exec=/usr/bin/newpat --desktop\nTryExec=/usr/bin/newpat\n", desktop)
         self.assertIn(f"Icon=/{linux.APP_PATH.as_posix()}/{linux.ICON_SOURCE}\n", desktop)
         self.assertEqual((app / linux.ICON_SOURCE).read_bytes(), (self.project / linux.ICON_SOURCE).read_bytes())
         dependencies = subprocess.check_output(["dpkg-deb", "-f", str(package), "Depends"], text=True).strip()

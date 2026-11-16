@@ -58,6 +58,14 @@ class LinuxUpdateTests(unittest.TestCase):
         with self.assertRaises(update.LinuxUpdateError):
             update.verify_package(self.package, self.checksum, self.size)
 
+    def test_newpat_package_alias_uses_same_integrity_checks(self):
+        alias = self.root / "newpat-desktop_0.9.5_amd64.deb"
+        alias.write_bytes(self.package.read_bytes())
+        update.verify_package(alias, self.checksum, self.size)
+        alias.write_bytes(b"changed")
+        with self.assertRaises(update.LinuxUpdateError):
+            update.verify_package(alias, self.checksum, self.size)
+
     def test_unsupported_distro_is_rejected(self):
         with patch.object(update.platform, "freedesktop_os_release", return_value={"ID": "debian", "VERSION_ID": "12"}), \
                 self.assertRaisesRegex(update.LinuxUpdateError, "Ubuntu 24.04"):
@@ -111,7 +119,7 @@ class LinuxUpdateTests(unittest.TestCase):
                 patch.object(update, "_process_identity", return_value="123"), \
                 patch.dict(os.environ, {"NIPAT_LAUNCHER_PID": ""}), \
                 patch.object(update.subprocess, "Popen", return_value=Mock(poll=Mock(return_value=1))), \
-                self.assertRaisesRegex(update.LinuxUpdateError, "NIPAT rimane aperto"):
+                self.assertRaisesRegex(update.LinuxUpdateError, "NewPat rimane aperto"):
             update.start_linux_update(self.package, self.checksum, self.size,
                                       parent_pid=1234, project_dir=update.APP)
         pending = list(self.root.glob("handoff-*/request.json"))

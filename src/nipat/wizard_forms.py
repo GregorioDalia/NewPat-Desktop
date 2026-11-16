@@ -249,7 +249,7 @@ class WorkflowForm:
         """Keep instructions beside the input they describe, including retries."""
         guides = {
             "bams": "Selezionare uno o piu' file BAM: incollare un percorso per volta e premere Invio.",
-            "bam": "Incollare il percorso di un singolo file BAM. NIPAT preparera' il pileup per SNPcall.",
+            "bam": "Incollare il percorso di un singolo file BAM. NewPat preparera' il pileup per SNPcall.",
             "bamlist": "Scegliere un file di testo con un percorso BAM per riga, senza intestazione. I percorsi nella lista sono relativi alla cartella della lista stessa, oppure completi.",
             "reference": "Selezionare il file FASTA delle sequenze, per esempio genome.fa, non il suo indice .fai o .gzi. Usare la stessa assembly del BAM e del pannello. L'indice .fai deve trovarsi accanto al FASTA; per FASTA compresso BGZF serve anche .gzi.",
             "pileup": "Scegliere un pileup separato da tabulazioni, senza intestazione, con i nomi delle letture (QNAME) nella settima colonna; e' il formato samtools --output-QNAME.",

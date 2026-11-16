@@ -1,6 +1,6 @@
-# Guida per l'utilizzo di NIPAT
+# Guida per l'utilizzo di NewPat
 
-NIPAT Desktop esegue sul computer dell'utente cinque analisi di dati genetici.
+NewPat esegue sul computer dell'utente cinque analisi di dati genetici.
 Il menu guidato permette di compilare un'analisi passo per passo. La CLI
 accetta gli stessi tipi di input e permette di ripetere un comando da uno script.
 
@@ -13,7 +13,10 @@ accetta gli stessi tipi di input e permette di ripetere un comando da uno script
 
 ## Requisiti e avvio su Windows
 
-Scaricare **NIPAT-Setup.exe** dalla [pagina delle release](https://github.com/GregorioDalia/nipat-desktop/releases/latest).
+Questa guida descrive il candidato NewPat 0.9.5 Testing. Quando pubblicato,
+scaricare **NewPat-Setup.exe** dalla [release scelta](https://github.com/GregorioDalia/nipat-desktop/releases).
+I pacchetti precedenti conservano il nome NIPAT; il collegamento `latest`
+punta alla stabile e non seleziona automaticamente la 0.9.5 Testing.
 Il pacchetto è per Windows 10 22H2 x64 (build 19045) o Windows 11 x64 con
 virtualizzazione e WSL2. Il setup prepara un ambiente dedicato con gli strumenti
 scientifici. L'attivazione iniziale di WSL può richiedere Internet, autorizzazione
@@ -22,11 +25,11 @@ amministrativa e riavvio.
 1. Aprire il file scaricato da Esplora file, dal proprio account.
 2. Scegliere le cartelle dell'applicazione, dell'ambiente WSL, della cache,
    dei dati e dei risultati. Si possono mantenere i valori proposti.
-3. Attendere **`NIPAT: ready`**, poi aprire **NIPAT Desktop** dal menu Start.
+3. Attendere **`NewPat: ready`**, poi aprire **NewPat** dal menu Start.
    Se è richiesto un riavvio, completarlo e seguire le indicazioni del setup.
 
 Per riprendere una preparazione incompleta, risolvere l'errore segnalato e aprire
-**NIPAT Desktop - completa preparazione** dal menu Start. Se Windows o il
+**NewPat - completa preparazione** dal menu Start. Se Windows o il
 browser blocca il setup, annotare il messaggio e il componente indicato. La
 [guida Windows](INSTALLATORE_WINDOWS.md) descrive requisiti, diagnostica,
 riparazione e disinstallazione.
@@ -34,7 +37,7 @@ riparazione e disinstallazione.
 ## Requisiti e avvio su macOS
 
 Su macOS 14 o successivo scaricare il `.pkg` **arm64** per Apple Silicon
-oppure **x86_64** per Intel. Installare il pacchetto e aprire **NIPAT Desktop**
+oppure **x86_64** per Intel. Installare il pacchetto e aprire **NewPat**
 da Applicazioni. Il primo avvio nel Terminale prepara la VM Lima e richiede
 Internet. Su Apple Silicon, l'immagine scientifica Linux AMD64 usa Rosetta
 nella VM. Per i requisiti, i percorsi e le protezioni del sistema consultare
@@ -44,7 +47,7 @@ la [guida macOS](INSTALLATORE_MACOS.md).
 
 Su Ubuntu 24.04 x86_64 installare il pacchetto `.deb` con APT.
 L'ambiente scientifico usa Docker Engine locale, che deve essere accessibile
-all'utente. Avviare il menu con `nipat`. La
+all'utente. Avviare il menu con `newpat`. La
 [guida Ubuntu](INSTALLATORE_LINUX.md) descrive installazione e diagnosi.
 
 ## Menu guidato
@@ -120,7 +123,7 @@ lasciare vuoto il campo del run nel menu o omettere `--run-name`.
 
 **9 — Verifica aggiornamenti** consulta le release compatibili con sistema,
 architettura e canale. Mostra le note e verifica il pacchetto scaricato.
-Chiudere NIPAT prima di sostituire l'applicazione. Su Mac aprire il `.pkg`
+Chiudere NewPat prima di sostituire l'applicazione. Su Mac aprire il `.pkg`
 verificato al termine del download.
 
 Su Windows, **Guida e informazioni → Installazione e spazio** mostra
@@ -141,7 +144,7 @@ autotest. Consultare l'esito finale della finestra di manutenzione e il
 | CPIN | Tabelle di madre, padre e figlio, terne, frequenze e pannello facoltativo. | CPI postnatale, dettaglio siti, curve e grafici. |
 
 I pannelli, le tabelle e i riferimenti devono avere coordinate e tipo di
-marcatori coerenti. Gli input originali rimangono disponibili. NIPAT prepara
+marcatori coerenti. Gli input originali rimangono disponibili. NewPat prepara
 le copie di lavoro necessarie e controlla [formati e segnalazioni](INPUT_VALIDATION.md).
 
 ### DNPcall
@@ -169,7 +172,7 @@ da 2 a 2147483646, per la finestra di tre basi, con coordinate uniche
 e basi REF/ALT distinte. Il cromosoma non contiene spazi o `:`.
 
 Il pileup importato deve essere tabulato, senza intestazione, con i nomi
-delle letture (QNAME) nella settima colonna. Per un BAM NIPAT prepara
+delle letture (QNAME) nella settima colonna. Per un BAM NewPat prepara
 questa informazione automaticamente con samtools. I filtri di acquisizione
 di un pileup importato dipendono dal comando con cui è stato prodotto.
 
@@ -198,7 +201,7 @@ selezionare direttamente le tabelle compatibili.
 
 Servono `N_REF`, `N_ALT`, `N_Other` interi non negativi e coordinate
 univoche `chr,pos` per SNP oppure `chr,pos1,pos2` per DNP.
-Se le tabelle includono `ratio_REF_ALT`, NIPAT lo conserva e segnala
+Se le tabelle includono `ratio_REF_ALT`, NewPat lo conserva e segnala
 un'eventuale incoerenza con i conteggi. Il pannello richiede le coordinate
 del medesimo tipo e può includere gli alleli. Il filtro sulle altre basi
 usa `N_Other / (N_REF + N_ALT + N_Other)`.
@@ -217,7 +220,7 @@ e il file delle frequenze di popolazione. Le tabelle contengono coordinate,
 `REF`, `ALT`, `N_REF`, `N_ALT`, `N_Other` e `total_count`. Le
 frequenze contengono le coordinate dello stesso tipo e `Ref_f.pop`,
 `Alt_f.pop`. Le frequenze devono essere finite, in `(0, 1]`, con loci
-univoci. NIPAT segnala una somma REF/ALT diversa da uno.
+univoci. NewPat segnala una somma REF/ALT diversa da uno.
 
 Nell'analisi singola `--pairs A1:A1` seleziona `MotherA1.txt` e
 `FatherA1.txt` con i prefissi predefiniti. Più coppie si separano con
@@ -281,14 +284,14 @@ effettivamente installata, anche se scelta durante il setup.
 
 ```powershell
 $app = (Get-ItemProperty -LiteralPath 'HKCU:\Software\NIPAT\desktop' -Name app_dir).app_dir
-$nipat = Join-Path $app 'nipat.cmd'
+$nipat = Join-Path $app 'newpat.cmd'
 & $nipat --version
 & $nipat --help
 & $nipat wizard
 ```
 
-Su Ubuntu usare `nipat`. Su macOS usare
-`/Applications/NIPAT Desktop.app/Contents/Resources/NIPAT.command`
+Su Ubuntu usare `newpat`. Su macOS usare
+`/Applications/NewPat.app/Contents/Resources/NewPat.command`
 tra virgolette dalla shell. Nei comandi POSIX, sostituire i percorsi con
 quelli del proprio sistema e usare il carattere di continuazione
 della shell.
@@ -361,7 +364,7 @@ Contamination. Gli input e le frequenze sono percorsi di esempio.
 `--analyses contamination,cpi,cpin` imposta le stesse analisi per i rami
 selezionati. `--snp-analyses` e `--dnp-analyses` impostano invece il
 singolo ramo. Una stringa vuota lascia solo il calling per quel ramo.
-NIPAT può riutilizzare il pannello di calling per Contamination. Per
+NewPat può riutilizzare il pannello di calling per Contamination. Per
 calcolare CPI o CPIN occorrono le frequenze del ramo e le coppie o
 terne esplicite.
 
@@ -410,7 +413,7 @@ trovare gli output e come verificare a quale campione appartengono.
 
 | Situazione | Cosa controllare |
 | --- | --- |
-| Setup Windows incompleto | In **Cartella NIPAT Desktop**, consultare `.runtime\installer\setup.log` e `state.json`, poi usare il collegamento per completare la preparazione. |
+| Setup Windows incompleto | In **Cartella NewPat**, consultare `.runtime\installer\setup.log` e `state.json`, poi usare il collegamento per completare la preparazione. |
 | File non accessibile | Controllare percorso, permessi e accesso del backend. Su Windows usare un disco locale fisso. |
 | Riferimento FASTA rifiutato | Scegliere il file delle sequenze e verificare la presenza del `.fai` e dell'eventuale `.gzi`. |
 | Nome di run già presente | Cambiare il nome o usare un nome automatico. |

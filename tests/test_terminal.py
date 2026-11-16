@@ -33,7 +33,7 @@ class TerminalTests(unittest.TestCase):
         terminal = Terminal(read=read, write=output.append)
         terminal.banner("0.3.0a1", dry_run=False)
         self.assertEqual(terminal.menu("Analisi", CHOICES), "invalid")
-        self.assertIn("NIPAT 0.3.0a1", "\n".join(output))
+        self.assertIn("NewPat 0.3.0a1", "\n".join(output))
         self.assertNotIn("\x1b", "\n".join(output))
         read.assert_called_once_with("Scelta: ")
 

@@ -6,7 +6,7 @@ function Get-NipatApplicationVersion {
     $versionFile = Join-Path $PSScriptRoot '../../src/nipat/__init__.py'
     $source = Get-Content -LiteralPath $versionFile -Raw -Encoding UTF8
     $match = [regex]::Match($source, '(?m)^__version__ = "((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))"\s*$')
-    if (-not $match.Success) { throw 'Identita della build NIPAT non valida.' }
+    if (-not $match.Success) { throw 'Identita della build NewPat non valida.' }
     return $match.Groups[1].Value
 }
 
@@ -29,7 +29,7 @@ function Read-NipatInstallerManifest([string] $Path) {
         }
         $expectedUrl = 'https://github.com/GregorioDalia/nipat-desktop/releases/download/' + $manifest.release_tag + '/' + $asset.file
         if ($asset.url -cne $expectedUrl) {
-            throw "URL dell'asset $name non autorizzato: atteso il repository e il tag della release NIPAT."
+            throw "URL dell'asset $name non autorizzato: atteso il repository e il tag della release NewPat."
         }
     }
     if ($manifest.assets.rootfs.file -eq $manifest.assets.scientific_image.file) {
@@ -103,10 +103,10 @@ function Assert-NipatWindowsPlatform([bool] $Is64BitOS, [bool] $Is64BitProcess,
     [string] $Architecture, [int] $Build, [int] $ProductType) {
     # Windows Server can have newer build numbers but is not a desktop target.
     if (-not $Is64BitOS -or -not $Is64BitProcess -or $Architecture -ine 'AMD64') {
-        throw 'NIPAT richiede Windows x64 Intel/AMD e PowerShell a 64 bit. Windows ARM e Windows a 32 bit non sono supportati.'
+        throw 'NewPat richiede Windows x64 Intel/AMD e PowerShell a 64 bit. Windows ARM e Windows a 32 bit non sono supportati.'
     }
     if ($ProductType -ne 1 -or ($Build -ne 19045 -and $Build -lt 22000)) {
-        throw "NIPAT richiede Windows 10 22H2 x64 (build 19045) oppure Windows 11 x64. Windows Server non e supportato. Build rilevata: $Build; ProductType: $ProductType."
+        throw "NewPat richiede Windows 10 22H2 x64 (build 19045) oppure Windows 11 x64. Windows Server non e supportato. Build rilevata: $Build; ProductType: $ProductType."
     }
 }
 
@@ -119,7 +119,7 @@ function Assert-NipatWindowsUser {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = New-Object Security.Principal.WindowsPrincipal($identity)
     if ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-        throw 'Avviare NIPAT normalmente, senza Esegui come amministratore. Solo l abilitazione WSL richiede UAC; dati e distribuzione devono appartenere all utente normale.'
+        throw 'Avviare NewPat normalmente, senza Esegui come amministratore. Solo l abilitazione WSL richiede UAC; dati e distribuzione devono appartenere all utente normale.'
     }
 }
 
@@ -182,7 +182,7 @@ function Invoke-NipatSetupCheck([string] $Executable, [string[]] $Arguments,
     $exitPath = Join-Path $LogDirectory ($Name + '.exit-code.txt')
     if (Test-Path -LiteralPath $exitPath) { Remove-Item -LiteralPath $exitPath -Force }
     if (-not (Test-Path -LiteralPath $Executable -PathType Leaf)) { throw "Impossibile avviare il controllo $Name." }
-    Write-Host ("NIPAT: controllo $Name in corso (limite $TimeoutSeconds secondi). Diagnostica: $stdoutPath ; $stderrPath")
+    Write-Host ("NewPat: controllo $Name in corso (limite $TimeoutSeconds secondi). Diagnostica: $stdoutPath ; $stderrPath")
     $start = New-Object Diagnostics.ProcessStartInfo
     $waitMilliseconds = $TimeoutSeconds * 1000
     if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
@@ -255,7 +255,7 @@ function Invoke-NipatSetupCheck([string] $Executable, [string[]] $Arguments,
         $text = [IO.File]::ReadAllText($path, [Text.Encoding]::UTF8)
         if ($text) { Write-Host $text }
     }
-    Write-Host ("NIPAT: controllo $Name terminato (codice $code).")
+    Write-Host ("NewPat: controllo $Name terminato (codice $code).")
     if ($code -ne 0) {
         throw "Controllo $Name non superato (codice $code). Dettagli: $stdoutPath ; $stderrPath"
     }
@@ -417,7 +417,7 @@ function Assert-NipatDistroLocation([string] $Distro, [string] $ExpectedDirector
     $actual = [string]$registrations[0].BasePath
     if ($actual.StartsWith('\\?\')) { $actual = $actual.Substring(4) }
     if ([IO.Path]::GetFullPath($actual).TrimEnd('\') -ine [IO.Path]::GetFullPath($ExpectedDirectory).TrimEnd('\')) {
-        throw "Esiste gia' una distribuzione $Distro registrata altrove. NIPAT non la modifica. Consultare il supporto per risolvere il conflitto di nome."
+        throw "Esiste gia' una distribuzione $Distro registrata altrove. NewPat non la modifica. Consultare il supporto per risolvere il conflitto di nome."
     }
 }
 

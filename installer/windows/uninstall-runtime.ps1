@@ -91,7 +91,7 @@ function Assert-NipatRemovalTarget($Target, $Registrations, [switch] $SkipOwnerP
     if ($Target.Registered) {
         if ($matches.Count -ne 1 -or $matches[0].Version -ne 2 -or
             (Get-NipatRemovalRegistrationPath $matches[0].BasePath) -ine $Target.Directory) {
-            throw "La registrazione WSL non corrisponde al runtime NIPAT previsto: $($Target.Distro)."
+            throw "La registrazione WSL non corrisponde al runtime NewPat previsto: $($Target.Distro)."
         }
         # This checks both the product marker and the installation's random owner
         # token. No owner file is initialized or rewritten during removal.
@@ -142,14 +142,14 @@ function Get-NipatRuntimeRemovalPlan([string] $Project, [switch] $InspectOnly) {
     foreach ($runtime in $runtimeRoots.Values) {
         if ((Test-Path -LiteralPath $runtime -PathType Container) -and
             -not (Test-NipatStorageMarker $runtime 'runtime')) {
-            throw "Ambiente di calcolo privo del marcatore NIPAT: $runtime."
+            throw "Ambiente di calcolo privo del marcatore NewPat: $runtime."
         }
         $receiptDirectory = Join-Path $runtime 'registrations'
         if (Test-Path -LiteralPath $receiptDirectory -PathType Container) {
             foreach ($file in @(Get-ChildItem -LiteralPath $receiptDirectory -Filter '*.json' -File)) {
                 $distro = [IO.Path]::GetFileNameWithoutExtension($file.Name)
                 if (-not $distro.StartsWith($profile.distro_prefix, [StringComparison]::Ordinal)) {
-                    throw "Registro di una distribuzione estranea nella cartella NIPAT Desktop: $($file.FullName)."
+                    throw "Registro di una distribuzione estranea nella cartella NewPat: $($file.FullName)."
                 }
                 $receipt = Read-NipatOwnership $file.FullName $distro
                 Assert-NipatRuntimeNamespace $distro $receipt.rootfs_sha256 $runtime
@@ -182,7 +182,7 @@ function Get-NipatRuntimeRemovalPlan([string] $Project, [switch] $InspectOnly) {
             catch { continue }
             if (Test-NipatRemovalPathsOverlap $runtime $registeredPath) {
                 if (-not $knownTargets.ContainsKey($registration.DistributionName)) {
-                    throw "Distribuzione senza un registro NIPAT verificato nella destinazione scelta: $($registration.DistributionName)."
+                    throw "Distribuzione senza un registro NewPat verificato nella destinazione scelta: $($registration.DistributionName)."
                 }
             }
         }
@@ -192,7 +192,7 @@ function Get-NipatRuntimeRemovalPlan([string] $Project, [switch] $InspectOnly) {
         if (-not (Test-Path -LiteralPath $cache -PathType Container)) { continue }
         $hasMarker = Test-NipatStorageMarker $cache 'cache'
         if (-not $hasMarker) {
-            throw "Cache priva del marcatore NIPAT: $cache."
+            throw "Cache priva del marcatore NewPat: $cache."
         }
         foreach ($file in @(Get-ChildItem -LiteralPath $cache -File -Force)) {
             if ($file.Name -cnotmatch '^([a-f0-9]{64})-(nipat-wsl-rootfs|nipat-scientific-runtime)-[A-Za-z0-9._-]+\.tar\.gz$') { continue }
@@ -236,10 +236,10 @@ function Invoke-NipatRuntimeRemoval($Plan) {
     foreach ($target in $Plan.Targets) {
         Assert-NipatRemovalTarget $target @(Get-NipatRemovalRegistrations)
         if ($target.Registered) {
-            Write-Host "Rimozione ambiente WSL NIPAT: $($target.Distro)"
+            Write-Host "Rimozione ambiente WSL NewPat: $($target.Distro)"
             Invoke-NipatWsl @('--unregister', $target.Distro) -TimeoutSeconds 240 | Out-Null
             if (@(Get-NipatRemovalRegistrations | Where-Object { $_.DistributionName -ieq $target.Distro }).Count -ne 0) {
-                throw "WSL riporta ancora la distribuzione $($target.Distro); il registro NIPAT viene conservato."
+                throw "WSL riporta ancora la distribuzione $($target.Distro); il registro NewPat viene conservato."
             }
         }
         [IO.File]::Delete($target.OwnershipPath)
@@ -255,7 +255,7 @@ function Invoke-NipatRuntimeRemoval($Plan) {
     }
     foreach ($runtime in $Plan.RuntimeRoots) { Remove-NipatEmptyDirectory (Join-Path $runtime 'registrations') }
     foreach ($path in @($Plan.RuntimeRoots) + @($Plan.CacheRoots)) { Remove-NipatEmptyDirectory $path }
-    Write-Host 'Ambienti NIPAT verificati e archivi della cache rimossi. Dati, risultati e file non riconosciuti sono conservati.'
+    Write-Host 'Ambienti NewPat verificati e archivi della cache rimossi. Dati, risultati e file non riconosciuti sono conservati.'
 }
 
 if (-not $LibraryOnly) {
@@ -274,7 +274,7 @@ if (-not $LibraryOnly) {
         $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
         $mutex = New-Object Threading.Mutex($false, ($profile.mutex_prefix + $sid))
         try { $locked = $mutex.WaitOne(0) } catch [Threading.AbandonedMutexException] { $locked = $true }
-        if (-not $locked) { throw 'La preparazione NIPAT e in corso. Attendere prima di disinstallare.' }
+        if (-not $locked) { throw 'La preparazione NewPat e in corso. Attendere prima di disinstallare.' }
         $logDirectory = Join-Path (Get-NipatInstallLayoutHistoryDirectory) 'logs'
         Assert-NipatInstallPathWithoutLinks $logDirectory -Tree
         [IO.Directory]::CreateDirectory($logDirectory) | Out-Null

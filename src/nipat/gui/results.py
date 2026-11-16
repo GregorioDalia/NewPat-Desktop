@@ -113,6 +113,8 @@ _MAX_PAGE = 1000
 _MAX_SUMMARY = 10000
 _MAX_JSON = 32 * 1024 * 1024
 _MAX_LINE = 8 * 1024 * 1024
+_MAX_CURVE_ROWS = 20000
+_MAX_CURVE_BYTES = 16 * 1024 * 1024
 
 
 def _translation(pair, language="it"):
@@ -424,7 +426,7 @@ class ResultsStore:
             imported.append(identifier)
             hidden.discard(str(current))
         if not imported:
-            raise ValueError("La cartella non contiene esperimenti NIPAT con run.json.")
+            raise ValueError("La cartella non contiene esperimenti NewPat con run.json.")
         registry.update(imports=records, hidden=sorted(hidden))
         self._write_registry(registry)
         return {"imported": imported, "count": len(imported)}
@@ -807,6 +809,47 @@ class ResultsStore:
         return {"file": descriptor, "columns": [column_description(k, language=self.language, samples=sample_labels) for k in columns],
                 "rows": result, "row_numbers": row_numbers, "total": total, "matched": matched,
                 "offset": offset, "limit": limit, "has_more": offset + limit < matched}
+
+    def curve(self, run_id, file_id) -> dict:
+        """Read a complete recorded curve; never reconstruct or truncate values.
+
+        This separate bounded read avoids rescanning large native tables once per
+        page. Larger curves remain available through the table and original PDF.
+        """
+        path, descriptor = self._file(run_id, file_id)
+        module = descriptor.get("module")
+        if (descriptor["kind"] != "table" or not descriptor["canonical"] or
+                module not in {"cpi", "cpin"} or
+                not (descriptor["name"].endswith("_curve.tsv") or "_panel_" in descriptor["name"])):
+            raise ValueError(_translation(("Il risultato selezionato non è una curva CPI o CPIN.",
+                                           "The selected result is not a CPI or CPIN curve."), self.language))
+        too_large = _translation((
+            "La curva supera il limite del grafico interattivo. Consulta la tabella completa o il PDF originale.",
+            "The curve exceeds the interactive chart limit. Open the full table or original PDF."), self.language)
+        snapshot = _signature(path)
+        if snapshot[0] > _MAX_CURVE_BYTES:
+            raise ValueError(too_large)
+        columns = _columns(path)
+        x_key, y_key, through_key = (("Iteration", "log_CPI", None) if module == "cpi" else
+                                     ("Min_child_reads", "Log10_CPI", "Through_min_child_reads"))
+        if not {x_key, y_key, *([through_key] if through_key else [])}.issubset(columns):
+            raise ValueError(_translation(("La tabella non contiene le colonne richieste dalla curva.",
+                                           "The table does not contain the required curve columns."), self.language))
+        rows, size = [], sum(len(column.encode("utf-8")) for column in columns)
+        for row in _rows(path):
+            size += sum(len(value.encode("utf-8")) for value in row.values())
+            if len(rows) >= _MAX_CURVE_ROWS or size > _MAX_CURVE_BYTES:
+                raise ValueError(too_large)
+            rows.append(row)
+        if snapshot != _signature(path):
+            raise ValueError(_translation(("La curva è cambiata durante la lettura. Aggiorna la pagina.",
+                                           "The curve changed while reading. Refresh the page."), self.language))
+        return {"file": descriptor,
+                "columns": [column_description(key, language=self.language) for key in columns],
+                "rows": rows, "row_numbers": list(range(len(rows))), "total": len(rows), "matched": len(rows),
+                "offset": 0, "limit": _MAX_CURVE_ROWS, "has_more": False,
+                "curve": {"x_key": x_key, "y_key": y_key, "through_key": through_key,
+                          "interval_endpoints": "inclusive" if through_key else None}}
 
     def _metric(self, key, value):
         result = column_description(key, language=self.language)

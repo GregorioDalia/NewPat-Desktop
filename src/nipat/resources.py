@@ -97,6 +97,57 @@ def suggested_resources(host: dict) -> dict:
             "cpus": max(1, min(4, cpus - 1)) if type(cpus) is int and cpus > 0 else None}
 
 
+def fixed_execution_budget(snapshot: dict, options=None) -> dict:
+    """Freeze assigned capacities for one run, independently of free memory.
+
+    This is an admission budget, not a per-worker requirement or a reservation
+    made by the OS. Scientific phases check their own workload estimate before
+    creating a pool. Unknown effective runtime memory keeps execution serial.
+    """
+    from nipat import __version__
+
+    settings = options.as_dict() if hasattr(options, "as_dict") else options or {}
+    runtime = snapshot.get("runtime", {})
+    effective = runtime.get("effective", {})
+    configured = runtime.get("configured", {})
+    host = snapshot.get("host", {})
+
+    def positive(value):
+        return type(value) in (int, float) and math.isfinite(value) and value > 0
+
+    def capacity(key, explicit):
+        measured = effective.get(key)
+        if not positive(measured):
+            return None
+        values = [measured, configured.get(key), host.get(key), explicit]
+        return min(value for value in values if positive(value))
+
+    memory = capacity("memory_mib", settings.get("memory_mb"))
+    cpu = capacity("cpus", settings.get("cpus"))
+    ceiling = max(1, math.floor(cpu)) if cpu is not None else 1
+    maximum = settings.get("max_workers")
+    if type(maximum) is int and maximum > 0:
+        ceiling = min(ceiling, maximum)
+    if settings.get("execution_mode", "auto") == "serial" or memory is None:
+        ceiling = 1
+    # Leave a proportional allowance for coordination, guest services and
+    # estimation uncertainty; do not consult transient host/guest MemAvailable.
+    reserve = 0.20
+    memory_budget = math.floor(memory * (1 - reserve)) if memory is not None else None
+    return {
+        "schema_version": 1, "interface": "nipat-fixed-resources-v1",
+        "source_version": __version__, "basis": "assigned-capacity-at-run-start",
+        "memory_capacity_mib": memory, "memory_budget_mib": memory_budget,
+        "memory_reserve_fraction": reserve, "cpu_limit": cpu,
+        "worker_ceiling": ceiling,
+        "memory_allocation_per_worker_mib": memory_budget / ceiling if memory_budget is not None else None,
+        "concurrency_policy": "fixed-pool-per-phase-within-run-ceiling",
+        "reason": "capacity-unavailable" if memory is None or cpu is None else
+                  "requested-serial" if settings.get("execution_mode") == "serial" else
+                  "assigned-capacity",
+    }
+
+
 def _backend() -> str:
     value = os.environ.get("NIPAT_BACKEND", "native").strip().lower() or "native"
     if value not in {"native", "wsl", "lima"}:
@@ -427,7 +478,7 @@ class ResourceManager:
 
     def preview(self, memory_mib: int, cpus: int) -> ResourceChange:
         if self.backend not in {"wsl", "lima"}:
-            raise ValidationError("Su Ubuntu nativo configurare i limiti dell'analisi; non esiste una VM NIPAT da ridimensionare.")
+            raise ValidationError("Su Ubuntu nativo configurare i limiti dell'analisi; non esiste una VM NewPat da ridimensionare.")
         self._validate(memory_mib, cpus, host_resources())
         path, contents, before = self._configuration()
         instances = self._running()
@@ -437,18 +488,18 @@ class ResourceManager:
             replacement = wsl_configuration(contents, memory_mib=memory_mib, cpus=cpus)[1]
         else:
             replacement = None
-            warnings.append("La modifica riguarda solo la VM Lima dedicata a NIPAT e ne richiede l'arresto se è in esecuzione.")
+            warnings.append("La modifica riguarda solo la VM Lima dedicata a NewPat e ne richiede l'arresto se è in esecuzione.")
         return ResourceChange(self.backend, str(path), _fingerprint(contents), before,
                               {"memory_mib": memory_mib, "cpus": cpus}, instances, tuple(warnings), replacement)
 
     def _assert_idle(self) -> None:
         raw = self._docker(["ps", "--filter", "label=org.nipat.product=nipat-desktop", "--format", "{{.Names}}"])
         if raw.strip():
-            raise RuntimeExecutionError("Sono presenti analisi NIPAT attive: attendere il completamento prima di modificare le risorse.")
+            raise RuntimeExecutionError("Sono presenti analisi NewPat attive: attendere il completamento prima di modificare le risorse.")
         # Older packages might not carry ownership labels. Never stop them either.
         raw = self._docker(["ps", "--filter", "name=nipat-run-", "--format", "{{.Names}}"])
         if raw.strip():
-            raise RuntimeExecutionError("Sono presenti container NIPAT attivi: modifica delle risorse interrotta.")
+            raise RuntimeExecutionError("Sono presenti container NewPat attivi: modifica delle risorse interrotta.")
 
     def _assert_other_wsl_idle(self, instances: tuple[str, ...]) -> None:
         """Older NIPAT installs may not participate in the new shared lock."""

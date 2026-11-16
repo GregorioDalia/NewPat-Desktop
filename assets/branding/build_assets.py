@@ -1,7 +1,7 @@
-"""Regenerate NIPAT vector and raster branding with Pillow 12.3.0.
+"""Regenerate NewPat vector and raster branding with Pillow 12.3.0.
 
 The SVGs and raster icons share the geometry below. This developer utility is
-not used when building or running NIPAT; generated assets are versioned.
+not used when building or running NewPat; generated assets are versioned.
 """
 
 from __future__ import annotations
@@ -23,12 +23,13 @@ STROKES = [
 # Outline lettering avoids font installation and substitution in SVG viewers.
 GLYPHS = [
     "M0 78V0H13L45 55V0H59V78H46L14 23V78Z",  # N
-    "M0 0H14V78H0Z",  # I
+    "M52 56H14C15 67 22 70 30 70C38 70 43 68 48 64L54 73C47 78 39 81 29 81C11 81 0 69 0 52C0 35 11 23 28 23C45 23 54 35 54 51V56ZM14 46H40C39 37 35 34 28 34C21 34 16 38 14 46Z",  # e
+    "M0 25H14L23 62L34 25H47L58 62L67 25H81L65 78H51L40 42L29 78H15Z",  # w
     "M0 78V0H31C49 0 59 9 59 25C59 42 49 51 31 51H14V78ZM14 13V38H30C40 38 45 34 45 25C45 17 40 13 30 13Z",  # P
-    "M0 78L27 0H43L70 78H55L49 59H21L15 78ZM25 46H45L35 15Z",  # A
-    "M0 0H62V14H38V78H24V14H0Z",  # T
+    "M1 30C9 25 18 23 28 23C45 23 54 31 54 47V78H42V71C36 77 30 80 22 80C8 80 0 73 0 62C0 50 10 44 27 44H40C40 37 36 34 28 34C20 34 13 36 7 40ZM40 54H28C18 54 13 57 13 62C13 67 17 70 24 70C33 70 40 64 40 57Z",  # a
+    "M12 9H26V25H42V37H26V60C26 67 29 69 34 69C37 69 40 68 43 67V78C39 80 35 81 31 81C18 81 12 74 12 61V37H0V25H12Z",  # t
 ]
-GLYPH_X = [0, 78, 111, 184, 264]
+GLYPH_X = [0, 72, 139, 234, 306, 373]
 
 
 def icon_markup() -> str:
@@ -64,7 +65,7 @@ def raster_icon(size: int) -> Image.Image:
 
 def main() -> None:
     (ROOT / "nipat-symbol.svg").write_text(
-        svg_document(icon_markup(), "0 0 256 256", "NIPAT"), encoding="utf-8")
+        svg_document(icon_markup(), "0 0 256 256", "NewPat"), encoding="utf-8")
     for name, color in (("nipat-logo.svg", NAVY), ("nipat-logo-dark.svg", WHITE)):
         lettering = "\n".join(
             f'<path transform="translate({x} 0)" d="{path}"/>'
@@ -73,7 +74,7 @@ def main() -> None:
         body = (f'<g transform="scale(0.625)">\n{icon_markup()}\n</g>\n'
                 f'<g transform="translate(194 41)" fill="{color}" fill-rule="evenodd">\n'
                 f'{lettering}\n</g>')
-        (ROOT / name).write_text(svg_document(body, "0 0 536 160", "NIPAT"), encoding="utf-8")
+        (ROOT / name).write_text(svg_document(body, "0 0 627 160", "NewPat"), encoding="utf-8")
     raster_icon(512).save(ROOT / "nipat-icon.png", optimize=False, compress_level=9)
     # PNG-backed ICO frames retain their independently rendered small-size detail.
     sizes = (16, 20, 24, 32, 40, 48, 64, 128, 256)

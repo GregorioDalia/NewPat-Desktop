@@ -1,6 +1,6 @@
 # Diagnostica delle prestazioni
 
-NIPAT può registrare tempi, processi, CPU, memoria e I/O durante un'analisi.
+NewPat può registrare tempi, processi, CPU, memoria e I/O durante un'analisi.
 La raccolta è facoltativa e introduce un costo di monitoraggio. Per misurare
 il tempo d'uso ordinario, eseguire prove senza diagnostica. Per individuare
 la fase che pesa di più o interpretare un arresto, ripetere la prova con
@@ -8,7 +8,7 @@ diagnostica mantenendo gli stessi input e parametri.
 
 ## Prima misura dal menu
 
-1. Aprire **NIPAT Desktop** e annotare la versione mostrata nel banner.
+1. Aprire **NewPat** e annotare la versione mostrata nel banner.
    Eseguire **8 — Verifica ambiente** prima di iniziare.
 2. Scegliere l'analisi da misurare. Per DNPcall usare un BAM, un FASTA
    indicizzato dello stesso assemblaggio e il pannello DNP. Un indice
@@ -32,14 +32,14 @@ La CLI accetta `--performance-diagnostics` prima del comando di
 analisi singola o del workflow. Esempio su Ubuntu:
 
 ```sh
-nipat --performance-diagnostics dnp-call \
+newpat --performance-diagnostics dnp-call \
   --bam "/dati/campione.bam" --reference "/dati/genome.fa" \
   --panel "/dati/DNP_list.txt" --run-name dnp-diagnostica-01
 ```
 
 Per Windows o macOS usare il
 [launcher del pacchetto](GUIDA_UTILIZZO.md#comandi-diretti).
-Con `nipat --performance-diagnostics wizard` il menu propone
+Con `newpat --performance-diagnostics wizard` il menu propone
 la diagnostica per l'analisi successiva; il riepilogo permette di scegliere
 l'avvio ordinario. Il flag richiede un motore che dichiari l'interfaccia
 `performance-diagnostics-v1`.
@@ -52,14 +52,20 @@ l'avvio ordinario. Il flag richiede un motore che dichiari l'interfaccia
 | Automatica | `--execution-mode auto` |
 | Automatica con massimo di due processi di calcolo | `--execution-mode auto --max-workers 2` |
 
-Il massimo richiesto è un limite. Quota CPU, memoria disponibile e quantità
-di lavoro possono ridurre i worker effettivi. I processi di coordinamento
+Il massimo richiesto è un limite. Capacità assegnata, quota CPU, stima del
+lavoro e quantità di attività possono ridurre i worker effettivi. Dalla
+0.9.5 il tetto del run è registrato all'avvio e non dipende dalle successive
+oscillazioni della memoria libera; il pool di una fase viene fissato prima
+di avviarla. I processi di coordinamento
 si osservano a parte. Il budget si applica alle attività di calcolo senza
 moltiplicare pool interni. In DNPcall l'acquisizione del pileup, eventualmente
 in parallelo per cromosoma, precede il calcolo R. Per un primo confronto
-mantenere fissi i valori iniziali di **32 MiB** di input grezzo e **64
-loci** per blocco. La dimensione obiettivo in MiB descrive i dati del blocco;
-la RAM effettiva dipende dal calcolo.
+mantenere fissi i massimi richiesti di **32 MiB** di input grezzo e **64
+loci** per blocco. La 0.9.5 può ridurre l'obiettivo in byte in base al budget:
+registrare anche il valore effettivo. Una finestra indivisibile può superarlo.
+La dimensione in MiB descrive i dati del blocco; la RAM effettiva dipende
+dal calcolo. Il [budget delle risorse](RISORSE.md#budget-fisso-della-095)
+descrive stima, riserva e casi seriali.
 
 Dal menu usare **Parallelismo e blocchi** nel riepilogo per cambiare la
 modalità del singolo run. Le impostazioni comuni si conservano in
@@ -101,6 +107,7 @@ terminazione: per attribuirla alla memoria controllare l'indicatore
 | File | Contenuto |
 | --- | --- |
 | `run-report.html` | Riepilogo leggibile e collegamenti alle misure. |
+| `run.json` → `resource_budget` | Capacità, riserva, politica e tetto dei worker fissati all'avvio. |
 | `performance/summary.json` | Riepilogo della raccolta esterna Docker. |
 | `performance/container-samples.jsonl` | Campioni delle risorse del container. |
 | `performance/engine/summary.json` | Disponibilità e riepilogo delle misure raccolte nel motore. |

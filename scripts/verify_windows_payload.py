@@ -197,7 +197,9 @@ def exercise_client(app: Path, work: Path, manifest: dict) -> None:
         require(result.returncode == 0, f"Packaged command failed: {name}; see {logs}.")
         return result.stdout
 
-    require(invoke("version", ["--version"]).strip() == f"NIPAT {manifest['version']}", "Wrong packaged version.")
+    version = re.match(r"([0-9]+)\.([0-9]+)\.([0-9]+)", manifest["version"])
+    brand = "NewPat" if version and tuple(map(int, version.groups())) >= (0, 9, 5) else "NIPAT"
+    require(invoke("version", ["--version"]).strip() == f"{brand} {manifest['version']}", "Wrong packaged version.")
     # Use the real embedded interpreter's ._pth, exactly as self-test does.
     # --help verifies every packaged entrypoint/import without starting WSL or R.
     for filename in ("verify_snp_example.py", "verify_cpi_update.py", "verify_contamination_update.py",

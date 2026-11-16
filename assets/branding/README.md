@@ -1,8 +1,11 @@
-# Identità visiva NIPAT
+# Identità visiva NewPat
 
 Il simbolo combina una N con due tratti paralleli che richiamano dati di sequenza
 accoppiati. Il blu scuro (`#142D4E`), il bianco e il verde acqua (`#48D6C5`)
-mantengono il contrasto su superfici chiare e scure.
+mantengono il contrasto su superfici chiare e scure. Dalla versione 0.9.5 il
+logotipo riporta **NewPat**; il simbolo N resta riconoscibile. I nomi tecnici
+dei file `nipat-*` sono conservati per compatibilità con i manifest e i
+percorsi già usati dagli installatori.
 
 ## File disponibili
 

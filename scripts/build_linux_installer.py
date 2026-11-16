@@ -27,7 +27,8 @@ _SPEC.loader.exec_module(assets)
 bundle = assets.bundle
 
 PACKAGE = "nipat-desktop"
-COMMAND = "nipat"
+COMMAND = "newpat"
+LEGACY_COMMAND = "nipat"
 APP_PATH = Path("opt") / PACKAGE
 LAUNCH_SOURCE = "installer/linux/launch.py"
 ACTIVITY_DIRECTORY = "/var/lib/nipat-desktop"
@@ -64,9 +65,9 @@ def verified_inputs(project: Path, manifest_path: Path, *, require_clean: bool =
     except (TypeError, AttributeError, KeyError) as exc:
         raise ValueError("Struttura del manifest installer non valida.") from exc
     if not re.fullmatch(r"(?:0\.[67]\.[0-9]+(?:(?:a|b|rc)[0-9]+)?|0\.[89]\.[0-9]+)", manifest["version"]):
-        raise ValueError("Il pacchetto NIPAT Desktop richiede una versione Desktop ufficiale.")
+        raise ValueError("Il pacchetto NewPat richiede una versione Desktop ufficiale.")
     if manifest["version"].startswith("0.8.") and int(manifest["version"].split(".")[2]) < 2:
-        raise ValueError("Il pacchetto NIPAT Desktop ufficiale parte dalla versione 0.8.2.")
+        raise ValueError("Il pacchetto NewPat ufficiale parte dalla versione 0.8.2.")
     if assets.checked_version(project) != manifest["version"]:
         raise ValueError("Versione dei sorgenti diversa dal manifest runtime.")
     if assets.installation_profile(project) != manifest["installation_profile"]:
@@ -114,14 +115,14 @@ def generated_files(manifest: dict, manifest_bytes: bytes) -> dict[str, tuple[by
         "distribution": "native-linux-deb",
     }
     launcher = ("#!/bin/sh\n"
-                "exec 9</var/lib/nipat-desktop/activity.lock || { echo 'NIPAT: reinstallare il pacchetto.' >&2; exit 1; }\n"
-                "/usr/bin/flock --shared --nonblock 9 || { echo 'NIPAT: aggiornamento in corso.' >&2; exit 1; }\n"
-                "test ! -e /var/lib/nipat-desktop/update-in-progress || { echo 'NIPAT: aggiornamento incompleto; completare la configurazione del pacchetto.' >&2; exit 1; }\n"
+                "exec 9</var/lib/nipat-desktop/activity.lock || { echo 'NewPat: reinstallare il pacchetto.' >&2; exit 1; }\n"
+                "/usr/bin/flock --shared --nonblock 9 || { echo 'NewPat: aggiornamento in corso.' >&2; exit 1; }\n"
+                "test ! -e /var/lib/nipat-desktop/update-in-progress || { echo 'NewPat: aggiornamento incompleto; completare la configurazione del pacchetto.' >&2; exit 1; }\n"
                 "exec /usr/bin/python3.12 -I "
                 f"/{APP_PATH.as_posix()}/{LAUNCH_SOURCE} \"$@\"\n")
     desktop = (
-        "[Desktop Entry]\nType=Application\nName=NIPAT Desktop\n"
-        "Comment=Local scientific analysis with the NIPAT desktop interface\n"
+        "[Desktop Entry]\nType=Application\nName=NewPat\n"
+        "Comment=Local scientific analysis with the NewPat desktop interface\n"
         f"Exec=/usr/bin/{COMMAND} --desktop\nTryExec=/usr/bin/{COMMAND}\n"
         f"Terminal=false\nIcon=/{APP_PATH.as_posix()}/{ICON_SOURCE}\nCategories=Science;Biology;\n"
     )
@@ -129,14 +130,15 @@ def generated_files(manifest: dict, manifest_bytes: bytes) -> dict[str, tuple[by
         f"{APP_PATH.as_posix()}/.distribution/{assets.MANIFEST_NAME}": (manifest_bytes, 0o644),
         f"{APP_PATH.as_posix()}/release.json": ((json.dumps(release, indent=2) + "\n").encode(), 0o644),
         f"usr/bin/{COMMAND}": (launcher.encode(), 0o755),
+        f"usr/bin/{LEGACY_COMMAND}": (launcher.encode(), 0o755),
         f"usr/share/applications/{PACKAGE}.desktop": (desktop.encode(), 0o644),
         f"usr/share/doc/{PACKAGE}/copyright": ((
-            "NIPAT - https://github.com/GregorioDalia/nipat-desktop\n\n"
+            "NewPat - https://github.com/GregorioDalia/nipat-desktop\n\n"
             "Copyright remains with the respective authors and contributors.\n"
             "Original NIPAT material is licensed under the GNU General Public\n"
             "License version 3 or, at your option, any later version. Third-party\n"
             "components retain their own notices and applicable license terms.\n\n"
-            f"Full NIPAT license: /{APP_PATH.as_posix()}/LICENSE\n"
+            f"Full NewPat license: /{APP_PATH.as_posix()}/LICENSE\n"
             f"Component notices: /{APP_PATH.as_posix()}/THIRD_PARTY_NOTICES.md\n"
             "The scientific image preserves the notices of its dependencies.\n"
         ).encode(), 0o644),
@@ -150,7 +152,7 @@ def control_bytes(manifest: dict, installed_kib: int) -> bytes:
         "Maintainer: NIPAT contributors\n"
         f"Installed-Size: {installed_kib}\nPre-Depends: util-linux\nDepends: {DEPENDENCIES}\n"
         "Homepage: https://github.com/GregorioDalia/nipat-desktop\n"
-        "Description: NIPAT Desktop scientific application for Ubuntu 24.04 LTS\n"
+        "Description: NewPat scientific application for Ubuntu 24.04 LTS\n"
         " Includes the verified scientific image for local Docker Engine execution.\n"
         " Requires explicit user access to a compatible local Docker daemon.\n"
         " This package does not configure Docker permissions or modify user data.\n"
@@ -170,24 +172,24 @@ def maintainer_scripts() -> dict[str, bytes]:
 set -eu
 umask 022
 state=/var/lib/nipat-desktop
-if [ -L "$state" ]; then echo 'NIPAT: unsafe package state directory.' >&2; exit 1; fi
+if [ -L "$state" ]; then echo 'NewPat: unsafe package state directory.' >&2; exit 1; fi
 if [ ! -e "$state" ]; then mkdir -m 0755 "$state"; fi
 if [ ! -d "$state" ] || [ "$(stat -c %u "$state")" != 0 ] || [ "$(stat -c %a "$state")" != 755 ]; then
-    echo 'NIPAT: invalid package state ownership or permissions.' >&2; exit 1
+    echo 'NewPat: invalid package state ownership or permissions.' >&2; exit 1
 fi
 lock="$state/activity.lock"
 marker="$state/update-in-progress"
-if [ -L "$lock" ] || [ -L "$marker" ]; then echo 'NIPAT: unsafe package state file.' >&2; exit 1; fi
+if [ -L "$lock" ] || [ -L "$marker" ]; then echo 'NewPat: unsafe package state file.' >&2; exit 1; fi
 if [ ! -e "$lock" ]; then (set -C; : > "$lock"); fi
 if [ ! -f "$lock" ] || [ "$(stat -c %u "$lock")" != 0 ] || [ "$(stat -c %a "$lock")" != 644 ]; then
-    echo 'NIPAT: invalid activity lock.' >&2; exit 1
+    echo 'NewPat: invalid activity lock.' >&2; exit 1
 fi
 if [ -e "$marker" ] && { [ ! -f "$marker" ] || [ "$(stat -c %u "$marker")" != 0 ]; }; then
-    echo 'NIPAT: invalid update marker.' >&2; exit 1
+    echo 'NewPat: invalid update marker.' >&2; exit 1
 fi
 exec 9<"$lock"
 if ! /usr/bin/flock --exclusive --nonblock 9; then
-    echo 'NIPAT: close every NIPAT session and wait for analyses to finish, then retry the package operation.' >&2
+    echo 'NewPat: close every NewPat/NIPAT session and wait for analyses to finish, then retry the package operation.' >&2
     exit 1
 fi
 """

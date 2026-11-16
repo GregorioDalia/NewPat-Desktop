@@ -29,7 +29,7 @@ def resource_lines(snapshot: dict) -> list[str]:
     effective = runtime.get("effective", {})
     container = snapshot.get("container", {})
     backend = snapshot.get("backend")
-    name = {"lima": "Ambiente NIPAT (Lima)", "wsl": "Ambiente Windows WSL2",
+    name = {"lima": "Ambiente NewPat (Lima)", "wsl": "Ambiente Windows WSL2",
             "native": "Linux nativo"}.get(backend, "Ambiente di calcolo")
     lines = [f"Computer: RAM {memory_label(host.get('memory_mib'))}; CPU {host.get('cpus') or 'non rilevate'}."]
     if backend != "native":
@@ -39,14 +39,14 @@ def resource_lines(snapshot: dict) -> list[str]:
                  f"CPU {effective.get('cpus') or 'non rilevate'}.")
     memory = container.get("memory_mib")
     cpus = container.get("cpus")
-    lines.append("Limite per l'analisi NIPAT: RAM " +
+    lines.append("Limite per l'analisi NewPat: RAM " +
                  (memory_label(memory) if memory is not None else "nessun limite aggiuntivo") +
                  f"; quota CPU {cpus if cpus is not None else 'nessun limite aggiuntivo'}.")
     lines.append("Il limite dell'analisi non aumenta le risorse della macchina virtuale o del computer.")
     if backend == "wsl":
-        lines.append("RAM e CPU di WSL2 sono condivise fra tutte le distribuzioni dell'utente, anche quelle usate fuori da NIPAT.")
+        lines.append("RAM e CPU di WSL2 sono condivise fra tutte le distribuzioni dell'utente, anche quelle usate fuori da NewPat.")
     elif backend == "native":
-        lines.append("Ubuntu nativo usa direttamente le risorse del computer; NIPAT configura soltanto i limiti delle proprie analisi.")
+        lines.append("Ubuntu nativo usa direttamente le risorse del computer; NewPat configura soltanto i limiti delle proprie analisi.")
     if runtime.get("running") is False:
         lines.append("L'ambiente è fermo: le risorse effettive saranno verificabili quando sarà avviato.")
     for warning in snapshot.get("warnings", []):
@@ -153,7 +153,7 @@ def configure_resources(ui, layout, options: ExecutionOptions, *, manager=None) 
             restart = False
             if affected:
                 ui.message("Il riavvio interrompe gli ambienti indicati: terminare prima gli altri lavori aperti.", kind="warning")
-                restart = _menu(ui, "Riavviare ora " + ("tutto WSL2?" if backend == "wsl" else "l'ambiente NIPAT?"), [
+                restart = _menu(ui, "Riavviare ora " + ("tutto WSL2?" if backend == "wsl" else "l'ambiente NewPat?"), [
                     ("1", "Conferma il riavvio", "Applica i nuovi limiti all'ambiente"),
                     ("0", "Rimanda" if backend == "wsl" else "Annulla la modifica",
                      "Salva soltanto; i limiti attivi restano quelli attuali" if backend == "wsl" else

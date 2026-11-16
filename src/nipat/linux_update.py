@@ -1,7 +1,7 @@
 """Ubuntu package handoff in a separate terminal, outside the application tree.
 
 This file is also a self-contained helper copied into a private cache directory.
-It never elevates the NIPAT application: only the standard APT transaction uses
+It never elevates the NewPat application: only the standard APT transaction uses
 Polkit. Every package transaction is coordinated by root-owned dpkg hooks.
 """
 from __future__ import annotations
@@ -31,7 +31,7 @@ PYTHON = Path("/usr/bin/python3.12")
 LOCK = Path("/var/lib/nipat-desktop/activity.lock")
 MARKER = Path("/var/lib/nipat-desktop/update-in-progress")
 SHA256 = re.compile(r"[0-9a-f]{64}\Z")
-PACKAGE = re.compile(r"nipat-desktop_[0-9]+\.[0-9]+\.[0-9]+(?:~(?:a|b|rc)[0-9]+)?_amd64\.deb\Z")
+PACKAGE = re.compile(r"(?:nipat-desktop|newpat-desktop)_[0-9]+\.[0-9]+\.[0-9]+(?:~(?:a|b|rc)[0-9]+)?_amd64\.deb\Z")
 MAX_PACKAGE_SIZE = 2 * 1024**3
 
 
@@ -134,7 +134,7 @@ def start_linux_update(package: Path, expected_sha256: str, expected_size: int,
     missing = [str(path) for path in (PKEXEC, APT, TERMINAL, PYTHON) if not os.access(path, os.X_OK)]
     if missing:
         raise LinuxUpdateError("Il sistema non dispone del terminale o dell'autorizzazione grafica richiesti. "
-                               "Chiudere NIPAT e installare il pacchetto verificato con: "
+                               "Chiudere NewPat e installare il pacchetto verificato con: "
                                + manual_install_command(package))
     if not LOCK.is_file() or MARKER.exists():
         raise LinuxUpdateError("La configurazione del pacchetto e' incompleta. "
@@ -175,8 +175,8 @@ def start_linux_update(package: Path, expected_sha256: str, expected_size: int,
         raise
     (directory / "cancel").touch(mode=0o600)
     _write_json(directory / "state.json", {"phase": "failed", "error": "Avvio del terminale non confermato."})
-    raise LinuxUpdateError("Avvio del terminale di aggiornamento non confermato. NIPAT rimane aperto. "
-                           "Chiudere NIPAT e installare il pacchetto verificato con: "
+    raise LinuxUpdateError("Avvio del terminale di aggiornamento non confermato. NewPat rimane aperto. "
+                           "Chiudere NewPat e installare il pacchetto verificato con: "
                            + manual_install_command(package))
 
 
@@ -242,9 +242,9 @@ def wait_for_parents(parents: list[dict], *, timeout: float = 120, cancel: Path 
     deadline = time.monotonic() + timeout
     while any(_process_identity(item["pid"]) == item["start"] for item in parents):
         if cancel is not None and cancel.exists():
-            raise LinuxUpdateError("Avvio dell'aggiornamento annullato dalla sessione NIPAT.")
+            raise LinuxUpdateError("Avvio dell'aggiornamento annullato dalla sessione NewPat.")
         if time.monotonic() >= deadline:
-            raise LinuxUpdateError("NIPAT non si e' chiuso. Chiudere la sessione e riprovare l'aggiornamento.")
+            raise LinuxUpdateError("NewPat non si e' chiuso. Chiudere la sessione e riprovare l'aggiornamento.")
         time.sleep(0.25)
 
 
@@ -266,39 +266,39 @@ def run_handoff(request_path: Path) -> int:
         request = _read_request(request_path)
         cancel = request_path.parent / "cancel"
         if cancel.exists():
-            raise LinuxUpdateError("Avvio dell'aggiornamento annullato dalla sessione NIPAT.")
+            raise LinuxUpdateError("Avvio dell'aggiornamento annullato dalla sessione NewPat.")
         _write_json(request_path.parent / "ready.json", {
             "schema_version": 1, "worker_pid": os.getpid(), "parents": request["parents"],
         })
-        print("NIPAT: attesa della chiusura dell'applicazione...", flush=True)
+        print("NewPat: attesa della chiusura dell'applicazione...", flush=True)
         wait_for_parents(request["parents"], cancel=cancel)
         if cancel.exists():
-            raise LinuxUpdateError("Avvio dell'aggiornamento annullato dalla sessione NIPAT.")
+            raise LinuxUpdateError("Avvio dell'aggiornamento annullato dalla sessione NewPat.")
         if _other_sessions_running():
-            raise LinuxUpdateError("Altre sessioni NIPAT sono aperte. Attendere la fine delle analisi, "
+            raise LinuxUpdateError("Altre sessioni NewPat sono aperte. Attendere la fine delle analisi, "
                                    "chiudere tutte le finestre e riprovare.")
         package = Path(request["package"])
         _write_json(state, {"phase": "verifying_package", "package": str(package)})
-        print("NIPAT: verifica del pacchetto scaricato...", flush=True)
+        print("NewPat: verifica del pacchetto scaricato...", flush=True)
         verify_package(package, request["sha256"], request["size"])
         if cancel.exists():
-            raise LinuxUpdateError("Avvio dell'aggiornamento annullato dalla sessione NIPAT.")
+            raise LinuxUpdateError("Avvio dell'aggiornamento annullato dalla sessione NewPat.")
         _write_json(state, {"phase": "installing", "package": str(package)})
-        print("NIPAT: autorizzare l'installazione del pacchetto quando richiesto dal sistema.", flush=True)
+        print("NewPat: autorizzare l'installazione del pacchetto quando richiesto dal sistema.", flush=True)
         completed = subprocess.run([str(PKEXEC), str(APT), "install", "--", str(package)], check=False)
         if completed.returncode != 0:
             raise LinuxUpdateError(f"Installazione non completata (codice {completed.returncode}). "
                                    "Il pacchetto scaricato e' conservato. Riprovare con: "
                                    + manual_install_command(package))
         if MARKER.exists():
-            raise LinuxUpdateError("Il gestore dei pacchetti non ha completato la configurazione NIPAT.")
+            raise LinuxUpdateError("Il gestore dei pacchetti non ha completato la configurazione NewPat.")
         _write_json(state, {"phase": "preparing_runtime", "package": str(package)})
         # This remains the original unprivileged user; the installed launcher
         # verifies the new manifest/runtime and runs self-test before the menu.
         completed = subprocess.run(["/usr/bin/nipat", "--setup"], check=False)
         if completed.returncode != 0:
             raise LinuxUpdateError("Pacchetto installato; preparazione dell'ambiente non completata. "
-                                   "Avviare NIPAT per riprendere la preparazione.")
+                                   "Avviare NewPat per riprendere la preparazione.")
         _write_json(state, {"phase": "ready", "package": str(package)})
         # The transaction is finished. Replace this helper with the installed
         # launcher so a terminal Ctrl+C cannot make subprocess.run kill that

@@ -342,7 +342,7 @@ class WizardTests(unittest.TestCase):
         self.assertEqual(result, 0)
         self.workflows.runner.doctor.assert_not_called()
         self.assertIn('la verifica degli strumenti non viene eseguita', messages)
-        self.assertIn('avviare NIPAT senza --dry-run', messages)
+        self.assertIn('avviare NewPat senza --dry-run', messages)
         self.assertNotIn('Controllo completato:', messages)
 
     def test_help_unknown_choice_and_navigation_stay_local(self):
@@ -350,7 +350,7 @@ class WizardTests(unittest.TestCase):
         self.assertEqual(result, 0)
         self.workflows.runner.doctor.assert_not_called()
         self.assertIn('Scegliere un argomento', messages)
-        self.assertIn('Come usare NIPAT', messages)
+        self.assertIn('Come usare NewPat', messages)
 
     def test_failed_tool_verification_never_claims_availability(self):
         self.workflows.runner.doctor.side_effect = RuntimeExecutionError('Strumenti non disponibili')

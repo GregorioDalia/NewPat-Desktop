@@ -450,7 +450,7 @@ def write_run_report(run_dir: Path) -> dict:
     writer.writerows([_spreadsheet_cell(row[key]) for key in keys] for row in rows)
 
     status = _status(read_run_status(run_dir, metadata))
-    body = [f"<h1>NIPAT — {html.escape(_text(metadata.get('run_name', run_dir.name)))}</h1>",
+    body = [f"<h1>NewPat — {html.escape(_text(metadata.get('run_name', run_dir.name)))}</h1>",
             _table(["Voce", "Valore"], [
                 ["Analisi", metadata.get("workflow")], ["Stato", status],
                 ["Inizio (UTC)", metadata.get("started_at")], ["Fine (UTC)", metadata.get("finished_at")],
@@ -531,7 +531,7 @@ def write_run_report(run_dir: Path) -> dict:
     runtime = metadata.get("runtime")
     if isinstance(source, dict):
         body.extend(["<h2>Versioni e provenienza</h2>", _table(["Componente", "Versione registrata"], [
-            ["NIPAT", source.get("nipat_version")], ["Sorgente", source.get("git") or source.get("release")],
+            ["NewPat", source.get("nipat_version")], ["Sorgente", source.get("git") or source.get("release")],
             ["Motore scientifico", runtime],
         ])])
     body.append("<h2>Consultazione</h2><ul>")
@@ -548,7 +548,7 @@ def write_run_report(run_dir: Path) -> dict:
     page = ("<!doctype html><html lang='it'><meta charset='utf-8'>"
             "<meta name='viewport' content='width=device-width,initial-scale=1'>"
             "<meta http-equiv='Content-Security-Policy' content=\"default-src 'none'; style-src 'unsafe-inline'\">"
-            "<title>Resoconto NIPAT</title><style>body{font:16px/1.5 system-ui,sans-serif;max-width:1100px;"
+            "<title>Resoconto NewPat</title><style>body{font:16px/1.5 system-ui,sans-serif;max-width:1100px;"
             "margin:2em auto;padding:0 1em;color:#172c3c}h1,h2{color:#165c75}table{border-collapse:collapse;"
             "width:100%;margin:1em 0}td,th{border:1px solid #ccd7dd;padding:.6em;text-align:left;vertical-align:top}"
             "th{background:#eef5f8}pre{white-space:pre-wrap;overflow-wrap:anywhere;margin:0;font:inherit}"

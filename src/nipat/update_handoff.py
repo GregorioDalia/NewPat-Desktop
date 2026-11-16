@@ -49,7 +49,7 @@ def windows_zip_root(project_dir: Path) -> Path | None:
         owner = json.loads(ownership.read_text(encoding="utf-8-sig"))
         if (owner != {"schema_version": 1, "product": "nipat-desktop", "installation_method": "zip"}
                 or type(owner["schema_version"]) is not int):
-            raise ValueError("radice ZIP non appartenente a NIPAT")
+            raise ValueError("radice ZIP non appartenente a NewPat")
         project = Path(project_dir).resolve()
         version = r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
         if (project.parent != root.resolve() / "versions"
@@ -93,7 +93,7 @@ def _windows_bootstrap(project_dir: Path) -> tuple[Path, str]:
             raise ValueError("setup stabile mancante")
         return setup, value["setup_sha256"]
     except (OSError, ValueError, KeyError, TypeError) as exc:
-        raise NipatError("Configurazione del setup stabile non valida: riparare con NIPAT-Setup.exe.") from exc
+        raise NipatError("Configurazione del setup stabile non valida: riparare con NewPat-Setup.exe.") from exc
 
 
 def _windows_layout(project_dir: Path) -> dict:
@@ -130,7 +130,7 @@ def _windows_layout(project_dir: Path) -> dict:
                     raise ValueError("destinazioni sovrapposte")
         return dict(layout, **dict(zip(fields, roots)))
     except (OSError, ValueError, TypeError, KeyError) as exc:
-        raise NipatError("Configurazione installata non valida: riaprire il setup NIPAT Desktop prima di aggiornare.") from exc
+        raise NipatError("Configurazione installata non valida: riaprire il setup NewPat Desktop prima di aggiornare.") from exc
 
 
 def update_cache_directory(project_dir: Path) -> Path:
@@ -185,7 +185,7 @@ def _start_windows_update(offer, package: Path, project_dir: Path) -> bool:
         raise NipatError("Il pacchetto deve trovarsi nella cache aggiornamenti dell'installazione.")
     worker = project_dir / "installer/windows/update-handoff.ps1"
     if not worker.is_file() or worker.is_symlink():
-        raise NipatError("Componente di aggiornamento mancante. Riparare NIPAT con il suo installer.")
+        raise NipatError("Componente di aggiornamento mancante. Riparare NewPat con il suo installer.")
     directory = cache / ("handoff-" + uuid.uuid4().hex)
     directory.mkdir()
     copied_worker = directory / "update-handoff.ps1"
@@ -228,7 +228,7 @@ def _start_windows_update(offer, package: Path, project_dir: Path) -> bool:
                 break
             time.sleep(0.05)
     except (OSError, ValueError, TypeError) as exc:
-        raise NipatError("Windows non ha avviato l'aggiornamento. NIPAT rimane aperto; consultare la cache aggiornamenti.") from exc
+        raise NipatError("Windows non ha avviato l'aggiornamento. NewPat rimane aperto; consultare la cache aggiornamenti.") from exc
     finally:
         if not acknowledged:
             (directory / "cancel").write_text("handoff canceled\n", encoding="ascii")

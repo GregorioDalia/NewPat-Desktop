@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from nipat import __version__
+from nipat.branding import PRODUCT_NAME, CLI_NAME
 from nipat.activity import activity_session
 from nipat.errors import NipatError
 from nipat.execution.options import ExecutionOptions
@@ -30,10 +31,10 @@ def _path(value: str) -> Path:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="nipat",
-        description="Orchestratore locale dei workflow scientifici NIPAT.",
+        prog=CLI_NAME,
+        description=f"{PRODUCT_NAME}: analisi scientifiche locali.",
     )
-    parser.add_argument("--version", action="version", version=f"NIPAT {__version__}")
+    parser.add_argument("--version", action="version", version=f"{PRODUCT_NAME} {__version__}")
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -123,7 +124,7 @@ def build_parser() -> argparse.ArgumentParser:
                                  ("recover", "riprende la preparazione della versione installata")):
         command = installation_commands.add_parser(operation, help=help_text)
         command.add_argument("--target", required=True, help="ID ottenuto da installation inspect")
-        command.add_argument("--yes", action="store_true", help="conferma e chiude NIPAT per la manutenzione")
+        command.add_argument("--yes", action="store_true", help="conferma e chiude NewPat per la manutenzione")
 
     parameters = subparsers.add_parser(
         "parameters", help="consulta opzioni R, regole interne e preparazione degli input",
@@ -385,7 +386,7 @@ def main(argv: list[str] | None = None) -> int:
         workflows = Workflows(layout, runner, scientific_settings=scientific_config)
         if args.command == "doctor":
             runner.doctor(args.runtime)
-            print("Ambiente NIPAT disponibile.")
+            print(f"Ambiente {PRODUCT_NAME} disponibile.")
         elif args.command == "build-runtime":
             runner.build()
             print("Build pianificata." if args.dry_run else "Runtime scientifico costruito.")
@@ -450,7 +451,7 @@ def main(argv: list[str] | None = None) -> int:
                     ui.message(selected.get("path", selected["id"]))
                     ui.message(selected.get("reason", ""))
                     if not args.yes:
-                        answer = ui.prompt("Confermare la manutenzione e chiudere NIPAT? [s/N]").strip().casefold()
+                        answer = ui.prompt("Confermare la manutenzione e chiudere NewPat? [s/N]").strip().casefold()
                         if answer not in {"s", "si", "sì", "y", "yes"}:
                             ui.message("Manutenzione annullata. Nessuna modifica richiesta.")
                             return 0

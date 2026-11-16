@@ -44,11 +44,11 @@ function Assert-NipatZipRoot([string] $Root, [switch] $Create) {
         $value = Get-Content -LiteralPath $marker -Raw -Encoding UTF8 | ConvertFrom-Json
         if (@($value.PSObject.Properties).Count -ne 3 -or $value.schema_version -ne 1 -or
             $value.product -cne 'nipat-desktop' -or $value.installation_method -cne 'zip') {
-            throw 'La cartella non appartiene all installazione ZIP NIPAT.'
+            throw 'La cartella non appartiene all installazione ZIP NewPat.'
         }
     } elseif ($Create) {
         if ((Test-Path -LiteralPath $Root) -and @(Get-ChildItem -LiteralPath $Root -Force).Count -gt 0) {
-            throw 'La destinazione ZIP contiene file senza un identificativo NIPAT. Nessun file viene adottato.'
+            throw 'La destinazione ZIP contiene file senza un identificativo NewPat. Nessun file viene adottato.'
         }
         Write-NipatJsonAtomic $marker ([ordered]@{ schema_version = 1; product = 'nipat-desktop'; installation_method = 'zip' })
     } else { throw 'Installazione ZIP non inizializzata.' }
@@ -115,7 +115,7 @@ function Write-NipatZipOwnership([string] $Directory, [string] $Role) {
     [IO.Directory]::CreateDirectory($Directory) | Out-Null
     if (Test-NipatStorageMarker $Directory $Role) { return }
     if ($Role -cne 'application' -and @(Get-ChildItem -LiteralPath $Directory -Force).Count -gt 0) {
-        throw 'La cartella runtime/cache contiene file senza un identificativo NIPAT.'
+        throw 'La cartella runtime/cache contiene file senza un identificativo NewPat.'
     }
     $name = if ($Role -ceq 'application') { '.nipat-app.ini' } else { '.nipat-storage.ini' }
     [IO.File]::WriteAllText((Join-Path $Directory $name), "[NIPAT]`nschema_version=1`ninstallation_channel=desktop`nrole=$Role`n", (New-Object Text.UTF8Encoding($false)))
@@ -150,7 +150,7 @@ function Set-NipatZipShortcuts([string] $Root, [string] $Project) {
         } finally { if ([IO.File]::Exists($temporary)) { [IO.File]::Delete($temporary) } }
     }
     $shortcutProject = if (Test-Path -LiteralPath (Join-Path $Root 'pending.json')) { $Project } else { $launchProject }
-    $shortcuts = @((Join-Path $Root 'NIPAT.lnk'))
+    $shortcuts = @((Join-Path $Root 'NewPat.lnk'))
     $testingMarker = Join-Path $Root 'testing.json'
     if (Test-Path -LiteralPath $testingMarker -PathType Leaf) {
         Assert-NipatActivityPathWithoutLinks $testingMarker
@@ -162,7 +162,7 @@ function Set-NipatZipShortcuts([string] $Root, [string] $Project) {
         $programs = [Environment]::GetFolderPath('Programs')
         foreach ($directory in @($desktop, $programs)) {
             if ($directory) {
-                $shortcuts += (Join-Path $directory 'NIPAT Testing.lnk')
+                $shortcuts += (Join-Path $directory 'NewPat Testing.lnk')
             }
         }
     }
@@ -176,12 +176,25 @@ function Set-NipatZipShortcuts([string] $Root, [string] $Project) {
             $link.Arguments = '-NoLogo -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + (Join-Path $shortcutProject 'installer\windows\zip-entry.ps1') + '" -Mode auto'
             $link.WorkingDirectory = $Root
             $link.IconLocation = (Join-Path $shortcutProject 'assets\branding\nipat-icon.ico') + ',0'
-            $link.Description = 'Apri NIPAT o completa automaticamente la preparazione dopo un riavvio.'
+            $link.Description = 'Apri NewPat o completa automaticamente la preparazione dopo un riavvio.'
             $link.Save()
+            # Replace only a legacy shortcut owned by this same ZIP installation.
+            # An unrelated stable/Testing installation must keep its entrypoint.
+            $legacyPath = Join-Path (Split-Path -Parent $path) ((Split-Path -Leaf $path).Replace('NewPat', 'NIPAT'))
+            if (Test-Path -LiteralPath $legacyPath -PathType Leaf) {
+                Assert-NipatActivityPathWithoutLinks $legacyPath
+                $legacy = $shell.CreateShortcut($legacyPath)
+                $ownedPrefix = '-NoLogo -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + (Join-Path $Root 'versions') + '\'
+                if ($legacy.TargetPath -ieq $link.TargetPath -and $legacy.WorkingDirectory -ieq $Root -and
+                    $legacy.Arguments.StartsWith($ownedPrefix, [StringComparison]::OrdinalIgnoreCase) -and
+                    $legacy.Arguments.EndsWith('\installer\windows\zip-entry.ps1" -Mode auto', [StringComparison]::OrdinalIgnoreCase)) {
+                    [IO.File]::Delete($legacyPath)
+                }
+            }
         } catch {
-            if ($path -ieq (Join-Path $Root 'NIPAT.lnk')) { throw }
+            if ($path -ieq (Join-Path $Root 'NewPat.lnk')) { throw }
             # A redirected/readonly Desktop must not break a ready installation.
-            Write-Warning ('Collegamento non creato: ' + $path + '. Usa NIPAT.lnk nella cartella dell app oppure lo stesso file di installazione. ' + $_.Exception.Message)
+            Write-Warning ('Collegamento non creato: ' + $path + '. Usa NewPat.lnk nella cartella dell app oppure lo stesso file di installazione. ' + $_.Exception.Message)
         }
     }
 }

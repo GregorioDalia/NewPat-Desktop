@@ -123,7 +123,11 @@ class DockerComposeRunner:
             self._record.data["resource_snapshot"] = {
                 "available": False, "reason": type(exc).__name__,
             }
-            self._write("Risorse effettive non rilevate; l'analisi conserva i limiti configurati.\n")
+            self._write("Risorse effettive non rilevate; l'analisi usa un processo e conserva i limiti configurati.\n")
+        from nipat.resources import fixed_execution_budget
+        self._record.data["resource_budget"] = fixed_execution_budget(
+            self._record.data["resource_snapshot"], self.options,
+        )
         self._record.save()
 
     def _write_run_report(self, record: RunRecord) -> None:
@@ -203,6 +207,15 @@ class DockerComposeRunner:
             "VECLIB_MAXIMUM_THREADS": "1", "NUMEXPR_NUM_THREADS": "1", "BLIS_NUM_THREADS": "1",
             "VROOM_THREADS": "1",
         })
+        if not self.dry_run:
+            from nipat.resources import fixed_execution_budget
+            budget = self._record.data.get("resource_budget")
+            if budget is None:
+                budget = fixed_execution_budget(self._record.data.get("resource_snapshot", {}), self.options)
+                self._record.data["resource_budget"] = budget
+            service["environment"]["NIPAT_FIXED_RESOURCE_BUDGET"] = json.dumps(
+                budget, ensure_ascii=True, allow_nan=False, separators=(",", ":"),
+            )
         if self.options.max_workers is not None:
             service["environment"]["NIPAT_MAX_WORKERS"] = str(self.options.max_workers)
         if self.options.cpus is not None:
@@ -379,7 +392,7 @@ class DockerComposeRunner:
             raise RuntimeExecutionError(
                 f"L'immagine non offre il contratto {label} "
                 f"incorporato richiesto ({contracts}), con metadati scientifici completi. "
-                "Usare un runtime costruito per questa versione di NIPAT."
+                "Usare un runtime costruito per questa versione di NewPat."
                 " Sono richiesti i controlli scientific-validation-v1 sugli input e sugli output."
                 " Il runtime deve includere il supporto ai nomi originali nei risultati."
                 " E' richiesto il parallelismo configurabile nipat-parallel-v1."
@@ -401,7 +414,7 @@ class DockerComposeRunner:
         except (RuntimeExecutionError, ValueError) as exc:
             raise RuntimeExecutionError(
                 "Verifica del motore scientifico incorporato fallita. "
-                "Usare un runtime costruito per questa versione di NIPAT."
+                "Usare un runtime costruito per questa versione di NewPat."
                 + (" Consultare execution.log per i dettagli." if self._record else "")
             ) from exc
         verified = self._validate_engine_description(
@@ -512,7 +525,7 @@ class DockerComposeRunner:
     def _prepare_runtime(self) -> None:
         os_type = self._capture(["docker", "info", "--format", "{{.OSType}}"])
         if os_type != "linux":
-            raise RuntimeExecutionError("Il runtime NIPAT richiede Docker con container Linux.")
+            raise RuntimeExecutionError("Il runtime NewPat richiede Docker con container Linux.")
         # Compose provides image selection only. Probes run without host mounts.
         base = ["docker", "compose", "-f", self._transport.host_path(self.layout.compose_file)]
         config = json.loads(self._capture(base + ["config", "--format", "json"]))
@@ -586,7 +599,7 @@ class DockerComposeRunner:
                 self._log = log
                 try:
                     lifetime.enter_context(self._analysis_session())
-                    self._write(f"NIPAT {workflow}: {run_dir}\n")
+                    self._write(f"NewPat {workflow}: {run_dir}\n")
                     self._write_sample_mapping(parameters)
                     self.layout.ensure_storage_dirs()
                     record.data["execution_options"] = self.options.as_dict()
@@ -923,7 +936,7 @@ class DockerComposeRunner:
         if cleanup["status"] == "not_confirmed":
             self._write(
                 f"Arresto del container {container_name} non confermato; "
-                "verificarne lo stato nel runtime NIPAT.\n"
+                "verificarne lo stato nel runtime NewPat.\n"
             )
         return cleanup
 
