@@ -127,6 +127,7 @@ scripts/verify_linux_dependencies.py
 scripts/verify_linux_installer.py
 scripts/verify_snp_example.py
 scripts/verify_snp_workflow.py
+scripts/verify_r_equivalence.py
 scripts/windows/common.ps1
 scripts/windows/run.ps1
 scripts/windows/repair-0850-self-test.ps1
