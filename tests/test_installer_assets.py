@@ -199,6 +199,33 @@ class InstallerAssetTests(unittest.TestCase):
                 rootfs_provenance=self.provenance,
             )
 
+    def test_historical_desktop_profile_is_read_only_and_version_bounded(self):
+        historical = copy.deepcopy(self.manifest)
+        historical["installation_profile"]["display_name"] = "NIPAT Desktop"
+        for version in ("0.7.2", "0.8.99", "0.9.1", "0.9.4", "0.9.5rc1", "0.9.5", "0.9.6"):
+            manifest = copy.deepcopy(historical)
+            manifest.update(version=version, release_tag=f"v{version}")
+            for entry in manifest["assets"].values():
+                entry["url"] = entry["url"].replace("v0.6.0", f"v{version}")
+            with self.subTest(version=version):
+                if version in {"0.9.5rc1", "0.9.5", "0.9.6"}:
+                    with self.assertRaisesRegex(ValueError, "Profilo"):
+                        assets.validate_manifest(manifest)
+                else:
+                    assets.validate_manifest(manifest)
+                    for builder in (assets.runtime_assets_include, assets.installation_profile_include):
+                        with self.assertRaisesRegex(ValueError, "Profilo"):
+                            builder(manifest)
+        for field in historical["installation_profile"]:
+            altered = copy.deepcopy(historical)
+            altered["installation_profile"][field] = "foreign"
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, "Profilo"):
+                assets.validate_manifest(altered)
+        self.manifest_path.write_text(json.dumps(historical), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "Profilo"):
+            assets.stage_app(self.project, self.manifest_path, self.root / "legacy-stage", self.python_archive)
+        self.assertFalse((self.root / "legacy-stage").exists())
+
     def test_desktop_installers_cannot_adopt_the_complete_preview_profile(self):
         preview = {
             "schema_version": 1,
