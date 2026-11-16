@@ -24,8 +24,89 @@
   let browser = null;
   let generation = 0;
   let mountQueue = Promise.resolve();
+  let navigationQueue = Promise.resolve();
   let currentSources = new Map();
   let currentReference = null;
+  let chromosomes = [];
+  let history = [];
+  let restoringHistory = false;
+  let wasDragging = false;
+  const navigationListeners = new Set();
+
+  function navigationChromosomes(instance, supplied) {
+    const values = Array.isArray(supplied) && supplied.length ? supplied :
+      (instance.genome?.chromosomeNames || []).map(name => ({name, length: instance.genome.getChromosome(name)?.bpLength}));
+    return values.map(value => typeof value === 'string' ? {name: value, length: instance.genome?.getChromosome(value)?.bpLength} : value)
+      .filter(value => value && typeof value.name === 'string' && value.name.toLowerCase() !== 'all')
+      .map(value => ({name: value.name, length: Number(value.length) || null}))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric: true}));
+  }
+  function visibleLoci(instance) {
+    const frames = instance.referenceFrameList;
+    if (frames?.length) return frames.map(frame => {
+      if (frame.chr.toLowerCase() === 'all') return 'all';
+      return `${frame.chr}:${Math.floor(frame.start) + 1}-${Math.round(frame.end)}`;
+    });
+    const raw = instance.toJSON().locus;
+    return Array.isArray(raw) ? raw : String(raw || 'all').split(/\s+/);
+  }
+  function navigationState() {
+    const loci = browser ? visibleLoci(browser) : [];
+    const locus = loci.join(' '), first = loci.length === 1 ? loci[0] : '';
+    const match = /^([^:]+)(?::([\d,]+)-([\d,]+))?$/.exec(first);
+    const chromosome = match?.[1] || '';
+    const wholeGenome = chromosome.toLowerCase() === 'all';
+    return {locus, chromosome, start: match?.[2] ? Number(match[2].replaceAll(',', '')) : null,
+      end: match?.[3] ? Number(match[3].replaceAll(',', '')) : null,
+      chromosomes: chromosomes.map(value => ({...value})), canBack: history.length > 1,
+      canZoom: !!browser && loci.length === 1 && !wholeGenome,
+      wholeGenome};
+  }
+  function notifyNavigation() {
+    const value = navigationState();
+    for (const callback of navigationListeners) {
+      try { callback(value); } catch (error) { global.console?.error('NIPAT navigation listener:', error); }
+    }
+  }
+  function recordNavigation(instance) {
+    if (browser !== instance) return;
+    const locus = visibleLoci(instance).join(' ');
+    if (locus && !restoringHistory && history[history.length - 1] !== locus) {
+      // Continuous dragging is one move in history, rather than one per pixel.
+      if (instance.dragObject && wasDragging && history.length > 1) history[history.length - 1] = locus;
+      else history.push(locus);
+      if (history.length > 50) history.shift();
+    }
+    wasDragging = !!instance.dragObject;
+    notifyNavigation();
+  }
+  function getNavigation() { return navigationState(); }
+  function onNavigation(callback) {
+    if (typeof callback !== 'function') throw new TypeError('A navigation callback is required');
+    navigationListeners.add(callback);
+    callback(navigationState());
+    return () => navigationListeners.delete(callback);
+  }
+  function validateReferenceLocus(value) {
+    const values = Array.isArray(value) ? value : [value];
+    if (!chromosomes.length) return value;
+    const normalized = values.map(locus => {
+      const [name, coordinates] = locus.split(':');
+      if (name.toLowerCase() === 'all') {
+        if (coordinates) throw fail('locus');
+        return 'all';
+      }
+      const aliases = [name, name.startsWith('chr') ? name.slice(3) : 'chr' + name];
+      const chromosome = chromosomes.find(item => aliases.includes(item.name));
+      if (!chromosome) throw fail('search');
+      if (coordinates && chromosome.length) {
+        const positions = coordinates.replaceAll(',', '').split('-').map(Number);
+        if (positions.some(position => position > chromosome.length)) throw fail('search');
+      }
+      return chromosome.name + (coordinates ? ':' + coordinates : '');
+    });
+    return Array.isArray(value) ? normalized : normalized[0];
+  }
 
   function message(code) { return TEXT[code][language === 'en' ? 1 : 0]; }
   function fail(code, cause) {
@@ -158,6 +239,9 @@
     const work = async () => {
       if (ticket !== generation) return null;
       if (browser) { global.igv.removeBrowser(browser); browser = null; }
+      chromosomes = []; history = []; wasDragging = false; restoringHistory = false;
+      navigationQueue = Promise.resolve();
+      currentReference = null; currentSources.clear(); notifyNavigation();
       container.replaceChildren();
       const before = new Set(global.igv.getAllBrowsers ? global.igv.getAllBrowsers() : []);
       try {
@@ -166,7 +250,7 @@
           loadDefaultGenomes: false, genomeList: [], search: false,
           queryParametersSupported: false, enableWebSocket: false,
           showIdeogram: false, showCircularView: false, showCircularViewButton: false,
-          showControls: true, showNavigation: true, showRuler: true,
+          showControls: true, showNavigation: true, showChromosomeWidget: false, showRuler: true,
           showSVGButton: false, showTrackLabels: true, showCenterGuide: true,
           minimumBases: 10, flanking: 100, showSampleNames: false
         });
@@ -175,9 +259,14 @@
         currentReference = {id: reference.id, name: reference.name};
         currentSources = new Map(tracks.map(track => [track.id, {id: track.id, name: track.name, type: track.type, format: track.format}]));
         refreshMenus(instance);
-        if (typeof instance.on === 'function') instance.on('trackremoved', track => {
-          if (track && track.id) currentSources.delete(track.id);
-        });
+        chromosomes = navigationChromosomes(instance, options.chromosomes);
+        if (typeof instance.on === 'function') {
+          instance.on('trackremoved', track => {
+            if (browser === instance && track && track.id) currentSources.delete(track.id);
+          });
+          instance.on('locuschange', () => recordNavigation(instance));
+        }
+        recordNavigation(instance);
         return instance;
       } catch (error) {
         // createBrowser registers its instance before reading FASTA/indices.
@@ -207,12 +296,67 @@
       return loaded;
     } catch (error) { throw fail('load', error); }
   }
-  async function search(value) {
-    const instance = requireBrowser();
-    const locus = normalizeLocus(value);
-    try { await instance.search(Array.isArray(locus) ? locus.join(' ') : locus); } catch (error) { throw fail('search', error); }
-    return exportSession();
+  function enqueueNavigation(action) {
+    const instance = requireBrowser(), ticket = generation;
+    const work = async () => {
+      if (browser !== instance || ticket !== generation) return null;
+      try {
+        await action(instance);
+        if (browser !== instance || ticket !== generation) return null;
+        recordNavigation(instance);
+        return exportSession();
+      } catch (error) {
+        if (browser !== instance || ticket !== generation) return null;
+        if (error.code?.startsWith('igv_')) throw error;
+        throw fail('search', error);
+      }
+    };
+    const result = navigationQueue.catch(() => {}).then(work);
+    navigationQueue = result.catch(() => {});
+    return result;
   }
+  async function search(value) {
+    // Validate before queueing so malformed input never reaches the renderer.
+    requireBrowser();
+    const locus = normalizeLocus(value);
+    return enqueueNavigation(instance => {
+      const checked = validateReferenceLocus(locus);
+      return instance.search(Array.isArray(checked) ? checked.join(' ') : checked);
+    });
+  }
+  async function back() {
+    return enqueueNavigation(async instance => {
+      if (history.length < 2) return;
+      const previous = history[history.length - 2], ticket = generation;
+      restoringHistory = true;
+      try {
+        await instance.search(previous);
+        if (browser === instance && ticket === generation) {
+          history.pop();
+          history[history.length - 1] = visibleLoci(instance).join(' ');
+        }
+      } finally {
+        if (browser === instance && ticket === generation) restoringHistory = false;
+      }
+    });
+  }
+  async function zoom(factor) {
+    return enqueueNavigation(async instance => {
+      const navigation = getNavigation();
+      if (!navigation.canZoom) return;
+      const chromosome = chromosomes.find(value => value.name === navigation.chromosome);
+      const length = chromosome?.length;
+      const start = navigation.start || 1, end = navigation.end || length;
+      if (!end) throw fail('search');
+      const minimum = length ? Math.min(length, 10) : 10;
+      const width = Math.min(length || Number.MAX_SAFE_INTEGER, Math.max(minimum, Math.round((end - start + 1) * factor)));
+      const first = Math.max(1, Math.min(Math.round((start + end - width + 1) / 2), length ? length - width + 1 : Number.MAX_SAFE_INTEGER));
+      await instance.search(`${navigation.chromosome}:${first}-${first + width - 1}`);
+    });
+  }
+  function wholeGenome() { return search('all'); }
+  function zoomIn() { return zoom(0.5); }
+  function zoomOut() { return zoom(2); }
   function exportSession() {
     const instance = requireBrowser();
     const raw = instance.toJSON();
@@ -229,8 +373,11 @@
     generation++;
     if (browser) global.igv.removeBrowser(browser);
     browser = null; currentReference = null; currentSources.clear();
+    chromosomes = []; history = []; restoringHistory = false; wasDragging = false;
+    navigationQueue = Promise.resolve(); notifyNavigation();
   }
   global.NipatIGV = Object.freeze({version: VERSION, mount, loadTracks, search,
+    getNavigation, onNavigation, back, wholeGenome, zoomIn, zoomOut,
     exportSession, snapshot: exportSession, exportSVG, resize, dispose,
     setLanguage(value) { language = value === 'en' ? 'en' : 'it'; }});
 })(window);
