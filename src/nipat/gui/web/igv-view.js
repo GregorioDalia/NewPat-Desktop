@@ -222,6 +222,20 @@
   function refreshMenus(instance) {
     for (const view of instance.trackViews || []) localMenus(view.track);
   }
+  function configureNavigation(container) {
+    // IGV 3.8.9 owns an open shadow root: document styles cannot reach its toolbar.
+    // Keep track controls, but give genomic navigation one synchronized UI.
+    const root = container.shadowRoot || container;
+    const document = container.ownerDocument;
+    if (!document?.createElement || !root.querySelector) return;
+    let style = root.querySelector('style[data-nipat-navigation]');
+    if (!style) {
+      style = document.createElement('style');
+      style.setAttribute('data-nipat-navigation', '');
+      root.appendChild(style);
+    }
+    style.textContent = '.igv-navbar-genomic-location,.igv-zoom-widget,.igv-zoom-widget-900,.igv-zoom-widget-hidden{display:none!important}';
+  }
   function requireBrowser() { if (!browser) throw fail('notMounted'); return browser; }
 
   function mount(container, options) {
@@ -256,6 +270,7 @@
         });
         if (ticket !== generation) { global.igv.removeBrowser(instance); return null; }
         browser = instance;
+        configureNavigation(container);
         currentReference = {id: reference.id, name: reference.name};
         currentSources = new Map(tracks.map(track => [track.id, {id: track.id, name: track.name, type: track.type, format: track.format}]));
         refreshMenus(instance);

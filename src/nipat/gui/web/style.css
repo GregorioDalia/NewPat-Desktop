@@ -20,6 +20,3 @@
 .igv-navigation-actions{display:flex;gap:16px;justify-content:space-between;align-items:center;flex-wrap:wrap;margin-top:14px}.igv-navigation-help{margin-top:14px;max-width:100ch}
 @media(max-width:850px){.igv-navigation-row{flex-wrap:wrap}.igv-navigation-row>.field:first-child,.igv-region-field{flex:1 1 100%}.igv-navigation{padding:16px}.job-header{gap:10px}.job-header h2{overflow-wrap:anywhere}}
 @media(prefers-reduced-motion:reduce){.dna-rung{animation:none;transform:rotateY(calc(var(--rung)*35deg))}.progress-track.indeterminate span{animation:none;transform:none}}
-
-/* Keep IGV track tools; genomic navigation is provided by the synchronized controls above. */
-#igv-container .igv-navbar-genomic-location,#igv-container .igv-zoom-widget,#igv-container .igv-zoom-widget-900,#igv-container .igv-zoom-widget-hidden{display:none!important}

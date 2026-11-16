@@ -35,7 +35,7 @@ try {
             -not (Test-Path -LiteralPath $guiLauncher -PathType Leaf)) {
             throw 'Avvio grafico incompleto. Riaprire la preparazione di NIPAT.'
         }
-        Start-Process -FilePath $windowedPython -ArgumentList ('"' + $guiLauncher + '"') -WorkingDirectory $project | Out-Null
+        Start-Process -FilePath $windowedPython -ArgumentList ('"' + $guiLauncher + '"') -WorkingDirectory (Get-Location).Path | Out-Null
         exit 0
     }
     & $python -m nipat @nipatCliArguments

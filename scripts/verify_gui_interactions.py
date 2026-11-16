@@ -219,7 +219,7 @@ def run_verification(report_path, executable):
                 discovered = probe.evaluate("({reference:NipatApp.state.igv.reference,tracks:NipatApp.state.igv.tracks})")
                 check(discovered["reference"]["index"].endswith(".fa.fai") and discovered["tracks"][0]["index"].endswith(".bam.bai"), "Reference and BAM indices discovered through actual backend")
                 check(page.locator('#igv-chromosome').input_value() == "all", "Initial custom navigation shows whole-genome overview")
-                check(probe.evaluate("[...document.querySelectorAll('#igv-container .igv-navbar-genomic-location')].every(n=>getComputedStyle(n).display==='none')"), "Duplicate native locus controls are hidden")
+                check(probe.evaluate("() => {const root=document.querySelector('#igv-container').shadowRoot;const location=root?.querySelector('.igv-navbar-genomic-location'),zoom=root?.querySelector('[class^=igv-zoom-widget]');return !!location&&!!zoom&&[location,zoom].every(n=>getComputedStyle(n).display==='none')}"), "Duplicate native locus controls are hidden")
                 check(page.get_by_text("Select Tracks", exact=True).is_visible(), "IGV track display tools remain available")
                 page.locator('#igv-chromosome').select_option('1')
                 probe.wait("NipatIGV.getNavigation().chromosome==='1'")
@@ -249,7 +249,7 @@ def run_verification(report_path, executable):
                 check(page.locator('#igv-locus').input_value() == 'all', "Whole-genome button restores and synchronizes overview")
                 page.locator('[data-action="igv-back"]').click()
                 probe.wait("NipatIGV.getNavigation().start===80")
-                probe.wait("!document.querySelector('#toast').classList.contains('visible')")
+                probe.wait("!document.querySelector('#toast').classList.contains('visible')&&Number(getComputedStyle(document.querySelector('#toast')).opacity)===0")
                 igv = report_path.parent / "igv-alignments.png"
                 page.screenshot(path=str(igv), full_page=True)
                 evidence["screenshots"].append(igv.name)
