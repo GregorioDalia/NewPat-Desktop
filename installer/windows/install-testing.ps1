@@ -56,10 +56,23 @@ function Assert-TestingBundle([string]$Archive, [string]$Bundle) {
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $zip = [IO.Compression.ZipFile]::OpenRead($Archive)
     $hash = [Security.Cryptography.SHA256]::Create()
+    $seen = @{}
+    $verified = 0
+    $verifiedWorker = $false
+    $verifiedManifest = $false
     try {
         foreach ($entry in $zip.Entries) {
-            if (-not $entry.FullName.StartsWith('app/', [StringComparison]::Ordinal) -or $entry.FullName.EndsWith('/')) { continue }
-            $path = [IO.Path]::GetFullPath((Join-Path $Bundle $entry.FullName.Replace('/', '\')))
+            # .NET Framework ZIP writers use backslashes, while the release
+            # packager uses forward slashes. Both address the same Windows
+            # extraction; validate a single normalized identity before hashing.
+            $relative = $entry.FullName.Replace('\', '/')
+            if (-not $relative -or $relative.StartsWith('/') -or $relative.Contains(':') -or
+                $relative -match '(^|/)(\.|\.\.)(/|$)' -or $relative.Contains('//') -or $seen.ContainsKey($relative)) {
+                throw 'Percorso del pacchetto non valido o duplicato.'
+            }
+            $seen[$relative] = $true
+            if (-not $relative.StartsWith('app/', [StringComparison]::Ordinal) -or $relative.EndsWith('/')) { continue }
+            $path = [IO.Path]::GetFullPath((Join-Path $Bundle $relative.Replace('/', '\')))
             if (-not $path.StartsWith(($Bundle.TrimEnd('\') + '\'), [StringComparison]::OrdinalIgnoreCase)) { throw 'Percorso del pacchetto non valido.' }
             Assert-PlainPath $path
             if (-not (Test-Path -LiteralPath $path -PathType Leaf) -or (Get-Item -LiteralPath $path).Length -ne $entry.Length) {
@@ -70,6 +83,12 @@ function Assert-TestingBundle([string]$Archive, [string]$Bundle) {
             $actualFile = [IO.File]::OpenRead($path)
             try { $actual = [Convert]::ToBase64String($hash.ComputeHash($actualFile)) } finally { $actualFile.Dispose() }
             if ($actual -cne $expected) { throw ('File estratto modificato: ' + $entry.FullName + '. Nessun file viene eseguito.') }
+            $verified++
+            if ($relative -ceq 'app/installer/windows/install-zip.ps1') { $verifiedWorker = $true }
+            if ($relative -ceq 'app/.distribution/installer-manifest.json') { $verifiedManifest = $true }
+        }
+        if ($verified -eq 0 -or -not $verifiedWorker -or -not $verifiedManifest) {
+            throw 'Il pacchetto non contiene il sorgente NIPAT, il suo installer e il manifest verificati.'
         }
     } finally { $hash.Dispose(); $zip.Dispose() }
 }

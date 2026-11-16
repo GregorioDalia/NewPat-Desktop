@@ -141,6 +141,14 @@ exit 0
     Assert-TestingBundle $archive $bundle
     Add-Content -LiteralPath (Join-Path $bundle 'app\installer\windows\install-zip.ps1') -Value '# changed'
     Assert-Rejected { Assert-TestingBundle $archive $bundle } 'modified extracted installer rejected before execution'
+    $emptyArchive = Join-Path $temporary 'empty.zip'
+    $empty = [IO.Compression.ZipFile]::Open($emptyArchive, [IO.Compression.ZipArchiveMode]::Create)
+    $empty.Dispose()
+    Assert-Rejected { Assert-TestingBundle $emptyArchive $bundle } 'archive without verified executable source cannot pass vacuously'
+    $unsafeArchive = Join-Path $temporary 'unsafe.zip'
+    $unsafe = [IO.Compression.ZipFile]::Open($unsafeArchive, [IO.Compression.ZipArchiveMode]::Create)
+    try { $unsafe.CreateEntry('app/../outside.ps1') | Out-Null } finally { $unsafe.Dispose() }
+    Assert-Rejected { Assert-TestingBundle $unsafeArchive $bundle } 'source traversal rejected before file access'
 } finally {
     $env:LOCALAPPDATA = $oldLocal
     Remove-Item Env:NIPAT_TESTING_FIXTURE_PHASE, Env:NIPAT_TESTING_FIXTURE_LAUNCHES -ErrorAction SilentlyContinue
