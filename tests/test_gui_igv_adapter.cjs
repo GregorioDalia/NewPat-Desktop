@@ -5,13 +5,15 @@ const assert = require('node:assert/strict');
 const source = fs.readFileSync(process.argv[2], 'utf8');
 let active = [], lastConfig, removed = [], failCreation = false, pendingResolve;
 function viewer(config) {
-  const tracks = config.tracks.map(t => ({...t}));
+  const tracks = config.tracks.map(t => ({...t})), events = new Map();
   return {
     config,
     trackViews: [{track: {menuItemList: () => [{label:'Reverse'}, {label:'BLAT visible sequence'}],
       alignmentTrack: {contextMenuItemList: () => [{label:'View mate'}, {label:'BLAT read'}]}}}],
     loadTrackList: async list => { tracks.push(...list); return list; },
-    search: async locus => { config.locus=locus; },
+    on(name, callback) { if(!events.has(name))events.set(name, []);events.get(name).push(callback); },
+    emit(name) { for(const callback of events.get(name)||[])callback(); },
+    search: async function(locus) { config.locus=locus;this.emit('locuschange'); },
     visibilityChange: async () => {},
     toJSON: () => ({reference:config.reference,locus:config.locus || 'chr1:1-100',tracks}),
     toSVG: () => '<svg xmlns="http://www.w3.org/2000/svg"></svg>'
@@ -49,6 +51,8 @@ const rejects=(call,code)=>assert.rejects(call, e=>e.code===code);
   assert.equal(lastConfig.enableWebSocket,false);
   assert.equal(lastConfig.queryParametersSupported,false);
   assert.equal(lastConfig.showSVGButton,false);
+  assert.equal(lastConfig.showNavigation,true);
+  assert.equal(lastConfig.showChromosomeWidget,false);
   assert.equal(lastConfig.reference.fastaURL,'http://127.0.0.1:40123/files/secret1/ref.fa');
   assert.equal(lastConfig.tracks[0].type,'alignment');
   assert.equal(lastConfig.tracks[0].indexed,true);
@@ -89,6 +93,80 @@ const rejects=(call,code)=>assert.rejects(call, e=>e.code===code);
   await rejects(()=>api.loadTracks([{id:'annotation',format:'bed',url:'/files/second'}]),'igv_track');
   const safeName=copy();safeName.tracks[0].name='<img onerror=bad()>';
   await api.mount(container,safeName);assert.ok(!lastConfig.tracks[0].name.includes('<'));
+  // One navigation source: native panning updates the custom UI and history.
+  const navigation = [], unsubscribe = api.onNavigation(value => navigation.push(value));
+  const guided = copy();
+  guided.locus='all';
+  guided.chromosomes=[{name:'1',length:100000},{name:'10',length:50000},{name:'2',length:200000},{name:'X',length:80000}];
+  await api.mount(container,guided);
+  assert.equal(api.getNavigation().wholeGenome,true);
+  assert.equal(api.getNavigation().canZoom,false);
+  assert.equal(api.getNavigation().canBack,false);
+  assert.equal(api.getNavigation().chromosomes.map(c=>c.name).join(','),'1,2,10,X');
+  const overview = api.getNavigation().locus;
+  await api.zoomIn();
+  assert.equal(api.getNavigation().locus,overview); // No arbitrary chromosome chosen.
+  await rejects(()=>api.search('23'),'igv_search');
+  await rejects(()=>api.search('X:1-80001'),'igv_search');
+  await rejects(()=>api.search('all:10-20'),'igv_locus');
+  assert.equal(api.getNavigation().locus,'all');
+  assert.equal(api.getNavigation().canBack,false);
+  await api.search('chr1:101-200');
+  assert.equal(api.getNavigation().locus,'1:101-200');
+  assert.equal(api.getNavigation().chromosome,'1');
+  assert.equal(api.getNavigation().start,101);
+  assert.equal(api.getNavigation().canBack,true);
+  await api.zoomIn();
+  assert.equal(api.getNavigation().locus,'1:126-175');
+  await api.back();
+  assert.equal(api.getNavigation().locus,'1:101-200');
+  await api.back();
+  assert.equal(api.getNavigation().locus,'all');
+  assert.equal(api.getNavigation().canBack,false);
+  await api.search('1:1-20');
+  await api.zoomOut();
+  assert.equal(api.getNavigation().locus,'1:1-40');
+  active[0].config.locus='1:900-950';
+  active[0].emit('locuschange');
+  assert.equal(navigation.at(-1).locus,'1:900-950');
+  active[0].dragObject={};
+  active[0].config.locus='1:901-951';active[0].emit('locuschange');
+  active[0].config.locus='1:902-952';active[0].emit('locuschange');
+  active[0].dragObject=null;
+  await api.back();
+  assert.equal(api.getNavigation().locus,'1:900-950');
+  await api.search('1:1001-1400');
+  await Promise.all([api.zoomIn(),api.zoomIn()]);
+  assert.equal(api.getNavigation().end-api.getNavigation().start+1,100);
+  await api.wholeGenome();
+  assert.equal(api.getNavigation().wholeGenome,true);
+  const stale=active[0];
+  api.dispose();
+  const notifications=navigation.length;
+  stale.config.locus='1:1-10';stale.emit('locuschange');
+  assert.equal(navigation.length,notifications);
+  assert.equal(api.getNavigation().locus,'');
+  assert.equal(api.getNavigation().chromosomes.length,0);
+  unsubscribe();
+  await api.mount(container,copy());
+  assert.equal(navigation.length,notifications);
+  // Disposing a slow search cannot overwrite a newer viewer or its history.
+  const pendingBrowser=active[0];
+  let finishSearch;
+  pendingBrowser.search=async function(locus) {
+    await new Promise(resolve=>{finishSearch=resolve;});
+    this.config.locus=locus;this.emit('locuschange');
+  };
+  const slowSearch=api.search('chr1:300-400');
+  await new Promise(resolve=>setImmediate(resolve));
+  api.dispose();
+  await api.mount(container,guided);
+  await api.search('X:100-200');
+  finishSearch();
+  assert.equal(await slowSearch,null);
+  assert.equal(api.getNavigation().locus,'X:100-200');
+  await api.back();
+  assert.equal(api.getNavigation().locus,'all');
   failCreation=true;
   await rejects(()=>api.mount(container,copy()),'igv_load');
   assert.equal(active.length,0);
@@ -107,5 +185,5 @@ const rejects=(call,code)=>assert.rejects(call, e=>e.code===code);
   await api.mount(container,copy());await api.resize();api.dispose();
   assert.equal(active.length,0);
   assert.throws(()=>api.exportSession(),e=>e.code==='igv_notMounted');
-  console.log('IGV adapter: local-only URLs, explicit indices, offline configuration, session lifetime and exports passed');
+  console.log('IGV adapter: local-only URLs, explicit indices, offline configuration, synchronized navigation/history/zoom, session lifetime and exports passed');
 })().catch(error=>{console.error(error);process.exitCode=1;});

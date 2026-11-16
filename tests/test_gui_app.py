@@ -1,6 +1,7 @@
 from pathlib import Path
 from types import SimpleNamespace
 import json
+import struct
 import zipfile
 
 import pytest
@@ -56,13 +57,13 @@ def reference(tmp_path):
 def test_igv_uses_scoped_urls_and_requires_indexes(app, tmp_path):
     fasta, fai = reference(tmp_path)
     bam = tmp_path / "sample.bam"
-    bam.write_bytes(b"BAM\x01")
+    bam.write_bytes(b"BAM\x01" + struct.pack("<iii", 0, 1, 5) + b"chr1\0" + struct.pack("<i", 4))
     args = {"reference": {"fasta": str(fasta), "index": str(fai)}, "tracks": [{"path": str(bam)}]}
     with pytest.raises(ValidationError, match="BAI"):
         app.prepare_igv(args)
-    Path(str(bam) + ".bai").write_bytes(b"BAI\x01")
+    Path(str(bam) + ".bai").write_bytes(b"BAI\x01" + struct.pack("<iii", 1, 0, 0))
     result = app.prepare_igv(args)
-    assert result["locus"] == "chr1"
+    assert result["locus"] == "all"
     assert result["loadDefaultGenomes"] is False
     for url in [result["reference"]["fastaURL"], result["tracks"][0]["url"], result["tracks"][0]["indexURL"]]:
         assert url.startswith(app.server.base_url + "resources/")

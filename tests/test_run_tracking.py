@@ -204,7 +204,8 @@ class RunTrackingTests(unittest.TestCase):
             self.assertEqual(kwargs["stdin"], subprocess.DEVNULL)
             self.assertIsNotNone(kwargs["timeout"])
             if os.name == "nt":
-                self.assertEqual(kwargs["creationflags"], subprocess.CREATE_NEW_PROCESS_GROUP)
+                self.assertEqual(kwargs["creationflags"],
+                                 subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW)
             else:
                 self.assertTrue(kwargs["start_new_session"])
             return subprocess.CompletedProcess(command, 0, stdout="", stderr="")

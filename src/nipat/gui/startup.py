@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+from nipat.processes import background_process_options
 
 
 @contextmanager
@@ -13,7 +14,8 @@ def preparation_notice(app: Path, title="Preparazione NIPAT", message="Preparazi
     code = ("import sys; sys.path.insert(0,sys.argv.pop(1)); "
             "from nipat.gui.startup import main; raise SystemExit(main())")
     process = subprocess.Popen([sys.executable, "-I", "-B", "-c", code, str(Path(app)/"src"),
-                                "progress", title, message], stdin=subprocess.PIPE)
+                                "progress", title, message], stdin=subprocess.PIPE,
+                                **background_process_options())
     try:
         yield
     finally:
@@ -32,7 +34,8 @@ def preparation_notice(app: Path, title="Preparazione NIPAT", message="Preparazi
 def show_startup_error(app: Path, message: str):
     code = ("import sys; sys.path.insert(0,sys.argv.pop(1)); "
             "from nipat.gui.startup import main; raise SystemExit(main())")
-    subprocess.run([sys.executable, "-I", "-B", "-c", code, str(Path(app)/"src"), "error", "NIPAT", str(message)], check=False)
+    subprocess.run([sys.executable, "-I", "-B", "-c", code, str(Path(app)/"src"), "error", "NIPAT", str(message)], check=False,
+                   **background_process_options())
 
 
 def main():

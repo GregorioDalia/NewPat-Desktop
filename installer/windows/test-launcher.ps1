@@ -103,6 +103,16 @@ function Invoke-TestLauncher([string] $Executable, [string[]] $Arguments = @(), 
             $process.Kill()
             throw 'Launcher did not return within 20 seconds; possible unwanted pause.'
         }
+        if ($BatchFile -and $process.ExitCode -eq 0) {
+            # GUI launch now detaches a windowed Python process. Wait for its
+            # atomic fixture record, rather than treating the bridge's exit as
+            # evidence that the child has already finished writing it.
+            $limit = [DateTime]::UtcNow.AddSeconds(10)
+            while (-not (Test-Path -LiteralPath $script:CapturePath) -and [DateTime]::UtcNow -lt $limit) {
+                Start-Sleep -Milliseconds 20
+            }
+            if (-not (Test-Path -LiteralPath $script:CapturePath)) { throw 'Windowed Python did not record its launch.' }
+        }
         return [pscustomobject]@{
             ExitCode = $process.ExitCode
             Output = $stdout.Result + $stderr.Result
@@ -193,7 +203,7 @@ exit ([int]$env:NIPAT_LAUNCH_TEST_EXIT)
 
     # Exercise the actual bridge, runner and installed readiness checks. Python
     # is an offline process fixture; no WSL or scientific analysis is simulated.
-    foreach ($name in @('common.ps1', 'setup.ps1', 'run.ps1')) {
+    foreach ($name in @('common.ps1', 'setup.ps1', 'run.ps1', 'gui-launch.py')) {
         Copy-Item -LiteralPath (Join-Path $project "scripts\windows\$name") -Destination (Join-Path $app "scripts\windows\$name")
     }
     $metadata = Get-Content -LiteralPath (Join-Path $project 'pyproject.toml') -Raw
@@ -214,10 +224,11 @@ class FixturePython {
             File.AppendAllText(Environment.GetEnvironmentVariable("NIPAT_FIXTURE_EVENTS"), "decoy:powershell\n");
             return 91;
         }
-        string command = args.Contains("wizard") ? "wizard" : (args.Length > 2 ? args[2] : "other");
+        bool windowed = args.Length == 1 && Path.GetFileName(args[0]) == "gui-launch.py";
+        string command = windowed ? "gui" : (args.Contains("wizard") ? "wizard" : (args.Length > 2 ? args[2] : "other"));
         File.AppendAllText(Environment.GetEnvironmentVariable("NIPAT_FIXTURE_EVENTS"), "python:" + command + "\n");
         if (command == "self-test" && File.Exists(Environment.GetEnvironmentVariable("NIPAT_FIXTURE_FAIL"))) return 17;
-        if (command == "wizard") {
+        if (command == "wizard" || command == "gui") {
             string[] record = new string[] { Directory.GetCurrentDirectory(),
                 Environment.GetEnvironmentVariable("NIPAT_BACKEND"),
                 Environment.GetEnvironmentVariable("NIPAT_DATA_DIR"),
@@ -226,7 +237,9 @@ class FixturePython {
                 Environment.GetEnvironmentVariable("NIPAT_WSL_DISTRO"),
                 Environment.GetEnvironmentVariable("NIPAT_RUNTIME_IMAGE"),
                 Environment.GetEnvironmentVariable("NIPAT_PROJECT_DIR") }.Concat(args).Select(Encode).ToArray();
-            File.WriteAllLines(Environment.GetEnvironmentVariable("NIPAT_LAUNCH_TEST_CAPTURE"), record);
+            string capture = Environment.GetEnvironmentVariable("NIPAT_LAUNCH_TEST_CAPTURE");
+            File.WriteAllLines(capture + ".tmp", record);
+            File.Move(capture + ".tmp", capture);
         }
         return 0;
     }
@@ -238,6 +251,7 @@ class FixturePython {
     $pythonDirectory = Join-Path $app '.runtime\python'
     [IO.Directory]::CreateDirectory($pythonDirectory) | Out-Null
     Copy-Item -LiteralPath $fakePython -Destination (Join-Path $pythonDirectory 'python.exe')
+    Copy-Item -LiteralPath $fakePython -Destination (Join-Path $pythonDirectory 'pythonw.exe')
     $events = Join-Path $temporary 'events.txt'
     $fail = Join-Path $temporary 'self-test-failure.flag'
     $localAppData = Join-Path $temporary 'user profile'
@@ -336,7 +350,7 @@ class FixturePython {
     Assert-Test ((Test-SamePath $capture[0] $script:CallerDirectory) -and
         (Test-SamePath $capture[2] $candidateData) -and (Test-SamePath $capture[3] $candidateRuns) -and
         (Test-SamePath $capture[4] $candidateBase) -and (Test-SamePath $capture[7] $app)) 'guided command preserves cwd while isolating Desktop paths from inherited stable settings'
-    Assert-Test ($capture[8] -ceq '-m' -and $capture[9] -ceq 'nipat' -and $capture[10] -ceq 'gui') 'guided command reaches the native GUI entrypoint'
+    Assert-Test ($capture.Count -eq 9 -and (Test-SamePath $capture[8] (Join-Path $app 'scripts\windows\gui-launch.py'))) 'guided command reaches the windowed GUI entrypoint as one literal path'
 
     $explicitRuns = Join-Path $temporary 'explicit user results'
     $result = Invoke-TestLauncher -Executable $executable -Arguments @('--runs-dir', $explicitRuns, 'wizard') -Environment $environment

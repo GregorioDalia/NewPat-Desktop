@@ -33,7 +33,7 @@ from nipat_scientific.settings import describe_settings
 class GuiService:
     def __init__(self, base_layout: ProjectLayout | None = None, host: dict | None = None,
                  *, preferences_store=None, jobs=None, resource_factory=None,
-                 results_factory=None):
+                 results_factory=None, run_observer=None):
         self.base_layout = base_layout or ProjectLayout.discover()
         self.host = dict(host or {})
         self.preferences_store = preferences_store or PreferencesStore()
@@ -48,6 +48,8 @@ class GuiService:
         self._results_key = None
         self._results_store = None
         self._lock = threading.RLock()
+        from nipat.gui.lifecycle import RunObserver
+        self.run_observer = run_observer or RunObserver(lambda: self.layout, self.jobs)
 
     @property
     def layout(self) -> ProjectLayout:
@@ -60,7 +62,8 @@ class GuiService:
         with self._lock:
             if key != self._results_key:
                 self._results_store = (self.results_factory(key[0]) if self.results_factory is not None
-                                       else ResultsStore(key[0], language=key[1], registry_path=key[2]))
+                                       else ResultsStore(key[0], language=key[1], registry_path=key[2],
+                                                         status_observer=self.run_observer.observe))
                 self._results_key = key
             return self._results_store
 
@@ -76,7 +79,8 @@ class GuiService:
             "jobs.list": self.jobs.list, "jobs.get": self.jobs.get,
             "jobs.cancel": self.jobs.cancel, "jobs.active": self.jobs.active,
             "close_status": self.jobs.active, "run.reuse": self.run_reuse,
-            "run.prepare": self.run_prepare,
+            "run.prepare": self.run_prepare, "runs.remove": self.run_remove,
+            "run.igv": self.run_igv,
             "resources.get": self.resources_get, "resources.preview": self.resources_preview,
             "resources.apply": self.resources_apply, "environment.check": self.environment_check,
             "installation.get": self.installation_get,
@@ -208,6 +212,40 @@ class GuiService:
             return self._draft_from_legacy(metadata)
         except (KeyError, TypeError, ValueError) as exc:
             raise ValidationError("La configurazione precedente non contiene tutti i collegamenti ai file. Creare un nuovo esperimento.") from exc
+
+    def run_remove(self, run_id: str) -> dict:
+        store = self._results()
+        path, metadata = store._metadata(run_id)
+        observation = self.run_observer.inspect(path, metadata)
+        if not observation.get("can_remove"):
+            english = self.ui_get()["language"] == "en"
+            raise ValidationError("This experiment may still be active. Wait until its status can be verified before removing it from the list."
+                                  if english else "L’esperimento potrebbe essere ancora attivo. Attendi che il suo stato sia verificabile prima di rimuoverlo dalla lista.")
+        return store.remove_run(run_id)
+
+    def run_igv(self, run_id: str, locus: str | None = None) -> dict:
+        """Select recorded reference/BAM sources, preserving every original file."""
+        store = self._results()
+        run = store.get_run(run_id)
+        draft = run.get("draft")
+        if not isinstance(draft, dict):
+            metadata = store.metadata(run_id)
+            try:
+                draft = self._draft_from_legacy(metadata) if metadata.get("workflow") == "analysis" else {}
+            except (KeyError, TypeError, ValueError):
+                draft = {}
+        english = self.ui_get()["language"] == "en"
+        reference = draft.get("reference")
+        tracks = [{"name": sample.get("id") or Path(sample["path"]).name, "path": sample["path"]}
+                  for sample in draft.get("samples", [])
+                  if isinstance(sample, dict) and sample.get("kind") == "bam" and sample.get("path")]
+        if not isinstance(reference, str) or not reference or not tracks:
+            raise ValidationError("This experiment has no recorded FASTA reference and BAM inputs. Select the files in IGV."
+                                  if english else "Questo esperimento non contiene i collegamenti a un riferimento FASTA e a file BAM. Seleziona i file nella pagina IGV.")
+        if locus is not None and (not isinstance(locus, str) or len(locus) > 300
+                or not re.fullmatch(r"[A-Za-z0-9_.-]+(?::[0-9,]+(?:-[0-9,]+)?)?", locus)):
+            raise ValidationError("Invalid genomic coordinates." if english else "Coordinate genomiche non valide.")
+        return {"reference": {"fasta": reference, "index": ""}, "tracks": tracks, "locus": locus or "all"}
 
     def run_prepare(self, run_id: str, module: str) -> dict:
         """Prepare only one new consumer using recorded counts, never call again.

@@ -39,24 +39,26 @@ function Start-TestProcess([string] $Arguments, $Environment = @{}) {
 }
 
 function Wait-TestRelaunch([string] $Root) {
-    $recordFile = Join-Path $Root 'reopened-process.json'
-    Wait-TestFile $recordFile
-    $record = Get-Content -LiteralPath $recordFile -Raw -Encoding UTF8 | ConvertFrom-Json
-    $process = [Diagnostics.Process]::GetProcessById([int]$record.pid)
-    # The fixture waits for acknowledgement. Pin its handle while it is alive:
-    # GetProcessById alone does not retain ExitCode after a fast process exits.
-    # Never attach cleanup to an unrelated process that has reused its PID.
-    $null = $process.Handle
-    $started = $process.StartTime
-    if ($null -eq $started -or $started.ToUniversalTime().Ticks -ne [long]$record.started_ticks) {
-        $process.Dispose()
-        throw 'Reopened fixture process identity does not match.'
+    foreach ($phase in @(@('reopened-process.json', 'reopened-observed', 'bridge'),
+                        @('reopened-child-process.json', 'reopened-child-observed', 'windowed child'))) {
+        $recordFile = Join-Path $Root $phase[0]
+        Wait-TestFile $recordFile
+        $record = Get-Content -LiteralPath $recordFile -Raw -Encoding UTF8 | ConvertFrom-Json
+        $process = [Diagnostics.Process]::GetProcessById([int]$record.pid)
+        # Both detached processes wait for acknowledgement. Pin each real handle
+        # before release and never attach cleanup to a reused, unrelated PID.
+        $null = $process.Handle
+        $started = $process.StartTime
+        if ($null -eq $started -or $started.ToUniversalTime().Ticks -ne [long]$record.started_ticks) {
+            $process.Dispose()
+            throw 'Reopened fixture process identity does not match.'
+        }
+        $script:Children += $process
+        [IO.File]::WriteAllText((Join-Path $Root $phase[1]), 'handle retained')
+        Assert-Test ($process.WaitForExit(20000)) ('reopened fixture ' + $phase[2] + ' finishes before directory cleanup')
+        $exitCode = $process.ExitCode
+        Assert-Test ($null -ne $exitCode -and $exitCode -eq 0) ('reopened fixture ' + $phase[2] + " exits successfully (exit $exitCode)")
     }
-    $script:Children += $process
-    [IO.File]::WriteAllText((Join-Path $Root 'reopened-observed'), 'handle retained')
-    Assert-Test ($process.WaitForExit(20000)) 'reopened fixture entry point finishes before directory cleanup'
-    $exitCode = $process.ExitCode
-    Assert-Test ($null -ne $exitCode -and $exitCode -eq 0) "reopened fixture entry point exits successfully (exit $exitCode)"
 }
 
 try {
@@ -78,7 +80,18 @@ class RecordingInstaller {
       File.Copy(Path.Combine(root,"zip-worker.ps1"),Path.Combine(scripts,"install-zip.ps1"));
       return 0;
     }
-    if (args.Length > 0 && args[0] == "-m") {
+    if (args.Length > 0 && (args[0] == "-m" || Path.GetFileName(args[0]) == "gui-launch.py")) {
+      using (var process = System.Diagnostics.Process.GetCurrentProcess()) {
+        string record = "{\"pid\":" + process.Id + ",\"started_ticks\":" + process.StartTime.ToUniversalTime().Ticks + "}";
+        string temporary = Path.Combine(root,"reopened-child-process.tmp");
+        File.WriteAllText(temporary,record);
+        File.Move(temporary,Path.Combine(root,"reopened-child-process.json"));
+        DateTime deadline = DateTime.UtcNow.AddSeconds(20);
+        while (!File.Exists(Path.Combine(root,"reopened-child-observed"))) {
+          if (DateTime.UtcNow > deadline) return 2;
+          System.Threading.Thread.Sleep(20);
+        }
+      }
       File.WriteAllLines(Path.Combine(root,"reopened.txt"), args);
       return 0;
     }
@@ -122,7 +135,11 @@ exit $Code
         $sentinelHash = (Get-FileHash -LiteralPath $sentinel -Algorithm SHA256).Hash
         $preferenceHash = (Get-FileHash -LiteralPath $preference -Algorithm SHA256).Hash
         Copy-Item -LiteralPath (Join-Path $projectRoot 'scripts\windows\run.ps1') -Destination (Join-Path $app 'scripts\windows\run.ps1')
+        Copy-Item -LiteralPath (Join-Path $projectRoot 'scripts\windows\gui-launch.py') -Destination (Join-Path $app 'scripts\windows\gui-launch.py')
         Copy-Item -LiteralPath $fixture -Destination (Join-Path $app 'python-fixture.exe')
+        # Model the windowed interpreter entry used by the production GUI
+        # launcher; its actual no-console lease is tested with real pythonw.
+        Copy-Item -LiteralPath $fixture -Destination (Join-Path $app 'pythonw.exe')
         [IO.File]::WriteAllText((Join-Path $app 'scripts\windows\common.ps1'), @'
 $fixtureRoot = $env:NIPAT_HANDOFF_FIXTURE
 $fixtureProcess = [Diagnostics.Process]::GetCurrentProcess()
@@ -201,6 +218,7 @@ $app=Join-Path $InstallRoot ('versions\0.8.100-'+('b'*40))
 Copy-Item -LiteralPath (Join-Path $previous.app_dir 'scripts') -Destination $app -Recurse
 Copy-Item -LiteralPath (Join-Path $previous.app_dir 'installer') -Destination $app -Recurse
 Copy-Item -LiteralPath (Join-Path $previous.app_dir 'python-fixture.exe') -Destination $app
+Copy-Item -LiteralPath (Join-Path $previous.app_dir 'pythonw.exe') -Destination $app
 [IO.Directory]::CreateDirectory((Join-Path $app '.runtime\installer'))|Out-Null
 [IO.Directory]::CreateDirectory((Join-Path $app '.distribution'))|Out-Null
 $state=@{schema_version=1;installation_channel='desktop';phase='ready';version='0.8.100';source_commit=('b'*40);runtime_image=('sha256:'+('c'*64))}|ConvertTo-Json

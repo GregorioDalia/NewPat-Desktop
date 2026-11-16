@@ -102,63 +102,9 @@ class DesktopApplication:
         return path
 
     def prepare_igv(self, params):
-        reference = params.get("reference", {})
-        if not isinstance(reference, dict):
-            raise ValidationError("Seleziona il riferimento e il suo indice.")
-        fasta = self._local_file(reference.get("fasta"), "il riferimento FASTA")
-        fai = self._local_file(reference.get("index") or str(fasta) + ".fai", "l’indice FAI")
-        # Parse the small FASTA index instead of reading reference/BAM into RAM.
-        chromosomes = []
-        with fai.open(encoding="utf-8-sig") as stream:
-            for i, line in enumerate(stream):
-                if i >= 1_000_000:
-                    raise ValidationError("Indice FASTA troppo grande.")
-                fields = line.rstrip("\r\n").split("\t")
-                if len(fields) < 5 or not fields[0] or not all(re.fullmatch(r"[0-9]+", v) for v in fields[1:5]):
-                    raise ValidationError("Indice FASTA non valido: servono nome, lunghezza, offset e ampiezza delle righe.")
-                if int(fields[1]) < 1 or int(fields[3]) < 1 or int(fields[4]) < int(fields[3]):
-                    raise ValidationError("Indice FASTA con dimensioni non valide.")
-                chromosomes.append(fields[0])
-        if not chromosomes:
-            raise ValidationError("L’indice FASTA è vuoto.")
-        ref = {"id": "nipat-local", "name": fasta.name,
-               "fastaURL": self.server.register(fasta)["url"], "indexURL": self.server.register(fai)["url"]}
-        if fasta.name.lower().endswith((".gz", ".bgz")):
-            gzi = self._local_file(reference.get("compressedIndex") or str(fasta) + ".gzi", "l’indice GZI del riferimento compresso")
-            ref["compressedIndexURL"] = self.server.register(gzi)["url"]
-        tracks = params.get("tracks", [])
-        if not isinstance(tracks, list) or len(tracks) > 200:
-            raise ValidationError("Elenco di tracce non valido.")
-        prepared = []
-        formats = {"bam": "alignment", "cram": "alignment", "vcf": "variant", "bed": "annotation",
-                   "gff": "annotation", "gff3": "annotation", "gtf": "annotation", "bw": "wig",
-                   "bigwig": "wig", "wig": "wig", "bedgraph": "wig", "seg": "seg", "bb": "annotation", "bigbed": "annotation"}
-        for item in tracks:
-            if not isinstance(item, dict):
-                raise ValidationError("Traccia non valida.")
-            path = self._local_file(item.get("path"), "la traccia")
-            stem = path.name.lower().removesuffix(".gz").removesuffix(".bgz")
-            fmt = str(item.get("format") or stem.rsplit(".", 1)[-1]).lower()
-            if fmt not in formats:
-                raise ValidationError(f"Formato della traccia non supportato: {path.name}")
-            index = item.get("index")
-            if not index and fmt in {"bam", "cram"}:
-                suffix = ".bai" if fmt == "bam" else ".crai"
-                index = next((str(p) for p in (Path(str(path) + suffix), path.with_suffix(suffix)) if p.is_file()), None)
-            if not index and path.name.lower().endswith((".gz", ".bgz")) and fmt in {"vcf", "bed", "gff", "gff3", "gtf"}:
-                index = next((str(p) for p in (Path(str(path) + ".tbi"), Path(str(path) + ".csi")) if p.is_file()), None)
-                if not index:
-                    raise ValidationError(f"Seleziona l’indice Tabix/CSI per {path.name}.")
-            if fmt in {"bam", "cram"} and not index:
-                raise ValidationError(f"Seleziona l’indice {'BAI' if fmt == 'bam' else 'CRAI'} per {path.name}.")
-            track = {"name": str(item.get("name") or path.name), "format": fmt, "type": formats[fmt],
-                     "url": self.server.register(path)["url"], "indexed": bool(index)}
-            if index:
-                track["indexURL"] = self.server.register(self._local_file(index, "l’indice della traccia"))["url"]
-            prepared.append(track)
-        locus = params.get("locus") or chromosomes[0]
-        return {"reference": ref, "tracks": prepared, "locus": locus,
-                "loadDefaultGenomes": False, "genomeList": [], "search": False}
+        from .igv import LocalIGV
+        ui = self.service.ui_get() if hasattr(self.service, "ui_get") else {}
+        return LocalIGV(self.server.register, language=ui.get("language", "it")).prepare(params)
 
     def save_igv_session(self, params):
         session = params.get("session")

@@ -42,10 +42,11 @@ class ExperimentalDistributionTests(unittest.TestCase):
         self.assertTrue(is_experimental_version(__version__))
 
     def test_gui_preview_is_isolated_without_reclassifying_stable_releases(self):
-        for version in ("0.8.0a1", "0.9.0", "0.9.0a1", "0.9.0b2", "0.9.0rc1"):
+        for version in ("0.8.0a1", "0.9.0", "0.9.0a1", "0.9.0b2", "0.9.0rc1",
+                        "0.9.1", "0.9.1a1", "0.9.1b2", "0.9.1rc1"):
             with self.subTest(version=version):
                 self.assertTrue(is_experimental_version(version))
-        for version in ("0.8.99", "0.8.100", "0.9.1", "1.0.0"):
+        for version in ("0.8.99", "0.8.100", "0.9.2", "1.0.0"):
             with self.subTest(version=version):
                 self.assertFalse(is_experimental_version(version))
 
@@ -56,7 +57,7 @@ class ExperimentalDistributionTests(unittest.TestCase):
             client, handoff, read = Mock(), Mock(), Mock()
             messages = []
             ui = Terminal(read=read, write=messages.append)
-            for version in ("0.8.0a1", "0.9.0", "0.9.0rc1"):
+            for version in ("0.8.0a1", "0.9.0", "0.9.0rc1", "0.9.1", "0.9.1rc1"):
                 for startup in (False, True):
                     self.assertFalse(run_updates(ui, layout, Preferences(), client=client,
                                                  handoff=handoff, startup=startup,

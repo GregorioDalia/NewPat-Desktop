@@ -99,7 +99,7 @@ class UpdateDiscoveryTests(unittest.TestCase):
         return self.client.check(current, channel, platform)
 
     def test_gui_preview_never_consumes_an_automatic_update_feed(self):
-        for version in ("0.9.0", "0.9.0rc1"):
+        for version in ("0.9.0", "0.9.0rc1", "0.9.1", "0.9.1rc1"):
             for channel in ("stable", "testing"):
                 with self.subTest(version=version, channel=channel):
                     result = self.check(channel, current=version)

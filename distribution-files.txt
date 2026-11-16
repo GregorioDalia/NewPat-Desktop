@@ -553,3 +553,16 @@ tests/test_gui_app_verification.py
 tests/test_gui_smoke.py
 scripts/verify_gui_app.py
 tests/test_gui_frontend.py
+
+# GUI usability and testing upgrade (0.9.1).
+.github/gui-test-requirements.txt
+docs/RELEASE_0.9.1.md
+installer/windows/test-testing-install.ps1
+scripts/verify_gui_interactions.py
+scripts/windows/gui-launch.py
+src/nipat/gui/igv.py
+src/nipat/gui/lifecycle.py
+src/nipat/processes.py
+tests/test_background_processes.py
+tests/test_gui_lifecycle.py
+tests/test_gui_windows_launcher.py

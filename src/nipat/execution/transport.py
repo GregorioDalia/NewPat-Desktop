@@ -16,6 +16,7 @@ from pathlib import Path, PureWindowsPath
 from typing import Any, Mapping
 
 from nipat.errors import RuntimeExecutionError, ValidationError
+from nipat.processes import background_process_options
 
 
 _DISTRO_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}\Z")
@@ -29,7 +30,8 @@ _LINUX_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 def cleanup_process_options() -> dict[str, Any]:
     """Bounded observation/cleanup subprocesses survive repeated console Ctrl+C."""
     if os.name == "nt":
-        return {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+        return {"creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x200)
+                | background_process_options()["creationflags"]}
     return {"start_new_session": True}
 
 
@@ -185,6 +187,7 @@ class WslDockerTransport(DockerTransport):
                 result = subprocess.run(
                     command, capture_output=True, text=True, encoding="utf-8",
                     errors="replace", timeout=30, check=False, stdin=subprocess.DEVNULL,
+                    **background_process_options(),
                 )
             except (OSError, subprocess.TimeoutExpired) as exc:
                 raise RuntimeExecutionError(self.unavailable_message) from exc

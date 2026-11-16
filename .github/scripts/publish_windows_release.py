@@ -82,9 +82,9 @@ def requires_gui_contract(version):
 
 
 def requires_gui_prerelease(version):
-    """The first GUI release must not replace the stable channel or Latest."""
+    """The authorized GUI previews must not replace the stable channel or Latest."""
     return bool(isinstance(version, str)
-                and re.fullmatch(r"0\.9\.0(?:(?:a|b|rc)[0-9]+)?", version))
+                and re.fullmatch(r"0\.9\.[01](?:(?:a|b|rc)[0-9]+)?", version))
 
 
 def requires_windows_zip(version):
@@ -410,7 +410,7 @@ def publication_channel(version, channel):
     """Release maturity is explicit; a numeric version is not proof of stability."""
     require(channel in {"stable", "testing"}, "Unknown publication channel")
     require(not requires_gui_prerelease(version) or channel == "testing",
-            "NIPAT 0.9.0 GUI releases must use the testing publication channel")
+            "NIPAT GUI previews must use the testing publication channel")
     if channel == "stable":
         require(re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version),
                 "A pre-release version cannot use the stable update channel")

@@ -16,7 +16,7 @@ NIPAT permette di eseguire analisi scientifiche sul proprio computer dal menu gu
 
 | Operazione | Guida |
 | --- | --- |
-| Provare l'applicazione grafica 0.9.0, l'archivio e IGV integrato | [GUI Preview](GUI.md) · [Note 0.9.0](RELEASE_0.9.0.md) |
+| Provare l'applicazione grafica 0.9.1, l'archivio e IGV integrato | [GUI Preview](GUI.md) · [Note 0.9.1](RELEASE_0.9.1.md) |
 | Avviare analisi singole e workflow dal menu o dalla CLI | [Guida per l'utilizzo](GUIDA_UTILIZZO.md) |
 | Preparare BAM, pileup, pannelli, tabelle e frequenze | [Controlli degli input e dei risultati](INPUT_VALIDATION.md) |
 | Consultare formule, costanti e valori configurabili | [Catalogo scientifico](CATALOGO_SCIENTIFICO.md) |

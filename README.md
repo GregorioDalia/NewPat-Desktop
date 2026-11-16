@@ -17,11 +17,13 @@ che scarica il pacchetto applicativo della release. Python è incluso in entramb
 lo ZIP include anche il motore scientifico. I cinque moduli scientifici
 restano invariati.
 
-La **[0.9.0 Preview](docs/RELEASE_0.9.0.md)** introduce l'applicazione grafica
+La **[0.9.1 Testing](docs/RELEASE_0.9.1.md)** migliora l'applicazione grafica
 con IGV integrato, italiano e inglese, configurazione delle analisi e archivio
 dei risultati. È una prerelease per le prove della GUI: **la 0.8.99 rimane
 la versione stabile**. La finestra dell'applicazione non apre un browser
-esterno. Consulta la [guida alla GUI](docs/GUI.md) per installarla e utilizzarla.
+esterno. La nuova preview semplifica installazione e navigazione IGV e aggiunge
+la gestione degli esperimenti interrotti. Consulta la [guida alla GUI](docs/GUI.md)
+per installarla e utilizzarla.
 
 ## Download
 

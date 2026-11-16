@@ -58,7 +58,12 @@ class AcceptanceBuildTests(unittest.TestCase):
             checker.evidence_artifact({"artifacts": [artifact, artifact]}, self.record)
 
     def test_gui_build_requires_testing_and_every_native_platform_job(self):
-        record = dict(self.record, version="0.9.0", publication_channel="testing")
+        for version in ("0.9.0", "0.9.1"):
+            with self.subTest(version=version):
+                self.check_gui_build(version)
+
+    def check_gui_build(self, version):
+        record = dict(self.record, version=version, publication_channel="testing")
         jobs = [{"name": name, "conclusion": "success"}
                 for name in publisher.required_build_jobs(record["version"])]
         self.assertTrue({"macos-installer (arm64)", "macos-installer (x86_64)"}
@@ -217,7 +222,7 @@ class AutomaticPublicationTests(unittest.TestCase):
             automatic.publication_arguments(record, None)
 
     def test_gui_candidate_cannot_implicitly_or_explicitly_be_promoted_to_stable(self):
-        for version in ("0.9.0", "0.9.0a1"):
+        for version in ("0.9.0", "0.9.0a1", "0.9.1", "0.9.1rc1"):
             record = dict(record_fixture(), version=version, publication_channel="testing")
             self.assertEqual(automatic.publication_arguments(record, None)[-1], "testing")
             with self.subTest(version=version), self.assertRaisesRegex(ValueError, "testing publication"):
@@ -225,7 +230,7 @@ class AutomaticPublicationTests(unittest.TestCase):
             record.pop("publication_channel")
             with self.assertRaisesRegex(ValueError, "authorized publication channel"):
                 automatic.publication_arguments(record, None)
-        self.assertEqual(automatic.release_channel("0.9.1", {"publication_channel": "stable"}), "stable")
+        self.assertEqual(automatic.release_channel("0.9.2", {"publication_channel": "stable"}), "stable")
 
     def test_retry_requires_the_accepted_complete_windows_zip(self):
         record = dict(record_fixture(), version="0.8.95", publication_channel="stable",
@@ -258,7 +263,9 @@ class AutomaticPublicationTests(unittest.TestCase):
         self.check_bootstrap_retry("0.8.99", "stable")
 
     def test_gui_retry_requires_testing_entrypoint_and_exact_testing_feeds(self):
-        self.check_bootstrap_retry("0.9.0", "testing")
+        for version in ("0.9.0", "0.9.1"):
+            with self.subTest(version=version):
+                self.check_bootstrap_retry(version, "testing")
 
     def check_bootstrap_retry(self, version, channel):
         record = dict(record_fixture(), version=version, publication_channel=channel,
@@ -276,7 +283,7 @@ class AutomaticPublicationTests(unittest.TestCase):
             f"nipat-scientific-runtime-{version}-amd64.tar.gz": "scientific_archive_sha256",
             "qualification-evidence.zip": "qualification_evidence_sha256",
         }
-        if version == "0.9.0":
+        if version in {"0.9.0", "0.9.1"}:
             record["windows_testing_sha256"] = "d" * 64
             names[f"NIPAT-{version}-Testing-installazione.zip"] = "windows_testing_sha256"
         existing["assets"] = [{"name": name, "state": "uploaded", "size": 100,
@@ -298,7 +305,7 @@ class AutomaticPublicationTests(unittest.TestCase):
         with patch.object(publisher, "check_tag"):
             self.assertIsNone(automatic.publication_arguments(record, existing))
             required = [f"NIPAT-{version}-Windows-payload.zip", publisher.WINDOWS_BOOTSTRAP_UPDATE_MANIFEST]
-            if version == "0.9.0":
+            if version in {"0.9.0", "0.9.1"}:
                 required.append(f"NIPAT-{version}-Testing-installazione.zip")
                 missing_digest = dict(record)
                 del missing_digest["windows_testing_sha256"]

@@ -13,6 +13,7 @@ import time
 import uuid
 
 from nipat.errors import ValidationError
+from nipat.execution.progress import ProgressSnapshot
 from nipat.execution.recovery import reconcile_run
 from nipat.execution.runner import DockerComposeRunner
 from nipat.execution.tracking import read_run_status
@@ -33,6 +34,7 @@ class Job:
         self.name = prepared.draft["name"]
         self.status = "starting"
         self.created_at = _now()
+        self.started_monotonic = time.monotonic()
         self.finished_at = None
         self.run_dir: Path | None = None
         self.progress = None
@@ -88,20 +90,29 @@ class GuiRunner(DockerComposeRunner):
                 self._log.write(str(text))
                 self._log.flush()
 
+    def _preparation_progress(self, phase, completed=None, total=None):
+        self.job.progressed(ProgressSnapshot(
+            status="running", elapsed_seconds=max(0, time.monotonic() - self.job.started_monotonic),
+            phase=phase, sample_ids=(), completed=completed, total=total,
+            unit="bytes" if total is not None else None))
+
     def _prepare_runtime(self):
         self._cancel_point()
+        self._preparation_progress("preparing-runtime")
         result = super()._prepare_runtime()
         self._cancel_point()
         return result
 
     def _describe_bundled_engine(self):
         self._cancel_point()
+        self._preparation_progress("verifying-engine")
         result = super()._describe_bundled_engine()
         self._cancel_point()
         return result
 
     def _hash_progress(self, path, completed, total):
         self._cancel_point()
+        self._preparation_progress("checking-inputs", completed, total)
         super()._hash_progress(path, completed, total)
 
     @contextmanager

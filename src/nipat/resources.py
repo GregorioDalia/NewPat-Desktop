@@ -23,6 +23,7 @@ import threading
 import uuid
 
 from nipat.errors import RuntimeExecutionError, ValidationError
+from nipat.processes import background_process_options
 
 
 _MIB = 1024 * 1024
@@ -44,7 +45,7 @@ def _decode_output(value: bytes | str) -> str:
 def _run(argv: list[str], *, timeout: int = 20) -> str:
     try:
         completed = subprocess.run(argv, capture_output=True, stdin=subprocess.DEVNULL,
-                                   check=False, timeout=timeout)
+                                   check=False, timeout=timeout, **background_process_options())
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise RuntimeExecutionError(f"Lettura o modifica delle risorse non completata: {exc}") from exc
     stdout, stderr = _decode_output(completed.stdout), _decode_output(completed.stderr)

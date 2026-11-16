@@ -3,13 +3,15 @@ NIPAT Desktop - Windows ZIP completo
 1. Scegliere una cartella definitiva su un disco locale fisso ed estrarre
    completamente lo ZIP. Lo ZIP Source code di GitHub non e un installer.
 2. Fare doppio clic su 1_INSTALLA.cmd, senza eseguirlo come amministratore.
-3. La preparazione crea la sottocartella NIPAT nella cartella estratta.
-   Aprire NIPAT\2_AVVIA.cmd. Non serve il menu Start.
+3. La preparazione crea la sottocartella NIPAT nella cartella estratta e apre
+   automaticamente l'app. Per i prossimi avvii aprire NIPAT\NIPAT.lnk.
+   Il collegamento usa l'icona NIPAT e non tiene una console aperta.
 
 Python 3.12.10, filesystem WSL e motore scientifico sono inclusi.
 Non occorre installare Python. Windows potrebbe dover scaricare/aggiornare
 WSL da Microsoft e richiedere autorizzazione amministrativa o riavvio.
-Dopo un riavvio aprire NIPAT\1_COMPLETA_PREPARAZIONE.cmd.
+Dopo un riavvio aprire lo stesso NIPAT\NIPAT.lnk: completa la preparazione
+e apre l'app. I vecchi script restano disponibili per la diagnostica.
 La ripresa usa la copia installata e gli archivi gia presenti nella cache.
 
 Conservare la cartella NIPAT: contiene applicazione, WSL, cache, dati e risultati.

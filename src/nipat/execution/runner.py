@@ -25,6 +25,7 @@ from nipat.execution.tracking import (
     RunOutcome, RunRecord, file_evidence, project_evidence, read_run_status, utc_now, verify_input_evidence,
 )
 from nipat.execution.transport import DockerTransport, cleanup_process_options
+from nipat.processes import background_process_options
 from nipat.paths import ProjectLayout
 from nipat.validation.integrity import verify_sha256_manifest
 
@@ -482,6 +483,7 @@ class DockerComposeRunner:
                 command, cwd=self.layout.project_dir, env=self._environment(),
                 capture_output=True, text=True, encoding="utf-8", errors="replace",
                 timeout=timeout, check=False, stdin=subprocess.DEVNULL,
+                **background_process_options(),
             )
             check["returncode"] = result.returncode
             self._write(result.stdout, terminal=result.returncode != 0)
@@ -751,6 +753,7 @@ class DockerComposeRunner:
                 docker_command, cwd=self.layout.project_dir, env=self._environment(),
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
                 text=True, encoding="utf-8", errors="replace", bufsize=1,
+                **background_process_options(),
             )
             if progress_directory is not None:
                 try:
