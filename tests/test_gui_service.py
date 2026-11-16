@@ -232,6 +232,26 @@ class GuiRuntimeFixture(GuiFixture):
 
 
 class GuiJobTests(GuiRuntimeFixture):
+    def test_preparation_reports_unknown_runtime_progress_and_measured_input_bytes(self):
+        prepared = prepare_analysis(self.draft(), self.layout)
+        job = Job(prepared)
+        runner = GuiRunner(prepared, job)
+        with patch.object(DockerComposeRunner, "_prepare_runtime", return_value="ready"):
+            self.assertEqual(runner._prepare_runtime(), "ready")
+        progress = job.snapshot()["progress"]
+        self.assertEqual(progress["phase"], "preparing-runtime")
+        self.assertIsNone(progress["completed"])
+        self.assertIsNone(progress["total"])
+        with patch.object(DockerComposeRunner, "_describe_bundled_engine", return_value="verified"):
+            self.assertEqual(runner._describe_bundled_engine(), "verified")
+        self.assertEqual(job.snapshot()["progress"]["phase"], "verifying-engine")
+        runner._hash_progress(self.reference, 4, 16)
+        progress = job.snapshot()["progress"]
+        self.assertEqual((progress["phase"], progress["completed"], progress["total"], progress["unit"]),
+                         ("checking-inputs", 4, 16, "bytes"))
+        self.assertGreaterEqual(progress["elapsed_seconds"], 0)
+        self.assertFalse(job.done.is_set())
+
     def test_active_status_covers_final_report_persistence(self):
         reporting = threading.Event()
         release = threading.Event()

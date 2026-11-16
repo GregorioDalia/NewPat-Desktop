@@ -322,11 +322,13 @@ def _file_label(name, language="it"):
 class ResultsStore:
     """Scope every read to a configured local archive, never a frontend path."""
 
-    def __init__(self, results_root: Path | str, *, language="it", registry_path: Path | str | None = None):
+    def __init__(self, results_root: Path | str, *, language="it", registry_path: Path | str | None = None,
+                 status_observer=None):
         self.root = Path(results_root).expanduser().resolve()
         self.language = "en" if language == "en" else "it"
         self.registry_path = Path(registry_path).resolve() if registry_path else self.root / "gui-imports.json"
         self._stats_cache: dict[tuple, dict] = {}
+        self.status_observer = status_observer
         self._lock = threading.RLock()
 
     def _run(self, run_id: str) -> Path:
@@ -345,9 +347,9 @@ class ResultsStore:
         _scoped(path, "run.json", file=True)
         return path
 
-    def _imports(self) -> dict[str, str]:
+    def _registry(self) -> dict:
         if not self.registry_path.is_file():
-            return {}
+            return {"schema_version": 1, "imports": {}, "hidden": []}
         if _is_link(self.registry_path):
             raise ValueError("Il registro degli esperimenti non può essere un collegamento.")
         value = _json(self.registry_path, max_bytes=4 * 1024 * 1024)
@@ -357,7 +359,35 @@ class ResultsStore:
             for k, v in entries.items()
         ):
             raise ValueError("Registro degli esperimenti importati non valido.")
-        return entries
+        hidden = value.get("hidden", [])
+        if not isinstance(hidden, list) or any(not isinstance(p, str) or not Path(p).is_absolute() for p in hidden):
+            raise ValueError("Registro degli esperimenti nascosti non valido.")
+        return {"schema_version": 1, "imports": entries, "hidden": hidden}
+
+    def _imports(self) -> dict[str, str]:
+        return self._registry()["imports"]
+
+    def _write_registry(self, value):
+        self.registry_path.parent.mkdir(parents=True, exist_ok=True)
+        if _is_link(self.registry_path):
+            raise ValueError("Il registro degli esperimenti non può essere un collegamento.")
+        fd, temporary = tempfile.mkstemp(prefix=".gui-imports-", suffix=".json", dir=self.registry_path.parent)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as stream:
+                json.dump(value, stream, ensure_ascii=False, indent=2)
+                stream.write("\n")
+            os.replace(temporary, self.registry_path)
+        finally:
+            Path(temporary).unlink(missing_ok=True)
+
+    def remove_run(self, run_id):
+        """Hide only the archive entry. The service checks activity first."""
+        with self._lock:
+            path = self._run(run_id)
+            value = self._registry()
+            value["hidden"] = sorted(set(value["hidden"]) | {str(path)})
+            self._write_registry(value)
+        return {"removed": True, "run_id": run_id, "outputs_preserved": True}
 
     def register_run(self, path: Path | str) -> dict:
         """Register a user-selected run/archive in place; copy no input/output data.
@@ -373,7 +403,9 @@ class ResultsStore:
         if _is_link(selected) or not selected.is_dir():
             raise ValueError("Seleziona una cartella di esperimenti esistente, non un collegamento.")
         selected = selected.resolve()
-        records = self._imports()
+        registry = self._registry()
+        records = registry["imports"]
+        hidden = set(registry["hidden"])
         imported = []
         for directory, directories, files in os.walk(selected, followlinks=False):
             current = Path(directory)
@@ -390,19 +422,11 @@ class ResultsStore:
                 identifier = "imported-" + hashlib.sha256(str(current).encode("utf-8")).hexdigest()[:32]
                 records[identifier] = str(current)
             imported.append(identifier)
+            hidden.discard(str(current))
         if not imported:
             raise ValueError("La cartella non contiene esperimenti NIPAT con run.json.")
-        self.registry_path.parent.mkdir(parents=True, exist_ok=True)
-        if _is_link(self.registry_path):
-            raise ValueError("Il registro degli esperimenti non può essere un collegamento.")
-        fd, temporary = tempfile.mkstemp(prefix=".gui-imports-", suffix=".json", dir=self.registry_path.parent)
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as stream:
-                json.dump({"schema_version": 1, "imports": records}, stream, ensure_ascii=False, indent=2)
-                stream.write("\n")
-            os.replace(temporary, self.registry_path)
-        finally:
-            Path(temporary).unlink(missing_ok=True)
+        registry.update(imports=records, hidden=sorted(hidden))
+        self._write_registry(registry)
         return {"imported": imported, "count": len(imported)}
 
     @staticmethod
@@ -422,6 +446,7 @@ class ResultsStore:
         if not isinstance(query, str) or len(query) > 1000:
             raise ValueError("Ricerca dell’archivio non valida.")
         found = []
+        hidden = set(self._registry()["hidden"])
         for directory, directories, files in os.walk(self.root, followlinks=False):
             path = Path(directory)
             directories[:] = [name for name in sorted(directories) if not _is_link(path / name)
@@ -430,6 +455,8 @@ class ResultsStore:
                 continue
             directories[:] = []
             run_id = path.relative_to(self.root).as_posix()
+            if str(path.resolve()) in hidden:
+                continue
             try:
                 item = self._run_record(run_id)
             except (OSError, ValueError, KeyError, TypeError) as exc:
@@ -443,7 +470,9 @@ class ResultsStore:
             if query.casefold() not in searchable.casefold() or status and item["status"] != status:
                 continue
             found.append(item)
-        for identifier in self._imports():
+        for identifier, imported_path in self._imports().items():
+            if str(Path(imported_path).resolve()) in hidden:
+                continue
             try:
                 item = self._run_record(identifier)
             except (OSError, ValueError, KeyError, TypeError) as exc:
@@ -527,8 +556,15 @@ class ResultsStore:
                         collect_warnings(child, origin, depth + 1)
         for document, _, _ in documents:
             collect_warnings(document)
+        observation = self.status_observer(run, metadata) if self.status_observer else None
+        if observation and observation["status"] == "interrupted" and observation.get("status_reason") == "abandoned":
+            # Display the interrupted lifecycle without changing completed step
+            # evidence or any original workflow/run document.
+            for step in steps:
+                if step["status"] in {"running", "pending", "preparing"}:
+                    step["status"] = "interrupted"
         return {"run": run, "metadata": metadata, "parameters": parameters, "samples": samples, "gui": gui,
-                "steps": steps, "documents": documents, "warnings": warnings}
+                "steps": steps, "documents": documents, "warnings": warnings, "observation": observation}
 
     def _run_record(self, run_id, context=None):
         ctx = context or self._context(run_id)
@@ -536,8 +572,21 @@ class ResultsStore:
         name = gui.get("name") or md.get("run_name") or run_id
         if not isinstance(name, str):
             name = run_id
-        return {"id": run_id, "name": name, "workflow": md.get("workflow"),
-                "status": read_run_status(ctx["run"], md), "started_at": md.get("started_at"),
+        state = dict(ctx.get("observation") or {"status": read_run_status(ctx["run"], md)})
+        notes = {
+            "checking": ("Verifica dello stato dell’esperimento in corso.", "Checking the experiment’s current state."),
+            "abandoned": ("L’esecuzione non risulta più attiva e non è stata finalizzata. I risultati possono essere parziali; puoi rieseguire l’esperimento.", "The run is no longer active and was not finalized. Results may be partial; you can run the experiment again."),
+            "unavailable": ("Impossibile confermare se l’esecuzione precedente è ancora attiva. Il runtime potrebbe non essere disponibile oppure un’altra analisi è in corso.", "The previous run’s activity could not be confirmed. The runtime may be unavailable or another analysis may be active."),
+            "external": ("Questo esperimento importato non ha uno stato finale registrato. La sua attività non è verificabile su questo computer.", "This imported experiment has no recorded final status. Its activity cannot be verified on this computer."),
+            "external_active": ("Il runtime segnala un’esecuzione ancora attiva, avviata fuori da questa sessione.", "The runtime reports an active run started outside this session."),
+        }
+        state["status_note"] = _translation(notes[state["status_reason"]], self.language) if state.get("status_reason") in notes else None
+        draft = gui.get("draft") or {}
+        has_igv_inputs = bool(isinstance(draft, dict) and draft.get("reference") and any(
+            isinstance(sample, dict) and sample.get("kind") == "bam" and sample.get("path")
+            for sample in draft.get("samples", [])))
+        return {"id": run_id, "name": name, "workflow": md.get("workflow"), **state,
+                "has_igv_inputs": has_igv_inputs, "started_at": md.get("started_at"),
                 "finished_at": md.get("finished_at"), "version": md.get("source", {}).get("nipat_version"),
                 "samples": ctx["samples"], "modules": sorted({s["module"] for s in ctx["steps"] if s["module"]}),
                 "markers": sorted({s["marker"] for s in ctx["steps"] if s["marker"]}),
