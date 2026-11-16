@@ -330,6 +330,72 @@ class FiveModuleAcceptanceTests(unittest.TestCase):
         self.assertFalse(acceptance.same_scientific_values({"value": True}, {"value": 1}))
         self.assertTrue(acceptance.same_scientific_values({"value": 1.0}, {"value": 1}))
 
+    def prepare_fixed_admission_report(self, version="0.9.5"):
+        self.record["version"] = self.manifest["version"] = version
+        self.record.update(publication_channel="testing", windows_zip_sha256="e" * 64,
+                           windows_payload_sha256="f" * 64, windows_testing_sha256="d" * 64)
+        helper = "tests/r_optimization/contamination/check_parallel.R"
+        raw = (ROOT / helper).read_bytes()
+        self.legacy.sources[COMMIT][helper] = raw
+        self.legacy.report["helpers"].append({"path": helper, "sha256": digest(raw), "status": "passed"})
+        for case in self.report["results"]:
+            if case["candidate"] and case["workflow"] == "contamination" and case["mode"] == "auto":
+                case["worker_evidence"].update(
+                    max_planned_workers=1, observed_peak_workers=1, observed_child_pids=[],
+                    completed_worker_tasks=case["batch_size"],
+                    phase_plans=[{"label": "contamination-samples", "workers": 1,
+                                  "tasks": case["batch_size"], "reason": "workload-not-observed",
+                                  "worker_ceiling": case["max_workers"] or 8}])
+        self.write_reports()
+
+    def test_newpat_serial_outer_admission_keeps_loaded_parallel_proof_required(self):
+        self.prepare_fixed_admission_report()
+        checked = self.verify()
+        self.assertEqual(checked["scientific_analysis_qualification"]["executions_verified"], 86)
+        self.legacy.report["helpers"] = [item for item in self.legacy.report["helpers"]
+            if item["path"] != "tests/r_optimization/contamination/check_parallel.R"]
+        self.write_reports()
+        with self.assertRaisesRegex(ValueError, "focused comparisons"):
+            self.verify()
+
+    def test_serial_outer_admission_cannot_bypass_other_workers_or_legacy_policy(self):
+        self.prepare_fixed_admission_report()
+        for version in ("0.9.0", "0.9.1"):
+            self.record["version"] = self.manifest["version"] = version
+            with self.subTest(version=version), self.assertRaisesRegex(ValueError, "distinct child workers"):
+                self.verify()
+        self.record["version"] = self.manifest["version"] = "0.9.5"
+        original = copy.deepcopy(self.report)
+        for workflow in ("cpi", "cpin"):
+            self.report = copy.deepcopy(original)
+            case = next(c for c in self.report["results"] if c["name"] == f"SNP-{workflow}-batch5-auto-cap2")
+            case["worker_evidence"].update(max_planned_workers=1, observed_child_pids=[])
+            self.write_reports()
+            with self.subTest(workflow=workflow), self.assertRaisesRegex(ValueError, "distinct child workers"):
+                self.verify()
+
+    def test_serial_outer_admission_rejects_missing_inconsistent_or_fabricated_plans(self):
+        self.prepare_fixed_admission_report()
+        original = copy.deepcopy(self.report)
+        mutations = [lambda w: w.pop("phase_plans"), lambda w: w.update(phase_plans=[]),
+            lambda w: w["phase_plans"].append(copy.deepcopy(w["phase_plans"][0])),
+            lambda w: w["phase_plans"][0].update(label="other"),
+            lambda w: w["phase_plans"][0].update(reason="requested-serial"),
+            lambda w: w["phase_plans"][0].update(tasks=4),
+            lambda w: w["phase_plans"][0].update(workers=True),
+            lambda w: w["phase_plans"][0].update(worker_ceiling=3),
+            lambda w: w["phase_plans"][0].update(worker_ceiling=True),
+            lambda w: w.update(completed_worker_tasks=4),
+            lambda w: w.update(observed_child_pids=[123]),
+            lambda w: w.update(max_planned_workers=2)]
+        for index, mutate in enumerate(mutations):
+            self.report = copy.deepcopy(original)
+            case = next(c for c in self.report["results"] if c["name"] == "SNP-contamination-batch5-auto-cap2")
+            mutate(case["worker_evidence"])
+            self.write_reports()
+            with self.subTest(index=index), self.assertRaisesRegex(ValueError, "serial admission"):
+                self.verify()
+
     def test_rejects_unverified_settings_inputs_output_and_parallel_workers(self):
         original = copy.deepcopy(self.report)
         mutations = [lambda c: c.update(status="failed"), lambda c: c.update(inputs_unchanged=False),

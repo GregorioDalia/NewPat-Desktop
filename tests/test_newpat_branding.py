@@ -63,7 +63,7 @@ class MacLegacyMigrationTests(unittest.TestCase):
     def bundle(self, path, version):
         source = path / "Contents/Resources/app"
         (source / ".distribution").mkdir(parents=True)
-        (source / "code.py").write_text("verified\n")
+        (source / "code.py").write_bytes(b"verified\n")
         (source / ".distribution/macos-manifest.json").write_text(json.dumps({
             "schema_version": 1, "channel": "desktop", "version": version,
             "source_commit": "a" * 40, "source_sha256": {

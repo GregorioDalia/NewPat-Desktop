@@ -764,9 +764,10 @@ def verify(root: Path, image: str) -> dict:
         raise ValueError("Both invariant caller models must pass real parallel qualification")
     helpers = []
     for helper in sorted((PROJECT / "tests/r_optimization").glob("*/check_*.R")):
-        if helper.parent.name in {"cpi", "contamination"}:
-            # These old-model equality checks cannot qualify updated science.
-            # The new model gate is mandatory alongside this caller gate.
+        if helper.parent.name == "cpi":
+            # This old-model equality check cannot qualify updated CPI science.
+            # Contamination now uses its frozen NEWPAT oracle and proves loaded
+            # inner parallelism under serial unobserved sample admission.
             continue
         relative = helper.relative_to(PROJECT)
         log = root / f"{helper.parent.name}-{helper.stem}.log"

@@ -307,8 +307,10 @@ def run_verification(report_path, executable):
                         ("cpin", "-3.33278849686833", "-3.42969850987639")):
                     page.locator('[data-action="navigate"][data-view="archive"]').click()
                     page.locator(f'[data-action="open-run"][data-id="{module}-curve-ui-fixture"]').click()
-                    page.locator(f'[data-action="result-module"][data-module="{module}|DNP"]').click()
+                    page.locator(f'[role="tab"][data-action="result-module"][data-module="{module}|DNP"]').click()
                     page.wait_for_selector('.interactive-curve .curve-point')
+                    curve_id = probe.evaluate("NipatApp.state.curves[0].file.id")
+                    curve_selector = f'.results-body [data-action="curve-mode"][data-id="{curve_id}"]'
                     check(page.locator('.interactive-curve').count() == 2,
                           f"{module.upper()} renders separate CPI and site-count panels from recorded rows")
                     chart = page.locator('.interactive-curve').first
@@ -331,7 +333,7 @@ def run_verification(report_path, executable):
                         check("2–5" in tooltip.inner_text(), "CPIN tooltip retains inclusive interval endpoints")
                     check(page.locator('.results-body [data-action="export-file"]').count() > 0,
                           f"{module.upper()} original file exports remain available")
-                    page.locator('[data-action="curve-mode"][data-mode="combined"]').click()
+                    page.locator(curve_selector + '[data-mode="combined"]').click()
                     check(page.locator('.interactive-curve').count() == 1,
                           f"{module.upper()} combined view overlays the three recorded series")
                     combined_chart = page.locator('.interactive-curve').first
@@ -352,7 +354,7 @@ def run_verification(report_path, executable):
                     combined_image = report_path.parent / f"{module}-combined-curve.png"
                     page.screenshot(path=str(combined_image), full_page=True)
                     evidence["screenshots"].append(combined_image.name)
-                    page.locator('[data-action="curve-mode"][data-mode="separate"]').click()
+                    page.locator(curve_selector + '[data-mode="separate"]').click()
                     check(page.locator('.interactive-curve').count() == 2,
                           f"{module.upper()} separate views remain available after combined inspection")
                     page.locator('.interactive-curve').first.locator('.curve-point').first.focus()

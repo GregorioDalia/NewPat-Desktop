@@ -139,6 +139,12 @@ def gui_prerelease_contract(version):
                 and re.fullmatch(r"0\.9\.(?:0|1|5)(?:(?:a|b|rc)[0-9]+)?", version))
 
 
+def fixed_admission_contract(version):
+    """NewPat 0.9.5 qualifies unobserved outer work separately from loaded pools."""
+    match = re.fullmatch(r"([0-9]+)\.([0-9]+)\.([0-9]+)(?:(?:a|b|rc)[0-9]+)?", version or "")
+    return bool(match and tuple(map(int, match.groups())) >= (0, 9, 5))
+
+
 def reliability_contract(version):
     match = re.fullmatch(r"0\.7\.([0-9]+)(?:(?:a|b|rc)[0-9]+)?", version or "")
     return bool(match and int(match[1]) >= 2) or multiplatform_contract(version)
@@ -830,7 +836,25 @@ def verify_analysis_qualification(record, evidence_directory, read_source):
                 and (cap is None or planned <= cap) and (mode != "serial" or planned == observed == 1)
                 and type(worker.get("completed_worker_tasks")) is int and worker["completed_worker_tasks"] > 0,
                 "Downstream workers exceed their execution budget or did not finish")
-        if size > 1 and mode == "auto":
+        if workflow == "contamination" and mode == "auto" and fixed_admission_contract(record["version"]):
+            # Tiny fixture tables are deliberately admitted one at a time until
+            # their memory use is observed. Loaded-table parallelism has a
+            # separate mandatory exact-image helper; this is not a waiver for
+            # missing worker evidence in callers, CPI or CPIN.
+            phases = worker.get("phase_plans")
+            require(isinstance(phases, list) and len(phases) == 1 and isinstance(phases[0], dict),
+                    "Contamination serial admission lacks its explicit resource plan")
+            phase = phases[0]
+            ceiling = phase.get("worker_ceiling")
+            require(planned == observed == 1 and worker.get("observed_child_pids") == []
+                    and worker["completed_worker_tasks"] == size
+                    and phase.get("label") == "contamination-samples"
+                    and type(phase.get("workers")) is int and phase["workers"] == 1
+                    and type(phase.get("tasks")) is int and phase["tasks"] == size
+                    and phase.get("reason") == "workload-not-observed"
+                    and type(ceiling) is int and ceiling >= 1 and (cap is None or ceiling <= cap),
+                    "Contamination serial admission differs from its observed tasks or fixed budget")
+        elif size > 1 and mode == "auto":
             children = worker.get("observed_child_pids")
             require(planned > 1 and isinstance(children, list)
                     and all(type(pid) is int and pid > 0 for pid in children) and len(set(children)) > 1,
@@ -1035,6 +1059,8 @@ def verify_scientific_equivalence(record, evidence_directory, manifest, read_sou
     if five_modules:
         required_helpers = {path for path in required_helpers
                             if not path.startswith(("tests/r_optimization/cpi/", "tests/r_optimization/contamination/"))}
+        if fixed_admission_contract(record["version"]):
+            required_helpers.add("tests/r_optimization/contamination/check_parallel.R")
     require(all(safe_evidence_path(path) and path.startswith("tests/r_optimization/") for path in paths)
             and len(set(paths)) == len(paths) and required_helpers <= set(paths),
             "Required scientific focused comparisons are missing or duplicated")

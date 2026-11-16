@@ -109,6 +109,9 @@ def check_step_outputs(run: Path, plan: dict) -> None:
 
 
 def qualify(destination: Path):
+    from nipat.execution.options import ExecutionOptions
+    from verify_snp_workflow import check_snp_execution_policy
+
     destination = destination.resolve()
     destination.mkdir(parents=True, exist_ok=False)
     inputs = destination / "inputs"
@@ -155,12 +158,13 @@ def qualify(destination: Path):
         if result["status"] != "succeeded":
             raise AssertionError(f"{mode}: {result['error']}; inspect {run / 'workflow-state.json'}")
         check_step_outputs(run, plan)
-        results[mode] = {"status": result["status"], "steps": len(result["steps"]), "snp_parallel": result.get("snp_parallel")}
+        policy = check_snp_execution_policy(run, result, count=3, options=ExecutionOptions(
+            execution_mode="serial" if mode == "serial" else "auto", max_workers=2))
+        results[mode] = {"status": result["status"], "steps": len(result["steps"]),
+                         "snp_parallel": result.get("snp_parallel"), "snp_execution_evidence": policy}
         tables[mode] = scientific_tables(run)
     if tables["serial"] != tables["capped"]:
         raise AssertionError("Serial/capped scientific tables differ")
-    if results["capped"]["snp_parallel"]["workers"] != 2:
-        raise AssertionError("Capped run did not exercise two SNP workers")
     check_unchanged({**original, **input_hashes, **source_hashes})
     report = {"status": "passed", "bam_count": 3, "scope": "all five modules, both marker branches, presentation and original inputs",
               "runs": results, "identical_scientific_tables": len(tables["serial"]),
@@ -182,6 +186,7 @@ def qualify_image(identifier: str, destination: Path, *, run_container) -> dict:
     from nipat.execution.runner import DockerComposeRunner
     from nipat.execution.workflows import Workflows
     from nipat.paths import ProjectLayout
+    from verify_snp_workflow import check_snp_execution_policy
 
     destination = destination.resolve()
     destination.mkdir(parents=True, exist_ok=False)
@@ -229,14 +234,12 @@ def qualify_image(identifier: str, destination: Path, *, run_container) -> dict:
                     or {step["workflow"] for step in plan["steps"]} != expected_workflows):
                 raise AssertionError("The source-free client did not complete its ten-step five-module plan")
             check_step_outputs(run, plan)
+            policy = check_snp_execution_policy(run, state, options=runner.options, count=3)
             results[mode] = {"status": state["status"], "steps": len(state["steps"]),
-                             "snp_parallel": state.get("snp_parallel")}
+                             "snp_parallel": state.get("snp_parallel"), "snp_execution_evidence": policy}
             tables[mode] = scientific_tables(run)
     if not tables["serial"] or tables["serial"] != tables["capped"]:
         raise AssertionError("Bundled serial/capped scientific tables differ or are missing")
-    parallel = results["capped"]["snp_parallel"] or {}
-    if parallel.get("workers") != 2 or parallel.get("tasks") != 3:
-        raise AssertionError("Bundled capped workflow did not exercise three SNP tasks with two workers")
     check_unchanged({**originals, **input_hashes})
     if {path.name for path in project.iterdir()} != {"compose.yaml"}:
         raise AssertionError("The source-free client unexpectedly populated its application directory")

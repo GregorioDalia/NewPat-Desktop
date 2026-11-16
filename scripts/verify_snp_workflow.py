@@ -241,6 +241,55 @@ def _deep_sample(identifier: str, root: Path, *, run_container) -> tuple[Path, P
     return generated / "work/sample.bam", panel, expected
 
 
+def check_snp_execution_policy(run: Path, state: dict, *, options: ExecutionOptions,
+                               count: int, require_inner: bool = True) -> dict:
+    """Require explained serial sample admission and real loaded-R execution.
+
+    A fresh R budget probe has no sample workload. It may not authorize outer
+    sample processes. Once SNP observations are loaded, each inner R pool must
+    actually exercise the requested serial/parallel policy within its budget.
+    Scientific equality is checked independently by each caller of this helper.
+    """
+    directory = run / "parallel/snp"
+    if options.execution_mode == "serial":
+        if "snp_parallel" in state or directory.exists():
+            raise ValueError("Serial SNP qualification launched a parallel coordinator.")
+        outer = None
+    else:
+        outer = state.get("snp_parallel", {})
+        expected = {"mode": "auto", "workers": 1, "tasks": count,
+                    "reason": "workload-not-observed", "resource_policy": "nipat-fixed-resources-v1",
+                    "workload_model": "not-observed", "memory_per_worker_mib": None}
+        if any(key not in outer or type(outer[key]) is not type(value) or outer[key] != value
+               for key, value in expected.items()):
+            raise ValueError("Unloaded SNP samples require explicit serial workload-not-observed admission.")
+        budget = json.loads((directory / "budget.json").read_text(encoding="utf-8"))
+        events = [json.loads(line) for path in directory.glob("worker-*.jsonl")
+                  for line in path.read_text(encoding="utf-8").splitlines()]
+        if (len(events) != 1 or events[0].get("event") != "plan"
+                or events[0].get("label") != "snp-samples"
+                or any(budget.get(key) != value or events[0].get(key) != value
+                       for key, value in expected.items())
+                or any(directory.glob("state-*.json")) or any(directory.glob("job-*.json"))):
+            raise ValueError("SNP sample admission evidence is missing, inconsistent, or launched outer workers.")
+    inner = {}
+    if require_inner:
+        from verify_r_equivalence import verify_parallel_execution
+
+        steps = [step for step in state["steps"] if step["workflow"] == "snp-call"]
+        if len(steps) != count or any(step["status"] != "succeeded" for step in steps):
+            raise ValueError("SNP qualification lost a completed sample.")
+        for step in steps:
+            # Same strict observed-process/CPU/RAM/manual-cap checker used by
+            # frozen-reference caller qualification, now at the loaded phase.
+            directory = run / step["work_dir"] / "parallel"
+            evidence = verify_parallel_execution(directory, mode=options.execution_mode,
+                cap=options.max_workers, require_parallel=options.execution_mode == "auto",
+                require_overlap=False)
+            inner[step["id"]] = evidence
+    return {"outer_admission": outer, "loaded_r_execution": inner}
+
+
 def _batch_snapshot(parent: Path, *, options: ExecutionOptions, count: int) -> dict[str, bytes]:
     """Compare scientific bytes and require complete, bounded worker evidence."""
     run = parent / "output/workflow"
@@ -248,36 +297,7 @@ def _batch_snapshot(parent: Path, *, options: ExecutionOptions, count: int) -> d
     result = {step["id"]: _artifact(run, step["artifacts"]["snp-tables"][0]).read_bytes()
               for step in state["steps"]}
     result["genotypes"] = _artifact(run, state["snp_summary"][0]["genotypes"]).read_bytes()
-    directory = run / "parallel/snp"
-    if options.execution_mode == "serial":
-        if "snp_parallel" in state or directory.exists():
-            raise ValueError("Serial SNP qualification launched a parallel coordinator.")
-        return result
-    workers = state.get("snp_parallel", {}).get("workers", 0)
-    if not 2 <= workers <= min(count, options.max_workers or count):
-        raise ValueError("SNP qualification did not exercise a bounded parallel batch.")
-    for step in state["steps"]:
-        worker = json.loads((directory / f"state-{step['id']}.json").read_text(encoding="utf-8"))
-        if worker != step:
-            raise ValueError("The SNP coordinator did not retain the final worker record.")
-    events = [json.loads(line) for path in directory.glob("worker-*.jsonl")
-              for line in path.read_text(encoding="utf-8").splitlines()]
-    started = [event for event in events if event["event"] == "task-start"]
-    ended = [event for event in events if event["event"] == "task-end"]
-    if (sorted(event["task_index"] for event in started) != list(range(1, count + 1))
-            or sorted(event["task_index"] for event in ended) != list(range(1, count + 1))
-            or any(event["outcome"] != "succeeded" for event in ended)):
-        raise ValueError("SNP worker evidence lost, duplicated or failed a sample.")
-    active = 0
-    for _timestamp, change in sorted(
-        [(event["observed_at_unix"], 1) for event in started]
-        + [(event["observed_at_unix"], -1) for event in ended]
-    ):
-        active += change
-        if not 0 <= active <= workers:
-            raise ValueError("SNP workers exceeded the shared process budget.")
-    if active:
-        raise ValueError("SNP qualification left an unfinished worker.")
+    check_snp_execution_policy(run, state, options=options, count=count)
     return result
 
 
@@ -309,13 +329,17 @@ def _check_batch_modes(root: Path, layout: ProjectLayout, inputs: Path,
             references[count] = snapshot
         elif snapshot != references[count]:
             raise ValueError(f"Scientific SNP tables or aggregate genotypes changed: {name}")
-        print(f"PASS: {name}; 17-column independent oracle, final worker states and exact table parity.", flush=True)
+        print(f"PASS: {name}; 17-column independent oracle, serial admission, observed loaded-R workers and exact table parity.", flush=True)
     if any(path.read_bytes() != content for path, content in originals.items()):
         raise ValueError("SNP batch mode qualification changed an input BAM.")
 
 
 def _failed_snp_plan(identifier: str, root: Path, inputs: Path, *, run_container) -> None:
-    """Qualify serial fail-fast and bounded parallel sibling cancellation separately."""
+    """Both requested modes must fail fast before unadmitted later samples.
+
+    Isolated-worker sibling cancellation remains tested in test_snp_parallel.py;
+    this real-image path must exercise the production unobserved-workload rule.
+    """
     broken = root / "SNP plan failure inputs"
     shutil.copytree(inputs, broken)
     (broken / "invalid.bam").write_bytes(b"Deliberately invalid BAM\n")
@@ -351,18 +375,13 @@ def _failed_snp_plan(identifier: str, root: Path, inputs: Path, *, run_container
             raise ValueError("R ran after the failing sample's unsuccessful samtools preparation.")
         if not (run / failed["preparation_log"]).is_file():
             raise ValueError("Failed SNP preparation lost its samtools diagnostic log.")
-        if mode == "serial":
-            if records["b_independent"]["status"] != "blocked" or (run / "steps/b_independent").exists():
-                raise ValueError("Serial SNP failure started a later independent sample.")
-        else:
-            if state.get("snp_parallel", {}).get("workers") != 2:
-                raise ValueError("Parallel failure qualification did not exercise two real SNP workers.")
-            if records["b_independent"]["status"] not in {"cancelled", "succeeded"}:
-                raise ValueError("A started SNP sibling was neither stopped nor already complete.")
-            if records["z_pending"]["status"] != "blocked" or (run / "steps/z_pending").exists():
-                raise ValueError("Parallel SNP failure started a pending sample.")
-            if state.get("snp_summary") or (run / "snp_summary").exists():
-                raise ValueError("A failed SNP batch produced an aggregate success summary.")
+        check_snp_execution_policy(run, state, options=ExecutionOptions(execution_mode=mode, max_workers=2),
+                                   count=len(chosen), require_inner=False)
+        for label, _sample, _filename in chosen[1:]:
+            if records[label]["status"] != "blocked" or (run / "steps" / label).exists():
+                raise ValueError("SNP failure started a later unadmitted sample.")
+        if state.get("snp_summary") or (run / "snp_summary").exists():
+            raise ValueError("A failed SNP batch produced an aggregate success summary.")
 
 
 def check_snp_plans(identifier: str, root: Path, inputs: Path, expected: Path,
