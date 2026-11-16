@@ -337,7 +337,7 @@ def run_verification(report_path, executable):
                     check(page.locator('.interactive-curve').count() == 1,
                           f"{module.upper()} combined view overlays the three recorded series")
                     combined_chart = page.locator('.interactive-curve').first
-                    check(combined_chart.locator('.curve-right-label').inner_text() == "Conteggi dei siti",
+                    check(combined_chart.locator('.curve-right-label').text_content().strip() == "Conteggi dei siti",
                           f"{module.upper()} combined view explicitly labels its site-count axis")
                     series_keys = probe.evaluate("[...new Set([...document.querySelectorAll('.interactive-curve [data-curve-series]')].map(node=>node.dataset.curveSeries))].sort()")
                     expected_keys = sorted(["log_CPI", "NotMismatch", "Mismatch"] if module == "cpi" else ["Log10_CPI", "Matching_sites", "Mismatching_sites"])
