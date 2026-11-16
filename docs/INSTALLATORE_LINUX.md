@@ -1,8 +1,17 @@
-# Installazione di NIPAT su Ubuntu
+# Installazione di NewPat su Ubuntu
 
-Il pacchetto `nipat-desktop_VERSIONE_amd64.deb` contiene l'applicazione, la
-documentazione e l'immagine scientifica con R, samtools e dipendenze.
-Scaricarlo dagli asset dell'[ultima release stabile](https://github.com/GregorioDalia/nipat-desktop/releases/latest).
+Questa guida descrive **NewPat 0.9.5 Testing**, candidata in sviluppo: i
+pacchetti non sono ancora pubblicati né qualificati per la distribuzione.
+Il nuovo download si chiamerà `newpat-desktop_0.9.5_amd64.deb` e conterrà
+l'applicazione, la documentazione e l'immagine scientifica con R, samtools e
+dipendenze. Il nome APT rimane `nipat-desktop` per aggiornare l'installazione
+esistente e conservare dati e preferenze. Sarà mantenuto anche il nome di
+asset precedente come alias compatibile.
+
+Per la versione stabile già pubblicata, **0.8.99**, usare il relativo
+`nipat-desktop_0.8.99_amd64.deb` dalla
+[pagina release](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.8.99).
+Le istruzioni di quella versione mantengono nome e comando NIPAT/`nipat`.
 Per aggiornare un'installazione esistente, APT sostituisce i file applicativi
 dello stesso pacchetto `nipat-desktop`.
 
@@ -24,7 +33,7 @@ configurati: non occorre installare prima Docker manualmente. Servono una
 connessione Internet e autorizzazione amministrativa. Su Ubuntu con i
 repository ordinari disponibili, la dipendenza Docker è soddisfatta da
 `docker.io` e `docker-compose-v2`. Un’installazione Docker già presente deve
-soddisfare questi requisiti. Il pacchetto NIPAT non aggiunge repository,
+soddisfare questi requisiti. Il pacchetto NewPat non aggiunge repository,
 non sostituisce configurazioni del daemon e non abilita automaticamente
 l’accesso degli utenti.
 
@@ -33,7 +42,7 @@ all'uso del gruppo `docker` è una scelta amministrativa: concede privilegi
 equivalenti a root. L'amministratore deve configurarla esplicitamente secondo
 le [istruzioni Docker per Linux](https://docs.docker.com/engine/install/linux-postinstall/).
 Dopo una modifica ai gruppi può essere necessario uscire e rientrare nella
-sessione. Non eseguire NIPAT con `sudo` e non rendere il socket scrivibile da tutti.
+sessione. Non eseguire NewPat con `sudo` e non rendere il socket scrivibile da tutti.
 
 Il launcher usa esclusivamente il socket Docker locale e non cambia il
 contesto globale dell'utente. Docker rootless, daemon remoti e rimappatura
@@ -45,10 +54,11 @@ analisi con percorsi o proprietari dei risultati differenti da quelli attesi.
 Scaricare il pacchetto `.deb` della versione scelta dagli asset della pagina
 [Releases](https://github.com/GregorioDalia/nipat-desktop/releases).
 Aprire il terminale nella cartella che contiene il pacchetto e sostituire
-il nome del file nell'esempio con quello scaricato:
+il nome del file nell'esempio con quello scaricato. Il comando seguente è
+per il futuro pacchetto 0.9.5, dopo la pubblicazione:
 
 ```bash
-sudo apt install ./nipat-desktop_0.8.60_amd64.deb
+sudo apt install ./newpat-desktop_0.9.5_amd64.deb
 ```
 
 APT mostra anche le dipendenze da scaricare e installare. Esaminare il
@@ -60,20 +70,21 @@ la procedura di riferimento.
 
 L’installazione dei pacchetti e l’autorizzazione dell’account sono due
 operazioni distinte. Dopo l’installazione, verificare che Docker sia avviato
-e completare con l’amministratore l’accesso al socket. Il setup NIPAT
+e completare con l’amministratore l’accesso al socket. Il setup NewPat
 non aggiunge automaticamente l’utente al gruppo `docker`.
 
 Dopo l'installazione:
 
-1. Aprire **NIPAT Desktop** dal menu delle applicazioni, oppure eseguire
-   `nipat` nel terminale.
+1. Aprire **NewPat** dal menu delle applicazioni, oppure eseguire
+   `newpat` nel terminale.
 2. Attendere la verifica dell'archivio incluso e l'importazione dell'immagine.
 3. Attendere la diagnostica del motore e gli autotest.
-4. Nel menu, scegliere il workflow e compilare gli input. Confermare
-   **Avvia analisi** nel riepilogo per eseguire il calcolo scientifico.
+4. Nella grafica, scegliere **Nuovo esperimento**, selezionare il tipo di
+   analisi e compilare gli input. Confermare **Avvia analisi** nel riepilogo.
 
-Il collegamento apre la CLI in un terminale e mantiene visibili i messaggi
-finali fino alla conferma di chiusura. Non è una GUI grafica.
+Il collegamento apre la finestra grafica attraverso GTK e WebKitGTK. APT
+installa anche `python3-gi`, `gir1.2-gtk-3.0` e `gir1.2-webkit2-4.1`.
+Il menu guidato nel terminale rimane disponibile con `newpat wizard`.
 Gli avvii successivi controllano lo stato e l’immagine locale e riutilizzano
 la configurazione verificata, senza rileggere l’intero archivio o ripetere
 gli autotest. Il primo avvio
@@ -84,7 +95,7 @@ Per eseguire o ripetere esplicitamente la verifica dell’archivio,
 la diagnostica e gli autotest, senza aprire il menu:
 
 ```bash
-nipat --setup
+newpat --setup
 ```
 
 Se la preparazione fallisce, le analisi restano bloccate. Risolvere la causa
@@ -93,19 +104,20 @@ indicata e ripetere il comando: i dati e i risultati già presenti sono conserva
 ## Comandi e percorsi
 
 ```bash
-nipat --version
-nipat --help
-nipat dnp-call --help
-nipat doctor --runtime
-nipat self-test
-nipat
+newpat --version
+newpat --help
+newpat dnp-call --help
+newpat doctor --runtime
+newpat self-test
+newpat
+newpat wizard
 ```
 
 `--help` e `--version` sono disponibili anche se Docker non è accessibile.
 Le simulazioni `--dry-run` preparano il run senza importare l’immagine,
 avviare gli autotest o eseguire calcoli scientifici; non verificano
 la disponibilità del runtime.
-`doctor --runtime` controlla il motore e i contratti dei quattro workflow;
+`doctor --runtime` controlla il motore e i contratti dei cinque moduli;
 `self-test` esegue i casi distribuiti e ne verifica i risultati. Nessuno dei
 due costituisce una validazione scientifica generale. Input, parametri e
 risultati sono descritti nella [guida per l'utilizzo](GUIDA_UTILIZZO.md).
@@ -113,7 +125,7 @@ risultati sono descritti nella [guida per l'utilizzo](GUIDA_UTILIZZO.md).
 | Contenuto | Posizione predefinita |
 | --- | --- |
 | Applicazione e archivio scientifico | `/opt/nipat-desktop` |
-| Comando | `/usr/bin/nipat` |
+| Comando | `/usr/bin/newpat`; alias compatibile `/usr/bin/nipat` |
 | Dati | `~/.local/share/nipat-desktop/data` |
 | Risultati | `~/.local/share/nipat-desktop/runs` |
 | Stato della preparazione | `~/.local/state/nipat-desktop/state.json` |
@@ -127,36 +139,38 @@ preferenze del menu. I dati appartengono all'utente e restano separati dall'appl
 Non usare la directory `/opt/nipat-desktop` per campioni o risultati.
 
 Gli input possono trovarsi in altre cartelle locali accessibili. Per scegliere
-una destinazione dei risultati usare **5 — Configura → Cartelle dati e
-risultati** nel menu oppure `--runs-dir` prima del sottocomando. Le preferenze
+una destinazione dei risultati usare le **Impostazioni** nella grafica,
+**5 — Configura → Cartelle dati e risultati** in `newpat wizard`, oppure
+`--runs-dir` prima del sottocomando. Le preferenze
 salvate si applicano soltanto al menu; i comandi diretti rimangono espliciti:
 
 
 ```bash
-nipat --runs-dir "$HOME/risultati-nipat" contamination \
+newpat --runs-dir "$HOME/risultati-nipat" contamination \
   --input "$HOME/campioni/sample.txt" --panel "$HOME/pannelli/DNPpanel.txt"
 ```
 
 ## Aggiornamento e rimozione
 
-**9 — Verifica aggiornamenti** scarica e verifica il `.deb` completo di una
-release approvata. Dopo la conferma esplicita di installazione, la sessione
+Nel menu `newpat wizard`, **9 — Verifica aggiornamenti** scarica e verifica il `.deb` completo di una
+release approvata. La candidata 0.9.5 Testing richiede invece il download
+manuale: non viene proposta come aggiornamento stabile. Dopo la conferma esplicita di installazione, la sessione
 corrente si chiude e viene aperto un terminale di sistema. L'installazione
 tramite APT richiede autorizzazione amministrativa attraverso Polkit.
-Al termine il launcher normale verifica o prepara il runtime prima del menu.
+Al termine il launcher normale verifica o prepara il runtime prima dell'apertura dell'applicazione.
 Se terminale o Polkit non sono disponibili, il pacchetto verificato rimane
-sul disco e NIPAT mostra il comando APT completo da eseguire con l'amministratore.
+sul disco e NewPat mostra il comando APT completo da eseguire con l'amministratore.
 
 Si può anche installare il pacchetto con `sudo apt install ./<file.deb>`.
 APT sostituisce i file applicativi e conserva i dati dell'utente. Al primo
-avvio, NIPAT verifica la combinazione aggiornata di applicazione, manifest e
+avvio, NewPat verifica la combinazione aggiornata di applicazione, manifest e
 immagine. Una configurazione incompleta non viene attivata. I file applicativi
 installati da APT non vengono ripristinati automaticamente se la preparazione
 successiva fallisce. Le preferenze e i percorsi dell'utente vengono conservati.
-Le sessioni NIPAT ancora attive impediscono la modifica del pacchetto; non
+Le sessioni NewPat ancora attive impediscono la modifica del pacchetto; non
 vengono terminate per consentire l'aggiornamento. Se APT o dpkg si interrompono,
 completare la configurazione del pacchetto con l'amministratore prima di riaprire
-NIPAT. Non è previsto un rollback automatico completo.
+NewPat. Non è previsto un rollback automatico completo.
 
 Per rimuovere l'applicazione:
 
@@ -179,17 +193,18 @@ e non elimina altre immagini o container. L'eventuale cancellazione dei dati
 | Archivio non integro | Conservare il log e reinstallare il pacchetto verificato della stessa build. |
 | Preparazione già in corso | Attendere il completamento dell'altro avvio. |
 | Autotest fallito | Conservare log, stato e run generati; non considerare la preparazione completata. |
-| Immagine rimossa da Docker | Avviare nuovamente NIPAT per ripristinarla dall'archivio incluso. |
+| Immagine rimossa da Docker | Avviare nuovamente NewPat per ripristinarla dall'archivio incluso. |
 | Aggiornamento interrotto | Conservare `${XDG_CACHE_HOME:-~/.cache}/nipat-desktop/updates/handoff-*/state.json` e i messaggi del terminale APT; se la transazione non è completa, riprendere la configurazione del pacchetto con l'amministratore. La preparazione del runtime usa il consueto `setup.log` nella cartella di stato XDG. |
 
-Per una segnalazione, registrare versione del sistema, versione NIPAT,
+Per una segnalazione, registrare versione del sistema, versione NewPat,
 provenienza del `.deb`, messaggio completo e log della preparazione.
 I log dei run possono contenere nomi e percorsi dei campioni: verificarne
 il contenuto prima di condividerli.
 
 ## Verifiche del pacchetto
 
-La build usa il manifest comune di Windows e Ubuntu e verifica che il `.deb`
+La pipeline prevede i controlli seguenti; per la 0.9.5 gli esiti devono
+essere raccolti sul pacchetto effettivamente compilato. La build usa il manifest comune di Windows e Ubuntu e verifica che il `.deb`
 incorpori l'archivio scientifico previsto. I controlli automatici comprendono
 installazione, preparazione con utente non root, autotest SNPcall, CPI
 e Contamination, DNPcall su BAM sintetico, input privati e percorsi con

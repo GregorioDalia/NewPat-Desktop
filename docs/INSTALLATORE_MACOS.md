@@ -1,15 +1,19 @@
-# Installatore macOS
+# Installatore macOS — NewPat 0.9.5 Testing
 
-NIPAT Desktop è disponibile per macOS 14 o successivo, su Intel e Apple
-Silicon. Il pacchetto comprende la CLI guidata, Python e Lima nativi e il
-motore scientifico Linux AMD64. I pacchetti sono negli asset dell'[ultima release stabile](https://github.com/GregorioDalia/nipat-desktop/releases/latest).
+NewPat, nuovo nome di NIPAT dalla versione 0.9.5, richiede macOS 14 o
+successivo su Intel o Apple Silicon. Il pacchetto comprende l'interfaccia
+grafica, la CLI guidata, Python e Lima nativi e il motore scientifico Linux AMD64.
+Questa guida descrive la candidata **0.9.5 Testing**: le modifiche sono in
+sviluppo e non costituiscono una release già pubblicata o una qualificazione
+su Mac reale. Quando pubblicati, i pacchetti e le verifiche associate saranno
+negli asset della [release corrispondente](https://github.com/GregorioDalia/nipat-desktop/releases).
 
 ## Requisiti e pacchetti
 
 | Mac | Pacchetto | Esecuzione scientifica |
 | --- | --- | --- |
-| Intel x86_64 | `NIPAT-VERSIONE-macos-x86_64.pkg` | Guest Lima AMD64 e container Linux AMD64. |
-| Apple Silicon arm64 | `NIPAT-VERSIONE-macos-arm64.pkg` | Guest Lima ARM64 e container Linux AMD64 tramite Rosetta. |
+| Intel x86_64 | `NewPat-0.9.5-macos-x86_64.pkg` | Guest Lima AMD64 e container Linux AMD64. |
+| Apple Silicon arm64 | `NewPat-0.9.5-macos-arm64.pkg` | Guest Lima ARM64 e container Linux AMD64 tramite Rosetta. |
 
 Python e Lima nativi per l'host sono inclusi; Homebrew, R, samtools e Docker
 Desktop non sono prerequisiti. Servono spazio per applicazione, immagine,
@@ -27,7 +31,7 @@ intervento su ogni dispositivo del team.
 ### Autorizzazione del pacchetto non verificato
 
 Se macOS mostra «Apple non è in grado di verificare» per il pacchetto scaricato
-dal repository NIPAT, chiudere l'avviso con **Fine**. Aprire **Impostazioni di
+dal repository del progetto, chiudere l'avviso con **Fine**. Aprire **Impostazioni di
 Sistema → Privacy e sicurezza**, individuare il pacchetto bloccato e scegliere
 **Apri comunque**, quindi confermare. Può essere necessario autorizzare anche
 l'applicazione al primo avvio. Questa eccezione riguarda il software selezionato;
@@ -39,19 +43,20 @@ Su dispositivi gestiti l'amministratore può limitare le autorizzazioni.
 
 1. Scaricare il `.pkg` della propria architettura dalla pagina Releases. Controllare versione e checksum associati.
 2. Aprirlo con doppio clic e completare la procedura di Installer.
-3. Aprire **NIPAT Desktop** da Applicazioni. Si apre il Terminale:
-   mantenere la finestra aperta durante la preparazione iniziale.
+3. Aprire **NewPat** da Applicazioni. Compare la finestra di preparazione
+   dell'ambiente scientifico; l'avvio grafico non richiede il Terminale.
 4. Attendere la creazione dell'ambiente Lima, l'importazione verificata
    dell'immagine e il controllo dei contratti del motore. Un errore interrompe
    la preparazione; non viene avviata un'analisi con stato incompleto.
-5. Quando compare il menu, scegliere l'analisi o il workflow automatico.
+5. Quando compare l'interfaccia grafica, creare un esperimento o aprire i
+   risultati. La CLI rimane disponibile dal launcher indicato sotto.
 
 Gli avvii successivi usano lo stesso collegamento e lo stesso ambiente
 verificato. Dopo la preparazione i calcoli sono locali; non richiedono
 una connessione per scaricare componenti scientifici. Il singolo container
 di analisi ha la rete disabilitata.
 
-NIPAT Desktop usa un ambiente dedicato, distinto dalle installazioni sperimentali.
+NewPat usa un ambiente dedicato, distinto dalle installazioni sperimentali.
 Non adotta una VM Lima esistente dell'utente e non modifica configurazioni
 Docker Desktop o altre VM.
 
@@ -59,14 +64,18 @@ Docker Desktop o altre VM.
 
 | Risorsa | Percorso |
 | --- | --- |
-| Applicazione | `/Applications/NIPAT Desktop.app` |
-| Launcher CLI | `/Applications/NIPAT Desktop.app/Contents/Resources/NIPAT.command` |
+| Applicazione | `/Applications/NewPat.app` |
+| Launcher CLI | `/Applications/NewPat.app/Contents/Resources/NewPat.command` |
 | Area dell'utente | `~/Library/Application Support/NIPAT-Desktop` |
 | Dati e risultati predefiniti | Sottocartelle `data` e `runs` dell'area utente. |
 | Preferenze | `preferences.json` nell'area utente. |
 | Stato e log runtime | `.runtime/macos/runtime.json` e `.runtime/macos/setup.log` nell'area utente. |
 | Lima home | `~/.nipat/lima` |
 | VM dedicata | `nipat` |
+
+I percorsi dell'area utente, l'identità del pacchetto e della VM conservano i
+nomi tecnici NIPAT per riutilizzare le installazioni e i risultati esistenti.
+Nel nuovo bundle è mantenuto anche l'alias `NIPAT.command`.
 
 La cartella Lima ha un percorso breve per rispettare i limiti dei socket
 Unix. La configurazione e il registro di proprietà associano la VM a questa
@@ -85,20 +94,35 @@ dalla directory corrente indicata dal menu. Le opzioni `--data-dir` e
 `--runs-dir` selezionano le destinazioni; **Configura** conserva le preferenze
 del menu. La verifica dei mount può rifiutare un percorso non esposto nella VM.
 
-Per radici aggiuntive, `--runtime prepare --mount <percorso>` le dichiara
-alla prima preparazione. Modificare i mount di una VM già creata richiede
-una ricreazione esplicita del solo runtime: non avviene automaticamente durante
-un'analisi e non trasferisce dati o risultati. Conservare le evidenze di una
-prova prima di ricreare il suo ambiente.
+Per una cartella aggiuntiva, usare il launcher con
+`--runtime prepare --mount <percorso>`. Dalla 0.9.5 la configurazione della VM
+gestita viene aggiornata senza ricrearla: le altre condivisioni e le risorse
+assegnate restano conservate. Chiudere prima le altre sessioni NewPat/NIPAT
+e attendere la conclusione delle analisi.
+
+Lo stesso controllo viene eseguito all'avvio se l'applicazione è stata
+spostata, per esempio dalla Scrivania ad Applicazioni, o rinominata in NewPat.
+Prima della modifica vengono verificate proprietà e configurazione della VM;
+una sessione dell'applicazione o un container ancora attivo impediscono la
+manutenzione. Quando necessaria, la VM inattiva viene arrestata e riavviata.
+Sono ritirati soltanto i vecchi mount in sola lettura di un bundle NIPAT/NewPat
+non più presente e già registrati come appartenenti all'installazione.
+Le cartelle personalizzate non vengono rimosse.
+
+Il backup `mount-backup-*.json` in `.runtime/macos` conserva configurazione e
+registro di proprietà precedenti. Se la modifica fallisce, NewPat tenta il
+ripristino e indica eventuali problemi di recupero senza cancellare la VM,
+i dati o i risultati. Prima di dichiarare pronto l'ambiente verifica anche
+che la VM legga il manifesto dell'applicazione corrente con lo stesso checksum.
 
 ## CLI e diagnostica
 
-Il launcher accetta i comandi NIPAT con gli stessi argomenti scientifici
+Il launcher accetta i comandi NewPat con gli stessi argomenti scientifici
 delle altre piattaforme. Ad esempio:
 
 ```bash
-"/Applications/NIPAT Desktop.app/Contents/Resources/NIPAT.command" doctor --runtime
-"/Applications/NIPAT Desktop.app/Contents/Resources/NIPAT.command" self-test
+"/Applications/NewPat.app/Contents/Resources/NewPat.command" doctor --runtime
+"/Applications/NewPat.app/Contents/Resources/NewPat.command" self-test
 ```
 
 La preparazione iniziale controlla archivio e contratti del motore; non
@@ -108,12 +132,13 @@ esegue esplicitamente. **8 — Verifica ambiente** dal menu offre la diagnostica
 I comandi di gestione del runtime sono separati dalle analisi:
 
 ```bash
-"/Applications/NIPAT Desktop.app/Contents/Resources/NIPAT.command" --runtime status
-"/Applications/NIPAT Desktop.app/Contents/Resources/NIPAT.command" --runtime ensure
-"/Applications/NIPAT Desktop.app/Contents/Resources/NIPAT.command" --runtime stop
+"/Applications/NewPat.app/Contents/Resources/NewPat.command" --runtime status
+"/Applications/NewPat.app/Contents/Resources/NewPat.command" --runtime ensure
+"/Applications/NewPat.app/Contents/Resources/NewPat.command" --runtime stop
 ```
 
-`status` consulta lo stato; `ensure` rende disponibile il runtime preparato;
+`status` consulta lo stato e segnala `repair_required` se i mount non
+corrispondono all'applicazione corrente; `ensure` verifica il runtime preparato;
 `stop` arresta la VM. Non arrestare la VM durante un'analisi: annullare prima
 il calcolo dal menu con Ctrl+C e attendere la conclusione della procedura.
 Per una preparazione fallita conservare `setup.log`, il messaggio completo,
@@ -123,27 +148,31 @@ causa, riaprire l'applicazione o utilizzare `--runtime prepare`.
 ## Aggiornamento e rimozione
 
 Usare **Verifica aggiornamenti** per consultare i pacchetti compatibili,
-oppure scaricare il nuovo `.pkg` dalla pagina Releases. Chiudere NIPAT prima
+oppure scaricare il nuovo `.pkg` dalla pagina Releases. Chiudere NewPat e le
+eventuali vecchie sessioni NIPAT prima
 di installare l'aggiornamento. I dati e i risultati dell'account restano separati dal bundle
 applicativo. Non installare un pacchetto per l'architettura diversa da quella
 host per tentare di cambiare la modalità scientifica.
 
 La rimozione dell'applicazione non elimina automaticamente VM, dati e
-risultati. Per rimuovere **soltanto il runtime Lima gestito da NIPAT**, dopo
+risultati. Per rimuovere **soltanto il runtime Lima gestito da NewPat**, dopo
 aver chiuso le analisi, usare prima di rimuovere l'applicazione:
 
 ```bash
-"/Applications/NIPAT Desktop.app/Contents/Resources/NIPAT.command" --runtime remove-runtime
+"/Applications/NewPat.app/Contents/Resources/NewPat.command" --runtime remove-runtime
 ```
 
 Il comando verifica la proprietà dell'ambiente e rimuove la VM dedicata;
 conserva dati e risultati. Una nuova preparazione dovrà ricreare la VM e
 importare l'immagine. Non rimuovere manualmente altre istanze Lima o cartelle
-con contenuto non identificato come appartenente a NIPAT Desktop.
+con contenuto non identificato come appartenente all'installazione.
 
 ## Ambito delle verifiche
 
-La CI ospitata controlla client, contratti e confezionamento Intel/Apple Silicon.
+La CI è predisposta per controllare client, contratti e confezionamento
+Intel/Apple Silicon. I test automatici della migrazione simulano spostamento e
+rinomina dell'applicazione, sessioni attive, errore di modifica e ripristino.
+Questi test non eseguono una VM macOS reale.
 Le prove di VM Lima reali sono distinte e richiedono runner con virtualizzazione
 appropriata. L'installazione dal Finder, le policy di sicurezza, i permessi
 sui file e la ripresa su un Mac reale vanno registrati separatamente nella
@@ -158,7 +187,7 @@ le [release pubblicate](https://github.com/GregorioDalia/nipat-desktop/releases)
 Dal menu **Configura** consultare memoria e CPU del Mac, della VM Lima e del
 container. Per modificare la RAM o le CPU della VM dedicata, verificare
 l'anteprima e confermare la modifica. Un backup conserva la configurazione
-precedente. Se è necessario riavviare la VM, NIPAT richiede una conferma
+precedente. Se è necessario riavviare la VM, NewPat richiede una conferma
 separata e non interrompe analisi in corso.
 
 Aumentare soltanto il limite del container non aumenta la RAM assegnata a Lima.

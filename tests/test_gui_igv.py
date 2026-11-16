@@ -138,6 +138,28 @@ def test_bam_reference_dictionary_must_be_compatible(local_igv, tmp_path, chromo
         local_igv.prepare({"reference": {"fasta": str(fasta)}, "tracks": [{"path": str(bam)}]})
 
 
+@pytest.mark.parametrize("language", ["it", "en"])
+def test_mitochondrial_mismatch_reports_both_files_indexes_and_lengths(local_igv, tmp_path, language):
+    local_igv.language = language
+    fasta = tmp_path / "genome.fa"
+    fasta.write_text(">chrM\nACGT\n", encoding="ascii")
+    Path(str(fasta) + ".fai").write_text("chrM\t4\t6\t4\t5\n", encoding="ascii")
+    bam = _bam(tmp_path, name="patient", chromosome="chrM", length=5)
+    with pytest.raises(ValidationError) as caught:
+        local_igv.prepare({"reference": {"fasta": str(fasta)}, "tracks": [{"path": str(bam)}]})
+    message = str(caught.value)
+    for text in ("chrM", "patient.bam", "genome.fa", "genome.fa.fai", "4", "5", "FAI"):
+        assert text in message
+    assert ("allineamento" if language == "it" else "alignment") in message
+
+
+def test_reference_only_remains_valid_but_empty_form_requests_fasta(local_igv, tmp_path):
+    with pytest.raises(ValidationError, match="Seleziona FASTA"):
+        local_igv.prepare({})
+    result = local_igv.prepare({"reference": {"fasta": str(_reference(tmp_path))}})
+    assert result["tracks"] == []
+
+
 def test_bam_header_and_bai_reference_count_are_checked(local_igv, tmp_path):
     fasta, bam = _reference(tmp_path), _bam(tmp_path)
     params = {"reference": {"fasta": str(fasta)}, "tracks": [{"path": str(bam)}]}

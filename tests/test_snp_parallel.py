@@ -22,6 +22,7 @@ FAKE_R = r'''
 import json, os, pathlib, signal, subprocess, sys, time
 args = sys.argv[1:]
 if args[0] == "-e":
+    assert "workload_observed=FALSE" in args[1], "Bare R probe is not a loaded sample workload"
     tasks = int(args[-1])
     cap = int(os.environ.get("NIPAT_MAX_WORKERS") or tasks)
     print(json.dumps({"mode":"auto", "max_workers":cap, "workers":min(tasks,cap),

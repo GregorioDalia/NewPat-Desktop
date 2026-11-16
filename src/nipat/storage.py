@@ -112,7 +112,7 @@ def validate_managed_directories(layout: ProjectLayout) -> None:
     except (OSError, ValueError, UnicodeError, RecursionError, ValidationError) as exc:
         raise ValidationError(
             f"Configurazione delle cartelle installate non valida: {record}. "
-            "Riaprire il setup NIPAT per ripararla prima di modificare le destinazioni."
+            "Riaprire il setup NewPat per ripararla prima di modificare le destinazioni."
         ) from exc
     for name in ("data_dir", "runs_dir"):
         selected = getattr(layout, name).resolve()

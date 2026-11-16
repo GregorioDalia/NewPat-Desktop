@@ -12,7 +12,7 @@ import tempfile
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
-BOOTSTRAP_VERSION = "1.0.0"
+BOOTSTRAP_VERSION = "1.1.0"
 BOOTSTRAP_SOURCES = (
     "installer/windows/NIPAT.iss", "installer/windows/bootstrap-profile.iss",
     "installer/windows/bootstrap_download.py", "LICENSE", "assets/branding/nipat-icon.ico",

@@ -36,6 +36,12 @@ try {
     $parsed = Read-NipatInstallerManifest $manifestPath
     Assert-Test ($parsed.release_tag -ceq ('v' + $candidateVersion)) 'accept valid release manifest'
     $profile = Get-NipatInstallationProfile
+    Assert-Test ($profile.display_name -ceq 'NewPat') 'new install display uses NewPat'
+    $legacyProfile = $profile | ConvertTo-Json | ConvertFrom-Json
+    $legacyProfile.display_name = 'NIPAT Desktop'
+    Assert-NipatInstallationProfile $legacyProfile
+    $legacyProfile.app_id = 'foreign-app'
+    Assert-Rejected { Assert-NipatInstallationProfile $legacyProfile } 'legacy brand does not waive ownership identity'
     Assert-Test ($profile.channel -ceq 'desktop' -and $profile.app_dir_name -ceq 'NIPAT-Desktop' -and
         $profile.app_id -ceq '6B1702B6-F75C-4F8C-956F-86626C60AF45') 'official identity preserves supported Desktop upgrades'
     Assert-Test ($profile.app_dir_name -cne 'NIPAT' -and $profile.data_dir_name -cne 'NIPAT' -and

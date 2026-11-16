@@ -62,15 +62,15 @@ function Test-NipatStorageMarker([string] $Path, [string] $Role) {
     if (-not (Test-Path -LiteralPath $marker)) { return $false }
     if (-not (Test-Path -LiteralPath $marker -PathType Leaf) -or
         ((Get-Item -LiteralPath $marker -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
-        throw "Marcatore NIPAT non valido: $marker"
+        throw "Marcatore NewPat non valido: $marker"
     }
     $lines = @(Get-Content -LiteralPath $marker -Encoding UTF8 | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-    if ($lines.Count -ne 4 -or $lines[0] -cne '[NIPAT]') { throw "Marcatore NIPAT non valido: $marker" }
+    if ($lines.Count -ne 4 -or $lines[0] -cne '[NIPAT]') { throw "Marcatore NewPat non valido: $marker" }
     $values = @{}
     foreach ($line in $lines[1..3]) {
         $parts = $line.Split('=', 2)
         if ($parts.Count -ne 2 -or $parts[0] -cnotin @('schema_version', 'installation_channel', 'role') -or
-            $values.ContainsKey($parts[0])) { throw "Marcatore NIPAT non valido: $marker" }
+            $values.ContainsKey($parts[0])) { throw "Marcatore NewPat non valido: $marker" }
         $values[$parts[0]] = $parts[1]
     }
     if ($values.Count -ne 3 -or $values['schema_version'] -cne '1' -or
@@ -235,7 +235,7 @@ function Assert-NipatInstallLayout($Layout, [switch] $CheckExisting, [switch] $H
     $fields = @('app_dir', 'runtime_dir', 'cache_dir', 'data_dir', 'runs_dir')
     if ($null -eq $Layout -or @($Layout.PSObject.Properties).Count -ne 7 -or
         -not (($Layout.schema_version -is [int]) -or ($Layout.schema_version -is [long])) -or
-        $Layout.schema_version -ne 1) { throw 'Configurazione delle cartelle NIPAT non valida.' }
+        $Layout.schema_version -ne 1) { throw 'Configurazione delle cartelle NewPat non valida.' }
     Assert-NipatInstallationChannel $Layout 'Le cartelle selezionate'
     $protected = @((Join-Path $env:LOCALAPPDATA 'NIPAT-Desktop\installations'),
         (Join-Path $env:LOCALAPPDATA 'NIPAT-Desktop\preferences.json'),
@@ -247,12 +247,12 @@ function Assert-NipatInstallLayout($Layout, [switch] $CheckExisting, [switch] $H
     }
     foreach ($field in $fields) {
         if ($null -eq $Layout.PSObject.Properties[$field] -or -not ($Layout.$field -is [string])) {
-            throw "Destinazione NIPAT mancante: $field"
+            throw "Destinazione NewPat mancante: $field"
         }
         $resolved = Resolve-NipatInstallPath $Layout.$field -AllowUnavailable:$Historical
         if ($resolved -ine $Layout.$field.TrimEnd('\')) { throw "Usare un percorso completo senza componenti relativi: $($Layout.$field)" }
         foreach ($path in $protected) {
-            if (Test-NipatInstallPathOverlap $resolved $path) { throw "Destinazione riservata al sistema o a un altro ambiente NIPAT: $resolved" }
+            if (Test-NipatInstallPathOverlap $resolved $path) { throw "Destinazione riservata al sistema o a un altro ambiente NewPat: $resolved" }
         }
         if (-not $Historical) {
             Assert-NipatInstallPathWithoutLinks $resolved -Tree:($field -in @('app_dir', 'runtime_dir', 'cache_dir'))

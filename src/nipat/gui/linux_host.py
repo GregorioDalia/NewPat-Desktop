@@ -17,7 +17,7 @@ def _libraries():
         from gi.repository import GLib, Gtk, WebKit2
         return GLib, Gtk, WebKit2
     except (ImportError, ValueError) as exc:
-        raise RuntimeError("La GUI richiede GTK 3 e WebKit2GTK 4.1. Ripristina il pacchetto NIPAT tramite APT.") from exc
+        raise RuntimeError("La GUI richiede GTK 3 e WebKit2GTK 4.1. Ripristina il pacchetto NewPat tramite APT.") from exc
 
 
 def _dispatch(function):
@@ -46,11 +46,11 @@ def allowed_navigation(url, base):
     return _allowed_navigation(base, url)
 
 
-def run_window(url, title="NIPAT", on_close=None, *, smoke_test=False, smoke_report=None,
+def run_window(url, title="NewPat", on_close=None, *, smoke_test=False, smoke_report=None,
                user_data_dir=None, timeout=60, screenshot_path=None, **_):
     GLib, Gtk, WebKit = _libraries()
     if not Gtk.init_check()[0]:
-        raise RuntimeError("Impossibile aprire la finestra NIPAT nella sessione grafica.")
+        raise RuntimeError("Impossibile aprire la finestra NewPat nella sessione grafica.")
     window = Gtk.Window(title=title)
     window.set_default_size(1440, 920)
     window.set_size_request(900, 650)
@@ -113,7 +113,7 @@ def run_window(url, title="NIPAT", on_close=None, *, smoke_test=False, smoke_rep
                     result["pending"] = False
                     timers.append(GLib.timeout_add(250, collect))
                     return
-                if not evidence.get("bodyText") or "NIPAT" not in evidence.get("title", ""):
+                if not evidence.get("bodyText") or "NewPat" not in evidence.get("title", ""):
                     raise RuntimeError("GUI non caricata")
                 if screenshot_path:
                     import gi

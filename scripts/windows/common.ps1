@@ -26,10 +26,10 @@ function Set-NipatEnvironment([string] $Project) {
         $installerManifest = Read-NipatInstallerManifest $installerManifestPath
         $profile = Get-NipatInstallationProfile
         if (-not (Test-Path -LiteralPath $backendFile -PathType Leaf)) {
-            throw 'Installazione NIPAT Desktop da completare: riaprire il setup della stessa versione.'
+            throw 'Installazione NewPat da completare: riaprire il setup della stessa versione.'
         }
     } elseif (Test-Path -LiteralPath $backendFile -PathType Leaf) {
-        throw 'Configurazione WSL priva del manifest della stessa installazione. Ripristinare il pacchetto NIPAT Desktop.'
+        throw 'Configurazione WSL priva del manifest della stessa installazione. Ripristinare il pacchetto NewPat.'
     }
     if (Test-Path -LiteralPath $backendFile -PathType Leaf) {
         $installed = Get-Content -LiteralPath $backendFile -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -37,14 +37,14 @@ function Set-NipatEnvironment([string] $Project) {
             $null -ne $installed.PSObject.Properties['runtime_dir'] -or
             $null -ne $installed.PSObject.Properties['cache_dir']) -and
             -not (Test-Path -LiteralPath (Join-Path $Project '.runtime\install-layout.json') -PathType Leaf)) {
-            throw 'Configurazione delle cartelle mancante: riaprire il setup della stessa versione di NIPAT Desktop.'
+            throw 'Configurazione delle cartelle mancante: riaprire il setup della stessa versione di NewPat.'
         }
         if ($installed.schema_version -ne 1 -or $installed.backend -ne 'wsl' -or
             $installed.wsl_distro -cnotmatch '^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$' -or
             $installed.runtime_image -cnotmatch '^sha256:[a-f0-9]{64}$' -or
             -not [IO.Path]::IsPathRooted($installed.data_dir) -or
             -not [IO.Path]::IsPathRooted($installed.runs_dir)) {
-            throw 'Configurazione dell installer non valida: riaprire la preparazione della propria installazione NIPAT (collegamento locale per ZIP, menu Start per EXE).'
+            throw 'Configurazione dell installer non valida: riaprire la preparazione della propria installazione NewPat (collegamento locale per ZIP, menu Start per EXE).'
         }
         Assert-NipatInstallationChannel $installed 'configurazione di avvio'
         $runtimeDirectory = ''
@@ -175,6 +175,6 @@ function Assert-NipatWslDevelopmentConfiguration {
         [string]::IsNullOrWhiteSpace($env:NIPAT_WSL_DISTRO) -or
         $env:NIPAT_WSL_DISTRO -cnotmatch '^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$' -or
         $env:NIPAT_RUNTIME_IMAGE -cnotmatch '^sha256:[a-f0-9]{64}$') {
-        throw 'Per installare NIPAT usare NIPAT-Setup.exe. La preparazione del sorgente richiede un runtime WSL configurato: NIPAT_BACKEND=wsl, NIPAT_WSL_DISTRO e NIPAT_RUNTIME_IMAGE con ID sha256 completo. Consultare docs/INSTALLATORE_WINDOWS.md.'
+        throw 'Per installare NewPat usare NewPat-Setup.exe. La preparazione del sorgente richiede un runtime WSL configurato: NIPAT_BACKEND=wsl, NIPAT_WSL_DISTRO e NIPAT_RUNTIME_IMAGE con ID sha256 completo. Consultare docs/INSTALLATORE_WINDOWS.md.'
     }
 }

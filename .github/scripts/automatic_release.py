@@ -83,6 +83,11 @@ def publication_arguments(record, existing):
             "qualification-evidence.zip": "qualification_evidence_sha256",
         }
         assets = existing.get("assets") or []
+        aliases = {}
+        if publisher.uses_newpat_brand(version):
+            aliases = {publisher.public_asset_name(name): name for name, field in expected.items()
+                       if field in record and publisher.public_asset_name(name) != name}
+            expected.update({alias: expected[legacy] for alias, legacy in aliases.items()})
         if publisher.requires_gui_prerelease(version):
             publisher.require("windows_testing_sha256" in record,
                               "Acceptance is missing the Windows testing entrypoint digest")
@@ -91,6 +96,14 @@ def publication_arguments(record, existing):
                           and all(digests.get(name) == "sha256:" + record[field]
                                   for name, field in expected.items() if field in record),
                           "An existing public release differs from the accepted asset bytes")
+        if aliases:
+            by_name = {asset["name"]: asset for asset in assets}
+            for alias, legacy in aliases.items():
+                size = by_name[legacy].get("size")
+                publisher.require(type(size) is int and 0 < size < publisher.MAX_ASSET_BYTES
+                                  and type(by_name[alias].get("size")) is int
+                                  and by_name[alias]["size"] == size,
+                                  "An existing NewPat alias differs from the verified legacy size")
         if publisher.requires_windows_bootstrap(version):
             # A retry must not declare success when the entry point for the
             # online setup is missing or points to another payload/source.

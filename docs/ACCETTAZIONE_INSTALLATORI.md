@@ -1,6 +1,6 @@
 # Accettazione degli installatori
 
-NIPAT Desktop distribuisce Windows 10/11 x64, Ubuntu 24.04 x86_64 e
+NewPat distribuisce Windows 10/11 x64, Ubuntu 24.04 x86_64 e
 macOS 14 o successivo Intel/Apple Silicon. La decisione di distribuzione
 identifica commit, build e checksum; distingue prove automatiche,
 osservazioni sui dispositivi e validazione scientifica di dominio.
@@ -85,7 +85,7 @@ Le singole evidenze automatiche o manuali restano utilizzabili con il loro
 ambito effettivo, senza attribuire loro la copertura dell’intero scenario.
 
 Registrare sistema operativo e build, architettura, account utilizzato,
-stato iniziale di WSL o Docker, versione NIPAT, commit, checksum del
+stato iniziale di WSL o Docker, versione NewPat, commit, checksum del
 pacchetto, data UTC, responsabile della prova e sequenza eseguita.
 Conservare log di installazione, stato del runtime e run delle analisi.
 Utilizzare dati sintetici o autorizzati alla condivisione; i nomi e i percorsi
@@ -97,12 +97,12 @@ restano da verificare; non vanno registrati come `passed`.
 
 | Chiave della prova | Ambiente e operazioni | Criteri di accettazione |
 | --- | --- | --- |
-| `windows_clean_wsl` | Windows 11 x64 senza NIPAT, Docker Desktop, Python o strumenti scientifici; WSL inizialmente non configurato. Eseguire l’EXE con doppio clic, autorizzare i componenti richiesti, completare l’eventuale riavvio e riaprire NIPAT dall’icona. Eseguire diagnostica, autotest e i cinque moduli e i workflow composti con casi noti. Riavviare Windows e ripetere l’avvio. | La preparazione arriva a `ready` senza spostare file; il menu e i calcoli funzionano dal normale account; risultati e log sono accessibili; dopo il riavvio non servono comandi manuali per avviare il runtime. |
-| `windows_stable_coexistence` | Windows 11 x64 con installazioni NIPAT 0.4 e 0.5 e dati di controllo, affiancate a NIPAT Desktop. Registrare prima e dopo percorsi, versioni, stato e inventario delle distribuzioni WSL. Avviare tutte le applicazioni. | NIPAT Desktop usa nome, cartelle, collegamenti e distribuzione propri. Applicazione, configurazione, dati e runtime delle altre installazioni NIPAT restano utilizzabili e non vengono adottati o sostituiti da NIPAT Desktop. |
-| `windows_reinstall_removal` | Sull’installazione NIPAT Desktop preparata, eseguire i casi sotto riportati per percorsi personalizzati, reinstallazione, cambio di destinazione e rimozione. Provare entrambe le scelte di conservazione dell'ambiente, l'annullamento e un errore parziale. | Le preferenze vengono riproposte, i file esistenti restano nelle loro destinazioni e le analisi funzionano. La rimozione elimina applicazione e collegamenti; l'opzione aggiuntiva riguarda soltanto risorse verificate di NIPAT Desktop. Dati, risultati e risorse estranee rimangono invariati. |
+| `windows_clean_wsl` | Windows 11 x64 senza NewPat, Docker Desktop, Python o strumenti scientifici; WSL inizialmente non configurato. Eseguire l’EXE con doppio clic, autorizzare i componenti richiesti, completare l’eventuale riavvio e riaprire NewPat dall’icona. Eseguire diagnostica, autotest e i cinque moduli e i workflow composti con casi noti. Riavviare Windows e ripetere l’avvio. | La preparazione arriva a `ready` senza spostare file; il menu e i calcoli funzionano dal normale account; risultati e log sono accessibili; dopo il riavvio non servono comandi manuali per avviare il runtime. |
+| `windows_stable_coexistence` | Windows 11 x64 con installazioni NewPat 0.4 e 0.5 e dati di controllo, affiancate a NewPat. Registrare prima e dopo percorsi, versioni, stato e inventario delle distribuzioni WSL. Avviare tutte le applicazioni. | NewPat usa nome, cartelle, collegamenti e distribuzione propri. Applicazione, configurazione, dati e runtime delle altre installazioni NewPat restano utilizzabili e non vengono adottati o sostituiti da NewPat. |
+| `windows_reinstall_removal` | Sull’installazione NewPat preparata, eseguire i casi sotto riportati per percorsi personalizzati, reinstallazione, cambio di destinazione e rimozione. Provare entrambe le scelte di conservazione dell'ambiente, l'annullamento e un errore parziale. | Le preferenze vengono riproposte, i file esistenti restano nelle loro destinazioni e le analisi funzionano. La rimozione elimina applicazione e collegamenti; l'opzione aggiuntiva riguarda soltanto risorse verificate di NewPat. Dati, risultati e risorse estranee rimangono invariati. |
 | `ubuntu_clean_dependencies` | Ubuntu Desktop 24.04 x86_64 senza Docker Engine o Compose. Installare il `.deb` con APT, registrare le dipendenze installate e configurare l’accesso Docker tramite l’amministratore. Accedere nuovamente all’account se richiesto. Avviare dal menu applicazioni, eseguire preparazione, diagnostica, autotest e i cinque moduli e i workflow composti; riavviare il sistema e ripetere l’avvio. | APT installa le dipendenze; l’account non riceve accesso Docker senza autorizzazione; il servizio e l’accesso funzionano dopo la configurazione e il riavvio. Menu e analisi sono eseguiti senza `sudo`; risultati e log appartengono all’utente. |
-| `ubuntu_existing_docker` | Ubuntu Desktop 24.04 con Docker di sistema già configurato e risorse Docker estranee a NIPAT. Registrare versioni, endpoint e configurazione prima e dopo installazione, preparazione e analisi. | Il Docker compatibile viene riutilizzato; non vengono sostituiti repository, contesto globale, configurazione del daemon, immagini o container estranei. NIPAT usa il socket locale dichiarato. |
-| `ubuntu_reinstall_removal` | Sull’installazione NIPAT Desktop preparata, conservare un run e un file di controllo; reinstallare lo stesso `.deb`, ripetere avvio e diagnostica, poi rimuovere `nipat-desktop` con APT. | Reinstallazione e avvio riescono; la rimozione elimina applicazione e collegamento, conservando dati, risultati, stato e immagini Docker. Le risorse Docker estranee non cambiano. |
+| `ubuntu_existing_docker` | Ubuntu Desktop 24.04 con Docker di sistema già configurato e risorse Docker estranee a NewPat. Registrare versioni, endpoint e configurazione prima e dopo installazione, preparazione e analisi. | Il Docker compatibile viene riutilizzato; non vengono sostituiti repository, contesto globale, configurazione del daemon, immagini o container estranei. NewPat usa il socket locale dichiarato. |
+| `ubuntu_reinstall_removal` | Sull’installazione NewPat preparata, conservare un run e un file di controllo; reinstallare lo stesso `.deb`, ripetere avvio e diagnostica, poi rimuovere `nipat-desktop` con APT. | Reinstallazione e avvio riescono; la rimozione elimina applicazione e collegamento, conservando dati, risultati, stato e immagini Docker. Le risorse Docker estranee non cambiano. |
 
 Le prove possono essere ripartite tra più sistemi, registrando le condizioni
 di ciascuno. Non è necessario modificare la configurazione di un computer
@@ -116,16 +116,16 @@ WSL e i checksum dei file di controllo prima e dopo ciascuna operazione.
 
 | Caso | Operazioni e criteri |
 | --- | --- |
-| Destinazioni personalizzate | Installare con cartelle applicazione, WSL, cache, dati e risultati separate, includendo un secondo disco locale fisso, spazi e caratteri non ASCII. Usare dati già presenti e verificare che restino invariati. Avviare menu, diagnostica e analisi; verificare risultati nella destinazione scelta e collegamento **Cartella NIPAT Desktop**. |
+| Destinazioni personalizzate | Installare con cartelle applicazione, WSL, cache, dati e risultati separate, includendo un secondo disco locale fisso, spazi e caratteri non ASCII. Usare dati già presenti e verificare che restino invariati. Avviare menu, diagnostica e analisi; verificare risultati nella destinazione scelta e collegamento **Cartella NewPat**. |
 | Destinazioni non ammesse | Provare radici coincidenti o annidate, cartelle non scrivibili, cartella applicativa estranea non vuota, percorsi UNC, rete, supporti rimovibili, junction, cartelle di sistema e destinazioni stabili. Il setup deve rifiutarle senza modificare il contenuto protetto. |
-| Reinstallazione e preferenze | Reinstallare lo stesso EXE nella cartella applicativa esistente; controllare la modalità **Aggiornamento e riparazione**, le cinque scelte riproposte, l'avvio e i run conservati. Ripetere dopo la disinstallazione, aggiungendo un file estraneo accanto ai residui riconoscibili di NIPAT Desktop: la riparazione deve riuscire senza eliminarlo. Le preferenze devono restare disponibili anche se ambiente e cache sono stati rimossi. |
+| Reinstallazione e preferenze | Reinstallare lo stesso EXE nella cartella applicativa esistente; controllare la modalità **Aggiornamento e riparazione**, le cinque scelte riproposte, l'avvio e i run conservati. Ripetere dopo la disinstallazione, aggiungendo un file estraneo accanto ai residui riconoscibili di NewPat: la riparazione deve riuscire senza eliminarlo. Le preferenze devono restare disponibili anche se ambiente e cache sono stati rimossi. |
 | Backup e inventario | Preparare componenti modificati, un file estraneo che collide con il nome di un componente in arrivo e altri file estranei. Verificare la copia dei file da sovrascrivere, dei metadati e del Python generato nel backup selettivo prima delle sostituzioni; gli altri file devono rimanere invariati. Con un inventario precedente valido, verificare rimozione dei soli componenti obsoleti immutati; quelli modificati devono restare in posizione ed essere copiati nel backup. I file estranei non coinvolti nelle sostituzioni devono restare invariati senza essere inclusi nel backup. Un inventario del nuovo pacchetto non valido deve interrompere l'operazione; un inventario precedente danneggiato deve essere salvato senza autorizzare rimozioni di componenti obsoleti. |
-| Inventario da manifest | Su un’installazione NIPAT Desktop priva di `.distribution/application-files.json`, verificare l'uso della mappa `source_sha256` di un manifest precedente valido. Provare schema, profilo, commit o mappa non validi: nessuna rimozione di file obsoleti deve essere autorizzata. Se `application-files.json` esiste ma è danneggiato, il manifest non deve sostituirlo per autorizzare rimozioni. |
-| Cartella estranea | Selezionare una cartella non vuota non appartenente a NIPAT. Verificare la proposta di una sottocartella vuota e la conferma esplicita: il contenuto iniziale resta invariato. Rifiutare la proposta deve mantenere la selezione; una sottocartella già non vuota non deve essere svuotata né generare annidamenti ripetuti. |
-| Distribuzione rimossa manualmente | Con dati sintetici, rimuovere da WSL una distribuzione posseduta da NIPAT Desktop mantenendone i registri. Il setup deve ricrearla soltanto nella destinazione vuota e archiviare la ricevuta precedente. Ripetere con un file di controllo nella destinazione: la preparazione deve arrestarsi senza cancellarlo. Verificare anche il riutilizzo della distribuzione ancora registrata e coerente. |
+| Inventario da manifest | Su un’installazione NewPat priva di `.distribution/application-files.json`, verificare l'uso della mappa `source_sha256` di un manifest precedente valido. Provare schema, profilo, commit o mappa non validi: nessuna rimozione di file obsoleti deve essere autorizzata. Se `application-files.json` esiste ma è danneggiato, il manifest non deve sostituirlo per autorizzare rimozioni. |
+| Cartella estranea | Selezionare una cartella non vuota non appartenente a NewPat. Verificare la proposta di una sottocartella vuota e la conferma esplicita: il contenuto iniziale resta invariato. Rifiutare la proposta deve mantenere la selezione; una sottocartella già non vuota non deve essere svuotata né generare annidamenti ripetuti. |
+| Distribuzione rimossa manualmente | Con dati sintetici, rimuovere da WSL una distribuzione posseduta da NewPat mantenendone i registri. Il setup deve ricrearla soltanto nella destinazione vuota e archiviare la ricevuta precedente. Ripetere con un file di controllo nella destinazione: la preparazione deve arrestarsi senza cancellarlo. Verificare anche il riutilizzo della distribuzione ancora registrata e coerente. |
 | Cambio di destinazione | Cambiare cartella WSL mantenendo lo stesso EXE: deve essere preparato un ambiente distinto e quello precedente deve restare intatto. Cambiare dati e risultati: nessun file preesistente deve essere spostato, cancellato o sovrascritto. Verificare nuovi run nella destinazione attiva e accesso ai precedenti. |
 | Rimozione predefinita | Conservare ambiente e cache. Applicazione e collegamenti devono essere rimossi, mentre dati, risultati e risorse WSL/cache restano disponibili. Reinstallare e verificare il riutilizzo compatibile. |
-| Rimozione facoltativa | Selezionare la rimozione di ambiente e cache dopo avere usato più destinazioni. Controllare che vengano rimosse soltanto distribuzioni possedute da NIPAT Desktop e archivi verificati delle destinazioni registrate, inclusi quelli conservati in precedenza. Dati e risultati di tutte le destinazioni, file estranei, Docker Desktop, altre installazioni NIPAT e altre distribuzioni devono restare invariati. |
+| Rimozione facoltativa | Selezionare la rimozione di ambiente e cache dopo avere usato più destinazioni. Controllare che vengano rimosse soltanto distribuzioni possedute da NewPat e archivi verificati delle destinazioni registrate, inclusi quelli conservati in precedenza. Dati e risultati di tutte le destinazioni, file estranei, Docker Desktop, altre installazioni NewPat e altre distribuzioni devono restare invariati. |
 | Annullamento e fallimenti | Annullare la disinstallazione prima della rimozione e verificare assenza di effetti. In un ambiente di prova controllato, simulare proprietà o cache non verificabili e un errore dopo una rimozione parziale; verificare arresto, messaggio, registri e risorse rimaste, quindi ripresa senza rimuovere dati o risorse estranee. |
 
 Questi casi definiscono il collaudo completo dello scenario, non risultati
@@ -139,7 +139,7 @@ Includere nelle prove Windows e Ubuntu i seguenti controlli, conservando
 il file delle preferenze e i record dei run quando condivisibili:
 
 1. Salvare cartelle e valori predefiniti di ciascun workflow in **Configura**;
-   chiudere e riaprire NIPAT e verificarne la persistenza.
+   chiudere e riaprire NewPat e verificarne la persistenza.
 2. Modificare un valore per la singola analisi: il riepilogo e `run.json`
    devono registrarlo, mentre le preferenze salvate devono restare invariate.
 3. Verificare che campioni, coppie CPI e nomi dei run vengano richiesti ogni
@@ -205,7 +205,7 @@ prodotto e le rispettive evidenze di pubblicazione.
 | Avviso all'avvio | Disattivato inizialmente; se attivato mostra soltanto un avviso e non avvia download, installazioni o interruzioni. |
 | Assenza di rete | La ricerca segnala il problema e l'installazione già pronta continua a funzionare con il runtime locale. |
 | Download | Nome, versione, piattaforma, dimensione e SHA-256 corrispondono alla release approvata; un file incompleto o alterato non può essere avviato come installatore. |
-| Conferme e rinvio | Invio mantiene la scelta di rimandare. Su Windows/Linux download e installazione richiedono conferme distinte; su Mac si conferma il download, si chiude NIPAT e si apre manualmente il PKG; annullamento o rinvio non modificano i componenti installati. |
+| Conferme e rinvio | Invio mantiene la scelta di rimandare. Su Windows/Linux download e installazione richiedono conferme distinte; su Mac si conferma il download, si chiude NewPat e si apre manualmente il PKG; annullamento o rinvio non modificano i componenti installati. |
 | Installazione | La sessione corrente si chiude prima della sostituzione; un'analisi in altra sessione non viene terminata per consentire l'aggiornamento. Su Ubuntu verificare autorizzazione APT e comportamento senza terminale o Polkit. |
 | Conservazione e riapertura | Percorsi, preferenze, dati e run esistenti restano disponibili. Il nuovo client avvia analisi soltanto dopo la preparazione verificata; un errore non viene presentato come aggiornamento completato. |
 | Tracciabilità | Il run precedente conserva versione e runtime originari; il run successivo identifica la versione installata e il motore effettivamente utilizzati. |
@@ -231,7 +231,7 @@ diverse, oltre a campioni e coppie dei workflow automatici.
 Per WSL/Lima provare anteprima, annullamento, backup, conservazione delle
 impostazioni estranee, modifiche concorrenti e rifiuto durante un'analisi.
 Il riavvio globale WSL richiede una conferma separata. Su Ubuntu verificare
-che NIPAT applichi soltanto limiti ai propri container. Distinguere un OOM
+che NewPat applichi soltanto limiti ai propri container. Distinguere un OOM
 confermato da una terminazione con causa non accertata.
 
 ## Record di accettazione

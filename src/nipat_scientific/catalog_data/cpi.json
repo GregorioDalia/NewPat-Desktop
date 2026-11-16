@@ -231,8 +231,8 @@
         36
       ],
       "description": {
-        "it": "Pannello SNP/DNP con alleli; la CLI NIPAT lo normalizza e usa il percorso multipannello equivalente.",
-        "en": "SNP/DNP panel with alleles; the NIPAT CLI normalizes it and uses the equivalent multipanel path."
+        "it": "Pannello SNP/DNP con alleli; la CLI NewPat lo normalizza e usa il percorso multipannello equivalente.",
+        "en": "SNP/DNP panel with alleles; the NewPat CLI normalizes it and uses the equivalent multipanel path."
       }
     },
     {
@@ -760,7 +760,7 @@
         ]
       },
       "applies_to": "all",
-      "origin": "NIPAT scientific runtime",
+      "origin": "NewPat scientific runtime",
       "description": {
         "it": "Tutti i parametri scientifici sono configurabili da menu, --set e --scientific-config. Il file di lavoro registra i parametri gestiti; output/scientific-settings.json registra i valori finali R dopo le opzioni native esplicite. R legge lo stesso registro validato.",
         "en": "Every scientific parameter is configurable through the menu, --set and --scientific-config. The work settings record managed parameters; output/scientific-settings.json records final R values after explicit native overrides. R uses the same validated registry."
@@ -805,7 +805,7 @@
         "validation": "before copying"
       },
       "applies_to": "all",
-      "origin": "NIPAT scientific runtime",
+      "origin": "NewPat scientific runtime",
       "description": {
         "it": "Gli input sono validati prima delle copie. I tipi SNP/DNP non si mescolano; gli originali restano invariati. Cartelle sovrapposte, collisioni e risultati preesistenti sono rifiutati.",
         "en": "Inputs are validated before staging. SNP/DNP types cannot be mixed; originals remain unchanged. Overlapping directories, collisions and existing outputs are rejected."
@@ -846,20 +846,25 @@
         ],
         "nested_pools": false,
         "ordered_reduction": true,
-        "max_workers": "user ceiling bounded by resources"
+        "max_workers": "user ceiling bounded by resources",
+        "resource_policy": "nipat-fixed-resources-v1",
+        "capacity_basis": "assigned-capacity-at-run-start",
+        "capacity_memory_fraction": 0.8,
+        "memory_estimate": "max(2 * loaded coordinator RSS, module estimate); serial if workload is not observed",
+        "concurrency_policy": "fixed-pool-per-phase-within-run-ceiling"
       },
       "applies_to": "all",
-      "origin": "NIPAT scientific runtime",
+      "origin": "NewPat scientific runtime",
       "description": {
-        "it": "Esecuzione seriale o automatica con limite configurabile ai processi, budget di CPU/RAM e riunione ordinata; i pool interni di un worker sono seriali.",
-        "en": "Serial or automatic execution with configurable process ceiling, CPU/RAM budget and ordered collection; nested worker pools remain serial."
+        "it": "Il tetto dei processi è fissato all’avvio dalle capacità assegnate a hardware, ambiente e container e dal massimo richiesto; non segue la memoria libera istantanea. Ogni fase fissa il proprio pool entro quel tetto, con riserva proporzionale del 20%, memoria residente del coordinatore conteggiata separatamente e stima del carico. Non esiste un minimo universale di 2 GiB per worker: la stima usa il maggiore fra il doppio della RSS del coordinatore caricato e il modello del modulo, quando disponibile. La stima non è una prenotazione di memoria né una garanzia contro OOM. Capacità o carico non misurabili mantengono la fase seriale. I pool annidati restano seriali, i thread interni sono limitati e i risultati mantengono l’ordine delle attività. Esecuzione seriale o automatica con limite configurabile ai processi, budget di CPU/RAM e riunione ordinata; i pool interni di un worker sono seriali.",
+        "en": "The run-wide process ceiling is fixed at startup from assigned hardware, environment and container capacities and the requested maximum; it does not track transient free memory. Each phase fixes its pool within that ceiling, reserving 20% proportionally, accounting separately for coordinator RSS and estimating its workload. There is no universal 2GiB floor per worker: the estimate is the larger of twice the loaded coordinator RSS and a module workload estimate when available. This is neither a memory reservation nor an OOM guarantee. Unknown capacity or workload keeps the phase serial. Nested pools stay serial, internal threads are limited and results retain task order. Serial or automatic execution with configurable process ceiling, CPU/RAM budget and ordered collection; nested worker pools remain serial."
       },
       "evidence": {
         "path": "src/nipat_scientific/parallel.R",
-        "sha256": "2e8ebb3c0ccfa36e5e67f64392e5d8da166f149667d7b1d559de95054d307e42",
+        "sha256": "4902b20a9d29a82777274777c8a365ef7d1da48974392292e514cf682d87cf9b",
         "source_lines": [
           1,
-          205
+          267
         ],
         "dependencies": [
           {
@@ -869,6 +874,30 @@
               1,
               44
             ]
+          },
+          {
+            "path": "src/nipat/resources.py",
+            "source_lines": [
+              100,
+              148
+            ],
+            "sha256": "a49528bb9e20ed8b48ca3d12ed90642931535c9e60cd694a97221c155d628751"
+          },
+          {
+            "path": "src/nipat/execution/runner.py",
+            "source_lines": [
+              110,
+              131
+            ],
+            "sha256": "77fd4dd63f28ed82aa47898d1cf3496281965e7415025a87961fd53fad4b9e7d"
+          },
+          {
+            "path": "src/nipat/execution/runner.py",
+            "source_lines": [
+              199,
+              220
+            ],
+            "sha256": "77fd4dd63f28ed82aa47898d1cf3496281965e7415025a87961fd53fad4b9e7d"
           }
         ]
       }
@@ -882,7 +911,7 @@
         "zero": "distinct from NA"
       },
       "applies_to": "all",
-      "origin": "NIPAT scientific runtime",
+      "origin": "NewPat scientific runtime",
       "description": {
         "it": "Il contratto verifica file, campioni, colonne e conteggi; gli output mancanti o malformati bloccano il successo. NA previsto rimane distinto da zero.",
         "en": "The contract verifies files, samples, columns and counts; missing or malformed outputs prevent success. Expected NA remains distinct from zero."
@@ -903,7 +932,7 @@
         "exports": "output/presentation"
       },
       "applies_to": "all",
-      "origin": "NIPAT scientific runtime",
+      "origin": "NewPat scientific runtime",
       "description": {
         "it": "Gli export leggibili mantengono i valori scientifici e collegano esplicitamente i nomi dei campioni agli output canonici.",
         "en": "Readable exports preserve scientific values and explicitly map sample names to canonical outputs."

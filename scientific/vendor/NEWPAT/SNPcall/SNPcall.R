@@ -33,7 +33,7 @@ nipat_snp_group_reads <- function(observations) {
               df.chr = paste(df.chr, collapse = "|"),
               df.qual = paste(df.qual, collapse = "|"), .groups = "drop")
   workers <- nipat_parallel_workers(max(1L, nrow(observations)),
-    memory_mib = max(2048, as.numeric(object.size(observations)) * 3 / 1024^2))
+    memory_mib = as.numeric(object.size(observations)) * 3 / 1024^2)
   if (workers <= 1L || nrow(observations) < 2L) {
     return(nipat_parallel_lapply(list(NULL), function(task) aggregate_reads(observations),
       label = "snp-read-groups", workers = 1L)[[1L]])
@@ -51,7 +51,7 @@ nipat_snp_group_reads <- function(observations) {
   parts <- nipat_parallel_lapply(rows,
     function(index) aggregate_reads(observations[index, , drop = FALSE]),
     label = "snp-read-groups", workers = workers,
-    memory_mib = max(2048, as.numeric(object.size(observations)) * 3 / 1024^2))
+    memory_mib = as.numeric(object.size(observations)) * 3 / 1024^2)
   bind_rows(parts) %>% arrange(SNP_id, df.V7)
 }
 

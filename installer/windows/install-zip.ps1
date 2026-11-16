@@ -78,10 +78,10 @@ try {
     if ($result -eq 0) {
         Complete-NipatZipActivation $root $pointer
         Set-NipatZipShortcuts $root $project
-        Write-Host ('NIPAT Desktop ZIP pronto. Aprire ' + (Join-Path $root 'NIPAT.lnk'))
+        Write-Host ('NewPat ZIP pronto. Aprire ' + (Join-Path $root 'NewPat.lnk'))
         Write-Host "Dati e risultati: $root"
     } elseif ($result -eq 3010) {
-        Write-Host ('Dopo il riavvio aprire ' + (Join-Path $root 'NIPAT.lnk') + ' per completare automaticamente la preparazione.')
+        Write-Host ('Dopo il riavvio aprire ' + (Join-Path $root 'NewPat.lnk') + ' per completare automaticamente la preparazione.')
     } else {
         throw "Preparazione ZIP non completata (codice $result). La precedente versione attiva resta selezionata. Diagnostica: $project\.runtime\installer\setup.log"
     }

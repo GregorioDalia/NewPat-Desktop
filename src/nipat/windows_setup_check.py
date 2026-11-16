@@ -159,7 +159,7 @@ def main() -> int:
     try:
         return supervise(command, args.timeout)
     except (OSError, subprocess.SubprocessError) as error:
-        print(f"NIPAT: supervisione del controllo non riuscita: {error}", file=sys.stderr)
+        print(f"NewPat: supervisione del controllo non riuscita: {error}", file=sys.stderr)
         return 1
 
 

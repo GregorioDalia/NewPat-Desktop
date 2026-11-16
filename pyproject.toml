@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nipat-desktop"
-version = "0.9.1"
-description = "Local desktop orchestration layer for the NIPAT scientific workflows"
+version = "0.9.5"
+description = "NewPat desktop application for local scientific workflows"
 readme = "README.md"
 license = {file = "LICENSE"}
 classifiers = [
@@ -22,6 +22,7 @@ dev = [
 ]
 
 [project.scripts]
+newpat = "nipat.cli:main"
 nipat = "nipat.cli:main"
 
 [tool.setuptools]

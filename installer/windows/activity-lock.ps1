@@ -9,7 +9,7 @@ function Get-NipatActivityRuntime([string] $Directory = $PSScriptRoot,
     $helper = Join-Path $project $HelperRelativePath
     Assert-NipatActivityPathWithoutLinks $helper
     if (-not (Test-Path -LiteralPath $helper -PathType Leaf)) {
-        throw 'Componente di coordinamento Python assente. Ripristinare il pacchetto NIPAT.'
+        throw 'Componente di coordinamento Python assente. Ripristinare il pacchetto NewPat.'
     }
     $manifestPath = Join-Path $project '.distribution\installer-manifest.json'
     if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
@@ -20,7 +20,7 @@ function Get-NipatActivityRuntime([string] $Directory = $PSScriptRoot,
     }
     $inventoryPath = Join-Path $project '.distribution\application-files.json'
     if (-not (Test-Path -LiteralPath $inventoryPath -PathType Leaf)) {
-        throw 'Inventario del pacchetto NIPAT mancante. Ripristinare il pacchetto.'
+        throw 'Inventario del pacchetto NewPat mancante. Ripristinare il pacchetto.'
     }
     $inventory = Get-Content -LiteralPath $inventoryPath -Raw -Encoding UTF8 | ConvertFrom-Json
     $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -36,7 +36,7 @@ function Get-NipatActivityRuntime([string] $Directory = $PSScriptRoot,
     if (-not (Test-Path -LiteralPath $archive -PathType Leaf) -or
         (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -cne
             '4acbed6dd1c744b0376e3b1cf57ce906f9dc9e95e68824584c8099a63025a3c3') {
-        throw 'Archivio Python del pacchetto assente o non integro. Ripristinare NIPAT.'
+        throw 'Archivio Python del pacchetto assente o non integro. Ripristinare NewPat.'
     }
     $temporary = Join-Path ([IO.Path]::GetTempPath()) ('nipat-activity-python-' + [Guid]::NewGuid().ToString('N'))
     Assert-NipatActivityPathWithoutLinks $temporary
@@ -68,9 +68,9 @@ function Test-NipatInheritedActivity {
         if (-not $process.WaitForExit(30000)) {
             $process.Kill()
             [void]$process.WaitForExit(5000)
-            throw 'Il controllo del coordinamento NIPAT ha superato il tempo disponibile.'
+            throw 'Il controllo del coordinamento NewPat ha superato il tempo disponibile.'
         }
-        if ($process.ExitCode -notin @(0, 1)) { throw 'Impossibile verificare il coordinamento della preparazione NIPAT.' }
+        if ($process.ExitCode -notin @(0, 1)) { throw 'Impossibile verificare il coordinamento della preparazione NewPat.' }
         return $process.ExitCode -eq 0
     } finally {
         if ($null -ne $process) { $process.Dispose() }
@@ -85,7 +85,7 @@ function Assert-NipatActivityPathWithoutLinks([string] $Path) {
     while ($current) {
         if (Test-Path -LiteralPath $current) {
             if (((Get-Item -LiteralPath $current -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
-                throw 'La cartella di coordinamento NIPAT non puo attraversare collegamenti o junction.'
+                throw 'La cartella di coordinamento NewPat non puo attraversare collegamenti o junction.'
             }
         }
         $parent = [IO.Path]::GetDirectoryName($current.TrimEnd('\'))
@@ -96,7 +96,7 @@ function Assert-NipatActivityPathWithoutLinks([string] $Path) {
 
 function Get-NipatActivityLockPath {
     if ([string]::IsNullOrWhiteSpace($env:LOCALAPPDATA) -or $env:LOCALAPPDATA -notmatch '^[A-Za-z]:[\\/]') {
-        throw 'LOCALAPPDATA non disponibile per coordinare le sessioni NIPAT.'
+        throw 'LOCALAPPDATA non disponibile per coordinare le sessioni NewPat.'
     }
     $path = Join-Path (Join-Path $env:LOCALAPPDATA 'NIPAT-Desktop') 'activity.lock'
     Assert-NipatActivityPathWithoutLinks $path
@@ -117,13 +117,13 @@ function Enter-NipatInstallationActivity {
         $path = Get-NipatActivityLockPath
         try { $handle = [IO.File]::Open($path, [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None) }
         catch {
-            throw 'NIPAT non e disponibile per la preparazione: attendere il termine delle analisi e chiudere tutte le finestre NIPAT, quindi riprovare. Nessuna sessione viene interrotta.'
+            throw 'NewPat non e disponibile per la preparazione: attendere il termine delle analisi e chiudere tutte le finestre NewPat, quindi riprovare. Nessuna sessione viene interrotta.'
         }
         $nonce = [Guid]::NewGuid().ToString('N')
         $created = $false
         $event = [Threading.EventWaitHandle]::new($false, [Threading.EventResetMode]::ManualReset,
             ('Local\NIPAT-Desktop-SetupLease-' + $nonce), [ref] $created)
-        if (-not $created) { throw 'Il coordinamento temporaneo NIPAT non e stato creato; riprovare.' }
+        if (-not $created) { throw 'Il coordinamento temporaneo NewPat non e stato creato; riprovare.' }
         $token = "$PID`:$nonce"
         [Environment]::SetEnvironmentVariable('NIPAT_SETUP_ACTIVITY_TOKEN', $token, 'Process')
         return [pscustomobject]@{ Borrowed = $false; Handle = $handle; Event = $event; Token = $token }

@@ -186,6 +186,102 @@ def test_cpin_selection_and_interval_endpoints_stay_separate(archive):
     assert column_description("Status")["values"]["quality_filter"] == "Filtro di qualità non superato"
 
 
+@pytest.mark.parametrize("marker", ["DNP", "SNP"])
+def test_interactive_prenatal_curve_is_complete_and_keeps_original_values(archive, marker):
+    run = make_run(archive, "cpi", marker=marker)
+    native = "MotherM-FatherF_" + marker + "s"
+    summary = run / "output/Summary_FetalFraction_CPI.csv"
+    table(summary, ["Pair", "Median_fetal_fraction_percent", "CPI_medianFF"], [[native, "6", "0.602"]])
+    relative = f"output/curves/{native}_panel_1.tsv"
+    columns = ["Iteration", "InfSites_mother", "InfSites_father", "CPI", "log_CPI", "Mismatch", "NotMismatch", "Cutoff"]
+    rows = [[str(i + 2), "10", "9", "Inf" if i == 0 else "NA", "0.1234567890123456789" if i == 0 else "NA", "1", "8", "ALL"]
+            for i in range(1005)]
+    table(run / relative, columns, rows)
+    validation(run, "cpi", {"cpi-pairs": [{"pair": "M:F", "native_pair": native,
+        "mother": {"sample": "M"}, "father": {"sample": "F"},
+        "curves": [artifact(run, relative, cutoff=None)]}]})
+    store = ResultsStore(archive)
+    entry = store.overview("example")["modules"][0]["entries"][0]
+    assert len(entry["curve_file_ids"]) == 1  # all-sites mode has no Cutoff in the summary
+    original = (run / relative).read_bytes()
+    curve = store.curve("example", entry["curve_file_ids"][0])
+    assert len(curve["rows"]) == 1005 and curve["has_more"] is False
+    assert curve["rows"][0] == dict(zip(columns, rows[0]))
+    assert curve["rows"][-1] == dict(zip(columns, rows[-1]))
+    assert curve["row_numbers"][-1] == 1004
+    assert curve["curve"] == {"x_key": "Iteration", "y_key": "log_CPI", "through_key": None, "interval_endpoints": None}
+    assert curve["columns"][0]["label"] == "Letture fetali minime"
+    assert (run / relative).read_bytes() == original
+
+
+def test_interactive_postnatal_curve_keeps_intervals_and_site_counts(archive):
+    run = make_run(archive, "cpin")
+    relative = "output/curves/family_all_compatible_sites_curve.tsv"
+    columns = ["Min_child_reads", "Through_min_child_reads", "Log10_CPI", "N_sites", "Matching_sites", "Mismatching_sites"]
+    rows = [["2", "5", "-3.33278849686833", "3", "2", "1"],
+            ["6", "8", "0", "1", "1", "0"]]
+    table(run / relative, columns, rows)
+    store = ResultsStore(archive)
+    curve = store.curve("example", file_named(store, Path(relative).name)["id"])
+    assert curve["rows"] == [dict(zip(columns, row)) for row in rows]
+    assert curve["curve"]["interval_endpoints"] == "inclusive"
+    assert curve["curve"]["through_key"] == "Through_min_child_reads"
+    assert curve["total"] == 2  # no expansion, interpolation or repeated thresholds
+
+
+def test_interactive_curves_reject_partial_or_unbounded_reads_but_keep_original_table(archive, monkeypatch):
+    from nipat.gui import results
+
+    run = make_run(archive, "cpi")
+    path = run / "output/curves/family_panel_1.tsv"
+    table(path, ["Iteration", "log_CPI"], [[2, "1.1234567890123456789"], [3, "NA"]])
+    store = ResultsStore(archive, language="en")
+    file_id = file_named(store, path.name)["id"]
+    monkeypatch.setattr(results, "_MAX_CURVE_ROWS", 1)
+    with pytest.raises(ValueError, match="full table or original PDF"):
+        store.curve("example", file_id)
+    assert store.table("example", file_id)["total"] == 2
+    monkeypatch.setattr(results, "_MAX_CURVE_ROWS", 20)
+    monkeypatch.setattr(results, "_MAX_CURVE_BYTES", 2)
+    with pytest.raises(ValueError, match="interactive chart limit"):
+        store.curve("example", file_id)
+    monkeypatch.setattr(results, "_MAX_CURVE_BYTES", 1024)
+    original_rows = results._rows
+
+    def changing_rows(selected):
+        yield from original_rows(selected)
+        selected.write_text("Iteration\tlog_CPI\n2\t8\n")
+
+    monkeypatch.setattr(results, "_rows", changing_rows)
+    with pytest.raises(ValueError, match="changed while reading"):
+        store.curve("example", file_id)
+
+
+def test_interactive_curve_requires_matching_schema_and_scoped_curve_file(archive, tmp_path):
+    run = make_run(archive, "cpin")
+    path = run / "output/curves/family_curve.tsv"
+    table(path, ["Iteration", "log_CPI"], [[2, "1"]])
+    store = ResultsStore(archive)
+    file_id = file_named(store, path.name)["id"]
+    with pytest.raises(ValueError, match="colonne richieste"):
+        store.curve("example", file_id)
+    table(run / "output/not-a-curve.tsv", ["Min_child_reads", "Through_min_child_reads", "Log10_CPI"], [[2, 4, "1"]])
+    with pytest.raises(ValueError, match="non è una curva"):
+        store.curve("example", file_named(store, "not-a-curve.tsv")["id"])
+    for run_id, identifier in [("../outside", file_id), ("example", "../private")]:
+        with pytest.raises(ValueError):
+            store.curve(run_id, identifier)
+    path.unlink()
+    outside = tmp_path / "secret.tsv"
+    outside.write_text("PRIVATE")
+    try:
+        path.symlink_to(outside)
+    except (OSError, NotImplementedError):
+        return
+    with pytest.raises(ValueError):
+        store.curve("example", file_id)
+
+
 def test_scoped_reads_reject_links_traversal_and_unregistered_ids(archive, tmp_path):
     run = make_run(archive)
     secret = tmp_path / "secret.tsv"

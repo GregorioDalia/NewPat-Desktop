@@ -168,7 +168,7 @@ class GuidedSettings:
         initial = values.copy()
         while True:
             ui.message("Le cartelle impostate vengono utilizzate dalle prossime analisi guidate. I file esistenti non vengono spostati o eliminati.", kind="muted")
-            ui.message("La cartella dati e' una destinazione di lavoro indicata da NIPAT; i file di input possono essere scelti anche altrove. I percorsi relativi partono dalla cartella corrente.", kind="muted")
+            ui.message("La cartella dati e' una destinazione di lavoro indicata da NewPat; i file di input possono essere scelti anche altrove. I percorsi relativi partono dalla cartella corrente.", kind="muted")
             ui.message("Selezionare un campo da modificare, poi 9 per salvare. 0 torna a Configura senza salvare; :annulla o Ctrl+C tornano al menu principale senza salvare le modifiche di questa schermata.", kind="muted")
             action = _menu(ui, "Configura / Cartelle dati e risultati", [
                 ("1", "Cartella dati", str(values["data_dir"])),
@@ -248,7 +248,7 @@ class GuidedSettings:
         ui.message("Checksum input: " + ("completi" if options.input_hashes == "full" else "automatici fino a 16 MiB"))
         for label, value in (("Quota CPU", options.cpus), ("Memoria MiB", options.memory_mb),
                              ("Numero processi", options.pids_limit)):
-            ui.message(f"{label}: {value if value is not None else 'nessun limite NIPAT'}")
+            ui.message(f"{label}: {value if value is not None else 'nessun limite NewPat'}")
         if self.store:
             ui.message(f"File delle preferenze: {self.store.path}", kind="muted")
         for choice in ("1", "2", "3", "4"):
@@ -335,7 +335,7 @@ class GuidedSettings:
             ui.message("Un limite insufficiente di memoria o processi puo' interrompere un'analisi. :vuoto rimuove un limite; 9 salva, 0 scarta le modifiche.", kind="muted")
             action = _menu(ui, "Configura / Risorse e provenienza", [
                 ("1", "Checksum degli input", "Completi" if values["input_hashes"] == "full" else "Automatici fino a 16 MiB"),
-                *[(str(index), labels[key], str(values[key]) if values[key] is not None else "Nessun limite NIPAT")
+                *[(str(index), labels[key], str(values[key]) if values[key] is not None else "Nessun limite NewPat")
                   for index, key in enumerate(("cpus", "memory_mb", "pids_limit"), 2)],
                 ("5", "Risorse dell'ambiente di calcolo", "RAM e CPU del computer, Lima o WSL e limiti per analisi"),
                 ("6", "Parallelismo e blocchi", parallel_summary(ExecutionOptions(**values))),

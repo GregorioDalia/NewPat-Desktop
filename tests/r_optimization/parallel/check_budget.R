@@ -8,7 +8,7 @@ helper <- file.path(root, "src/nipat_scientific/parallel.R")
 main <- function() {
   variables <- c("NIPAT_EXECUTION_MODE", "NIPAT_MAX_WORKERS", "NIPAT_CPU_LIMIT",
                  "NIPAT_MEMORY_LIMIT_MIB", "NIPAT_DNP_BLOCK_BYTES",
-                 "NIPAT_PARALLEL_CHILD", "NIPAT_PARALLEL_LOG_DIR")
+                 "NIPAT_PARALLEL_CHILD", "NIPAT_PARALLEL_LOG_DIR", "NIPAT_FIXED_RESOURCE_BUDGET")
   previous <- Sys.getenv(variables, unset = NA_character_)
   on.exit(for (name in names(previous)) {
     if (is.na(previous[[name]])) Sys.unsetenv(name) else
@@ -23,8 +23,10 @@ main <- function() {
   fresh <- function(files = NULL) {
     environment <- new.env(parent = globalenv())
     sys.source(helper, environment)
+    if (!is.null(files)) environment$nipat_parallel_cpu_count <- function() 64L
     if (!is.null(files)) environment$nipat_parallel_lines <- function(path) {
       value <- files[[path]]
+      if (is.null(value) && path == "/proc/self/status") value <- "VmRSS: 102400 kB"
       if (is.null(value)) character() else as.character(value)
     }
     environment
@@ -35,24 +37,28 @@ main <- function() {
   }
   MiB <- 1024^2
 
-  # V2 quotas constrain affinity; available memory subtracts current use before
-  # reserving coordination space. No writes to the real control group occur.
+  # V2 quotas constrain affinity. Capacity is independent of current use;
+  # reserve a proportional margin and account for the coordinator once.
   v2 <- fresh(list(
     "/proc/self/cgroup" = "0::/",
-    "/proc/meminfo" = "MemAvailable: 33554432 kB",
+    "/proc/meminfo" = "MemTotal: 33554432 kB",
     "/sys/fs/cgroup/cpu.max" = "250000 100000",
     "/sys/fs/cgroup/memory.max" = 10 * 1024 * MiB,
     "/sys/fs/cgroup/memory.current" = 2 * 1024 * MiB))
   budget <- v2$nipat_parallel_budget(20)
   check(budget$cpu_limit <= 2L)
-  check(budget$memory_available_mib == 8192)
-  check(budget$memory_worker_limit == 3L)
+  check(budget$memory_capacity_mib == 10240)
+  check(budget$memory_worker_limit == 40L)
   check(budget$workers <= 2L)
   check(v2$nipat_parallel_budget(1)$workers == 1L)
+  unobserved <- v2$nipat_parallel_budget(20, workload_observed = FALSE)
+  check(unobserved$workers == 1L)
+  check(unobserved$reason == "workload-not-observed")
+  check(is.null(unobserved$memory_per_worker_mib))
   # A DNP-specific block preference must not change the generic SNP/CPI/
   # contamination budget; DNP supplies its actual block estimate explicitly.
   Sys.setenv(NIPAT_DNP_BLOCK_BYTES = as.character(128 * MiB))
-  check(v2$nipat_parallel_budget(20)$memory_per_worker_mib == 2048)
+  check(v2$nipat_parallel_budget(20)$memory_per_worker_mib == 200)
   check(v2$nipat_parallel_budget(20, memory_mib = 6144)$memory_per_worker_mib == 6144)
   Sys.unsetenv("NIPAT_DNP_BLOCK_BYTES")
   Sys.setenv(NIPAT_MAX_WORKERS = "1")
@@ -66,32 +72,32 @@ main <- function() {
   check(v2$nipat_parallel_budget(20)$workers == 1L)
   Sys.unsetenv("NIPAT_PARALLEL_CHILD")
 
-  # A parent cgroup can include unrelated jobs. The explicit limit belongs to
-  # this container and must not subtract an ancestor's total current memory.
+  # Configured limits bound capacity; current use in ancestor cgroups must
+  # not make the same configured run choose different parallelism.
   nested <- fresh(list(
     "/proc/self/cgroup" = "0::/parent/child",
-    "/proc/meminfo" = "MemAvailable: 33554432 kB",
+    "/proc/meminfo" = "MemTotal: 33554432 kB",
     "/sys/fs/cgroup/memory.max" = 32 * 1024 * MiB,
     "/sys/fs/cgroup/memory.current" = 16 * 1024 * MiB,
     "/sys/fs/cgroup/parent/child/memory.max" = 8 * 1024 * MiB,
     "/sys/fs/cgroup/parent/child/memory.current" = 512 * MiB))
   Sys.setenv(NIPAT_MEMORY_LIMIT_MIB = "8192")
-  check(nested$nipat_parallel_budget(20)$memory_available_mib == 7680)
-  check(nested$nipat_parallel_budget(20)$memory_worker_limit == 3L)
+  check(nested$nipat_parallel_budget(20)$memory_capacity_mib == 8192)
+  check(nested$nipat_parallel_budget(20)$memory_worker_limit == 32L)
   Sys.unsetenv("NIPAT_MEMORY_LIMIT_MIB")
 
   v1 <- fresh(list(
-    "/proc/meminfo" = "MemAvailable: 33554432 kB",
+    "/proc/meminfo" = "MemTotal: 33554432 kB",
     "/sys/fs/cgroup/cpu/cpu.cfs_quota_us" = "150000",
     "/sys/fs/cgroup/cpu/cpu.cfs_period_us" = "100000",
     "/sys/fs/cgroup/memory/memory.limit_in_bytes" = 6 * 1024 * MiB,
     "/sys/fs/cgroup/memory/memory.usage_in_bytes" = 1024 * MiB))
   check(v1$nipat_parallel_budget(20)$cpu_limit == 1L)
-  check(v1$nipat_parallel_budget(20)$memory_available_mib == 5120)
-  check(v1$nipat_parallel_budget(20)$memory_worker_limit == 2L)
+  check(v1$nipat_parallel_budget(20)$memory_capacity_mib == 6144)
+  check(v1$nipat_parallel_budget(20)$memory_worker_limit == 24L)
   unknown <- fresh(list())
   check(unknown$nipat_parallel_budget(20)$workers == 1L)
-  check(unknown$nipat_parallel_budget(20)$reason == "memory-unavailable")
+  check(unknown$nipat_parallel_budget(20)$reason == "workload-memory-unavailable")
   Sys.setenv(NIPAT_MAX_WORKERS = "0")
   expect_error(v2$nipat_parallel_budget(20), "NIPAT_MAX_WORKERS")
   Sys.setenv(NIPAT_MAX_WORKERS = "1.5")
@@ -99,6 +105,39 @@ main <- function() {
   Sys.unsetenv("NIPAT_MAX_WORKERS")
   expect_error(v2$nipat_parallel_budget(-1), "tasks")
   expect_error(v2$nipat_parallel_budget(2, memory_mib = 0), "memory_mib")
+
+  # A run carries one immutable assigned-capacity document across its phases.
+  # Free memory/current cgroup use must neither reduce nor increase that plan.
+  fixed_document <- list(schema_version = 1L, interface = "nipat-fixed-resources-v1",
+    worker_ceiling = 4L, cpu_limit = 4L, memory_capacity_mib = 4096,
+    memory_reserve_fraction = 0.20)
+  Sys.setenv(NIPAT_FIXED_RESOURCE_BUDGET = jsonlite::toJSON(fixed_document, auto_unbox = TRUE))
+  fixed <- fresh(list(
+    "/proc/meminfo" = c("MemTotal: 16777216 kB", "MemAvailable: 16384 kB"),
+    "/proc/self/status" = "VmRSS: 262144 kB",
+    "/sys/fs/cgroup/cpu.max" = "400000 100000",
+    "/sys/fs/cgroup/memory.max" = 8192 * MiB,
+    "/sys/fs/cgroup/memory.current" = 8000 * MiB))
+  before <- fixed$nipat_parallel_budget(20, memory_mib = 1024)
+  check(before$memory_capacity_mib == 4096)
+  check(before$worker_ceiling == 4L)
+  check(before$workers == 2L)
+  check(before$memory_per_worker_mib == 1024)
+  fixed$nipat_parallel_lines <- function(path) {
+    if (path == "/proc/self/status") "VmRSS: 262144 kB" else character()
+  }
+  check(identical(before, fixed$nipat_parallel_budget(20, memory_mib = 1024)))
+  sys.source(file.path(root, "src/nipat_scientific/dnp_blocks.R"), fixed)
+  target <- fixed$nipat_dnp_target_bytes(32 * MiB)
+  check(target > 0 && target < 32 * MiB)
+  check(fixed$nipat_dnp_target_bytes(1 * MiB) == 1 * MiB)
+  Sys.setenv(NIPAT_EXECUTION_MODE = "serial")
+  check(fixed$nipat_dnp_target_bytes(32 * MiB) == 32 * MiB)
+  Sys.unsetenv("NIPAT_EXECUTION_MODE")
+  fixed$nipat_parallel_lines <- function(path) character()
+  check(fixed$nipat_parallel_budget(20)$workers == 1L)
+  check(fixed$nipat_parallel_budget(20)$reason == "workload-memory-unavailable")
+  Sys.unsetenv("NIPAT_FIXED_RESOURCE_BUDGET")
 
   # Production scheduler: real resource discovery, without a synthetic budget.
   real <- fresh()

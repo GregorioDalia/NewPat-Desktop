@@ -129,7 +129,7 @@ class ResultsTests(unittest.TestCase):
         show_results(ui, self.run)
         self.assertIn("Workflow: dnp-call", ui.lines)
         self.assertIn("File di input registrati: 2", ui.lines)
-        self.assertIn("Versione NIPAT: 0.4.1", ui.lines)
+        self.assertIn("Versione NewPat: 0.4.1", ui.lines)
         file_lines = [line for line in ui.lines if line.startswith("  ")]
         self.assertEqual(len(file_lines), 12)
         self.assertIn("sample_00.txt", file_lines[0])

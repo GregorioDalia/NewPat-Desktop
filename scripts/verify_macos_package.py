@@ -70,15 +70,15 @@ def verify_payload(payload: Path, common: dict, record: dict) -> dict:
     info = plistlib.loads((app / "Contents/Info.plist").read_bytes())
     if (info.get("CFBundleIdentifier") != builder.IDENTIFIER
             or info.get("LSMinimumSystemVersion") != "14.0"
-            or info.get("CFBundleExecutable") != "NIPAT"):
+            or info.get("CFBundleExecutable") != "NewPat"):
         raise ValueError("Invalid macOS application identity or OS requirement.")
     if (common["version"].startswith("0.9.")
             and info.get("NSAppTransportSecurity", {}).get("NSAllowsLocalNetworking") is not True):
         raise ValueError("Native GUI local networking permission is missing.")
-    executable = app / "Contents/MacOS/NIPAT"
+    executable = app / "Contents/MacOS/NewPat"
     if not executable.is_file() or not executable.stat().st_mode & 0o111:
         raise ValueError("Native application launcher is missing or not executable.")
-    for name in ("NIPAT.command", "python/bin/python3.12", "lima/bin/limactl"):
+    for name in ("NewPat.command", "NIPAT.command", "python/bin/python3.12", "lima/bin/limactl"):
         if not (resources / name).stat().st_mode & 0o111:
             raise ValueError(f"Executable permissions missing: {name}")
     return manifest
@@ -102,7 +102,7 @@ def verify(package: Path, common_manifest: Path, *, build_record: Path | None = 
         subprocess.run(["/usr/sbin/pkgutil", "--expand-full", str(package), str(expanded)], check=True)
         candidates = list(expanded.glob("*/Payload/Applications/" + builder.APP_NAME))
         if len(candidates) != 1:
-            raise ValueError("Expected exactly one NIPAT application payload.")
+            raise ValueError("Expected exactly one NewPat application payload.")
         app = candidates[0]
         payload = app.parents[1]
         installed = verify_payload(payload, common, record)
@@ -115,7 +115,7 @@ def verify(package: Path, common_manifest: Path, *, build_record: Path | None = 
         subprocess.run(["/usr/bin/codesign", "--verify", "--deep", "--strict", str(app)], check=True)
         resources = app / "Contents/Resources"
         python = resources / "python/bin/python3.12"
-        for executable in (python, resources / "lima/bin/limactl", app / "Contents/MacOS/NIPAT"):
+        for executable in (python, resources / "lima/bin/limactl", app / "Contents/MacOS/NewPat"):
             detected = subprocess.check_output(["/usr/bin/lipo", "-archs", str(executable)], text=True).strip().split()
             if record["architecture"] not in detected:
                 raise ValueError(f"Wrong executable architecture: {executable.name}")
@@ -132,7 +132,7 @@ def verify(package: Path, common_manifest: Path, *, build_record: Path | None = 
             str(python), "-I", "-B", "-c",
             "import sys;sys.path.insert(0,sys.argv.pop(1));from nipat.cli import main;raise SystemExit(main())",
             str(resources / "app/src"), "--version"], text=True).strip()
-        if cli_version != "NIPAT " + common["version"]:
+        if cli_version != "NewPat " + common["version"]:
             raise ValueError("Packaged CLI does not report the expected version.")
         if common["version"].startswith("0.9."):
             # Run inside the unpacked package with its own Python, Cocoa and

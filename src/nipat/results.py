@@ -236,7 +236,7 @@ def _show_summary(ui: Terminal, run_dir: Path, *, dry_run: bool) -> None:
             ui.message(f"File di input registrati: {len(inputs)}")
         source = metadata.get("source")
         if isinstance(source, dict) and source.get("nipat_version"):
-            ui.message(f"Versione NIPAT: {_short_value(source['nipat_version'])}")
+            ui.message(f"Versione NewPat: {_short_value(source['nipat_version'])}")
         _show_samples(ui, metadata)
         workflow = metadata.get("workflow")
         if isinstance(workflow, str) and workflow in _WORKFLOW_STEPS:

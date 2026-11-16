@@ -7,6 +7,6 @@ $target = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPat
 $source = Join-Path $PSScriptRoot 'ActivityNative.cs'
 & $compiler /nologo /target:library /platform:x64 /optimize+ /deterministic+ /debug- "/out:$target" $source
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $target -PathType Leaf)) {
-    throw 'Compilazione del componente di coordinamento NIPAT fallita.'
+    throw 'Compilazione del componente di coordinamento NewPat fallita.'
 }
 Write-Host "Componente di coordinamento compilato: $target"

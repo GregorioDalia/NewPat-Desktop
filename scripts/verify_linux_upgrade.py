@@ -91,7 +91,9 @@ def verify(previous, candidate, manifest_path, work, output):
             else:
                 install.require(install.sha256(install.APP / ".distribution/installer-manifest.json")
                                 == evidence["installer_manifest_sha256"], "Installed candidate manifest mismatch.")
-            install.run([install.COMMAND, "--setup"], environment=environment, cwd=work)
+            # The historical baseline predates the public newpat command.
+            command = install.LEGACY_COMMAND if package == previous else install.COMMAND
+            install.run([command, "--setup"], environment=environment, cwd=work)
             state = json.loads(state_file.read_text())
             image = install.check_state(state, installed_manifest,
                                         install.sha256(install.APP / ".distribution/installer-manifest.json"))

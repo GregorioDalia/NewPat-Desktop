@@ -1,7 +1,7 @@
 # Validazione tecnica e di dominio
 
 Questa scheda registra separatamente installazione, esecuzione e concordanza
-scientifica di NIPAT Desktop. Identificare versione, commit, pacchetto e
+scientifica di NewPat. Identificare versione, commit, pacchetto e
 piattaforma effettivamente provati. Per iniziare su Windows è disponibile il
 [collaudo sintetico dell'installazione](COLLAUDO_INSTALLAZIONE.md).
 
@@ -22,7 +22,7 @@ Docker Engine locale; distinguere pacchetto installato e checkout da sorgenti.
 | Campo | Valore da registrare |
 | --- | --- |
 | Sistema operativo, versione e architettura | |
-| Versione NIPAT e commit o identificativo del pacchetto | |
+| Versione NewPat e commit o identificativo del pacchetto | |
 | Origine del pacchetto e checksum, se disponibile | |
 | Windows: versione e disponibilità iniziale di WSL2 | |
 | macOS: modello, architettura, versione Lima e disponibilità Rosetta | |
@@ -38,7 +38,7 @@ Docker Engine locale; distinguere pacchetto installato e checkout da sorgenti.
 | Modalità checksum degli input e limiti CPU, memoria e processi | |
 
 Nel pacchetto Windows verificare l'avvio con doppio clic di `NIPAT-Setup.exe`,
-il completamento con `NIPAT: ready` e l'apertura dell'icona **NIPAT Desktop**.
+il completamento con `NIPAT: ready` e l'apertura dell'icona **NewPat**.
 Annotare eventuali passaggi manuali non previsti. Conservare `setup.log` e
 `state.json` nella sottocartella `.runtime\installer` dell'applicazione
 selezionata nel setup.
@@ -66,7 +66,7 @@ sul pacchetto effettivamente provato.
 
 ## Prima sequenza operativa
 
-1. Aprire NIPAT, verificare la versione e scegliere una cartella risultati
+1. Aprire NewPat, verificare la versione e scegliere una cartella risultati
    dedicata alla prova.
 2. Eseguire **8 — Verifica ambiente** dal menu principale.
 3. Selezionare **DNPcall** e utilizzare BAM, riferimento indicizzato e pannello
@@ -112,7 +112,7 @@ Contamination o CPI.
 | Campo | Valore da registrare |
 | --- | --- |
 | Identificativo del caso, privo di dati identificativi personali | |
-| Versione NIPAT, identificativo dell'immagine e nome del run | |
+| Versione NewPat, identificativo dell'immagine e nome del run | |
 | Workflow e modalità di input | |
 | Provenienza degli input; pannello e riferimento genomico | |
 | Parametri configurati | |
@@ -167,7 +167,7 @@ Per le regressioni, usare il riferimento indicato per ciascun modulo nei
 Per i grafici verificare zero, classi ai confini, `NA`, identità dei campioni
 e leggibilità con molti loci.
 Provare tabelle con conteggi negativi, loci duplicati e frequenze zero o non
-finite. NIPAT deve rifiutarle prima di avviare R. Registrare separatamente gli
+finite. NewPat deve rifiutarle prima di avviare R. Registrare separatamente gli
 avvisi che mantengono i valori forniti, come rapporti incoerenti con i conteggi.
 
 Provare Ctrl+C attraverso il collegamento installato, oltre che dalla CLI.

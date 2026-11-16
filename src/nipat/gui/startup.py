@@ -10,7 +10,7 @@ from nipat.processes import background_process_options
 
 
 @contextmanager
-def preparation_notice(app: Path, title="Preparazione NIPAT", message="Preparazione dell’ambiente scientifico. Attendi il completamento."):
+def preparation_notice(app: Path, title="Preparazione NewPat", message="Preparazione dell’ambiente scientifico. Attendi il completamento."):
     code = ("import sys; sys.path.insert(0,sys.argv.pop(1)); "
             "from nipat.gui.startup import main; raise SystemExit(main())")
     process = subprocess.Popen([sys.executable, "-I", "-B", "-c", code, str(Path(app)/"src"),
@@ -34,7 +34,7 @@ def preparation_notice(app: Path, title="Preparazione NIPAT", message="Preparazi
 def show_startup_error(app: Path, message: str):
     code = ("import sys; sys.path.insert(0,sys.argv.pop(1)); "
             "from nipat.gui.startup import main; raise SystemExit(main())")
-    subprocess.run([sys.executable, "-I", "-B", "-c", code, str(Path(app)/"src"), "error", "NIPAT", str(message)], check=False,
+    subprocess.run([sys.executable, "-I", "-B", "-c", code, str(Path(app)/"src"), "error", "NewPat", str(message)], check=False,
                    **background_process_options())
 
 
@@ -59,7 +59,7 @@ def main():
     threading.Thread(target=read_end, name="NIPAT-preparation-control", daemon=True).start()
     with tempfile.TemporaryDirectory(prefix="nipat-startup-") as directory:
         assets = Path(directory)
-        content = """<!doctype html><html lang="it"><meta charset="utf-8"><title>NIPAT</title><style>
+        content = """<!doctype html><html lang="it"><meta charset="utf-8"><title>NewPat</title><style>
         body{font:17px/1.6 'Segoe UI',sans-serif;background:#f6f6f2;color:#263431;margin:0;display:grid;place-items:center;height:100vh}
         main{max-width:680px;padding:50px}h1{font-size:28px;font-weight:500}progress{width:100%;accent-color:#456c63;margin-top:24px}
         small{color:#56645f} </style><main><h1>""" + html.escape(title) + "</h1><p>" + html.escape(message) + "</p><progress aria-label=\"Preparazione\"></progress><p><small>Il primo avvio può richiedere alcuni minuti. Il calcolo dei campioni non è ancora iniziato.</small></p></main></html>"

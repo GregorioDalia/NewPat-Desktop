@@ -335,5 +335,94 @@ class SnpWorkflowExecutionTests(unittest.TestCase):
         self.assertEqual(snapshot, {str(path.relative_to(self.run)): path.read_bytes() for path in self.run.rglob("*") if path.is_file()})
 
 
+class SnpQualificationPolicyTests(unittest.TestCase):
+    def setUp(self):
+        import importlib.util
+        import sys
+        scripts = Path(__file__).resolve().parents[1] / "scripts"
+        self.enterContext(patch.object(sys, "path", [str(scripts), *sys.path]))
+        spec = importlib.util.spec_from_file_location("snp_qualification_policy", scripts / "verify_snp_workflow.py")
+        self.verifier = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.verifier)
+        self.root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.outer = self.root / "parallel/snp"
+        self.outer.mkdir(parents=True)
+        self.budget = {"mode": "auto", "workers": 1, "tasks": 2,
+                       "reason": "workload-not-observed", "resource_policy": "nipat-fixed-resources-v1",
+                       "workload_model": "not-observed", "memory_per_worker_mib": None}
+        self.state = {"snp_parallel": self.budget, "steps": []}
+        for number in (1, 2):
+            step = {"id": f"snp{number}", "workflow": "snp-call", "status": "succeeded",
+                    "work_dir": f"steps/snp{number}/work"}
+            self.state["steps"].append(step)
+            self.write_inner(step)
+        self.write_outer()
+
+    def write_outer(self):
+        (self.outer / "budget.json").write_text(json.dumps(self.budget))
+        (self.outer / "worker-1.jsonl").write_text(json.dumps(
+            {**self.budget, "event": "plan", "label": "snp-samples"}) + "\n")
+
+    def write_inner(self, step, *, serial=False):
+        directory = self.root / step["work_dir"] / "parallel"
+        directory.mkdir(parents=True, exist_ok=True)
+        base = {"interface": "nipat-parallel-v1", "schema_version": 1, "coordinator_pid": 10,
+                "label": "snp-read-groups", "workers": 1 if serial else 2, "tasks": 2,
+                "mode": "serial" if serial else "auto", "cpu_limit": 4, "memory_worker_limit": 4}
+        events = [{**base, "event": "plan", "observed_at_unix": 0}]
+        for index in (1, 2):
+            identity = {**base, "pid": 10 if serial else 10 + index, "task_index": index}
+            events.extend([{**identity, "event": "task-start", "observed_at_unix": index},
+                           {**identity, "event": "task-end", "observed_at_unix": index + 0.5,
+                            "outcome": "succeeded"}])
+        (directory / "worker-10.jsonl").write_text("".join(json.dumps(event) + "\n" for event in events))
+
+    def check(self, mode="auto"):
+        from nipat.execution.options import ExecutionOptions
+        return self.verifier.check_snp_execution_policy(self.root, self.state, count=2,
+            options=ExecutionOptions(execution_mode=mode, max_workers=2))
+
+    def test_serial_admission_requires_real_loaded_inner_children(self):
+        evidence = self.check()
+        self.assertEqual(set(evidence["loaded_r_execution"]), {"snp1", "snp2"})
+        self.assertEqual(evidence["loaded_r_execution"]["snp1"]["observed_child_pids"], [11, 12])
+        step = self.state["steps"][0]
+        self.write_inner(step, serial=True)
+        with self.assertRaisesRegex(ValueError, "worker count"):
+            self.check()
+
+    def test_missing_or_false_outer_reason_cannot_pass(self):
+        for key, value in (("reason", "fixed-capacity-task-budget"), ("workers", 2), ("workers", True),
+                           ("tasks", 3), ("memory_per_worker_mib", 2048)):
+            with self.subTest(key=key, value=value):
+                before = self.budget[key]
+                self.budget[key] = value
+                self.write_outer()
+                with self.assertRaisesRegex(ValueError, "workload-not-observed"):
+                    self.check()
+                self.budget[key] = before
+        self.write_outer()
+
+    def test_no_outer_worker_files_or_unmatched_evidence_allowed(self):
+        (self.outer / "job-snp1.json").write_text("{}")
+        with self.assertRaisesRegex(ValueError, "outer workers"):
+            self.check()
+        (self.outer / "job-snp1.json").unlink()
+        (self.outer / "worker-1.jsonl").write_text("")
+        with self.assertRaisesRegex(ValueError, "inconsistent"):
+            self.check()
+
+    def test_requested_serial_has_no_outer_probe_and_no_child_processes(self):
+        import shutil
+        shutil.rmtree(self.outer)
+        self.state.pop("snp_parallel")
+        for step in self.state["steps"]:
+            self.write_inner(step, serial=True)
+        self.assertIsNone(self.check("serial")["outer_admission"])
+        self.write_inner(self.state["steps"][0])
+        with self.assertRaisesRegex(ValueError, "worker count"):
+            self.check("serial")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -7,6 +7,9 @@ import tempfile
 import unittest
 from urllib.parse import quote, urlsplit
 
+from nipat.errors import RuntimeExecutionError
+from nipat.gui.igv import LocalIGV
+from nipat.gui.plan import prepare_analysis
 from nipat.gui.server import DesktopServer, MAX_RPC_BYTES, byte_range
 
 
@@ -128,6 +131,55 @@ class DesktopTransportTests(unittest.TestCase):
                 self.assertEqual(status, expected)
                 self.assertEqual(response_headers["Connection"], "close")
         self.assertEqual(self.calls, [])
+
+    def test_actionable_igv_and_dnp_errors_reach_the_window(self):
+        viewer = LocalIGV(self.server.register)
+        fasta = self.root / "ref.fa"
+        fasta.write_text(">chr1\nACGT\n")
+        Path(str(fasta) + ".fai").write_text("chr1\t4\t6\t4\t5\n")
+        bam = self.root / "sample.bam"
+        bam.write_bytes(b"BAM\x01")
+
+        def dispatch(method, params):
+            if method == "igv.prepare":
+                return viewer.prepare(params)
+            # Missing sample input is rejected before layout/runtime access.
+            return prepare_analysis(params, None)
+
+        self.server.dispatcher = dispatch
+        cases = [
+            ("igv.prepare", {}, "Seleziona FASTA."),
+            ("igv.prepare", {"reference": {"fasta": str(fasta)},
+                             "tracks": [{"path": ""}]}, "Seleziona traccia."),
+            ("igv.prepare", {"reference": {"fasta": str(fasta)},
+                             "tracks": [{"path": str(bam)}]}, "Seleziona l’indice BAI/CSI"),
+            ("analysis.preview", {"name": "DNP", "caller": "dnp",
+                                  "samples": [{"id": "sample", "kind": "bam", "path": ""}]},
+             "Associare un file a ogni campione."),
+        ]
+        for method, params, expected in cases:
+            with self.subTest(method=method, expected=expected):
+                status, _, body = self.rpc({"id": "validation", "method": method, "params": params})
+                result = json.loads(body)
+                self.assertEqual(status, 200)
+                self.assertEqual(result["id"], "validation")
+                self.assertEqual(result["error"]["code"], "ValidationError")
+                self.assertIn(expected, result["error"]["message"])
+
+    def test_runtime_guidance_is_preserved_and_unexpected_errors_stay_private(self):
+        def dispatch(method, params):
+            if method == "runtime":
+                raise RuntimeExecutionError("Avvia l’ambiente scientifico e riprova.")
+            raise TypeError("private implementation details")
+
+        self.server.dispatcher = dispatch
+        _, _, body = self.rpc({"method": "runtime"})
+        self.assertEqual(json.loads(body)["error"]["message"],
+                         "Avvia l’ambiente scientifico e riprova.")
+        with self.assertLogs("nipat.gui.server", level="ERROR"):
+            _, _, body = self.rpc({"method": "unexpected"})
+        self.assertEqual(json.loads(body)["error"]["code"], "internal_error")
+        self.assertNotIn(b"private implementation details", body)
 
     def test_invalid_json_and_envelopes_never_dispatch(self):
         bodies = ["{", "[]", '{"method":1}', '{"method":"x","params":[]}',

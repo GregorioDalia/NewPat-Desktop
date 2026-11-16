@@ -1,6 +1,6 @@
-# Architettura di NIPAT
+# Architettura di NewPat
 
-NIPAT Desktop è un'applicazione locale con interfaccia a riga di comando e menu
+NewPat è un'applicazione locale con interfaccia a riga di comando e menu
 guidato. Il client Python gestisce l'interazione, i percorsi, la configurazione
 e i registri delle esecuzioni. Un'immagine Linux autosufficiente contiene R,
 samtools, le dipendenze, gli script scientifici e il codice necessario alla
@@ -307,7 +307,7 @@ sono nella [guida macOS](INSTALLATORE_MACOS.md).
 Ubuntu 24.04 x86_64 usa Docker Engine locale. Il pacchetto `.deb` include
 l'archivio scientifico e viene verificato con installazione, analisi e rimozione
 sul runner Ubuntu. APT installa le dipendenze mancanti; l'accesso dell'utente
-al daemon resta una scelta amministrativa. Non è presente una VM NIPAT.
+al daemon resta una scelta amministrativa. Non è presente una VM NewPat.
 
 ## Limiti tecnici
 

@@ -24,6 +24,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from nipat.errors import NipatError
 from nipat.distribution import is_experimental_version
+from nipat.branding import PRODUCT_NAME, canonical_asset_name
 
 
 REPOSITORY = "GregorioDalia/nipat-desktop"
@@ -53,7 +54,7 @@ def version_key(version: str) -> tuple[int, int, int, int, int]:
     """Compare the supported numeric release/a/b/rc versions, without dependencies."""
     match = _VERSION.fullmatch(version) if isinstance(version, str) and len(version) <= 80 else None
     if not match:
-        raise UpdateError("Versione NIPAT non riconosciuta.")
+        raise UpdateError(f"Versione {PRODUCT_NAME} non riconosciuta.")
     major, minor, patch, phase, number = match.groups()
     return int(major), int(minor), int(patch), {"a": 0, "b": 1, "rc": 2, None: 3}[phase], int(number or 0)
 
@@ -173,15 +174,43 @@ def _validated_asset(data: object, version: str, tag: str) -> UpdateAsset:
               "Descrizione del pacchetto di aggiornamento non valida.")
     platform = data["platform"]
     _required(isinstance(platform, str) and platform in PLATFORMS, "Piattaforma del pacchetto non valida.")
-    name = _installer_name(version, platform)
-    _required(data["name"] == name, "Nome del pacchetto diverso dalla versione dichiarata.")
+    legacy_name = _installer_name(version, platform)
+    names = {legacy_name}
+    if version_key(version) >= version_key("0.9.5"):
+        names.add(canonical_asset_name(legacy_name))
+    name = data["name"]
+    _required(isinstance(name, str) and name in names, "Nome del pacchetto diverso dalla versione dichiarata.")
     _required(type(data["size"]) is int and 0 < data["size"] <= MAX_ASSET_SIZE,
               "Dimensione del pacchetto non valida.")
     _required(isinstance(data["sha256"], str) and bool(_HASH.fullmatch(data["sha256"])),
               "Checksum del pacchetto non valido.")
     expected = f"{WEB}/releases/download/{tag}/{name}"
-    _required(data["url"] == expected, "Il pacchetto non appartiene alla release NIPAT dichiarata.")
+    _required(data["url"] == expected, f"Il pacchetto non appartiene alla release {PRODUCT_NAME} dichiarata.")
     return UpdateAsset(platform, name, data["size"], data["sha256"], expected)
+
+
+def _public_asset(asset: UpdateAsset, version: str, published: list[dict]) -> UpdateAsset:
+    """Prefer a verified NewPat alias while keeping legacy manifests consumable.
+
+    Older clients require the NIPAT filenames in their feeds. The public alias
+    must identify exactly the same bytes; its presence never weakens validation.
+    """
+    if version_key(version) < version_key("0.9.5"):
+        return asset
+    name = canonical_asset_name(asset.name)
+    if name == asset.name:
+        return asset
+    candidates = [item for item in published if item.get("name") == name]
+    if not candidates:
+        return asset
+    url = f"{WEB}/releases/download/v{version}/{name}"
+    _required(len(candidates) == 1, "Alias NewPat duplicato nella release.")
+    candidate = candidates[0]
+    _required(candidate.get("state") == "uploaded" and candidate.get("size") == asset.size
+              and type(candidate.get("size")) is int and candidate.get("browser_download_url") == url
+              and candidate.get("digest") == "sha256:" + asset.sha256,
+              "Il pacchetto NewPat non corrisponde ai byte verificati del manifest.")
+    return UpdateAsset(asset.platform, name, asset.size, asset.sha256, url)
 
 
 def _validate_offer(offer: UpdateOffer) -> None:
@@ -338,9 +367,10 @@ class UpdateClient:
         if selected is None:
             return None
         if minimum > UPDATER_VERSION:
-            raise UpdateError("Una nuova release richiede un updater piu' recente. Consultare le release ufficiali NIPAT.",
+            raise UpdateError(f"Una nuova release richiede un updater piu' recente. Consultare le release ufficiali {PRODUCT_NAME}.",
                               status="unsupported_updater")
         self._verify_source(tag, source, deadline)
+        selected = _public_asset(selected, version, assets)
         return UpdateOffer(version, tag, expected_channel, source, minimum, selected, data["release_notes_url"])
 
     def check(self, current_version: str, channel: str, platform: str) -> UpdateCheck:
@@ -378,7 +408,7 @@ class UpdateClient:
                     raise UpdateError("Controllo aggiornamenti incompleto: troppe release da verificare.", status="incomplete")
                 offer = self._manifest(release, version, platform, deadline)
                 if offer:
-                    return UpdateCheck("available", f"NIPAT {offer.version} disponibile nel canale {offer.channel}.", offer)
+                    return UpdateCheck("available", f"{PRODUCT_NAME} {offer.version} disponibile nel canale {offer.channel}.", offer)
             if had_managed_release and not candidates:
                 return UpdateCheck("up_to_date", "Non risultano versioni piu' recenti nel canale selezionato.")
             return UpdateCheck("no_eligible_release", "Nessuna release con aggiornamento compatibile per questo sistema nel canale selezionato.")

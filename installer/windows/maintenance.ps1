@@ -157,7 +157,7 @@ function Assert-NipatMaintenanceSelection($Inventory, [string] $Operation, [stri
     }
     $selected = @(@($Inventory.runtimes) + @($Inventory.cache) | Where-Object { $_.id -ceq $TargetId })
     if ($selected.Count -ne 1 -or -not $selected[0].removable) {
-        throw 'La destinazione non e un elemento NIPAT precedente e rimovibile. Nessuna rimozione viene eseguita.'
+        throw 'La destinazione non e un elemento NewPat precedente e rimovibile. Nessuna rimozione viene eseguita.'
     }
 }
 
@@ -171,7 +171,7 @@ function Wait-NipatMaintenanceClient($Process, [string] $ReadyFile, [int] $Timeo
     $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
     while (-not $Process.WaitForExit(100)) {
         Assert-NipatMaintenanceNotCancelled $ReadyFile
-        if ([DateTime]::UtcNow -gt $deadline) { throw 'NIPAT non e stato chiuso; nessuna manutenzione eseguita.' }
+        if ([DateTime]::UtcNow -gt $deadline) { throw 'NewPat non e stato chiuso; nessuna manutenzione eseguita.' }
     }
     Assert-NipatMaintenanceNotCancelled $ReadyFile
     if ($Process.ExitCode -ne 85) {
@@ -233,7 +233,7 @@ if (-not $LibraryOnly) {
         Start-Transcript -LiteralPath $logPath -ErrorAction Stop | Out-Null
         $transcript = $true
         if ($WaitForProcessId -gt 0) {
-            if ($WaitForProcessId -eq $PID -or -not $ReadyFile) { throw 'Passaggio dalla sessione NIPAT non valido.' }
+            if ($WaitForProcessId -eq $PID -or -not $ReadyFile) { throw 'Passaggio dalla sessione NewPat non valido.' }
             $parent = Get-Process -Id $WaitForProcessId -ErrorAction Stop
             # Retain the exact process before acknowledgement; a reused PID must
             # never authorize maintenance after an unrelated process exits.
@@ -241,7 +241,7 @@ if (-not $LibraryOnly) {
             Write-NipatMaintenanceReady $Project $ReadyFile $Operation $TargetId
             $readyWritten = $true
             Wait-NipatMaintenanceClient $parent $ReadyFile
-        } elseif ($ReadyFile) { throw 'La conferma richiede un processo NIPAT da attendere.' }
+        } elseif ($ReadyFile) { throw 'La conferma richiede un processo NewPat da attendere.' }
         $lease = Enter-NipatInstallationActivity
         Assert-NipatMaintenanceNotCancelled $ReadyFile
         if ($Operation -ceq 'cleanup') {

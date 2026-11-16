@@ -1,4 +1,4 @@
-/* Tests the NIPAT/IGV boundary, not an emulated genomic renderer. */
+/* Tests the NewPat/IGV boundary, not an emulated genomic renderer. */
 const fs = require('node:fs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
@@ -61,6 +61,7 @@ const rejects=(call,code)=>assert.rejects(call, e=>e.code===code);
   assert.equal(active[0].trackViews[0].track.alignmentTrack.contextMenuItemList().length,1);
   assert.equal(api.version,'3.8.9');
   const snapshot=api.exportSession();
+  assert.equal(snapshot.application,'NewPat');
   assert.equal(snapshot.tracks[0].id,'sample1');
   assert.equal(snapshot.reference.name,'GRCh38 locale');
   assert.ok(!JSON.stringify(snapshot).includes('secret'));

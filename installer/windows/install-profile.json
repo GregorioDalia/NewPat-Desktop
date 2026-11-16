@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "channel": "desktop",
-  "display_name": "NIPAT Desktop",
+  "display_name": "NewPat",
   "app_dir_name": "NIPAT-Desktop",
   "data_dir_name": "NIPAT-Desktop",
   "distro_prefix": "NIPAT-Desktop-",

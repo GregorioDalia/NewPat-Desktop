@@ -89,7 +89,7 @@ class MacInstallerTests(unittest.TestCase):
         payload = self.root / "payload"
         app = builder.stage_payload(project, payload, common, files, scientific,
                                     {"workflows": {}}, "arm64", python, lima, dependencies)
-        executable = app / "Contents/MacOS/NIPAT"
+        executable = app / "Contents/MacOS/NewPat"
         executable.write_bytes(b"fixture native launcher")
         executable.chmod(0o755)
         record = {
@@ -146,7 +146,7 @@ class MacInstallerTests(unittest.TestCase):
 
     def test_missing_launcher_rejected_even_if_inventory_matches(self):
         payload, app, common, record = self.fixture()
-        (app / "Contents/MacOS/NIPAT").unlink()
+        (app / "Contents/MacOS/NewPat").unlink()
         record["payload_inventory"] = builder.payload_inventory(payload)
         with self.assertRaisesRegex(ValueError, "launcher is missing"):
             verifier.verify_payload(payload, common, record)
@@ -255,7 +255,7 @@ class MacInstallerTests(unittest.TestCase):
         state.mkdir(mode=0o755)
         (state / "activity.lock").touch(mode=0o644)
         with launcher.installation_session(state):
-            with self.assertRaisesRegex(ValueError, "sessione NIPAT"):
+            with self.assertRaisesRegex(ValueError, "sessione NewPat/NIPAT"):
                 with launcher.installation_session(state, exclusive=True):
                     self.fail("Maintenance must not interrupt an active CLI")
         with launcher.installation_session(state, exclusive=True):

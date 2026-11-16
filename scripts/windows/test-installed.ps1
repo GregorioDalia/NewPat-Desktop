@@ -48,7 +48,7 @@ try {
     if ($state.version -cne $installationVersion -or
         $state.schema_version -ne 1 -or $state.phase -cne 'ready' -or $state.source_commit -cne $installationCommit -or
         $backend.schema_version -ne 1 -or $backend.backend -cne 'wsl') {
-        throw "Il collaudo richiede NIPAT Desktop $installationVersion con preparazione completata."
+        throw "Il collaudo richiede NewPat $installationVersion con preparazione completata."
     }
     Assert-NipatRuntimeBinding $manifest $state $backend
     $python = Join-Path $AppDirectory '.runtime\python\python.exe'

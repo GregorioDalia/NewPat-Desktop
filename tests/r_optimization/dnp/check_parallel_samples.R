@@ -79,10 +79,10 @@ main <- function() {
 
   production_lapply <- environment$nipat_parallel_lapply
   controlled_workers <- 1L
-  environment$nipat_parallel_budget <- function(tasks, memory_mib = NULL, workers = NULL) {
+  environment$nipat_parallel_budget <- function(tasks, memory_mib = NULL, workers = NULL, workload_observed = TRUE) {
     selected <- min(controlled_workers, if (is.null(workers)) Inf else workers, max(1L, tasks))
     mode <- Sys.getenv("NIPAT_EXECUTION_MODE", "auto")
-    if (mode == "serial" || identical(Sys.getenv("NIPAT_PARALLEL_CHILD"), "1")) selected <- 1L
+    if (!workload_observed || mode == "serial" || identical(Sys.getenv("NIPAT_PARALLEL_CHILD"), "1")) selected <- 1L
     list(mode = mode, max_workers = workers, workers = as.integer(selected), tasks = tasks,
          cpu_limit = controlled_workers, memory_available_mib = 32768,
          memory_per_worker_mib = memory_mib, memory_worker_limit = controlled_workers,

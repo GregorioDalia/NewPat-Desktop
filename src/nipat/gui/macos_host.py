@@ -167,7 +167,7 @@ class _Window:
         klass = c.objc.objc_allocateClassPair(c.cls("NSObject"),
             ("NIPATDelegate_" + uuid.uuid4().hex).encode(), 0)
         if not klass:
-            raise NativeHostError("Impossibile creare la finestra NIPAT.")
+            raise NativeHostError("Impossibile creare la finestra NewPat.")
         methods = [
             ("windowShouldClose:", BOOL, (PTR,), b"B@:@", self._should_close),
             ("windowWillClose:", None, (PTR,), b"v@:@", self._will_close),
@@ -281,7 +281,7 @@ class _Window:
         app_menu = c.allocate("NSMenu")
         quit_item = c.send(c.send(c.cls("NSMenuItem"), "alloc"),
             "initWithTitle:action:keyEquivalent:", PTR, (PTR, PTR, PTR),
-            c.string("Chiudi NIPAT"), c.sel("requestClose:"), c.string("q"))
+            c.string("Chiudi NewPat"), c.sel("requestClose:"), c.string("q"))
         c.send(quit_item, "setTarget:", None, (PTR,), self.delegate)
         c.send(app_menu, "addItem:", None, (PTR,), quit_item)
         c.send(app_item, "setSubmenu:", None, (PTR,), app_menu)
@@ -540,7 +540,7 @@ def notify(title: str, message: str) -> None:
 
 def confirm(title: str, message: str | None = None) -> bool:
     if message is None:
-        title, message = "NIPAT", title
+        title, message = "NewPat", title
     return bool(_alert(title, message, True))
 
 
@@ -548,7 +548,7 @@ def request_close() -> bool:
     return bool(_active_host and _ui_call(_active_host.request_close))
 
 
-def run_window(url: str, title: str = "NIPAT", on_close=None, *, smoke_test=False,
+def run_window(url: str, title: str = "NewPat", on_close=None, *, smoke_test=False,
                smoke_report=None, user_data_dir=None, timeout=60, screenshot_path=None, **_ignored) -> int:
     """Run the Cocoa window on the process main thread, without opening Safari.
 
@@ -559,7 +559,7 @@ def run_window(url: str, title: str = "NIPAT", on_close=None, *, smoke_test=Fals
     if sys.platform != "darwin":
         raise NativeHostError("Questo componente desktop richiede macOS.")
     if _active_host:
-        raise NativeHostError("Una finestra NIPAT è già aperta in questo processo.")
+        raise NativeHostError("Una finestra NewPat è già aperta in questo processo.")
     host = _Window(url, title, on_close, smoke_test, smoke_report, timeout, screenshot_path)
     _active_host = host
     try:

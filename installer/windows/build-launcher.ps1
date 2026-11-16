@@ -21,9 +21,9 @@ try {
     $assemblyInfo = Join-Path $temporary 'AssemblyInfo.cs'
     @"
 using System.Reflection;
-[assembly: AssemblyTitle("NIPAT")]
-[assembly: AssemblyProduct("NIPAT")]
-[assembly: AssemblyDescription("NIPAT scientific workflows launcher")]
+[assembly: AssemblyTitle("NewPat")]
+[assembly: AssemblyProduct("NewPat")]
+[assembly: AssemblyDescription("NewPat scientific workflows launcher")]
 [assembly: AssemblyVersion("$numeric")]
 [assembly: AssemblyFileVersion("$numeric")]
 [assembly: AssemblyInformationalVersion("$version")]
@@ -31,11 +31,11 @@ using System.Reflection;
     $source = Join-Path $PSScriptRoot 'NipatLauncher.cs'
     $manifest = Join-Path $PSScriptRoot 'NipatLauncher.manifest'
     $icon = Join-Path $project 'assets\branding\nipat-icon.ico'
-    if (-not (Test-Path -LiteralPath $icon -PathType Leaf)) { throw 'Icona NIPAT mancante.' }
+    if (-not (Test-Path -LiteralPath $icon -PathType Leaf)) { throw 'Icona NewPat mancante.' }
     & $compiler /nologo /target:exe /platform:x64 /optimize+ /deterministic+ /debug- "/pathmap:$temporary=/_/generated,$project=/_/src" "/win32manifest:$manifest" "/win32icon:$icon" "/out:$target" $source $assemblyInfo
     if ($LASTEXITCODE -ne 0) { throw 'Compilazione di NIPAT.exe fallita.' }
     if (-not (Test-Path -LiteralPath $target -PathType Leaf)) { throw 'NIPAT.exe non e stato prodotto.' }
-    Write-Host "Launcher NIPAT $version compilato: $target"
+    Write-Host "Launcher NewPat $version compilato: $target"
 } finally {
     if (Test-Path -LiteralPath $temporary) {
         Remove-Item -LiteralPath $temporary -Recurse -Force

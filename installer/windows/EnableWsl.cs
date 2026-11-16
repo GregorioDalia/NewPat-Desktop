@@ -76,11 +76,11 @@ internal static class EnableWsl
                 if (key == null || !Int32.TryParse(Convert.ToString(key.GetValue("CurrentBuildNumber")), out build)
                     || !NipatWindowsPolicy.Supports(Environment.Is64BitOperatingSystem, Environment.Is64BitProcess,
                         architecture, build, Convert.ToString(key.GetValue("InstallationType")))) {
-                    Console.Error.WriteLine("NIPAT richiede Windows 10 22H2 x64 (build 19045) oppure Windows 11 x64. Windows Server, ARM e 32 bit non sono supportati.");
+                    Console.Error.WriteLine("NewPat richiede Windows 10 22H2 x64 (build 19045) oppure Windows 11 x64. Windows Server, ARM e 32 bit non sono supportati.");
                     return 50;
                 }
             }
-            Console.WriteLine("NIPAT: attivazione dei soli componenti Windows necessari a WSL2.");
+            Console.WriteLine("NewPat: attivazione dei soli componenti Windows necessari a WSL2.");
             bool reboot = false;
             string output;
             foreach (var feature in new[] { "Microsoft-Windows-Subsystem-Linux", "VirtualMachinePlatform" }) {
@@ -96,7 +96,7 @@ internal static class EnableWsl
             string help = output;
             string command = NipatWindowsPolicy.Command(modern, help);
             if (command == null) {
-                Console.Error.WriteLine("WSL Windows non espone le opzioni di installazione sicura. Installare gli aggiornamenti Windows/WSL da Microsoft e riaprire NIPAT-Setup.exe. https://learn.microsoft.com/windows/wsl/install");
+                Console.Error.WriteLine("WSL Windows non espone le opzioni di installazione sicura. Installare gli aggiornamenti Windows/WSL da Microsoft e riaprire NewPat-Setup.exe. https://learn.microsoft.com/windows/wsl/install");
                 return 50;
             }
             int install = Run("wsl.exe", command, out output);

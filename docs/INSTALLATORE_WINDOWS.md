@@ -1,11 +1,20 @@
-# Installatore Windows
+# Installatore Windows di NewPat
 
-Dalla 0.8.99 Windows dispone di due percorsi indipendenti:
+Questa guida descrive **NewPat 0.9.5 Testing**, candidata in sviluppo: non è
+una dichiarazione di pubblicazione o di collaudo Windows concluso. I nomi
+`NewPat-*` indicano gli asset previsti per la release verificata. La release
+stabile precedente resta NIPAT 0.8.99 con i suoi file originali
+[`NIPAT-Setup.exe`](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.8.99/NIPAT-Setup.exe).
+Scaricare il setup stabile non seleziona automaticamente la candidata Testing.
 
-- `NIPAT-Setup.exe`: installazione guidata; include il Python del bootstrap e
+
+Dalla 0.8.99 Windows dispone di due percorsi indipendenti; dalla 0.9.5
+i nomi pubblici diventano:
+
+- `NewPat-Setup.exe`: installazione guidata; include il Python del bootstrap e
   scarica da GitHub un pacchetto applicativo separato, con motore scientifico
   e filesystem WSL. Richiede Internet per acquisire una release non già presente.
-- `NIPAT-<versione>-Windows-completo.zip`: contiene già Python, applicazione
+- `NewPat-<versione>-Windows-completo.zip`: contiene già Python, applicazione
   e archivi del motore; prepara una sottocartella `NIPAT` nella posizione estratta.
 
 Il setup EXE ha un'identità propria, separata dalla versione applicativa.
@@ -15,8 +24,11 @@ Il setup conservato nell'installazione può essere riutilizzato per i pacchetti
 compatibili successivi. Una modifica al contratto del bootstrap o una sua
 correzione può richiedere un nuovo EXE.
 
-Scaricare `NIPAT-Setup.exe` dagli asset dell'[ultima release stabile](https://github.com/GregorioDalia/nipat-desktop/releases/latest).
-Il setup aggiorna le installazioni NIPAT Desktop riconosciute e conserva
+Per la candidata usare la release **0.9.5 Testing**, quando disponibile,
+e il suo archivio `NewPat-0.9.5-Testing-installazione.zip`. L'[ultima release
+stabile](https://github.com/GregorioDalia/nipat-desktop/releases/latest) resta
+un canale distinto.
+Il setup aggiorna le installazioni NewPat riconosciute e conserva
 i percorsi scelti dall'utente. Per verificare una preparazione conclusa,
 usare il [collaudo automatico](COLLAUDO_INSTALLAZIONE.md).
 
@@ -48,7 +60,7 @@ di sistema non sono necessari.
 
 I checksum identificano i file distribuiti; non costituiscono una firma
 Authenticode né attestano il riconoscimento del distributore da parte di Windows.
-Il pacchetto non dispone di una firma Authenticode NIPAT. Smart App Control
+Il pacchetto non dispone di una firma Authenticode NewPat. Smart App Control
 può bloccare il setup, un eseguibile o gli script usati dalla preparazione
 e dall'avvio.
 Un'installazione riuscita non dimostra che tutti i componenti siano autorizzati
@@ -62,7 +74,7 @@ Il referente del collaudo deve verificare l'errore sul componente indicato
 prima di considerare utilizzabile il pacchetto su quel dispositivo.
 
 Un controllo delle applicazioni può bloccare anche il file temporaneo di
-Inno Setup, per esempio `NIPAT-Setup.tmp`. Per la diagnosi, annotare il file
+Inno Setup, per esempio `NewPat-Setup.tmp`. Per la diagnosi, annotare il file
 indicato da Windows e come è stato avviato il setup. Il rapporto
 `windows-trust-check.json` elenca gli hash e lo stato delle firme dei
 componenti della build.
@@ -73,28 +85,31 @@ e cercare gli eventi vicini all'orario del tentativo, in particolare 3077
 (blocco) e 3076 (audit). Conservare il percorso del file e il messaggio.
 La raccolta diagnostica non richiede di disattivare la protezione.
 
-### Procedura
+### Procedura del setup classico
 
-1. Avviare `NIPAT-Setup.exe` con doppio clic dal proprio account Windows,
+Per provare 0.9.5 usare la selezione Testing descritta più avanti;
+il doppio clic diretto sul setup segue il canale stabile.
+
+1. Avviare `NewPat-Setup.exe` con doppio clic dal proprio account Windows,
    senza scegliere «Esegui come amministratore».
 2. Scegliere la cartella applicativa nella pagina di destinazione, quindi
    le cartelle di ambiente WSL, cache, dati e risultati. Verificare la modalità
    indicata dal setup: **Installazione** per una cartella vuota oppure
-   **Aggiornamento e riparazione** per un’installazione NIPAT Desktop riconosciuta. Se richiesto,
+   **Aggiornamento e riparazione** per un’installazione NewPat riconosciuta. Se richiesto,
    autorizzare l'abilitazione dei componenti Windows. Dopo un riavvio,
    accedere allo stesso account per riprendere.
 3. Attendere la verifica degli archivi, la preparazione del runtime e gli
-   autotest. La configurazione è completa quando compare `NIPAT: ready`.
+   autotest. La configurazione è completa quando compare `NewPat: ready`.
 4. Se la preparazione è completa e non serve un riavvio, il setup propone
-   **Avvia NIPAT Desktop**. Per gli utilizzi successivi aprire il
+   **Avvia NewPat**. Per gli utilizzi successivi aprire il
    collegamento dal menu Start o dal desktop, creato se selezionato nel setup.
 
 I collegamenti avviano `2_AVVIA.cmd` con la cartella dati come directory
-corrente e il logo NIPAT come icona. `nipat.cmd` espone gli stessi workflow
-per l'uso nei terminali. Entrambi passano attraverso `scripts/windows/run.ps1`,
+corrente e il logo NewPat come icona. `newpat.cmd` espone gli stessi workflow
+per l'uso nei terminali. `nipat.cmd` rimane disponibile per compatibilità. Entrambi passano attraverso `scripts/windows/run.ps1`,
 che verifica stato `ready`, manifest e associazione al runtime prima di
-preparare l'ambiente del client. Non è necessario un launcher NIPAT compilato.
-Il collegamento **Cartella NIPAT Desktop** nel menu Start apre la cartella applicativa
+preparare l'ambiente del client. Non è necessario un launcher separato compilato.
+Il collegamento **Cartella NewPat** nel menu Start apre la cartella applicativa
 selezionata, con documentazione e comandi disponibili.
 
 Lo spazio disponibile deve contenere applicazione, cache degli archivi,
@@ -104,19 +119,48 @@ l'ambiente precedente. I file scientifici selezionati possono risiedere su
 qualsiasi disco locale fisso accessibile all'account; il trasporto WSL non
 supporta condivisioni UNC, unità di rete o dischi rimovibili.
 
+## Installazione di 0.9.5 Testing
+
+Quando la release candidata sarà disponibile:
+
+1. Scaricare `NewPat-0.9.5-Testing-installazione.zip` e verificare il checksum
+   nella stessa release.
+2. Estrarre tutti i file e aprire `INSTALLA-NewPat-TESTING.cmd` con il proprio
+   account Windows. Lo script scarica e verifica il pacchetto della versione
+   esatta e apre l'applicazione quando la preparazione termina.
+3. Per i prossimi avvii, e dopo un eventuale riavvio Windows, usare **NewPat
+   Testing** sul desktop o nel menu Start. Lo stesso file di installazione
+   può riaprire l'applicazione senza ripetere il download.
+
+La posizione resta `%LOCALAPPDATA%\NIPAT-Testing\NIPAT` per conservare
+esperimenti e preferenze delle installazioni precedenti. Non occorre ricordare
+questo percorso per avviare l'app. La versione stabile resta affiancata.
+
+Solo per sostituire esplicitamente l'installazione desktop esistente con la
+candidata, eseguire dalla cartella estratta, in PowerShell:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install-testing.ps1 -UseSetup
+```
+
+Questo percorso seleziona il setup e il payload esatti di `testing-release.json`.
+Aprire direttamente `NewPat-Setup.exe` seleziona invece il canale stabile.
+I nomi di download NIPAT restano alias con gli stessi byte e checksum per i
+client precedenti; i nuovi collegamenti e il nome dell'app sono NewPat.
+
 ## ZIP completo aggiuntivo
 
 Lo ZIP completo mantiene un percorso di installazione e aggiornamento proprio,
 separato dal setup EXE.
 
-1. Scaricare `NIPAT-<versione>-Windows-completo.zip` dagli asset ufficiali e
+1. Scaricare `NewPat-<versione>-Windows-completo.zip` dagli asset ufficiali e
    verificare SHA-256 contro `SHA256SUMS` della stessa release.
 2. Estrarlo completamente nella posizione definitiva su un disco locale fisso.
    Non avviare i file dalla visualizzazione dell'archivio compresso.
 3. Avviare `1_INSTALLA.cmd` senza scegliere «Esegui come amministratore».
-4. La preparazione crea `NIPAT` nella cartella estratta. Attendere `NIPAT: ready`.
-5. Avviare `NIPAT\2_AVVIA.cmd`. Dopo un eventuale riavvio, usare
-   `NIPAT\1_COMPLETA_PREPARAZIONE.cmd` per terminare la preparazione.
+4. La preparazione crea `NIPAT` nella cartella estratta. Attendere `NewPat: ready`.
+5. Aprire `NIPAT\NewPat.lnk`: seleziona automaticamente avvio o completamento
+   della preparazione, anche dopo un riavvio.
 
 Non occorre installare prima Python, R o Docker Desktop. Non vengono creati
 collegamenti ZIP nel menu Start. **Conservare la cartella `NIPAT`: contiene
@@ -131,7 +175,7 @@ runtime pronto.
 | Cache degli archivi | `cache` |
 | Dati e risultati | `data` e `runs` |
 | Preferenze | `preferences.json` |
-| Avvio e ripresa | `2_AVVIA.cmd` e `1_COMPLETA_PREPARAZIONE.cmd` |
+| Avvio e ripresa | `NewPat.lnk` (gli script precedenti restano compatibili) |
 
 Gli aggiornamenti dalla 0.8.99 in avanti mantengono la radice scelta.
 Non trasferiscono automaticamente dati da installazioni precedenti o da
@@ -164,7 +208,7 @@ istruzioni Inno Setup e le verifica rispetto al manifest.
 | Risorsa | Valore o percorso predefinito |
 | --- | --- |
 | Canale | `desktop` |
-| Nome applicazione | `NIPAT Desktop` |
+| Nome applicazione | `NewPat` |
 | Applicazione | `%LOCALAPPDATA%\Programs\NIPAT-Desktop` |
 | Ambiente WSL | `%LOCALAPPDATA%\NIPAT-Desktop\wsl` |
 | Cache | `%LOCALAPPDATA%\NIPAT-Desktop\cache` |
@@ -180,15 +224,15 @@ canale. Le cinque radici di applicazione, ambiente WSL, cache, dati e risultati
 sono configurabili; i registri centrali restano nel profilo dell'utente.
 Le preferenze salvate in `HKCU` ripropongono le scelte nelle reinstallazioni,
 anche dopo la rimozione dell'applicazione. L'aggiornamento di un'installazione
-NIPAT Desktop deve usare la stessa cartella applicativa.
+NewPat deve usare la stessa cartella applicativa.
 
 Il setup verifica percorsi assoluti su dischi locali fissi, scrivibili
 dall'account e privi di junction o collegamenti. Le cinque radici non possono
 coincidere né essere annidate tra loro; non sono ammesse sovrapposizioni con
 cartelle di sistema, `Windows`, `Program Files` o destinazioni predefinite
-delle altre installazioni NIPAT. Sono rifiutati percorsi UNC, unità di rete e supporti
+delle altre installazioni NewPat o NIPAT. Sono rifiutati percorsi UNC, unità di rete e supporti
 rimovibili. La cartella applicativa deve essere vuota o riconosciuta come
-appartenente a NIPAT Desktop. Una configurazione di stato e backend valida può
+appartenente a NewPat. Una configurazione di stato e backend valida può
 identificare anche i residui di una disinstallazione, senza richiedere che
 la cartella contenga soltanto `.runtime`. La presenza di altri file non ne
 autorizza la cancellazione.
@@ -202,12 +246,12 @@ non vengono trasferiti o cancellati dal setup.
 
 Manifest, backend, stato, proprietà del runtime e registri di recupero devono
 indicare il canale previsto. Il setup non adotta ambienti o configurazioni
-di altri canali. NIPAT Desktop conserva la propria identità:
+di altri canali. NewPat conserva la propria identità:
 nessuna installazione sperimentale o di un altro canale viene adottata
 o aggiornata da questo setup. Il componente Windows WSL rimane una risorsa del sistema.
 
 Il launcher installato usa la propria configurazione e non eredita le variabili
-NIPAT di percorso/backend di una shell esterna. Nel menu, **Configura** applica
+`NIPAT_*` di percorso/backend di una shell esterna. Nel menu, **Configura** applica
 le preferenze salvate alle cartelle e ai parametri delle analisi, senza cambiare
 posizione dell'applicazione, cache o runtime. Le opzioni `--data-dir` e
 `--runs-dir` selezionano esplicitamente le destinazioni; nella sessione guidata
@@ -243,14 +287,14 @@ Non è prevista una migrazione automatica dai client precedenti. L'installazione
 conservando le cartelle riconosciute e i risultati. È possibile scaricare
 manualmente il setup dalla pagina Releases.
 
-Se altre sessioni NIPAT sono aperte, l'aggiornamento viene fermato senza
+Se altre sessioni NewPat sono aperte, l'aggiornamento viene fermato senza
 terminarle: chiuderle al termine del lavoro e riprovare. Il passaggio al setup
 conserva `handoff.log` e, in caso di errore, `error.txt` nella sottocartella
 `updates\handoff-*` della cache configurata. Se Windows richiede un riavvio,
 completare poi la preparazione dal collegamento nel menu Start; la sola
 conclusione della copia dei file non autorizza le analisi.
 
-Il setup riutilizza la cartella di NIPAT Desktop riconosciuta, conservando i
+Il setup riutilizza la cartella di NewPat riconosciuta, conservando i
 percorsi selezionati. Un inventario dei file distribuiti distingue i componenti
 gestiti dall'installatore dai file aggiunti dall'utente. Prima di sovrascrivere
 un componente differente, il setup ne salva la copia in
@@ -291,10 +335,10 @@ Una distribuzione può essere riutilizzata soltanto se digest completo,
 registrazione WSL, proprietà del canale e posizione effettiva sono coerenti.
 I nuovi nomi combinano il prefisso del canale, 32 cifre del digest del
 filesystem Linux e 12 cifre del digest della posizione. Un ambiente già
-posseduto da NIPAT Desktop con un nome precedente può essere riutilizzato nella
+posseduto da NewPat con un nome precedente può essere riutilizzato nella
 stessa destinazione, dopo le medesime verifiche di proprietà. Un nome occupato
 da un ambiente non riconosciuto interrompe la preparazione senza sostituirlo.
-Se una distribuzione posseduta da NIPAT Desktop è stata rimossa manualmente da
+Se una distribuzione posseduta da NewPat è stata rimossa manualmente da
 WSL, il setup può ricrearla soltanto quando la destinazione precedente è vuota.
 La ricevuta precedente viene conservata nello storico delle registrazioni;
 una cartella ancora contenente file non viene cancellata per forzare l'importazione.
@@ -315,7 +359,7 @@ dell'attivazione del backend; lo stato `ready` viene scritto per ultimo.
 Ogni ripresa verifica e ricarica l'archivio. L'avvio ordinario riusa invece
 l'ID locale registrato e avvia autonomamente il motore se è fermo.
 
-Dopo un errore, aprire **NIPAT Desktop - completa preparazione** dal menu
+Dopo un errore, aprire **NewPat - completa preparazione** dal menu
 Start. Conservare questi file della cartella applicativa:
 
 - `.runtime\installer\setup.log`: dettagli della preparazione;
@@ -381,13 +425,13 @@ e la ripresa automatica. Conserva sempre dati e risultati, comprese le
 destinazioni precedenti registrate. Dopo la conferma di disinstallazione,
 una seconda richiesta propone la rimozione dell'ambiente WSL e della cache,
 con **No** come scelta predefinita. **Annulla** interrompe prima della pulizia.
-Con **Sì**, il programma verifica le risorse di NIPAT Desktop nelle destinazioni
+Con **Sì**, il programma verifica le risorse di NewPat nelle destinazioni
 correnti e nello storico registrato prima di rimuoverle.
 
 La rimozione riguarda soltanto distribuzioni WSL con proprietà e registrazione
 coerenti e archivi della cache riconosciuti e verificati. Non consiste nella
 cancellazione ricorsiva delle radici selezionate: file estranei, Docker Desktop,
-altre distribuzioni WSL e risorse delle altre installazioni NIPAT non sono destinazioni
+altre distribuzioni WSL e risorse delle altre installazioni NewPat o NIPAT non sono destinazioni
 di rimozione. Una verifica fallita interrompe la pulizia e viene segnalata;
 un errore durante le operazioni può lasciare risorse da rimuovere. In entrambi
 i casi la disinstallazione dei file applicativi viene interrotta. Conservare
@@ -403,7 +447,7 @@ configurazione dei percorsi e file generati non gestiti da Inno Setup, come
 Python portabile in `.runtime\python`. La disinstallazione non garantisce
 quindi una cartella applicativa vuota; la configurazione conservata consente
 la verifica della successiva reinstallazione. La rimozione dell'ambiente
-NIPAT non disinstalla il componente WSL di Windows.
+NewPat non disinstalla il componente WSL di Windows.
 
 ## Client Windows da sorgenti
 
@@ -411,19 +455,19 @@ Questo percorso è destinato allo sviluppo. `1_SETUP.cmd` prepara il Python
 locale e verifica un runtime WSL già configurato; non crea il filesystem WSL
 e non costruisce o scarica l'immagine scientifica.
 
-Per usare il runtime di un’installazione NIPAT Desktop già preparata, leggere il suo backend e
+Per usare il runtime di un’installazione NewPat già preparata, leggere il suo backend e
 selezionarlo esplicitamente nella sessione PowerShell del checkout:
 
 ```powershell
 # Indicare la cartella applicativa scelta nel setup.
-$nipatApp = Read-Host "Cartella applicativa NIPAT Desktop"
+$nipatApp = Read-Host "Cartella applicativa NewPat"
 $nipatBackend = Get-Content -Raw -LiteralPath `
     (Join-Path $nipatApp ".runtime\backend.json") | ConvertFrom-Json
 $env:NIPAT_BACKEND = "wsl"
 $env:NIPAT_WSL_DISTRO = $nipatBackend.wsl_distro
 $env:NIPAT_RUNTIME_IMAGE = $nipatBackend.runtime_image
 
-# Eseguire dalla radice del checkout NIPAT.
+# Eseguire dalla radice del checkout NewPat.
 & ".\1_SETUP.cmd"
 if ($LASTEXITCODE -ne 0) { throw "Preparazione del client non riuscita." }
 & ".\2_AVVIA.cmd"
@@ -453,10 +497,26 @@ usa gli strumenti Windows con elevazione limitata alla loro configurazione.
 Il pacchetto non richiede la compilazione di helper sulla macchina destinataria.
 Questi cambiamenti non costituiscono una certificazione Smart App Control.
 
-Per una prova tecnica usare **NIPAT-Setup.exe** della build riuscita identificata
+Per una prova tecnica usare **NIPAT-Setup.exe** (nome interno dell’artefatto
+che sarà pubblicato anche come **NewPat-Setup.exe**) della build riuscita identificata
 dal commit. Il riepilogo Actions riporta i download disponibili e il periodo
 di conservazione; per gli artefatti può essere richiesto l'accesso a GitHub.
 L'artefatto `nipat-windows-setup` conserva installatore ed evidenze. Le evidenze del bootstrap restano separate dai contenuti della release.
+
+Il rebranding cambia risorse e byte del setup: il bootstrap passa a **1.1.0**
+e il componente launcher a **0.9.5**. Gli hash e gli esiti di reputazione del
+vecchio EXE non qualificano questi nuovi eseguibili. Servono una nuova build
+Windows e nuove evidenze di firma, avvio e Smart App Control sul dispositivo
+prima di descriverli come collaudati. Il controllo di riproducibilità verifica
+due compilazioni dagli stessi sorgenti, senza attribuire il vecchio hash al
+nuovo launcher.
+
+Un aggiornamento del solo payload attraverso il setup **1.0.0** già conservato
+può mantenere i nomi della vecchia procedura Inno. Per aggiornare anche
+collegamenti e voce di disinstallazione usare il nuovo setup **1.1.0**, con
+la selezione Testing sopra descritta per 0.9.5. Vengono sostituiti soltanto
+i vecchi collegamenti che puntano alla stessa installazione; percorsi, dati,
+registri di proprietà e distribuzioni WSL restano compatibili.
 
 Il [protocollo di accettazione](ACCETTAZIONE_INSTALLATORI.md) distingue la
 distribuzione per ricerca dalla qualificazione desktop completa. Registrare
@@ -474,11 +534,11 @@ osservati, separando installazione e valutazione scientifica.
 
 Il menu **Configura** mostra RAM e CPU del computer, risorse effettive di WSL
 e limiti del container. Le impostazioni `.wslconfig` sono globali per l'account:
-una modifica può interessare anche altre distribuzioni WSL2. NIPAT mostra
+una modifica può interessare anche altre distribuzioni WSL2. NewPat mostra
 l'anteprima, conserva un backup e richiede conferma prima di applicare la
 modifica. Il riavvio è distinto dal salvataggio; finché non avviene, il menu
 indica che i nuovi valori non sono ancora attivi. Non vengono arrestate analisi
-NIPAT in corso per applicare una configurazione.
+NewPat in corso per applicare una configurazione.
 
 Il limite memoria del container non aumenta la memoria di WSL.
 La [guida alle risorse](RISORSE.md) descrive impostazioni e diagnosi degli arresti.

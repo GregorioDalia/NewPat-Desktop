@@ -281,7 +281,10 @@ sample_names <- file_path_sans_ext(basename(chip_files))
 if (anyDuplicated(tolower(sample_names))) stop("Duplicate sample output names")
 if (!length(chip_files)) stop("No calling-output tables remain after excluding the panel")
 nipat_write_settings("contamination", nipat_cfg, output_dir)
-summary_rows <- nipat_parallel_lapply(chip_files, process_df, label="contamination-samples")
+# These are filenames; their tables are loaded inside process_df. The loaded
+# per-table row calculation may still parallelize within the fixed run ceiling.
+summary_rows <- nipat_parallel_lapply(chip_files, process_df, label="contamination-samples",
+                                      workload_observed=FALSE)
 contamination_summary <- do.call(rbind, summary_rows)
 
 # save final summary

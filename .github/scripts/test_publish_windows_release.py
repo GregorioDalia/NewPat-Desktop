@@ -84,6 +84,18 @@ class ReleaseGuards(unittest.TestCase):
         self.assertEqual(publisher.BOOTSTRAP_SOURCES, module.BOOTSTRAP_SOURCES)
         self.assertIn(".github/scripts/install_inno.ps1", publisher.BOOTSTRAP_SOURCES)
 
+    def test_new_brand_preserves_review_of_historical_profile(self):
+        self.make_desktop_package("0.9.1")
+        profile = dict(publisher.LEGACY_DESKTOP_INSTALLATION_PROFILE)
+        self.manifest["installation_profile"] = profile
+        publisher.verify_installation_profile(self.manifest, COMMIT, lambda *_: json.dumps(profile))
+        self.manifest["version"] = "0.9.5"
+        with self.assertRaisesRegex(ValueError, "required isolated desktop namespace"):
+            publisher.verify_installation_profile(self.manifest, COMMIT, lambda *_: json.dumps(profile))
+        self.manifest["installation_profile"] = publisher.DESKTOP_INSTALLATION_PROFILE
+        publisher.verify_installation_profile(self.manifest, COMMIT,
+                                               lambda *_: json.dumps(publisher.DESKTOP_INSTALLATION_PROFILE))
+
     def test_online_bootstrap_is_bound_separately_from_versioned_payload(self):
         self.make_desktop_package("0.8.99")
         manifest_bytes = (self.setup / publisher.MANIFEST).read_bytes()
@@ -96,7 +108,7 @@ class ReleaseGuards(unittest.TestCase):
         inputs = {name: self.manifest["source_sha256"][name] for name in publisher.BOOTSTRAP_SOURCES}
         inputs[f".distribution/{publisher.PYTHON_NAME}"] = publisher.PYTHON_SHA256
         record = {
-            "schema_version": 2, "distribution": "online-bootstrap", "bootstrap_version": "1.0.0",
+            "schema_version": 2, "distribution": "online-bootstrap", "bootstrap_version": publisher.BOOTSTRAP_VERSION,
             "version": "0.8.99", "source_commit": COMMIT, "file": "NIPAT-Setup.exe",
             "sha256": publisher.sha256(self.setup / "NIPAT-Setup.exe"),
             "size": (self.setup / "NIPAT-Setup.exe").stat().st_size,
@@ -1149,10 +1161,42 @@ class ReleaseGuards(unittest.TestCase):
                                       complete=True, channel="testing")
 
     def test_gui_previews_can_never_create_or_promote_a_stable_release(self):
-        for version in ("0.9.0", "0.9.1"):
+        for version in ("0.9.0", "0.9.1", "0.9.5"):
             with self.subTest(version=version):
                 self.check_gui_publication_channel(version)
         self.assertEqual(publisher.publication_channel("0.9.2", "stable"), "stable")
+
+    def test_newpat_assets_keep_identical_legacy_aliases(self):
+        output = self.root / "aliases"
+        output.mkdir()
+        names = ("NIPAT-Setup.exe", "NIPAT-0.9.5-Windows-completo.zip",
+                 "NIPAT-0.9.5-Testing-installazione.zip", "NIPAT-0.9.5-macos-arm64.pkg",
+                 "nipat-desktop_0.9.5_amd64.deb")
+        for name in names:
+            (output / name).write_bytes(("verified bytes for " + name).encode())
+        manifest = output / "update-manifest.json"
+        manifest.write_bytes(b'legacy updater names are preserved')
+        publisher.add_public_asset_aliases(output, "0.9.1")
+        self.assertEqual(len(list(output.iterdir())), len(names) + 1)
+        publisher.add_public_asset_aliases(output, "0.9.5")
+        publisher.add_public_asset_aliases(output, "0.9.5")
+        for name in names:
+            alias = name.replace("NIPAT-", "NewPat-", 1).replace("nipat-desktop_", "newpat-desktop_", 1)
+            self.assertEqual((output / alias).read_bytes(), (output / name).read_bytes())
+        self.assertEqual(manifest.read_bytes(), b'legacy updater names are preserved')
+        self.assertEqual(len(list(output.iterdir())), 2 * len(names) + 1)
+        (output / "NewPat-Setup.exe").write_bytes(b"unverified replacement")
+        with self.assertRaisesRegex(ValueError, "alias collision"):
+            publisher.add_public_asset_aliases(output, "0.9.5")
+
+    def test_newpat_asset_aliases_reject_links(self):
+        output = self.root / "linked-aliases"
+        output.mkdir()
+        source = output / "NIPAT-Setup.exe"
+        source.write_bytes(b"verified")
+        (output / "NewPat-Setup.exe").symlink_to(source)
+        with self.assertRaisesRegex(ValueError, "alias collision"):
+            publisher.add_public_asset_aliases(output, "0.9.5")
 
     def check_gui_publication_channel(self, version):
         payload = self.root / "create-gui.json"
@@ -1170,10 +1214,10 @@ class ReleaseGuards(unittest.TestCase):
         sent = json.loads(payload.read_text())
         self.assertTrue(sent["prerelease"])
         self.assertEqual(sent["make_latest"], "false")
-        self.assertIn(f"Desktop {version} Preview", sent["name"])
+        self.assertIn(f"NewPat {version} Testing" if publisher.uses_newpat_brand(version) else f"Desktop {version} Preview", sent["name"])
 
     def test_testing_entrypoint_is_bound_to_reviewed_scripts_and_exact_payloads(self):
-        for version in ("0.9.0", "0.9.1"):
+        for version in ("0.9.0", "0.9.1", "0.9.5"):
             with self.subTest(version=version):
                 self.check_testing_entrypoint(version)
 
@@ -1193,7 +1237,7 @@ class ReleaseGuards(unittest.TestCase):
             publisher.verify_windows_testing(self.setup, manifest)
 
     def test_gui_testing_publication_leaves_latest_pointer_untouched(self):
-        for version in ("0.9.0", "0.9.1"):
+        for version in ("0.9.0", "0.9.1", "0.9.5"):
             with self.subTest(version=version):
                 self.check_gui_latest_pointer(version)
 

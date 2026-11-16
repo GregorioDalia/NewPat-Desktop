@@ -308,7 +308,7 @@ class DnpCpiForm(DnpContaminationForm):
             "Sono necessari due campioni con ruolo noto: cfDNA materno (plasma) e campione paterno. "
             "Un solo BAM non basta per questo workflow e non puo' essere assegnato a entrambi i ruoli.", kind="muted",
         )
-        self.ui.message("Nomi e prefissi dei file CPI sono preparati automaticamente da NIPAT; non occorre rinominare i BAM.", kind="muted")
+        self.ui.message("Nomi e prefissi dei file CPI sono preparati automaticamente da NewPat; non occorre rinominare i BAM.", kind="muted")
         manage = bool(current)
         while True:
             if manage:
@@ -384,7 +384,7 @@ class DnpCpiForm(DnpContaminationForm):
         if self.include_contamination:
             self.ui.message("Contamination non filtra o modifica gli input CPI. Le fasi vengono eseguite in sequenza; un errore arresta il workflow.", kind="muted")
         self.ui.message("Controllare esplicitamente ID, file e ruoli di tutte le coppie. Una sola conferma avvia l'intero workflow; risultati e stato di ogni fase rimangono separati.", kind="muted")
-        self.ui.message("NIPAT assegna automaticamente i nomi e i prefissi dei file CPI mantenendo le associazioni mostrate.", kind="muted")
+        self.ui.message("NewPat assegna automaticamente i nomi e i prefissi dei file CPI mantenendo le associazioni mostrate.", kind="muted")
         self._describe_snp()
         return WorkflowForm.review(self, dry_run=dry_run, performance_diagnostics=performance_diagnostics)
 

@@ -88,6 +88,7 @@ installer/windows/repair-installation.ps1
 installer/windows/test-repair-installation.ps1
 installer/windows/validate-install-layout.ps1
 nipat.cmd
+newpat.cmd
 pyproject.toml
 scientific/README.md
 scientific/SHA256SUMS
@@ -126,11 +127,13 @@ scripts/verify_linux_dependencies.py
 scripts/verify_linux_installer.py
 scripts/verify_snp_example.py
 scripts/verify_snp_workflow.py
+scripts/scientific_worker_evidence.py
 scripts/windows/common.ps1
 scripts/windows/run.ps1
 scripts/windows/repair-0850-self-test.ps1
 scripts/windows/setup.ps1
 src/nipat/__init__.py
+src/nipat/branding.py
 src/nipat/__main__.py
 src/nipat/adapters/__init__.py
 src/nipat/adapters/panels.py
@@ -299,6 +302,7 @@ docs/RELEASE_0.8.0a1.md
 installer/macos/NIPAT.command
 installer/macos/dependencies.json
 installer/macos/launch.py
+installer/macos/migrate_legacy.py
 installer/macos/launcher.c
 installer/macos/package-guard.c
 installer/windows/test-windows-environment.ps1
@@ -566,3 +570,10 @@ src/nipat/processes.py
 tests/test_background_processes.py
 tests/test_gui_lifecycle.py
 tests/test_gui_windows_launcher.py
+
+# NewPat 0.9.5: diagnostics, fixed resources and public-name compatibility.
+docs/RELEASE_0.9.5.md
+src/nipat/gui/diagnostics.py
+tests/test_gui_diagnostics.py
+tests/test_newpat_branding.py
+tests/test_fixed_resource_budget.py

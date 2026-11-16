@@ -56,7 +56,7 @@
         "mapping": "managed"
       },
       "description": {
-        "it": "Cartella output di una nuova esecuzione, gestita da NIPAT. Una destinazione già popolata è rifiutata.",
+        "it": "Cartella output di una nuova esecuzione, gestita da NewPat. Una destinazione già popolata è rifiutata.",
         "en": "Output directory of a new NIPAT-managed run. Existing outputs are rejected."
       },
       "source_lines": [
@@ -112,8 +112,8 @@
         "mapping": "direct"
       },
       "description": {
-        "it": "Prefisso del file mother: prefisso + ID + .txt. R propone full_output_; NIPAT propone Mother. È ammesso il prefisso vuoto.",
-        "en": "Mother filename prefix: prefix + ID + .txt. R defaults to full_output_; NIPAT defaults to Mother. Empty prefixes are accepted."
+        "it": "Prefisso del file mother: prefisso + ID + .txt. R propone full_output_; NewPat propone Mother. È ammesso il prefisso vuoto.",
+        "en": "Mother filename prefix: prefix + ID + .txt. R defaults to full_output_; NewPat defaults to Mother. Empty prefixes are accepted."
       },
       "source_lines": [
         21,
@@ -140,8 +140,8 @@
         "mapping": "direct"
       },
       "description": {
-        "it": "Prefisso del file father: prefisso + ID + .txt. R propone full_output_; NIPAT propone Father. È ammesso il prefisso vuoto.",
-        "en": "Father filename prefix: prefix + ID + .txt. R defaults to full_output_; NIPAT defaults to Father. Empty prefixes are accepted."
+        "it": "Prefisso del file father: prefisso + ID + .txt. R propone full_output_; NewPat propone Father. È ammesso il prefisso vuoto.",
+        "en": "Father filename prefix: prefix + ID + .txt. R defaults to full_output_; NewPat defaults to Father. Empty prefixes are accepted."
       },
       "source_lines": [
         22,
@@ -168,8 +168,8 @@
         "mapping": "direct"
       },
       "description": {
-        "it": "Prefisso del file child: prefisso + ID + .txt. R propone full_output_; NIPAT propone Child. È ammesso il prefisso vuoto.",
-        "en": "Child filename prefix: prefix + ID + .txt. R defaults to full_output_; NIPAT defaults to Child. Empty prefixes are accepted."
+        "it": "Prefisso del file child: prefisso + ID + .txt. R propone full_output_; NewPat propone Child. È ammesso il prefisso vuoto.",
+        "en": "Child filename prefix: prefix + ID + .txt. R defaults to full_output_; NewPat defaults to Child. Empty prefixes are accepted."
       },
       "source_lines": [
         23,
@@ -252,8 +252,8 @@
         "mapping": "adapted"
       },
       "description": {
-        "it": "Supporto minimo di ciascun allele chiamato nel figlio; intero positivo. NIPAT usa il registro condiviso e inoltra il valore effettivo a R.",
-        "en": "Minimum support for each called child allele; a positive integer. NIPAT reads the shared registry and forwards the effective value to R."
+        "it": "Supporto minimo di ciascun allele chiamato nel figlio; intero positivo. NewPat usa il registro condiviso e inoltra il valore effettivo a R.",
+        "en": "Minimum support for each called child allele; a positive integer. NewPat reads the shared registry and forwards the effective value to R."
       },
       "source_lines": [
         26,
@@ -280,8 +280,8 @@
         "mapping": "adapted"
       },
       "description": {
-        "it": "Costante di mismatch per SNP, finita in (0,1]. NIPAT usa il registro condiviso e inoltra il valore effettivo a R.",
-        "en": "Finite SNP mismatch constant in (0,1]. NIPAT reads the shared registry and forwards the effective value to R."
+        "it": "Costante di mismatch per SNP, finita in (0,1]. NewPat usa il registro condiviso e inoltra il valore effettivo a R.",
+        "en": "Finite SNP mismatch constant in (0,1]. NewPat reads the shared registry and forwards the effective value to R."
       },
       "source_lines": [
         28,
@@ -308,8 +308,8 @@
         "mapping": "adapted"
       },
       "description": {
-        "it": "Costante di mismatch per DNP, finita in (0,1]. NIPAT usa il registro condiviso e inoltra il valore effettivo a R.",
-        "en": "Finite DNP mismatch constant in (0,1]. NIPAT reads the shared registry and forwards the effective value to R."
+        "it": "Costante di mismatch per DNP, finita in (0,1]. NewPat usa il registro condiviso e inoltra il valore effettivo a R.",
+        "en": "Finite DNP mismatch constant in (0,1]. NewPat reads the shared registry and forwards the effective value to R."
       },
       "source_lines": [
         29,
@@ -336,8 +336,8 @@
         "mapping": "adapted"
       },
       "description": {
-        "it": "other_allele: figlio eterozigote; all: tutti i figli compatibili; both: entrambe le analisi separate. NIPAT usa il registro condiviso e inoltra il valore effettivo a R.",
-        "en": "other_allele: heterozygous child; all: all compatible children; both: both analyses separately. NIPAT reads the shared registry and forwards the effective value to R."
+        "it": "other_allele: figlio eterozigote; all: tutti i figli compatibili; both: entrambe le analisi separate. NewPat usa il registro condiviso e inoltra il valore effettivo a R.",
+        "en": "other_allele: heterozygous child; all: all compatible children; both: both analyses separately. NewPat reads the shared registry and forwards the effective value to R."
       },
       "source_lines": [
         30,
@@ -502,7 +502,7 @@
   "preparation_settings": [
     {
       "id": "validated_staging",
-      "origin": "NIPAT engine",
+      "origin": "NewPat engine",
       "applies_to": "cpin",
       "value": {
         "copies": "unique required sample files",
@@ -542,7 +542,7 @@
     },
     {
       "id": "effective_scientific_settings",
-      "origin": "NIPAT engine",
+      "origin": "NewPat engine",
       "applies_to": "cpin",
       "value": {
         "workflow": "cpin",
@@ -717,7 +717,7 @@
     },
     {
       "id": "parallel_budget",
-      "origin": "NIPAT engine",
+      "origin": "NewPat engine",
       "applies_to": "cpin",
       "value": {
         "unit": "trio",
@@ -726,18 +726,49 @@
           "auto"
         ],
         "cap": "NIPAT_MAX_WORKERS",
-        "cache": "shared samples preloaded before fork"
+        "cache": "shared samples preloaded before fork",
+        "resource_policy": "nipat-fixed-resources-v1",
+        "capacity_basis": "assigned-capacity-at-run-start",
+        "capacity_memory_fraction": 0.8,
+        "memory_estimate": "max(2 * loaded coordinator RSS, module estimate); serial if workload is not observed",
+        "concurrency_policy": "fixed-pool-per-phase-within-run-ceiling"
       },
       "description": {
-        "it": "Il budget comune limita processi, CPU e memoria; modalità seriale pura disponibile. I campioni condivisi sono caricati prima dei worker e i risultati mantengono l’ordine delle terne.",
-        "en": "The shared budget bounds workers using CPU and memory; pure serial execution is available. Shared samples are loaded before workers and results preserve trio order."
+        "it": "Il tetto dei processi è fissato all’avvio dalle capacità assegnate a hardware, ambiente e container e dal massimo richiesto; non segue la memoria libera istantanea. Ogni fase fissa il proprio pool entro quel tetto, con riserva proporzionale del 20%, memoria residente del coordinatore conteggiata separatamente e stima del carico. Non esiste un minimo universale di 2 GiB per worker: la stima usa il maggiore fra il doppio della RSS del coordinatore caricato e il modello del modulo, quando disponibile. La stima non è una prenotazione di memoria né una garanzia contro OOM. Capacità o carico non misurabili mantengono la fase seriale. I pool annidati restano seriali, i thread interni sono limitati e i risultati mantengono l’ordine delle attività. Il budget comune limita processi, CPU e memoria; modalità seriale pura disponibile. I campioni condivisi sono caricati prima dei worker e i risultati mantengono l’ordine delle terne.",
+        "en": "The run-wide process ceiling is fixed at startup from assigned hardware, environment and container capacities and the requested maximum; it does not track transient free memory. Each phase fixes its pool within that ceiling, reserving 20% proportionally, accounting separately for coordinator RSS and estimating its workload. There is no universal 2GiB floor per worker: the estimate is the larger of twice the loaded coordinator RSS and a module workload estimate when available. This is neither a memory reservation nor an OOM guarantee. Unknown capacity or workload keeps the phase serial. Nested pools stay serial, internal threads are limited and results retain task order. The shared budget bounds workers using CPU and memory; pure serial execution is available. Shared samples are loaded before workers and results preserve trio order."
       },
       "evidence": {
         "path": "src/nipat_scientific/parallel.R",
-        "sha256": "2e8ebb3c0ccfa36e5e67f64392e5d8da166f149667d7b1d559de95054d307e42",
+        "sha256": "4902b20a9d29a82777274777c8a365ef7d1da48974392292e514cf682d87cf9b",
         "source_lines": [
           1,
-          205
+          267
+        ],
+        "dependencies": [
+          {
+            "path": "src/nipat/resources.py",
+            "source_lines": [
+              100,
+              148
+            ],
+            "sha256": "a49528bb9e20ed8b48ca3d12ed90642931535c9e60cd694a97221c155d628751"
+          },
+          {
+            "path": "src/nipat/execution/runner.py",
+            "source_lines": [
+              110,
+              131
+            ],
+            "sha256": "77fd4dd63f28ed82aa47898d1cf3496281965e7415025a87961fd53fad4b9e7d"
+          },
+          {
+            "path": "src/nipat/execution/runner.py",
+            "source_lines": [
+              199,
+              220
+            ],
+            "sha256": "77fd4dd63f28ed82aa47898d1cf3496281965e7415025a87961fd53fad4b9e7d"
+          }
         ]
       }
     }

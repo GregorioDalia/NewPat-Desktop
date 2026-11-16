@@ -22,6 +22,6 @@ int main(void) {
     if (snprintf(python, sizeof python, "%s/Resources/python/bin/python3.12", real)
         >= (int)sizeof python) return 1;
     execl(python, python, "-I", "-B", command, "gui", (char *)NULL);
-    perror("NIPAT: desktop");
+    perror("NewPat: desktop");
     return 1;
 }

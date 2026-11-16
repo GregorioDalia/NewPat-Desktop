@@ -199,7 +199,7 @@ class PreferencesTests(unittest.TestCase):
                         json.dumps({**installation, "runtime_dir": installation["cache_dir"]})):
             with self.subTest(content=content):
                 record.write_text(content, encoding="utf-8")
-                with self.assertRaisesRegex(ValidationError, "setup NIPAT"):
+                with self.assertRaisesRegex(ValidationError, "setup NewPat"):
                     Preferences().effective_layout(self.layout)
 
     def test_validation_rejects_unknown_fields_and_unsafe_values_without_saving(self):

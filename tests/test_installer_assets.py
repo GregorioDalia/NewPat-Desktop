@@ -40,7 +40,7 @@ class InstallerAssetTests(unittest.TestCase):
     def test_official_profile_preserves_desktop_and_rejects_experiment(self):
         profile = assets.EXPECTED_INSTALLATION_PROFILE
         stable = {
-            "schema_version": 1, "channel": "desktop", "display_name": "NIPAT Desktop",
+            "schema_version": 1, "channel": "desktop", "display_name": "NewPat",
             "app_dir_name": "NIPAT-Desktop", "data_dir_name": "NIPAT-Desktop",
             "distro_prefix": "NIPAT-Desktop-", "resume_key": "NIPAT-Desktop-ResumeSetup",
             "mutex_prefix": "Local\\NIPAT-Desktop-Setup-",
@@ -244,7 +244,7 @@ class InstallerAssetTests(unittest.TestCase):
         self.assertEqual(definitions, {
             "NipatVersion": "0.6.0",
             "NipatAppId": "{{6B1702B6-F75C-4F8C-956F-86626C60AF45}",
-            "NipatDisplayName": "NIPAT Desktop",
+            "NipatDisplayName": "NewPat",
             "NipatAppDirectory": "NIPAT-Desktop",
             "NipatDataDirectory": "NIPAT-Desktop",
             "NipatResumeKey": "NIPAT-Desktop-ResumeSetup",

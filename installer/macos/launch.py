@@ -27,7 +27,7 @@ def load_manifest(app: Path) -> dict:
             or manifest.get("architecture") not in {"arm64", "x86_64"}
             or not re.fullmatch(r"0\.[89]\.\d+", manifest.get("version", ""))
             or not re.fullmatch(r"[a-f0-9]{40}", manifest.get("source_commit", ""))):
-        raise ValueError("Manifest macOS non valido; reinstallare NIPAT.")
+        raise ValueError("Manifest macOS non valido; reinstallare NewPat.")
     source_hashes = manifest.get("source_sha256")
     if not isinstance(source_hashes, dict) or not source_hashes:
         raise ValueError("Inventario sorgenti mancante.")
@@ -42,7 +42,7 @@ def load_manifest(app: Path) -> dict:
         with source.open("rb") as stream:
             actual = hashlib.file_digest(stream, "sha256").hexdigest()
         if actual != expected:
-            raise ValueError(f"File installato modificato: {name}; reinstallare NIPAT.")
+            raise ValueError(f"File installato modificato: {name}; reinstallare NewPat.")
     return manifest
 
 
@@ -70,15 +70,29 @@ def installation_session(state: Path = STATE, *, exclusive: bool = False):
     for path in (state, state / "activity.lock"):
         info = path.lstat()
         if path.is_symlink() or info.st_uid != 0 or info.st_mode & 0o022:
-            raise ValueError("Coordinamento installazione non valido; reinstallare NIPAT.")
+            raise ValueError("Coordinamento installazione non valido; reinstallare NewPat.")
     with (state / "activity.lock").open("rb") as stream:
         try:
             fcntl.flock(stream, (fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH) | fcntl.LOCK_NB)
         except BlockingIOError as exc:
-            raise ValueError("Un'altra sessione NIPAT è attiva; chiuderla prima della manutenzione o attendere la fine dell'aggiornamento.") from exc
+            raise ValueError("Un'altra sessione NewPat/NIPAT è attiva; chiuderla prima della manutenzione o attendere la fine dell'aggiornamento.") from exc
         if (state / "update-in-progress").exists():
-            raise ValueError("Installazione NIPAT incompleta; rieseguire il pacchetto .pkg.")
-        yield
+            raise ValueError("Installazione NewPat incompleta; rieseguire il pacchetto .pkg.")
+        yield stream
+
+
+def mount_repair_required(app: Path, resources: Path, workspace: Path) -> bool:
+    """Check the current application path before taking an exclusive lease."""
+    source = str(app / "src")
+    if source not in sys.path:
+        sys.path.insert(0, source)
+    from nipat.macos_runtime import LimaRuntime
+    from nipat.errors import NipatError
+    try:
+        runtime = LimaRuntime(app, workspace, resources / "lima/bin/limactl")
+        return runtime.requires_mount_repair()
+    except NipatError as exc:
+        raise ValueError(str(exc)) from exc
 
 
 def run_foreground(command: list[str], *, env: dict[str, str], cwd: Path | None = None) -> int:
@@ -106,12 +120,12 @@ def gui_startup(app: Path):
 
 def launch(arguments: list[str], app: Path) -> int:
     if sys.platform != "darwin" or os.geteuid() == 0:
-        raise ValueError("Avviare NIPAT su macOS con il proprio utente, senza sudo.")
+        raise ValueError("Avviare NewPat su macOS con il proprio utente, senza sudo.")
     if int(platform.mac_ver()[0].split(".")[0]) < 14:
-        raise ValueError("NIPAT Desktop richiede macOS 14 o successivo.")
+        raise ValueError("NewPat richiede macOS 14 o successivo.")
     manifest = load_manifest(app)
     if platform.machine() != manifest["architecture"]:
-        raise ValueError("Installare il pacchetto NIPAT per l'architettura di questo Mac.")
+        raise ValueError("Installare il pacchetto NewPat per l'architettura di questo Mac.")
     resources = app.parent
     env = environment(app, resources, dict(os.environ))
     python = resources / "python/bin/python3.12"
@@ -120,7 +134,12 @@ def launch(arguments: list[str], app: Path) -> int:
         path.mkdir(parents=True, exist_ok=True)
     runtime = [str(python), "-I", "-B", "-c", RUNTIME_CODE, str(app / "src")]
     maintenance = len(arguments) >= 2 and arguments[0] == "--runtime" and arguments[1] in {"stop", "remove-runtime"}
-    with installation_session(exclusive=maintenance):
+    prepare = not arguments or arguments[0] != "--runtime" or arguments[1:2] == ["prepare"]
+    relocation = prepare and ("--mount" in arguments or any(value.startswith("--mount=") for value in arguments)
+                              or mount_repair_required(app, resources, workspace))
+    with installation_session(exclusive=maintenance or relocation) as lease:
+        if relocation:
+            env["NIPAT_RUNTIME_MAINTENANCE"] = "1"
         if arguments and arguments[0] == "--runtime":
             return run_foreground([*runtime, *arguments[1:]], env=env)
         graphical = not arguments or arguments == ["gui"]
@@ -131,6 +150,12 @@ def launch(arguments: list[str], app: Path) -> int:
                 gui_startup(app).show_startup_error(app,
                     "Preparazione dell’ambiente non completata. Consultare il log in " + str(workspace))
             return prepared
+        if relocation:
+            import fcntl
+            # Migration has completed. Normal execution keeps a shared lease,
+            # allowing other clients without letting an installer replace us.
+            fcntl.flock(lease, fcntl.LOCK_SH)
+            env.pop("NIPAT_RUNTIME_MAINTENANCE", None)
         state = json.loads((workspace / ".runtime/macos/runtime.json").read_text())
         identifier = state.get("runtime_image", "")
         if not re.fullmatch(r"sha256:[a-f0-9]{64}", identifier):
@@ -147,12 +172,12 @@ def main(arguments: list[str] | None = None) -> int:
     try:
         return launch(selected, app)
     except (OSError, ValueError, KeyError, TypeError) as exc:
-        print(f"NIPAT: {exc}", file=sys.stderr)
+        print(f"NewPat: {exc}", file=sys.stderr)
         if not selected or selected == ["gui"]:
             try:
                 gui_startup(app).show_startup_error(app, str(exc))
             except Exception as notice_error:
-                print("NIPAT: " + str(notice_error), file=sys.stderr)
+                print("NewPat: " + str(notice_error), file=sys.stderr)
         return 1
     except KeyboardInterrupt:
         return 130

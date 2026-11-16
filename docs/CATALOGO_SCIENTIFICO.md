@@ -1,7 +1,7 @@
 # Catalogo scientifico
 
 Il catalogo descrive le interfacce pubbliche e le regole interne dei cinque
-script R distribuiti con NIPAT. È consultabile in italiano e inglese, senza
+script R distribuiti con NewPat. È consultabile in italiano e inglese, senza
 avviare l'ambiente scientifico o elaborare campioni.
 
 Nel menu scegliere **7 — Guida e informazioni → 6 — Catalogo scientifico**,
@@ -32,11 +32,11 @@ non crea run e non richiede Docker o WSL.
 | --- | --- |
 | Opzioni pubbliche R | Argomenti accettati dallo script, obbligatorietà, default R e corrispondenza con CLI e richiesta al motore. |
 | Regole interne R | Regole, formule, filtri, assunzioni di formato e impostazioni di presentazione, consultabili in sola lettura. |
-| Preparazione degli input | Trasformazioni NIPAT e impostazioni delle dipendenze, con origine e ambito di applicazione. |
+| Preparazione degli input | Trasformazioni NewPat e impostazioni delle dipendenze, con origine e ambito di applicazione. |
 
 Una corrispondenza **diretta** conserva il significato del parametro nativo.
 Una corrispondenza **adattata** prepara il formato richiesto da R, per esempio
-la directory interna dei campioni CPI. Una destinazione **gestita da NIPAT**
+la directory interna dei campioni CPI. Una destinazione **gestita da NewPat**
 usa cartelle e nomi standardizzati nel run: non equivale a permettere qualsiasi
 nome di output accettato dallo script.
 
@@ -45,7 +45,7 @@ sono nei parametri del relativo `run.json`; i default del catalogo non
 prevalgono sulle opzioni dell'utente. I default aggiunti dal client sono
 distinti da quelli dichiarati da R. Per un pileup importato, le impostazioni
 samtools applicate a monte possono non essere ricostruibili: il catalogo
-non attribuisce a quel file le impostazioni della preparazione BAM di NIPAT.
+non attribuisce a quel file le impostazioni della preparazione BAM di NewPat.
 
 Il registro scientifico indica quali soglie e costanti d'errore sono
 configurabili. `nipat settings` mostra valori predefiniti, intervalli,

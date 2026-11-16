@@ -11,6 +11,7 @@ import sys
 import zipfile
 
 from nipat import __version__
+from nipat.branding import PRODUCT_NAME
 from nipat.errors import ValidationError
 from .host import native_host
 from .server import DesktopServer
@@ -66,7 +67,7 @@ class DesktopApplication:
         store = self.service._results()
         run_id = params["run_id"]
         files = store.files(run_id)
-        name = "NIPAT_" + re.sub(r"[^\w.-]+", "_", run_id) + "_risultati.zip"
+        name = PRODUCT_NAME + "_" + re.sub(r"[^\w.-]+", "_", run_id) + "_risultati.zip"
         destination = self.host.save_file("Salva i risultati dell’esperimento", name,
                                           [{"name": "Archivio ZIP", "extensions": ["zip"]}])
         if not destination:
@@ -89,6 +90,43 @@ class DesktopApplication:
             if temporary is not None:
                 temporary.unlink(missing_ok=True)
         return {"path": str(destination), "files": len(paths)}
+
+    def open_run_directory(self, params):
+        from .diagnostics import open_directory
+
+        if set(params) != {"run_id"}:
+            raise ValidationError("Seleziona un esperimento per aprirne la cartella.")
+        directory = self.service._results()._run(params["run_id"])
+        open_directory(directory)
+        return {"opened": True}
+
+    def export_diagnostics(self, params):
+        from datetime import datetime
+        from .diagnostics import write_bundle
+
+        if set(params) - {"run_id"}:
+            raise ValidationError("Richiesta diagnostica non valida.")
+        run_dir = None
+        if "run_id" in params:
+            run_dir = self.service._results()._run(params["run_id"])
+        destination = self.host.save_file(
+            "Salva la diagnostica · log e informazioni sull’ambiente",
+            f"{PRODUCT_NAME}-diagnostica-{datetime.now():%Y%m%d-%H%M%S}.zip",
+            [{"name": "Archivio ZIP", "extensions": ["zip"]}],
+        )
+        if not destination:
+            return {"cancelled": True}
+        # Also work when invalid preferences or an unavailable runtime prevented
+        # the experiment from reaching its first step.
+        try:
+            layout = self.service.layout
+        except Exception:
+            layout = self.service.base_layout
+        try:
+            resources = self.service.resources_get()
+        except Exception as exc:
+            resources = {"status": "unavailable", "error": str(exc)}
+        return write_bundle(Path(destination), layout, resources=resources, run_dir=run_dir)
 
     @staticmethod
     def _local_file(value, label):
@@ -114,7 +152,7 @@ class DesktopApplication:
         encoded = json.dumps(session, ensure_ascii=False, allow_nan=False, indent=2)
         if self.server.token in encoded or re.search(r'https?://', encoded, flags=re.I):
             raise ValidationError("La sessione deve contenere percorsi locali, non URL temporanei.")
-        destination = self.host.save_file("Salva la sessione IGV", "NIPAT_IGV_sessione.json",
+        destination = self.host.save_file("Salva la sessione IGV", f"{PRODUCT_NAME}_IGV_sessione.json",
                                           [{"name": "Sessione JSON", "extensions": ["json"]}])
         if not destination:
             return {"cancelled": True}
@@ -125,6 +163,8 @@ class DesktopApplication:
         callbacks = {"dialog.open": self.dialog, "dialog.directory": lambda p: self.dialog({**p, "directory": True}),
                      "files.url": self.file_url, "files.open": self.file_url, "files.export": self.export_file,
                      "runs.export": self.export_run, "igv.prepare": self.prepare_igv,
+                     "runs.open_directory": self.open_run_directory,
+                     "diagnostics.export": self.export_diagnostics,
                      "igv.session.save": self.save_igv_session,
                      "app.close": lambda _p: (self.host.request_close(), {"closing": True})[1]}
         if method in callbacks:
@@ -135,12 +175,12 @@ class DesktopApplication:
         status = self.service.call("close_status")
         if not status["active"]:
             return True
-        if not self.host.confirm("Analisi in corso", "Vuoi interrompere le analisi prima di chiudere NIPAT?"):
+        if not self.host.confirm("Analisi in corso", f"Vuoi interrompere le analisi prima di chiudere {PRODUCT_NAME}?"):
             return False
         for job in status["jobs"]:
             self.service.call("jobs.cancel", {"job_id": job["id"]})
         if self.service.call("close_status")["active"]:
-            self.host.notify("Interruzione richiesta", "Attendi la conclusione dell’interruzione nella schermata Attività, poi chiudi NIPAT.")
+            self.host.notify("Interruzione richiesta", f"Attendi la conclusione dell’interruzione nella schermata Attività, poi chiudi {PRODUCT_NAME}.")
             return False
         return True
 
@@ -155,7 +195,7 @@ class DesktopApplication:
         logger.setLevel(logging.INFO)
         try:
             with self.server:
-                return self.host.run_window(self.server.url, title=f"NIPAT {__version__} · Preview",
+                return self.host.run_window(self.server.url, title=f"{PRODUCT_NAME} {__version__} · Testing",
                                             on_close=self.on_close,
                                             user_data_dir=layout.workspace_dir / ".gui" / "webview",
                                             smoke_test=smoke_test, smoke_report=smoke_report, timeout=timeout,
@@ -177,10 +217,10 @@ def main(layout=None, *, smoke_test=False, smoke_report=None, timeout=60, smoke_
                 output.parent.mkdir(parents=True, exist_ok=True)
                 output.write_text(json.dumps({"status": "failed", "appReady": False, "error": str(exc)},
                                              ensure_ascii=False, indent=2), encoding="utf-8")
-            print(f"NIPAT native GUI smoke failed: {exc}", file=sys.stderr)
+            print(f"{PRODUCT_NAME} native GUI smoke failed: {exc}", file=sys.stderr)
             return 1
         try:
-            native_host().notify("NIPAT · avvio non riuscito", str(exc))
+            native_host().notify(f"{PRODUCT_NAME} · avvio non riuscito", str(exc))
         except Exception:
-            print(f"NIPAT: {exc}", file=sys.stderr)
+            print(f"{PRODUCT_NAME}: {exc}", file=sys.stderr)
         return 1

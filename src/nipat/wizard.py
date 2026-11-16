@@ -37,7 +37,7 @@ MAIN_MENU = [
     ("W", "Workflow automatici", "SNP/DNP verso Contamination, CPI e CPIN"),
     ("5", "Configura", "Cartelle e parametri predefiniti"),
     ("6", "Ultima esecuzione", "Risultati e log della sessione"),
-    ("7", "Guida e informazioni", "Cosa fa NIPAT e come utilizzarlo"),
+    ("7", "Guida e informazioni", "Cosa fa NewPat e come utilizzarlo"),
     ("8", "Verifica ambiente", "Controllo degli strumenti di analisi"),
     ("9", "Verifica aggiornamenti", "Release disponibili, download e installazione"),
     ("0", "Esci", ""),
@@ -89,7 +89,7 @@ def _help(ui: Terminal, layout: ProjectLayout, runner=None, *, dry_run: bool = F
             "permette di cambiare canale e attivare la verifica all'avvio."
         )
     pages = {
-        "1": ("Come usare NIPAT", (
+        "1": ("Come usare NewPat", (
             "Selezionare un'analisi dal menu e seguire le indicazioni mostrate prima di ogni campo.",
             "Per un file, incollare il percorso completo oppure un percorso relativo alla cartella corrente.",
             "In Windows si puo' usare 'Copia come percorso': le virgolette vengono accettate.",
@@ -104,7 +104,7 @@ def _help(ui: Terminal, layout: ProjectLayout, runner=None, *, dry_run: bool = F
             "Con --dry-run vengono preparati i comandi, senza eseguire l'analisi o produrre risultati scientifici.",
         )),
         "2": ("Analisi disponibili", (
-            "NIPAT prepara gli input ed esegue cinque moduli scientifici R nell'ambiente distribuito con l'applicazione.",
+            "NewPat prepara gli input ed esegue cinque moduli scientifici R nell'ambiente distribuito con l'applicazione.",
             "DNPcall: uno o piu' BAM, un FASTA indicizzato e un pannello DNP; produce conteggi, genotipi, riepiloghi e grafici.",
             "SNPcall: un BAM con FASTA oppure un pileup con QNAME, e una lista SNP; produce una tabella di conteggi allelici.",
             "Contamination: tabelle SNP o DNP e coordinate dello stesso tipo; produce stime per sito e un riepilogo per campione.",
@@ -130,7 +130,7 @@ def _help(ui: Terminal, layout: ProjectLayout, runner=None, *, dry_run: bool = F
             "La voce W, Workflow automatici, permette di scegliere calling SNP e/o DNP e analisi successive: Contamination, CPI prenatale e CPIN postnatale. Controllare input e riepilogo e confermare una sola volta.",
             "Le tabelle passano automaticamente alla seconda fase. Se un caller fallisce o non produce le tabelle attese, le analisi successive non vengono avviate; ogni errore arresta il piano.",
             "Per i workflow CPI, indicare un ID per ogni coppia e assegnare esplicitamente i campioni del cfDNA materno e del presunto padre. Uno stesso campione puo' essere riutilizzato in piu' coppie nello stesso ruolo.",
-            "NIPAT prepara automaticamente i nomi e i prefissi dei file CPI. I ruoli derivano dalle coppie dichiarate, senza deduzioni dal nome dei BAM; il riepilogo mostra ID, file e ruoli.",
+            "NewPat prepara automaticamente i nomi e i prefissi dei file CPI. I ruoli derivano dalle coppie dichiarate, senza deduzioni dal nome dei BAM; il riepilogo mostra ID, file e ruoli.",
             "Contamination, CPI e CPIN possono usare conteggi DNPcall o SNPcall, in rami distinti. La stima di contaminazione non filtra gli input delle analisi di paternita'.",
             "Il workflow completo (W -> 5) offre tutte le combinazioni di calling e analisi successive, incluse tabelle importate. Dichiarare separatamente i ruoli delle coppie CPI e dei trii CPIN.",
             "Un errore o un'interruzione arresta l'intero piano, comprese le analisi SNP indipendenti non ancora avviate. I risultati e i log gia' prodotti vengono conservati.",
@@ -139,24 +139,24 @@ def _help(ui: Terminal, layout: ProjectLayout, runner=None, *, dry_run: bool = F
             "Ogni fase SNPcall si chiama snp_0001, snp_0002 e cosi' via. La relativa cartella output contiene SNPcall_output.txt; work conserva i file intermedi e command.log i comandi della fase.",
             "Il workflow completo permette anche di partire da tabelle esistenti. Verificare campioni, ruoli, tipo SNP/DNP e pannelli pertinenti.",
         )),
-        "5": ("Informazioni su NIPAT", (
-            f"NIPAT {__version__} - piattaforma locale per l'esecuzione e la validazione dei workflow scientifici.",
+        "5": ("Informazioni su NewPat", (
+            f"NewPat {__version__} - piattaforma locale per l'esecuzione e la validazione dei workflow scientifici.",
             "I dati sono elaborati localmente. La distribuzione include gli script scientifici R e le loro dipendenze nell'immagine di analisi.",
             "Windows utilizza il runtime WSL dedicato; macOS utilizza Lima incluso; Linux utilizza Docker Engine locale.",
             "Verifica ambiente controlla gli strumenti senza analizzare campioni. E' separata dalla guida e non attesta la validita' scientifica di un risultato.",
             update_help,
-            "Per i comandi diretti: NIPAT.exe --help su Windows; il launcher NIPAT.command incluso nell'app su macOS; nipat --help su Linux.",
+            "Per i comandi diretti: NIPAT.exe --help su Windows; il launcher NewPat.command incluso nell'app su macOS; newpat --help su Linux.",
             f"Guida completa: {layout.project_dir / 'docs' / 'GUIDA_UTILIZZO.md'}",
         )),
     }
     while True:
         ui.message("Scegliere un argomento. La consultazione della guida non avvia analisi o strumenti scientifici.", kind="muted")
         action = ui.menu("Guida e informazioni", [
-            ("1", "Come usare NIPAT", "Selezione dei file, navigazione e avvio"),
+            ("1", "Come usare NewPat", "Selezione dei file, navigazione e avvio"),
             ("2", "Analisi disponibili", "Scopo, input e risultati dei cinque moduli"),
             ("3", "Cartelle e parametri", "Preferenze, modifiche e ripristino"),
             ("4", "Risultati e analisi in sequenza", "File intermedi, log e workflow successivi"),
-            ("5", "Informazioni su NIPAT", "Versione, ambiente e documentazione"),
+            ("5", "Informazioni su NewPat", "Versione, ambiente e documentazione"),
             ("6", "Catalogo scientifico", "Opzioni R, regole interne e preparazione; IT / EN"),
             ("7", "Esecuzioni incomplete", "Stati registrati, container e arresto controllato"),
             ("8", "Installazione e spazio", "Ambienti conservati, cache e ripresa della preparazione"),
@@ -187,7 +187,7 @@ def _check_environment(ui: Terminal, workflows: Workflows, dry_run: bool) -> Non
     ui.heading("Verifica ambiente")
     if dry_run:
         ui.message("Modalita' simulazione (--dry-run): la verifica degli strumenti non viene eseguita.", kind="muted")
-        ui.message("Per controllarli, avviare NIPAT senza --dry-run e scegliere di nuovo questa voce.", kind="muted")
+        ui.message("Per controllarli, avviare NewPat senza --dry-run e scegliere di nuovo questa voce.", kind="muted")
         return
     ui.message("Il controllo avvia l'ambiente e verifica gli strumenti; non esegue analisi sui dati.", kind="muted")
     ui.message("Verifica in corso...")

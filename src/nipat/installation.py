@@ -24,7 +24,7 @@ def _command(project: Path, operation: str) -> list[str]:
     worker = project / "installer" / "windows" / "maintenance.ps1"
     _safe_parent(worker)
     if not worker.is_file():
-        raise NipatError("Componente di manutenzione mancante. Reinstallare il pacchetto NIPAT verificato.")
+        raise NipatError("Componente di manutenzione mancante. Reinstallare il pacchetto NewPat verificato.")
     powershell = Path(os.environ.get("WINDIR", r"C:\Windows")) / "System32/WindowsPowerShell/v1.0/powershell.exe"
     return [str(powershell), "-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass",
             "-File", str(worker), "-Project", str(project), "-Operation", operation]
@@ -34,7 +34,7 @@ def installation_inventory(project: Path) -> dict:
     if sys.platform == "darwin":
         return {"schema_version": 1, "platform": "macos", "runtimes": [], "cache": [],
                 "backups": [], "recovery": {"id": "current-installation", "recoverable": False,
-                "reason": "NIPAT usa un ambiente Lima dedicato in ~/.nipat/lima. "
+                "reason": "NewPat usa un ambiente Lima dedicato in ~/.nipat/lima. "
                           "Impostazioni e risultati sono in ~/Library/Application Support/NIPAT-Desktop. "
                           "Per preparazione, diagnostica e rimozione consultare la guida macOS inclusa nell'applicazione."},
                 "warnings": []}
@@ -107,7 +107,7 @@ def start_maintenance(project: Path, operation: str, target: str) -> Path:
         deadline = time.monotonic() + 120
         while time.monotonic() < deadline:
             if process.poll() is not None:
-                raise NipatError("Il componente di manutenzione si e' chiuso prima del passaggio. NIPAT resta aperto.")
+                raise NipatError("Il componente di manutenzione si e' chiuso prima del passaggio. NewPat resta aperto.")
             if ready.is_file():
                 _safe_parent(ready)
                 with ready.open("rb") as stream:
@@ -121,7 +121,7 @@ def start_maintenance(project: Path, operation: str, target: str) -> Path:
                 acknowledged = True
                 return directory / "result.json"
             time.sleep(0.05)
-        raise NipatError("Il componente di manutenzione non ha confermato l'avvio. NIPAT resta aperto.")
+        raise NipatError("Il componente di manutenzione non ha confermato l'avvio. NewPat resta aperto.")
     except (OSError, ValueError, RecursionError) as exc:
         raise NipatError(f"Passaggio alla manutenzione non riuscito: {exc}") from exc
     finally:
@@ -147,7 +147,7 @@ def start_maintenance(project: Path, operation: str, target: str) -> Path:
                 detail = ("Il componente ha ricevuto il segnale di annullamento."
                           if marker_written else "Non e' stato possibile registrare l'annullamento.")
                 raise NipatError("Arresto della finestra di manutenzione non confermato; "
-                                 "chiuderla prima di uscire da NIPAT. " + detail) from exc
+                                 "chiuderla prima di uscire da NewPat. " + detail) from exc
 
 
 def inventory_lines(inventory: dict) -> list[str]:
@@ -199,10 +199,10 @@ def show_installation(ui, project: Path, *, dry_run: bool = False) -> bool:
             continue
         operation, selected = entry
         ui.message(selected.get("path", selected["id"]))
-        ui.message("La sessione NIPAT sara' chiusa. La manutenzione parte in una finestra separata dopo la chiusura e ripete i controlli di proprieta'.", kind="warning")
+        ui.message("La sessione NewPat sara' chiusa. La manutenzione parte in una finestra separata dopo la chiusura e ripete i controlli di proprieta'.", kind="warning")
         confirm = ui.menu("Confermare la manutenzione selezionata?", [
-            ("1", "Conferma e chiudi NIPAT", "Attendere il resoconto nella finestra di manutenzione"),
-            ("0", "Annulla", "NIPAT resta aperto"),
+            ("1", "Conferma e chiudi NewPat", "Attendere il resoconto nella finestra di manutenzione"),
+            ("0", "Annulla", "NewPat resta aperto"),
         ], default="0").strip().casefold()
         if confirm == ":annulla":
             raise Cancelled

@@ -113,7 +113,7 @@ try {
     $deadline = [DateTime]::UtcNow.AddMinutes(2)
     while (-not $parent.WaitForExit(100)) {
         Assert-NotCanceled
-        if ([DateTime]::UtcNow -gt $deadline) { throw 'La sessione NIPAT non si e chiusa. Ripetere l aggiornamento dal menu.' }
+        if ([DateTime]::UtcNow -gt $deadline) { throw 'La sessione NewPat non si e chiusa. Ripetere l aggiornamento dal menu.' }
     }
     Assert-NotCanceled
     if ($parent.ExitCode -ne 85) {
@@ -122,7 +122,7 @@ try {
     $lockPath = Join-Path $env:LOCALAPPDATA 'NIPAT-Desktop\activity.lock'
     Assert-LocalPath $lockPath | Out-Null
     try { $activity = [IO.File]::Open($lockPath, [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None) }
-    catch { throw 'Sono aperte altre sessioni o analisi NIPAT. Chiuderle al termine del lavoro e ripetere l aggiornamento. Nessuna analisi e stata interrotta.' }
+    catch { throw 'Sono aperte altre sessioni o analisi NewPat. Chiuderle al termine del lavoro e ripetere l aggiornamento. Nessuna analisi e stata interrotta.' }
     $packageStream = [IO.File]::Open($package, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
     if ($packageStream.Length -ne $record.size) { throw 'Dimensione dell installer modificata. Ripetere il download.' }
     $sha = [Security.Cryptography.SHA256]::Create()
@@ -198,7 +198,7 @@ try {
         $state = Get-Content -LiteralPath $stateFile -Raw -Encoding UTF8 | ConvertFrom-Json
         if ($state.phase -cne 'ready' -or $state.installation_channel -cne 'desktop' -or
             $state.version -cne $record.version -or $state.source_commit -cne $record.source_commit) {
-            throw 'Preparazione non conclusa. Completare NIPAT tramite il collegamento di preparazione della propria installazione prima di avviare analisi.'
+            throw 'Preparazione non conclusa. Completare NewPat tramite il collegamento di preparazione della propria installazione prima di avviare analisi.'
         }
         $powershell = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
         $launch = New-Object Diagnostics.ProcessStartInfo

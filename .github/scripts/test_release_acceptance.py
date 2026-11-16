@@ -51,6 +51,13 @@ def research_record():
 
 
 class AcceptanceTests(unittest.TestCase):
+    def test_newpat_testing_release_keeps_all_publication_gates(self):
+        self.assertTrue(acceptance.gui_prerelease_contract("0.9.5"))
+        self.assertTrue(acceptance.gui_prerelease_contract("0.9.5rc1"))
+        self.assertTrue(acceptance.gui_contract("0.9.5"))
+        self.assertTrue(acceptance.reliability_contract("0.9.5"))
+        self.assertFalse(acceptance.gui_prerelease_contract("0.9.2"))
+
     def test_generated_template_cannot_authorize_publication(self):
         pending = acceptance.template(SET, 123)
         self.assertEqual(pending["decision"], "pending")

@@ -1,6 +1,6 @@
 # Controlli degli input e dei risultati
 
-NIPAT Desktop controlla gli input nel livello Python prima di avviare
+NewPat controlla gli input nel livello Python prima di avviare
 gli script R. I validatori sono condivisi dal client e dal motore scientifico
 incorporato nell'immagine. Il menu e la CLI diretta applicano gli stessi
 requisiti ai file selezionati; il motore ripete i controlli nell'ambiente
@@ -15,7 +15,7 @@ scientifica. Un file accettato non certifica l'idoneità del campione al metodo.
 
 Gli input selezionati vengono montati in sola lettura. Le trasformazioni
 necessarie agli script riguardano copie nella cartella `work` del run o del
-singolo passaggio. NIPAT conserva il collegamento con il file originale.
+singolo passaggio. NewPat conserva il collegamento con il file originale.
 Non modifica il contenuto scientifico degli originali, non deduplica loci
 silenziosamente e non sostituisce conteggi o frequenze non validi.
 
@@ -98,7 +98,7 @@ Una stima `NA` inattesa produce `output.missing_estimate`; `NaN` e valori
 infiniti producono `output.nonfinite`, anche con zero siti. Un valore vuoto
 o non numerico in una colonna numerica richiesta è un errore di output.
 Le segnalazioni di qualità conservano il risultato originale prodotto da R
-e indicano l'elemento da verificare. NIPAT non corregge automaticamente una
+e indicano l'elemento da verificare. NewPat non corregge automaticamente una
 stima scientifica e non applica nuovi filtri ai dati CPI in base alla stima
 Contamination.
 
