@@ -229,7 +229,7 @@ avvia la CI Linux dedicata su `main`. Al suo successo, **Publish accepted releas
 usa esattamente quel commit e pubblica la build indicata. Dalla 0.8.70 il
 canale è scelto esplicitamente dal campo `publication_channel` del record:
 `stable` richiede una versione numerica e imposta `Latest`; `testing` mantiene
-la release sperimentale. La 0.9.0, anche senza suffisso, richiede `testing`
+la release sperimentale. Le 0.9.0 e 0.9.1, anche senza suffisso, richiedono `testing`
 e conserva la 0.8.99 come stabile. Una modifica mista richiede l'avvio manuale
 descritto sotto.
 L'automazione verifica che il run provenga dal push su `main` di questo repository,

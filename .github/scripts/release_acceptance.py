@@ -134,9 +134,9 @@ def gui_contract(version):
 
 
 def gui_prerelease_contract(version):
-    """Only the first GUI release is explicitly restricted to the testing channel."""
+    """The authorized GUI previews cannot replace the stable channel."""
     return bool(isinstance(version, str)
-                and re.fullmatch(r"0\.9\.0(?:(?:a|b|rc)[0-9]+)?", version))
+                and re.fullmatch(r"0\.9\.[01](?:(?:a|b|rc)[0-9]+)?", version))
 
 
 def reliability_contract(version):
@@ -476,7 +476,7 @@ def validate_research(record, version, commit, run_id, installer_set=None):
     if explicit_publication_contract(version):
         channel = record["publication_channel"]
         require(not gui_prerelease_contract(version) or channel == "testing",
-                "NIPAT 0.9.0 GUI releases must use the testing publication channel")
+                "NIPAT GUI previews must use the testing publication channel")
         require(channel == "testing" or (channel == "stable" and re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version)),
                 "Acceptance must authorize an explicit compatible publication channel")
     review = record["review"]

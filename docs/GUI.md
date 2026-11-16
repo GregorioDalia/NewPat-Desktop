@@ -1,9 +1,9 @@
-# Usare NIPAT 0.9.0 Preview
+# Usare NIPAT 0.9.1 Testing
 
 La preview aggiunge una finestra desktop al motore della 0.8.99. Non è
 necessario aprire un browser né installare IGV Desktop. Scaricare i pacchetti
-dalla [release 0.9.0](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.9.0)
-seguendo le [note di installazione](RELEASE_0.9.0.md#installazione-della-preview).
+dalla [release 0.9.1](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.9.1)
+seguendo le [note di installazione](RELEASE_0.9.1.md#installazione-della-preview).
 
 ## Creare un esperimento
 
@@ -26,6 +26,10 @@ una percentuale misurata: quando il motore non la fornisce viene mostrato
 il passaggio in corso. L'interruzione richiede l'arresto dei processi del
 run prima di considerare conclusa l'attività.
 
+L'animazione a doppia elica continua anche durante i controlli iniziali.
+Sono indicati la fase attuale e il tempo trascorso; l'eventuale percentuale
+si riferisce alla fase, non a una stima dell'intera analisi.
+
 ## Aprire risultati ed esperimenti precedenti
 
 **Esperimenti** raccoglie le esecuzioni e consente di cercarle per nome,
@@ -39,6 +43,17 @@ tabelle dettagliate, grafici PDF e file originali. È possibile esportare
 un singolo file o l'intera cartella in ZIP e riutilizzare una configurazione
 per un nuovo esperimento.
 
+**Riesegui** riapre la configurazione precedente per una nuova analisi:
+non riprende un calcolo da un punto intermedio. **Rimuovi dalla lista**
+nasconde l'esperimento dopo una conferma, conservando risultati e input.
+Per mostrarlo nuovamente è possibile importare la sua cartella.
+
+Dopo una chiusura anomala NIPAT verifica se un'esecuzione è ancora attiva.
+Se non è attiva e non risulta finalizzata, appare come interrotta. Se il
+runtime non è verificabile, lo stato resta da verificare: un singolo modulo
+completato non basta a dichiarare concluso l'esperimento. La rimozione dalla
+lista è bloccata quando l'attività potrebbe essere ancora in corso.
+
 I valori mancanti sono distinti da zero. L'indice CPI e il suo logaritmo
 sono presentati con la scala appropriata; le celle delle tabelle conservano
 il valore originale. Le anteprime paginate non sostituiscono i file completi
@@ -47,10 +62,33 @@ validazione scientifica dei risultati.
 
 ## Esplorare i dati con IGV
 
-Aprire **IGV**, scegliere il FASTA locale con indice `.fai` e aggiungere
-le tracce. Gli allineamenti BAM/CRAM e i formati compressi indicizzati
-richiedono l'indice corrispondente. Si può indicare una regione genomica
-e conservare la configurazione locale della sessione.
+Aprire **IGV**, scegliere il FASTA locale e aggiungere i BAM come tracce.
+Se gli indici corrispondenti si trovano accanto ai file, NIPAT li riconosce
+automaticamente quando si apre il visualizzatore. In caso contrario,
+selezionarli nei campi dedicati:
+
+| File | Contenuto | Indice corrispondente |
+| --- | --- | --- |
+| `.fa` o `.fasta` | Genoma di riferimento | `.fai` dello stesso FASTA |
+| `.bam` | Allineamenti del campione | `.bam.bai` oppure `.bai` dello stesso BAM |
+
+Gli indici mancanti non vengono generati dal visualizzatore. Per FASTA
+compresso BGZF serve anche il file `.gzi` corrispondente accanto al FASTA.
+Gli altri formati indicizzati richiedono il proprio indice.
+
+Una volta aperto IGV, scegliere un **Cromosoma** dall'elenco dei nomi
+effettivamente presenti nel riferimento. Per una regione precisa usare
+`cromosoma:inizio-fine`, per esempio `1:100000-110000`: è un esempio di
+sintassi, non una regione necessariamente coperta dal proprio campione.
+I controlli per ingrandire, ridurre, tornare alla panoramica e tornare alla
+vista precedente sono sincronizzati con il visualizzatore. In un riferimento
+con cromosomi `1`–`22`, `X`, `Y`, il nome `23` non indica automaticamente `X`.
+
+La vista dell'intero genoma non mostra i singoli allineamenti BAM. Ingrandire
+una regione coperta dal campione, preferibilmente partendo da **Visualizza in IGV**
+in una tabella di risultati con coordinate e input BAM/FASTA disponibili.
+Le letture possono mancare in una regione anche quando il file è valido.
+La sessione esportata conserva la configurazione locale dei file e della vista.
 
 Riferimento, nomi dei contig e coordinate devono essere coerenti con gli
 allineamenti. La preview utilizza file locali: non carica automaticamente

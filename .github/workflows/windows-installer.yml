@@ -415,7 +415,7 @@ jobs:
         shell: powershell
         run: |
           $manifest = Get-Content -LiteralPath 'build/assets/installer-manifest.json' -Raw -Encoding UTF8 | ConvertFrom-Json
-          if ($manifest.version -match '^0\.9\.0(?:(?:a|b|rc)[0-9]+)?$') {
+          if ($manifest.version -match '^0\.9\.[01](?:(?:a|b|rc)[0-9]+)?$') {
             python installer/windows/testing_package.py --manifest build/assets/installer-manifest.json --output build/output
             if ($LASTEXITCODE -ne 0) { throw 'Release-specific testing entrypoint failed.' }
           }

@@ -1148,34 +1148,44 @@ class ReleaseGuards(unittest.TestCase):
             publisher.verify_uploaded(dict(sent, assets=[]), {}, COMMIT, "v0.6.0", "notes",
                                       complete=True, channel="testing")
 
-    def test_first_gui_release_can_never_create_or_promote_a_stable_release(self):
+    def test_gui_previews_can_never_create_or_promote_a_stable_release(self):
+        for version in ("0.9.0", "0.9.1"):
+            with self.subTest(version=version):
+                self.check_gui_publication_channel(version)
+        self.assertEqual(publisher.publication_channel("0.9.2", "stable"), "stable")
+
+    def check_gui_publication_channel(self, version):
         payload = self.root / "create-gui.json"
         with patch.object(publisher, "command", return_value='{"id": 12345}') as command, \
                 patch.object(publisher, "api") as api, patch.object(publisher, "check_tag") as tag:
             with self.assertRaisesRegex(ValueError, "testing publication"):
-                publisher.create_draft("v0.9.0", "0.9.0", COMMIT, "notes", payload, channel="stable")
+                publisher.create_draft("v" + version, version, COMMIT, "notes", payload, channel="stable")
             with self.assertRaisesRegex(ValueError, "testing publication"):
-                publisher.process_release("publish", {}, COMMIT, "v0.9.0", "0.9.0", "notes",
+                publisher.process_release("publish", {}, COMMIT, "v" + version, version, "notes",
                                           self.root, channel="stable", draft_id="42")
             command.assert_not_called()
             api.assert_not_called()
             tag.assert_not_called()
-            publisher.create_draft("v0.9.0", "0.9.0", COMMIT, "notes", payload, channel="testing")
+            publisher.create_draft("v" + version, version, COMMIT, "notes", payload, channel="testing")
         sent = json.loads(payload.read_text())
         self.assertTrue(sent["prerelease"])
         self.assertEqual(sent["make_latest"], "false")
-        self.assertIn("Desktop 0.9.0 Preview", sent["name"])
-        self.assertEqual(publisher.publication_channel("0.9.1", "stable"), "stable")
+        self.assertIn(f"Desktop {version} Preview", sent["name"])
 
     def test_testing_entrypoint_is_bound_to_reviewed_scripts_and_exact_payloads(self):
-        manifest = {"version": "0.9.0", "source_commit": COMMIT}
+        for version in ("0.9.0", "0.9.1"):
+            with self.subTest(version=version):
+                self.check_testing_entrypoint(version)
+
+    def check_testing_entrypoint(self, version):
+        manifest = {"version": version, "source_commit": COMMIT}
         helper = publisher.load_module("testing_entrypoint_fixture",
                                        publisher.PROJECT / "installer/windows/testing_package.py")
-        for filename in ("NIPAT-0.9.0-Windows-completo.zip", "NIPAT-0.9.0-Windows-payload.zip"):
+        for filename in (f"NIPAT-{version}-Windows-completo.zip", f"NIPAT-{version}-Windows-payload.zip"):
             (self.setup / filename).write_bytes(filename.encode())
         expected = helper.build(publisher.PROJECT / "installer/windows", self.setup, manifest)
         self.assertEqual(publisher.verify_windows_testing(self.setup, manifest), expected)
-        (self.setup / "NIPAT-0.9.0-Windows-payload.zip").write_bytes(b"replaced payload")
+        (self.setup / f"NIPAT-{version}-Windows-payload.zip").write_bytes(b"replaced payload")
         with self.assertRaisesRegex(ValueError, "payload identity"):
             publisher.verify_windows_testing(self.setup, manifest)
         (self.setup / expected["file"]).unlink()
@@ -1183,12 +1193,17 @@ class ReleaseGuards(unittest.TestCase):
             publisher.verify_windows_testing(self.setup, manifest)
 
     def test_gui_testing_publication_leaves_latest_pointer_untouched(self):
+        for version in ("0.9.0", "0.9.1"):
+            with self.subTest(version=version):
+                self.check_gui_latest_pointer(version)
+
+    def check_gui_latest_pointer(self, version):
         files, prepared = self.prepared_draft("testing")
-        prepared["tag_name"] = "v0.9.0"
+        prepared["tag_name"] = "v" + version
         published = dict(prepared, draft=False)
         with patch.object(publisher, "api", side_effect=[prepared, published]) as api, \
                 patch.object(publisher, "check_tag"), patch.object(publisher, "command") as command:
-            result = publisher.process_release("publish", files, COMMIT, "v0.9.0", "0.9.0",
+            result = publisher.process_release("publish", files, COMMIT, "v" + version, version,
                                                "reviewed notes", self.root, channel="testing", draft_id="42")
         self.assertFalse(result["draft"])
         self.assertTrue(result["prerelease"])
