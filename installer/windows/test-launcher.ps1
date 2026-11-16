@@ -198,7 +198,8 @@ exit ([int]$env:NIPAT_LAUNCH_TEST_EXIT)
     Remove-Item -LiteralPath $runner
     $result = Invoke-TestLauncher -Executable $executable
     Assert-Test ($result.ExitCode -eq 1) 'missing package files return a failure without hanging CI'
-    Assert-Test ($result.Output -match 'Pacchetto NIPAT incompleto') 'incomplete package has an actionable error'
+    Assert-Test ($result.Output -match 'Pacchetto NewPat incompleto' -and
+        $result.Output -match 'NewPat-Setup\.exe') 'incomplete package has an actionable error'
     Assert-Test (-not (Test-Path -LiteralPath $script:CapturePath)) 'missing runner is never invoked'
 
     # Exercise the actual bridge, runner and installed readiness checks. Python
@@ -544,7 +545,7 @@ function Install-NipatPython([string] $Project) {
         $invalidEnvironment = $environment.Clone()
         foreach ($name in $invalid.Keys) { $invalidEnvironment[$name] = $invalid[$name] }
         $result = Invoke-TestLauncher -Executable $powershell -Arguments @('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $setup) -Environment $invalidEnvironment
-        Assert-Test ($result.ExitCode -ne 0 -and $result.Output -match 'NIPAT-Setup.exe') 'source setup rejects incomplete or native runtime configuration with installer guidance'
+        Assert-Test ($result.ExitCode -ne 0 -and $result.Output -match 'NewPat-Setup\.exe') 'source setup rejects incomplete or native runtime configuration with installer guidance'
     }
     Assert-Test (@(Get-Content -LiteralPath $events).Count -eq $beforeSourceSetup) 'invalid source configuration starts neither Python installation nor analysis'
     $sourceLock = [IO.File]::Open((Join-Path $app '.runtime\source-setup.lock'),

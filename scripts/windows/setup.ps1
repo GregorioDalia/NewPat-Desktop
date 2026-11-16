@@ -26,7 +26,7 @@ try {
     }
     Start-Transcript -LiteralPath (Join-Path $project ".runtime\setup.log") -Append | Out-Null
     $transcriptStarted = $true
-    Write-Host "NIPAT - preparazione del client da sorgente per WSL"
+    Write-Host "NewPat - preparazione del client da sorgente per WSL"
     if (-not (Test-Path -LiteralPath $env:NIPAT_DATA_DIR -PathType Container)) {
         [IO.Directory]::CreateDirectory($env:NIPAT_DATA_DIR) | Out-Null
     }
