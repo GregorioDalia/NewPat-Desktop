@@ -622,5 +622,52 @@ class MultiplatformResearchAcceptanceTests(unittest.TestCase):
             self.validate()
 
 
+class NewPatBrandingAcceptanceTests(unittest.TestCase):
+    def test_only_named_branding_inputs_are_reviewable_from_095(self):
+        expected = {
+            "assets/branding/build_assets.py", "assets/branding/nipat-logo-dark.svg",
+            "assets/branding/nipat-logo.svg", "assets/branding/nipat-symbol.svg", "newpat.cmd",
+        }
+        self.assertEqual(acceptance.NEWPAT_BRANDING_FILES, expected)
+        distributed = set((Path(__file__).resolve().parents[2] / "distribution-files.txt").read_text().splitlines())
+        self.assertTrue(expected <= distributed)
+        for version in ("0.8.99", "0.9.1", "0.9.4", "0.9.5", "0.9.5rc1", "0.9.6"):
+            for path in expected:
+                with self.subTest(version=version, path=path):
+                    self.assertEqual(acceptance.reviewable_path(path, reliability=True, multiplatform=True,
+                                                               revised_r=True, version=version),
+                                     version in {"0.9.5", "0.9.5rc1", "0.9.6"})
+        for path in ("assets/branding/other.svg", "assets/branding/nipat-icon.ico",
+                     "assets/branding/nipat-logo.svg.bak", "assets/other.py", "newpat-other.cmd"):
+            with self.subTest(path=path):
+                self.assertFalse(acceptance.reviewable_path(path, reliability=True, multiplatform=True,
+                                                           revised_r=True, version="0.9.5"))
+
+    def test_newpat_branding_still_requires_complete_exact_delta_review(self):
+        fixture = MultiplatformResearchAcceptanceTests()
+        fixture.setUp()
+        record = fixture.record
+        record.update(schema_version=7, version="0.9.5", publication_channel="testing",
+                      windows_zip_sha256="a" * 64, windows_payload_sha256="b" * 64,
+                      windows_testing_sha256="c" * 64)
+        record["observed_baseline"]["source_comparison_scope"] = acceptance.FIVE_MODULE_SOURCE_SCOPE
+        for key, reference, report in (
+            ("scientific_equivalence", acceptance.R_REFERENCE_COMMIT, "r-equivalence.json"),
+            ("scientific_analysis_qualification", acceptance.ANALYSIS_REFERENCE_COMMIT,
+             "five-module-qualification.json"),
+        ):
+            record[key] = {"reference_source_commit": reference, "report_path": "scientific/" + report,
+                           "report_sha256": "d" * 64, "runtime_image": "sha256:" + "e" * 64}
+        changes = [fixture.fixture.change(path) for path in sorted(acceptance.NEWPAT_BRANDING_FILES)]
+        with self.assertRaisesRegex(ValueError, "exact baseline-to-candidate"):
+            acceptance.verify_baseline(record, fixture.fixture.read_source)
+        record["reviewed_source_changes"] = changes
+        checked = acceptance.verify_baseline(record, fixture.fixture.read_source)
+        self.assertEqual(checked["reviewed_source_changes"], changes)
+        record["reviewed_source_changes"][0]["after_sha256"] = "f" * 64
+        with self.assertRaisesRegex(ValueError, "exact baseline-to-candidate"):
+            acceptance.verify_baseline(record, fixture.fixture.read_source)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import re
 import textwrap
+import tomllib
 import unittest
 from unittest import mock
 
@@ -44,6 +45,28 @@ class OfficialDeliveryTests(unittest.TestCase):
                     "refs/heads/release/0.8.5evil", "refs/heads/feature/0.8.5-performance-diagnostics"):
             with self.subTest(ref=ref), self.assertRaises(ValueError):
                 source.validate_dispatch("workflow_dispatch", ref, "0.8.5", source.PROFILE)
+
+    def test_newpat_brand_starts_at_095_without_changing_installation_identity(self):
+        for version in ("0.8.2", "0.8.99", "0.9.0", "0.9.1", "0.9.4", "0.9.5", "0.9.6"):
+            expected = source.NEWPAT_PROFILE if tuple(map(int, version.split("."))) >= (0, 9, 5) else source.PROFILE
+            other = source.PROFILE if expected is source.NEWPAT_PROFILE else source.NEWPAT_PROFILE
+            for ref in ("refs/heads/main", f"refs/heads/release/{version}"):
+                with self.subTest(version=version, ref=ref):
+                    source.validate_dispatch("workflow_dispatch", ref, version, expected)
+                    with self.assertRaises(ValueError):
+                        source.validate_dispatch("workflow_dispatch", ref, version, other)
+        for key, value in source.NEWPAT_PROFILE.items():
+            with self.subTest(field=key), self.assertRaises(ValueError):
+                source.validate_dispatch("workflow_dispatch", "refs/heads/main", "0.9.5",
+                                         dict(source.NEWPAT_PROFILE, **{key: f"different-{value}"}))
+
+    def test_actual_checkout_profile_passes_official_candidate_preflight(self):
+        project = Path(__file__).resolve().parents[2]
+        version = tomllib.loads((project / "pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
+        profile = json.loads((project / "installer/windows/install-profile.json").read_text(encoding="utf-8"))
+        for ref in ("refs/heads/main", f"refs/heads/release/{version}"):
+            with self.subTest(ref=ref):
+                source.validate_dispatch("workflow_dispatch", ref, version, profile)
 
     def test_candidate_summary_reuses_original_package_artifacts(self):
         record = {"publication_authorized": False}
