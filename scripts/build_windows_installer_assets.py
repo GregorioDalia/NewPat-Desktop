@@ -34,7 +34,7 @@ APPLICATION_FILES_NAME = "application-files.json"
 RUNTIME_INCLUDE_NAME = "runtime-assets.iss"
 PROFILE_INCLUDE_NAME = "install-profile.iss"
 PROFILE_PATH = Path("installer/windows/install-profile.json")
-# This guard excludes experimental and legacy installation identities.
+# New installer inputs exclude experimental and legacy installation identities.
 # The JSON is the shared input for PowerShell, generated Inno directives and metadata.
 EXPECTED_INSTALLATION_PROFILE = {
     "schema_version": 1,
@@ -270,13 +270,18 @@ def validate_manifest(manifest: dict) -> None:
     version = manifest.get("version", "")
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:a[0-9]+|b[0-9]+|rc[0-9]+)?", version):
         raise ValueError("Versione nel manifest non valida.")
-    # Published pre-0.5 archives remain verifiable. This compatibility is read-only:
-    # every WSL staging/include writer below independently requires the NewPat profile.
-    major_minor = tuple(int(part) for part in version.split(".")[:2])
+    # Historical archives remain verifiable for component reuse. Compatibility
+    # is read-only: every staging/include writer independently requires NewPat.
+    components = tuple(map(int, re.match(r"([0-9]+)\.([0-9]+)\.([0-9]+)", version).groups()))
+    major_minor = components[:2]
     if major_minor == (0, 5):
         raise ValueError("Gli installer Preview 0.5 non appartengono al canale NewPat.")
     if major_minor >= (0, 5) or "installation_profile" in manifest:
-        validate_installation_profile(manifest.get("installation_profile"))
+        profile = manifest.get("installation_profile")
+        legacy = dict(EXPECTED_INSTALLATION_PROFILE, display_name="NIPAT Desktop")
+        if components < (0, 9, 5) and type(profile) is dict and profile == legacy:
+            profile = dict(profile, display_name="NewPat")
+        validate_installation_profile(profile)
     tag = manifest.get("release_tag")
     if tag != f"v{version}":
         raise ValueError("Release tag diverso dalla versione del manifest.")
