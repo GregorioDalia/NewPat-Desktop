@@ -16,6 +16,7 @@ from pathlib import Path
 import shutil
 import sys
 import tempfile
+import time
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "src"), str(ROOT / "tests")]
@@ -99,6 +100,40 @@ READS = """() => {
 }"""
 
 
+class BrowserProbe:
+    """Read the page through DevTools without weakening its production CSP.
+
+    Playwright's wait_for_function uses eval inside the main world. NIPAT
+    deliberately forbids unsafe-eval there. DevTools evaluates only these test
+    expressions; ordinary scripts, requests and CSP remain unchanged.
+    """
+
+    def __init__(self, page):
+        self.page = page
+        self.session = page.context.new_cdp_session(page)
+
+    def evaluate(self, expression):
+        expression = expression.strip()
+        if expression.startswith("() =>"):
+            expression = "(" + expression + ")()"
+        result = self.session.send("Runtime.evaluate", {
+            "expression": expression, "returnByValue": True, "awaitPromise": True,
+            "allowUnsafeEvalBlockedByCSP": True,
+        })
+        if result.get("exceptionDetails"):
+            details = result["exceptionDetails"]
+            raise AssertionError(details.get("exception", {}).get("description") or details.get("text"))
+        return result["result"].get("value")
+
+    def wait(self, expression, timeout=30):
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if self.evaluate(expression):
+                return
+            self.page.wait_for_timeout(100)
+        raise AssertionError("Timed out waiting for UI condition: " + expression[:200])
+
+
 def run_verification(report_path, executable):
     from playwright.sync_api import sync_playwright
 
@@ -127,6 +162,7 @@ def run_verification(report_path, executable):
                 evidence["browser_version"] = browser.version
                 page = browser.new_page(viewport={"width": 1440, "height": 1080}, device_scale_factor=1)
                 page.set_default_timeout(30000)
+                probe = BrowserProbe(page)
                 def capture_failure():
                     if evidence["status"] != "passed":
                         try:
@@ -144,25 +180,25 @@ def run_verification(report_path, executable):
                         evidence["errors"].append(message.text)
                 page.on("console", console_message)
                 page.goto(app.server.url)
-                page.wait_for_function("document.documentElement.dataset.nipatReady==='true'")
+                probe.wait("document.documentElement.dataset.nipatReady==='true'")
                 check(page.locator("#version").inner_text().startswith(__version__), "Displayed application version matches source")
                 page.locator('[data-action="navigate"][data-view="activity"]').click()
                 page.wait_for_selector('[data-job-card] .dna-rung')
                 check(page.locator('.dna-rung').count() == 10, "Recognizable DNA helix contains ten rungs")
-                page.evaluate("window.__qaDna=document.querySelector('.dna-loader');window.__qaAnimation=window.__qaDna.querySelector('.dna-rung').getAnimations()[0]")
-                progress = page.locator('.progress-track span').evaluate("node=>({inline:node.style.width,width:node.getBoundingClientRect().width})")
+                probe.evaluate("window.__qaDna=document.querySelector('.dna-loader');window.__qaAnimation=window.__qaDna.querySelector('.dna-rung').getAnimations()[0]")
+                progress = probe.evaluate("() => {const node=document.querySelector('.progress-track span');return {inline:node.style.width,width:node.getBoundingClientRect().width}}")
                 check(not progress["inline"] and progress["width"] > 0, "Unknown progress band is visible without zero-width override")
-                page.wait_for_function("window.__qaAnimation && window.__qaAnimation.currentTime>1800")
-                check(page.evaluate("window.__qaDna===document.querySelector('.dna-loader')&&window.__qaAnimation===document.querySelector('.dna-rung').getAnimations()[0]"), "Polling preserves the live DNA node and running animation")
+                probe.wait("window.__qaAnimation && window.__qaAnimation.currentTime>1800")
+                check(probe.evaluate("window.__qaDna===document.querySelector('.dna-loader')&&window.__qaAnimation===document.querySelector('.dna-rung').getAnimations()[0]"), "Polling preserves the live DNA node and running animation")
                 with job.lock:
                     job.progress = {"phase": "pileup", "completed": 1, "total": 4, "workflow": "dnp-call"}
-                page.wait_for_function("document.querySelector('.progress-track').getAttribute('aria-valuenow')==='25'")
-                check(page.evaluate("window.__qaDna===document.querySelector('.dna-loader')"), "Measured phase progress updates without remounting DNA")
+                probe.wait("document.querySelector('.progress-track').getAttribute('aria-valuenow')==='25'")
+                check(probe.evaluate("window.__qaDna===document.querySelector('.dna-loader')"), "Measured phase progress updates without remounting DNA")
                 activity = report_path.parent / "activity.png"
                 page.screenshot(path=str(activity), full_page=True)
                 evidence["screenshots"].append(activity.name)
                 page.emulate_media(reduced_motion="reduce")
-                check(page.locator('.dna-rung').first.evaluate("n=>getComputedStyle(n).animationName") == "none", "Operating-system reduced-motion preference disables DNA animation")
+                check(probe.evaluate("getComputedStyle(document.querySelector('.dna-rung')).animationName") == "none", "Operating-system reduced-motion preference disables DNA animation")
                 page.emulate_media(reduced_motion="no-preference")
                 with job.lock:
                     job.status = "interrupted"
@@ -171,7 +207,7 @@ def run_verification(report_path, executable):
 
                 # Observe the real returned instance; delegate unchanged to the bundled renderer.
                 # IGV 3.8.9 does not export a browser-inventory function.
-                page.evaluate("""() => {const create=window.igv.createBrowser;window.igv.createBrowser=async function(...args){const instance=await create.apply(this,args);window.__qaIgv=instance;return instance}}""")
+                probe.evaluate("""() => {const create=window.igv.createBrowser;window.igv.createBrowser=async function(...args){const instance=await create.apply(this,args);window.__qaIgv=instance;return instance}}""")
                 page.locator('[data-action="navigate"][data-view="igv"]').click()
                 picker.paths = [Path(selection["reference"]["fasta"])]
                 page.locator('[data-action="choose-path"][data-key="igv-reference.fasta"]').click()
@@ -179,41 +215,41 @@ def run_verification(report_path, executable):
                 picker.paths = [Path(selection["tracks"][0]["path"])]
                 page.locator('[data-action="choose-path"][data-key="igv-track.0.path"]').click()
                 page.locator('[data-action="igv-load"]').click()
-                page.wait_for_function("window.NipatApp.state.igv.loaded")
-                discovered = page.evaluate("({reference:NipatApp.state.igv.reference,tracks:NipatApp.state.igv.tracks})")
+                probe.wait("window.NipatApp.state.igv.loaded")
+                discovered = probe.evaluate("({reference:NipatApp.state.igv.reference,tracks:NipatApp.state.igv.tracks})")
                 check(discovered["reference"]["index"].endswith(".fa.fai") and discovered["tracks"][0]["index"].endswith(".bam.bai"), "Reference and BAM indices discovered through actual backend")
                 check(page.locator('#igv-chromosome').input_value() == "all", "Initial custom navigation shows whole-genome overview")
-                check(page.locator('#igv-container .igv-navbar-genomic-location').evaluate_all("nodes=>nodes.every(n=>getComputedStyle(n).display==='none')"), "Duplicate native locus controls are hidden")
+                check(probe.evaluate("[...document.querySelectorAll('#igv-container .igv-navbar-genomic-location')].every(n=>getComputedStyle(n).display==='none')"), "Duplicate native locus controls are hidden")
                 check(page.get_by_text("Select Tracks", exact=True).is_visible(), "IGV track display tools remain available")
                 page.locator('#igv-chromosome').select_option('1')
-                page.wait_for_function("NipatIGV.getNavigation().chromosome==='1'")
+                probe.wait("NipatIGV.getNavigation().chromosome==='1'")
                 page.locator('#igv-locus').fill(selection["locus"])
                 page.locator('[data-action="igv-search"]').click()
-                page.wait_for_function("NipatIGV.getNavigation().start===80&&NipatIGV.getNavigation().end===260")
-                page.wait_for_function("(" + READS + ")()?.reads.length===20")
-                observed = page.evaluate(READS)
+                probe.wait("NipatIGV.getNavigation().start===80&&NipatIGV.getNavigation().end===260")
+                probe.wait("(" + READS + ")()?.reads.length===20")
+                observed = probe.evaluate(READS)
                 expected = json.loads((directory / "data/fixture.json").read_text())["expected_reads"]
                 check(sorted(observed["reads"], key=lambda read: read["name"]) == expected, "Bundled IGV decodes all twenty expected alignments with exact names, positions and lengths")
                 check(observed["canvas"] and observed["colouredPixels"] > 100, "Alignment viewport paints nonempty graphical content")
                 evidence["alignment_evidence"] = observed
-                covered = page.evaluate("NipatIGV.getNavigation()")
+                covered = probe.evaluate("NipatIGV.getNavigation()")
                 page.locator('[data-action="igv-zoom-in"]').click()
-                page.wait_for_function("NipatIGV.getNavigation().end-NipatIGV.getNavigation().start<180")
-                check(page.locator('#igv-locus').input_value() == page.evaluate("NipatIGV.getNavigation().locus"), "Zoom synchronizes the visible location field")
+                probe.wait("NipatIGV.getNavigation().end-NipatIGV.getNavigation().start<180")
+                check(page.locator('#igv-locus').input_value() == probe.evaluate("NipatIGV.getNavigation().locus"), "Zoom synchronizes the visible location field")
                 page.locator('[data-action="igv-back"]').click()
-                page.wait_for_function("NipatIGV.getNavigation().start===80&&NipatIGV.getNavigation().end===260")
+                probe.wait("NipatIGV.getNavigation().start===80&&NipatIGV.getNavigation().end===260")
                 check(page.locator('#igv-locus').input_value() == covered["locus"], "Previous-region control restores the covered interval")
-                before_invalid = page.evaluate("NipatIGV.getNavigation().locus")
+                before_invalid = probe.evaluate("NipatIGV.getNavigation().locus")
                 page.locator('#igv-locus').fill('23')
                 page.locator('[data-action="igv-search"]').click()
-                page.wait_for_function("document.querySelector('#toast').textContent.includes('regione non è disponibile')")
-                check(page.evaluate("NipatIGV.getNavigation().locus") == before_invalid, "Invalid chromosome 23 gives a clear error without moving the viewer")
+                probe.wait("document.querySelector('#toast').textContent.includes('regione non è disponibile')")
+                check(probe.evaluate("NipatIGV.getNavigation().locus") == before_invalid, "Invalid chromosome 23 gives a clear error without moving the viewer")
                 page.locator('[data-action="igv-all"]').click()
-                page.wait_for_function("NipatIGV.getNavigation().wholeGenome")
+                probe.wait("NipatIGV.getNavigation().wholeGenome")
                 check(page.locator('#igv-locus').input_value() == 'all', "Whole-genome button restores and synchronizes overview")
                 page.locator('[data-action="igv-back"]').click()
-                page.wait_for_function("NipatIGV.getNavigation().start===80")
-                page.wait_for_function("!document.querySelector('#toast').classList.contains('visible')")
+                probe.wait("NipatIGV.getNavigation().start===80")
+                probe.wait("!document.querySelector('#toast').classList.contains('visible')")
                 igv = report_path.parent / "igv-alignments.png"
                 page.screenshot(path=str(igv), full_page=True)
                 evidence["screenshots"].append(igv.name)
@@ -222,14 +258,14 @@ def run_verification(report_path, executable):
                 page.locator('[data-action="open-run"][data-id="archived-ui-fixture"]').click()
                 page.wait_for_selector('[data-action="reuse-run"]')
                 page.locator('[data-action="reuse-run"]').first.click()
-                page.wait_for_function("NipatApp.state.view==='new'")
-                reused = page.evaluate("NipatApp.state.draft")
+                probe.wait("NipatApp.state.view==='new'")
+                reused = probe.evaluate("NipatApp.state.draft")
                 check(reused["samples"][0]["path"] == selection["tracks"][0]["path"] and reused["reference"] == selection["reference"]["fasta"], "Run again opens original recorded input selections")
                 page.locator('[data-action="navigate"][data-view="archive"]').click()
                 page.locator('[data-action="remove-run"][data-id="archived-ui-fixture"]').click()
                 check('file di input resteranno' in page.locator('[role="dialog"]').inner_text(), "Removal confirmation explains source and result preservation")
                 page.locator('[data-action="confirm-remove-run"]').click()
-                page.wait_for_function("!NipatApp.state.runs.some(run=>run.id==='archived-ui-fixture')")
+                probe.wait("!NipatApp.state.runs.some(run=>run.id==='archived-ui-fixture')")
                 check(archived.is_dir() and digest_files(preserved) == before, "Remove from list preserves every source, index, result and metadata byte")
                 check(not evidence["external_requests"], "All browser resources and genomic byte ranges stay on the local service")
                 check(not evidence["errors"], "No JavaScript exceptions or unexpected browser console errors")
