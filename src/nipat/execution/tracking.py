@@ -15,6 +15,7 @@ from typing import Any, Callable
 
 from nipat import __version__
 from nipat.errors import ValidationError
+from nipat.processes import background_process_options
 
 HASH_LIMIT_BYTES = 16 * 1024 * 1024
 MAX_RUN_METADATA_BYTES = 32 * 1024 * 1024
@@ -111,10 +112,12 @@ def project_evidence(project: Path) -> dict[str, Any]:
             head = subprocess.run(
                 ["git", "rev-parse", "HEAD"], cwd=project, check=True,
                 capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10,
+                **background_process_options(),
             ).stdout.strip()
             status = subprocess.run(
                 ["git", "status", "--porcelain"], cwd=project, check=True,
                 capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10,
+                **background_process_options(),
             ).stdout
             result["git"] = {"commit": head, "dirty": bool(status.strip())}
         except (OSError, subprocess.SubprocessError):

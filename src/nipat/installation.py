@@ -11,6 +11,7 @@ import uuid
 
 from nipat.activity import _safe_parent
 from nipat.errors import NipatError
+from nipat.processes import background_process_options
 
 MAX_INVENTORY_BYTES = 2 * 1024 * 1024
 
@@ -44,7 +45,7 @@ def installation_inventory(project: Path) -> dict:
                 "warnings": []}
     try:
         result = subprocess.run(_command(project, "inventory"), capture_output=True,
-                                check=False, timeout=180)
+                                check=False, timeout=180, **background_process_options())
         if result.returncode:
             detail = result.stderr.decode("utf-8", errors="replace").strip()
             raise NipatError("Inventario di installazione non disponibile: " + detail[:2000])

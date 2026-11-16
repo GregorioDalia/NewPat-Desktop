@@ -1,4 +1,4 @@
-param([string] $BundleDirectory = '', [string] $InstallRoot = '', [switch] $Resume, [switch] $VerifyOnly)
+param([string] $BundleDirectory = '', [string] $InstallRoot = '', [switch] $Resume, [switch] $VerifyOnly, [switch] $OpenWhenReady)
 
 . (Join-Path $PSScriptRoot 'zip-common.ps1')
 . (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) 'scripts\windows\common.ps1')
@@ -26,7 +26,7 @@ try {
             }
         }
         if ($VerifyOnly) { Write-Host 'PASS: ZIP completo verificato; nessuna installazione eseguita.'; exit 0 }
-        $root = Get-NipatZipInstallRoot $bundle $InstallRoot
+        $root = Get-NipatZipInstallRoot $bundle $InstallRoot -AllowNew
         $project = Get-NipatZipProject $root $manifest.version $manifest.source_commit
         $pointer = [pscustomobject][ordered]@{ schema_version = 1; version = $manifest.version; source_commit = $manifest.source_commit; app_dir = $project }
         $layout = [pscustomobject][ordered]@{
@@ -78,10 +78,10 @@ try {
     if ($result -eq 0) {
         Complete-NipatZipActivation $root $pointer
         Set-NipatZipShortcuts $root $project
-        Write-Host ('NIPAT Desktop ZIP pronto. Aprire ' + (Join-Path $root '2_AVVIA.cmd'))
+        Write-Host ('NIPAT Desktop ZIP pronto. Aprire ' + (Join-Path $root 'NIPAT.lnk'))
         Write-Host "Dati e risultati: $root"
     } elseif ($result -eq 3010) {
-        Write-Host ('Dopo il riavvio aprire ' + (Join-Path $root '1_COMPLETA_PREPARAZIONE.cmd'))
+        Write-Host ('Dopo il riavvio aprire ' + (Join-Path $root 'NIPAT.lnk') + ' per completare automaticamente la preparazione.')
     } else {
         throw "Preparazione ZIP non completata (codice $result). La precedente versione attiva resta selezionata. Diagnostica: $project\.runtime\installer\setup.log"
     }
@@ -89,4 +89,8 @@ try {
     $result = 1
     Write-Host ('ERRORE: ' + $_.Exception.Message) -ForegroundColor Red
 } finally { if ($null -ne $lease) { Exit-NipatInstallationActivity $lease } }
+if ($result -eq 0 -and $OpenWhenReady) {
+    & (Join-Path $project 'scripts\windows\run.ps1') gui
+    $result = $LASTEXITCODE
+}
 exit $result

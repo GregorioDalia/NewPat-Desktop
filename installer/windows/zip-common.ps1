@@ -23,9 +23,12 @@ function Get-NipatZipRoot([string] $Project = '') {
     return $root
 }
 
-function Get-NipatZipInstallRoot([string] $Bundle, [string] $RequestedRoot) {
+function Get-NipatZipInstallRoot([string] $Bundle, [string] $RequestedRoot, [switch] $AllowNew) {
     if ($RequestedRoot) {
         $root = Resolve-NipatInstallPath $RequestedRoot
+        Assert-NipatInstallPathWithoutLinks $root
+        if ($AllowNew -and (-not (Test-Path -LiteralPath $root) -or
+            @(Get-ChildItem -LiteralPath $root -Force).Count -eq 0)) { return $root }
         Assert-NipatZipRoot $root
         return $root
     }
@@ -119,7 +122,8 @@ function Write-NipatZipOwnership([string] $Directory, [string] $Role) {
 }
 
 function Set-NipatZipShortcuts([string] $Root, [string] $Project) {
-    # Local CMD launchers use relative paths. No Start menu entry or COM helper.
+    # Keep the diagnostic CMD entrypoints for compatibility. The normal app
+    # shortcut hides the bridge and opens the console-free Python host.
     Assert-NipatZipRoot $Root
     $launchProject = $Project
     if (Test-Path -LiteralPath (Join-Path $Root 'current.json')) {
@@ -144,6 +148,41 @@ function Set-NipatZipShortcuts([string] $Root, [string] $Project) {
             if ([IO.File]::Exists($path)) { [IO.File]::Replace($temporary, $path, [NullString]::Value) }
             else { [IO.File]::Move($temporary, $path) }
         } finally { if ([IO.File]::Exists($temporary)) { [IO.File]::Delete($temporary) } }
+    }
+    $shortcutProject = if (Test-Path -LiteralPath (Join-Path $Root 'pending.json')) { $Project } else { $launchProject }
+    $shortcuts = @((Join-Path $Root 'NIPAT.lnk'))
+    $testingMarker = Join-Path $Root 'testing.json'
+    if (Test-Path -LiteralPath $testingMarker -PathType Leaf) {
+        Assert-NipatActivityPathWithoutLinks $testingMarker
+        $testing = Get-Content -LiteralPath $testingMarker -Raw -Encoding UTF8 | ConvertFrom-Json
+        if (@($testing.PSObject.Properties).Count -ne 2 -or $testing.schema_version -ne 1 -or $testing.channel -cne 'testing') {
+            throw 'Identita del collegamento Testing non valida.'
+        }
+        $desktop = [Environment]::GetFolderPath('DesktopDirectory')
+        $programs = [Environment]::GetFolderPath('Programs')
+        foreach ($directory in @($desktop, $programs)) {
+            if ($directory) {
+                $shortcuts += (Join-Path $directory 'NIPAT Testing.lnk')
+            }
+        }
+    }
+    $shell = New-Object -ComObject WScript.Shell
+    foreach ($path in $shortcuts) {
+        try {
+            Assert-NipatActivityPathWithoutLinks $path
+            [IO.Directory]::CreateDirectory((Split-Path -Parent $path)) | Out-Null
+            $link = $shell.CreateShortcut($path)
+            $link.TargetPath = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
+            $link.Arguments = '-NoLogo -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + (Join-Path $shortcutProject 'installer\windows\zip-entry.ps1') + '" -Mode auto'
+            $link.WorkingDirectory = $Root
+            $link.IconLocation = (Join-Path $shortcutProject 'assets\branding\nipat-icon.ico') + ',0'
+            $link.Description = 'Apri NIPAT o completa automaticamente la preparazione dopo un riavvio.'
+            $link.Save()
+        } catch {
+            if ($path -ieq (Join-Path $Root 'NIPAT.lnk')) { throw }
+            # A redirected/readonly Desktop must not break a ready installation.
+            Write-Warning ('Collegamento non creato: ' + $path + '. Usa NIPAT.lnk nella cartella dell app oppure lo stesso file di installazione. ' + $_.Exception.Message)
+        }
     }
 }
 

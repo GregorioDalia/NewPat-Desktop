@@ -1,6 +1,7 @@
 # No named PowerShell parameters: preserve all CLI flags, including --data-dir/--runs-dir.
 # Keep the caller's working directory so Python resolves relative CLI paths there.
 $nipatCliArguments = @($args)
+$nipatGuiLaunch = $nipatCliArguments.Count -eq 1 -and $nipatCliArguments[0] -ceq 'gui'
 . (Join-Path $PSScriptRoot "common.ps1")
 try {
     $project = Get-NipatProject
@@ -25,9 +26,26 @@ try {
         throw "Python NIPAT non disponibile. Per l'applicazione installata riaprire NIPAT Desktop - completa preparazione dal menu Start; per il sorgente configurare WSL e avviare 1_SETUP.cmd."
     }
     if ($nipatCliArguments.Count -eq 0) { $nipatCliArguments = @("--help") }
+    if ($nipatGuiLaunch) {
+        # pythonw is the signed, console-free interpreter from the same verified
+        # embedded Python archive. Keep CLI/smoke commands synchronous on python.
+        $windowedPython = Join-Path (Split-Path -Parent $python) 'pythonw.exe'
+        $guiLauncher = Join-Path $PSScriptRoot 'gui-launch.py'
+        if (-not (Test-Path -LiteralPath $windowedPython -PathType Leaf) -or
+            -not (Test-Path -LiteralPath $guiLauncher -PathType Leaf)) {
+            throw 'Avvio grafico incompleto. Riaprire la preparazione di NIPAT.'
+        }
+        Start-Process -FilePath $windowedPython -ArgumentList ('"' + $guiLauncher + '"') -WorkingDirectory $project | Out-Null
+        exit 0
+    }
     & $python -m nipat @nipatCliArguments
     exit $LASTEXITCODE
 } catch {
     Write-Host ("ERRORE: " + $_.Exception.Message) -ForegroundColor Red
+    if ($nipatGuiLaunch -and -not [Console]::IsOutputRedirected) {
+        # The normal desktop shortcut deliberately has no terminal. Retain an
+        # actionable error dialog if readiness checks fail before Python starts.
+        try { (New-Object -ComObject WScript.Shell).Popup($_.Exception.Message, 0, 'NIPAT - avvio non riuscito', 16) | Out-Null } catch { }
+    }
     exit 1
 }

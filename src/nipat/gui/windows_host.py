@@ -49,6 +49,11 @@ WM_MOVE, WM_TIMER, WM_GETMINMAXINFO, WM_DPICHANGED = 3, 275, 36, 736
 WM_DISPATCH = 0x8001
 ERROR_CANCELLED_HRESULT = 0x800704C7
 IID_IUNKNOWN = "00000000-0000-0000-c000-000000000046"
+APP_USER_MODEL_ID = "NIPAT.Desktop"
+
+
+def application_icon() -> Path:
+    return Path(__file__).resolve().parents[3] / "assets" / "branding" / "nipat-icon.ico"
 
 
 class NativeHostError(RuntimeError):
@@ -319,6 +324,7 @@ class _Window:
         self.page_loaded = False
         self.smoke_requested = False
         self.smoke_result = None
+        self.icons = []
         self.class_name = "NIPATDesktop_" + uuid.uuid4().hex
         self.user = C.WinDLL("user32", use_last_error=True)
         self.kernel = C.WinDLL("kernel32", use_last_error=True)
@@ -346,6 +352,8 @@ class _Window:
         api(self.user, "PostQuitMessage", None, C.c_int)
         api(self.user, "PostMessageW", BOOL, HWND, UINT, WPARAM, LPARAM)
         api(self.user, "LoadCursorW", PTR, PTR, PTR)
+        api(self.user, "LoadImageW", PTR, PTR, C.c_wchar_p, UINT, C.c_int, C.c_int, UINT)
+        api(self.user, "DestroyIcon", BOOL, PTR)
         api(self.user, "GetSystemMetrics", C.c_int, C.c_int)
         api(self.user, "MoveWindow", BOOL, HWND, C.c_int, C.c_int, C.c_int, C.c_int, BOOL)
         api(self.user, "SetWindowPos", BOOL, HWND, HWND, C.c_int, C.c_int, C.c_int, C.c_int, UINT)
@@ -458,6 +466,13 @@ class _Window:
     def _create_window(self):
         _check(self.ole.CoInitializeEx(None, 2), "Inizializzazione dell’interfaccia Windows")
         self.com_initialized = True
+        # A pythonw host must identify the actual application before creating
+        # its window, otherwise Explorer groups it under Python's taskbar icon.
+        shell = C.WinDLL("shell32", use_last_error=True)
+        shell.SetCurrentProcessExplicitAppUserModelID.argtypes = (C.c_wchar_p,)
+        shell.SetCurrentProcessExplicitAppUserModelID.restype = HRESULT
+        _check(shell.SetCurrentProcessExplicitAppUserModelID(APP_USER_MODEL_ID),
+               "Identità dell’applicazione NIPAT")
         try:
             dpi = self.user.SetProcessDpiAwarenessContext
             dpi.argtypes, dpi.restype = (PTR,), BOOL
@@ -470,6 +485,14 @@ class _Window:
         klass.cbSize, klass.style = C.sizeof(klass), 3
         klass.lpfnWndProc, klass.hInstance = self.wndproc, self.instance
         klass.hCursor = self.user.LoadCursorW(None, PTR(32512))
+        icon_path = application_icon()
+        if icon_path.is_file():
+            for size in (32, 16):
+                icon = self.user.LoadImageW(None, str(icon_path), 1, size, size, 0x10)
+                if not icon:
+                    raise C.WinError(C.get_last_error())
+                self.icons.append(icon)
+            klass.hIcon, klass.hIconSm = self.icons
         klass.hbrBackground, klass.lpszClassName = PTR(6), self.class_name
         if not self.user.RegisterClassExW(C.byref(klass)):
             raise C.WinError(C.get_last_error())
@@ -641,7 +664,8 @@ class _Window:
             return
         if not isinstance(data, dict) or not data.get("nativeWebView") or not data.get("bodyText"):
             raise NativeHostError("La verifica della finestra desktop non è riuscita.")
-        data.update(status="passed", host="win32-webview2", runtime_version=self.runtime_version)
+        data.update(status="passed", host="win32-webview2", runtime_version=self.runtime_version,
+                    app_user_model_id=APP_USER_MODEL_ID, application_icon_loaded=len(self.icons) == 2)
         if self.screenshot_path:
             self.capture_png(Path(self.screenshot_path))
             data["screenshot"] = str(self.screenshot_path)
@@ -801,6 +825,8 @@ class _Window:
             _release(self.controller)
             _release(self.environment)
             self.user.UnregisterClassW(self.class_name, getattr(self, "instance", None))
+            for icon in self.icons:
+                self.user.DestroyIcon(icon)
             if self.com_initialized:
                 self.ole.CoUninitialize()
             for callback in self.callbacks:

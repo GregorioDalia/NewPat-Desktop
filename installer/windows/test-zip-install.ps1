@@ -156,9 +156,12 @@ exit 1
     [IO.Directory]::Move(($assets + '-removed'), $assets)
     Assert-Test ((Read-NipatZipPointer $root).version -ceq '0.8.99') 'first ready installation activated'
     Assert-Test ((Get-NipatZipRoot (Read-NipatZipPointer $root).app_dir) -ceq $root) 'local root persisted in installed marker'
-    foreach ($launcher in @('2_AVVIA.cmd', '1_COMPLETA_PREPARAZIONE.cmd')) {
+    foreach ($launcher in @('2_AVVIA.cmd', '1_COMPLETA_PREPARAZIONE.cmd', 'NIPAT.lnk')) {
         Assert-Test (Test-Path -LiteralPath (Join-Path $root $launcher)) ("local launcher created: $launcher")
     }
+    $appShortcut = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path $root 'NIPAT.lnk'))
+    Assert-Test ($appShortcut.TargetPath -ieq $powershell) 'normal shortcut uses the system PowerShell interpreter'
+    Assert-Test ($appShortcut.Arguments.Contains('-WindowStyle Hidden') -and $appShortcut.Arguments.EndsWith('-Mode auto')) 'normal shortcut hides the bridge and selects automatic setup/launch'
     [IO.Directory]::CreateDirectory((Join-Path $root 'data')) | Out-Null
     [IO.File]::WriteAllText((Join-Path $root 'data\preserve.txt'), 'research data')
     $bundle = Join-Path $temporary 'next separate extraction'
@@ -179,6 +182,8 @@ exit 1
     & $powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $pending.app_dir 'installer/windows/install-zip.ps1') -Resume
     Assert-Test ($LASTEXITCODE -eq 0 -and (Read-NipatZipPointer $root).version -ceq '0.9.0') 'successful upgrade activates the new app directory'
     Assert-Test ((Get-Content -LiteralPath (Join-Path $root '2_AVVIA.cmd') -Raw).Contains('0.9.0-' + ('b' * 40))) 'successful upgrade refreshes local launcher'
+    $appShortcut = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path $root 'NIPAT.lnk'))
+    Assert-Test ($appShortcut.Arguments.Contains('0.9.0-' + ('b' * 40))) 'app shortcut follows the activated version'
     Assert-Test ([IO.File]::ReadAllText((Join-Path $root 'data\preserve.txt')) -ceq 'research data') 'update retains research data'
 } finally {
     $env:LOCALAPPDATA = $oldLocal

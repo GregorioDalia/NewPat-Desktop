@@ -14,6 +14,7 @@ import tempfile
 from typing import Any
 
 from nipat.errors import RuntimeExecutionError, ValidationError
+from nipat.processes import background_process_options
 from nipat.execution.tracking import read_run_metadata, read_run_status, utc_now
 
 
@@ -57,7 +58,7 @@ def _inspect(runner, name: str) -> dict[str, Any]:
             runner._transport.command(command, runner._environment()),
             env=runner._environment(), capture_output=True, text=True,
             encoding="utf-8", errors="replace", timeout=20, check=False,
-            stdin=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL, **background_process_options(),
         )
         if result.returncode:
             missing = any(text in result.stderr.lower()
