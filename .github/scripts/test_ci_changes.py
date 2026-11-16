@@ -191,6 +191,7 @@ class ScientificSelection(unittest.TestCase):
             ".github/scripts/test_scientific_reuse.py",
             ".github/scripts/test_scientific_reuse_workflows.py",
             "scripts/verify_r_equivalence.py",
+            "scripts/scientific_worker_evidence.py",
             "tests/test_r_equivalence.py",
             "tests/reference_r/0.8.5/manifest.json",
             "tests/reference_r/0.8.5/scientific/vendor/DNPcall/DNPcall.R",

@@ -274,7 +274,7 @@ def check_snp_execution_policy(run: Path, state: dict, *, options: ExecutionOpti
             raise ValueError("SNP sample admission evidence is missing, inconsistent, or launched outer workers.")
     inner = {}
     if require_inner:
-        from verify_r_equivalence import verify_parallel_execution
+        from scientific_worker_evidence import verify_parallel_execution
 
         steps = [step for step in state["steps"] if step["workflow"] == "snp-call"]
         if len(steps) != count or any(step["status"] != "succeeded" for step in steps):
