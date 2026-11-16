@@ -14,6 +14,7 @@ PROFILE = {
     "mutex_prefix": "Local\\NIPAT-Desktop-Setup-",
     "app_id": "6B1702B6-F75C-4F8C-956F-86626C60AF45",
 }
+NEWPAT_PROFILE = dict(PROFILE, display_name="NewPat")
 
 
 def validate_dispatch(event, ref, version, profile):
@@ -25,7 +26,8 @@ def validate_dispatch(event, ref, version, profile):
     if ref != "refs/heads/main" and not re.fullmatch(
             r"refs/heads/release/" + re.escape(version) + r"(?:-[a-z0-9-]+)?", ref):
         raise ValueError("Build main or a release branch matching the package version.")
-    if profile != PROFILE:
+    expected_profile = NEWPAT_PROFILE if tuple(map(int, version.split("."))) >= (0, 9, 5) else PROFILE
+    if profile != expected_profile:
         raise ValueError("The official build requires the Desktop installation identity.")
 
 

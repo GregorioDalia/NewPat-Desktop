@@ -1,10 +1,11 @@
-# NewPat 0.9.5 Testing — candidato in sviluppo
+# NewPat 0.9.5 Testing
 
 NewPat è il nuovo nome dell'applicazione precedentemente distribuita come
-NIPAT Desktop. La 0.9.5 è un candidato del canale **Testing**: questo documento
-descrive il lavoro della versione e non attesta la pubblicazione dei pacchetti
-o il completamento dei collaudi. La versione stabile pubblicata resta NIPAT
-0.8.99; i pacchetti e gli esiti effettivi vanno verificati nella pagina
+NIPAT Desktop. La 0.9.5 è preparata per la distribuzione di ricerca sul canale
+**Testing**, dopo il superamento dei controlli CI descritti sotto. La costruzione
+e la verifica degli installatori finali precedono la pubblicazione: queste note
+non attestano che i pacchetti siano già disponibili. La versione stabile resta
+NIPAT 0.8.99; i download e le relative evidenze saranno nella pagina
 [Releases](https://github.com/GregorioDalia/nipat-desktop/releases).
 
 ## Esperimenti e messaggi
@@ -99,21 +100,23 @@ Un setup Windows ricompilato ha una nuova identità binaria. Il comportamento
 osservato per il precedente eseguibile non costituisce una verifica del nuovo
 pacchetto con Smart App Control. Le protezioni del sistema restano attive.
 
-## Criteri prima della distribuzione
+## Verifiche eseguite
 
-1. Regressioni GUI: nuova bozza, riuso esplicito, file e richieste asincrone,
-   errori IGV, stati degli esperimenti e diagnostica.
-2. Ambiente Mac: installazione nuova e cambio di percorso/nome, proprietà
-   verificata, configurazione conservata, recupero dopo un errore e sessioni
-   concorrenti. Le simulazioni non sostituiscono la VM su un Mac reale.
-3. Budget: configurazione stabile del run, limiti e modalità seriale, gruppi
-   indivisibili e confronto numerico dei risultati tra configurazioni.
-4. Pacchetti: installazione pulita e aggiornamento da NIPAT, dati e preferenze
-   conservati, identità NewPat e compatibilità degli aggiornamenti precedenti.
-5. Evidenze legate al commit e ai pacchetti effettivi; nessuna promozione
-   automatica a stabile per il solo numero di versione.
+La [CI 43904019136](https://github.com/GregorioDalia/nipat-desktop/actions/runs/43904019136)
+è completata con esito positivo sul commit `c0cb823602d69fe4998c550b8bd5a560d659655c`.
+Sono passati tutti i controlli applicabili di Windows, Linux, macOS ARM64 e
+Intel, runtime, confezionamento e qualificazione scientifica, incluso il
+controllo finale aggregato. Le prove della finestra nativa sono riuscite con
+WebView2 su Windows, WKWebView su entrambe le architetture Mac e GTK su Linux.
 
-## Verifiche locali del candidato
+I **sette controlli scientifici** sono passati nell'immagine Docker Linux AMD64
+esatta identificata dai rapporti CI: script incorporati, etichette e risultati,
+regressioni e modalità di input, misure di prestazione e risultati DNP,
+casi limite e parametri, modelli aggiornati e confronto con i riferimenti
+immutabili. La qualificazione dei cinque moduli riporta **86 esecuzioni riuscite
+su 86**. I rapporti sono conservati negli artefatti della stessa CI; il riuso
+durante la build richiede la corrispondenza dell'albero sorgente e dell'ID
+immutabile dell'immagine scientifica.
 
 Sono stati eseguiti i test Python e JavaScript dell'applicazione, le regressioni
 simulate dei launcher e della migrazione, i controlli del budget R e i
@@ -122,7 +125,27 @@ I profili sintetici DNP da 2, 4 e 8 GiB verificano valori, identità delle
 letture e ordinamento; non misurano le prestazioni sui BAM degli utenti.
 
 I confronti R locali usano R 4.4.2 con dipendenze di test che possono differire
-da quelle dell'immagine distribuita. La CI deve verificare anche il runtime
-Docker esatto. I controlli simulati non attestano l'installazione e il
-funzionamento di Lima sui Mac M1/M3 reali, né l'accettazione dei nuovi binari
-da parte delle protezioni Windows.
+da quelle dell'immagine scientifica; la qualificazione CI nell'immagine esatta
+è registrata separatamente. Su Windows sono riuscite anche compilazione,
+installazione, aggiornamento e rimozione della fixture dell'installer,
+conservando i dati predisposti dalla prova.
+
+## Verifica dei pacchetti e prove sui dispositivi
+
+La build degli installatori lega i quattro pacchetti finali allo
+stesso commit e archivio scientifico, verificarne i contenuti e conservare i
+checksum e i rapporti. La pubblicazione richiede questa build riuscita e il
+record di accettazione corrispondente; una CI sul sorgente non sostituisce
+la verifica dei byte degli installatori.
+
+Restano da provare l'installazione finale e il funzionamento di Lima/Rosetta
+sui Mac M1/M3 reali, inclusi aggiornamento da NIPAT e recupero dell'ambiente,
+e il setup completo con WSL su Windows 10/11. I controlli Windows CI sono
+eseguiti su Windows Server 2022 e non attestano l'accettazione dei nuovi binari
+da parte di Smart App Control. Analogamente, le prove WKWebView su runner Mac
+non attestano l'accettazione Gatekeeper o l'avvio della VM sul Mac destinatario.
+
+Le prove desktop rinviate sono dichiarate nel record di accettazione della
+distribuzione pre-1.0. La valutazione scientifica sui dati reali rimane affidata
+ai ricercatori. La 0.9.5 resta sul canale **Testing** e non diventa stabile
+per il solo superamento dei controlli automatici.

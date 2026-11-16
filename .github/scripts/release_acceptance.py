@@ -107,6 +107,10 @@ BASELINE_OBSERVATIONS = {
 WORKFLOW_BASELINE_OBSERVATIONS = BASELINE_OBSERVATIONS | {"automatic_workflow_sample_analysis"}
 REVIEWABLE_CLIENT_PREFIXES = ("src/nipat/", "installer/windows/", "installer/linux/", "scripts/", "tests/")
 REVIEWABLE_CLIENT_FILES = {"pyproject.toml", "1_SETUP.cmd", "2_AVVIA.cmd", "nipat.cmd"}
+NEWPAT_BRANDING_FILES = {
+    "assets/branding/build_assets.py", "assets/branding/nipat-logo-dark.svg",
+    "assets/branding/nipat-logo.svg", "assets/branding/nipat-symbol.svg", "newpat.cmd",
+}
 REVIEWABLE_OPERATIVE_PREFIXES = (
     "src/", "engine/", "installer/", "scripts/", "tests/", "docker/", "config/",
 )
@@ -264,6 +268,12 @@ def verify_multibam_variants(case):
 
 
 def reviewable_path(path, *, reliability=False, multiplatform=False, revised_r=False, version=None):
+    # The 0.9.5 rename reviews only these distributed branding inputs. Their
+    # exact before/after hashes remain mandatory; other assets stay protected.
+    if revised_r and path in NEWPAT_BRANDING_FILES:
+        match = re.fullmatch(r"([0-9]+)\.([0-9]+)\.([0-9]+)(?:(?:a|b|rc)[0-9]+)?", version or "")
+        if match and tuple(map(int, match.groups())) >= (0, 9, 5):
+            return True
     # This known development report is distributed as readable provenance. It
     # does not qualify the image; schema 7 still requires fresh installed-image
     # evidence. Keep every other non-Markdown document outside the exception.
