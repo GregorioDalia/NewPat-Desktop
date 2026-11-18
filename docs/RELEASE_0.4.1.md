@@ -1,42 +1,16 @@
-# NIPAT CLI 0.4.1 — installazione e avvio semplificati
+# NIPAT CLI 0.4.1 — simpler installation and startup
 
-> Note storiche della versione indicata. Per installazione e utilizzo della versione corrente consultare il [README](../README.md) e la [guida per l’utilizzo](GUIDA_UTILIZZO.md).
+This Windows 11 x64 prerelease simplified Docker Desktop installation and launch. One installer and one icon handle preparation, startup and retry. Scientific algorithms were unchanged and domain validation remained open. Current instructions are in the [README](../README.md) and [user guide](GUIDA_UTILIZZO.md).
 
-Pre-release per le prove di dominio su Windows 11 x64. Questa revisione
-semplifica la distribuzione Docker Desktop: un solo installatore e la stessa
-icona per preparare l'ambiente, aprire NIPAT o riprovare dopo un errore.
-Non modifica gli algoritmi scientifici né completa la validazione di dominio.
-
-## Download e avvio
-
-| Pacchetto | Procedura |
+| Package | Procedure |
 | --- | --- |
-| [NIPAT-Setup.exe](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.4.1/NIPAT-Setup.exe) | Doppio clic per installare l'ambiente WSL dedicato; attendere `NIPAT: ready`, poi aprire l'icona **NIPAT**. Il perimetro iniziale assume WSL2 funzionante. |
-| [NIPAT-DockerDesktop-Setup.exe](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.4.1/NIPAT-DockerDesktop-Setup.exe) | Con Docker Desktop avviato in modalità Linux, installare con doppio clic e aprire **NIPAT (Docker Desktop)**. La preparazione e gli autotest precedono automaticamente il menu. |
+| [NIPAT-Setup.exe](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.4.1/NIPAT-Setup.exe) | Double-click to install the dedicated WSL environment. Wait for `NIPAT: ready`, then start **NIPAT**. This path assumes working WSL2. |
+| [NIPAT-DockerDesktop-Setup.exe](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.4.1/NIPAT-DockerDesktop-Setup.exe) | Start Docker Desktop with Linux containers, double-click to install and open **NIPAT (Docker Desktop)**. Preparation and self-tests run before the menu opens. |
 
-Entrambi sono installatori completi: non occorre estrarre archivi o eseguire
-script di preparazione separati. Docker Desktop rimane un prerequisito della
-seconda modalità. Dopo un errore di preparazione, riaprire la stessa icona
-Docker Desktop per riprovare; gli avvii successivi riutilizzano la preparazione
-completata. Le due copie possono coesistere e usano cartelle predefinite distinte.
+Both installers contain their complete payloads. The second requires Docker Desktop. After preparation fails, open its icon again to retry. Subsequent launches reuse completed preparation. Both installations can coexist in distinct default directories. The WSL installer embeds its own Linux environment. Initial WSL activation may require internet access, permission and a reboot and remained a separate test.
 
-Il percorso WSL resta quello con ambiente Linux interno incorporato nel setup.
-L'eventuale attivazione iniziale di WSL può richiedere Internet, autorizzazioni
-e riavvio e resta una prova separata.
+## Verification
 
-## Verifica dell'utilizzo
+The [versioned user guide](https://github.com/GregorioDalia/nipat-desktop/blob/v0.4.1/docs/GUIDA_UTILIZZO.md) describes the menu and four workflows. The [first Docker Desktop test](https://github.com/GregorioDalia/nipat-desktop/blob/v0.4.1/docs/VALIDAZIONE.md#prima-prova-con-docker-desktop) covers preparation and a real DNPcall → Contamination sequence, with logs and expected and observed results. Record the tested package explicitly. These notes make no claim of a new manual Windows test.
 
-La [guida per l'utilizzo](https://github.com/GregorioDalia/nipat-desktop/blob/v0.4.1/docs/GUIDA_UTILIZZO.md) descrive il menu e i quattro workflow.
-La [prima prova Docker Desktop](https://github.com/GregorioDalia/nipat-desktop/blob/v0.4.1/docs/VALIDAZIONE.md#prima-prova-con-docker-desktop)
-comprende preparazione e una sequenza reale DNPcall → Contamination, con log,
-risultati attesi e osservati. Registrare gli esiti per il pacchetto effettivamente
-utilizzato: queste note non attestano una nuova prova manuale su Windows.
-
-Il launcher continua a utilizzare PowerShell internamente. Questa revisione
-non introduce la firma del codice e non attesta il superamento di eventuali
-controlli antivirus o SmartScreen.
-
-Le [note 0.4.0](RELEASE_0.4.0.md) conservano il precedente percorso con ZIP e
-setup separato; quel percorso non è più quello ordinario di questa versione.
-Il codice originale NIPAT resta GPL-3.0-or-later, con le licenze dei componenti
-incluse nei pacchetti.
+The launcher still uses PowerShell internally. Code signing, antivirus acceptance and SmartScreen acceptance were outside this revision. The [0.4.0 notes](RELEASE_0.4.0.md) document the earlier ZIP and separate setup route. Original NIPAT code remains GPL-3.0-or-later and the packages include component licenses.

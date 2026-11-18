@@ -1,51 +1,38 @@
-# Archivio della documentazione
+# Documentation archive
 
-Questi documenti descrivono release, revisioni e prove identificabili. I relativi file restano ai loro percorsi originali per conservare le citazioni. Per installare o utilizzare NIPAT, partire dalle [guide correnti](../README.md).
+These records refer to identified releases, revisions and tests. Files retain their original paths so that older citations continue to work. For installing and using NewPat, see the [current guides](../README.md).
 
-## Note di rilascio
+## Release notes
 
-| Serie | Note |
+| Series | Records |
 | --- | --- |
-| 0.8 | [0.8.80](../RELEASE_0.8.80.md) · [0.8.70](../RELEASE_0.8.70.md) · [0.8.60](../RELEASE_0.8.60.md) · [0.8.50](../RELEASE_0.8.50.md) · [0.8.35](../RELEASE_0.8.35.md) · [0.8.30](../RELEASE_0.8.30.md) · [0.8.20](../RELEASE_0.8.20.md) · [0.8.14](../RELEASE_0.8.14.md) · [0.8.9](../RELEASE_0.8.9.md) · [0.8.5](../RELEASE_0.8.5.md) · [0.8.2](../RELEASE_0.8.2.md) · [0.8.0a1](../RELEASE_0.8.0a1.md) |
-| 0.7 e 0.6 | [0.7.2](../RELEASE_0.7.2.md) · [0.7.1](../RELEASE_0.7.1.md) · [0.7.0a1](../RELEASE_0.7.0a1.md) · [0.6.0](../RELEASE_0.6.0.md) |
-| 0.5, 0.4 e 0.3 | [0.5.0a1](../RELEASE_0.5.0a1.md) · [0.4.1](../RELEASE_0.4.1.md) · [0.4.0](../RELEASE_0.4.0.md) · [0.3.0a2](../RELEASE_0.3.0a2.md) · [0.3.0a1](../RELEASE_0.3.0a1.md) |
+| 0.9 | [0.9.7](../RELEASE_0.9.7.md) · [0.9.5](../RELEASE_0.9.5.md) · [0.9.1](../RELEASE_0.9.1.md) · [0.9.0](../RELEASE_0.9.0.md) |
+| 0.8 | [0.8.99](../RELEASE_0.8.99.md) · [0.8.95](../RELEASE_0.8.95.md) · [0.8.90](../RELEASE_0.8.90.md) · [0.8.81](../RELEASE_0.8.81.md) · [0.8.80](../RELEASE_0.8.80.md) · [0.8.70](../RELEASE_0.8.70.md) · [0.8.60](../RELEASE_0.8.60.md) · [0.8.50](../RELEASE_0.8.50.md) · [0.8.35](../RELEASE_0.8.35.md) · [0.8.30](../RELEASE_0.8.30.md) · [0.8.20](../RELEASE_0.8.20.md) · [0.8.14](../RELEASE_0.8.14.md) · [0.8.9](../RELEASE_0.8.9.md) · [0.8.5](../RELEASE_0.8.5.md) · [0.8.2](../RELEASE_0.8.2.md) · [0.8.0a1](../RELEASE_0.8.0a1.md) |
+| 0.7 and 0.6 | [0.7.2](../RELEASE_0.7.2.md) · [0.7.1](../RELEASE_0.7.1.md) · [0.7.0a1](../RELEASE_0.7.0a1.md) · [0.6.0](../RELEASE_0.6.0.md) |
+| 0.5, 0.4 and 0.3 | [0.5.0a1](../RELEASE_0.5.0a1.md) · [0.4.1](../RELEASE_0.4.1.md) · [0.4.0](../RELEASE_0.4.0.md) · [0.3.0a2](../RELEASE_0.3.0a2.md) · [0.3.0a1](../RELEASE_0.3.0a1.md) |
 
-## Audit, prove e decisioni
+## Audits, tests and decisions
 
-- Audit [0.8.60](../AUDIT_0.8.60.md), [0.8.50](../AUDIT_0.8.50.md) e [0.8.20](../AUDIT_0.8.20.md).
-- [Sviluppo 0.8.50](../DEVELOPMENT_0.8.50.md) e [collaudo dell'installazione 0.8.50](../COLLAUDO_INSTALLAZIONE_0850.md).
-- Studi sulle prestazioni: [0.8.14](../OPTIMIZATIONS_0.8.14.md), [pileup 0.8.13](../PILEUP_0.8.13.md), [parallelismo 0.8.12](../PARALLELISMO_0.8.12.md), [prototipo 0.8.10](../PROTOTYPE_0.8.10.md) e [ottimizzazioni 0.8.9](../OPTIMIZATION_0.8.9.md).
-- Rapporti strutturati: [0.8.50](../validation/0.8.50-development.json), [microbenchmark 0.8.14](../validation/0.8.14-microbenchmarks.json), [benchmark osservati 0.8.14](../validation/0.8.14-observed-benchmarks.json), prove rootless [0.8.14](../validation/0.8.14-rootless.json), [0.8.13](../validation/0.8.13-rootless.json) e [0.8.12](../validation/0.8.12-rootless.json).
-- [Record di accettazione e relativi rapporti](../../.github/release-acceptance).
-- [Decisioni iniziali](DECISIONS.md) e [piano 0.5](PIANO_0.5.md).
+- Technical audits for [0.8.80](../AUDIT_0.8.80.md), [0.8.70](../AUDIT_0.8.70.md), [0.8.60](../AUDIT_0.8.60.md), [0.8.50](../AUDIT_0.8.50.md) and [0.8.20](../AUDIT_0.8.20.md).
+- [0.8.50 development](../DEVELOPMENT_0.8.50.md) and [0.8.50 installed-package acceptance](../COLLAUDO_INSTALLAZIONE_0850.md).
+- Performance studies for [0.8.14](../OPTIMIZATIONS_0.8.14.md), [0.8.13 pileups](../PILEUP_0.8.13.md), [0.8.12 parallel execution](../PARALLELISMO_0.8.12.md), the [0.8.10 prototype](../PROTOTYPE_0.8.10.md) and [0.8.9 optimizations](../OPTIMIZATION_0.8.9.md).
+- Machine-readable evidence for [0.8.50](../validation/0.8.50-development.json), [0.8.14 microbenchmarks](../validation/0.8.14-microbenchmarks.json), [observed 0.8.14 benchmarks](../validation/0.8.14-observed-benchmarks.json), and rootless testing of [0.8.14](../validation/0.8.14-rootless.json), [0.8.13](../validation/0.8.13-rootless.json) and [0.8.12](../validation/0.8.12-rootless.json).
+- [Acceptance records and reports](../../.github/release-acceptance), [early decisions](DECISIONS.md) and the [0.5 development plan](PIANO_0.5.md).
 
-## Profilo storico della build degli installatori
+## Timing of a historical installer build
 
-La [build 43430275209](https://github.com/GregorioDalia/nipat-desktop/actions/runs/43430275209)
-del 13 novembre 2026 permette di distinguere il costo di un ciclo dai tentativi
-ripetuti. Queste sono misure di quella esecuzione, non soglie garantite:
+[Build 43430275209](https://github.com/GregorioDalia/nipat-desktop/actions/runs/43430275209) on 13 November 2026 illustrates the difference between one build's critical path and the cumulative time spent on retries.
 
-| Fase sul percorso critico | Durata |
-| --- | --- |
-| Identificazione sorgente | 21 s |
-| Controlli Windows | 3 min 34 s |
-| Runtime Linux, regressioni ed esportazione | 19 min 54 s |
-| Quattro installer in parallelo | 5 min 48 s |
-| Raccolta e controllo finale | 2 min 32 s |
-| Avvio dei job e intervalli | 16 s |
-| **Totale** | **32 min 25 s** |
+| Critical-path stage | Duration |
+| --- | ---: |
+| Identify source | 21 s |
+| Windows checks | 3 min 34 s |
+| Linux runtime, regressions and export | 19 min 54 s |
+| Four installers, built in parallel | 5 min 48 s |
+| Collect artifacts and run the final check | 2 min 32 s |
+| Job startup and intervals | 16 s |
+| **Total** | **32 min 25 s** |
 
-Nel job Linux, i controlli scientifici richiedevano 13 min 55 s, i test Python
-53 s e le guardie della release 3 s. Il fallimento finale riguardava il limite
-dei file delle evidenze, dopo il completamento dei quattro installer. I sette
-tentativi di build della candidata precedenti alla correzione finale totalizzavano
-75 min 45 s di esecuzione; le CI parallele non vanno sommate a questo valore
-come attesa dell'operatore.
+Scientific checks accounted for 13 min 55 s of the Linux job, Python tests for 53 s and release checks for 3 s. The last evidence-file limit check failed after all four installers had finished. Seven candidate build attempts before the final fix took 75 min 45 s cumulatively. Parallel CI execution time does not add to the operator's wait.
 
-Il preflight delle evidenze scientifiche usa lo stesso lettore e gli stessi
-limiti dell'archivio finale, prima dell'esportazione e del packaging. Non attesta
-gli installer ancora da costruire: il controllo completo finale resta richiesto.
-Sulle evidenze reali del tentativo fallito ha letto 3.602 file in 1,34 s e avrebbe
-intercettato il precedente limite circa 12 minuti prima. Non riduce in modo
-significativo la durata di una build già corretta.
-
+The subsequent evidence preflight uses the same reader and limits as final archive verification, before export and packaging. The final installer check is still required. On evidence from the failed attempt, preflight read 3,602 files in 1.34 s and would have detected the old limit about 12 minutes earlier. It makes little difference to the elapsed time of an already successful build.

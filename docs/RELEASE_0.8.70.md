@@ -1,20 +1,18 @@
 # NIPAT Desktop 0.8.70
 
-Scaricare `NIPAT-Setup.exe` per Windows, il pacchetto DEB per Ubuntu 24.04 o il PKG macOS dell'architettura del computer. Le [guide di installazione](README.md#installare) descrivono requisiti, aggiornamento e verifica.
+The [installation guides](README.md#install-newpat) cover the Windows `NIPAT-Setup.exe`, Ubuntu 24.04 DEB and architecture-specific macOS PKGs.
 
-## Risultati e input
+## Inputs and results
 
-- DNPcall e SNPcall conservano contig e nomi di lettura come testo. Gli identificatori `01` e `1` restano distinti anche nei join di Contamination, CPI prenatale e CPIN postnatale.
-- I caller segnalano REF discordanti nel pileup. In modalità BAM verificano che le finestre dei marcatori rientrino nel riferimento indicizzato. Un campione DNP senza copertura conserva i loci a conteggi zero e genotipo non assegnato. SNPcall respinge i QNAME ripetuti nella stessa posizione utile perché il pileup non distingue i mate.
-- CPI prenatale calcola direttamente il log10 dell'indice combinato. Per prodotti fuori dall'intervallo numerico, il CPI grezzo può risultare 0 o infinito mentre il valore logaritmico resta disponibile. CPI e CPIN rifiutano totali incoerenti con i conteggi. Contamination ricava il rapporto REF dai conteggi osservati.
-- Le verifiche dei risultati includono gli alleli delle tabelle DNP e la presenza delle curve CPI per ogni coppia e pannello.
+- DNPcall and SNPcall preserve contig and read names as text. Contigs `01` and `1` remain distinct in Contamination, prenatal CPI and postnatal CPIN joins.
+- Callers flag conflicting pileup REF bases. In BAM mode they validate marker windows against the indexed reference. DNP retains uncovered loci with zero counts and missing genotypes. SNPcall rejects repeated QNAMEs at one usable position because the pileup cannot distinguish the mates.
+- Prenatal CPI computes the combined index directly in log10 space. If a product underflows or overflows, the logarithm remains available while raw CPI may be 0 or infinite. CPI and CPIN reject totals inconsistent with read counts. Contamination computes the REF ratio from observed counts.
+- Output checks cover alleles in DNP tables and CPI curves for every pair and panel.
 
-## Installazione e prestazioni
+## Installation and performance
 
-- Il setup e il collaudo Windows ricavano la versione dalla build. L'aggiornamento riconosce il codice di riavvio richiesto. Gli hook Ubuntu della versione ripristinata chiudono lo stato di manutenzione dopo un rollback completato da dpkg.
-- DNPcall indicizza il pileup con tipi espliciti e riconosce duplicati BAM in un passaggio. Il batch SNP salva lo stato alle transizioni. Le misure Windows sui file reali nell'[audit](AUDIT_0.8.70.md#benchmark-sul-client-windows-0860) sono il riferimento per misurare il guadagno end-to-end.
-- GitHub può avviare prima le prove scientifiche e mette in coda le sole pubblicazioni autorizzate da un record di accettazione. L'[audit tecnico](AUDIT_0.8.70.md) riporta i casi esaminati e le priorità rimaste.
+Windows setup and the acceptance test obtain their version from the build. Updates recognize the restart-required exit code. On Ubuntu, the restored package's hooks clear maintenance state after a completed dpkg rollback.
 
-## Verificare l'installazione
+DNPcall indexes pileups with explicit types and detects duplicate BAMs in one pass. SNP batches persist state at transitions. The [technical audit](AUDIT_0.8.70.md) gives the 0.8.60 Windows real-input baseline for end-to-end measurement, reviewed cases and outstanding priorities. GitHub can start scientific tests earlier and queues publications authorized by an acceptance record.
 
-La [guida al collaudo Windows](COLLAUDO_INSTALLAZIONE.md) esegue i cinque moduli con dati sintetici e conserva i rapporti sul computer. Per i flussi su dati rappresentativi, seguire la [procedura di validazione tecnico-scientifica](VALIDAZIONE.md).
+The [Windows verification suite](COLLAUDO_INSTALLAZIONE.md) exercises the five modules with synthetic data and stores reports locally. For representative inputs, follow the [scientific and technical validation procedure](VALIDAZIONE.md).

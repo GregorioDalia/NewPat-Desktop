@@ -1,196 +1,76 @@
-# Risorse, memoria e arresti
+# Resources and memory
 
-NewPat distingue tre livelli. Un valore indicato come **non disponibile** non
-viene interpretato come zero o come risorsa illimitata.
+NewPat runs the scientific engine in a Linux container. The physical computer, the environment that hosts the container, and the individual run each have their own limits.
 
-| Livello | Significato |
+| Level | What to check |
 | --- | --- |
-| Computer | RAM fisica e CPU del sistema che esegue NewPat, condivise con le altre applicazioni. |
-| Ambiente scientifico | RAM e CPU visibili in WSL2 o Lima. Su Ubuntu nativo non esiste una VM NewPat. |
-| Analisi | Limiti imposti al container del run, entro le risorse disponibili nell'ambiente. |
+| Computer | Physical memory and CPU capacity of the host |
+| Runtime environment | Memory and CPUs available to WSL2 on Windows, Lima on macOS, or the local Docker Engine on Ubuntu |
+| Run | CPU, memory and process limits applied to this analysis container |
 
-Se Lima dispone di 4 GiB, impostare un limite del container di 8 GiB non
-porta la VM a 8 GiB. Analogamente, un computer con 16 GiB non rende
-necessariamente disponibili tutti i 16 GiB a WSL. Il sistema ospite e il
-motore Docker consumano parte della memoria dell'ambiente.
+A container cannot use more memory than its environment can supply. For example, setting an 8 GiB container limit inside a 4 GiB VM still leaves the VM as the effective constraint. An unavailable measurement means that NewPat could not determine a value.
 
-## Consultare e scegliere i valori
+## Inspect the allocation
 
-Aprire **Configura → Risorse, prestazioni e provenienza**. La schermata mostra
-valori configurati ed effettivi, quando rilevabili. I suggerimenti si basano
-sulle risorse del dispositivo e lasciano spazio al sistema operativo; non
-stimano la memoria necessaria a uno specifico BAM o pannello.
+Open **Environment and help** in the desktop or run `newpat resources inspect --json`. Inspect the effective values as well as the saved settings. Some VM changes require a restart before they take effect. Suggestions based on host capacity leave room for the operating system; the memory a particular analysis needs also depends on the sample, coverage and panel.
 
-La configurazione salvata, le risorse effettive attuali e i suggerimenti
-sono valori distinti. Un ambiente può usare limiti automatici senza avere
-valori espliciti nel file di configurazione. Nel modulo di modifica, **Invio
-mantiene il valore corrente**, compresa l'impostazione automatica; non
-applica il suggerimento. Per adottarlo esplicitamente usare `:suggerito`.
-Se entrambi i campi restano invariati, non vengono salvati limiti né eseguiti
-riavvii. Per salvare nuovi limiti espliciti occorre indicare sia RAM sia CPU;
-un campo automatico non viene sostituito con il valore effettivo rilevato.
-
-I limiti dell'analisi sono facoltativi. **Nessun limite NewPat** significa che
-NewPat non impone un ulteriore tetto: restano attivi i limiti della VM, del
-sistema e delle altre applicazioni. Un limite troppo basso può causare
-l'arresto del calcolo. Non assegnare tutta la RAM fisica all'ambiente virtuale.
-
-La quota CPU del container limita il tempo di processore e concorre al tetto
-dei worker. La modalità seriale usa un solo processo di calcolo; il limite
-manuale può restringere ulteriormente il tetto. Elaborare più campioni in
-parallelo può aumentare il consumo di memoria; il formato e la copertura dei
-dati contano oltre alla dimensione del BAM su disco.
+When changing VM settings in the text wizard, Enter keeps the current value, including an automatic setting. The token `:suggerito` adopts the suggested value. To configure explicit VM limits, specify both memory and CPUs. The tool previews the proposed changes before applying them.
 
 <a id="budget-fisso-della-095"></a>
+<a id="budget-del-run-e-numero-di-processi"></a>
 
-## Budget del run e numero di processi
+## Run budget and workers
 
-All'avvio di ogni analisi NewPat registra in `run.json`, sotto
-`resource_budget`, la capacità effettiva dell'ambiente, gli eventuali limiti
-configurati del container e il tetto globale dei worker. Le capacità
-configurate ma non ancora applicate non possono aumentare quelle effettive.
-La memoria libera istantanea non viene usata per ricalcolare il tetto:
-l'apertura di un'altra applicazione non cambia la pianificazione a metà run.
-Può comunque influire sui tempi e sulla pressione di memoria del sistema.
+NewPat records the effective allocation in `run.json` under `resource_budget` when the run starts. CPU and memory limits come from the available hardware, runtime and container. The memory planner reserves 20% of the capacity and accounts for the coordinator's resident memory when sizing its worker pool. The global worker ceiling stays fixed for the run. Other applications can still affect elapsed time and memory pressure.
 
-Si distinguono tre quantità:
+Each phase checks its expected workload against that run budget. The general estimate considers twice the loaded coordinator's resident memory and any module-specific estimate. Some phases stay serial when their workload cannot be estimated. The worker count is a planning decision; the operating system enforces the configured container limits.
 
-| Quantità | Significato |
+DNPcall makes two separate decisions:
+
+1. **Acquisition.** For one indexed BAM with compatible settings and reference information, NewPat estimates the cost of each samtools task from the reference and a measured memory allowance. Concurrency is bounded by the eligible chromosomes, the CPU and worker limits, the estimated memory budget, and a ceiling of five. A single eligible chromosome, serial mode, or missing workload evidence leaves one acquisition process. Inputs that require scanning can still use the unpartitioned path.
+2. **R calculation.** The planner considers the number and size of available blocks, sample count and estimated memory per worker. It can keep larger blocks on a sufficiently provisioned run or divide substantial work more finely on a smaller allocation. It keeps complete windows and accounts for the largest actual block, including an indivisible group.
+
+Inspect `work/dnp-acquisition-budget.json`, `work/dnp-pileup.json` and `work/dnp-blocks.json` for a specific run. A BAM's compressed size alone predicts neither peak memory nor execution time. Compare like-for-like inputs, sample order and scientific settings. [Performance measurements](PERFORMANCE.md)
+
+## Limit a single run
+
+Global options go **before** the scientific command.
+
+| Option | Effect |
 | --- | --- |
-| Capacità assegnata | Minimo dei limiti noti di hardware, ambiente e container. |
-| Budget di pianificazione | Capacità con una riserva proporzionale del 20%; la memoria del coordinatore viene conteggiata separatamente. |
-| Stima per worker | Fabbisogno stimato dal lavoro e dalla memoria residente del coordinatore caricato; non è una quota prenotata nel sistema operativo. |
+| `--cpus N` | Container CPU quota |
+| `--memory-mb N` | Container memory limit in MiB |
+| `--pids-limit N` | Limit on processes in the container, including coordinators |
+| `--execution-mode serial` | One computational worker at a time |
+| `--execution-mode auto` | Plan with the resources and work available |
+| `--max-workers N` | Upper bound on simultaneous computational workers |
 
-Non esiste più un minimo universale di 2 GiB per processo. La stima generica
-usa il maggiore fra il doppio della memoria residente del coordinatore e
-l'eventuale stima del modulo. Per DNP il modello dei blocchi esistente
-consente di ridurre l'obiettivo in byte rispetto al massimo scelto dall'utente,
-senza spezzare una finestra indivisibile. Il log distingue obiettivo richiesto,
-obiettivo effettivo e dimensione reale dei blocchi.
+For a serial or capped comparison, use the same sample and panel for each run. This Ubuntu example requests at most two workers:
 
-Il tetto globale resta fisso. Ogni fase sceglie il proprio numero di processi
-entro quel tetto e il budget del run. Per i campioni SNP e il ciclo esterno
-dei file di contaminazione, le fasi senza una stima del fabbisogno restano
-seriali. I processi interni condividono il limite complessivo.
+```sh
+newpat --execution-mode auto --max-workers 2 --performance-diagnostics dnp-call \
+  --bam sample.bam --reference genome.fa --panel dnp-panel.txt
+```
 
-Dalla 0.9.7, per un singolo BAM indicizzato con parametri di acquisizione
-compatibili con il profilo misurato, DNPcall usa il dizionario del riferimento
-per stimare il costo di un samtools. Il limite è il minimo tra la capacità
-di memoria stimata, il tetto di processi del run, il numero di cromosomi e
-cinque. Se mancano i dati necessari alla stima, la preparazione procede con un
-processo. Un pannello su un solo cromosoma o la modalità seriale richiedono
-sempre un solo processo di acquisizione.
+## Configure WSL2, Lima or Docker
 
-Per il calcolo R, il pianificatore considera il numero di blocchi necessari
-per il pileup e i campioni, i processi disponibili e il costo stimato di
-un blocco. Con memoria sufficiente evita di frammentare eccessivamente il
-lavoro. Nei run con poca memoria e abbastanza lavoro da occupare il pool
-più fine conserva la ripartizione della 0.9.5. La stima riguarda un singolo
-run e dipende dagli input. I limiti di CPU, memoria e processi scelti
-dall’utente si applicano a entrambe le fasi.
+- **Windows.** Memory and CPU entries in `.wslconfig` apply to every WSL2 distribution for the current account. NewPat previews the existing and proposed values, keeps unrelated settings and writes a backup. You can save changes and restart WSL later. Applying the change immediately requires separate confirmation of the shared WSL restart. Close other WSL work first. [Microsoft WSL configuration reference](https://learn.microsoft.com/en-us/windows/wsl/wsl-config)
+- **macOS.** The Lima VM belongs to NewPat. If it is running, changing its allocation requires confirmation of the stop and restart. NewPat checks ownership and preserves the existing VM data.
+- **Ubuntu.** NewPat uses the local Docker Engine. Configure container limits for your runs. Docker permissions, service limits and host capacity also affect the actual allocation.
 
-## macOS e Lima
-
-La VM è dedicata a NewPat. Per cambiare RAM o CPU, inserire i valori desiderati,
-controllare l'anteprima e confermare. NewPat conserva una copia della configurazione
-precedente. Il riavvio richiesto per rendere effettiva una modifica viene
-segnalato separatamente; l'applicazione non interrompe un'analisi per applicarlo.
-
-Se la VM Lima è attiva, la modifica richiede anche la conferma del suo
-arresto e riavvio; rinviando questa conferma non viene salvata.
-Non è necessario eliminare dati, risultati o ricreare la VM per cambiare
-le risorse. Il controllo di proprietà impedisce di configurare VM estranee.
-
-## Windows e WSL2
-
-RAM e CPU in `.wslconfig` riguardano **tutte le distribuzioni WSL2 dell'account**,
-non soltanto quella NewPat. Le impostazioni del container riguardano invece
-il singolo run. La gestione guidata distingue queste due operazioni.
-
-Prima di una modifica globale NewPat mostra configurazione corrente, proposta
-e impatto. Il salvataggio conserva le altre impostazioni e crea un backup.
-Per applicare immediatamente i valori può essere necessario riavviare WSL:
-l'applicazione richiede una conferma separata e segnala le distribuzioni attive.
-Un'analisi NewPat in corso impedisce la riconfigurazione; una modifica concorrente
-della configurazione richiede una nuova anteprima.
-
-È possibile salvare e rimandare il riavvio. La schermata continua a distinguere
-i valori salvati da quelli effettivi. Chiudere normalmente le altre attività
-WSL prima di autorizzare un riavvio globale. Il comportamento di `.wslconfig`
-è descritto nella [documentazione Microsoft](https://learn.microsoft.com/it-it/windows/wsl/wsl-config).
-
-## Ubuntu nativo
-
-NewPat usa Docker Engine locale e non crea una VM. Si configurano i limiti del
-container; l'applicazione non modifica la RAM del sistema, lo swap globale
-o i limiti degli altri servizi. Permessi Docker, eventuali limiti del servizio
-e disponibilità del sistema possono restringere le risorse utilizzabili.
-
-## Errori di memoria e codice 137
-
-Un codice 137 è compatibile con una terminazione mediante `SIGKILL`.
-Non dimostra da solo un esaurimento della memoria. NewPat conserva, quando
-il motore lo rende disponibile, lo stato del container prima della pulizia,
-compreso l'indicatore `OOMKilled` e i limiti applicati. Una diagnosi non
-acquisibile viene dichiarata, senza essere trasformata in un esito positivo.
-
-In caso di errore:
-
-1. Consultare il messaggio e il resoconto del run, poi `execution.log`.
-2. Verificare se il limite è quello del container o dell'ambiente virtuale.
-3. Registrare sistema, RAM fisica, valori impostati, numero di campioni e
-   modalità seriale/parallela.
-4. Modificare la configurazione necessaria e avviare una nuova esecuzione.
-
-Un run fallito non viene riutilizzato o sovrascritto. Le prove successive
-conservano la propria configurazione e il proprio esito. Non viene eseguito
-un tentativo automatico con più memoria, perché cambierebbe le condizioni
-dell'analisi senza una scelta esplicita.
-
-## Comandi e backup
+NewPat checks for active analyses before reconfiguring the environment. If the configuration changes concurrently, refresh the preview. Example commands for installations with the `newpat` launcher:
 
 ```sh
 newpat resources inspect
-newpat resources inspect --json
 newpat resources configure --memory-mib 8192 --vm-cpus 4
 ```
 
-Il comando `configure` mostra soltanto l'anteprima. `--apply --yes` conferma
-il salvataggio; `--restart` autorizza separatamente il riavvio necessario.
-Le opzioni sono esplicite anche negli script automatizzati.
+The second command previews the change. `--apply --yes` authorizes saving; `--restart` separately requests the runtime restart. When a saved change still needs a restart, the report can show `saved-restart-required`. With an immediate restart, success corresponds to `applied` after verification. Exit code 2 reports an incomplete restart or an allocation that still needs checking. The JSON backup records the path, hash and former content or absence of the system configuration file.
 
-Il codice di uscita `0` conferma l'operazione richiesta. Con `--apply --yes`
-senza `--restart`, lo stato `saved-restart-required` conferma il salvataggio
-per un riavvio successivo. Aggiungendo `--restart`, il codice è `0` soltanto
-con stato `applied`, dopo la verifica delle risorse effettive. Un riavvio
-non completato o valori da verificare restituiscono `2`; il rapporto,
-anche con `--json`, conserva stato, avvisi e percorso del backup.
+<a id="errori-di-memoria-e-codice-137"></a>
 
-Il backup indicato dall'applicazione è un file JSON che conserva percorso,
-hash e contenuto precedente codificato in base64, compresa l'eventuale assenza
-del file. Conservare il backup per diagnosi e recupero manuale della
-configurazione. Il JSON del backup è un record, mentre WSL e Lima leggono
-il contenuto della configurazione nel proprio formato.
+## Investigate exit code 137
 
-## Velocità di DNPcall
+Exit code 137 is consistent with a process receiving `SIGKILL`. To determine whether memory exhaustion caused it, open `run-report.html` and `execution.log`, and look for the recorded container status, `OOMKilled` and the limits in force. Missing runtime evidence leaves the cause undetermined.
 
-La dimensione del BAM compresso non determina da sola durata o RAM necessarie.
-Contano letture, copertura, pannello, disco, processore e ambiente di esecuzione.
-Se tutti i BAM hanno un indice utilizzabile, i dizionari sono compatibili e
-i cromosomi sono separabili, DNPcall può preparare il pileup per cromosoma.
-Negli altri casi usa il percorso non partizionato. Il calcolo R distribuisce
-i blocchi di uno o più campioni entro un budget comune, che vale anche per
-la preparazione del pileup.
-
-I tempi dipendono anche da lettura e I/O. Confrontare richieste identiche e
-leggere strategia, tempi e worker osservati in `work/dnp-pileup.json` e
-`work/dnp-blocks.json`. La [guida alle prestazioni](PERFORMANCE.md) descrive
-come interpretarli.
-
-Gli export con etichette originali aggiungono una seconda resa dei grafici.
-Il tempo totale del run comprende questo costo; i tempi stampati dal solo R
-non comprendono necessariamente tutti i passaggi, come i grafici conclusivi.
-Per confrontare configurazioni usare gli stessi input e parametri, registrare
-risorse effettive e distinguere prima esecuzione e ripetizioni. Il
-[benchmark dei workflow](ESECUZIONI.md#misure-delle-prestazioni) conserva
-le prove senza promettere prestazioni su altri computer.
+Record the platform, physical RAM, effective runtime and container allocation, number of samples, and execution mode. After choosing an appropriate change, run a new experiment. The failed run keeps its logs and settings for comparison.

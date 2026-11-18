@@ -1,119 +1,38 @@
-# NIPAT CLI 0.3.0a2 — interazione guidata e avvio Windows
+# NIPAT CLI 0.3.0a2 — guided input and Windows launch
 
-> Note storiche della versione indicata. Per installazione e utilizzo della versione corrente consultare il [README](../README.md) e la [guida per l’utilizzo](GUIDA_UTILIZZO.md).
+This development record applies to candidate `0.3.0a2`. Current instructions are in the [README](../README.md) and [user guide](GUIDA_UTILIZZO.md).
 
-Note storiche del candidato `0.3.0a2`, conservate per distinguere le evidenze
-raccolte durante lo sviluppo; non attestano prove di versioni successive.
+## Changes
 
-## Novità
+- Double-click `NIPAT-Setup.exe` to install the internal Linux environment and bundled scientific runtime, then start **NIPAT**. No separate directory or archive preparation is needed.
+- Both the WSL installation and Docker Desktop package provide `NIPAT.exe`. Double-clicking opens the CLI. Direct commands remain available.
+- The alternative `NIPAT-DockerDesktop-0.3.0a2-windows-x64.zip` supplies portable Python and the same verified scientific archive. It requires a working Docker Desktop installation with Linux containers. Its setup resolves the local image identity after loading the verified archive. The export engine's identifier need not match.
+- A rootfs change prepares a separate internal Linux environment. Setup checks tools and runs self-tests before switching, preserves the previous distribution and data/results directories, and supports resumption after failure.
+- Original NIPAT code uses GPL-3.0-or-later. Included components have their own license records and attributions.
+- The versioned NIPAT banner and vertical menu support arrow keys and Enter in compatible terminals, and numeric selections in plain text.
+- Input validation occurs while filling the form. `:indietro` returns to the previous field and preserves values during correction. Each of the four workflows displays contextual help, examples and available commands after mode selection and inside the fields. In lists, Enter repeats instructions before the first file and ends the list after at least one file has been entered. Use `:annulla` to cancel a field. Numeric `0` has no such function.
+- Users can edit inputs, parameters and destination in the summary before choosing **Avvia analisi** (Start analysis). The final screen opens results, the run directory and logs, displays execution metadata and recalls the last run of the session.
+- **7 — Guida all'uso** contains **1 — Come usare NIPAT** and **2 — Verifica strumenti di analisi**. Tool verification requires a separate request and is skipped during `--dry-run`.
 
-- Installazione principale da un unico `NIPAT-Setup.exe`, con ambiente Linux
-  interno e runtime scientifico incorporati: doppio clic per installare, poi
-  icona **NIPAT**. Non occorre preparare cartelle o archivi separati.
-- Avvio con doppio clic su `NIPAT.exe` nell'installazione WSL e nel pacchetto
-  Docker Desktop. Il launcher apre la CLI e conserva i comandi diretti;
-  non occorre aprire PowerShell manualmente.
-- Due modalità di distribuzione della stessa versione: `NIPAT-Setup.exe`
-  e `NIPAT-DockerDesktop-0.3.0a2-windows-x64.zip`. Lo ZIP contiene Python
-  portabile e lo stesso archivio scientifico verificato del pacchetto WSL;
-  richiede Docker Desktop con container Linux già disponibile.
-- Identità dell'immagine importata risolta dal caricamento dell'archivio
-  verificato anche nel setup Docker Desktop, senza presumere che coincida
-  con l'identificativo del motore usato per esportarla.
-- Aggiornamento automatico dell'ambiente Linux interno di NIPAT con un ambiente
-  separato quando cambia il rootfs, conservando
-  distribuzione precedente e cartelle dati/risultati. Verifica degli strumenti
-  e autotest precedono l'attivazione; il setup può essere ripreso dopo un errore.
-- Licenza GPL-3.0-or-later per il codice originale NIPAT e documentazione
-  delle licenze e attribuzioni dei componenti inclusi.
-- Banner NIPAT con versione e menu verticale, con frecce/Invio nei terminali
-  supportati e scelta numerica disponibile anche in testo semplice.
-- Controllo degli input durante la compilazione, ritorno al campo precedente
-  con `:indietro` e conservazione dei valori durante le correzioni.
-- Indicazioni contestuali nei quattro workflow, anche dopo la scelta della
-  modalità e dentro i campi, con esempi e spiegazione dei comandi disponibili.
-  Nelle liste, Invio prima del primo file ripropone le istruzioni; termina
-  l'elenco soltanto dopo l'inserimento di almeno un file. Nei campi si annulla
-  con `:annulla`, non con `0`.
-- Riepilogo modificabile di input, parametri e destinazione prima di
-  **Avvia analisi**.
-- Schermata finale per aprire risultati, cartella del run e log e consultare
-  i metadati dell'esecuzione; richiamo dell'ultima esecuzione nella sessione.
-- **7 — Guida all'uso**, con **1 — Come usare NIPAT** e
-  **2 — Verifica strumenti di analisi**. Il controllo viene richiesto
-  separatamente e non viene eseguito in `--dry-run`.
+All four workflows and their input modes retain their R algorithms and scientific defaults. The changes add no external Python dependencies. The selected results directory and last-run recall last for the session. Persistent history and automatic workflow chaining were outside this version.
 
-I quattro workflow e le loro modalità di input restano disponibili. La
-revisione non cambia gli algoritmi R né i valori predefiniti scientifici e
-non aggiunge dipendenze Python esterne. La cartella risultati e il richiamo
-dell'ultima esecuzione restano limitati alla sessione: cronologia persistente
-e concatenamento automatico dei workflow non sono inclusi.
+## Candidate checks
 
-## Verifiche del candidato
+Before the WSL migration update, local verification of the launcher and two-package revision passed 178 Python tests on Python 3.12.14, 17 publication tests (including a package from the actual generator) and 32 portable-runtime load assertions using PowerShell 7.6.7 on Linux. These covered archive verification, local identity, platform and error handling. Windows CI exercises the compiled EXE and PowerShell 5.1. Its result must be associated with the delivered build.
 
-Controlli locali della revisione con launcher e doppio pacchetto, precedenti
-all'aggiornamento della migrazione WSL:
+At commit `5be5094`, using Python 3.12.14, all 173 automated tests passed. New cases covered Enter on required fields and lists, retained items, cancellation, path corrections and on-demand tool checks. In a POSIX console, repeated Enter before the first DNPcall BAM left the field open, displayed instructions and allowed cancellation. An SNPcall `--dry-run` through the real menu and services ended successfully with status `planned` and no scientific result.
 
-- 178 test Python superati con Python 3.12.14.
-- 17 test della procedura di pubblicazione superati, incluso il passaggio di
-  un pacchetto prodotto dal generatore reale ai controlli di pubblicazione.
-- 32 asserzioni sul caricamento del runtime portabile superate con PowerShell
-  7.6.7 su Linux: archivio verificato, identità locale, piattaforma ed errori.
+On the earlier `cf16710` base, before contextual help and the Help menu revisions, 164 Python 3.12.14 tests passed. They covered the four workflows, field edits, confirmation and results. New modules imported in isolated Python without `site-packages`. Arrows, Enter and Esc worked in a real POSIX terminal, alongside the plain-text numeric menu. An SNPcall `--dry-run` through real services recorded `planned` without reporting scientific completion. Package, manifest and installer display all used `0.3.0a2`, with a test for divergence. PowerShell accepted the Python-generated manifest. All 64 installer assertions passed on PowerShell 7 for Linux.
 
-I test dell'EXE compilato e di PowerShell 5.1 sono eseguiti dalla CI Windows;
-il loro esito va associato alla build effettivamente consegnata. Le evidenze
-storiche dell'interfaccia sono riportate di seguito.
+The Windows acceptance plan still called for these checks on the final packages:
 
-Revisione delle indicazioni contestuali e del menu Guida al commit `5be5094`,
-con Python 3.12.14:
+1. Start `NIPAT.exe` in both modes, finish setup and self-tests, and confirm a real analysis.
+2. Exercise arrows, Enter, numeric selections and contextual help in every workflow mode.
+3. Try Enter before and after the first file, correct a bad path, go back with `:indietro` and cancel with `:annulla`.
+4. Distinguish Help from tool verification, including behavior in `--dry-run`.
+5. Edit a field from the summary and verify that only confirmation starts the analysis.
+6. Open the results directory and log after an analysis.
 
-- 173 test automatici superati. I nuovi casi verificano Invio nei campi
-  obbligatori e nelle liste, mantenimento degli elementi, annullamento,
-  correzione dei percorsi errati e verifica degli strumenti su richiesta.
-- Riprodotta in una console POSIX la sequenza DNPcall con Invio ripetuto prima
-  del primo BAM: istruzioni neutre, campo ancora aperto e annullamento riuscito.
-- SNPcall in `--dry-run` attraverso menu e servizi reali: stato `planned`,
-  nessun risultato scientifico e uscita senza errori.
+The automated upgrade logic still required physical Windows installation, upgrade, resumption and preservation checks. Failed preparation blocks the updated app. Setup does not automatically roll back application files already replaced. Language selection remained future work. Independent domain validation and observations from other versions are separate.
 
-Controlli locali completati sulla base `cf16710`, con Python 3.12.14,
-prima della revisione delle indicazioni contestuali e del menu Guida:
-
-- 164 test automatici superati, inclusi i quattro workflow, la correzione dei
-  campi, la conferma prima dell'avvio e la gestione dei risultati.
-- Importazione dei nuovi moduli con Python isolato, senza `site-packages`.
-- Navigazione con frecce, Invio ed Esc in un terminale POSIX reale, oltre
-  al menu numerico in testo semplice.
-- SNPcall in `--dry-run` attraverso il menu e i servizi reali: metadati con
-  stato `planned`, nessun risultato scientifico e nessun falso messaggio di
-  analisi completata.
-- Versione del pacchetto, controllo del manifest e versione visualizzata
-  dall'installatore allineati a `0.3.0a2`, con un test per rilevare divergenze.
-  Manifest generato da Python accettato dal controllo PowerShell; 64 asserzioni
-  dei controlli installer superate con PowerShell 7 su Linux.
-
-Questi controlli non sostituiscono la verifica manuale della console Windows.
-Prima della distribuzione del nuovo installatore occorre provare su Windows:
-
-1. Avvio tramite `NIPAT.exe` in entrambe le modalità, completamento del setup
-   e degli autotest del pacchetto finale; conferma di un'analisi reale.
-2. Menu con frecce, Invio e selezione numerica; indicazioni contestuali nelle
-   modalità di tutti e quattro i workflow.
-3. Invio prima del primo file e dopo almeno un file nelle liste, percorso
-   errato seguito da correzione, `:indietro` e `:annulla`.
-4. Distinzione tra guida e verifica degli strumenti, compreso `--dry-run`.
-5. Modifica di un campo dal riepilogo e avvio soltanto dopo conferma.
-6. Apertura della cartella risultati e del log dopo un'analisi.
-
-Le prove automatiche della logica di aggiornamento non sostituiscono una
-prima installazione o un aggiornamento reali del pacchetto finale su Windows.
-Verificare anche la ripresa del setup e la conservazione di cartelle e ambiente
-precedenti. La nuova applicazione resta bloccata se la preparazione fallisce;
-non è previsto il ripristino automatico dei file applicativi già aggiornati.
-La scelta della lingua resta da implementare.
-
-La validazione scientifica su casi indipendenti rimane distinta. Gli esiti
-delle versioni precedenti non costituiscono verifica delle nuove interazioni.
-
-- [Guida per l'utilizzo](GUIDA_UTILIZZO.md)
-- [Sunto del progetto](../SUNTO.md)
-- [Scheda di validazione](VALIDAZIONE.md)
+[User guide](GUIDA_UTILIZZO.md) · [Project overview](../SUNTO.md) · [Validation sheet](VALIDAZIONE.md)

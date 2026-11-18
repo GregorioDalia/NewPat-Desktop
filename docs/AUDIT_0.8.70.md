@@ -1,199 +1,106 @@
-# Audit tecnico per la 0.8.70
+# Technical audit for 0.8.70
 
-Questo documento è la base di lavoro per la 0.8.70. I rilievi riguardano la
-stabile **0.8.60** (`d19e6bf58941a349d26d2f32ebb79bd24b6b7fcc`) e la pipeline
-su **main** (`b9ebdc80917eba70d5597d7ac8e690a5a1f00d45`). Su tale revisione
-`main` differisce dalla stabile nelle procedure CI, nella pubblicazione e nel
-record di accettazione. I sorgenti client, motore e installer coincidono.
+The audit examined stable **0.8.60** at `d19e6bf58941a349d26d2f32ebb79bd24b6b7fcc` and the main-branch pipeline at `b9ebdc80917eba70d5597d7ac8e690a5a1f00d45`. The two revisions differed in CI, publication and the acceptance record. Client, engine and installer sources matched. The file and line references identify the reviewed revisions.
 
-La revisione copre client CLI e menu, piani e contratti degli input, calcolo
-R e controlli degli output, runtime, packaging e aggiornamenti per piattaforma,
-CI, provenienza, pubblicazione e documentazione pubblica. Le righe dei file
-citati si riferiscono alle revisioni sopra. **P1** indica una priorità prima
-della prossima stabile. **P2** indica una correzione circoscritta o una
-misura da confermare. **P3** indica manutenzione o rifinitura.
+The scope included scientific models and output checks, the CLI and wizard, input and workflow contracts, runtime, platform updates, packaging, CI, provenance and public documentation. P1 identified work before the next stable release, P2 a focused fix or a finding requiring measurement, and P3 maintenance.
 
-## Risultati scientifici
+## Scientific results
 
-| ID | Evidenza e impatto | Intervento e criterio di accettazione |
+| ID | Evidence and impact | Proposed change and verification |
 | --- | --- | --- |
-| **S1 · P1** | **SNPcall e DNPcall convertono identificatori testuali in numeri.** QNAME numerici distinti con zeri iniziali sono stati fusi in un read apparente, producendo `N_REF=1` e `GT=0/0` benché nessun read coprisse la finestra. In entrambi i caller la conversione del contig `01` in `1` può perdere loci. Riprodotto con pileup SNP e con BAM/FASTA DNP sintetici. Con tabelle sintetiche CPI e CPIN hanno unito contig diversi `01` e `1`, generando un log10 CPI positivo. Contamination ha incluso un sito di `1` in un pannello che selezionava solo `01`. [CPI R:67–69](../scientific/vendor/NEWPAT/CPI_from_cffDNA/cfDNA_CPI_estimator.R#L67), [CPIN R:96–98](../scientific/vendor/NEWPAT/CPI_postnatal/Postnatal_CPI.R#L96), [SNPcall.R:130–136](../scientific/vendor/NEWPAT/SNPcall/SNPcall.R#L130), [DNPcall.R:101–112, 335–401](../scientific/vendor/DNPcall/DNPcall.R#L101), [dnp_blocks.R:13–22](../src/nipat_scientific/dnp_blocks.R#L13) | Dichiarare come testo contig, basi, qualità e QNAME in lettura. Verificare identificatori con zeri iniziali e ID alfanumerici con confronti su conteggi e join attesi. Applicare la stessa semantica della colonna `chr` nei cinque moduli. |
-| **S2 · P1** | **REF discordante accettato da entrambi i caller.** In SNP un read di riferimento A con pannello G/A e in DNP un read di riferimento AA con pannello GG/AA hanno prodotto `N_ALT=1` e `GT=1/1`. Riprodotto con pileup SNP e BAM/FASTA DNP sintetici. [snp.py:66–84](../src/nipat_scientific/snp.py#L66), [SNPcall.R:130–160](../scientific/vendor/NEWPAT/SNPcall/SNPcall.R#L130), [outputs.py:287–311](../src/nipat_scientific/outputs.py#L287) | Verificare l'accordo delle basi nei loci acquisiti. Per BAM, controllare anche la coerenza fra coordinate del pannello, contig e riferimento. Test distinti per mismatch, locus fuori riferimento e sito valido a copertura zero. |
-| **S3 · P1** | **CPI prenatale perde valori finiti nel prodotto.** Con 400 loci informativi sintetici e PI 10 per locus, il log10 CPI atteso è 400 e il riepilogo riporta `Inf`. Con 200 PI di .002 il log10 atteso è circa −539,794 e il riepilogo riporta `NA`. Entrambe le prove terminano con codice 0. [cfDNA_CPI_estimator.R:362–414, 444–454](../scientific/vendor/NEWPAT/CPI_from_cffDNA/cfDNA_CPI_estimator.R#L362), [outputs.py:272–275](../src/nipat_scientific/outputs.py#L272) | Calcolare e aggregare il CPI in spazio logaritmico. Verificare compatibilità di soglie, statistiche e grafici sui casi a profondità ordinaria. Il riferimento numerico attuale conserva il comportamento del prodotto. Concordare il cambiamento numerico e aggiungere oracoli per overflow, underflow e zero siti. |
-| **S4 · P1** | **Conteggi e colonne derivate incoerenti possono cambiare il risultato.** In Contamination, a conteggi 99 REF, 1 ALT e 0 Other invariati, fornire `ratio_REF_ALT=.99` oppure `.01` produce rispettivamente .01 o .99. `NA` rimuove il locus. Nel CPI prenatale un `total_count` incoerente altera il filtro delle altre basi. Entrambi riprodotti con tabelle sintetiche. Il preflight segnala alcune incoerenze come avvisi. CPIN rifiuta già il totale incoerente nel calcolo R, dopo la preparazione. [files.py:139–165](../src/nipat_scientific/files.py#L139), [Contamination R:168–226](../scientific/vendor/NEWPAT/contamination/detect_contamination.R#L168), [CPI R:243–249, 593–600](../scientific/vendor/NEWPAT/CPI_from_cffDNA/cfDNA_CPI_estimator.R#L243) | Concordare l'autorità dei conteggi e la gestione di campi derivati, valori mancanti e copertura zero. Rifiutare o ricalcolare i campi incompatibili con regola documentata. Verificare tabelle importate e generate, per SNP e DNP, incluse eventuali deroghe esplicite. |
-| **S5 · P2** | **Le letture sovrapposte possono far fallire SNPcall.** Con BAQ disabilitato e un BAM sintetico paired-end, `count_overlaps=true` trasmette `-x` a samtools. I due mate hanno lo stesso QNAME e il calcolo delle statistiche indel trova più di tre elementi nel gruppo. Il caso di controllo con gestione sovrapposizioni standard completa. [snp.py](../src/nipat_scientific/snp.py), [SNPcall.R:263–289](../scientific/vendor/NEWPAT/SNPcall/SNPcall.R#L263) | Definire come trattare i mate nella finestra. Finché la semantica non è definita, rifiutare la combinazione incompatibile con un messaggio utilizzabile. Provare mate sovrapposti e separati. |
-| **S6 · P2** | **DNPcall interrompe un run senza copertura.** Un BAM ordinato valido con soli header e pannello a un locus produce pileup vuoto con samtools riuscito. L'indicizzatore DNP solleva `DNP pileup contains no rows`. [dnp_blocks.R:69](../src/nipat_scientific/dnp_blocks.R#L69), [DNPcall.R:199–201](../scientific/vendor/DNPcall/DNPcall.R#L199) | Distinguere regione valida senza copertura da riferimento o pannello incompatibile. Definire lo stato e le tabelle attese per zero copertura. Verificare anche il batch con campioni coperti e scoperti. |
-| **S7 · P2** | **Parte degli output resta fuori dal contratto.** Il validatore CPI ha accettato una copia di un output valido privata di `curves/`. Il validatore DNP ha accettato una tabella con CC/TT al posto di AA/GG allo stesso locus. Prove sintetiche di alterazione controllata degli output. [outputs.py:204–253, 350–376](../src/nipat_scientific/outputs.py#L204) | Aggiungere validatori mirati alle curve e al riepilogo DNP. Verificare che il run respinga artefatti mancanti, alterazioni di alleli e riepiloghi incoerenti con i risultati individuali. |
+| **S1 · P1** | **Identifiers coerced to numbers.** SNP and DNP callers merged distinct read names with leading zeros, producing `N_REF=1` and `GT=0/0` with no read spanning the window. Contig `01` could become `1`. On synthetic input CPI and CPIN joined these contigs and produced positive log10 CPI; Contamination selected a site on `1` for a panel containing only `01`. [CPI R:67–69](../scientific/vendor/NEWPAT/CPI_from_cffDNA/cfDNA_CPI_estimator.R#L67) · [CPIN R:96–98](../scientific/vendor/NEWPAT/CPI_postnatal/Postnatal_CPI.R#L96) · [SNPcall.R:130–136](../scientific/vendor/NEWPAT/SNPcall/SNPcall.R#L130) · [DNPcall.R:101–112, 335–401](../scientific/vendor/DNPcall/DNPcall.R#L101) · [dnp_blocks.R:13–22](../src/nipat_scientific/dnp_blocks.R#L13) | Read contigs, bases, qualities and QNAME as text, and verify counts and joins for numeric-looking and alphanumeric identifiers throughout the five modules. |
+| **S2 · P1** | **Panel REF mismatch accepted.** An SNP reference A with panel G/A, and a DNP reference AA with panel GG/AA, both gave `N_ALT=1` and `GT=1/1` in synthetic inputs. [snp.py:66–84](../src/nipat_scientific/snp.py#L66) · [SNPcall.R:130–160](../scientific/vendor/NEWPAT/SNPcall/SNPcall.R#L130) · [outputs.py:287–311](../src/nipat_scientific/outputs.py#L287) | Check acquired reference bases, panel coordinates and sequence dictionaries. Test a mismatch, an out-of-range locus and a valid zero-depth site separately. |
+| **S3 · P1** | **Finite prenatal log CPI lost in the product.** With 400 synthetic sites of PI 10 the expected log10 CPI was 400; the summary reported `Inf`. With 200 site indices of 0.002 the expected log10 CPI was approximately −539.794, but the result was `NA`. Both exited 0. [cfDNA_CPI_estimator.R:362–414, 444–454](../scientific/vendor/NEWPAT/CPI_from_cffDNA/cfDNA_CPI_estimator.R#L362) · [outputs.py:272–275](../src/nipat_scientific/outputs.py#L272) | Aggregate in log space, check ordinary results and plots, and add independent overflow, underflow and zero-site oracles. The frozen product implementation retained the old behavior. |
+| **S4 · P1** | **Derived values inconsistent with counts.** For 99 REF, 1 ALT and 0 other, supplied Contamination ratios of .99 or .01 produced .01 or .99; NA excluded the site. In prenatal CPI an inconsistent total affected the other-base filter. Preflight sometimes warned; CPIN rejected an inconsistent total during R execution. [files.py:139–165](../src/nipat_scientific/files.py#L139) · [Contamination R:168–226](../scientific/vendor/NEWPAT/contamination/detect_contamination.R#L168) · [CPI R:243–249, 593–600](../scientific/vendor/NEWPAT/CPI_from_cffDNA/cfDNA_CPI_estimator.R#L243) | Define counts as authoritative or document another explicit rule. Test imported and generated SNP/DNP tables, zero coverage and missing derived fields. |
+| **S5 · P2** | **Overlapping read pairs.** With BAQ disabled and `count_overlaps=true`, samtools received `-x`. Two mates with one QNAME gave an indel group longer than three elements and SNPcall failed; the default-overlap control completed. [snp.py](../src/nipat_scientific/snp.py) · [SNPcall.R:263–289](../scientific/vendor/NEWPAT/SNPcall/SNPcall.R#L263) | Define and test the supported mate/overlap behavior and issue a specific diagnostic for ambiguous read names. |
+| **S6 · P2** | **No-coverage DNP run stopped.** samtools succeeded on a valid, header-only sorted BAM and one-locus panel. The empty pileup triggered `DNP pileup contains no rows`. [dnp_blocks.R:69](../src/nipat_scientific/dnp_blocks.R#L69) · [DNPcall.R:199–201](../scientific/vendor/DNPcall/DNPcall.R#L199) | Distinguish valid uncovered sites from an incompatible reference. Define zero-coverage output and test a mixture of covered and uncovered samples. |
+| **S7 · P2** | **Incomplete output contracts.** The CPI validator accepted output with its curves directory removed. The DNP validator accepted CC/TT substituted for AA/GG at the same site. [outputs.py:204–253, 350–376](../src/nipat_scientific/outputs.py#L204) | Validate required curves, locus alleles and agreement between the aggregate DNP summary and individual results. |
 
-## Client e installatori
+## Client and installers
 
-| ID | Evidenza e impatto | Intervento e criterio di accettazione |
+| ID | Evidence and impact | Proposed change and verification |
 | --- | --- | --- |
-| **D1 · P1** | **Il numero di versione è fissato in più punti.** Il builder usa `pyproject.toml`; il lettore del manifest Windows e il collaudo installato esigono letteralmente 0.8.60. Con una fixture coerente e il vero lettore PowerShell, il manifest 0.8.70 viene rifiutato. [bootstrap-common.ps1:5–11](../installer/windows/bootstrap-common.ps1#L5), [test-installed.ps1:8–10](../scripts/windows/test-installed.ps1#L8) | Derivare l'identità attesa dalla build e testare sul payload estratto. Un test di incremento versione deve coprire setup, launcher e collaudo usando i rispettivi metadata generati. |
-| **D2 · P1** | **Aggiornamento Windows con riavvio richiesto.** L'handoff passa `/NORESTART` e attende il codice 3010. Inno Setup per impostazione predefinita restituisce 0 se il setup è riuscito e richiede riavvio. NIPAT usa `NeedRestart` ma omette `/RESTARTEXITCODE=3010`. Il ramo di successo controlla lo stato `ready` e può rifiutare lo stato legittimo `awaiting_reboot`. Evidenza da codice e [contratto Inno Setup](https://jrsoftware.org/ishelp/topic_setupcmdline.htm). [update-handoff.ps1:108–130](../installer/windows/update-handoff.ps1#L108), [NIPAT.iss:849–869](../installer/windows/NIPAT.iss#L849) | Passare il codice di riavvio esplicito e usare il setup compilato per verificare l'handoff con bootstrap che richiede riavvio. Il test corrente con stub restituisce direttamente 3010. |
-| **D3 · P1** | **Rollback DEB lascia il launcher in manutenzione.** Una prova dpkg isolata con gli script del pacchetto adattati a una directory temporanea ha lasciato il marker `update-in-progress` dopo il ritorno a `install ok installed` della versione precedente. Gli handler di rollback non tolgono il marker e il launcher rifiuta l'avvio. [build_linux_installer.py:118, 193–196](../scripts/build_linux_installer.py#L193), [Debian Policy, script di manutenzione](https://www.debian.org/doc/debian-policy/ch-maintainerscripts.html) | Gestire le azioni di rollback di dpkg dopo il ripristino effettivo e conservare il blocco per uno stato parziale. Provare aggiornamento interrotto, rollback e successivo avvio della versione precedente. |
-| **D4 · P2** | **I controlli di preparazione possono attendere senza limite.** In Windows i log stdout/stderr diventano disponibili dopo l'uscita del processo atteso. L'attivazione Linux ha log durante l'esecuzione ma un'attesa analoga. Rilievo statico. [bootstrap-common.ps1:149–180](../installer/windows/bootstrap-common.ps1#L149), [installer/linux/launch.py:230–252](../installer/linux/launch.py#L230) | Scrivere i log durante l'esecuzione, definire un limite distinto per fase e lasciare uno stato riprendibile. Provare processo bloccato e uscita tardiva senza interferire con altre sessioni. |
-| **D5 · P2** | **Aggiornamento Ubuntu può scadere durante la lettura del DEB.** L'handoff valida più volte l'hash dopo il download. Il processo figlio rilegge il pacchetto prima di segnalare disponibilità, mentre il padre attende fino a 15 s. Per i 608 MB della 0.8.60, la sola rilettura in 15 s richiede circa 41 MB/s. È una soglia teorica. [update_handoff.py:158–172](../src/nipat/update_handoff.py#L158), [linux_update.py:118–128, 165–180, 210–273](../src/nipat/linux_update.py#L165) | Distinguere l'avvio del figlio dalla verifica del pacchetto e riusare controlli eseguiti sullo stesso file immutato. Mantenere la verifica prima di APT. Provare disco lento, timeout reale e digest modificato. |
-| **D6 · P2** | **Preferenze sovrascritte tra due finestre.** Riprodotto con due oggetti realmente caricati. La finestra A salva la modalità seriale. La B salva il canale di aggiornamento dal proprio stato precedente e perde la scelta della A. [wizard_settings.py:144–154](../src/nipat/wizard_settings.py#L144), [preferences.py:302–320](../src/nipat/preferences.py#L302) | Aggiornare i campi interessati sotto lock o verificare la revisione prima del salvataggio. Provare due istanze, cambi distinti e conflitto sullo stesso campo. |
-| **D7 · P2** | **Il wizard può chiedere tabelle che il piano non usa.** Riprodotta la richiesta di una tabella DNP obbligatoria con sorgente tabelle, rami separati, ramo DNP senza analisi e Contamination soltanto su SNP. Selezioni familiari obsolete possono restare visibili dopo un cambio di sorgente. In CLI alcune risorse fornite per un ramo inattivo vengono ignorate. [analysis_forms.py:76–102, 192–257](../src/nipat/analysis_forms.py), [analysis_plan.py:133–154, 184–210](../src/nipat/execution/analysis_plan.py#L133) | Usare lo stesso insieme di rami, campioni e risorse attivi nel modulo, nel riepilogo e nel compilatore del piano. Segnalare le opzioni esplicite inutilizzate. Provare cambio ramo e importazione asimmetrica. |
-| **D8 · P2** | **Lo stesso run può apparire riuscito o ignoto.** Un record valido di 2.097.272 byte viene letto da recupero e HTML. La lista risultati lo ignora per il limite di 2 MiB. Gli altri lettori hanno soglie di 16 e 32 MiB. [results.py:16, 103–123, 227–240](../src/nipat/results.py#L103), [recovery.py:36–49](../src/nipat/execution/recovery.py#L36), [run_report.py:16, 36–44](../src/nipat/run_report.py#L36) | Usare una lettura limitata coerente o separare un indice compatto dalle evidenze dettagliate. Esprimere chiaramente record fuori soglia o danneggiati. Testare i limiti e le differenze di presentazione. |
-| **D10 · P2** | **Il codice di uscita può mascherare un esito parziale.** La CLI restituisce 0 anche quando un riavvio richiesto da `resources configure --apply --yes --restart` richiede verifica successiva. Riprodotto con un gestore simulato nella CLI reale. `runs stop` restituisce 0 anche per stato `stopped` con rimozione non completata. [cli.py:349–365, 410–414](../src/nipat/cli.py#L349), [resources.py:530–588](../src/nipat/resources.py#L530) | Definire quali esiti soddisfano l’operazione richiesta e documentare i codici per automazione. Testare un riavvio parziale, un arresto senza rimozione e gli esiti di successo. |
-| **D9 · P3** | **Help incorporato fuori sincronia.** Il menu presenta tutta la serie 0.8 come sperimentale e descrive i workflow con i soli preset DNP. La stabile dispone anche di batch SNP e piani con tutti i moduli. [wizard.py:99–135](../src/nipat/wizard.py#L99) | Derivare il testo dell'aggiornamento dal canale e aggiornare la guida integrata. Verificare italiano e inglese e riprendere le prove console dell'[issue #9](https://github.com/GregorioDalia/nipat-desktop/issues/9). |
+| **D1 · P1** | **Version embedded at several points.** The builder used pyproject metadata, but the Windows manifest reader and installed suite required literal 0.8.60. The real PowerShell reader rejected a coherent 0.8.70 fixture. [bootstrap-common.ps1:5–11](../installer/windows/bootstrap-common.ps1#L5) · [test-installed.ps1:8–10](../scripts/windows/test-installed.ps1#L8) | Derive identity from the packaged source and test setup, launcher and installed suite using a version-increment fixture. |
+| **D2 · P1** | **Windows restart handoff.** The handoff passed `/NORESTART` and expected 3010. Inno Setup can return 0 on success with restart required. An omitted `/RESTARTEXITCODE=3010` allowed a legitimate `awaiting_reboot` state to fail the check for `ready`. [Inno Setup documentation](https://jrsoftware.org/ishelp/topic_setupcmdline.htm) · [update-handoff.ps1:108–130](../installer/windows/update-handoff.ps1#L108) · [NIPAT.iss:849–869](../installer/windows/NIPAT.iss#L849) | Specify the restart exit code and exercise the compiled installer with a bootstrap that requests reboot. The existing stub returned 3010 directly. |
+| **D3 · P1** | **DEB rollback left maintenance marker.** An isolated dpkg test restored the prior package to `install ok installed`, but the remaining `update-in-progress` marker prevented its launcher from starting. [build_linux_installer.py:118, 193–196](../scripts/build_linux_installer.py#L193) · [Debian policy](https://www.debian.org/doc/debian-policy/ch-maintainerscripts.html) | Remove the marker only after the restored package is configured. Test failed update, rollback and old-package launch, while retaining the lock on partial restoration. |
+| **D4 · P2** | **Unbounded preparation waits.** Windows exposed captured output after the child exited. Linux activation wrote live logs but could also wait indefinitely. This was a static finding. [bootstrap-common.ps1:149–180](../installer/windows/bootstrap-common.ps1#L149) · [installer/linux/launch.py:230–252](../installer/linux/launch.py#L230) | Stream logs, define phase-specific timeouts, preserve resumable state and exercise a hung process and delayed exit. |
+| **D5 · P2** | **Ubuntu update helper timeout.** A verified DEB was rehashed in the helper before signaling availability. The 15 s parent timeout implies roughly 41 MB/s for the 608 MB 0.8.60 package. This is a theoretical threshold. [update_handoff.py:158–172](../src/nipat/update_handoff.py#L158) · [linux_update.py:118–128, 165–180, 210–273](../src/nipat/linux_update.py#L165) | Separate startup acknowledgment from full verification before APT. Test slow reads, actual timeouts and changed bytes. |
+| **D6 · P2** | **Concurrent preferences lost.** Session A saved serial mode. Session B wrote an update-channel preference from an earlier snapshot and overwrote A’s choice. Two loaded preference objects reproduced it. [wizard_settings.py:144–154](../src/nipat/wizard_settings.py#L144) · [preferences.py:302–320](../src/nipat/preferences.py#L302) | Lock and merge independent fields or check the saved revision. Cover concurrent changes to a single field. |
+| **D7 · P2** | **Inactive workflow branches.** For imported tables, the wizard required a DNP table even when only the SNP branch ran Contamination. Stale family roles could remain visible and CLI options for inactive branches could be ignored. [analysis_forms.py:76–102, 192–257](../src/nipat/analysis_forms.py) · [analysis_plan.py:133–154, 184–210](../src/nipat/execution/analysis_plan.py#L133) | Use the same active branches, roles and resources in form, review and plan. Check asymmetric imports and report explicitly unused options. |
+| **D8 · P2** | **Different result readers disagreed.** Recovery and HTML read a valid 2,097,272-byte record; the list skipped it at its 2 MiB limit. Other limits were 16 and 32 MiB. [results.py:16, 103–123, 227–240](../src/nipat/results.py#L103) · [recovery.py:36–49](../src/nipat/execution/recovery.py#L36) · [run_report.py:16, 36–44](../src/nipat/run_report.py#L36) | Use a consistent bounded reader or compact index and distinguish oversized, unreadable and damaged records. |
+| **D10 · P2** | **Partial action reported success.** The CLI returned 0 for an unverified requested restart in the real CLI with a simulated resource manager. `runs stop` also returned 0 for a stopped container with unfinished removal. [cli.py:349–365, 410–414](../src/nipat/cli.py#L349) · [resources.py:530–588](../src/nipat/resources.py#L530) | Document and test success and partial/failure exit codes for the requested operation. |
+| **D9 · P3** | **Outdated wizard help.** Help described all 0.8 builds as experimental and listed only DNP presets. The stable client supported SNP batch and full workflows. [wizard.py:99–135](../src/nipat/wizard.py#L99) · [Issue 9](https://github.com/GregorioDalia/nipat-desktop/issues/9) | Use the version and selected channel in help. Check both languages and the console scenarios in issue 9. |
 
-## CI e pubblicazione
+## CI and publication
 
-| ID | Evidenza e impatto | Intervento e criterio di accettazione |
+| ID | Evidence and impact | Proposed change and verification |
 | --- | --- | --- |
-| **R1 · P1** | **La CI di main osservata è fallita nella prova di OOM intenzionale.** Il confronto DNP con e senza diagnostica era riuscito. Il container della prova successiva è uscito 137 e Docker ha restituito `OOMKilled=false`. Il controllo resta non confermato, i controlli scientifici successivi nello stesso job non sono partiti e il publisher ha saltato l'esecuzione. Lo stesso albero Git era verde in PR. [CI main](https://github.com/GregorioDalia/nipat-desktop/actions/runs/43504273747), [CI PR](https://github.com/GregorioDalia/nipat-desktop/actions/runs/43500774899), [verify_performance.py:152–185](../scripts/verify_performance.py#L152) | Separare parità numerica, osservabilità e capacità di diagnosticare OOM sul runner. Raccogliere evidenza del cgroup e ripetere con ambiente qualificato. Un 137 da solo deve restare non confermato. Verificare che le prove scientifiche producano comunque un esito leggibile quando una diagnostica d'infrastruttura è indisponibile. |
-| **R2 · P1** | **Il publisher automatico deduce il canale dal nome.** Una versione numerica viene pubblicata Stable/Latest anche se il workflow manuale consente Testing. Il builder ufficiale richiede una versione numerica 0.8.x, perciò il ramo automatico per suffissi prerelease non parte dalla build ufficiale corrente. Il rischio è ricavato dal codice. [automatic_release.py:39–71](../.github/scripts/automatic_release.py#L39), [verify_release_source.py:19–26](../.github/scripts/verify_release_source.py#L19) | Registrare canale e decisione di pubblicare nel record di accettazione. Rendere coerenti input del builder e publisher. Provare una candidata numerica Testing, la pubblicazione Stable e un record privo di autorizzazione. |
-| **R3 · P1** | **Un run di pubblicazione in coda può essere sostituito.** Il gruppo condiviso viene acquisito prima di stabilire se la modifica riguarda l'accettazione. GitHub cancella per default un tentativo già in attesa quando ne arriva un altro nello stesso gruppo. Anche una CI su main senza accettazione può quindi sostituire un tentativo utile. [Workflow automatico:12–27](../.github/workflows/publish-accepted-release.yml#L12), [regole GitHub sulla coda](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency) | Selezionare i record in un job a sola lettura, serializzare soltanto i job che pubblicano e usare una coda che preservi i candidati. Ricontrollare l'accettazione corrente prima della scrittura. Provare due accettazioni e un evento senza accettazione durante una pubblicazione. |
-| **R4 · P2** | **Il rilancio automatico verifica solo parte dell'identità pubblicata.** La scorciatoia per una release esistente confronta tag nominale, `target_commitish` e canale. Il commit effettivo del tag e i digest non sono ricontrollati. Il publisher manuale possiede già i controlli sugli artefatti e una ricerca per le bozze. [automatic_release.py:49–71](../.github/scripts/automatic_release.py#L49), [publish_windows_release.py:567–642](../.github/scripts/publish_windows_release.py#L567) | Condividere il lookup tra i due ingressi e verificare commit e asset prima di dichiarare equivalenza. Provare rilancio su bozza e su release completa o incoerente. |
-| **R5 · P2** | **Alcune modifiche al client sono classificate come documentazione.** Il selettore lascia i controlli veloci attivi, ma modifiche al driver di accettazione, al launcher PowerShell o ai valori iniziali possono mancare dei livelli di integrazione pertinenti. Il test unitario dell'integrità del bundle esiste. [ci_changes.py:25–55](../.github/scripts/ci_changes.py#L25), [test_installed_suite.py:24–37](../tests/test_installed_suite.py#L24) | Rendere esplicita l'associazione ai livelli richiesti, con fixture per launcher, harness e configurazione. Verificare il payload con il launcher distribuito. |
+| **R1 · P1** | **Intentional OOM probe not confirmed.** Main CI passed DNP equality with and without diagnostics, then saw exit 137 with `OOMKilled=false` on the intentional OOM probe. Later scientific checks did not run and publication skipped. PR CI passed for the same tree. [Actions run 43504273747](https://github.com/GregorioDalia/nipat-desktop/actions/runs/43504273747) · [Actions run 43500774899](https://github.com/GregorioDalia/nipat-desktop/actions/runs/43500774899) · [verify_performance.py:152–185](../scripts/verify_performance.py#L152) | Separate numerical parity from OOM diagnostic capability, collect cgroup evidence and record unconfirmed infrastructure status explicitly. |
+| **R2 · P1** | **Automatic channel derived from version.** The automatic publisher treated a numeric version as Stable/Latest while manual publication allowed Testing. The official builder required a numerical 0.8.x, so its output could not select the automatic prerelease suffix path. [automatic_release.py:39–71](../.github/scripts/automatic_release.py#L39) · [verify_release_source.py:19–26](../.github/scripts/verify_release_source.py#L19) | Record channel and authorization in acceptance; test a numeric Testing build, a stable build and a record lacking authorization. |
+| **R3 · P1** | **Queued publication could be superseded.** The workflow acquired the concurrency group before selecting acceptance changes. A later event, including one without an acceptance change, could replace a waiting publication. [Release workflow:12–27](../.github/workflows/publish-accepted-release.yml#L12) · [GitHub concurrency documentation](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency) | Classify changes in a read-only job, queue only actual publications, verify current acceptance before writing, and test two acceptances plus an unrelated CI event. |
+| **R4 · P2** | **Incomplete verification on retry.** An existing public release was accepted by nominal tag, target_commitish and channel without reverifying the resolved tag or asset digests. The manual publisher already had asset and draft lookup guards. [automatic_release.py:49–71](../.github/scripts/automatic_release.py#L49) · [publish_windows_release.py:567–642](../.github/scripts/publish_windows_release.py#L567) | Share lookup and verify the commit and assets for retries of draft, complete and inconsistent releases. |
+| **R5 · P2** | **Client changes classified as documentation.** Fast checks remained, but changes to the acceptance driver, PowerShell launcher or defaults could skip appropriate integration levels. A bundle integrity unit test already existed. [ci_changes.py:25–55](../.github/scripts/ci_changes.py#L25) · [test_installed_suite.py:24–37](../tests/test_installed_suite.py#L24) | Map each path to its required integration level and check the payload with the distributed launcher. |
 
-La [PR #41](https://github.com/GregorioDalia/nipat-desktop/pull/41) è integrata.
-L'attivazione automatica è stata osservata con skip dopo una CI fallita. Una
-pubblicazione automatica riuscita da record di accettazione resta da
-qualificare. La build già pubblicata della 0.8.60 ha un record proprio e ha
-usato le evidenze scientifiche della candidata. Le PR
-[#11](https://github.com/GregorioDalia/nipat-desktop/pull/11) e
-[#26](https://github.com/GregorioDalia/nipat-desktop/pull/26) restano revisioni
-separate delle Actions e degli strumenti di qualità.
+[PR 41](https://github.com/GregorioDalia/nipat-desktop/pull/41) was integrated. Its automatic trigger skipped after failed CI. Successful automatic publication from a reviewed acceptance record remained to be qualified. The published 0.8.60 build used its candidate’s scientific evidence and had its own acceptance record. [PR 11](https://github.com/GregorioDalia/nipat-desktop/pull/11) and [PR 26](https://github.com/GregorioDalia/nipat-desktop/pull/26) cover Actions and quality-tool changes separately.
 
-## Prestazioni e misure
+## Windows 0.8.60 benchmark
 
-### Benchmark sul client Windows 0.8.60
+The installed stable package completed **51 of 51 runs in 18 min 08 s**: 3 using the Sapienza files and 48 synthetic. The real-data runs used automatic parallelism, 32 MiB/64-locus blocks and diagnostics. AC power was recorded at each run’s beginning and end. WSL reported 32 logical CPUs and 15,858 MiB.
 
-Il profilo esteso sul pacchetto stabile ha completato **51 run su 51 in
-18m 08s**, con 3 casi sui file della Sapienza e 48 sintetici. I casi reali
-hanno usato il parallelismo automatico, blocchi da 32 MiB e 64 loci e
-diagnostica attiva. L'alimentazione a corrente è stata rilevata all'inizio
-e alla fine di ogni run. WSL riportava 32 CPU logiche e 15.858 MiB di memoria.
-
-| Caso sui file reali | Tempo del run (s) | Tempo dal lancio della CLI (s) | Picco del container (MiB) |
+| Real-data case | Run elapsed (s) | Elapsed from CLI launch (s) | Container peak (MiB) |
 | --- | ---: | ---: | ---: |
-| DNPcall → Contamination | 235,01 | 236,61 | 3.458 |
-| DNPcall | 232,65 | 234,16 | 3.315 |
-| Contamination dalle tabelle DNP | 5,58 | 7,03 | 159 |
+| DNPcall followed by Contamination | 235.01 | 236.61 | 3,458 |
+| DNPcall | 232.65 | 234.16 | 3,315 |
+| Contamination from DNP tables | 5.58 | 7.03 | 159 |
 
-Nel workflow completo DNPcall ha impiegato **227,23 s**, pari al **97%**
-del tempo del run. Il calcolo dei blocchi (107,92 s), la produzione del
-pileup (78,71 s) e l'indice (29,78 s) coprono insieme il 92% del totale.
-Blocchi e indice valgono circa il 59% e sono il primo punto da misurare.
-Le tre fasi del run DNPcall autonomo hanno durate analoghe. Nel run breve
-di Contamination il processo R dura 0,77 s a fronte di 7,03 s dal lancio.
-Per individuare il costo fisso occorre distinguere launcher, preparazione
-del runtime, controlli e scrittura degli output.
+DNPcall took 227.23 s in the combined workflow (97% of the run). R blocks took 107.92 s, pileup 78.71 s and indexing 29.78 s. Together these covered 92% of the run. Blocks and indexing accounted for about 59%. Standalone DNPcall showed similar phase durations. For the short Contamination run R took 0.77 s of the 7.03 s elapsed from CLI launch.
 
-Nelle ultime tre prove archiviate della 0.8.30, il workflow DNPcall →
-Contamination aveva mediana 210,88 s. Il nuovo run dura **24,13 s in più
-(11,4%)**. Le sei misure storiche su due sessioni vanno da 203,39 a 228,96 s.
-I rapporti coincidono per metadati dei sette input, digest dei quattro file
-piccoli, modalità, dimensione dei blocchi e risorse WSL rilevate. Per BAM e
-FASTA l'identità è basata sui metadati. Una sola ripetizione della 0.8.60 in
-una sessione separata lascia aperta l'attribuzione dello scarto alla versione.
+The last three 0.8.30 DNPcall/Contamination runs had a 210.88 s median, 24.13 s (11.4%) below the new run. Six historical observations across two sessions ranged from 203.39 to 228.96 s. Metadata for seven inputs, hashes for four smaller files, mode, block size and WSL resources matched; the BAM and FASTA comparison used metadata only. One 0.8.60 run in a different session cannot isolate a version effect.
 
-| Modulo autonomo su input sintetici | Casi | Tempo del run (s) |
+| Synthetic standalone module | Cases | Elapsed range (s) |
 | --- | ---: | ---: |
-| DNPcall | 2 | 9,79–10,32 |
-| SNPcall | 2 | 6,43–8,11 |
-| Contamination | 10 | 4,71–5,90 |
-| CPI prenatale | 16 | 6,41–11,26 |
-| CPIN postnatale | 8 | 7,03–12,89 |
+| DNPcall | 2 | 9.79–10.32 |
+| SNPcall | 2 | 6.43–8.11 |
+| Contamination | 10 | 4.71–5.90 |
+| Prenatal CPI | 16 | 6.41–11.26 |
+| Postnatal CPIN | 8 | 7.03–12.89 |
 
-Gli intervalli aggregano input e opzioni diverse. Nei 10 casi sintetici
-combinati, il workflow sui cinque moduli ha impiegato 46,20 s in seriale,
-36,74 s in automatico e 40,10 s con un massimo di due processi. I picchi
-del container sono rispettivamente 185, 553 e 375 MiB. È stata eseguita una
-prova per modalità. Tutti i 9 confronti di parità delle tabelle nel
-benchmark riguardano casi sintetici e hanno avuto esito positivo. Gli esiti
-dei casi reali attestano il completamento dei run. La parità su quei file
-resta da misurare con le tabelle di riferimento della 0.8.60.
+The ranges combine different inputs and settings. In the 10 combined synthetic cases, the five-module workflow took 46.20 s serially, 36.74 s automatically and 40.10 s capped at two workers, with respective container peaks of 185, 553 and 375 MiB. Each mode ran once. All nine table-parity comparisons passed on synthetic data. The three real-data runs established completion. Reference-table comparison on those files remained open.
 
-### Interventi da misurare
+## Performance questions
 
-| Area | Evidenza disponibile | Prova o modifica da valutare |
-| --- | --- | --- |
-| **DNP sui due BAM reali** | Il calcolo dei blocchi e l'indice totalizzano 137,70 s nel workflow della 0.8.60. Il pileup richiede altri 78,71 s. | Misurare tokenizer e indice seriali, scansioni e GC per task e merge progressivi del riepilogo. Verificare il guadagno sui due BAM e confrontare le tabelle prima di intervenire sul pileup. [dnp_blocks.R:25–69, 247–263](../src/nipat_scientific/dnp_blocks.R#L25), [DNPcall.R:794–837](../scientific/vendor/DNPcall/DNPcall.R#L794) |
-| **CPI ad alta profondità** | Lo script alloca sequenze e vettori per ogni soglia di read fino al massimo osservato. Conserva le curve delle coppie e dei cutoff prima dell'esportazione. Analisi del codice. | Valutare intervalli compatti e statistiche ponderate con equivalenza sul riferimento denso. Misurare picco memoria e durata con profondità crescente. [cfDNA_CPI_estimator.R:382–454, 728–744](../scientific/vendor/NEWPAT/CPI_from_cffDNA/cfDNA_CPI_estimator.R#L382) |
-| **Analisi brevi e avvio a caldo** | In 48 casi sintetici archiviati della 0.8.50 riparata, mediana run 8,563 s. La mediana della preparazione prima del comando scientifico è 3,402 s e la mediana delle quote per caso è circa 40%. I due probe dell'immagine sono circa 1 s in mediana. Su macOS il launcher valida e prepara Lima anche prima di comandi informativi, con ulteriore verifica nel runner. | Misurare avvio freddo/caldo per piattaforma. Accorpare probe, memorizzare la descrizione per immagine immutabile nella stessa sessione e mantenere la verifica di identità prima del calcolo. [runner.py:384–420, 505–550, 617–627](../src/nipat/execution/runner.py#L384), [macOS launch.py:103–127](../installer/macos/launch.py#L103) |
-| **Preparazione Windows** | Sul ripristino dopo un errore successivo all'importazione, lo script può ricalcolare l'hash e ricaricare l'archivio scientifico da circa 602 MB. Percorso verificato nel codice, risparmio da misurare. | Conservare la ricevuta di importazione legata a digest, distro e immagine risolta, poi ispezionare l'immagine a ogni ripresa e ricaricare quando serve. [bootstrap-common.ps1:278–296](../installer/windows/bootstrap-common.ps1#L278) |
-| **Recupero run** | Una prova con 15 record storici già rimossi ha contato 15 ispezioni Docker e 15 risultati ad ogni scansione. Il menu richiama la scansione al rientro. | Mostrare prima i casi attivi o incerti e conservare l'ispezione puntuale nello storico. Raggruppare le interrogazioni. Testare anche daemon indisponibile. [recovery.py:174–187](../src/nipat/execution/recovery.py#L174), [recovery_ui.py:44](../src/nipat/recovery_ui.py#L44) |
-| **Input grandi e batch** | `--input-hashes full` effettua tre letture integrali nel percorso provato. BAM e FASTA del benchmark sommano 8,49 GB, quindi circa 25,46 GB di letture di hash. Con mille input il controllo duplicati ha chiamato `samefile` 499.500 volte. I pileup SNP importati possono essere riletti a più confini prima del calcolo. | Conservare la verifica dei file. Misurare e ridurre i passaggi ridondanti, usare una sola identità file per rilevare duplicati e mantenere il riconoscimento degli hardlink. Contare le letture del pileup prima di modificare il confine di validazione. [tracking.py:41–75](../src/nipat/execution/tracking.py#L41), [workflows.py:102–104](../src/nipat/execution/workflows.py#L102), [files.py:276–298](../src/nipat_scientific/files.py#L276) |
-| **Batch SNP** | Il coordinatore ricommette l’intero stato a ogni poll di 50 ms. Con 200 worker simulati, budget di due e completamenti ritardati, 2.103 scritture invocate, di cui 1.902 identiche alla precedente. Circa 135 MB serializzati nella prova; nessuna stima di risparmio sul disco dei dispositivi reali. | Persistenza durevole sulle transizioni e sugli errori, senza ricommettere lo stato immutato. Misurare su Windows/WSL con batch numerosi. [snp_parallel.py:147–197](../src/nipat_scientific/snp_parallel.py#L147), [executor.py:60–85](../src/nipat_scientific/executor.py#L60) |
-| **Pipeline** | Build accettata 0.8.60 in 25m44s, pubblicazione in 5m54s. Nella verifica congiunta della build, 194 s per i quattro download e 65 s per i quattro upload duplicati poi rimossi dalla #41. La coda macOS ARM ha aggiunto circa 10 minuti rispetto all'avvio del job Intel. | Misurare la prima build con i nuovi artifact. Valutare download concorrenti mantenendo la verifica dei byte. Far partire il job scientifico prima, o riusare sul merge l'evidenza della PR legata a identico albero e immagine. Tenere separati coda, durata dei job e percorso critico. [Build](https://github.com/GregorioDalia/nipat-desktop/actions/runs/43484430540), [Pubblicazione](https://github.com/GregorioDalia/nipat-desktop/actions/runs/43490395205) |
+| Area | Observation and next measurement |
+| --- | --- |
+| **DNP on the two real BAMs** | Block calculation and index together took 137.70 s, plus 78.71 s for pileup. Measure tokenization, indexing, per-task scans and GC, and summary merges; compare output tables. [dnp_blocks.R:25–69, 247–263](../src/nipat_scientific/dnp_blocks.R#L25) · [DNPcall.R:794–837](../scientific/vendor/DNPcall/DNPcall.R#L794) |
+| **High-depth CPI** | The code allocated sequences and vectors for every threshold up to the maximum and retained curves for pairs and cutoffs. Compare interval representations and weighted statistics to the dense reference while increasing depth. [cfDNA_CPI_estimator.R:382–454, 728–744](../scientific/vendor/NEWPAT/CPI_from_cffDNA/cfDNA_CPI_estimator.R#L382) |
+| **Short runs and warm startup** | In 48 archived synthetic runs on repaired 0.8.50, median run time was 8.563 s. Preparation took 3.402 s in median, about 40% as a median of per-run shares. Two image probes took about 1 s in median. macOS validated and prepared Lima even for informational commands. Measure cold and warm startup by platform; consider caching descriptions per immutable image while verifying identity before computation. [runner.py:384–420, 505–550, 617–627](../src/nipat/execution/runner.py#L384) · [macOS launch.py:103–127](../installer/macos/launch.py#L103) |
+| **Windows preparation** | Resuming after an error following import could rehash and reload the roughly 602 MB image archive. Consider verifying an import receipt against digest, distribution and resolved image before repeating the load. No saving was measured. [bootstrap-common.ps1:278–296](../installer/windows/bootstrap-common.ps1#L278) |
+| **Run recovery** | A scan of 15 already removed records issued 15 Docker inspections and displayed 15 results. Consider prioritizing active or uncertain records, grouping queries and testing an unavailable daemon. [recovery.py:174–187](../src/nipat/execution/recovery.py#L174) · [recovery_ui.py:44](../src/nipat/recovery_ui.py#L44) |
+| **Large inputs and batches** | Full hashing performed three full reads on the tested path. The BAMs and FASTA totaled 8.49 GB, or about 25.46 GB of hash reads. For 1,000 inputs duplicate detection called samefile 499,500 times. Count SNP pileup rereads and reduce redundant passes while retaining file and hard-link identity checks. [tracking.py:41–75](../src/nipat/execution/tracking.py#L41) · [workflows.py:102–104](../src/nipat/execution/workflows.py#L102) · [files.py:276–298](../src/nipat_scientific/files.py#L276) |
+| **SNP batch** | Polling every 50 ms rewrote the entire state. With 200 simulated workers, concurrency two and delayed completions, 2,103 writes included 1,902 unchanged states, about 135 MB serialized. Persist transitions and errors durably. Device-level I/O savings still required measurement. [snp_parallel.py:147–197](../src/nipat_scientific/snp_parallel.py#L147) · [executor.py:60–85](../src/nipat_scientific/executor.py#L60) |
+| **Pipeline** | The accepted build took 25 min 44 s and publication 5 min 54 s. Joint verification spent 194 s on four downloads and 65 s on four duplicate uploads removed by PR 41. The ARM macOS runner queued about 10 minutes longer than Intel. Measure queue time, critical path and byte-verified transfers separately. [Actions run 43484430540](https://github.com/GregorioDalia/nipat-desktop/actions/runs/43484430540) · [Actions run 43490395205](https://github.com/GregorioDalia/nipat-desktop/actions/runs/43490395205) |
 
-## Documentazione pubblica
+## Documentation and verification
 
-Il README presenta prodotto, pacchetti, input, primo run e risultati. L'indice
-delle [guide correnti](README.md) raggruppa i contenuti per operazione.
-I documenti su installazione, uso, risultati, prestazioni, validazione e
-contributi sono stati ricontrollati con il codice e i pacchetti pubblicati.
-Le note di rilascio, gli audit precedenti e le misure datate rimangono
-rintracciabili dall'[archivio](archive/README.md). Licenze, attribuzioni e record
-di accettazione documentano la provenienza. Gli indici nuovi sono
-destinati a GitHub. Prima di includerli nei pacchetti futuri, verificare
-l'elenco esplicito in [distribution-files.txt](../distribution-files.txt).
+The review checked the README and user guides against the code and packages, reviewed release notes, package assets, wiki, issues, pull requests and check configuration. The wiki redirected to the home page and [issue 9](https://github.com/GregorioDalia/nipat-desktop/issues/9) tracked manual console checks. The [guide index](README.md) serves users; [archived documents](archive/README.md), licensing, attribution and acceptance records preserve provenance. Packaged documentation is selected in [distribution-files.txt](../distribution-files.txt).
 
-La ricognizione GitHub comprende pacchetti, note di rilascio pubblicate,
-wiki, issue e pull request aperte e configurazione dei controlli. L'URL
-della wiki pubblica rimanda alla home. L'issue #9 conserva le verifiche
-manuali della console. La documentazione corrente ha un solo punto
-d'ingresso nel repository.
+The proposed order was S1–S4 with independent numerical oracles, D1–D3 including rollback and restarts, then R1–R3 and qualification of the release copy. The performance work called for measuring blocks and indexing before pileup on paired real-data runs and profiling fixed startup on short jobs. Remaining P2 findings and D9 were to follow as appropriate.
 
-## Ordine di lavoro proposto
+- Local main-branch Python suite: **1,272 passed and 32 skipped** for platform, prerequisite and permission fixtures. CI and release checks: **328 passed**. Ruff and shell-helper syntax checks passed.
+- Targeted client and installer suites: **597** and **236 passed**, overlapping the local suite. Targeted scientific suites: **235 passed** with R 4.5.0 and samtools 1.21. Synthetic reproductions exercised unchanged code. The packaged runtime still required qualification with the new regressions.
+- Other targeted checks exercised dpkg rollback, the real Windows manifest reader in PowerShell 7, and prior acceptance records. The 0.8.60 Windows synthetic suite was reported as 70 passes. The subsequent benchmark measured an installed client. Physical-device setup, Windows reboot during update, macOS startup and domain validation had separate evidence requirements.
 
-1. Riprodurre e correggere S1–S4, mantenendo casi numerici indipendenti e
-   concordando le correzioni che cambiano risultati.
-2. Rendere aggiornabile il pacchetto con D1–D3. Provare rollback, riavvio
-   richiesto e collaudo installato su una candidata con versione nuova.
-3. Ripristinare l'esito completo di CI e qualificare la pubblicazione con
-   R1–R3. Costruire dal commit di `main` integrato o conservare l'esatto
-   commit costruito se il branch viene integrato successivamente.
-4. Misurare prima calcolo dei blocchi e indice DNP, poi il pileup. Ripetere
-   il workflow reale sulla stabile e sulla candidata nelle stesse condizioni,
-   registrando tempi per fase, durata totale, memoria e tabelle di riferimento.
-   Profilare l'avvio per i workflow brevi con misure dedicate.
-5. Chiudere i rilievi P2 che incidono sugli scenari scelti per la release e
-   aggiornare la guida incorporata con D9.
+## Changes incorporated in 0.8.70
 
-## Verifiche eseguite e limiti
+| Findings | Change and verification |
+| --- | --- |
+| S1, S2 | Preserve textual IDs in reads and joins and check REF against acquired bases and FASTA windows. Test leading-zero aliases, mismatched REF, out-of-range coordinates and ordinary SNP/DNP reference cases. |
+| S3, S4 | Compute prenatal CPI in log space, check totals in CPI/CPIN and derive Contamination ratios from counts. Test extreme products, uninformative sites and inconsistent counts. |
+| S5, S6, S7 | Reject ambiguous repeated SNP QNAMEs in window sites; emit zero DNP rows for uncovered samples; validate DNP alleles and CPI curve files. Mate handling diagnoses the ambiguity. |
+| D1–D3 | Derive the Windows version from packaged sources, use an explicit reboot handoff code and clear the lock in the restored dpkg package’s hooks. Tests cover valid and invalid manifests, compiled Inno restart and Linux configuration/rollback. Already installed old DEBs retain their own hooks. |
+| R1–R5 | Record inconclusive OOM evidence distinctly, specify the channel in acceptance, queue actual publications, verify tag and digests on retry, and assign Windows and acceptance scripts to CI levels. Check the guards locally and qualify on GitHub. |
+| Performance | Declare pileup types before DNP indexing, check duplicate BAMs in linear time and persist SNP state when it changes. Verify isolated index performance and output agreement. |
 
-- Suite Python locale su main: **1.272 passati, 32 saltati** per prerequisiti
-  nativi, piattaforme e fixture di permessi. Controlli CI e pubblicazione:
-  **328 passati**. Ruff e sintassi dell'helper shell verificati.
-- Suite mirate su client e installer: **597** e **236 passati**. Le suite
-  si sovrappongono ai test locali e i risultati non si sommano.
-- Suite scientifiche mirate: **235 passati** con R locale 4.5.0 e samtools 1.21.
-  Le riproduzioni sintetiche sono state eseguite contro il codice invariato.
-  Il runtime scientifico distribuito va qualificato anche con le nuove
-  regressioni. Prova mirata di rollback dpkg, lettura manifest Windows con
-  PowerShell 7 e verifiche sui record precedenti.
-- Il collaudo sintetico 0.8.60 sul PC Windows è stato riportato come 70 esiti
-  positivi. Il benchmark successivo misura il client già installato. Setup
-  nativo, aggiornamento con riavvio e app macOS su dispositivi fisici restano
-  da riqualificare. Per ogni correzione scientifica occorrono i casi di
-  regressione specifici e un riferimento numerico indipendente.
+A local DNP index test used a 69,588,000-byte synthetic pileup (18,000 rows, two samples, depth 160). In five alternating repetitions in the same R session, the median was 2.864 s on 0.8.60 and 1.159 s on 0.8.70. Coordinates, offsets, types and row counts agreed. This measured indexing alone.
 
-
-## Interventi integrati nella 0.8.70
-
-| Rilievi | Modifica | Verifica pertinente |
-| --- | --- | --- |
-| S1, S2 | Identificatori testuali in lettura e nei join. Coerenza del REF alle posizioni acquisite e delle finestre con l'indice FASTA. | Oracoli sintetici per alias numerici, REF discordante e coordinate fuori riferimento. Confronti DNP e SNP con riferimenti congelati sui casi ordinari. |
-| S3, S4 | CPI prenatale in spazio logaritmico. CPI e CPIN richiedono totale coerente. Contamination ricava il rapporto dai conteggi. | Prodotti oltre la precisione disponibile, assenza di informazione, conteggi discordanti e risultati attesi dai conteggi. |
-| S5, S6, S7 | SNP rifiuta QNAME ripetuti nei siti della finestra. DNP produce righe a zero per campioni scoperti. Verifica di alleli DNP e file delle curve CPI. | Regressioni native e controlli sul contratto degli output. Il trattamento dei mate resta limitato alla diagnosi di ambiguità. |
-| D1–D3 | Versione Windows derivata dai sorgenti inclusi. Handoff con codice esplicito di riavvio. Hook dpkg del pacchetto ripristinato rimuovono il blocco. | Manifest coerente e incompatibile, fixture Inno con riavvio, transizioni Linux di configurazione e rollback. Gli hook dei vecchi DEB restano nelle copie già installate. |
-| R1–R5 | Classificazione esplicita del probe senza conferma OOM, canale nel record, coda riservata alle pubblicazioni, controllo di tag e hash sul rilancio, livelli CI per script Windows e collaudo. | Controlli locali dei guard e successiva qualificazione su GitHub. |
-| Prestazioni | Tipi di pileup dichiarati prima dell'indice DNP, controllo lineare dei BAM duplicati, scrittura dello stato SNP quando cambia. | Misure isolate dell'indice e confronto dei risultati. Durata end-to-end della candidata sui BAM reali da rilevare sul PC. |
-
-Alla chiusura della 0.8.70 restavano i rilievi D4–D10, l'ottimizzazione del
-calcolo dei blocchi DNP e il controllo di coerenza del riepilogo DNP complessivo.
-Le correzioni successive sono descritte nel [consolidamento 0.8.80](AUDIT_0.8.80.md). Le misure di
-0.8.60 sui dati reali restano il riferimento per la prova con la 0.8.70.
-
-
-Nella microprova locale dell'indice DNP, un pileup sintetico da 69.588.000 byte
-(18.000 righe, due campioni, profondità 160) ha richiesto una mediana di
-2,864 s nella 0.8.60 e 1,159 s nella 0.8.70, su cinque ripetizioni a ordine
-alternato nella stessa sessione R. Coordinate, offset, tipi e conteggio delle
-righe coincidono. Il confronto riguarda la sola indicizzazione.
+At release close D4–D10, DNP block optimization and the overall DNP summary consistency check remained open. The [0.8.80 audit](AUDIT_0.8.80.md) records subsequent work. Real-data 0.8.60 measurements remain the baseline for a separate installed 0.8.70 comparison.

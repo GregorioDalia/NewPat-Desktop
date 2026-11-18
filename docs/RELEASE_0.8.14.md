@@ -1,88 +1,47 @@
 # NIPAT Desktop 0.8.14
 
-NIPAT Desktop 0.8.14 introduce la scelta tra esecuzione seriale e automatica,
-il limite configurabile dei processi e il pileup DNP parallelo per cromosoma.
-La distribuzione del calcolo DNP usa un budget comune ai blocchi di tutti i
-campioni: il miglioramento riguarda un numero generico di BAM, anche quando
-è maggiore del numero di processi disponibili.
+This release introduced serial and automatic execution, a configurable process limit, and chromosome-parallel DNP pileup. One global queue serves sample/block tasks across any number of BAMs, including batches with more samples than available processes.
 
-## Modifiche
+## Execution
 
-- **DNP con più BAM:** una coda comune di attività campione/blocco sostituisce
-  l'alternativa fra parallelismo sui campioni e sui blocchi. I processi liberi
-  possono elaborare altri blocchi senza aspettare la fine di un intero campione.
-  La ricomposizione conserva ordine dei campioni, loci e risultati.
-- **Budget unico:** seriale, massimo di processi e limiti di memoria si
-  applicano alla coda complessiva. Non vengono avviati pool scientifici annidati.
-  Le unità che richiedono compatibilità globale rimangono indivisibili.
-- **Pileup:** la preparazione per cromosoma conserva l'ordine canonico e il
-  percorso seriale di ripiego. Preparazione e calcolo R sono fasi successive.
-- **Altri moduli:** parallelismo controllato per SNPcall, Contamination e CPI;
-  riuso delle righe informative già calcolate nel riepilogo CPI. Le formule
-  scientifiche e i filtri restano invariati.
-- **Thread interni:** lettori e librerie numeriche rispettano il budget senza
-  aggiungere autonomamente altri gruppi di thread, anche in modalità seriale.
-- **Metriche Docker:** la raccolta distingue la normale fine del container
-  dagli errori di parsing. Gli errori reali restano espliciti; una prova troppo
-  breve può non produrre campioni esterni, senza trasformarli in misure nulle.
+Available workers can take the next block without waiting for an entire sample to finish. Reassembly preserves sample, locus and result order. Serial mode, process ceilings and memory limits apply to the whole queue. Blocks requiring global compatibility stay intact. Pileup preserves canonical chromosome order and provides a serial fallback. Acquisition completes before R processing begins.
 
-Le opzioni globali della CLI precedono il nome dell'analisi:
+SNPcall, Contamination and CPI use bounded parallelism. CPI reuses informative rows in its summary. Readers and numerical libraries respect the global budget, including in serial mode. Scientific formulas and filters are unchanged. Docker monitoring distinguishes a normal container exit from parsing failures and labels a run too short for external samples as unobserved.
+
+Global CLI options precede the analysis command.
 
 ```powershell
-.\nipat.cmd --execution-mode serial dnp-call --bam campione.bam --reference genome.fa --panel DNP_list.txt
-.\nipat.cmd --execution-mode auto --max-workers 4 dnp-call --bam campione-a.bam --bam campione-b.bam --bam campione-c.bam --reference genome.fa --panel DNP_list.txt
+.\nipat.cmd --execution-mode serial dnp-call --bam sample.bam --reference genome.fa --panel DNP_list.txt
+.\nipat.cmd --execution-mode auto --max-workers 4 dnp-call --bam sample-a.bam --bam sample-b.bam --bam sample-c.bam --reference genome.fa --panel DNP_list.txt
 ```
 
-`--bam` è ripetibile; `--bamlist` accetta un elenco di file. Il massimo di
-processi è un limite, non un numero garantito. Nel menu le stesse opzioni sono
-disponibili nel riepilogo dell'analisi. I blocchi iniziali sono 32 MiB di input
-grezzo e 64 loci; non rappresentano un limite rigido della RAM del processo R.
+Repeat `--bam` or provide a file list with `--bamlist`. The menu summary exposes the same controls. The maximum process count is a ceiling. The initial block targets are 32 MiB of raw input and 64 loci. R memory use also includes the data structures built from that input.
 
-## Evidenze e limiti
+## Benchmarks and verification
 
-Le [misure del precedente candidato 0.8.14](https://github.com/GregorioDalia/nipat-desktop/blob/main/docs/validation/0.8.14-observed-benchmarks.json),
-commit `e04ff883fc6417748174d2a7c3b49cadad989308`, comprendono 42 esecuzioni
-Windows/WSL. DNP e Contamination usano dati reali; SNP e CPI esempi piccoli.
-Le tabelle DNP, SNP e Contamination coincidono fra seriale e automatico;
-il controllo CPI informativo verifica anche risultati numerici attesi.
+The [earlier 0.8.14 candidate measurements](https://github.com/GregorioDalia/nipat-desktop/blob/main/docs/validation/0.8.14-observed-benchmarks.json) at `e04ff883fc6417748174d2a7c3b49cadad989308` cover 42 Windows/WSL runs. DNP and Contamination used real inputs. SNP and CPI used small examples. Serial and automatic DNP, SNP and Contamination tables matched. The informative CPI check also verified expected numerical results.
 
-Su quel candidato, i tempi mediani DNP seriale/automatico erano 377,649/122,849
-secondi e 191,161/68,071 secondi per i due BAM separati; l'elaborazione congiunta
-richiedeva 623,327/291,771 secondi. La fase R congiunta usava due processi,
-contro cinque nel caso singolo. Questa osservazione ha guidato la nuova coda
-comune; **non misura l'accelerazione della nuova implementazione**.
-Gli input reali non sono inclusi nel repository e il nuovo installer non
-eredita automaticamente il collaudo manuale del candidato precedente.
+| Earlier candidate workload | Serial median (s) | Automatic median (s) |
+| --- | ---: | ---: |
+| First BAM alone | 377.649 | 122.849 |
+| Second BAM alone | 191.161 | 68.071 |
+| Both BAMs together | 623.327 | 291.771 |
 
-Il riferimento scientifico dei confronti automatici rimane la 0.8.5 congelata.
-Le verifiche differenziali controllano tabelle, quantità R non arrotondate e
-PDF nei casi coperti, insieme a test specifici del budget, di più campioni e
-della terminazione del monitoraggio. Le evidenze della build identificano
-il commit e l'immagine realmente distribuiti. Gli esempi SNP/CPI non stimano
-la scalabilità su dataset grandi; l'indicizzazione globale DNP resta una
-fase separata da profilare.
+The combined R phase used two workers, compared with five for one sample. This motivated the new shared queue. Its speedup still needed measurement. The real inputs are outside the repository, and the earlier manual installer test applies to that build only.
 
-## Installazione e aggiornamento
+Differential checks use frozen 0.8.5 tables, unrounded R quantities and PDFs, supplemented by resource-budget, multi-sample and monitoring-shutdown tests. Build evidence identifies the shipped commit and image. Large SNP/CPI inputs and the global DNP indexing phase require separate profiling.
 
-Scaricare un solo pacchetto dalla
-[release 0.8.14](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.8.14):
+## Installation
 
-| Sistema | Pacchetto |
+Choose a package from the [0.8.14 release](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.8.14).
+
+| System | Package |
 | --- | --- |
 | Windows 10 22H2 x64 / Windows 11 x64 | `NIPAT-Setup.exe` |
-| macOS 14 o successivo, Apple Silicon | `NIPAT-0.8.14-macos-arm64.pkg` |
-| macOS 14 o successivo, Intel | `NIPAT-0.8.14-macos-x86_64.pkg` |
+| macOS 14 or later, Apple Silicon | `NIPAT-0.8.14-macos-arm64.pkg` |
+| macOS 14 or later, Intel | `NIPAT-0.8.14-macos-x86_64.pkg` |
 | Ubuntu 24.04 LTS x86_64 | `nipat-desktop_0.8.14_amd64.deb` |
 
-Da una versione stabile precedente è disponibile **Verifica aggiornamenti**.
-Chi ha installato un candidato già denominato 0.8.14 deve invece scaricare
-manualmente l'installer ufficiale: l'aggiornatore confronta le versioni, non
-i commit. Chiudere le analisi prima dell'aggiornamento; dati, preferenze e
-risultati precedenti vengono conservati.
+Earlier stable versions offer **Check for updates**. Users of a candidate already labeled 0.8.14 must download the official installer manually because the updater compares version numbers. Finish active runs before upgrading. Data, preferences and results are preserved.
 
-Windows usa WSL2 con Docker Engine gestito dall'applicazione; macOS usa Lima
-e, su Apple Silicon, Rosetta; Ubuntu usa Docker Engine locale. Docker Desktop
-non è un prerequisito. I pacchetti non hanno una firma NIPAT riconosciuta
-dai sistemi e macOS non dispone di notarizzazione Apple. Le verifiche dei
-pacchetti Mac non sostituiscono un collaudo completo della VM sui dispositivi
-finali. La validazione di dominio resta distinta dai controlli automatici.
+Windows uses managed Docker Engine under WSL2, macOS uses Lima with Rosetta on Apple Silicon, and Ubuntu uses local Docker Engine. Docker Desktop is optional. Packages lacked a recognized NIPAT signature and Mac notarization. End-device VM testing and scientific domain validation remain separate from package checks.

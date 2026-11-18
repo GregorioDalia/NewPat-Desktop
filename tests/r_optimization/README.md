@@ -1,8 +1,6 @@
 # Scientific R qualification
 
-Two complementary gates qualify version 0.8.50. Both use synthetic inputs and
-must pass against the actual scientific image. No personal sequencing data are
-included in either gate.
+Two suites check the R code in the packaged scientific image. One compares caller results with the pinned references. The other checks the analyses that consume count tables. Both use synthetic inputs.
 
 ```sh
 python scripts/verify_r_equivalence.py \
@@ -21,7 +19,7 @@ runs the installed code in `/opt/nipat`, never host candidate overrides. Its
 local-R mode snapshots candidate code to prevent concurrent development edits
 from changing an Rscript that is already running.
 
-## Preserved DNP/SNP caller models
+## DNP and SNP calling
 
 `verify_r_equivalence.py` compares DNP defaults against immutable NIPAT 0.8.5
 commit `eafadf7002a9c7d7c1b9af9ccafc47d698a059e5`, and SNP against the complete
@@ -68,14 +66,14 @@ output equality precedes three alternating-order observations per variant.
 `Rprofmem` allocation totals are not peak RAM, and timing has no pass/fail
 threshold.
 
-## Updated downstream models
+## Downstream models
 
 `verify_five_modules.py` complements the caller gate with CPI, CPIN and
 Contamination from both SNP and DNP count tables. Frozen original scripts from
 NEWPAT commit `9c2a8be60afcb944153710da6a61cd0559e2b4cf` are pinned separately
 under `tests/reference_r/NEWPAT_20261113`. Independent hand-derived fixtures
 verify counts, missing values, mismatch constants, full CPI curves, compact
-CPIN threshold intervals, the new contamination denominator, optional zero
+CPIN threshold intervals, the contamination denominator, optional zero
 inclusion, minimum support and unused NA metadata.
 
 The full matrix also checks 2/3/5 prenatal pairs, postnatal trios and

@@ -1,48 +1,19 @@
-# NIPAT Desktop 0.8.95 — ZIP completo aggiuntivo per Windows
+# NIPAT Desktop 0.8.95 — additional full Windows ZIP
 
-La 0.8.95 mantiene i quattro installer della 0.8.90 e aggiunge
-`NIPAT-0.8.95-Windows-completo.zip`. Il setup `NIPAT-Setup.exe` resta un
-singolo file completo. I cinque moduli scientifici e le formule R non cambiano.
+This release kept the four 0.8.90 installers and added `NIPAT-0.8.95-Windows-completo.zip`. The Windows `NIPAT-Setup.exe` remained a self-contained installer. The five scientific modules and R formulas were unchanged.
 
-## Installazione ZIP
+## ZIP installation
 
-Estrarre completamente il pacchetto e fare doppio clic su `1_INSTALLA.cmd`.
-Non occorre installare Python: il pacchetto include Python 3.12.10, il
-filesystem WSL e lo stesso archivio scientifico degli altri installer.
-Windows può richiedere Internet, autorizzazione amministrativa e un
-riavvio per abilitare o aggiornare i propri componenti WSL.
+Extract the entire archive and run `1_INSTALLA.cmd`. The package includes Python 3.12.10, the WSL filesystem and the same scientific archive used by the other installers. Enabling or updating Windows WSL components may require Internet access, administrator approval and a restart.
 
-Il programma verifica i file, prepara l'ambiente e crea i collegamenti
-**NIPAT Desktop ZIP** e **NIPAT Desktop ZIP - completa preparazione** nel
-menu Start. L'applicazione risiede in `%LOCALAPPDATA%\NIPAT-Desktop-Zip`,
-con dati, risultati, cache e preferenze propri. Non modifica la cartella
-né la registrazione dell'installazione EXE.
+After verification and preparation, the installer creates the Start menu shortcuts **NIPAT Desktop ZIP** and **NIPAT Desktop ZIP - completa preparazione**. It installs to `%LOCALAPPDATA%\NIPAT-Desktop-Zip` with its own data, results, cache and preferences. The EXE installation keeps its own directory and registration.
 
-Le nuove versioni vengono preparate in cartelle distinte. Solo una
-preparazione riuscita aggiorna il puntatore della versione attiva;
-interruzioni, riavvii richiesti ed errori non selezionano una versione
-ancora da verificare. Gli aggiornamenti dal menu scaricano lo ZIP completo
-e mantengono il metodo di installazione. Le precedenti cartelle applicative
-restano disponibili; la pulizia automatica di queste cartelle non è prevista.
+Each version has its own directory. The active-version pointer changes only after successful preparation. Interruptions, errors or restart requests leave the previous version selected. Menu updates download a full ZIP and retain the installation method. Previous application directories are kept.
 
-## Componenti Windows e controlli
+## Windows components and evidence
 
-Il launcher nativo ha una versione di componente indipendente dalla versione
-applicativa: `0.8.81`, corrispondente al codice invariato. La build controlla
-che launcher e DLL di coordinamento abbiano gli stessi SHA-256 dei componenti
-della 0.8.81. `nipat --version` continua a riportare la versione applicativa.
+The native launcher's component version was `0.8.81`, independently of the application version returned by `nipat --version`. The build checks the launcher's and coordination DLL's SHA-256 digests against the 0.8.81 components.
 
-Il nuovo ZIP evita l'esecuzione del contenitore Inno Setup, ma non costituisce
-una garanzia di accettazione da parte di Smart App Control. Script, DLL e
-helper WSL restano soggetti ai controlli del dispositivo. Nessuna protezione
-viene disattivata e nessuna firma NIPAT viene dichiarata.
+The ZIP skips the Inno Setup executable. Windows still evaluates scripts, DLLs and WSL helpers according to device policy. No NIPAT publisher signature or Smart App Control qualification was claimed.
 
-I rapporti della release distinguono verifiche dei pacchetti, test del client
-con Python incluso e regressioni scientifiche dai collaudi su Windows fisico
-con WSL e SAC attivo. `windows-zip-check.json` descrive il controllo del
-pacchetto ZIP; `desktop-acceptance.json` vincola anche il suo SHA-256 alla build
-accettata. La validazione scientifica di dominio resta separata.
-
-La [guida Windows](INSTALLATORE_WINDOWS.md#zip-completo-aggiuntivo) descrive
-installazione, ripresa e percorsi. Lo ZIP automatico **Source code** di GitHub
-contiene i sorgenti e non sostituisce questo pacchetto installabile.
+`windows-zip-check.json` records package verification. `desktop-acceptance.json` binds the ZIP digest to the accepted build. Release reports distinguish embedded-Python client checks and scientific regressions from physical Windows tests with WSL and Smart App Control enabled. Domain validation remains separate. The [Windows ZIP guide](INSTALLATORE_WINDOWS.md#complete-zip-installation) covers installation, recovery and paths. GitHub’s **Source code** ZIP is the source distribution.

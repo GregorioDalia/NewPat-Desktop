@@ -1,36 +1,29 @@
-# Identità visiva NewPat
+# NewPat artwork
 
-Il simbolo combina una N con due tratti paralleli che richiamano dati di sequenza
-accoppiati. Il blu scuro (`#142D4E`), il bianco e il verde acqua (`#48D6C5`)
-mantengono il contrasto su superfici chiare e scure. Dalla versione 0.9.5 il
-logotipo riporta **NewPat**; il simbolo N resta riconoscibile. I nomi tecnici
-dei file `nipat-*` sono conservati per compatibilità con i manifest e i
-percorsi già usati dagli installatori.
+The two parallel strokes in the N symbol represent paired sequence data.
+The palette uses navy (`#142D4E`), white, and teal (`#48D6C5`).
+Use the wordmark on its intended background so the lettering stays legible.
 
-## File disponibili
+| File | Use |
+| --- | --- |
+| [nipat-symbol.svg](nipat-symbol.svg) | Standalone vector symbol and Linux desktop shortcut |
+| [nipat-logo.svg](nipat-logo.svg) | Wordmark for light backgrounds |
+| [nipat-logo-dark.svg](nipat-logo-dark.svg) | Wordmark for dark backgrounds |
+| [nipat-icon.png](nipat-icon.png) | Transparent 512 × 512 raster icon |
+| [nipat-icon.ico](nipat-icon.ico) | Windows icon at 16, 20, 24, 32, 40, 48, 64, 128, and 256 pixels |
 
-- `nipat-symbol.svg`: simbolo vettoriale, usato dal collegamento Linux.
-- `nipat-logo.svg`: logotipo per superfici chiare, con lettere convertite in tracciati.
-- `nipat-logo-dark.svg`: logotipo per superfici scure.
-- `nipat-icon.png`: icona trasparente a 512 × 512 pixel.
-- `nipat-icon.ico`: icona Windows a 16, 20, 24, 32, 40, 48, 64, 128 e 256 pixel.
+The SVG wordmarks use outlines and require no additional fonts. The Windows
+installer embeds the ICO. The Linux desktop entry uses the installed SVG.
 
-Il launcher Windows e l'installatore incorporano l'ICO. Il collegamento Linux
-usa l'SVG installato e verificato con i sorgenti dell'applicazione. Non sono
-necessari font o download aggiuntivi per visualizzare il marchio.
+## Regenerate the files
 
-## Rigenerazione
+From the repository root, use Python 3.12 in a development environment:
 
-`build_assets.py` contiene la geometria condivisa degli SVG e delle icone raster.
-Per rigenerare gli asset utilizzare Python 3.12 e Pillow 12.3.0 in un ambiente
-di sviluppo separato:
-
-```console
+```sh
 python -m pip install Pillow==12.3.0
 python assets/branding/build_assets.py
 ```
 
-Il programma genera gli stessi file senza metadati temporali. Le dipendenze di
-questo comando non sono richieste dall'applicazione o dalla compilazione degli
-installatori, che usano i file già versionati. Il materiale grafico originale
-segue la licenza del progetto.
+[build_assets.py](build_assets.py) uses the same geometry for the SVGs and raster
+icons and omits timestamps. Application packages use the committed artwork.
+The original artwork is covered by the [project license](../../LICENSE).

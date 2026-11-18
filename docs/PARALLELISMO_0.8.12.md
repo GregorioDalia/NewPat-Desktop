@@ -1,122 +1,62 @@
-# Parallelismo e blocchi — sviluppo 0.8.12
+# R workers and DNP blocks in 0.8.12
 
-La 0.8.12 introduce un'impostazione comune per distribuire il calcolo nei
-quattro programmi R. È un candidato di sviluppo: questa guida non dichiara
-completati il collaudo sui dati reali o la validazione dei pacchetti finali.
-I requisiti di equivalenza restano quelli del [riferimento 0.8.5](#equivalenza-e-collaudo).
+The 0.8.12 development candidate introduced a shared scheduling policy for the four R programs. Real-data and installer qualification were still pending. The [equivalence criteria](#equivalence-and-qualification) use the 0.8.5 reference.
 
-## Impostazioni
+## Settings
 
-| Impostazione | Valore iniziale | Significato |
+| Setting | Initial value | Meaning |
 | --- | --- | --- |
-| Modalità di calcolo R | Automatica (`auto`) | Sceglie quanti processi di calcolo usare entro le risorse e il lavoro disponibili. Può scegliere un solo processo. |
-| Massimo processi R di calcolo | Automatico, senza un ulteriore massimo manuale | Un numero esplicito limita la scelta automatica; non impone di raggiungerlo. |
-| Dimensione obiettivo blocchi DNP | 32 MiB | Quantità obiettivo di pileup grezzo per blocco, non RAM occupata dal processo. |
-| Massimo obiettivo loci per blocco DNP | 64 | Numero obiettivo di loci completi per blocco. |
+| R execution mode | Automatic (`auto`) | Choose the worker count from the available resources and independent work. This may select one process. |
+| Maximum R workers | Automatic | An explicit maximum caps the automatic decision. |
+| Target DNP block size | 32 MiB | Target size of the raw pileup allocated to a block. |
+| Target maximum DNP loci per block | 64 | Target number of complete loci in a block. |
 
-La modalità `serial` mantiene un solo processo R di calcolo, anche se è
-salvato un massimo maggiore. I valori dei blocchi si applicano a DNPcall;
-modalità e massimo di processi valgono per tutti e quattro i moduli e per
-le analisi dei workflow automatici.
+`serial` uses one R worker even if a larger maximum was saved. The two block settings apply to DNPcall. Mode and worker cap apply to all four modules, including automatic workflows.
 
-I limiti accettati sono interi: 1–1024 processi di calcolo, 1–4096 MiB e
-1–1.000.000 loci. Sono intervalli di configurazione, non raccomandazioni sui
-valori più alti. Finestre complete, QNAME condivisi e gruppi necessari alla
-compatibilità non vengono spezzati: un blocco indivisibile può superare gli
-obiettivi di MiB o loci. I valori 32 MiB / 64 loci sono un punto di partenza
-per il collaudo, non un optimum dimostrato per ogni dataset.
+Accepted integer ranges are 1–1024 workers, 1–4096 MiB and 1–1,000,000 loci. The upper bounds describe what the settings accept. Complete windows, shared QNAMEs and groups required for compatibility stay together. An indivisible block can therefore exceed either target. The initial 32 MiB and 64 loci were starting points for qualification.
 
-## Un unico budget di calcolo
+## One compute budget
 
-Il massimo conta i **processi R che svolgono il calcolo in parallelo**.
-Un coordinatore R in attesa può aggiungersi: massimo 4 non significa che
-il sistema operativo mostrerà al più quattro PID R. Anche samtools, il
-motore Python e il monitoraggio hanno processi propri. Il limite globale
-dei PID del container (`--pids-limit`) è un'altra impostazione.
+The cap counts **R processes performing parallel computation**. A waiting R coordinator can have an additional PID. samtools, the Python engine and the monitor also run processes. The container-wide PID limit (`--pids-limit`) has a separate setting.
 
-Con un massimo di 4, DNPcall può distribuire quattro campioni, oppure i
-blocchi di un campione. Un campione già eseguito da un processo figlio
-elabora i propri blocchi in serie: quattro campioni non aprono altri quattro
-processi ciascuno. Lo stesso criterio impedisce pool annidati negli altri
-moduli; le librerie numeriche sono limitate a un thread per processo.
-I passaggi di un workflow composto restano sequenziali.
+With a cap of four, DNPcall can distribute four samples or the blocks of one sample. A child processing a sample handles that sample's blocks serially. The same rule prevents nested pools in the other modules. Numerical libraries use one thread per process. Steps in a compound workflow run sequentially.
 
-| Modulo | Lavoro distribuito quando utile e compatibile con il budget |
+| Module | Units available for parallel execution |
 | --- | --- |
-| DNPcall | Campioni; se il livello campioni non usa processi figli, blocchi completi del campione corrente. |
-| SNPcall | Gruppi completi di letture per QNAME, anche quando attraversano più loci. |
-| Contamination | Campioni distinti; per un singolo campione grande, porzioni contigue delle righe. |
-| CPI | Coppie; se il livello superiore resta seriale, pannelli/cutoff o intervalli di soglie. |
+| DNPcall | Samples, or complete blocks of the current sample when the sample layer has no child processes. |
+| SNPcall | Complete read groups for each QNAME, including reads spanning multiple loci. |
+| Contamination | Samples, or contiguous row ranges for one large sample. |
+| CPI | Pairs, or panels, cutoffs or threshold ranges when the higher level runs serially. |
 
-La raccolta ripristina l'ordine previsto prima delle aggregazioni e della
-scrittura. Formule, filtri, soglie scientifiche e ordine delle riduzioni
-numeriche devono rimanere equivalenti al riferimento; il parallelismo non
-implica che lettura, preparazione, grafici e ogni istruzione R siano paralleli.
+Collection restores the required order before aggregation and writing. Formulas, scientific filters, thresholds and numerical reduction order must remain equivalent to the reference. Reading, preparation and plotting can still include serial stages.
 
-## Come viene scelto il numero di processi
+## How the scheduler chooses a worker count
 
-La scelta automatica considera il minimo fra lavoro indipendente disponibile,
-CPU accessibili al processo, quota CPU del container, massimo manuale,
-disponibilità di PID e stima della memoria. Su Windows il calcolo avviene
-nel runtime Linux di WSL2; su macOS in Lima. Aumentare le CPU della VM può
-rendere disponibili più processi, senza obbligare NIPAT a usarli tutti.
-Una quota CPU frazionaria viene arrotondata per difetto, con almeno un
-processo di calcolo.
+Automatic mode takes the minimum allowed by independent work, CPU affinity, container CPU quota, manual cap, remaining PID capacity and estimated memory. The runtime uses Linux under WSL2 on Windows and Lima on macOS. Increasing VM CPUs can raise the available ceiling. Fractional CPU quotas round down with a minimum of one worker.
 
-La stima usa la memoria ancora disponibile, considerando i limiti effettivi
-del container, e ne lascia il 20% come margine. Riserva almeno **2 GiB per
-processo di calcolo**. Per DNPcall aumenta questa stima se necessario in
-base al blocco grezzo più grande effettivamente pianificato:
-`max(2048, 512 + 48 × MiB del blocco più grande)`, in MiB e arrotondato per
-eccesso. Quindi conta anche un blocco indivisibile oltre il target configurato.
-Se la memoria disponibile non è rilevabile, la scelta è seriale.
+The release used the remaining memory under effective container limits, kept 20% in reserve and budgeted at least **2 GiB per worker**. For DNPcall, the estimated cost in MiB was `max(2048, 512 + 48 × largest planned block in MiB)`, rounded up. An indivisible block larger than the requested target contributes its actual planned size. Unknown memory selects serial execution.
 
-Questi numeri sono **euristiche di pianificazione, non limiti RAM garantiti**.
-Espansione delle osservazioni, join, copie e oggetti R possono richiedere più
-memoria. La scelta conserva almeno un processo anche con poca RAM: ciò non
-garantisce che il dataset sia elaborabile. `--memory-mb` imposta invece il
-limite del container e può provocarne l'arresto se insufficiente; non aumenta
-la memoria assegnata a WSL o Lima. Vedere [Risorse e memoria](RISORSE.md).
+These planning estimates cannot guarantee a memory bound. Expanded observations, joins, copies and R objects can consume more. The scheduler retains one worker even if the dataset cannot fit. `--memory-mb` caps container memory and can stop the container if set too low. WSL and Lima memory allocations are configured separately. See [Resources and memory](RISORSE.md).
 
-## Menu e preferenze
+## Menu and preferences
 
-Per i valori predefiniti delle prossime analisi guidate:
+To set defaults for future guided runs:
 
-1. **5 — Configura → 9 — Risorse, prestazioni e provenienza →
-   6 — Parallelismo e blocchi**.
-2. Scegliere **1 — Modalità di calcolo R**, **2 — Massimo processi R di
-   calcolo**, **3 — Dimensione obiettivo blocchi DNP (MiB)** oppure
-   **4 — Massimo obiettivo loci per blocco DNP**.
-3. **9 — Applica questi valori** torna al menu precedente; scegliere ancora
-   **9 — Salva modifiche** per conservarli nelle preferenze.
+1. Choose **5 — Configure → 9 — Resources, performance and provenance → 6 — Parallelism and blocks**.
+2. Choose **1** for R execution mode, **2** for maximum R workers, **3** for target DNP block size (MiB) or **4** for the target maximum loci per block.
+3. Choose **9** to apply the values and return, then **9** again to save changes.
 
-Invio mantiene il valore corrente. Nel massimo di processi, `:vuoto`
-ripristina la scelta automatica senza massimo manuale. **0 — Annulla
-modifiche** scarta le modifiche non confermate nel menu corrente.
+Enter retains the current value. For the worker cap, `:vuoto` restores automatic selection without a manual maximum. Choose **0** to discard unconfirmed changes in the current menu.
 
-Per una sola analisi, nel riepilogo finale scegliere **4 — Parallelismo e
-blocchi**, modificare e applicare i valori, poi avviare l'analisi. Questa
-scelta non cambia le preferenze salvate. Le preferenze esistenti che non
-contengono questi campi ricevono i nuovi valori iniziali.
+For a single analysis, select **4 — Parallelism and blocks** in the final review, apply the values and start. Saved defaults remain available for the next run. Older preferences receive initial values for missing fields.
 
-Le opzioni esplicite passate a `wizard` prevalgono sulle preferenze salvate;
-il riepilogo permette ancora una modifica per il singolo run. I comandi CLI
-diretti non leggono le preferenze del menu e usano i propri argomenti o i
-valori iniziali. La diagnostica delle prestazioni rimane facoltativa e non
-viene salvata come preferenza.
+Explicit options to `wizard` take precedence over saved preferences. The final review still allows a one-run override. Direct CLI commands use their own arguments or initial defaults. Performance diagnostics are optional and are enabled separately for each run.
 
 ## CLI
 
-Le quattro opzioni sono **globali e precedono il sottocomando**:
-`--execution-mode auto|serial`, `--max-workers N`, `--dnp-block-mib N`,
-`--dnp-block-loci N`. Il vecchio `--parallel` di DNPcall rimane accettato
-per compatibilità, ma la politica comune determina il parallelismo:
-`--execution-mode serial` resta seriale anche in presenza di `--parallel`.
-Non occorre aggiungere `--parallel` per usare la modalità automatica.
+The four global options precede the subcommand: `--execution-mode auto|serial`, `--max-workers N`, `--dnp-block-mib N` and `--dnp-block-loci N`. The legacy DNPcall `--parallel` option is accepted. The shared policy governs execution, including when `--execution-mode serial` and `--parallel` are supplied together. Automatic mode works without `--parallel`.
 
-Esempi PowerShell, dalla cartella applicativa del candidato 0.8.12 contenente
-`nipat.cmd`. Sostituire i percorsi con quelli dei propri input; ogni comando
-crea un nuovo run. Controllare prima la versione con `.\nipat.cmd --version`.
+Run these PowerShell examples from the candidate's application folder containing `nipat.cmd`. Check `.\nipat.cmd --version` first and substitute local input paths. Each command creates a new run.
 
 ```powershell
 .\nipat.cmd --execution-mode auto --max-workers 4 --dnp-block-mib 32 --dnp-block-loci 64 dnp-call --bam "C:\Dati\campione.bam" --reference "C:\Dati\genome.fa" --panel "C:\Dati\DNP_list.txt" --run-name dnp-max4
@@ -125,86 +65,36 @@ crea un nuovo run. Controllare prima la versione con `.\nipat.cmd --version`.
 .\nipat.cmd --execution-mode auto --max-workers 4 cpi --input-dir "C:\Dati\cpi" --pairs "A1:A1" --popfreq "C:\Dati\frequenze.tsv" --run-name cpi-max4
 ```
 
-Per aprire il menu con un massimo temporaneo:
+To open the menu with a temporary cap:
 
 ```powershell
 .\nipat.cmd --execution-mode auto --max-workers 2 wizard
 ```
 
-Su Linux usare `nipat` e percorsi POSIX; su macOS il launcher
-`"/Applications/NIPAT Desktop.app/Contents/Resources/NIPAT.command"` con gli
-stessi argomenti. Sono disponibili gli stessi parametri anche prima di
-`workflow`. La [guida CLI](GUIDA_UTILIZZO.md#comandi-diretti) descrive i launcher.
+On Linux use `nipat` and POSIX paths. On macOS use `"/Applications/NIPAT Desktop.app/Contents/Resources/NIPAT.command"` with the same arguments. The global options may also precede `workflow`. See the [CLI guide](GUIDA_UTILIZZO.md#comandi-diretti).
 
-## Controllare il lavoro effettivo
+## Inspecting actual worker activity
 
-Ogni invocazione scientifica registra le decisioni in `work/parallel/*.jsonl`;
-nei workflow composti la cartella appartiene al singolo passaggio,
-`steps/<id>/work/parallel/`. Questi eventi sono prodotti anche senza attivare
-la diagnostica delle prestazioni.
+Every scientific invocation records decisions in `work/parallel/*.jsonl`. Compound workflow steps use `steps/<id>/work/parallel/`. These events are emitted even when performance diagnostics are off.
 
-Gli eventi `plan`, `task-start` e `task-end` riportano modalità, massimo
-richiesto, processi scelti (`workers`), disponibilità stimata, motivazione,
-PID, indice dell'attività e tempi. Per dimostrare calcolo simultaneo occorrono
-intervalli di attività sovrapposti in PID distinti: il valore richiesto o
-il solo numero totale di PID osservati non bastano. Per DNPcall,
-`work/dnp-blocks.json` registra inoltre il piano e le misure dei blocchi.
+`plan`, `task-start` and `task-end` record mode, requested cap, selected `workers`, estimated capacity, rationale, PIDs, task indices and timings. Evidence of simultaneous work requires overlapping intervals on distinct PIDs. DNPcall also records the block plan and measurements in `work/dnp-blocks.json`. Use [performance diagnostics](PERFORMANCE.md) for overall elapsed time, container CPU and peak RAM.
 
-Tempi complessivi, CPU e picco RAM del container richiedono la
-[diagnostica delle prestazioni](PERFORMANCE.md); gli eventi di parallelismo
-non sostituiscono queste misure.
+<a id="equivalenza-e-collaudo"></a>
 
-## Equivalenza e collaudo
+## Equivalence and qualification
 
-Il riferimento è **NIPAT v0.8.5**, commit
-`eafadf7002a9c7d7c1b9af9ccafc47d698a059e5`, con copie congelate e checksum in
-[`tests/reference_r/0.8.5`](../tests/reference_r/0.8.5/README.md). Include le
-modifiche di compatibilità già distribuite in quella versione: non coincide
-con una dichiarazione di sorgenti upstream mai modificati. La baseline non
-viene aggiornata per far passare un candidato.
+The reference is **NIPAT v0.8.5**, commit `eafadf7002a9c7d7c1b9af9ccafc47d698a059e5`. The [frozen copies and checksums](../tests/reference_r/0.8.5/README.md) include compatibility changes already distributed in that release. The baseline stays fixed when qualifying a candidate.
 
-La qualificazione deve confrontare tutti e quattro i moduli contro questa
-stessa baseline: seriale, automatico, massimo 2, massimo 4 e ripetizione delle
-condizioni parallele. Il [contratto dei test R](../tests/r_optimization/README.md)
-richiede tabelle identiche anche nell'ordine, valori R non arrotondati identici,
-PDF equivalenti nelle pagine renderizzate e input invariati. I test paralleli
-devono dimostrare processi di calcolo realmente sovrapposti, senza superare
-il budget effettivo. I casi sintetici non dimostrano un aumento delle
-prestazioni sui dati reali o il funzionamento di ogni installer.
+The [R test contract](../tests/r_optimization/README.md) compares all four modules against that reference in serial and automatic modes, with caps of two and four and repeated parallel conditions. It requires identical table bytes and ordering, identical unrounded R values, equivalent rendered PDF pages and unchanged inputs. Parallel tests must show overlapping computation within the effective cap.
 
-Il [protocollo 0.8.12](PERFORMANCE.md#collaudo-del-parallelismo-0812) separa
-equivalenza, determinismo e misure di velocità/RAM. Restano necessari il
-confronto sul dataset reale concordato, prove ripetute a risorse fisse e il
-collaudo delle piattaforme finali prima di una release. I dati grezzi e i
-risultati identificativi non vanno pubblicati nel repository.
+The [0.8.12 qualification protocol](PERFORMANCE.md#collaudo-del-parallelismo-0812) distinguishes equivalence, determinism and speed/memory measurements. Release qualification also requires agreement on a real dataset, repeated runs at fixed resources and final-platform tests. Raw data and identifiable results stay outside Git.
 
-## Verifiche locali eseguite
+## Local qualification results
 
-La [sintesi della qualifica locale](validation/0.8.12-rootless.json) registra
-il commit `302fb5648563d80910cc9460d0bec5845106414b`, gli hash dei sorgenti e dei
-test e il riferimento 0.8.5. Su R 4.4.2 sono passati **20 casi sintetici e 44
-confronti**: 20 candidati seriali e 24 esecuzioni parallele distribuite fra
-sei casi rappresentativi. Tutte le 145 tabelle confrontate sono identiche
-nei byte, i valori R non arrotondati risultano `identical()` e le 137 pagine
-PDF confrontate hanno pixel identici a 36 DPI, escludendo i metadati.
+The [local qualification summary](validation/0.8.12-rootless.json) records commit `302fb5648563d80910cc9460d0bec5845106414b`, source and test hashes and the 0.8.5 reference. R 4.4.2 passed **20 synthetic cases and 44 comparisons**. These comprised 20 serial candidates and 24 parallel runs across six representative cases. All 145 tables were byte-identical. Unrounded R values passed `identical()`. All 137 PDF pages were pixel-identical at 36 DPI, excluding metadata.
 
-Per ciascuno dei quattro moduli, automatico, massimo 2, massimo 4 e relativa
-ripetizione hanno mostrato processi figli realmente sovrapposti. Il budget
-disponibile ha scelto due processi di calcolo anche con massimo 4. I due
-casi CPI supplementari verificano inoltre i percorsi cutoff e intervalli:
-richiedono PID figli distinti e registrano la sovrapposizione osservata;
-le attività più brevi possono terminare prima dell'avvio del processo
-successivo. Sono passati anche gli otto controlli R focalizzati, l'audit
-del pileup indicizzato e la cancellazione durante l'elaborazione R reale.
+All four modules showed overlapping child processes in automatic mode, with caps of two and four, and on repeats. The available budget selected two workers even with a cap of four. Two additional CPI cases covered cutoffs and intervals. They required distinct child PIDs and recorded observed overlap because very short tasks can finish before the next child starts. Eight focused R checks, the indexed pileup audit and cancellation during real R execution also passed.
 
-Le 64 esecuzioni scientifiche comprendono 34 risultati già completati e
-riutilizzati dopo aver verificato invariati gli hash scientifici e di
-cattura; tutti i confronti sono stati rieseguiti. Il report documenta la
-correzione del criterio di sovrapposizione per i due piccoli casi CPI e gli
-hash dell'evidenza precedente. Nessun input privato è incluso.
+The 64 scientific executions include 34 completed results reused after checking unchanged science and capture hashes. All comparisons ran again. The report records the revised overlap criterion for the two small CPI cases and the earlier evidence hashes. It contains no private inputs.
 
-Questa verifica usa il runtime R rilocato sul sistema Linux locale: **non
-valida l'immagine Docker né gli installer Windows o macOS**. Non dimostra un
-aumento della velocità sui dati reali, un limite RAM garantito o
-l'equivalenza per ogni input possibile. Restano necessari i collaudi del
-runtime distribuito, delle piattaforme finali e del dataset reale concordato.
+These tests used a relocated R runtime on a local Linux system. Docker image, Windows and macOS installer qualification and agreed real-data tests remained outstanding. The results establish neither a real-data speedup nor a guaranteed memory bound or equivalence across every possible input.

@@ -1,189 +1,59 @@
-# Usare NewPat
+# Desktop guide
 
-NewPat offre una finestra desktop con analisi, risultati e IGV integrato.
-Le [note della 0.9.7](RELEASE_0.9.7.md) descrivono le novità di questa versione.
+Use NewPat to set up an experiment, follow its progress, read results and inspect alignments. The language control in the top bar switches between English and Italian. The labels below use English.
 
-## Creare un esperimento
+## Set up an experiment
 
-1. Aprire **Nuovo esperimento**, assegnare un nome all'esperimento e scegliere
-   **Aggiungi campioni**. È possibile partire da BAM, pileup SNP, tabelle
-   compatibili precedenti o una combinazione supportata di questi input.
-2. Scegliere **DNP**, **SNP** o entrambi. Per BAM aggiungere riferimento e
-   pannelli appropriati; per input già elaborati indicare i file richiesti
-   dal ramo scelto.
-3. Selezionare le analisi desiderate: contaminazione, CPI prenatale e CPIN
-   postnatale sono scelte indipendenti. Per CPI e CPIN assegnare i campioni
-   ai ruoli delle coppie e dei trii e indicare le frequenze di popolazione.
-4. Controllare i parametri del passaggio pertinente. Ogni campo espone una
-   descrizione, i limiti e il valore predefinito; l'esecuzione può essere
-   seriale o con parallelismo automatico e limiti espliciti.
-5. Verificare il riepilogo, convalidare il piano e avviare l'analisi.
+1. Choose **New experiment** and give the experiment a name. Select the starting material (BAM files, SNP pileups or existing count tables). For BAM inputs, supply the reference FASTA, the marker panel for each caller and a sample ID for each file.
+2. Select the analyses. Contamination, prenatal CPI and postnatal CPIN can each use a caller's count tables. For parentage analyses, identify each sample's role in its pair or trio and select population frequencies for the marker type.
+3. Review the scientific parameters, sample list, execution settings and destination. Select **Validate configuration**, then **Start experiment**. Select **Record performance diagnostics** if you need timing and resource measurements.
+4. Open **Activity** to see the current phase and elapsed time. The DNA animation shows activity while the engine prepares. When a phase has measurable progress, the percentage refers to that phase. Stopping an analysis can take time while its processes exit.
 
-**Nuovo esperimento** apre una scheda pulita: non conserva campioni, ruoli,
-nome o selezioni dell'analisi precedente. Sono applicate soltanto le
-impostazioni predefinite salvate nelle preferenze. Per partire invece da
-un esperimento esistente usare esplicitamente **Riesegui** o il riuso della
-configurazione. Tornare a una bozza tramite la navigazione non equivale
-a chiedere un nuovo esperimento.
+**New experiment** starts with the defaults in Preferences. **Run again** opens a fresh draft with an existing run's input files and settings. Review those paths before starting it. See the [input and command reference](GUIDA_UTILIZZO.md) for panel formats and sample roles.
 
-**Attività** mostra lo stato e l'avanzamento. L'animazione non sostituisce
-una percentuale misurata: quando il motore non la fornisce viene mostrato
-il passaggio in corso. L'interruzione richiede l'arresto dei processi del
-run prima di considerare conclusa l'attività.
+## Find or reopen results
 
-L'animazione a doppia elica continua anche durante i controlli iniziali.
-Sono indicati la fase attuale e il tempo trascorso; l'eventuale percentuale
-si riferisce alla fase, non a una stima dell'intera analisi.
+In **Experiments and results**, search by experiment name, status or marker type. Open a result to see its summary, module tables, plots and original files. A paged table is a preview; export the original file to work with the complete rows and stored values. You can export a single file or a ZIP of the results.
 
-## Aprire risultati ed esperimenti precedenti
+Use **Open existing results** to add an existing run folder to the archive. NewPat records its location. **Remove from list** hides the entry and leaves its files on disk. You can register that folder again.
 
-**Esperimenti** raccoglie le esecuzioni e consente di cercarle per nome,
-stato o tipo di marcatori. I risultati recenti sono raggiungibili anche
-dalla pagina iniziale. Per un esperimento conservato altrove, selezionare
-l'azione di apertura della cartella: i dati vengono registrati nell'archivio
-senza essere copiati o modificati.
+If NewPat closes during calculation, reopen the application and check the run status. **Needs verification** means NewPat cannot determine whether the underlying process is still active. Wait for confirmation before relaunching or removing the entry. Completed output from one step may be available while the overall experiment is still incomplete. The [run guide](ESECUZIONI.md) explains how to inspect the runtime.
 
-Aprire un esperimento per consultare riepiloghi, risultati dei moduli,
-tabelle dettagliate, grafici PDF e file originali. È possibile esportare
-un singolo file o l'intera cartella in ZIP e riutilizzare una configurazione
-per un nuovo esperimento.
+## Read CPI and CPIN plots
 
-**Riesegui** riapre la configurazione precedente per una nuova analisi:
-non riprende un calcolo da un punto intermedio. **Rimuovi dalla lista**
-nasconde l'esperimento dopo una conferma, conservando risultati e input.
-Per mostrarlo nuovamente è possibile importare la sua cartella.
+Hover over a point or click it to see the original table values. With the keyboard, press **Tab** to focus the plot, use the arrow keys to move through the points on the page, **Home** or **End** to reach its ends, and **Esc** to dismiss the details.
 
-Dopo una chiusura anomala NewPat verifica se un'esecuzione è ancora attiva.
-Se non è attiva e non risulta finalizzata, appare come interrotta. Se il
-runtime non è verificabile, lo stato resta da verificare: un singolo modulo
-completato non basta a dichiarare concluso l'esperimento. La rimozione dalla
-lista è bloccata quando l'attività potrebbe essere ancora in corso.
-
-I valori mancanti sono distinti da zero. L'indice CPI e il suo logaritmo
-sono presentati con la scala appropriata; le celle delle tabelle conservano
-il valore originale. Le anteprime paginate non sostituiscono i file completi
-esportabili. Il completamento tecnico del run non costituisce da solo una
-validazione scientifica dei risultati.
-
-## Grafici interattivi CPI e CPIN
-
-Nelle schede **CPI prenatale** e **CPIN postnatale**, i grafici locali
-consentono di passare sui punti o fare clic per leggere i valori originali
-in un riquadro HTML. Non richiedono Internet. Con la tastiera, **Tab**
-raggiunge il grafico, le **frecce** scorrono i punti della pagina,
-**Home/Fine** raggiungono il primo/ultimo punto ed **Esc** chiude il dettaglio.
-
-| Analisi | Asse orizzontale | Asse verticale | Secondo pannello |
+| Result | Horizontal axis | Index series | Site counts |
 | --- | --- | --- | --- |
-| CPI prenatale | `Iteration`: numero minimo di letture fetali | `log_CPI`, già in scala log10 | `NotMismatch` e `Mismatch`, conteggi dei siti |
-| CPIN postnatale | Da `Min_child_reads` a `Through_min_child_reads`, estremi inclusi | `Log10_CPI`, già in scala log10 | `N_sites`, `Matching_sites` e `Mismatching_sites` |
+| Prenatal CPI | `Iteration`, the minimum fetal read count | `log_CPI`, already on a base-10 logarithmic scale | `NotMismatch` and `Mismatch` |
+| Postnatal CPIN | Inclusive interval from `Min_child_reads` to `Through_min_child_reads` | `Log10_CPI`, already on a base-10 logarithmic scale | `N_sites`, `Matching_sites` and `Mismatching_sites` |
 
-Il riquadro mostra i valori testuali originali delle colonne, senza
-ricalcolare CPI o arrotondarne la precisione. Le soglie prenatali sono
-punti discreti; gli intervalli postnatali sono segmenti costanti. Non
-vengono calcolati valori intermedi tra righe né collegati intervalli separati.
-Valori mancanti/non finiti, conteggi non validi e soglie non valide sono
-segnalati e non disegnati; rimangono consultabili nei dati originali.
+The separate views give the index and counts their own panels. The combined view shows log CPI in black, matching sites in green and mismatching sites with a dashed orange line. Read the index on the left axis and counts on the right. Total postnatal site counts remain available in the separate view and point details.
 
-Le curve complete sono caricate solo entro **20.000 righe e 16 MiB per
-file**. Superato un limite, la schermata spiega il problema e lascia
-consultabili riepilogo, PDF e tabelle originali. Per mantenere reattiva
-l'interfaccia, grafici e tabella dei dettagli mostrano **1.000 righe per
-pagina**, con intervallo visualizzato e pulsanti per le altre righe:
-non è un campionamento. Una riga con intervallo postnatale può rappresentare
-più soglie incluse senza essere espansa artificialmente.
+Prenatal lines connect consecutive integer thresholds with recorded values. Postnatal segments show values that apply across the stated interval. The postnatal count axis uses a linear transformation of the counts to fit the log CPI display range; point details always show the original counts. The plot uses stored guide values when available and identifies when it uses the observed range. The scale is shared across pages. Missing or invalid values remain available in the original table.
 
-**Viste separate** mantiene log CPI e conteggi in pannelli distinti.
-**Vista combinata** riunisce le tre serie richieste: nero per `log_CPI` /
-`Log10_CPI`, verde per `NotMismatch` / `Matching_sites` e arancione
-tratteggiato per `Mismatch` / `Mismatching_sites`. `N_sites` resta nel
-pannello separato e nel dettaglio, senza introdurre una quarta curva combinata.
+Interactive files are limited to 20,000 rows and 16 MiB each. The plot and detail table display 1,000 rows per page. For larger files, open the results table or original PDF. The PDF includes the scientific plot's layout, guides and annotations.
 
-La vista prenatale combinata mantiene la scala numerica condivisa della
-versione storica: asse sinistro log10(CPI), asse destro conteggi interi
-non negativi. I collegamenti uniscono solo soglie intere consecutive con
-valori registrati, senza attraversare dati mancanti o aggiungere stime.
-La vista postnatale usa la trasformazione reversibile del grafico R:
-`y_conteggio = conteggio × scala + offset`, dove l'intervallo log CPI
-comprende le guide del passo archiviate, `offset` è il suo minimo e
-`scala` è la sua ampiezza divisa per il massimo dei due conteggi (almeno 1).
-L'asse destro applica l'inversa e il dettaglio mostra sempre i conteggi
-originali. In assenza delle guide archiviate, l'interfaccia lo dichiara e
-usa l'intervallo osservato, ampliato solo per la visualizzazione se costante:
-non inventa soglie scientifiche. La scala combinata usa tutte le righe della
-curva caricata e rimane invariata passando da una pagina all'altra.
+## Inspect alignments in IGV
 
-Le viste interattive rappresentano i dati tabellari; i **PDF originali**
-conservano l'impaginazione, le guide e tutte le annotazioni del grafico
-scientifico. Esportazioni e file statici restano disponibili invariati.
+The fastest way to see reads is to start with a covered site. In a result table with coordinates and available BAM and FASTA inputs, choose **View in IGV**. To open your own files, use **IGV viewer** and select the reference genome and its tracks.
 
-## Esplorare i dati con IGV
+| Input | Matching index |
+| --- | --- |
+| Reference FASTA (`.fa` or `.fasta`) | Its `.fai`. A BGZF-compressed reference also needs its `.gzi` alongside it. |
+| Sample BAM | Its `.bai` or `.csi` |
+| Sample CRAM | Its `.crai` |
 
-Aprire **IGV**, scegliere il FASTA locale e aggiungere i BAM come tracce.
-Se gli indici corrispondenti si trovano accanto ai file, NewPat li riconosce
-automaticamente quando si apre il visualizzatore. In caso contrario,
-selezionarli nei campi dedicati:
+Place each index next to the corresponding file for automatic detection, or select the required index explicitly where the control allows. NewPat reads the supplied indices. You can open the reference on its own; add an alignment track to view sample reads. A reported contig length mismatch calls for checking which reference assembly was used for alignment.
 
-| File | Contenuto | Indice corrispondente |
-| --- | --- | --- |
-| `.fa` o `.fasta` | Genoma di riferimento | `.fai` dello stesso FASTA |
-| `.bam` | Allineamenti del campione | `.bam.bai` oppure `.bai` dello stesso BAM |
+Select a chromosome from the list of names in the loaded reference. Enter a locus in the form `chromosome:start-end`, then choose **Go to region**. For example, `1:100000-101000` describes the interval only if the reference uses `1` as a contig name. Coverage depends on your sample. Select `X` by name when the reference labels it `X`.
 
-Gli indici mancanti non vengono generati dal visualizzatore. Per FASTA
-compresso BGZF serve anche il file `.gzi` corrispondente accanto al FASTA.
-Gli altri formati indicizzati richiedono il proprio indice.
+The whole-genome overview shows the chromosomes. Use **Zoom in** on a covered region to see individual reads. The previous-region and overview controls return to an earlier view or the whole genome. Saving the IGV session records the local file configuration and view. IGV reads large local inputs by range.
 
-Una volta aperto IGV, scegliere un **Cromosoma** dall'elenco dei nomi
-effettivamente presenti nel riferimento. Per una regione precisa usare
-`cromosoma:inizio-fine`, per esempio `1:100000-110000`: è un esempio di
-sintassi, non una regione necessariamente coperta dal proprio campione.
-I controlli per ingrandire, ridurre, tornare alla panoramica e tornare alla
-vista precedente sono sincronizzati con il visualizzatore. In un riferimento
-con cromosomi `1`–`22`, `X`, `Y`, il nome `23` non indica automaticamente `X`.
+## Settings and diagnostics
 
-La vista dell'intero genoma non mostra i singoli allineamenti BAM. Ingrandire
-una regione coperta dal campione, preferibilmente partendo da **Visualizza in IGV**
-in una tabella di risultati con coordinate e input BAM/FASTA disponibili.
-Le letture possono mancare in una regione anche quando il file è valido.
-La sessione esportata conserva la configurazione locale dei file e della vista.
+**Preferences** covers language, reduced motion, folders, scientific defaults and resource settings. The catalog explains scientific parameters, constants and formulas. **Environment and help** provides checks and diagnostic export, even when an experiment fails before producing results. To locate a run, use its open-folder action.
 
-Riferimento, nomi dei contig e coordinate devono essere coerenti con gli
-allineamenti. Se le lunghezze di un contig differiscono, il messaggio indica
-contig, file e lunghezze rilevate: occorre scegliere il riferimento usato
-per allineare quel BAM. Non basta cambiare il nome del cromosoma o ignorare
-la differenza di lunghezza. Il riferimento può essere esplorato anche senza
-un BAM; per visualizzare le letture bisogna aggiungere il campione e il suo
-indice. I messaggi di navigazione distinguono questi casi.
+A diagnostic export contains selected metadata and size-limited logs. Logs can include sample names and local paths. Review the archive before sharing. Keep the original data files at their recorded locations if you plan to reopen them in NewPat.
 
-Il visualizzatore IGV utilizza i file locali selezionati. I grandi file sono letti
-per intervalli, senza trasferire l'intero BAM all'interfaccia.
-
-## Preferenze e manutenzione
-
-La lingua è selezionabile dalla barra superiore. Le preferenze includono
-riduzione delle animazioni, cartelle, impostazioni predefinite e limiti
-delle risorse. Il catalogo scientifico raccoglie parametri, costanti e
-formule. Le funzioni di ambiente e manutenzione riutilizzano quelle della
-CLI, comprese le conferme per le operazioni che modificano il runtime.
-
-La CLI resta disponibile con `newpat gui`, `newpat wizard` e i singoli comandi
-scientifici. Nelle distribuzioni Windows i comandi si richiamano tramite
-`newpat.cmd`; `nipat` e `nipat.cmd` restano alias compatibili. Il normale
-avvio `2_AVVIA.cmd` apre la GUI.
-
-**Apri cartella esperimento** porta alla directory effettiva del run, anche
-quando non coincide con il percorso predefinito. **Esporta diagnostica**
-raccoglie metadati e log limitati per dimensione; è disponibile anche senza
-un esperimento completato. Non include automaticamente BAM, FASTA o tabelle
-genetiche. I log possono comunque contenere nomi e percorsi dei campioni.
-
-## Componenti desktop e accesso ai file
-
-L'applicazione usa WebView2 su Windows, WKWebView su macOS e WebKitGTK su
-Ubuntu. L'interfaccia e igv.js sono incluse nel pacchetto. Un servizio
-riservato al processo su loopback collega la finestra al motore locale,
-con una porta temporanea e un token di sessione; non è un servizio cloud
-e non richiede di gestire indirizzi nel browser.
-
-I file devono rimanere nei percorsi originali per essere riaperti; per
-conservarli altrove è possibile esportarli insieme ai record dell'esecuzione.
+The desktop runs in WebView2 on Windows, WKWebView on macOS and WebKitGTK on Ubuntu. The application communicates with its engine through a local loopback service. You open the installed application directly.

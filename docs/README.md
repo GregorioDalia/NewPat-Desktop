@@ -1,40 +1,33 @@
-# Documentazione NewPat
+# NewPat documentation
 
-NewPat permette di eseguire analisi scientifiche sul proprio computer dall'applicazione grafica, dal menu guidato o da riga di comando. Le guide correnti descrivono la 0.9.7. Le note datate conservano nomi e comportamento delle release precedenti. Per individuare la guida giusta, partire dall'operazione da svolgere.
+<a id="installare"></a>
 
-## Installare
+## Install NewPat
 
-| Operazione | Guida |
+Choose the guide for your operating system. The installer prepares the desktop application and the local environment that runs R and samtools.
+
+| Platform | Guide |
 | --- | --- |
-| Scegliere pacchetto e piattaforma | [Distribuzione e requisiti](DISTRIBUZIONE.md) |
-| Installare, aggiornare o riparare su Windows | [Windows e WSL2](INSTALLATORE_WINDOWS.md) |
-| Installare o aggiornare su Ubuntu | [Ubuntu e Docker Engine](INSTALLATORE_LINUX.md) |
-| Installare o aggiornare su macOS | [macOS e Lima](INSTALLATORE_MACOS.md) |
-| Collaudare un'installazione Windows con dati sintetici | [Collaudo automatico](COLLAUDO_INSTALLAZIONE.md) |
+| Windows 10 or 11, x64 | [Windows setup, WSL2 and the complete ZIP](INSTALLATORE_WINDOWS.md) |
+| macOS, Apple Silicon or Intel | [macOS packages and Lima](INSTALLATORE_MACOS.md) |
+| Ubuntu 24.04, x86_64 | [Ubuntu package and Docker Engine](INSTALLATORE_LINUX.md) |
 
-## Usare
+[System requirements and package formats](DISTRIBUZIONE.md) · [Check a Windows installation with synthetic data](COLLAUDO_INSTALLAZIONE.md)
 
-| Operazione | Guida |
+## Analyze samples
+
+| To do this | Read |
 | --- | --- |
-| Usare l'applicazione grafica, l'archivio e IGV integrato | [Guida GUI](GUI.md) · [Novità della 0.9.7](RELEASE_0.9.7.md) |
-| Avviare analisi singole e workflow dal menu o dalla CLI | [Guida per l'utilizzo](GUIDA_UTILIZZO.md) |
-| Preparare BAM, pileup, pannelli, tabelle e frequenze | [Controlli degli input e dei risultati](INPUT_VALIDATION.md) |
-| Consultare formule, costanti e valori configurabili | [Catalogo scientifico](CATALOGO_SCIENTIFICO.md) |
-| Leggere output, log e provenienza di un run | [Esecuzioni e risultati](ESECUZIONI.md) |
-| Impostare CPU, memoria e numero di processi | [Risorse e memoria](RISORSE.md) |
-| Misurare durata, memoria e concorrenza | [Prestazioni e diagnostica](PERFORMANCE.md) |
+| Create an experiment, explore plots or inspect alignments in IGV | [Desktop guide](GUI.md) |
+| Choose input files, assign family roles or run a workflow from the terminal | [Input formats, commands and workflows](GUIDA_UTILIZZO.md) |
+| Understand a rejected input or an output warning | [Input and output validation](INPUT_VALIDATION.md) |
+| Check a formula, default, constant or allowed parameter range | [Scientific catalog](CATALOGO_SCIENTIFICO.md) |
+| Locate a result, log, sample mapping or incomplete run | [Run folders and records](ESECUZIONI.md) |
+| Check CPU and memory allocations or investigate an interrupted process | [Resources and memory](RISORSE.md) |
+| Measure execution time and resource use | [Performance diagnostics](PERFORMANCE.md) |
 
-## Verificare e contribuire
+## Development and verification
 
-| Operazione | Guida |
-| --- | --- |
-| Registrare prove su un dispositivo o dati rappresentativi | [Validazione tecnica e di dominio](VALIDAZIONE.md) |
-| Trovare il componente da esaminare o modificare | [Architettura](ARCHITECTURE.md) |
-| Consultare schema dei piani e interfaccia del motore | [Contratto dei piani](WORKFLOW_CONTRACT.md) · [Interfaccia del motore](../engine/README.md) |
-| Individuare sorgenti R, riferimenti di test e attribuzioni | [Componenti scientifici](../scientific/README.md) · [Attribuzioni e licenze](../THIRD_PARTY_NOTICES.md) |
-| Preparare build, accettazione e pubblicazione | [CI/CD](CI_CD.md) · [Accettazione installatori](ACCETTAZIONE_INSTALLATORI.md) · [Procedura di pubblicazione](../.github/RELEASE.md) |
-| Orientarsi fra le priorità di sviluppo | [Sviluppo e validazione](ROADMAP.md) · [Consolidamento 0.8.80](AUDIT_0.8.80.md) |
+[Architecture](ARCHITECTURE.md) · [Workflow contract](WORKFLOW_CONTRACT.md) · [Engine interface](../engine/README.md) · [Scientific components](../scientific/README.md) · [Validation](VALIDAZIONE.md) · [Verification priorities](ROADMAP.md)
 
-## Evidenze storiche
-
-Le note di rilascio, le misure e gli audit datati sono raccolti nell'[archivio](archive/README.md). Per sapere quali pacchetti sono distribuiti e quali prove li riguardano, consultare le [release pubblicate](https://github.com/GregorioDalia/nipat-desktop/releases).
+[CI and packaging](CI_CD.md) · [Installer acceptance](ACCETTAZIONE_INSTALLATORI.md) · [Publication procedure](../.github/RELEASE.md)

@@ -1,76 +1,32 @@
 # NIPAT Desktop 0.8.20
 
-NIPAT Desktop 0.8.20 rafforza il confezionamento Windows, i test degli
-installatori e i controlli sulla concorrenza scientifica. Conserva le quattro
-analisi e la coda DNP comune a un numero generico di BAM introdotta nella
-0.8.14. Le formule scientifiche e il riferimento congelato 0.8.5 restano invariati.
+This release revised Windows packaging and installer tests and strengthened scientific concurrency checks. It retained the four analyses, the 0.8.14 multi-BAM DNP queue, the scientific formulas and the frozen 0.8.5 reference.
 
-## Correzioni e verifiche
+## Corrections
 
-- **Windows:** il componente nativo che coordina installazione, aggiornamento
-  e rimozione viene compilato durante la build. La preparazione non compila
-  più una DLL temporanea sul computer dell'utente. Il componente distribuito
-  viene identificato dall'inventario del pacchetto e verificato prima del caricamento.
-- **Build dei componenti Windows:** compilazione deterministica e prova di
-  ripetibilità dei componenti NIPAT. Questo controllo riguarda i binari
-  indicati nel rapporto, non la riproducibilità dell'intero installer o dell'immagine.
-- **Firme Windows:** un rapporto conserva hash e stato Authenticode dei
-  componenti esaminati. Una firma assente rimane esplicita e non viene
-  interpretata come un esito positivo di Smart App Control.
-- **Installazione:** prove su una fixture compilata dalla definizione Inno
-  verificano copia, aggiornamento, rimozione e conservazione dei file utente.
-  Il bootstrap WSL e i requisiti desktop sono sostituiti nella sola fixture;
-  il setup distribuito conserva tutti i propri controlli.
-- **macOS:** Ctrl+C raggiunge il client senza farlo terminare prematuramente
-  dal processo di avvio. Il lock dell'installazione rimane acquisito finché
-  il client è attivo, anche quando ritorna al menu dopo un annullamento.
-- **Aggiornamento Linux:** il riavvio finale passa direttamente al launcher,
-  evitando la terminazione involontaria del client con Ctrl+C.
-- **Validazione DNP:** la prima posizione deve consentire la finestra
-  precedente al sito. Il valore 1 viene rifiutato prima di creare output,
-  evitando un successivo intervallo BED negativo in samtools.
-- **DNP e CI:** i confronti con 2, 3 e 6 BAM e le verifiche dei relativi helper
-  diventano requisiti espliciti di pubblicazione. La verifica del parallelismo
-  controlla la sovrapposizione effettiva delle attività e il loro esito,
-  oltre ai limiti dichiarati.
+- The Windows build compiles the component that coordinates installation, updates and removal. Preparation verifies the inventoried component before loading it, replacing the earlier compilation of a temporary DLL on the user's computer. Repeat builds test deterministic output for the listed native binaries. The report also records their hashes and Authenticode status.
+- Tests compile a fixture from the Inno definition and exercise copying, updating, removal and preservation of user files. The fixture substitutes the WSL bootstrap and desktop prerequisites. The distributed setup retains these checks.
+- The Mac launcher passes Ctrl+C to the client and holds the installation lock even when a cancellation returns to the menu. The Linux updater hands control directly to the launcher on restart.
+- DNP rejects a first coordinate of 1 before writing output because its preceding window would produce a negative BED interval.
+- Publication requires DNP comparisons on 2, 3 and 6 BAMs, helper tests and evidence of actual task overlap, outcomes and process ceilings. See the [0.8.20 audit](AUDIT_0.8.20.md).
 
-L'[audit della 0.8.20](AUDIT_0.8.20.md) descrive perimetro, evidenze e limiti.
+## Windows security evidence
 
-## Smart App Control
+The release lacked a recognized NIPAT Authenticode signature. Removing temporary compilation reduced device-generated components. Smart App Control acceptance remained unverified and requires separate evidence on Windows 11 with the protection enabled. The signing status of each inspected file remains visible.
 
-Il pacchetto non dispone di una firma Authenticode NIPAT riconosciuta.
-**Questa versione non garantisce la rimozione del blocco di Smart App Control.**
-L'eliminazione della compilazione temporanea riduce i componenti generati sul
-dispositivo, ma non attribuisce una firma attendibile al setup, agli script
-o agli altri eseguibili. La qualificazione richiede una firma riconosciuta
-dei componenti pertinenti e prove su Windows 11 con la protezione attiva.
+Reusing 0.8.14 for two builds had prevented the updater from distinguishing them. The available evidence did not connect that version number to the Windows block. The higher 0.8.20 number is visible to both earlier builds. Published packages remain immutable. The [Windows security guide](INSTALLATORE_WINDOWS.md#windows-security-and-browser-messages) explains how to identify the blocked component.
 
-Il riuso del numero 0.8.14 fra una candidata e la successiva release ha impedito
-all'aggiornatore di distinguerle; non costituisce una causa dimostrata del blocco
-di Windows. La 0.8.20 ha un numero superiore e viene riconosciuta come aggiornamento.
-I pacchetti pubblicati rimangono immutabili. La
-[guida Windows](INSTALLATORE_WINDOWS.md#controlli-di-sicurezza-di-windows-e-del-browser)
-descrive come identificare il componente bloccato senza modificare le protezioni.
+## Installation and scope
 
-## Installazione e limiti
+Choose a package from the [0.8.20 release](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.8.20).
 
-Scaricare il pacchetto del proprio sistema dalla
-[release 0.8.20](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.8.20):
-
-| Sistema | Pacchetto |
+| System | Package |
 | --- | --- |
 | Windows 10 22H2 x64 / Windows 11 x64 | `NIPAT-Setup.exe` |
-| macOS 14 o successivo, Apple Silicon | `NIPAT-0.8.20-macos-arm64.pkg` |
-| macOS 14 o successivo, Intel | `NIPAT-0.8.20-macos-x86_64.pkg` |
+| macOS 14 or later, Apple Silicon | `NIPAT-0.8.20-macos-arm64.pkg` |
+| macOS 14 or later, Intel | `NIPAT-0.8.20-macos-x86_64.pkg` |
 | Ubuntu 24.04 LTS x86_64 | `nipat-desktop_0.8.20_amd64.deb` |
 
-Chiudere le analisi prima dell'aggiornamento. Il setup conserva dati,
-preferenze e risultati delle installazioni riconosciute. È disponibile
-**Verifica aggiornamenti** anche dalle candidate già denominate 0.8.14.
+Finish active analyses before updating. The setup preserves data, preferences and results of recognized installations. Earlier candidates labeled 0.8.14 can use **Check for updates**.
 
-I controlli Windows su Server 2022 non qualificano Smart App Control né
-un'installazione completa con WSL su Windows 10/11. I pacchetti Mac non sono
-notarizzati; i controlli nativi non sostituiscono le prove Lima sui dispositivi
-finali. Le misure sui dati reali della candidata precedente mantengono la
-propria identità: non sono benchmark della 0.8.20. La validazione scientifica
-di dominio rimane distinta dalla regressione automatica.
+Windows Server 2022 checks do not exercise a complete Windows 10/11 WSL installation or qualify Smart App Control. Mac packages lacked notarization. Native package checks, end-device Lima tests and scientific domain validation are separate. Real-data measurements from earlier candidates remain attributed to those candidates.

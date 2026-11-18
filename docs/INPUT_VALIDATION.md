@@ -1,132 +1,46 @@
-# Controlli degli input e dei risultati
+# Input and output validation
 
-NewPat controlla gli input nel livello Python prima di avviare
-gli script R. I validatori sono condivisi dal client e dal motore scientifico
-incorporato nell'immagine. Il menu e la CLI diretta applicano gli stessi
-requisiti ai file selezionati; il motore ripete i controlli nell'ambiente
-di esecuzione.
+The desktop client, terminal menu and CLI use the same Python validation library. The engine repeats the relevant checks against the files visible in the container before invoking R. These checks establish that the files can be interpreted by the requested analysis. The analyst selects the appropriate genome assembly, samples, biological roles and population frequencies.
 
-Questi controlli verificano formati, valori e relazioni necessarie per
-eseguire le analisi. La scelta dell'assemblaggio genomico, dei campioni,
-dei ruoli biologici e delle frequenze appropriate resta una responsabilità
-scientifica. Un file accettato non certifica l'idoneità del campione al metodo.
+## Original files and working copies
 
-## Originali e copie di lavoro
+The engine mounts original inputs read-only. Any normalization happens in the run or step's `work` directory and retains the link to the source. For example, an SNP allele supplied as `g` is written as `G`. Invalid alleles and duplicate loci produce errors. The engine preserves the reported counts and frequencies.
 
-Gli input selezionati vengono montati in sola lettura. Le trasformazioni
-necessarie agli script riguardano copie nella cartella `work` del run o del
-singolo passaggio. NewPat conserva il collegamento con il file originale.
-Non modifica il contenuto scientifico degli originali, non deduplica loci
-silenziosamente e non sostituisce conteggi o frequenze non validi.
+## File requirements
 
-Nei pannelli DNP e SNP, gli alleli vengono verificati e scritti in maiuscolo
-nella copia di lavoro. Per esempio, un allele SNP `g` diventa `G` prima del
-confronto con le basi osservate. Questa normalizzazione del formato non
-cambia la base indicata dall'utente. Alleli vuoti o non ammessi sono segnalati
-con un errore da correggere nel file sorgente.
+Tables must use the documented delimiters and column layout. Text files use UTF-8. Required headers must be present and column names must be nonempty and unique. Each row must have the declared number of columns. CLI numeric parameters use a decimal point. CPI frequency files also accept a decimal comma as specified by the R input format. [User guide](GUIDA_UTILIZZO.md)
 
-## Formati e interpretazione
-
-Le tabelle devono rispettare colonne, delimitatori e modalità descritti
-nella [guida per l'utilizzo](GUIDA_UTILIZZO.md#input-dei-cinque-moduli).
-I file testuali vengono letti come UTF-8; un errore di codifica o una tabella
-malformata produce una segnalazione di validazione. Le intestazioni richieste
-devono essere presenti, senza nomi vuoti o duplicati; ogni riga deve avere
-il numero di colonne dichiarato. I parametri numerici CLI usano il punto come
-separatore decimale. Nel file delle frequenze CPI è accettata anche la virgola
-decimale, secondo il formato dello script.
-
-| Input | Controlli applicati |
+| Input | Checks |
 | --- | --- |
-| Pannello DNPcall | Cinque colonne; coordinate adiacenti con prima posizione almeno 2, per consentire la finestra precedente al sito; loci univoci; alleli di due basi A/C/G/T, normalizzati in maiuscolo nella copia di lavoro. |
-| Pannello SNPcall 2.0 | Colonne `chr`, `pos`, `ref`, `alt`; è accettato anche il formato `pos`, `ref`, `alt` con `pos=chr:posizione`. Coordinate univoche, posizione da 2 a 2147483646 in entrambe le modalità e cromosoma senza spazi o `:`; alleli distinti di una base A/C/G/T, normalizzati in maiuscolo. La copia di lavoro usa sempre quattro colonne. |
-| Pileup SNPcall | Almeno sette colonne samtools: riferimento nella terza, profondità nella quarta, basi nella quinta, qualità nella sesta e QNAME nella settima; cromosoma presente, posizione positiva e profondità non negativa su tutte le righe non vuote. Il file importato non può essere vuoto. |
-| Tabelle Contamination | Colonne richieste; coordinate positive e ordinate; loci univoci; `N_REF`, `N_ALT` e `N_Other` finiti, interi e non negativi. |
-| Tabelle CPI/CPIN | Requisiti dei conteggi; `REF` e `ALT` di una base per SNP o due per DNP; `total_count` intero non negativo, con i valori mancanti previsti nei siti senza copertura. |
-| Frequenze CPI/CPIN | Tipo di marcatore coerente con le tabelle; loci univoci; `Ref_f.pop` e `Alt_f.pop` finite, strettamente maggiori di 0 e al massimo 1. La tabella deve contenere almeno un locus. |
+| DNPcall panel | Five columns, adjacent positions with the first at least 2 (the preceding base is needed), unique loci and two-base A/C/G/T alleles. The working copy uses uppercase. |
+| SNPcall panel | `chr,pos,ref,alt` or `pos,ref,alt` with `pos=chr:position`. Unique coordinates, position 2 through 2147483646 inclusive, chromosome without spaces or colon, and distinct single-base A/C/G/T alleles. The working copy has four columns and uppercase alleles. |
+| SNPcall pileup | At least seven samtools fields including chromosome, positive position, reference, nonnegative depth, bases, qualities and QNAME. The validator checks each nonempty row and rejects an empty imported pileup. |
+| Contamination count tables | Required fields, positive ordered coordinates, unique loci, and finite nonnegative integer `N_REF`, `N_ALT` and `N_Other`. |
+| CPI/CPIN count tables | Count requirements plus one-base REF/ALT for SNP or two-base alleles for DNP. `total_count` must be a nonnegative integer or a supported missing value at an uncovered site. |
+| CPI/CPIN frequencies | Marker type compatible with the count tables, unique loci, at least one data row, and finite `Ref_f.pop` and `Alt_f.pop` in (0, 1]. |
 
-BAM e FASTA sono verificati per presenza, accessibilità e file di indice
-richiesti. Prima del pileup, samtools legge il dizionario dei contig di ogni
-BAM. Tutti i contig del pannello devono comparire nel BAM con la stessa
-lunghezza indicata dall'indice FASTA. DNPcall confronta anche ordine, nomi e
-lunghezze dell'intero dizionario quando usa più BAM, sia con sia senza indici
-BAM. Un contig presente senza letture conserva i risultati a copertura zero;
-un contig assente o discordante rende l'input incompatibile. Il controllo del
-pileup importato è strutturale e scorre tutte le righe:
-non ricostruisce il procedimento di produzione e non verifica l'intera
-grammatica delle basi codificate. Le tabelle di conteggi con sola intestazione
-sono ammesse per rappresentare l'assenza di siti; pannelli e frequenze di
-popolazione vuoti sono invece rifiutati.
+The engine checks BAM, FASTA and required indices for existence and readability. Before pileup, each BAM dictionary must contain every target contig with the same length as in the FASTA index. DNPcall with multiple BAMs also requires identical complete ordered dictionaries, whether or not the BAMs have indices. A compatible target with no reads is retained at zero coverage. A missing target or discordant length is an input error. Imported pileup validation checks structure across the file. It cannot reconstruct acquisition settings or validate the full encoded base grammar. Header-only count tables can represent a case with no sites. Empty panels and frequency tables are rejected.
 
-CPI e CPIN verificano anche l'identità fisica dei file: campioni distinti
-non possono riferirsi allo stesso file attraverso alias o hard link.
-Nei workflow automatici coppie e terne fanno riferimento agli ID espliciti
-dei campioni. Nei comandi singoli gli identificativi sono locali al ruolo:
-per esempio `A:A:A` è valido per CPIN soltanto quando i prefissi individuano
-tre file distinti.
+CPI and CPIN distinguish physical files, including aliases and hard links. Plans use explicit sample IDs. Standalone family IDs are local to each role. A CPIN selection such as `A:A:A` therefore requires three distinct files.
 
-Contamination calcola la frazione REF dai conteggi `N_REF` e `N_ALT`.
-La colonna facoltativa `ratio_REF_ALT` viene controllata e le discrepanze
-sono registrate come avvisi. Se presente, un rapporto numerico deve essere
-finito e compreso fra 0 e 1. I siti senza letture REF o ALT sono esclusi.
+Contamination computes the REF fraction from `N_REF` and `N_ALT`. A supplied numeric `ratio_REF_ALT` must be finite and within [0, 1]. A discrepancy from the count-derived value generates a warning. Sites with neither REF nor ALT reads are excluded. CPI and CPIN require positive frequencies and a `total_count` equal to `N_REF + N_ALT + N_Other`. They accept an `NA` total at a locus where all counts are zero. For Contamination a discordant total produces a warning. A REF/ALT population-frequency sum different from one also generates a warning.
 
-CPI e CPIN richiedono frequenze positive e `total_count` uguale a
-`N_REF + N_ALT + N_Other`. Un totale `NA` è ammesso al locus con tutti i
-conteggi a zero. Un totale discordante in Contamination o una somma
-delle frequenze REF e ALT diversa da uno sono registrati come avvisi.
+`work/input-validation.json` records warnings, normalizations and checksums of the original and normalized panels. In a plan, each step owns its `work` directory. Warnings also appear in the log. Errors identify the file and, where possible, the row or column. After correcting an input, start a new run so the failed run remains available.
 
-`work/input-validation.json` conserva avvisi e normalizzazioni, con il
-checksum del pannello originale e della copia preparata. Nei workflow
-automatici il file appartiene alla cartella `work` del singolo passaggio.
-Gli avvisi vengono riportati anche nel log.
+## Output checks and numerical quality
 
-Un errore di validazione identifica il file e, quando disponibile, la riga
-o la colonna interessata. Correggere l'input e avviare una nuova esecuzione:
-un run già creato rimane disponibile per la diagnosi e non viene sovrascritto.
+Standalone analyses and plans verify expected files, schemas, sample correspondence and applicable scientific settings before reporting success. Distinguish expected missing values from numerical problems.
 
-## Risultati e qualità numerica
+| Condition | Handling |
+| --- | --- |
+| An estimate is `NA` with no informative sites, or standard deviation is `NA` with one site | Expected in these cases. |
+| Unexpected missing estimate | `output.missing_estimate` warning. |
+| Nonfinite estimates, including with zero sites | `output.nonfinite` warning. |
+| Blank or nonnumeric text in a required numeric field | Output validation error. |
+| SNP log likelihoods | Phred zero can yield `-Inf` from `log(0)`. `NaN` and `+Inf` are rejected in GL columns. |
 
-Le analisi singole e i workflow automatici controllano anche gli output
-attesi prima di registrare il successo. Presenza dei file, schema delle
-tabelle e corrispondenza fra risultati e campioni sono verifiche tecniche;
-non costituiscono una valutazione biologica dei risultati.
+SNPcall retains textual contig identifiers, so `01` and `1` identify distinct contigs. Counts and coordinates must match the panel. Valid genotype values are `0/0`, `0/1`, `1/1` or `NA`. The DNP genotype summary must agree with the individual tables on samples, loci, alleles and calls. Quality warnings preserve the original values from R. A Contamination estimate does not trigger an extra CPI filter.
 
-I valori mancanti previsti, per esempio una stima `NA` in assenza di siti
-informativi, devono essere distinti da valori numericamente problematici.
-Una deviazione standard `NA` è ammessa anche quando rimane un solo sito.
-Una stima `NA` inattesa produce `output.missing_estimate`; `NaN` e valori
-infiniti producono `output.nonfinite`, anche con zero siti. Un valore vuoto
-o non numerico in una colonna numerica richiesta è un errore di output.
-Le segnalazioni di qualità conservano il risultato originale prodotto da R
-e indicano l'elemento da verificare. NewPat non corregge automaticamente una
-stima scientifica e non applica nuovi filtri ai dati CPI in base alla stima
-Contamination.
+Each module must write `output/scientific-settings.json` with the requested values and distributed registry. Missing/extra parameters, type errors or mismatches prevent successful completion. CPI and CPIN summaries are also checked for marker type, minimum reads and error constant. Standalone analyses write `work/scientific-validation.json`. Plan steps record `artifacts.quality_warnings` in `workflow-state.json`.
 
-SNPcall conserva i nomi dei contig come testo anche durante il conteggio
-delle letture. Per esempio, `01` e `1` indicano contig distinti.
-SNPcall 2.0 distingue anche `-Inf` nelle likelihood: una qualità Phred zero
-può produrre `log(0)`, previsto dal modello. `NaN` e `+Inf` nelle colonne GL
-non sono accettati. I conteggi e le coordinate del risultato devono
-corrispondere al pannello; i genotipi sono `0/0`, `0/1`, `1/1` oppure `NA`.
-Il riepilogo dei genotipi DNP deve riportare gli stessi campioni, loci,
-alleli e genotipi delle tabelle individuali.
-
-Tutti i moduli devono produrre `output/scientific-settings.json` coerente
-con i valori richiesti e con il registro distribuito. Un file assente,
-parametri mancanti o estranei, tipi errati o valori diversi interrompono
-il completamento. CPI e CPIN verificano inoltre tipo di marcatore, letture
-minime e costante d'errore dichiarati nei riepiloghi.
-
-Per un'analisi singola il resoconto è in
-`work/scientific-validation.json`. Nei piani automatici gli avvisi sono
-registrati in `artifacts.quality_warnings` per il passaggio interessato,
-dentro `workflow-state.json`. La presenza di un avviso richiede la lettura
-del messaggio e del risultato originale; non va interpretata come una
-correzione già effettuata dal programma.
-
-Il [catalogo scientifico](CATALOGO_SCIENTIFICO.md) distingue le regole degli
-script R dai controlli e dalle trasformazioni degli adattatori Python.
-I parametri e le evidenze effettive del run sono descritti in
-[Esecuzioni e risultati](ESECUZIONI.md); la
-[scheda di validazione](VALIDAZIONE.md) consente di confrontarli con attese
-indipendenti.
+[Scientific catalog](CATALOGO_SCIENTIFICO.md) · [Runs and results](ESECUZIONI.md) · [Domain validation worksheet](VALIDAZIONE.md)

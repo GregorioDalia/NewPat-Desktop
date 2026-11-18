@@ -1,59 +1,27 @@
 # NIPAT 0.9.0 Preview
 
-La 0.9.0 è una **prerelease per provare l'interfaccia grafica**. La versione
-stabile rimane la **0.8.99**. La pubblicazione della preview non modifica
-il canale degli aggiornamenti stabili.
+This prerelease introduced the graphical interface for testing. **0.8.99** remained on the stable update channel.
 
-## Applicazione desktop
+## Desktop application
 
-- Finestra NIPAT con menu permanente, italiano e inglese, colori neutri e
-  animazione DNA disattivabile nelle preferenze.
-- Creazione di esperimenti: campioni, scelta indipendente DNP/SNP,
-  analisi facoltative, parametri e riepilogo prima dell'esecuzione.
-- Parametri con etichette descrittive, intervalli e passaggio di appartenenza;
-  catalogo di costanti e formule impaginate matematicamente.
-- Esecuzioni reali con stato, avanzamento e interruzione controllata.
-- Archivio di esperimenti, importazione di cartelle precedenti, riuso della
-  configurazione, riepiloghi, tabelle, PDF e copia dei risultati originali.
-- IGV integrato per riferimenti, allineamenti e tracce locali indicizzati,
-  senza avviare IGV Desktop. Le dipendenze JavaScript sono incluse.
-- Impostazioni di esecuzione, risorse del motore, manutenzione e aggiornamenti
-  accessibili dalla GUI. La CLI e il menu testuale restano disponibili.
+- The NIPAT window has persistent navigation, Italian and English interfaces, neutral colors and a DNA animation that can be disabled in preferences.
+- Users can select samples, choose DNP and SNP independently, add optional analyses, set parameters and review the experiment before execution.
+- Parameter labels describe each value, range and applicable phase. A catalog displays constants and typeset formulas.
+- Real analyses report status and progress and support controlled interruption.
+- The experiment archive supports importing earlier directories, reusing settings, reading summaries, tables and PDFs, and copying original results.
+- Bundled JavaScript dependencies provide integrated IGV for indexed local references, alignments and tracks. IGV Desktop is not required.
+- The GUI provides access to execution settings, engine resources, maintenance and updates. The CLI and text menu remain available.
 
-Il motore scientifico e gli algoritmi R sono quelli della 0.8.99. La GUI
-utilizza gli stessi piani, controlli degli input e moduli di esecuzione.
+The GUI uses the 0.8.99 scientific engine and R algorithms, including the existing plans, input checks and execution modules.
 
-## Installazione della preview
+## Installing the preview
 
-Su Windows utilizzare **NIPAT-0.9.0-Testing-installazione.zip** dalla
-[release v0.9.0](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.9.0):
-estrarre il contenuto e aprire **INSTALLA-NIPAT-TESTING.cmd**. Il percorso
-predefinito è separato dalla normale installazione desktop. In alternativa
-è disponibile **NIPAT-0.9.0-Windows-completo.zip**.
+On Windows, download **NIPAT-0.9.0-Testing-installazione.zip** from [release v0.9.0](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.9.0), extract it and run **INSTALLA-NIPAT-TESTING.cmd**. The default preview directory is separate from the normal desktop installation. **NIPAT-0.9.0-Windows-completo.zip** is also available.
 
-Il setup EXE riutilizza il bootstrap della 0.8.99: aperto direttamente,
-continua a selezionare la versione stabile. Il programma di installazione
-testing indica esplicitamente i pacchetti 0.9.0 e ne verifica dimensione
-e SHA-256. L'opzione avanzata `-UseSetup` sostituisce invece l'installazione
-desktop esistente e richiede quindi una scelta esplicita.
+The setup EXE reuses the 0.8.99 bootstrap. Direct launch selects the stable release. The testing installer selects 0.9.0 explicitly and verifies package sizes and SHA-256 digests. The advanced `-UseSetup` option replaces the existing desktop installation and requires an explicit choice.
 
-Su macOS e Ubuntu utilizzare i pacchetti della release v0.9.0, non i link
-`latest`. Questi pacchetti aggiornano l'installazione della piattaforma.
+On macOS and Ubuntu use the v0.9.0 release packages, which update their platform installation. The `latest` links point to the stable release. On Windows, missing Microsoft WebView2 components are prepared automatically using an internet connection. Once the engine and data are ready, analysis and local-file IGV can run offline.
 
-Il runtime WebView2 Microsoft viene predisposto automaticamente su Windows
-se manca; questa preparazione richiede Internet. Dopo la preparazione del
-motore e dei dati, analisi e visualizzazione IGV con file locali sono offline.
+## Scope of verification
 
-## Ambito delle prove
-
-Le verifiche di pubblicazione comprendono test della GUI e del trasporto
-locale, controlli dei pacchetti e avvio dell'interfaccia nei componenti
-nativi. Le evidenze effettive di build e accettazione sono allegate alla
-release. La qualifica scientifica del motore viene conservata secondo le
-regole di riuso della 0.8.99.
-
-La preview serve a verificare la nuova esperienza d'uso sui dati e sulle
-postazioni di lavoro. Gli avvisi e le politiche di esecuzione di Windows
-dipendono dalla singola postazione; non è introdotta una firma NIPAT.
-
-La [guida GUI](GUI.md) descrive il percorso di utilizzo e i limiti attuali.
+Release checks cover the GUI, local transport, packages and launch through native components. The release attaches build and acceptance evidence and retains scientific engine qualification under the 0.8.99 reuse rules. The preview enables testing with real data and workstations. Windows warnings and execution policies depend on the workstation. This release introduced no NIPAT signing certificate. See the [GUI guide](GUI.md) for the workflow and limitations.

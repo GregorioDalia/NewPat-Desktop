@@ -1,22 +1,15 @@
-# Sviluppo e validazione
+# Verification priorities
 
-Le priorità di sviluppo riguardano la correttezza dei risultati, la ripetibilità delle analisi e l'utilizzo sui dispositivi supportati. Il comportamento corrente è descritto nell'[indice delle guide](https://github.com/GregorioDalia/nipat-desktop/blob/main/docs/README.md). Le decisioni e le prove delle singole versioni sono nell'[archivio](https://github.com/GregorioDalia/nipat-desktop/blob/main/docs/archive/README.md).
+NewPat development centers on the reproducibility of research results and the operation of the local analysis environment.
 
-## Priorità
-
-| Area | Obiettivo verificabile |
+| Area | What to verify |
 | --- | --- |
-| Validazione di dominio | Valutare casi rappresentativi usando parametri dichiarati, risultati di riferimento e criteri concordati con chi esegue le analisi scientifiche. |
-| Affidabilità dei workflow | Verificare legame fra campioni, ruoli familiari, parametri effettivi e risultati, anche dopo errori e annullamenti. |
-| Prestazioni | Confrontare tempi, picchi di memoria e worker osservati con input e risorse controllati. Misurare separatamente pileup, calcolo R e orchestrazione. |
-| Piattaforme | Qualificare installazione, avvio, recupero e aggiornamento su Windows 10/11, Ubuntu e macOS Intel/Apple Silicon. |
-| Usabilità | Rendere leggibili avanzamento, riepilogo dei parametri, avvisi e diagnostica. Provare i percorsi d'uso su dispositivi reali. |
-| Interfaccia grafica | Riutilizzare contratti del client ed eventi di avanzamento. Valutare la visualizzazione locale dei dati come funzione distinta dell'interfaccia. |
-| Localizzazione | Estendere italiano e inglese senza duplicare regole e controlli applicativi. |
+| Scientific results | Compare tables, counts and unrounded values with declared reference results. Record input data, settings and acceptance criteria for representative cases. |
+| Workflow integrity | Trace sample identities, family roles and effective settings to the correct outputs. Check records after cancellation, failure and recovery. |
+| Performance | Use identical inputs and resource limits. Measure BAM acquisition, R calculation and full elapsed time separately. Compare scientific results before interpreting a timing difference. |
+| Platform support | Exercise installation, launch, update and recovery on Windows, Ubuntu, and both Apple Silicon and Intel Macs. Associate each observation with its package and system. |
+| Desktop usability | Walk through sample selection, validation, progress, results and diagnostic export in the supported interface languages. Check that error messages identify the next action. |
 
-## Metodo di verifica
+Scientific reference implementations, analytical test cases and domain review serve different purposes. Record which comparison you performed and the evidence it supports. For an issue, include the software version, platform, expected behavior, observed behavior and the smallest input that reproduces it. The package acceptance process records which checks ran on an installer and which observations came from a physical device.
 
-- **Modelli scientifici.** Usare [sorgenti di riferimento congelati](../scientific/README.md#provenienza-e-identità), oracoli analitici e casi limite. Documentare eventuali modifiche a formule, soglie o filtri come cambiamenti di modello.
-- **Prestazioni.** Applicare il [protocollo di misura](PERFORMANCE.md) e verificare la concordanza numerica prima di attribuire un miglioramento di velocità a un cambiamento.
-- **Pacchetti.** Collegare l'evidenza al commit, all'immagine e al pacchetto effettivo. Registrare esiti automatici e osservazioni sui dispositivi con il [protocollo di accettazione](ACCETTAZIONE_INSTALLATORI.md).
-- **Segnalazioni.** Nella [scheda di validazione](VALIDAZIONE.md) indicare versione, ambiente, risultato atteso e risultato osservato. Ridurre il caso a input condivisibili quando possibile.
+[Scientific components](../scientific/README.md) · [Technical and domain validation](VALIDAZIONE.md) · [Performance measurements](PERFORMANCE.md) · [Installer acceptance](ACCETTAZIONE_INSTALLATORI.md)

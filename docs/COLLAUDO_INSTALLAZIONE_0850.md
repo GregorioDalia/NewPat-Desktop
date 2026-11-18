@@ -1,92 +1,44 @@
-# Collaudo dei risultati e dei workflow della 0.8.50 installata
+# Historical verification of NIPAT Desktop 0.8.50 on Windows
 
-Questo collaudo viene eseguito sul PC Windows che ospita NIPAT Desktop 0.8.50,
-usando il suo Python, la sua distribuzione WSL e la sua immagine scientifica.
-Ogni caso usa la CLI pubblica dell'applicazione e una nuova cartella di risultati.
-Il pacchetto di test è separato dall'applicazione: il rapporto identifica sia il
-commit installato sia il commit e gli hash del collaudo.
+These instructions apply to the **0.8.50 installer at commit `b54ef493ba7f0539a8786b97874fe946b2d26393`**. For an installed NewPat release use the [current Windows test](COLLAUDO_INSTALLAZIONE.md).
 
-## Che cosa controlla
+The historical suite uses the installed Python, WSL distribution, scientific image and public CLI. Each case creates a new result directory. The harness is separate from the application. The report records both commit identities, fixture hashes and the runtime image as resolved on the device.
 
-La suite comprende 54 esecuzioni: 48 con risultati positivi attesi e 6 con
-input da rifiutare. A queste si aggiungono i controlli dei prerequisiti,
-dell'integrità dei file e della concordanza fra le esecuzioni.
+## Coverage
 
-| Parte | Evidenza richiesta |
+| Area | Evidence |
 | --- | --- |
-| DNPcall | Conteggi della ricetta SAM, genotipi, likelihood eterozigote, identità dei campioni, riepiloghi e PDF. |
-| SNPcall | Tutti i 17 campi attesi; concordanza fra input BAM e pileup e fra elaborazioni di più campioni. |
-| Contamination | Entrambi i marker, denominatore corretto, inclusione/esclusione degli zeri, media, deviazione standard, siti selezionati e PDF. |
-| CPI prenatale | Entrambi i marker, frazione fetale, prodotti degli indici, intera curva, supporto minimo modificato, mismatch, metadati mancanti e assenza di siti informativi. |
-| CPIN postnatale | Entrambi i marker, due selezioni dei siti, trasmissione compatibile e mismatch, indici per sito, intere curve e motivi di esclusione. |
-| Workflow | Preset DNP, SNP batch e piano con tutti i cinque moduli; campioni e ruoli corretti, riferimenti tra step, artefatti e risultati numerici dei caller. Una catena CPI da BAM ha risultati positivi attesi indipendentemente. |
-| Ripetibilità | Tabelle scientifiche confrontate fra seriale, automatico e parallelismo limitato a due processi; controlli separati sui risultati analitici attesi. |
-| Errori di input | Dati costruiti appositamente per essere rifiutati: il successo del test richiede il rifiuto pertinente, non un generico errore del runtime. |
+| DNPcall | Synthetic SAM counts, genotype and heterozygote likelihood, sample identity, summaries and plots. |
+| SNPcall | All 17 expected fields and agreement between BAM/pileup inputs and multisample processing. |
+| Contamination | Both marker types, denominator, include/exclude-zero modes, mean, standard deviation, selected sites and plots. |
+| Prenatal CPI | Both marker types, fetal fraction, index products, full curve, minimum support, mismatch, missing metadata and no informative sites. |
+| Postnatal CPIN | Both marker types, both site selection modes, compatible transmissions, mismatches, per-site indices, full curves and exclusion reasons. |
+| Workflows | DNP preset, SNP batch and a five-module plan with sample roles, step references, artifacts and numerical caller results. A BAM-to-CPI chain has its own expected positive results. |
+| Repeatability and rejection | Scientific table equality across serial, auto and two-worker modes. Invalid inputs must fail for their expected reason. |
 
-Le 16 prove analitiche dei modelli downstream e le 18 prove batch usano conteggi
-e frequenze artificiali con risposte calcolabili direttamente. Per esempio,
-la curva CPI di riferimento contiene i prodotti 20, 4 e 2 e la frazione fetale
-mediana è 6%; la contaminazione media è 0,025 includendo gli zeri e 0,05
-escludendoli. Le costanti di mismatch SNP e DNP vengono controllate separatamente.
-Le ricette e gli oracoli di origine sono inclusi tra le fixture del rapporto.
+There are 54 executions, comprising 48 expected successes and 6 expected input rejections, plus checks of prerequisites, integrity and cross-run agreement. The 16 analytical downstream tests and 18 batch tests use artificial counts and frequencies with directly calculable answers. Examples include CPI products of 20, 4 and 2, a median fetal fraction of 6%, and mean contamination of 0.025 with zeros or 0.05 without. SNP and DNP mismatch constants are checked separately.
 
-Il piano completo con tre BAM verifica anche il collegamento fra moduli. Quei
-tre campioni non rappresentano un trio biologico valido: i risultati positivi
-CPIN sono verificati dalle prove analitiche dedicate. La concordanza tra due
-esecuzioni della stessa implementazione è una prova di ripetibilità, mentre
-gli oracoli indipendenti controllano l'esattezza sui casi artificiali definiti.
+The three BAMs in the complete plan test the links between modules. They do not constitute a valid biological trio. Dedicated analytical cases verify positive CPIN outcomes. Separate independent expectations distinguish correctness on these examples from agreement between two executions.
 
-## Esecuzione
+## Run the historical suite
 
-Usare `scripts/windows/test-installed-0850.ps1` da PowerShell normale,
-specificando `-SourceCommit` con il commit Git completo del collaudo.
-Lo script verifica il manifest del test e ciascuno dei quattro file scaricati
-prima di eseguirli. Il checksum del manifest è fissato nel wrapper; la modifica
-dei file del collaudo richiede di rigenerare questo collegamento.
+Use `scripts/windows/test-installed-0850.ps1` in a non-elevated PowerShell session. Supply the full Git commit of the **test harness** with `-SourceCommit`. The wrapper pins the test manifest's checksum and verifies all four downloaded files. The target installation must be the identified 0.8.50 package in the `ready` state. It may include the local CPIN import fix below.
 
-L'installazione richiesta è il pacchetto ufficiale 0.8.50 del commit
-`b54ef493ba7f0539a8786b97874fe946b2d26393`, con stato `ready`; la correzione locale
-dell'import CPIN è compatibile. L'ID dell'immagine importata in WSL è registrato
-separatamente dall'ID dell'immagine originaria della build.
+Each invocation creates a directory under `%LOCALAPPDATA%\NIPAT-Desktop\collaudi`. The suite generates BAMs from synthetic SAM inputs with installed tools. The terminal displays progress and the report is retained even when a check fails.
 
-Ogni avvio crea una sessione distinta in
-`%LOCALAPPDATA%\NIPAT-Desktop\collaudi`. Il Python e samtools usati appartengono
-all'installazione esistente. I BAM vengono generati dai SAM artificiali, senza
-richiedere dati personali o installazioni aggiuntive. Il terminale mostra
-l'avanzamento dei casi; il rapporto viene aggiornato e conservato anche quando
-una verifica fallisce.
+<a id="correzione-locale-dellautotest-cpin"></a>
 
-## Correzione locale dell'autotest CPIN
+## Historical CPIN self-test repair
 
-Questa procedura riguarda il setup ufficiale 0.8.50. Il Python incorporato
-può terminare l'autotest CPIN con
-`ModuleNotFoundError: No module named 'verify_contamination_update'`.
+The original 0.8.50 installer can fail CPIN self-test with `ModuleNotFoundError: No module named 'verify_contamination_update'`. The [0.8.50 repair script](../scripts/windows/repair-0850-self-test.ps1) verifies version and hashes, backs up the affected verifier, records a separate receipt, applies the known import fix and repeats preparation.
 
-Lo script [repair-0850-self-test.ps1](../scripts/windows/repair-0850-self-test.ps1)
-verifica versione e hash, conserva backup e ricevuta separata, applica la
-correzione al verificatore previsto e ripete la preparazione. Eseguirlo in
-PowerShell come utente normale con `-HotfixSourceCommit`, indicando il commit
-Git completo da cui è stato scaricato. La preparazione scrive lo stato
-`ready` al completamento dei controlli.
+Run it from PowerShell as your regular user, passing the full Git commit from which you downloaded the script as `-HotfixSourceCommit`. Successful preparation writes the `ready` state. The receipt identifies **0.8.50 with a local repair**. Reinstalling the original 0.8.50 EXE restores the original verifier, including the import failure.
 
-La ricevuta identifica l'installazione come **0.8.50 con correzione locale**.
-Una reinstallazione dall'EXE 0.8.50 originale ripristina i file distribuiti,
-incluso il verificatore difettoso. Il [collaudo dell'installazione corrente](COLLAUDO_INSTALLAZIONE.md)
-usa la procedura inclusa nell'installatore.
+## Report files
 
-## Risultati da leggere e condividere
+- `report.html` gives a readable summary and case detail.
+- `report.json` records individual results, commands, timing and provenance.
+- `report.zip` contains the shareable report and logs.
+- `runs` and `logs` hold individual outputs and diagnostics.
 
-- `report.html`: riepilogo leggibile, esito e dettaglio delle prove.
-- `report.json`: esiti strutturati, comandi, tempi e provenienza.
-- `report.zip`: raccolta dei risultati e dei log da condividere per l'analisi.
-- `runs` e `logs`: risultati delle singole analisi e relativa diagnostica.
-
-Un caso superato deve soddisfare anche le sue verifiche sui risultati. Un
-prerequisito mancante o un caso non eseguito non è un successo. Il rapporto
-distingue controlli superati, falliti e bloccati e conserva le eventuali
-omissioni dalla raccolta dei file. In caso di errore inviare lo ZIP indicato dal
-terminale, invece di una sola schermata dell'ultimo messaggio.
-
-La copertura riguarda i moduli e i workflow elencati, sui dati sintetici inclusi.
-La verifica su campioni reali, l'interfaccia interattiva e il comportamento di
-nuove installazioni restano osservazioni distinte da questo collaudo.
+Read the recorded output assertions as well as the process result. The report distinguishes passed, failed and blocked checks and identifies omitted files. When reporting a failure, use the ZIP path shown by the terminal. These tests cover the listed synthetic workflows. Physical installation, interactive behavior and real-sample validation require separate observations.

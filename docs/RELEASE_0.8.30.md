@@ -1,91 +1,37 @@
 # NIPAT Desktop 0.8.30
 
-Questa versione integra SNPcall 2.0 e corregge la presentazione dei risultati
-scientifici. Gli installer sono pubblicati dopo la qualificazione del codice,
-dei pacchetti e delle rispettive evidenze.
+This release integrated SNPcall 2.0 and revised result presentation. Publication followed qualification of the source, packages and associated test evidence.
 
 ## SNPcall 2.0
 
-Il riferimento scientifico è [NEWPAT, commit ce59f4be](https://github.com/lpistacchia/NEWPAT/tree/ce59f4beeeec710b1b42d425cb87d7aad729f71d/SNPcall).
-Il sorgente originale è conservato senza modifiche in
-[`tests/reference_r/2.0/SNPcall.R`](../tests/reference_r/2.0/SNPcall.R).
+The scientific reference is [NEWPAT commit ce59f4be](https://github.com/lpistacchia/NEWPAT/tree/ce59f4beeeec710b1b42d425cb87d7aad729f71d/SNPcall). The [original R source](../tests/reference_r/2.0/SNPcall.R) is frozen unchanged.
 
-- Pannelli `chr, pos, ref, alt`, con compatibilità per i precedenti pannelli
-  `pos, ref, alt` dove la posizione è scritta come `chr:pos`.
-- Input BAM e pileup con nomi delle letture e qualità; generazione del pileup
-  senza il precedente limite predefinito di profondità (`samtools -d 0`).
-- Raggruppamento per SNP e nome della lettura, incluse finestre sovrapposte.
-- Tabella completa di 17 colonne: conteggi REF/ALT/Other, rapporto REF,
-  likelihood GL0/GL1/GL2, genotipo, statistiche sugli indel e conteggi per base.
-- Grafici per campione, genotipi aggregati, conteggio dei genotipi non assegnati,
-  UpSet per più campioni e misure di tempo e memoria residente.
+- The caller reads `chr, pos, ref, alt` panels and legacy `pos, ref, alt` panels containing `chr:pos`.
+- Input can be a BAM or a pileup with read names and qualities. Pileup generation uses `samtools -d 0` to remove the earlier default depth cap. Reads are grouped by SNP and QNAME, including overlapping windows.
+- The 17-column table contains REF, ALT and Other counts, REF ratio, GL0/GL1/GL2, genotype, indel statistics and per-base counts. Outputs include per-sample plots, aggregate genotypes, missing-genotype counts, multi-sample UpSet plots, elapsed time and resident memory.
+- `ratio` is REF/(REF+ALT). Genotype likelihoods use natural logarithms. When Other accounts for at least 10%, the genotype is missing and the counts and likelihoods remain available. Indel statistics examine the central base. Read exclusion examines the whole window. Zero coverage and missing estimates have distinct representations.
 
-`ratio` è REF/(REF+ALT), non la frequenza dell'allele alternativo. Le GL sono
-logaritmi naturali. Il genotipo resta mancante quando la frazione di Other è
-almeno il 10%; i conteggi e le GL restano disponibili. La statistica degli
-indel conta la base centrale, mentre l'esclusione della lettura considera
-l'intera finestra. Copertura zero e stima mancante sono rappresentate
-distintamente.
+Optimizations select necessary columns, aggregate observations and keep worker counts within the CPU and memory budget. Serial operation remains available. Different SNP results from earlier releases may reflect the replacement of the scientific model. SNPcall 2.0 is the reference for this release.
 
-Le ottimizzazioni mantengono il modello scientifico originale: lettura delle sole
-colonne necessarie, aggregazione delle osservazioni e processi entro il budget
-CPU/memoria. La modalità seriale resta disponibile. I risultati possono
-differire dal vecchio SNP di NIPAT perché il modello scientifico è cambiato;
-il confronto di riferimento è ora SNPcall 2.0.
+## Presentation
 
-## Presentazione dei quattro moduli
+DNP/SNP histogram bins begin at `0`, followed by `1–5`, `6–10` and subsequent intervals. Long panels and CPI plots span readable pages with bounded PDF dimensions. Summaries clarify units, missing genotypes and the interpretation of Contamination and CPI statistics. The presentation changes preserve DNPcall, Contamination and CPI formulas and tables.
 
-Gli istogrammi di DNP e SNP includono una classe `0`, seguita da `1–5`, `6–10`
-e così via. Le etichette corrispondono ai valori effettivi. I pannelli lunghi
-sono paginati e le dimensioni dei PDF sono limitate. I grafici CPI sono
-suddivisi in pagine leggibili. Riepiloghi e descrizioni chiariscono unità,
-genotipi mancanti e significato delle statistiche di Contamination e CPI.
+## Verification
 
-Questi interventi di presentazione non modificano le formule o i risultati
-tabellari di DNPcall, Contamination e CPI.
+Acceptance compares SNP with original 2.0 and the other three modules with frozen 0.8.5. It checks exact tables and unrounded R values, varying qualities, overlapping windows, missing coverage, histogram bins and serial/parallel determinism. Updated PDFs must render, have the intended content and dimensions, and agree across modes. The 0.8.30-specific checks supplement earlier release requirements.
 
-## Verifiche
+Local checks used R 4.5.0. Distribution qualification used R 4.4.2 with the image's pinned dependencies. The real 0.8.20 BAMs are outside the repository, so their recorded times belong to that version.
 
-La qualificazione confronta i risultati di SNP con l'originale 2.0 e mantiene
-il riferimento immutabile 0.8.5 per gli altri tre moduli. Sono richiesti
-confronti esatti di tabelle e valori R non arrotondati, casi con qualità
-diverse, finestre sovrapposte e copertura assente, verifiche delle classi
-degli istogrammi e determinismo tra esecuzioni seriali e parallele.
+## Installation
 
-I PDF corretti non devono riprodurre i difetti grafici della vecchia versione:
-si verificano contenuto, dimensioni, renderizzabilità e uguaglianza tra le
-modalità di esecuzione della nuova versione. Le procedure di pubblicazione
-richiedono riferimenti e verifiche specifici per la 0.8.30 e conservano i
-vincoli delle release precedenti.
+Choose a package from the [0.8.30 release](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.8.30).
 
-I test locali con R 4.5.0 sono un controllo aggiuntivo. La qualificazione
-distributiva usa R 4.4.2 e le dipendenze fissate nell'immagine scientifica.
-I BAM reali del collaudo 0.8.20 non sono inclusi nel repository: i relativi
-tempi non costituiscono un benchmark della 0.8.30.
-
-## Installazione e aggiornamento
-
-Scaricare un solo pacchetto dalla
-[release 0.8.30](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.8.30),
-scegliendo sistema e architettura:
-
-| Sistema | Pacchetto |
+| System | Package |
 | --- | --- |
 | Windows 10 22H2 x64 / Windows 11 x64 | [NIPAT-Setup.exe](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.8.30/NIPAT-Setup.exe) |
-| macOS 14 o successivo, Apple Silicon | [NIPAT-0.8.30-macos-arm64.pkg](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.8.30/NIPAT-0.8.30-macos-arm64.pkg) |
-| macOS 14 o successivo, Intel | [NIPAT-0.8.30-macos-x86_64.pkg](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.8.30/NIPAT-0.8.30-macos-x86_64.pkg) |
+| macOS 14 or later, Apple Silicon | [NIPAT-0.8.30-macos-arm64.pkg](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.8.30/NIPAT-0.8.30-macos-arm64.pkg) |
+| macOS 14 or later, Intel | [NIPAT-0.8.30-macos-x86_64.pkg](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.8.30/NIPAT-0.8.30-macos-x86_64.pkg) |
 | Ubuntu 24.04 LTS x86_64 | [nipat-desktop_0.8.30_amd64.deb](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.8.30/nipat-desktop_0.8.30_amd64.deb) |
 
-Chi usa la 0.8.20 o una precedente versione compatibile può scegliere
-**Verifica aggiornamenti** oppure scaricare il pacchetto dalla release.
-Chiudere le analisi prima dell'aggiornamento. Le installazioni riconosciute
-conservano percorsi, preferenze, dati e risultati; i run precedenti non vengono
-ricalcolati o sovrascritti. I nuovi run SNP usano il modello 2.0, per cui
-non devono essere confrontati con il vecchio SNP aspettandosi risultati identici.
-
-Il setup Windows resta privo di firma Authenticode NIPAT: questa versione
-non garantisce l'accettazione da parte di Smart App Control. I pacchetti Mac
-non sono notarizzati; i controlli automatici non sostituiscono le prove Lima
-sui dispositivi finali. Le guide [Windows](INSTALLATORE_WINDOWS.md),
-[macOS](INSTALLATORE_MACOS.md) e [Ubuntu](INSTALLATORE_LINUX.md) descrivono
-installazione, requisiti e limiti delle rispettive piattaforme.
+Compatible clients, including 0.8.20, can use **Check for updates**. Finish active runs first. Recognized installations retain paths, preferences, data and results. New SNP runs use the 2.0 model. The Windows setup lacked a NIPAT Authenticode signature and Smart App Control qualification. Mac packages lacked notarization and required separate end-device Lima testing. See the [Windows](INSTALLATORE_WINDOWS.md), [macOS](INSTALLATORE_MACOS.md) and [Ubuntu](INSTALLATORE_LINUX.md) guides.

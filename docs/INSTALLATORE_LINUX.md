@@ -1,96 +1,24 @@
-# Installazione di NewPat su Ubuntu
+# Install NewPat on Ubuntu
 
-Scaricare `newpat-desktop_0.9.7_amd64.deb` dalla
-[release stabile](https://github.com/GregorioDalia/nipat-desktop/releases/latest).
-Il pacchetto comprende l'applicazione, la documentazione e l'immagine con R,
-samtools e dipendenze. APT riconosce il nome storico `nipat-desktop` e può
-aggiornare un'installazione esistente conservando dati e preferenze.
+The supported system is **Ubuntu 24.04 LTS on x86_64/amd64**. Download `newpat-desktop_0.9.7_amd64.deb` from the [stable release](https://github.com/GregorioDalia/nipat-desktop/releases/latest). The package contains the desktop client, documentation and the Linux image with R, samtools and the scientific dependencies. Its APT package name remains `nipat-desktop` so existing systems can upgrade in place.
 
-## Requisiti
+## Install and start
 
-| Componente | Requisito |
-| --- | --- |
-| Sistema | Ubuntu 24.04 LTS, architettura x86_64/amd64. |
-| Client | Python 3.12 del sistema, installato da APT se mancante. |
-| Runtime | Docker Engine locale e Compose v2, installati da APT se mancanti. |
-| Accesso | Account non root autorizzato a usare il socket `/var/run/docker.sock`. |
-| Configurazione Docker | Daemon di sistema, container Linux amd64, senza modalità rootless o `userns-remap`. |
-| Archiviazione | Spazio per il pacchetto installato, l'immagine Docker decompressa, input, intermedi e risultati. |
+1. In a terminal, change to the directory containing the downloaded package and run:
 
-Il `.deb` dichiara le dipendenze `python3.12`, `docker.io | docker-ce` e
-`docker-compose-v2 | docker-compose-plugin`. Installando il `.deb` con APT,
-le dipendenze mancanti vengono scaricate e installate dai repository
-configurati: non occorre installare prima Docker manualmente. Servono una
-connessione Internet e autorizzazione amministrativa. Su Ubuntu con i
-repository ordinari disponibili, la dipendenza Docker è soddisfatta da
-`docker.io` e `docker-compose-v2`. Un’installazione Docker già presente deve
-soddisfare questi requisiti. Il pacchetto NewPat non aggiunge repository,
-non sostituisce configurazioni del daemon e non abilita automaticamente
-l’accesso degli utenti.
+   ```bash
+   sudo apt install ./newpat-desktop_0.9.7_amd64.deb
+   ```
 
-Docker Engine deve essere avviato prima della preparazione. L'autorizzazione
-all'uso del gruppo `docker` è una scelta amministrativa: concede privilegi
-equivalenti a root. L'amministratore deve configurarla esplicitamente secondo
-le [istruzioni Docker per Linux](https://docs.docker.com/engine/install/linux-postinstall/).
-Dopo una modifica ai gruppi può essere necessario uscire e rientrare nella
-sessione. Non eseguire NewPat con `sudo` e non rendere il socket scrivibile da tutti.
+2. Review the dependencies APT proposes. It uses the configured repositories to install Python 3.12, GTK/WebKit bindings, Docker Engine (`docker.io` or `docker-ce`) and Compose v2 (`docker-compose-v2` or `docker-compose-plugin`). Missing packages require internet access. APT handles dependencies for local packages. A graphical package manager can do this if it supports installation of local files.
+3. Have the administrator start the system Docker daemon and authorize your regular account to access `/var/run/docker.sock`. Membership of the `docker` group confers root-equivalent privileges. After a group change, sign out and sign in again. Follow [Docker's Linux post-installation instructions](https://docs.docker.com/engine/install/linux-postinstall/).
+4. Open **NewPat** from the applications menu or run `newpat` as your regular user. The first launch verifies the included archive, imports the image, checks the engine and runs the self-tests. Allow several minutes. Once the main window opens, create an experiment, supply the inputs and confirm the run.
 
-Il launcher usa esclusivamente il socket Docker locale e non cambia il
-contesto globale dell'utente. Docker rootless, daemon remoti e rimappatura
-UID non sono supportati da questo pacchetto. Il loro rifiuto evita di avviare
-analisi con percorsi o proprietari dei risultati differenti da quelli attesi.
+Use a local system daemon with Linux AMD64 containers and ordinary UID mapping. Remote daemons, rootless Docker and `userns-remap` are outside this package's supported configuration. The installer leaves Docker configuration and account privileges to the administrator. Allow room for the installed application, expanded image, inputs, intermediates and results.
 
-## Installazione e primo avvio
+Subsequent launches reuse the verified local image and state. To repeat the complete preparation and self-tests, run `newpat --setup`. A failed preparation blocks analysis until the underlying issue is resolved.
 
-Scaricare il pacchetto `.deb` della versione scelta dagli asset della pagina
-[Releases](https://github.com/GregorioDalia/nipat-desktop/releases).
-Per installare la 0.9.7, aprire il terminale nella cartella del download ed eseguire:
-
-```bash
-sudo apt install ./newpat-desktop_0.9.7_amd64.deb
-```
-
-APT mostra anche le dipendenze da scaricare e installare. Esaminare il
-riepilogo prima di confermare. `dpkg -i` da solo non risolve né scarica le
-dipendenze mancanti. L’apertura del `.deb` con doppio clic richiede un
-gestore grafico che installi pacchetti locali e ne risolva le dipendenze;
-questa funzione dipende dal desktop configurato. Il comando APT costituisce
-la procedura di riferimento.
-
-L’installazione dei pacchetti e l’autorizzazione dell’account sono due
-operazioni distinte. Dopo l’installazione, verificare che Docker sia avviato
-e completare con l’amministratore l’accesso al socket. Il setup NewPat
-non aggiunge automaticamente l’utente al gruppo `docker`.
-
-Dopo l'installazione:
-
-1. Aprire **NewPat** dal menu delle applicazioni, oppure eseguire
-   `newpat` nel terminale.
-2. Attendere la verifica dell'archivio incluso e l'importazione dell'immagine.
-3. Attendere la diagnostica del motore e gli autotest.
-4. Nella grafica, scegliere **Nuovo esperimento**, selezionare il tipo di
-   analisi e compilare gli input. Confermare **Avvia analisi** nel riepilogo.
-
-Il collegamento apre la finestra grafica attraverso GTK e WebKitGTK. APT
-installa anche `python3-gi`, `gir1.2-gtk-3.0` e `gir1.2-webkit2-4.1`.
-Il menu guidato nel terminale rimane disponibile con `newpat wizard`.
-Gli avvii successivi controllano lo stato e l’immagine locale e riutilizzano
-la configurazione verificata, senza rileggere l’intero archivio o ripetere
-gli autotest. Il primo avvio
-può richiedere diversi minuti; l'immagine scientifica non viene scaricata
-nuovamente da Internet.
-
-Per eseguire o ripetere esplicitamente la verifica dell’archivio,
-la diagnostica e gli autotest, senza aprire il menu:
-
-```bash
-newpat --setup
-```
-
-Se la preparazione fallisce, le analisi restano bloccate. Risolvere la causa
-indicata e ripetere il comando: i dati e i risultati già presenti sono conservati.
-
-## Comandi e percorsi
+## Commands and files
 
 ```bash
 newpat --version
@@ -98,127 +26,50 @@ newpat --help
 newpat dnp-call --help
 newpat doctor --runtime
 newpat self-test
-newpat
 newpat wizard
 ```
 
-`--help` e `--version` sono disponibili anche se Docker non è accessibile.
-Le simulazioni `--dry-run` preparano il run senza importare l’immagine,
-avviare gli autotest o eseguire calcoli scientifici; non verificano
-la disponibilità del runtime.
-`doctor --runtime` controlla il motore e i contratti dei cinque moduli;
-`self-test` esegue i casi distribuiti e ne verifica i risultati. Nessuno dei
-due costituisce una validazione scientifica generale. Input, parametri e
-risultati sono descritti nella [guida per l'utilizzo](GUIDA_UTILIZZO.md).
+Help and version work without Docker. A `--dry-run` prepares the run description without testing runtime availability. `doctor --runtime` checks engine contracts. `self-test` checks the distributed examples. See the [user guide](GUIDA_UTILIZZO.md) for inputs and workflows.
 
-| Contenuto | Posizione predefinita |
+| Item | Default location |
 | --- | --- |
-| Applicazione e archivio scientifico | `/opt/nipat-desktop` |
-| Comando | `/usr/bin/newpat`; alias compatibile `/usr/bin/nipat` |
-| Dati | `~/.local/share/nipat-desktop/data` |
-| Risultati | `~/.local/share/nipat-desktop/runs` |
-| Stato della preparazione | `~/.local/state/nipat-desktop/state.json` |
-| Log della preparazione | `~/.local/state/nipat-desktop/setup.log` |
-| Preferenze del menu | `~/.config/nipat-desktop/preferences.json` |
+| Application and scientific archive | `/opt/nipat-desktop` |
+| Command and compatibility alias | `/usr/bin/newpat`, `/usr/bin/nipat` |
+| Data and results | `~/.local/share/nipat-desktop/data`, `~/.local/share/nipat-desktop/runs` |
+| Runtime state and setup log | `~/.local/state/nipat-desktop/state.json`, `~/.local/state/nipat-desktop/setup.log` |
+| Menu preferences | `~/.config/nipat-desktop/preferences.json` |
 
-Se `XDG_DATA_HOME` o `XDG_STATE_HOME` sono definiti, sostituiscono
-rispettivamente `~/.local/share` e `~/.local/state`; devono essere percorsi
-assoluti. `XDG_CONFIG_HOME`, se definito, sostituisce `~/.config` per le
-preferenze del menu. I dati appartengono all'utente e restano separati dall'applicazione.
-Non usare la directory `/opt/nipat-desktop` per campioni o risultati.
-
-Gli input possono trovarsi in altre cartelle locali accessibili. Per scegliere
-una destinazione dei risultati usare le **Impostazioni** nella grafica,
-**5 — Configura → Cartelle dati e risultati** in `newpat wizard`, oppure
-`--runs-dir` prima del sottocomando. Le preferenze
-salvate si applicano soltanto al menu; i comandi diretti rimangono espliciti:
-
+Absolute `XDG_DATA_HOME`, `XDG_STATE_HOME` and `XDG_CONFIG_HOME` override the corresponding base directories. Keep samples and results in user-owned locations. Set defaults in the application or supply options before the CLI subcommand:
 
 ```bash
-newpat --runs-dir "$HOME/risultati-nipat" contamination \
-  --input "$HOME/campioni/sample.txt" --panel "$HOME/pannelli/DNPpanel.txt"
+newpat --runs-dir "$HOME/newpat-results" contamination \
+  --input "$HOME/samples/sample.txt" --panel "$HOME/panels/DNPpanel.txt"
 ```
 
-## Aggiornamento e rimozione
+Direct commands use explicit inputs. Guided sessions can also use saved preferences.
 
-Nel menu `newpat wizard`, **9 — Verifica aggiornamenti** scarica e verifica il `.deb` completo di una
-release approvata sul canale scelto. Dopo la conferma esplicita di installazione, la sessione
-corrente si chiude e viene aperto un terminale di sistema. L'installazione
-tramite APT richiede autorizzazione amministrativa attraverso Polkit.
-Al termine il launcher normale verifica o prepara il runtime prima dell'apertura dell'applicazione.
-Se terminale o Polkit non sono disponibili, il pacchetto verificato rimane
-sul disco e NewPat mostra il comando APT completo da eseguire con l'amministratore.
+## Update and remove
 
-Si può anche installare il pacchetto con `sudo apt install ./<file.deb>`.
-APT sostituisce i file applicativi e conserva i dati dell'utente. Al primo
-avvio, NewPat verifica la combinazione aggiornata di applicazione, manifest e
-immagine. Una configurazione incompleta non viene attivata. I file applicativi
-installati da APT non vengono ripristinati automaticamente se la preparazione
-successiva fallisce. Le preferenze e i percorsi dell'utente vengono conservati.
-Le sessioni NewPat ancora attive impediscono la modifica del pacchetto; non
-vengono terminate per consentire l'aggiornamento. Se APT o dpkg si interrompono,
-completare la configurazione del pacchetto con l'amministratore prima di riaprire
-NewPat. Non è previsto un rollback automatico completo.
+**Check for updates** in `newpat wizard` downloads and verifies the DEB for the chosen channel. Confirm installation to close the client and open a system terminal. APT requires administrator authorization through Polkit. If a terminal or Polkit is unavailable, NewPat keeps the verified package and displays the APT command for the administrator. Alternatively, install the new DEB using the same `sudo apt install ./filename.deb` procedure.
 
-Per rimuovere l'applicazione:
+Close active sessions before changing the package. APT updates application files and retains user data. On the next launch NewPat verifies the new application, manifest and image before starting analyses. An interrupted APT/dpkg transaction needs administrator attention. A preparation failure after APT completes requires repair of the new installation.
 
 ```bash
 sudo apt remove nipat-desktop
 ```
 
-La rimozione elimina applicazione e collegamento. Conserva dati, risultati,
-stato, preferenze del menu e immagini Docker. Non rimuove il daemon, non cambia i gruppi utenti
-e non elimina altre immagini o container. L'eventuale cancellazione dei dati
-è un'operazione separata da pianificare dopo averne verificato la conservazione.
+Removal deletes the application and shortcut. Data, results, state, preferences, Docker images, daemon and account permissions remain.
 
-## Diagnostica
+## Troubleshooting
 
-| Problema | Intervento |
+| Symptom | Action |
 | --- | --- |
-| Docker non raggiungibile | Verificare con l'amministratore che il servizio sia avviato e il socket accessibile dall'account corrente. |
-| Permesso negato sul socket | Completare la configurazione amministrativa dell'accesso; dopo una modifica ai gruppi, rientrare nella sessione. |
-| Rootless, rimappatura UID o piattaforma non supportata | Usare un sistema e un daemon conformi ai requisiti dichiarati. |
-| Archivio non integro | Conservare il log e reinstallare il pacchetto verificato della stessa build. |
-| Preparazione già in corso | Attendere il completamento dell'altro avvio. |
-| Autotest fallito | Conservare log, stato e run generati; non considerare la preparazione completata. |
-| Immagine rimossa da Docker | Avviare nuovamente NewPat per ripristinarla dall'archivio incluso. |
-| Aggiornamento interrotto | Conservare `${XDG_CACHE_HOME:-~/.cache}/nipat-desktop/updates/handoff-*/state.json` e i messaggi del terminale APT; se la transazione non è completa, riprendere la configurazione del pacchetto con l'amministratore. La preparazione del runtime usa il consueto `setup.log` nella cartella di stato XDG. |
+| Cannot reach Docker or open its socket | Check service status and the current account's socket access with the administrator. |
+| Unsupported daemon or platform | Check architecture, Docker socket, rootless mode and UID remapping. |
+| Archive verification fails | Keep the setup log, verify the package checksum and reinstall the same verified build. |
+| Another setup is running | Wait for it to finish before starting a second preparation. |
+| Self-test fails | Keep the state file, setup log and affected run directories. Resolve the reported cause and repeat `newpat --setup`. |
+| Scientific image has been removed | Launch NewPat again to restore it from the included archive. |
+| An update stops midway | Keep APT output and the update handoff state under `${XDG_CACHE_HOME:-$HOME/.cache}/nipat-desktop/updates/handoff-*/state.json`. Check the ordinary setup log for subsequent runtime errors. |
 
-Per una segnalazione, registrare versione del sistema, versione NewPat,
-provenienza del `.deb`, messaggio completo e log della preparazione.
-I log dei run possono contenere nomi e percorsi dei campioni: verificarne
-il contenuto prima di condividerli.
-
-## Verifiche del pacchetto
-
-La build usa il manifest comune di Windows e Ubuntu e verifica che il `.deb`
-incorpori l'archivio scientifico previsto. I controlli automatici comprendono
-installazione, preparazione con utente non root, autotest SNPcall, CPI
-e Contamination, DNPcall su BAM sintetico, input privati e percorsi con
-spazi e caratteri non ASCII. Verificano inoltre proprietà dei risultati,
-reinstallazione dello stesso pacchetto e rimozione con conservazione
-dei dati, dello stato e delle risorse Docker estranee. Le prove usano
-un runner Ubuntu 24.04 con Docker già configurato; la reinstallazione
-non copre un aggiornamento fra versioni differenti.
-
-Una prova separata installa il `.deb` in un container Ubuntu 24.04
-inizialmente privo delle dipendenze, verifica che APT installi Python 3.12,
-Docker Engine e Compose v2 e controlla i comandi informativi del pacchetto.
-Questa prova non avvia un daemon Docker nel container e non verifica
-l’autorizzazione di un account desktop.
-
-Una prova dedicata installa il pacchetto di riferimento indicato nel rapporto
-di build e lo aggiorna alla candidata con APT. Verifica run, dati e preferenze conservati e ripete gli
-autotest scientifici sul pacchetto aggiornato. Le identità dei due pacchetti
-e gli esiti sono registrati in `linux-upgrade-check.json`.
-I test del launcher verificano inoltre Ctrl+C attraverso il processo che
-avvia il wizard: l'annullamento lascia disponibile il menu quando il client
-ha completato l'arresto.
-
-Le prove automatiche non attestano l’esperienza completa su un Ubuntu
-Desktop pulito, la risoluzione di ogni configurazione APT o l’interazione
-con ogni gestore grafico dei pacchetti. Prima della distribuzione,
-completare il [protocollo di accettazione](ACCETTAZIONE_INSTALLATORI.md)
-sul pacchetto effettivo. La [scheda di validazione](VALIDAZIONE.md)
-consente di registrare anche le analisi di dominio.
-Evidenze, artefatti e confini della pipeline sono descritti in [CI/CD](CI_CD.md).
+Package checks cover APT installation, non-root execution, reinstall/removal and an upgrade from the baseline package. A separate dependency check starts without Docker packages and verifies APT resolution. The [acceptance protocol](ACCETTAZIONE_INSTALLATORI.md), [CI guide](CI_CD.md) and [validation record](VALIDAZIONE.md) distinguish automated checks from testing on a physical Ubuntu desktop.

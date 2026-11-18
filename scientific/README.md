@@ -1,192 +1,65 @@
-# Componenti scientifici
+# Scientific programs and reference models
 
-Il motore NIPAT integra cinque programmi R dei progetti
-[DNPcall](https://github.com/fravasini/DNPcall) e
-[NEWPAT](https://github.com/lpistacchia/NEWPAT). I sorgenti distribuiti sono
-identificati da [`SHA256SUMS`](SHA256SUMS), incluso nell'immagine insieme agli
-script. Il motore verifica tutti gli hash prima di eseguire un'analisi.
+NewPat packages five R programs from [DNPcall](https://github.com/fravasini/DNPcall) and [NEWPAT](https://github.com/lpistacchia/NEWPAT). The image includes R, samtools, their dependencies and the `nipat_scientific` preparation library. Before execution the engine checks all five operational scripts against [SHA256SUMS](SHA256SUMS). Analyses use the copies inside the verified image. The host client owns file selection and run records.
 
-| Workflow | Sorgente incluso |
+| Workflow | Bundled source |
 | --- | --- |
-| DNPcall | [`vendor/DNPcall/DNPcall.R`](vendor/DNPcall/DNPcall.R) |
-| SNPcall | [`vendor/NEWPAT/SNPcall/SNPcall.R`](vendor/NEWPAT/SNPcall/SNPcall.R) |
-| Contamination | [`vendor/NEWPAT/contamination/detect_contamination.R`](vendor/NEWPAT/contamination/detect_contamination.R) |
-| CPI prenatale | [`vendor/NEWPAT/CPI_from_cffDNA/cfDNA_CPI_estimator.R`](vendor/NEWPAT/CPI_from_cffDNA/cfDNA_CPI_estimator.R) |
-| CPIN postnatale | [`vendor/NEWPAT/CPI_postnatal/Postnatal_CPI.R`](vendor/NEWPAT/CPI_postnatal/Postnatal_CPI.R) |
+| DNPcall | [DNPcall.R](vendor/DNPcall/DNPcall.R) |
+| SNPcall | [SNPcall.R](vendor/NEWPAT/SNPcall/SNPcall.R) |
+| Contamination | [detect_contamination.R](vendor/NEWPAT/contamination/detect_contamination.R) |
+| Prenatal CPI | [cfDNA_CPI_estimator.R](vendor/NEWPAT/CPI_from_cffDNA/cfDNA_CPI_estimator.R) |
+| Postnatal CPIN | [Postnatal_CPI.R](vendor/NEWPAT/CPI_postnatal/Postnatal_CPI.R) |
 
-L'immagine comprende anche R, samtools, le dipendenze e la libreria Python
-`nipat_scientific`, che convalida e prepara i file richiesti dai programmi R.
-La selezione dei file dell'utente e il tracciamento delle esecuzioni appartengono
-al client. I sorgenti presenti in questa directory sono un riferimento
-ispezionabile: le analisi eseguono le copie contenute nell'immagine verificata.
+<a id="provenienza-e-identità"></a>
 
-## Provenienza e identità
+## Regression references
 
-| Analisi | Riferimento per la regressione |
+| Analysis | Reference used to check a build |
 | --- | --- |
-| DNPcall | NIPAT 0.8.5, commit `eafadf7002a9c7d7c1b9af9ccafc47d698a059e5`. Copia in `tests/reference_r/0.8.5`. |
-| SNPcall | [NEWPAT SNPcall 2.0](https://github.com/lpistacchia/NEWPAT/tree/ce59f4beeeec710b1b42d425cb87d7aad729f71d/SNPcall), blob `7a2e01e94c9e278af52aa861646fec3b16df8b1c`. Copia in `tests/reference_r/2.0/SNPcall.R`, SHA-256 `855a96c897d1bcb8ce30b725baecfa739d01be323252da07554a63aa66965da4`. |
-| Contamination, CPI e CPIN | [NEWPAT](https://github.com/lpistacchia/NEWPAT/tree/9c2a8be60afcb944153710da6a61cd0559e2b4cf) e oracoli analitici. Copie dei sorgenti upstream in `tests/reference_r/NEWPAT_20261113`. |
+| DNPcall | NIPAT 0.8.5 commit `eafadf7002a9c7d7c1b9af9ccafc47d698a059e5`, frozen in `tests/reference_r/0.8.5`. |
+| SNPcall | [Upstream SNPcall 2.0](https://github.com/lpistacchia/NEWPAT/tree/ce59f4beeeec710b1b42d425cb87d7aad729f71d/SNPcall), Git blob `7a2e01e94c9e278af52aa861646fec3b16df8b1c`. Local reference `tests/reference_r/2.0/SNPcall.R` has SHA-256 `855a96c897d1bcb8ce30b725baecfa739d01be323252da07554a63aa66965da4`. |
+| Contamination, CPI and CPIN | [Upstream NEWPAT sources](https://github.com/lpistacchia/NEWPAT/tree/9c2a8be60afcb944153710da6a61cd0559e2b4cf), frozen in `tests/reference_r/NEWPAT_20261113`, plus independent analytical expectations. |
 
-Il [manifest scientifico](SHA256SUMS) contiene gli hash degli script operativi.
-I riferimenti congelati servono ai test e identificano il modello con cui
-confrontare una build. Gli adattamenti di esecuzione e presentazione sono
-descritti nei contratti qui sotto.
+The [R package manifest](../docker/scientific-runtime/r-packages.tsv) pins dependencies for image construction. Each run records verified engine hashes separately from the client identity.
 
-Le versioni delle dipendenze R sono dichiarate in
-[`r-packages.tsv`](../docker/scientific-runtime/r-packages.tsv) e controllate
-durante la costruzione. `run.json` registra gli hash effettivamente verificati
-nell'immagine, distinti dall'identità del client.
+## DNPcall
 
-## Contratti operativi
+Each panel row defines a chromosome, two adjacent positions and two-base REF/ALT alleles. The engine prepares a normalized panel, an ordered BAM list and read-only input mounts. Numbered aliases map to original files in the run metadata. R executes from the run root with `--out=output`. Summaries retain a data frame for a single genotype column. The UpSet plot requires at least two samples and is omitted in a single-sample run.
 
-### DNPcall
+Acquisition reads the phase budget from `work/dnp-acquisition-budget.json`. With indexed BAMs, compatible sequence dictionaries and an unambiguous set of target chromosomes, each task runs one `samtools mpileup -r` over a complete chromosome with the original BAM list, BED selection and scientific settings. The helper concatenates pieces in BAM `@SQ` order. Only after completion does R index and process the pileup. A chromosome index selects the chromosome. The BED filters positions during scanning. Sparse targets on whole-genome BAMs can therefore require more reads than multi-region `view -M -L` selection.
 
-Il pannello contiene cromosoma, due posizioni adiacenti e alleli REF/ALT di
-due basi. Il motore prepara un pannello normalizzato e una lista ordinata dei
-BAM. Gli input di grandi dimensioni vengono montati in sola lettura. Gli alias
-numerati dei campioni sono associati ai file originali nei metadati del run.
-L'esecuzione parte dalla radice del run con `--out=output`, così i nomi generati
-dallo script rimangono all'interno della destinazione prevista.
+A supported single-BAM workload can run up to five independent chromosome acquisitions when CPU, estimated memory and target count allow. Serial mode runs one compute process at a time. For an input that cannot be partitioned by chromosome, the helper stages indexed inputs to disk one at a time and passes them in original order along with unindexed inputs to one mpileup. A corrupt supplied index is an error. `work/dnp-pileup.json` records strategy, budget, tasks, observed concurrency and outcomes.
 
-La copia distribuita conserva le dimensioni del data frame nella selezione
-di una sola colonna di genotipo (`drop = FALSE`) nei riepiloghi. Il grafico
-UpSet richiede almeno due campioni: un run con un solo campione non produce
-`DNPs_covered_UpSet_plot.pdf`. Questi adattamenti riguardano i riepiloghi e
-non la logica di chiamata del genotipo.
+Large intermediates use the runtime's Linux scratch storage. The client manages run-volume cleanup. Successful completion removes the temporary BED and pileup and validates output tables. Block reads group byte-contiguous requested rows, preserving order, repeats and gaps. The global pileup index and column types apply across all blocks. The planner selects its byte target from the run budget and estimated work. Indivisible locus groups stay intact. Samples and blocks share one worker pool. Process RSS and whole-container peak memory are separate measures. [Performance diagnostics](../docs/PERFORMANCE.md)
 
-DNPcall esporta il budget comune in `work/dnp-acquisition-budget.json` e lo
-passa all'helper Python incluso nel motore. Quando tutti i BAM sono indicizzati,
-i dizionari delle sequenze sono compatibili e la partizione è non ambigua,
-ciascun task esegue un solo `samtools mpileup -r` su un cromosoma completo.
-Restano gli input originali, il BED e le opzioni scientifiche. Le porzioni
-sono concatenate nell'ordine `@SQ` del BAM, indipendentemente dall'ordine di
-completamento; solo dopo iniziano indice globale e calcolo R.
-L'indice seleziona il cromosoma e il BED filtra le posizioni durante la
-scansione: questo percorso può leggere più allineamenti della preselezione
-multi-regione `view -M -L`, soprattutto con pannelli sparsi su BAM
-genomici. Valutare il beneficio sugli input rappresentativi misurando
-acquisizione, calcolo R e durata complessiva.
+## SNPcall
 
-Il percorso non partizionabile esegue un processo samtools alla volta:
-seleziona su disco gli input con indice e li passa, insieme agli input senza
-indice e nell'ordine originale, a un unico mpileup. Un indice presente ma
-danneggiato interrompe l'analisi. Il programma R distribuito passa il
-budget all'helper. In modalità seriale il budget limita anche l'acquisizione
-a un processo di calcolo alla volta.
+SNPcall 2.0 takes a panel and a pileup with reference, quality and QNAME fields. In BAM mode the engine creates three-base BED windows and calls samtools before R. A samtools failure stops execution. The default `-d 0` removes the depth cap. A four-column panel uses `chr,pos,ref,alt`. A three-column panel with `pos=chr:position` is normalized to the same format. Both accept positions from 2 through 2147483646 inclusive.
 
-Gli intermedi grandi restano sul disco Linux temporaneo del runtime.
-`work/dnp-pileup.json` registra strategia, budget, task, processi osservati e
-relativi esiti. Il massimo RSS osservato di un singolo processo R è distinto
-dal picco complessivo del container, misurato dalla diagnostica prestazioni.
-BED e pileup sono rimossi al termine, mentre il client gestisce la pulizia
-del volume dell'esecuzione. La verifica degli output resta parte del
-completamento del workflow.
+`output/SNPcall_output.txt` contains 17 columns covering coordinates and alleles, REF/ALT/Other counts, total, REF fraction, `GL0`/`GL1`/`GL2`, `GT`, indel statistics and observed bases with counts. GL values are natural log likelihoods using central-base Phred scores for REF/ALT observations. The default Other fraction threshold of 0.1 makes `GT` missing at or above the threshold. Central indels are counted before filtering. A flanking indel can also exclude a read. The ratio is `N_REF / (N_REF + N_ALT)`.
 
-La lettura dei blocchi riunisce in un'unica operazione le righe
-richieste adiacenti nei byte del file. Conserva ordine, ripetizioni e salti
-della richiesta; non ordina né deduplica le righe. L'indice globale e
-l'inferenza dei tipi restano comuni all'intero pileup.
+Each three-base window belongs to its own SNP before QNAME grouping. Positions shared by adjacent windows contribute to both. The scheduler retains complete SNP/QNAME groups and restores order before calculation. Tokenization has a compatibility path. Common aggregations and likelihood-group indices avoid redundant passes. Panel reading uses one thread.
 
-### SNPcall
+Outputs include genotype and REF/ALT/Other plots, genotype tables and summaries with explicit missing values. Multiple samples also yield shared-coverage results. R phase duration and initial/final process memory are distinct from complete elapsed time and peak container memory.
 
-SNPcall 2.0 riceve un pileup con riferimento, qualità e colonna QNAME e un pannello SNP. Il client può
-accettare un pileup già disponibile oppure un BAM e il riferimento FASTA.
-In quest'ultimo caso il motore genera finestre BED di tre basi ed esegue
-samtools prima di R; un errore di samtools interrompe il workflow. Come
-nell'upstream 2.0, `-d 0` elimina il limite predefinito di profondità. Il
-pannello usa `chr`, `pos`, `ref` e `alt`. La variante a tre colonne,
-`pos=chr:posizione`, `ref` e `alt`, viene normalizzata in quattro colonne.
-Entrambi richiedono posizioni da 2 a 2147483646.
+## Contamination
 
-Il risultato è `output/SNPcall_output.txt`, con 17 colonne: coordinate e
-alleli, conteggi REF/ALT/altre basi, totale e frazione REF, likelihood
-`GL0`/`GL1`/`GL2`, `GT`, statistiche degli indel e basi osservate con conteggi.
-Le likelihood sono logaritmi naturali, non probabilità normalizzate; usano
-la qualità Phred della base centrale delle osservazioni REF/ALT.
-`GT` è mancante se la frazione di altre basi è almeno 0.1. Le statistiche
-degli indel si riferiscono alla base centrale prima del filtro, mentre
-un indel su un fianco può comunque escludere la lettura dal calcolo.
-Il rapporto `ratio` resta `N_REF / (N_REF + N_ALT)`.
+This module accepts SNP coordinates (`chr,pos`) or DNP coordinates (`chr,pos1,pos2`) and a compatible panel. The Other filter uses `Other/(REF+ALT+Other)`. Per-site contamination is `unexpected/(REF+ALT)`. Genotype thresholds, the Other filter and zero inclusion are configurable. The summary reports `informative_sites`, arithmetic mean and standard deviation. With no informative sites the count is zero and estimates are `NA`.
 
-Ogni finestra di tre basi viene associata al proprio SNP prima del
-raggruppamento per QNAME. Le posizioni condivise da finestre vicine
-contribuiscono a entrambe; il parallelismo mantiene interi i gruppi
-`SNP_id`/QNAME e ripristina l'ordine prima dei calcoli. Tokenizzazione
-diretta con percorso di compatibilità, aggregazione unica di basi/coordinate/
-qualità e indicizzazione dei gruppi di likelihood riducono lavoro duplicato.
-Il riferimento upstream resta distinto da questi adattamenti.
+## Prenatal CPI
 
-I risultati comprendono grafici per genotipo e conteggi REF/ALT/altre basi,
-una tabella dei genotipi e riepiloghi con valori mancanti espliciti. I run
-con più campioni includono la copertura condivisa. I tempi R e la memoria
-residente iniziale/finale sono misure distinte dal tempo complessivo del
-workflow e dal picco di memoria del container.
-La lettura del pannello specifica `num_threads = 1L`: il lettore non sceglie autonomamente
-un numero di thread aggiuntivi rispetto al budget di calcolo.
+Inputs are explicit maternal cfDNA–father pairs, compatible SNP/DNP population frequencies and optional panels. Shared samples are read once. The module computes curves over exact intervals. The default minimum fetal read count is 2 and the error constant depends on marker type. Missing ancillary metadata does not exclude sites with valid scientific fields. Outputs include fetal fraction, log CPI, curve data and paginated PDFs.
 
-### Contamination
+## Postnatal CPIN
 
-Accetta conteggi SNP (`chr`, `pos`) o DNP (`chr`, `pos1`, `pos2`) e un
-pannello coerente. Filtra Other usando `Other/(REF+ALT+Other)` e calcola la
-contaminazione per sito come `unexpected/(REF+ALT)`. Soglie genotipiche,
-filtro Other e inclusione degli zeri sono configurabili. Il riepilogo usa
-`informative_sites`, media aritmetica e deviazione standard. Senza siti
-informativi riporta conteggio zero e stime `NA`.
+CPIN takes mother–father–child trios and SNP/DNP frequencies. Both `other_allele` and `all` require a homozygous mother. The setting `both` runs the two selections. Initial support is checked for each called allele in the child. The subsequent curve increases the support requirement for the obligate paternal allele. The upstream PI model uses configurable error constants. The module exports summaries, sites with exclusion reasons, curves and PDFs. It caches shared samples, schedules independent trios within the common budget and computes threshold intervals without rescanning every integer through maximum depth.
 
-### CPI prenatale
+## Configuration and verification
 
-Accetta coppie cfDNA materno–padre, frequenze SNP/DNP e pannelli facoltativi,
-anche multipli. Legge una sola volta campioni condivisi e calcola curve
-tramite intervalli esatti. La soglia minima di letture fetali vale 2 di
-default; le costanti d'errore differiscono per SNP e DNP. Le colonne di
-metadata non partecipano al filtro sui valori scientifici mancanti.
-Esporta frazione fetale, logCPI, curve e PDF paginati.
+`newpat settings` lists parameter defaults, limits and model constants. `--scientific-config PATH` and `--set module.parameter=value` apply validated overrides. Each step records effective settings and code references. A missing estimate (`NA`) remains distinct from zero.
 
-### CPIN postnatale
+`scripts/verify_engine_package.py` exercises the installed image on synthetic inputs. Fixture descriptions include inputs, expectations and limitations for [DNPcall](../tests/fixtures/dnp_engine/README.md), [SNPcall](../tests/fixtures/snp_engine/README.md), [Contamination](../tests/fixtures/contamination/README.md), [CPI](../tests/fixtures/cpi/README.md), [CPI error constants](../tests/fixtures/cpi_engine/README.md), [CPIN](../tests/fixtures/cpin/README.md) and [independent model checks](../tests/fixtures/five_modules/README.md).
 
-Accetta terne madre–padre–figlio e frequenze SNP/DNP. Entrambe le modalità
-`other_allele` e `all` richiedono madre omozigote; `both` le produce insieme.
-Il supporto iniziale controlla ogni allele chiamato nel figlio. La curva
-successiva aumenta il supporto dell'allele paterno obbligato. Il modello PI
-rimane quello upstream, con costanti d'errore configurabili.
-Esporta riepilogo, siti e motivi di esclusione, curve e PDF. Cache dei campioni,
-parallelismo fra terne e intervalli di supporto riducono lavoro ripetuto.
+`scripts/verify_r_equivalence.py` compares the two callers with their frozen references in the same runtime. `scripts/verify_five_modules.py` checks CPI, CPIN and Contamination against upstream and analytical expectations for both marker types. The checks include unrounded values, tables and plots. Changes to a scientific script require review of its provenance, manifest and relevant regressions. Package identity, fixture equivalence and expert assessment on independent data address separate questions.
 
-### Configurazione e tracciabilità
-
-`nipat settings` mostra parametri, limiti e costanti; `--scientific-config`
-e `--set modulo.parametro=valore` configurano i calcoli. Il registro comune
-è incluso nel runtime verificato. Ogni passaggio salva le impostazioni
-effettive e i riferimenti al codice; le formule e gli invarianti sono leggibili
-nel registro e nel catalogo. `NA` resta distinto da zero.
-
-## Verifica e manutenzione
-
-La verifica dell'immagine `scripts/verify_engine_package.py` copre tutti i
-workflow con input sintetici e aspettative dichiarate. Le fixture documentano
-calcoli e limiti:
-
-- [DNPcall completo](../tests/fixtures/dnp_engine/README.md);
-- [SNPcall da BAM](../tests/fixtures/snp_engine/README.md);
-- [Contamination](../tests/fixtures/contamination/README.md);
-- [CPI](../tests/fixtures/cpi/README.md) e [costante d'errore CPI](../tests/fixtures/cpi_engine/README.md);
-- [CPIN](../tests/fixtures/cpin/README.md) e [modelli e oracoli](../tests/fixtures/five_modules/README.md).
-
-Qualsiasi modifica ai sorgenti scientifici richiede una revisione dedicata,
-provenienza verificabile, aggiornamento del manifest e regressioni pertinenti.
-La verifica differenziale `scripts/verify_r_equivalence.py` confronta i
-candidati con i riferimenti immutabili nello stesso runtime: SNPcall 2.0
-per SNP, NIPAT 0.8.5 per DNP. `scripts/verify_five_modules.py` verifica
-CPI, Contamination e CPIN contro NEWPAT e oracoli analitici, per SNP e DNP.
-I verificatori confrontano tabelle e valori non arrotondati, con controlli
-dedicati ai grafici. CI scientifica e build degli installatori richiedono
-i rapporti di verifica.
-La corrispondenza degli hash o degli esempi non sostituisce la validazione
-di dominio con input indipendenti.
-
-I README dei componenti in `vendor/` appartengono ai rispettivi progetti e
-possono descrivere risorse disponibili soltanto nei repository upstream.
-Per installazione e percorsi NIPAT fare riferimento alle guide di questa
-applicazione. Licenze e attribuzioni sono riportate in
-[`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md).
+Upstream READMEs under `vendor/` describe their respective projects and may refer to resources shipped only upstream. Consult the [NewPat user guide](../docs/GUIDA_UTILIZZO.md) for installation and file locations. [Third-party notices and licenses](../THIRD_PARTY_NOTICES.md)

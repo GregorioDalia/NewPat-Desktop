@@ -1,44 +1,27 @@
-# Collaudo automatico dell'installazione Windows
+# Test an installed Windows release
 
-Il pacchetto Windows include un collaudo dei cinque moduli e dei workflow
-su dati sintetici. Completare il setup prima di avviare il collaudo, che usa
-il Python incluso e il runtime WSL verificato.
+The Windows package includes a synthetic test suite for all five scientific modules and their workflows. Complete guided setup first. The suite uses the installation's embedded Python and verified WSL runtime.
 
-Aprire **Windows PowerShell come utente normale** e incollare:
+Open **Windows PowerShell as your regular user** and run:
 
 ```powershell
 $app = (Get-ItemProperty -LiteralPath 'HKCU:\Software\NIPAT\desktop' -Name app_dir).app_dir
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $app 'scripts\windows\test-installed.ps1')
 ```
 
-Il comando non cambia le policy persistenti di Windows. La finestra indica
-la cartella creata sotto `%LOCALAPPDATA%\NIPAT-Desktop\collaudi`. Attendere
-l'esito; il report HTML si apre al termine. Per condividere i risultati,
-usare `report.zip` della nuova sessione.
+The PowerShell execution policy option applies only to the process used for the test. The terminal prints the new session directory under `%LOCALAPPDATA%\NIPAT-Desktop\collaudi`. Wait for completion. The suite opens the HTML report. To share the results, use **`report.zip` from that session** and review it for local paths or device information before sharing publicly.
 
-## Cosa controlla
+## Expected results
 
-- Identità dell'installazione, runtime, impostazioni e risorse.
-- Risultati numerici di DNP, SNP, Contamination, CPI e CPIN con attese indipendenti.
-- Workflow da tre BAM, da pileup SNP e da tabelle; composizioni dei cinque moduli.
-- Identità dei campioni, ruoli familiari, parametri e output prodotti realmente.
-- Tabelle scientifiche identiche fra seriale, automatico e limite di due processi.
-- Rifiuto di input non validi per il motivo atteso, senza scambiare un errore
-  d'ambiente per un corretto rifiuto scientifico.
-- Integrità degli input, dell'installazione, delle preferenze e del collaudo.
+The suite contains 54 runs (48 positive cases and 6 expected input rejections), 9 reproducibility comparisons and 7 initial/final checks. A complete passing environment reports **70 PASS, 0 FAIL, 0 BLOCKED, 0 INTERRUPTED**.
 
-La matrice corrente comprende 54 esecuzioni (48 positive e 6 rifiuti attesi),
-9 confronti di riproducibilità e 7 controlli preliminari/finali. Su un ambiente
-completo l'esito atteso è **70 PASS, 0 FAIL, 0 BLOCKED, 0 INTERRUPTED**.
-Le prove mancanti o interrotte non vengono conteggiate come superate.
+It verifies:
 
-Le fixture sono sintetiche e la loro provenienza rimane registrata separatamente
-dalla versione installata. Il collaudo non seleziona file biologici dell'utente,
-non aggiorna l'applicazione e non modifica le preferenze. Crea soltanto i propri
-input, run e report. Uno ZIP può contenere percorsi locali e informazioni sul
-PC: controllarlo prima di condividerlo pubblicamente.
+- Installed application, runtime, settings and resource identity.
+- DNP, SNP, Contamination, prenatal CPI and postnatal CPIN numerical outputs against independent expected values.
+- Workflows from three BAMs, SNP pileup and tables, including compositions of the five modules.
+- Sample IDs, family roles, parameters and artifacts actually produced.
+- Equality of scientific tables in serial, automatic and two-worker execution.
+- Invalid inputs rejected for the expected reason, and integrity of inputs, installation, preferences and test fixtures.
 
-La durata dipende dalle risorse del PC. L'esito riguarda i casi sintetici
-elencati nel report. Per misurare i tempi su input rappresentativi, seguire
-la [guida alle prestazioni](PERFORMANCE.md). Per valutare i risultati
-scientifici su dati di dominio, applicare la [scheda di validazione](VALIDAZIONE.md).
+The suite creates its own inputs, runs and reports. A missing prerequisite, interrupted case or unrelated runtime failure cannot count as a pass. The report records the fixture provenance separately from the installed version. For execution speed on representative inputs, use the [performance guide](PERFORMANCE.md). For domain assessment, see the [validation record](VALIDAZIONE.md).

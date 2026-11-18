@@ -1,257 +1,78 @@
-# Accettazione degli installatori
+# Installer acceptance for research releases
 
-NewPat distribuisce Windows 10/11 x64, Ubuntu 24.04 x86_64 e
-macOS 14 o successivo Intel/Apple Silicon. La decisione di distribuzione
-identifica commit, build e checksum; distingue prove automatiche,
-osservazioni sui dispositivi e validazione scientifica di dominio.
+Acceptance identifies a specific source commit, installer build and set of package checksums for Windows x64, Ubuntu 24.04 x86_64, macOS Intel and macOS Apple Silicon. Record automated checks, observations on actual devices and scientific domain validation separately.
 
-## Criteri di distribuzione pre-1.0
+## Research distribution
 
-La distribuzione per ricerca richiede CI e build applicabili riuscite,
-identità dei quattro pacchetti e dell'archivio scientifico comune verificata,
-revisione delle modifiche e descrizione fedele delle prove svolte. I collaudi
-desktop estesi possono essere rinviati. Una prova storica non diventa una
-prova dell'installatore candidato; un test simulato non diventa una prova
-sul computer del ricercatore. Il canale `stable` indica la versione ufficiale,
-non una validazione scientifica generale.
+A pre-1.0 research release requires successful applicable CI and installer checks, matching package identities and a reviewed account of source changes and evidence. Extended desktop scenarios can be explicitly deferred. A stable release is the official distribution channel. It does not, by itself, establish fitness for any specific scientific or clinical use.
 
-Il record con schema 7 conserva le evidenze delle quattro piattaforme
-e distingue il confronto dei caller dalla qualificazione di Contamination, CPI e CPIN:
+Use a successful **Installers (review build)** with a passing `installer-required` job. Build the integrated source commit or merge its release branch so that the exact built commit remains an ancestor of `main`. Collect the EXE, DEB, both PKGs, installer set evidence and scientific archive identities from the same run. Keep the build ID and checksums. See the [release procedure](../.github/RELEASE.md) for verifying and publishing the reviewed bytes.
 
-| Campo | Contenuto |
+| Schema 7 field | Evidence to record |
 | --- | --- |
-| `version`, `source_commit`, `build_run_id` | Identità completa della build candidata. |
-| `installer_manifest_sha256`, `scientific_archive_sha256` | Identità del manifest e dell'archivio comune. |
-| `windows_installer_sha256`, `linux_installer_sha256` | Identità dei pacchetti Windows e Ubuntu. |
-| `macos_arm64_installer_sha256`, `macos_x86_64_installer_sha256` | Identità dei due pacchetti Mac. |
-| `decision`, `scope` | `accepted-for-research`, `pre-1.0-research`, dopo revisione. |
-| `review` | Responsabile, data UTC e riferimenti HTTPS della decisione. |
-| `observed_baseline` | Commit effettivamente osservato, prove ricevute, ruolo `historical-platform-evidence`. |
-| `observed_baseline.source_comparison_scope` | `reviewed-operative-changes-with-versioned-scientific-models-v1` nello schema 7. |
-| `reviewed_source_changes` | Elenco ordinato di percorso e hash prima/dopo; `null` per aggiunte o rimozioni. |
-| `qualification_evidence_sha256`, `linux_upgrade_check_sha256` | Rapporti permanenti della candidata e aggiornamento reale Ubuntu dalla 0.7.2. |
-| `macos_validation` | Stato separato `arm64`/`x86_64`: `passed` con evidenze HTTPS oppure `not-performed` con elenco vuoto. |
-| `deferred_desktop_scenarios` | Scenari desktop estesi ancora da svolgere. |
-| `scientific_equivalence` | Commit della baseline 0.8.5, percorso e SHA-256 del rapporto nel bundle di qualificazione e ID immutabile dell’immagine scientifica. |
-| `scientific_analysis_qualification` | Commit NEWPAT di riferimento, percorso e SHA-256 di `five-module-qualification.json` nel bundle, stesso ID immutabile dell’immagine dei caller. |
-| `domain_validation` | `pending-domain-researchers`. |
+| `version`, `source_commit`, `build_run_id`, `publication_channel` | Candidate version, exact commit, build and intended channel. |
+| `installer_manifest_sha256`, `scientific_archive_sha256` | Installer manifest and common scientific archive digests. |
+| `windows_installer_sha256`, `linux_installer_sha256`, `macos_arm64_installer_sha256`, `macos_x86_64_installer_sha256` | The four installer identities. |
+| `decision`, `scope`, `review` | Reviewed `accepted-for-research` decision, `pre-1.0-research` scope, reviewer, UTC date and HTTPS evidence. |
+| `observed_baseline` | Actual observed commit and evidence, labeled `historical-platform-evidence`. |
+| `observed_baseline.source_comparison_scope`, `reviewed_source_changes` | `reviewed-operative-changes-with-versioned-scientific-models-v1` and ordered path plus before/after hashes, using null for additions/removals. |
+| `qualification_evidence_sha256`, `linux_upgrade_check_sha256` | Permanent candidate evidence and actual Ubuntu upgrade from the 0.7.2 baseline. |
+| `macos_validation` | Separate `arm64` and `x86_64` results. Use `passed` with supporting HTTPS evidence or `not-performed` with an empty list. |
+| `scientific_equivalence` | Caller reference commit, report path, report digest and immutable image ID. |
+| `scientific_analysis_qualification` | Upstream NEWPAT commit, path/hash for `five-module-qualification.json` and the same immutable image ID. |
+| `deferred_desktop_scenarios`, `domain_validation` | Outstanding desktop scenarios and `pending-domain-researchers` status. |
 
-DNP usa il riferimento NIPAT 0.8.5 e SNP il riferimento SNPcall 2.0. CPI,
-Contamination e CPIN usano i sorgenti NEWPAT congelati al commit
-`9c2a8be60afcb944153710da6a61cd0559e2b4cf`. La [procedura di pubblicazione](../.github/RELEASE.md)
-descrive il contratto e i rapporti richiesti.
+The caller report covers 17 cases against NIPAT 0.8.5 for DNP and SNPcall 2.0 for SNP. It compares exported tables, unrounded R values and plot checks, including serial/parallel rendering. The downstream report uses frozen NEWPAT commit `9c2a8be60afcb944153710da6a61cd0559e2b4cf`, independent analytical fixtures and explicit numerical tolerances. Its 86 R runs include 16 upstream comparisons and 54 batch runs for 2/3/5 families or samples, both marker types and serial/auto/two-worker configurations. Verify included sources, helpers, fixtures, sample identities, effective settings, preserved inputs and worker budgets. The aggregate result is in `scientific-equivalence-check.json`. The two report identities also appear in `release-provenance.json`.
 
-Il publisher richiede 17 casi caller e il rapporto di Contamination, CPI e
-CPIN. Il secondo rapporto raccoglie 86 esecuzioni, 16 confronti upstream e
-54 prove batch su 2/3/5 famiglie o campioni, in seriale, automatico e con
-limite di due processi, per marcatori SNP e DNP.
-Controlla sorgenti e helper installati, fixture, verificatore, input invariati,
-parametri e costanti effettivi, identità dei worker e budget rispettati.
-Per i caller usa confronti esatti delle tabelle e dei valori R. Per
-Contamination, CPI e CPIN usa oracoli analitici e confronti numerici con
-tolleranza esplicita. I rapporti dei caller includono anche i controlli
-di istogrammi e rendering fra seriale e parallelo.
+## Recording desktop tests
 
-Il risultato aggregato è conservato in `scientific-equivalence-check.json`;
-`release-provenance.json` identifica entrambi i rapporti. Il publisher
-confronta i byte Git e i digest del bundle accettato, senza sostituire i test
-dell’immagine distribuita con esecuzioni R locali. Una differenza non dichiarata
-o un rapporto riferito ad altri pacchetti interrompe la procedura. Le prove Mac
-non eseguite non impediscono di per sé una distribuzione pre-1.0, ma devono
-rimanere dichiarate come tali.
+For each actual test record UTC time, tester, OS/build, CPU architecture, account type, initial WSL/Docker/Lima state, version, commit, package hash, commands or GUI steps, expected result and observed result. Keep installer logs, runtime state and analysis reports. Share synthetic or authorized inputs only. Review local names and paths in logs before sharing. Mark a scenario passed only after all its steps and output checks succeed.
 
-## Pacchetti da provare
-
-Usare una build manuale **Installers (review build)** completata sul commit
-revisionato, con `installer-required` riuscito. Conservare EXE, DEB, entrambi
-i PKG, manifest, checksum, rapporti e ID della build. Usare soltanto
-file ed evidenze della stessa build.
-
-1. Costruire dal commit sorgente già integrato in `main`, oppure conservarne
-   l'identità con un merge commit dopo la build dal branch di release.
-2. Raccogliere e revisionare le evidenze e il record della candidata.
-3. Integrare il solo record revisionato per avviare CI e pubblicazione
-   automatica, oppure seguire la procedura manuale prevista.
-
-La [procedura di pubblicazione](../.github/RELEASE.md) specifica i parametri
-e le modalità di verifica della bozza.
-
-## Registrazione di ciascuna prova
-
-La tabella seguente costituisce il catalogo della qualificazione desktop
-completa. Nello schema 1 tutti i sei scenari devono essere superati;
-negli schemi 5, 6 e 7 per ricerca sono dichiarati esplicitamente come rinviati.
-Le singole evidenze automatiche o manuali restano utilizzabili con il loro
-ambito effettivo, senza attribuire loro la copertura dell’intero scenario.
-
-Registrare sistema operativo e build, architettura, account utilizzato,
-stato iniziale di WSL o Docker, versione NewPat, commit, checksum del
-pacchetto, data UTC, responsabile della prova e sequenza eseguita.
-Conservare log di installazione, stato del runtime e run delle analisi.
-Utilizzare dati sintetici o autorizzati alla condivisione; i nomi e i percorsi
-nei log possono identificare i campioni.
-
-Una prova è superata soltanto se sono soddisfatti tutti i criteri della
-relativa riga. Un’interruzione, un passaggio non eseguito o un esito incerto
-restano da verificare; non vanno registrati come `passed`.
-
-| Chiave della prova | Ambiente e operazioni | Criteri di accettazione |
-| --- | --- | --- |
-| `windows_clean_wsl` | Windows 11 x64 senza NewPat, Docker Desktop, Python o strumenti scientifici; WSL inizialmente non configurato. Eseguire l’EXE con doppio clic, autorizzare i componenti richiesti, completare l’eventuale riavvio e riaprire NewPat dall’icona. Eseguire diagnostica, autotest e i cinque moduli e i workflow composti con casi noti. Riavviare Windows e ripetere l’avvio. | La preparazione arriva a `ready` senza spostare file; il menu e i calcoli funzionano dal normale account; risultati e log sono accessibili; dopo il riavvio non servono comandi manuali per avviare il runtime. |
-| `windows_stable_coexistence` | Windows 11 x64 con installazioni NewPat 0.4 e 0.5 e dati di controllo, affiancate a NewPat. Registrare prima e dopo percorsi, versioni, stato e inventario delle distribuzioni WSL. Avviare tutte le applicazioni. | NewPat usa nome, cartelle, collegamenti e distribuzione propri. Applicazione, configurazione, dati e runtime delle altre installazioni NewPat restano utilizzabili e non vengono adottati o sostituiti da NewPat. |
-| `windows_reinstall_removal` | Sull’installazione NewPat preparata, eseguire i casi sotto riportati per percorsi personalizzati, reinstallazione, cambio di destinazione e rimozione. Provare entrambe le scelte di conservazione dell'ambiente, l'annullamento e un errore parziale. | Le preferenze vengono riproposte, i file esistenti restano nelle loro destinazioni e le analisi funzionano. La rimozione elimina applicazione e collegamenti; l'opzione aggiuntiva riguarda soltanto risorse verificate di NewPat. Dati, risultati e risorse estranee rimangono invariati. |
-| `ubuntu_clean_dependencies` | Ubuntu Desktop 24.04 x86_64 senza Docker Engine o Compose. Installare il `.deb` con APT, registrare le dipendenze installate e configurare l’accesso Docker tramite l’amministratore. Accedere nuovamente all’account se richiesto. Avviare dal menu applicazioni, eseguire preparazione, diagnostica, autotest e i cinque moduli e i workflow composti; riavviare il sistema e ripetere l’avvio. | APT installa le dipendenze; l’account non riceve accesso Docker senza autorizzazione; il servizio e l’accesso funzionano dopo la configurazione e il riavvio. Menu e analisi sono eseguiti senza `sudo`; risultati e log appartengono all’utente. |
-| `ubuntu_existing_docker` | Ubuntu Desktop 24.04 con Docker di sistema già configurato e risorse Docker estranee a NewPat. Registrare versioni, endpoint e configurazione prima e dopo installazione, preparazione e analisi. | Il Docker compatibile viene riutilizzato; non vengono sostituiti repository, contesto globale, configurazione del daemon, immagini o container estranei. NewPat usa il socket locale dichiarato. |
-| `ubuntu_reinstall_removal` | Sull’installazione NewPat preparata, conservare un run e un file di controllo; reinstallare lo stesso `.deb`, ripetere avvio e diagnostica, poi rimuovere `nipat-desktop` con APT. | Reinstallazione e avvio riescono; la rimozione elimina applicazione e collegamento, conservando dati, risultati, stato e immagini Docker. Le risorse Docker estranee non cambiano. |
-
-Le prove possono essere ripartite tra più sistemi, registrando le condizioni
-di ciascuno. Non è necessario modificare la configurazione di un computer
-che contiene dati di ricerca per ottenere un ambiente iniziale pulito.
-
-## Percorsi e rimozione su Windows
-
-Associare a `windows_reinstall_removal` evidenze per tutti i casi seguenti.
-Registrare le cinque destinazioni selezionate, l'inventario delle distribuzioni
-WSL e i checksum dei file di controllo prima e dopo ciascuna operazione.
-
-| Caso | Operazioni e criteri |
+| Scenario | Procedure and pass criteria |
 | --- | --- |
-| Destinazioni personalizzate | Installare con cartelle applicazione, WSL, cache, dati e risultati separate, includendo un secondo disco locale fisso, spazi e caratteri non ASCII. Usare dati già presenti e verificare che restino invariati. Avviare menu, diagnostica e analisi; verificare risultati nella destinazione scelta e collegamento **Cartella NewPat**. |
-| Destinazioni non ammesse | Provare radici coincidenti o annidate, cartelle non scrivibili, cartella applicativa estranea non vuota, percorsi UNC, rete, supporti rimovibili, junction, cartelle di sistema e destinazioni stabili. Il setup deve rifiutarle senza modificare il contenuto protetto. |
-| Reinstallazione e preferenze | Reinstallare lo stesso EXE nella cartella applicativa esistente; controllare la modalità **Aggiornamento e riparazione**, le cinque scelte riproposte, l'avvio e i run conservati. Ripetere dopo la disinstallazione, aggiungendo un file estraneo accanto ai residui riconoscibili di NewPat: la riparazione deve riuscire senza eliminarlo. Le preferenze devono restare disponibili anche se ambiente e cache sono stati rimossi. |
-| Backup e inventario | Preparare componenti modificati, un file estraneo che collide con il nome di un componente in arrivo e altri file estranei. Verificare la copia dei file da sovrascrivere, dei metadati e del Python generato nel backup selettivo prima delle sostituzioni; gli altri file devono rimanere invariati. Con un inventario precedente valido, verificare rimozione dei soli componenti obsoleti immutati; quelli modificati devono restare in posizione ed essere copiati nel backup. I file estranei non coinvolti nelle sostituzioni devono restare invariati senza essere inclusi nel backup. Un inventario del nuovo pacchetto non valido deve interrompere l'operazione; un inventario precedente danneggiato deve essere salvato senza autorizzare rimozioni di componenti obsoleti. |
-| Inventario da manifest | Su un’installazione NewPat priva di `.distribution/application-files.json`, verificare l'uso della mappa `source_sha256` di un manifest precedente valido. Provare schema, profilo, commit o mappa non validi: nessuna rimozione di file obsoleti deve essere autorizzata. Se `application-files.json` esiste ma è danneggiato, il manifest non deve sostituirlo per autorizzare rimozioni. |
-| Cartella estranea | Selezionare una cartella non vuota non appartenente a NewPat. Verificare la proposta di una sottocartella vuota e la conferma esplicita: il contenuto iniziale resta invariato. Rifiutare la proposta deve mantenere la selezione; una sottocartella già non vuota non deve essere svuotata né generare annidamenti ripetuti. |
-| Distribuzione rimossa manualmente | Con dati sintetici, rimuovere da WSL una distribuzione posseduta da NewPat mantenendone i registri. Il setup deve ricrearla soltanto nella destinazione vuota e archiviare la ricevuta precedente. Ripetere con un file di controllo nella destinazione: la preparazione deve arrestarsi senza cancellarlo. Verificare anche il riutilizzo della distribuzione ancora registrata e coerente. |
-| Cambio di destinazione | Cambiare cartella WSL mantenendo lo stesso EXE: deve essere preparato un ambiente distinto e quello precedente deve restare intatto. Cambiare dati e risultati: nessun file preesistente deve essere spostato, cancellato o sovrascritto. Verificare nuovi run nella destinazione attiva e accesso ai precedenti. |
-| Rimozione predefinita | Conservare ambiente e cache. Applicazione e collegamenti devono essere rimossi, mentre dati, risultati e risorse WSL/cache restano disponibili. Reinstallare e verificare il riutilizzo compatibile. |
-| Rimozione facoltativa | Selezionare la rimozione di ambiente e cache dopo avere usato più destinazioni. Controllare che vengano rimosse soltanto distribuzioni possedute da NewPat e archivi verificati delle destinazioni registrate, inclusi quelli conservati in precedenza. Dati e risultati di tutte le destinazioni, file estranei, Docker Desktop, altre installazioni NewPat e altre distribuzioni devono restare invariati. |
-| Annullamento e fallimenti | Annullare la disinstallazione prima della rimozione e verificare assenza di effetti. In un ambiente di prova controllato, simulare proprietà o cache non verificabili e un errore dopo una rimozione parziale; verificare arresto, messaggio, registri e risorse rimaste, quindi ripresa senza rimuovere dati o risorse estranee. |
+| `windows_clean_wsl` | On a clean Windows 11 x64 device without configured WSL, Docker Desktop, Python or scientific tools, run the EXE, authorize prerequisites, complete any reboot and use the normal shortcut. Verify readiness, diagnostics, self-tests, five modules, composed workflows and another launch after reboot. Results and logs must be accessible from the regular account. |
+| `windows_stable_coexistence` | Record paths, versions, state and WSL inventory for existing 0.4/0.5 installations and the candidate before and after install. Verify all remain runnable and retain separate shortcuts, configuration, data and owned environments. |
+| `windows_reinstall_removal` | Use the Windows cases below. Reinstallation preserves selected paths and user files. Optional removal acts only on verified owned resources and preserves all data and runs. |
+| `ubuntu_clean_dependencies` | On Ubuntu Desktop 24.04 x86_64 without Docker/Compose, install with APT. Record resolved dependencies. Arrange authorized socket access, sign back in if needed, run setup, diagnostics, self-tests and five-module workflows as the regular account. Reboot and repeat launch. Check file ownership and service access. |
+| `ubuntu_existing_docker` | With a preconfigured system Docker and unrelated workloads, record before/after endpoint, versions and configuration. Preparation reuses the compatible local daemon and leaves repositories, global context and unrelated containers/images intact. |
+| `ubuntu_reinstall_removal` | Save a run and sentinel file, reinstall the same DEB, repeat launch/diagnostics, and remove `nipat-desktop` with APT. Check that app and shortcut are removed while data, runs, preferences and unrelated Docker resources remain. |
 
-Questi casi definiscono il collaudo completo dello scenario, non risultati
-già acquisiti né un obbligo per ogni distribuzione pre-1.0. Non registrare
-`windows_reinstall_removal` come superato se uno dei casi richiesti non è
-stato eseguito o non dispone di evidenze.
+Schema 1 required all six scenarios. Research records under schemas 5–7 explicitly identify deferred scenarios. An individual automated check establishes only the specific behavior it exercised.
 
-## Configurazione e interazione
+### Windows path, repair and removal cases
 
-Includere nelle prove Windows e Ubuntu i seguenti controlli, conservando
-il file delle preferenze e i record dei run quando condivisibili:
+Use a disposable installation with synthetic data and known sentinel files.
 
-1. Salvare cartelle e valori predefiniti di ciascun workflow in **Configura**;
-   chiudere e riaprire NewPat e verificarne la persistenza.
-2. Modificare un valore per la singola analisi: il riepilogo e `run.json`
-   devono registrarlo, mentre le preferenze salvate devono restare invariate.
-3. Verificare che campioni, coppie CPI e nomi dei run vengano richiesti ogni
-   volta e non siano riproposti dalle preferenze.
-4. Provare annullamento, ripristino esplicito, preferenze non valide e riferimenti
-   mancanti. Le preferenze non valide devono impedire le analisi guidate fino
-   alla correzione; il solo Invio nel riepilogo non deve avviare un'analisi.
-   Dati e risultati devono essere conservati.
-5. Avviare il menu con percorsi CLI espliciti e verificare che prevalgano nella
-   sessione. Un comando diretto con argomenti invariati deve restare indipendente
-   dalle preferenze del menu.
-6. Aprire **Guida e informazioni** senza attivare controlli; eseguire quindi
-   **Verifica ambiente** e verificare l'esito separato.
+- Choose custom fixed-disk paths, including spaces and non-ASCII names. Verify defaults in later sessions and successful analyses. Reject overlapping roots, unsuitable system directories, UNC/network/removable locations and junctions.
+- Reinstall into a recognized directory. Verify the inventory, selective backup of replaced or locally edited components, retention of unrelated files and preservation of data and results. Verify a previous manifest may supply legacy inventory only when the normal inventory is absent and the manifest is valid.
+- Select an unrelated nonempty application directory. Verify any suggested empty child requires confirmation. A refusal, occupied child or failed check must leave existing files intact.
+- Test a manually removed owned WSL registration. Setup may recreate it only in an empty verified destination; it must preserve the previous receipt and refuse an occupied location. Also verify ordinary reuse of a coherent existing registration.
+- Change the WSL destination and verify a separate environment and preservation of the previous one. Change data and results destinations and confirm existing files stay in place while new runs use the new destination.
+- Exercise default removal retaining runtime/cache, optional verified cleanup across current and previous recorded destinations, and cancellation before cleanup. Include an ownership/integrity failure and a partial removal failure on a test device. Check logs, remaining files and safe recovery. Confirm sentinel files, other WSL installations, Docker Desktop and user data are intact.
 
-Queste verifiche integrano i sei scenari della qualificazione completa.
-Registrare i casi svolti e mantenere distinti quelli non ancora eseguiti.
+### Application, analyses and updates
 
-## Verifiche durante le analisi
+Verify saved defaults survive reopening, run-specific overrides reach the summary and `run.json`, and new samples, CPI relationships and run names are requested each time. Exercise cancel, explicit reset, invalid preferences, missing references and a summary submitted without positive confirmation. CLI path overrides take precedence in that session; direct commands remain independent of wizard defaults. Opening help should not start diagnostics. Exercise the explicit environment check separately.
 
-Su Windows registrare anche lo stato di Smart App Control e gli eventuali
-avvisi di Chrome, SmartScreen o antivirus. Provare download, setup, avvio,
-abilitazione dei prerequisiti e disinstallazione con le protezioni attive.
-Un blocco richiede il nome del componente e il testo dell'avviso; un'installazione
-completata dopo un aggiramento non soddisfa questo controllo. Il pacchetto
-non è firmato digitalmente da NIPAT: l'esito sul dispositivo deve essere
-registrato senza attribuire al checksum il valore di una firma del distributore.
+With ordinary system protections enabled, test download, setup, prerequisite elevation, launch and uninstall on Windows. Record browser, SmartScreen, Smart App Control or antivirus messages separately. On Ubuntu include private inputs readable only by the user. On every platform exercise external input locations, spaces, non-ASCII characters and custom results paths. Include a DNP-from-BAM case using an indexed FASTA, a DNP → Contamination chain, SNP, CPI and the other planned cases using known numerical outputs. Verify inputs are unchanged, runs have unique directories, existing run names are protected, and invalid/cancelled runs retain meaningful diagnostics.
 
-Su tutte le piattaforme includere input fuori dalla cartella dell’applicazione,
-percorsi con spazi e caratteri non ASCII e una destinazione dei risultati
-scelta dall’utente. Su Ubuntu includere input privati leggibili dal solo account.
-Su Windows usare dischi locali fissi, coerentemente con i requisiti dichiarati.
+Test upgrades with two identified releases of the same product. Record starting version, channel, proposed release, download hash and end state. Stable excludes prereleases; testing can include approved stable and testing releases. Drafts, CI artifacts, older versions and mismatched manifests must not be offered. Startup notification is initially off and, if enabled, must not download or install anything by itself. Check offline handling, corrupted or incomplete downloads, deferral and explicit confirmation. Windows and Ubuntu have separate download and install confirmations; macOS users open the verified PKG after closing the client. Check active sessions, Ubuntu APT/Polkit and terminal fallback, user data preservation, post-upgrade readiness and the runtime identity in both old and new run records.
 
-Verificare almeno una sequenza DNPcall → Contamination usando l’output del
-primo run come input del secondo. Eseguire SNPcall e CPI con i rispettivi
-input e valori attesi. `self-test` non comprende una prova DNPcall da BAM:
-questa analisi richiede un caso esplicito, completo di FASTA indicizzato.
-Controllare conteggi e risultati pertinenti, non soltanto la presenza dei file.
+### macOS and resource management
 
-Verificare che gli input originali non cambino, ogni analisi produca un run
-separato, i metadati identifichino il runtime e un nome di run già esistente
-non venga sovrascritto. Provare un input non valido e l’annullamento dal menu;
-correggere il caso e avviare una nuova analisi. Conservare anche l’esito
-negativo per documentare il messaggio e il recupero osservati.
+Record Intel and Apple Silicon separately, including OS, hardware/RAM, Lima, Rosetta where relevant and PKG digest. Test Finder installation, Gatekeeper prompts, first launch, runtime preparation, analysis, reopening, reinstall and removal. Validate original display names in results, duplicate sample basenames in different directories, `sample-map.tsv`, `run-report.html`, canonical outputs, family relationships and numerical values.
 
-Una reinstallazione della stessa build non verifica un aggiornamento fra
-versioni differenti. Quest'ultimo richiede due pacchetti identificati dello
-stesso canale e prove aggiuntive di sostituzione dei componenti, gestione
-dell'inventario, conservazione dei dati, migrazione del runtime, interruzione
-e ripresa. Le prove con inventari controllati verificano le regole di gestione
-dei file, ma non sostituiscono questo collaudo dei pacchetti effettivi.
+For WSL/Lima, test proposed configuration changes, cancel, backups, unrelated settings, concurrent edits, active-analysis locks and restart confirmation. WSL shutdown affects the account's distributions. Ubuntu settings should apply to NewPat containers. Distinguish a confirmed OOM from a termination of unknown cause.
 
-## Verifiche degli aggiornamenti
+## Submit the acceptance record
 
-Registrare piattaforma, versione installata, canale scelto, release proposta,
-checksum del pacchetto scaricato e risultato di ciascun passaggio. Le prove
-con risposte GitHub simulate verificano i controlli del client; una prova
-completa di aggiornamento richiede due pacchetti identificati dello stesso
-prodotto e le rispettive evidenze di pubblicazione.
-
-| Controllo | Criterio |
-| --- | --- |
-| Canali | `testing` considera pre-release e stabili approvate; `stable` esclude le pre-release. Bozze, build Actions, versioni non successive e manifest non coerenti non sono proposti. |
-| Avviso all'avvio | Disattivato inizialmente; se attivato mostra soltanto un avviso e non avvia download, installazioni o interruzioni. |
-| Assenza di rete | La ricerca segnala il problema e l'installazione già pronta continua a funzionare con il runtime locale. |
-| Download | Nome, versione, piattaforma, dimensione e SHA-256 corrispondono alla release approvata; un file incompleto o alterato non può essere avviato come installatore. |
-| Conferme e rinvio | Invio mantiene la scelta di rimandare. Su Windows/Linux download e installazione richiedono conferme distinte; su Mac si conferma il download, si chiude NewPat e si apre manualmente il PKG; annullamento o rinvio non modificano i componenti installati. |
-| Installazione | La sessione corrente si chiude prima della sostituzione; un'analisi in altra sessione non viene terminata per consentire l'aggiornamento. Su Ubuntu verificare autorizzazione APT e comportamento senza terminale o Polkit. |
-| Conservazione e riapertura | Percorsi, preferenze, dati e run esistenti restano disponibili. Il nuovo client avvia analisi soltanto dopo la preparazione verificata; un errore non viene presentato come aggiornamento completato. |
-| Tracciabilità | Il run precedente conserva versione e runtime originari; il run successivo identifica la versione installata e il motore effettivamente utilizzati. |
-
-Conservare separatamente l'esito dei controlli simulati e quello dei pacchetti
-installati. Non attribuire a una reinstallazione della stessa build la verifica
-di un aggiornamento fra versioni, né trasformare una candidata di revisione
-in una release approvata per completare una prova.
-
-## Prove macOS e risorse
-
-Su Intel e Apple Silicon registrare separatamente versione macOS, hardware,
-RAM, Lima, Rosetta quando applicabile e identità del PKG. Provare installazione,
-avvio da Finder, preparazione, analisi, riapertura, reinstallazione e rimozione.
-Segnalare gli avvisi Gatekeeper e le eventuali autorizzazioni richieste.
-Una build nativa del pacchetto non sostituisce queste osservazioni.
-
-Su tutte le piattaforme controllare nomi originali nelle tabelle e nei PDF,
-`sample-map.tsv`, `run-report.html`, conservazione degli output canonici e
-numeri invariati. Includere spazi, caratteri non ASCII e nomi uguali in cartelle
-diverse, oltre a campioni e coppie dei workflow automatici.
-
-Per WSL/Lima provare anteprima, annullamento, backup, conservazione delle
-impostazioni estranee, modifiche concorrenti e rifiuto durante un'analisi.
-Il riavvio globale WSL richiede una conferma separata. Su Ubuntu verificare
-che NewPat applichi soltanto limiti ai propri container. Distinguere un OOM
-confermato da una terminazione con causa non accertata.
-
-## Record di accettazione
-
-Generare il modello dalla stessa build:
+Generate a pending record from the identified build:
 
 ```bash
 python .github/scripts/release_acceptance.py \
-  --installer-set /percorso/installer-set-check.json \
-  --run-id ID_BUILD \
-  --output /percorso/accettazione-da-compilare.json
+  --installer-set /path/to/installer-set-check.json \
+  --run-id BUILD_RUN_ID \
+  --output /path/to/candidate-acceptance.json
 ```
 
-Il modello identifica lo schema applicabile alla build e parte da
-`pending`. Compilarlo con le evidenze della build qualificata e sottoporre
-`.github/release-acceptance/vVERSIONE.json` a revisione. Dedicare al record una
-PR separata dopo avere integrato il commit sorgente. Sul merge di questa PR,
-la CI verifica le evidenze e il workflow di pubblicazione può pubblicare la
-build indicata. Tenere distinti generazione del modello, accettazione e merge.
-
-Gli schemi precedenti rimangono disponibili per le relative release storiche.
-La [scheda di validazione](VALIDAZIONE.md) raccoglie i casi di dominio;
-l'accettazione tecnica non sostituisce la valutazione scientifica di dominio.
+Complete and review the record using evidence from the candidate. Once the source is integrated, submit `.github/release-acceptance/vVERSION.json` in a separate acceptance-only pull request. After merge, successful verification on `main` can trigger publication of that accepted build. Historical records retain their own schemas and scope. The [domain validation record](VALIDAZIONE.md) is separate from technical release acceptance.

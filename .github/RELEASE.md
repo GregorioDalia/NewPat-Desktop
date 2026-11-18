@@ -1,312 +1,84 @@
-# Verifica e pubblicazione dei pacchetti
+# Verify and publish a NewPat release
 
-NIPAT distribuisce installatori costruiti e verificati da GitHub Actions.
-La pubblicazione riutilizza gli stessi file, senza ricompilare applicazione
-o runtime. La build produce i pacchetti Windows 10/11 x64, Ubuntu 24.04 x86_64
-e macOS Intel e Apple Silicon, con un archivio scientifico comune.
+A release publishes the packages produced by a reviewed GitHub Actions installer build. The publisher checks the files again and reuses those bytes. The package set covers Windows x64, Ubuntu 24.04 x86_64, macOS Intel and macOS Apple Silicon, all tied to one Linux AMD64 scientific archive.
 
-La distribuzione per ricerca pre-1.0 distingue controlli automatici, prove
-osservate sui dispositivi e valutazione di dominio. Le prove desktop estese
-possono essere rinviate esplicitamente. La scelta del canale `stable` identifica
-la versione ufficiale, non una validazione scientifica generale.
+## 1. Build the candidate
 
-## Documentazione pubblica
+1. Check that `pyproject.toml`, the client version and release notes identify the intended version. Use `docs/RELEASE_VERSION.md` with the actual version in the filename.
+2. Run **Installers (review build)** on the reviewed commit of `main`, `release/VERSION` or a corresponding `release/VERSION-…` branch. Building from integrated `main` makes commit ancestry straightforward. For an already built release branch, use a merge that preserves the built commit as an ancestor of `main`. A squash or rebase may require a new build even with identical file contents.
+3. Record the full source SHA, installer build run ID, workflow attempt and resulting digests. Require the successful `installer-required` check and all required platform packages. A pull request's CI artifacts cannot substitute for this installer build.
 
-README, guide e note di versione devono essere autonomi e professionali:
-descrivere funzionalità, requisiti, utilizzo e limiti tecnici pertinenti,
-con esempi generici. Non includere riferimenti a conversazioni private,
-collaboratori specifici o accordi di consegna estranei al funzionamento.
-Conservare le attribuzioni e i riferimenti necessari alla provenienza e
-alle verifiche. I record storici di accettazione mantengono identità,
-ambito ed esiti originali; non attestano prove su versioni successive.
+The builder checks the client, qualifies the scientific image, exports the common archive and packages files allowed by `distribution-files.txt`. It may reuse successful scientific evidence from the exact Git tree and immutable image. Without verified matching evidence it runs the scientific checks itself. [CI evidence reuse](../docs/CI_CD.md#scientific-evidence-reuse)
 
-## Build identificata
-
-Avviare manualmente **Installers (review build)** su un commit revisionato
-di `main` oppure del branch `release/VERSIONE` o `release/VERSIONE-...`
-corrispondente alla versione del pacchetto.
-Per una release, costruire preferibilmente dal commit già integrato in
-`main`. Se si costruisce dal branch di release, integrare il sorgente con un
-merge commit che conservi il commit costruito come antenato di `main`.
-Squash e rebase possono cambiare il commit anche quando il contenuto finale
-è identico. In quel caso serve una build qualificata del commit integrato.
-Registrare il commit completo, l'ID della build e i checksum.
-
-La build verifica il client, costruisce l'immagine scientifica, acquisisce le
-regressioni verificate, esporta l'archivio comune e confeziona i quattro installatori.
-Se una CI riuscita ha già verificato lo stesso albero Git e l'identico ID Docker
-Linux AMD64, la build riusa i suoi rapporti senza ripetere i sette controlli
-scientifici. Ogni altra situazione esegue tutti i controlli nella build.
-Per beneficiare del riuso, allineare e congelare la candidata prima della CI,
-quindi avviare la build dopo il suo completamento. La build non attende una CI
-ancora in esecuzione. La [procedura CI](../docs/CI_CD.md#riuso-delle-evidenze-scientifiche)
-descrive verifiche, provenienza e fallback.
-Il builder include soltanto i file ammessi da `distribution-files.txt` e i
-componenti identificati dai manifest. Il controllo `installer-required`
-confronta i pacchetti e le loro evidenze. Una build di pull request non è una
-build di pubblicazione.
-
-| Artefatto | Contenuto principale |
+| Actions artifact | Contents |
 | --- | --- |
-| `nipat-windows-setup` | `NIPAT-Setup.exe`, manifest, checksum, `installer-build.json`, `windows-client-check.json`. |
-| `nipat-runtime-assets` | Archivio scientifico, filesystem WSL, manifest e checksum. |
-| `nipat-linux-setup` | DEB, manifest, rapporti di confezionamento, installazione, dipendenze e aggiornamento. |
-| `nipat-macos-setup-arm64` | PKG Apple Silicon e rapporto del pacchetto nativo. |
-| `nipat-macos-setup-x86_64` | PKG Intel e rapporto del pacchetto nativo. |
-| `nipat-scientific-check-logs` | Rapporti scientifici e `reuse.json`, che distingue esecuzione nuova e riuso dalla CI identificata. |
-| `nipat-installer-set-evidence` | `installer-set-check.json`, identità congiunta dei quattro pacchetti. |
+| `nipat-windows-setup` | Bootstrap EXE, Windows payload and complete ZIP, manifest, checksums, `installer-build.json` and client checks. |
+| `nipat-runtime-assets` | Scientific archive, WSL filesystem, manifest and checksums. |
+| `nipat-linux-setup` | Ubuntu DEB and packaging, installation, dependency and upgrade reports. |
+| `nipat-macos-setup-arm64`, `nipat-macos-setup-x86_64` | Native PKG and package report for each macOS architecture. |
+| `nipat-scientific-check-logs` | Scientific reports and the executed/reused provenance in `reuse.json`. |
+| `nipat-installer-set-evidence` | `installer-set-check.json`, which identifies the four installers together. |
 
-Il manifest collega versione, commit, architettura, archivio scientifico e
-profilo `desktop`. La versione deve coincidere con il `pyproject.toml` del
-commit compilato. Un archivio ricostruito, anche dallo stesso commit, richiede
-verifica dei nuovi byte e un'accettazione corrispondente.
+### Platform evidence
 
-## Verifiche dei pacchetti
+- **Windows.** `windows-client-check.json` tests the staged payload with its embedded Python, including complex paths. `windows-installer-fixture-check.json` exercises installation, upgrade and removal of a fixture compiled from the candidate Inno definition. `windows-trust-check.json` binds actual Authenticode observations to package bytes. Record execution of the production setup, a real WSL installation or Smart App Control on a physical system only when observed. Bootstrap, separately downloaded payload and complete local ZIP have distinct identities.
+- **Ubuntu.** Package checks cover APT installation, dependency resolution, non-root preparation and analysis, reinstall/removal, and preservation of user files. `linux-upgrade-check.json` binds a real upgrade from the 0.7.2 baseline to this candidate. A configured Actions runner and a clean physical desktop are different environments.
+- **macOS.** Review native PKG, bundled Python, Lima, launcher and archive identity for each architecture. `qualify_macos_runtime` can request separate VM tests on appropriately equipped dedicated runners. Record an unexecuted architecture as `not-performed`. Checksum verification establishes file identity. It does not confer a Developer ID signature or notarization.
 
-### Windows
+## 2. Review and record acceptance
 
-Dalla 0.8.99 `installer-build.json` distingue l'EXE di bootstrap dai contenuti
-della release: `NIPAT-VERSIONE-Windows-payload.zip` per il setup e
-`NIPAT-VERSIONE-Windows-completo.zip` per il percorso ZIP locale.
-Il bootstrap include Python e acquisisce un payload verificato; il percorso ZIP
-include già applicazione e archivi scientifici. Manifest, rapporti e checksum
-vincolano tutti i componenti. Non ricostruire o sostituire un asset già accettato.
-Il feed `update-manifest-windows-bootstrap.json` resta separato dal feed EXE
-legacy e da `update-manifest-windows-zip.json`.
-
-`windows-client-check.json` verifica il payload con il Python incorporato in
-una destinazione isolata, incluse pianificazione e richieste con percorsi
-complessi. Lo scenario `staged-embedded-python-client` non esegue il setup
-Inno, la preparazione WSL o una prova su Windows 10 reale. Tali osservazioni
-vanno registrate separatamente.
-
-Dalla 0.8.20, `windows-installer-fixture-check.json` registra anche installazione,
-aggiornamento e rimozione di una fixture compilata dalla definizione Inno
-della candidata. Il rapporto identifica la definizione per SHA-256 e dichiara
-che setup di produzione, WSL e Smart App Control non sono stati eseguiti.
-`windows-trust-check.json` collega setup e inventario applicativo agli stati
-Authenticode osservati, includendo i componenti del Python incorporato.
-La verifica del publisher richiede questi rapporti e rifiuta identità
-differenti o dichiarazioni improprie di collaudo Smart App Control.
-
-### Ubuntu
-
-Il DEB incorpora lo stesso archivio scientifico. Le verifiche eseguono APT,
-preparazione, diagnostica e analisi da utente non root, reinstallazione e
-rimozione conservando dati e preferenze. Una prova separata verifica le
-dipendenze in un ambiente inizialmente privo dei pacchetti richiesti, senza
-concedere automaticamente accesso Docker.
-
-`linux-upgrade-check.json` identifica il precedente pacchetto 0.7.2 e la
-candidata, verifica l'aggiornamento effettivo e la conservazione dei dati.
-Reinstallare la stessa versione non soddisfa questo controllo. Il runner
-configurato non viene presentato come un Ubuntu Desktop pulito.
-
-### macOS
-
-Ogni PKG incorpora Python e Lima nativi per l'architettura host e l'archivio
-scientifico AMD64 comune. I rapporti verificano identità, contenuti e launcher
-su runner Mac. Le prove Lima reali sono attivabili con
-`qualify_macos_runtime` su runner dedicati; se non eseguite, il record indica
-`not-performed` per l'architettura interessata.
-
-La costruzione riuscita di un PKG non prova l'avvio della VM o l'accettazione
-Gatekeeper sul computer destinatario. I checksum identificano gli artefatti,
-non sostituiscono una firma del distributore o la notarizzazione Apple.
-
-## Accettazione dei pacchetti
-
-Il record della candidata è `.github/release-acceptance/vVERSIONE.json`.
-Revisionarlo dopo la build e integrarlo in `main` dopo il sorgente.
-Il record resta nel repository. Il comando seguente genera un modello
-`pending` da compilare con le evidenze della candidata:
+Generate a pending template from the same build:
 
 ```bash
 python .github/scripts/release_acceptance.py \
-  --installer-set /percorso/installer-set-check.json \
-  --run-id ID_BUILD \
-  --output /percorso/accettazione-da-compilare.json
+  --installer-set /path/to/installer-set-check.json \
+  --run-id BUILD_RUN_ID \
+  --output /path/to/acceptance-for-review.json
 ```
 
-Per la pubblicazione automatica, integrare prima i sorgenti e poi il record
-revisionato con una PR contenente soltanto i JSON di accettazione. La CI esegue
-su Linux i controlli delle evidenze della build, degli hash e dei rapporti.
-Il successo della stessa verifica su `main` avvia **Publish accepted release**.
-L'integrazione del record accettato autorizza quindi la pubblicazione della
-build indicata. Dalla 0.8.70 il record indica `publication_channel` con
-valore `stable` oppure `testing`. Il canale `stable` imposta la release
-come `Latest` e richiede una versione numerica. GitHub seleziona le
-modifiche ai record prima di accodare la pubblicazione.
-Modifiche miste e pubblicazioni in due fasi mantengono l'avvio manuale.
+Review the platform evidence, baseline source comparison, qualified scientific reports, installer and common archive identities. Complete `.github/release-acceptance/vVERSION.json`, replacing VERSION with the actual release. Use the [installer acceptance protocol](../docs/ACCETTAZIONE_INSTALLATORI.md) for the fields, desktop scenarios and limits of each claim. The reviewer records `accepted-for-research` and the `pre-1.0-research` scope only after reviewing the evidence. Keep deferred tests and pending domain validation visible. Historical evidence belongs to its original build.
 
-Il record corrente usa lo **schema 7**, con rapporti separati per i due
-caller e per Contamination, CPI e CPIN. Una distribuzione per ricerca richiede:
-
-- versione, commit, build e checksum dei quattro installatori, del manifest
-  e dell'archivio scientifico;
-- decisione `accepted-for-research`, responsabile, data UTC e riferimenti;
-- prova storica identificata come `historical-platform-evidence`, senza
-  attribuirla all'installazione della candidata;
-- elenco completo delle modifiche operative con hash prima/dopo, secondo
-  `reviewed-operative-changes-with-versioned-scientific-models-v1` nello schema 7
-  (gli schemi storici mantengono i propri contratti);
-- revisione esplicita dei cinque script e confronto con riferimenti congelati:
-  NIPAT 0.8.5 per DNP, SNPcall 2.0 per SNP e NEWPAT del 13 novembre 2026
-  per CPI, Contamination e CPIN; regressioni della candidata e rapporti
-  permanenti, con prova dell'aggiornamento Ubuntu;
-- `macos_validation` distinto per `arm64` e `x86_64`: `passed` con evidenze
-  HTTPS oppure `not-performed` con elenco vuoto;
-- scenari desktop rinviati e `domain_validation: pending-domain-researchers`.
-
-Lo schema 5 permette la revisione degli adattatori di presentazione,
-preservando gli script R vendorizzati. Lo schema 6 consente le modifiche
-revisionate ai quattro script noti e a `scientific/SHA256SUMS`, richiedendo
-`scientific_equivalence` con `reference_source_commit`, `report_path`,
-`report_sha256` e `runtime_image`. Dalla 0.8.30 è inoltre rivedibile il solo
-`scientific/vendor/NEWPAT/SNPcall/examples/output.txt`, aggiornato alle
-17 colonne di SNPcall 2.0: deve comparire nel delta con gli hash esatti
-prima/dopo. Gli input di esempio e gli altri asset scientifici restano protetti.
-Il rapporto deve appartenere al bundle
-`qualification-evidence.zip` della build accettata e confrontare sorgenti R
-esattamente corrispondenti al commit e all’immagine distribuiti. Il publisher
-verifica la baseline congelata contro il commit 0.8.5 e, dalla 0.8.30, anche
-i byte del sorgente SNPcall 2.0 identificato nel rapporto. Il campo
-`reference_source_commit` continua a identificare la baseline NIPAT 0.8.5;
-il riferimento SNP distinto è conservato in `snp_reference` nel rapporto.
-Tabelle e valori R non arrotondati devono coincidere con il riferimento
-scientifico pertinente. Dalla 0.8.30 i PDF aggiornati richiedono verifiche
-di contenuto e dimensioni, i controlli mirati degli istogrammi e rendering
-identici tra le modalità seriale e parallele della candidata. Le release
-precedenti mantengono il confronto dei rendering con la propria baseline.
-L’esito è conservato in `scientific-equivalence-check.json`. Il confronto
-verifica i byte Git, non si limita a leggere gli hash dichiarati. Gli schemi
-precedenti rimangono utilizzati per le rispettive release storiche. Il
-[protocollo di accettazione](../docs/ACCETTAZIONE_INSTALLATORI.md) descrive
-prove e registrazione senza trasformare i casi non svolti in esiti positivi.
+The `publication_channel` is explicit. Use `stable` for an authorized numeric `MAJOR.MINOR.PATCH` release intended as GitHub **Latest**. Use `testing` for a prerelease. This choice determines discovery by clients; the scientific validation scope is described separately.
 
 <a id="contratto-scientifico-della-0850"></a>
 
-## Contratto scientifico del record
+### Scientific evidence in schema 7
 
-Lo schema 7 aggiunge `scientific_analysis_qualification`, con gli stessi quattro
-campi di `scientific_equivalence`. Il commit di riferimento è
-`9c2a8be60afcb944153710da6a61cd0559e2b4cf`; `report_path` identifica
-`five-module-qualification.json` nel sottoalbero `scientific/` del bundle.
-Entrambi i rapporti devono indicare il medesimo ID immutabile dell'immagine
-contenuta nei pacchetti. I percorsi effettivi e gli hash si ricavano dal bundle
-verificato della build, dopo la normalizzazione dei percorsi, senza ricrearli
-con prove locali.
+The `scientific_equivalence` and `scientific_analysis_qualification` entries each record `reference_source_commit`, `report_path`, `report_sha256` and `runtime_image`. Use the normalized paths and digests from the verified `qualification-evidence.zip`. Both reports identify the same immutable image contained in the accepted packages.
 
-Il rapporto caller richiede 17 casi DNP/SNP con gli oracoli precedenti. Il
-rapporto aggiornato richiede 86 esecuzioni R: 16 confronti con NEWPAT e 54 prove
-batch, per entrambi i tipi di marcatore, 2/3/5 famiglie o campioni e modalità
-seriale/automatica/limite 2. Il publisher controlla sorgenti e helper installati,
-verificatore, fixture, immutabilità degli input, parametri e costanti effettivi,
-identità e completamento dei worker, hash dei risultati e confronti dichiarati.
-Le tolleranze dei confronti numerici upstream sono esplicite nel verificatore;
-non si dichiara equivalenza byte per byte tra modelli scientifici differenti.
+- **DNP and SNP.** The 17-case caller comparison uses frozen NIPAT 0.8.5 for DNP and the separately pinned SNPcall 2.0 source for SNP. Check exact exported tables and unrounded R results, histogram values, plot content and dimensions, and equivalent serial/parallel candidate renderings.
+- **Contamination, prenatal CPI and postnatal CPIN.** The upstream reference commit is `9c2a8be60afcb944153710da6a61cd0559e2b4cf`. `five-module-qualification.json` covers 86 executions, including 16 upstream comparisons and 54 batch cases across both marker types, 2/3/5 samples or families and serial, automatic and two-worker modes. Check analytical expectations, numerical tolerances, fixture and source identity, data integrity, effective settings and worker completion.
+- **Distributed image.** The final image must pass native regressions for empty and zero-coverage inputs and settings, as well as the three-BAM composed workflow. A missing required R dependency, skipped required test or failed case blocks qualification. The publisher verifies sources against Git and compares report and bundle digests. Individual output/log digests describe original run bytes; path sanitization in the public evidence bundle can change those individual files.
 
-I digest dei singoli output e log scientifici descrivono i byte originali della
-prova; la sanitizzazione dei percorsi nell'archivio può cambiarli. Sono il digest
-del rapporto conservato e quello dell'archivio accettato a identificare i byte
-pubblicati. Gli hash Git e delle fixture restano verificati direttamente.
-`scientific-equivalence-check.json` contiene entrambi gli esiti; la provenienza
-pubblicata include separatamente i digest dei due rapporti. Il manifest
-scientifico deve identificare esattamente tutti e cinque gli script.
+Use `reviewed-operative-changes-with-versioned-scientific-models-v1` for the schema 7 source review. List actual before/after digests, including reviewed changes to pinned scientific sources. The caller and downstream decisions are both recorded in `scientific-equivalence-check.json` and their report hashes in `release-provenance.json`. Older accepted records retain their original schema, protected source files and equivalence rules.
 
-La CI raccoglie i test Python con pytest, includendo anche le classi unittest.
-I test nativi possono essere saltati sull'host privo dei pacchetti R, ma la build
-esegue obbligatoriamente le regressioni di casi vuoti/copertura zero e parametri
-nell'immagine installata: dipendenze mancanti, errori o test saltati bloccano il
-job. Il gate completo dei workflow usa inoltre tre BAM, tutti e cinque i moduli,
-modalità seriale e limite 2, con il client distribuito e l'immagine finale.
+## 3. Publish the accepted build
 
-## Protezioni della pubblicazione
+**Automatic route.** After integrating the source, merge an acceptance-only pull request to `main`. The Linux acceptance CI verifies the record and build evidence. A successful push run with `acceptance` and `required` can trigger **Publish accepted release** for the recorded build/channel. Merging an accepted record can publish the build. Use the manual workflow for a mixed change or a deliberately separated draft review.
 
-**Prepare or publish verified release** è manuale e opera su `main`.
-Richiede la build completa riuscita, il commit presente nella storia di
-`main`, il record approvato e i file corrispondenti. `testing` è predefinito;
-`stable` accetta una versione numerica `MAJOR.MINOR.PATCH` e diventa `Latest`.
-Non esiste pubblicazione automatica al push di un branch o tag.
+**Manual route.** Dispatch **Prepare or publish verified release** from `main`. After authorizing the release, select one of the following:
 
-### Preparare e pubblicare in un'unica esecuzione
+| Operation | Inputs | Outcome |
+| --- | --- | --- |
+| `prepare-and-publish` | Installer `run_id`, full `source_commit`, `channel`; leave `preparation_commit` empty. | Verify the packages, prepare a draft, re-read and verify its exact assets, then publish. |
+| `prepare` (default) | Same build and channel inputs; leave `preparation_commit` empty. | Verify, upload a draft and report its ID and preparation commit. Review its notes, channel, commit and assets. An interrupted preparation may resume a matching `draft_release_id`. |
+| `publish` | Same build/channel, exact `draft_release_id` and `preparation_commit` from the prepare summary. | Verify existing draft metadata, acceptance, files, sizes and remote digests, then publish. Missing or altered assets stop publication. |
 
-Quando la pubblicazione della candidata è già stata autorizzata, scegliere
-esplicitamente `operation: prepare-and-publish`, indicando `run_id`,
-`source_commit` completo e `channel`. Lasciare `preparation_commit` vuoto.
-Il valore predefinito resta `prepare`, che produce soltanto una bozza.
+Both routes serialize publication. Preparation uses the release notes of the preparation commit. The built source commit and preparation commit can be different. Publication preserves the verified draft notes and assets. A plain push of an application branch or tag does not authorize a release.
 
-La modalità combinata scarica e verifica una sola volta i pacchetti e le
-evidenze. Prepara la bozza e subito dopo applica la normale fase di
-pubblicazione all'ID esatto appena verificato, mantenendo gli stessi file,
-note e commit di preparazione. Prima di pubblicare rilegge la bozza e
-ricontrolla tag, metadati, completezza, dimensioni e digest degli asset.
-Se la preparazione fallisce o un contenuto cambia, la pubblicazione si ferma.
-Restano obbligatori la build riuscita, l'accettazione approvata e l'esecuzione
-manuale da `main`. Con `channel: stable` la release diventa ufficiale `Latest`.
+## Public assets and updates
 
-Le due fasi separate descritte di seguito restano disponibili quando occorre
-esaminare la bozza prima di pubblicarla. Una modalità combinata interrotta può
-essere ripresa con la stessa procedura e l'ID della bozza; i contenuti
-esistenti devono coincidere e una release già pubblicata non viene modificata.
+The published release includes the four platform installers, Windows installation ZIP/payload, manifests, runtime archive assets, checksums and evidence. Look for `desktop-acceptance.json`, `baseline-source-check.json`, `release-provenance.json`, `linux-upgrade-check.json` and `qualification-evidence.json`/`.zip`. Public installers use NewPat names. Internal artifacts, compatibility aliases and existing clients can reference NIPAT names. Users only need the installer for their platform.
 
-### 1. Preparare la bozza
-
-Avviare il workflow con `operation: prepare`, `run_id`, `source_commit`
-completo e `channel`. Lasciare `preparation_commit` vuoto. La procedura:
-
-1. verifica build, commit, versione e accettazione;
-2. scarica e ricontrolla i quattro pacchetti e l'archivio comune;
-3. confronta checksum, rapporti e revisione dei sorgenti;
-4. usa le note `docs/RELEASE_VERSIONE.md` del commit di preparazione;
-5. crea una bozza, carica i file e verifica dimensioni e digest restituiti;
-6. riporta ID della bozza e commit della preparazione nel riepilogo Actions.
-
-Esaminare note, canale, commit, nomi e contenuti. La bozza non è proposta
-dall'aggiornatore. Una preparazione interrotta può riprendere sullo stesso
-`draft_release_id` soltanto se i contenuti esistenti coincidono.
-
-### 2. Pubblicare la bozza verificata
-
-Avviare `operation: publish` con gli stessi build, commit e canale, più
-`draft_release_id` e `preparation_commit` restituiti dalla preparazione.
-Il commit della preparazione e quello del pacchetto hanno ruoli diversi.
-
-La procedura ricontrolla evidenze e contenuti esatti della bozza, richiede
-accettazione invariata e conserva le note della preparazione. Non crea bozze
-mancanti, non carica file e non corregge asset alterati. Dopo la verifica,
-`stable` diventa una release ufficiale `Latest`; `testing` una pre-release.
-
-## Asset pubblicati e aggiornamenti
-
-La release conserva quattro installatori, manifest, archivi del runtime,
-checksum, rapporti di piattaforma, `desktop-acceptance.json`,
-`baseline-source-check.json`, `release-provenance.json`,
-`linux-upgrade-check.json` e `qualification-evidence.json`/`.zip`.
-L'archivio delle evidenze contiene prove sintetiche e rapporti verificati;
-non devono essere inclusi dati privati dei ricercatori.
-
-`release-provenance.json` distingue commit del pacchetto, della procedura e
-delle note. I due indici di aggiornamento sono:
-
-| File | Destinatari |
+| Update feed | Consumers |
 | --- | --- |
-| `update-manifest.json` | Windows e Linux; formato compatibile con i client 0.7.2. |
-| `update-manifest-macos.json` | macOS ARM64 e Intel. |
+| `update-manifest-windows-bootstrap.json` | Windows guided setup using its retained bootstrap and verified release payload |
+| `update-manifest-windows-zip.json` | Windows complete ZIP installations |
+| `update-manifest.json` | Compatible legacy Windows clients and Ubuntu |
+| `update-manifest-macos.json` | Apple Silicon and Intel packages |
 
-Ogni indice identifica versione, tag, commit, canale e file della stessa
-release, con piattaforma, dimensione e SHA-256. Il client verifica questi
-campi e i byte scaricati. Su Mac il download verificato è seguito dalla
-chiusura di NIPAT e dall'apertura manuale del PKG. Gli indici non firmano
-i pacchetti: la fiducia nel download dipende da HTTPS e repository ufficiale.
+Clients check the release, version, source commit, channel, platform, size and SHA-256. On macOS the user closes NewPat and opens the verified PKG. Check availability of the published assets and update feeds, and verify stable releases resolve through GitHub **Latest**.
 
-Per installare, il ricercatore scarica soltanto il file della propria
-piattaforma. Gli altri asset servono alla verifica o al recupero.
+## Maintenance
 
-## Immutabilità degli artefatti pubblicati
-
-Non sovrascrivere release o tag già pubblicati. Completare e verificare la
-bozza prima della pubblicazione; una correzione richiede una nuova versione.
-Un artefatto Actions scaduto non può essere sostituito da una ricostruzione
-senza rivedere checksum e accettazione. Consultare [CI/CD](../docs/CI_CD.md)
-per i livelli di test e i limiti delle prove automatiche.
+Preserve published releases, tags and accepted artifact bytes. Ship corrections as a new version. An expired artifact or rebuilt archive requires qualification of the new bytes and corresponding acceptance. Public notes should describe behavior, requirements and tested scope using generic examples. Retain necessary provenance and attribution. Keep private communications, local samples and machine-specific personal paths out of release documentation and evidence. [CI/CD guide](../docs/CI_CD.md)

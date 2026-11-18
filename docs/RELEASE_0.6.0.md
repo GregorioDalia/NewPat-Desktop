@@ -1,98 +1,36 @@
 # NIPAT Desktop 0.6.0
 
-NIPAT Desktop 0.6.0 offre quattro analisi scientifiche locali, un menu testuale
-guidato, configurazione persistente e aggiornamenti dall'applicazione.
-La pagina [Releases](https://github.com/GregorioDalia/nipat-desktop/releases)
-identifica i pacchetti effettivamente pubblicati. Queste note descrivono le
-funzionalità della versione e il suo ambito di distribuzione per ricerca
-pre-1.0. La versione non attesta una validazione scientifica generale.
+This pre-1.0 research release provided four local analyses, a guided text menu, persistent configuration and in-app updates. The [release list](https://github.com/GregorioDalia/nipat-desktop/releases) identifies the packages actually published. The distribution supports research and makes no general scientific validation claim.
 
-## Installazione
+## Installation
 
-| Piattaforma | Pacchetto | Avvio |
+| Platform | Package | Startup |
 | --- | --- | --- |
-| Windows 11 x64 | `NIPAT-Setup.exe`, con Python portabile, ambiente WSL2 dedicato e immagine scientifica incorporata. | Doppio clic sul setup, poi sul collegamento **NIPAT Desktop**. |
-| Ubuntu 24.04 LTS x86_64 | `nipat-desktop_0.6.0_amd64.deb`, con applicazione e stessa immagine scientifica. | Installazione con APT; collegamento **NIPAT Desktop** oppure comando `nipat`. |
+| Windows 11 x64 | `NIPAT-Setup.exe` with portable Python, dedicated WSL2 and the scientific image | Double-click setup, then open **NIPAT Desktop**. |
+| Ubuntu 24.04 LTS x86_64 | `nipat-desktop_0.6.0_amd64.deb` with the app and the same image | Install with APT, then use **NIPAT Desktop** or `nipat`. |
 
-NIPAT Desktop utilizza identità e percorsi propri. Su Windows il setup consente di scegliere applicazione,
-ambiente WSL, cache, dati e risultati; aggiornamento e riparazione dello stesso
-prodotto conservano le destinazioni e i file estranei ai componenti installati.
+NIPAT Desktop has its own installation identity and paths. Windows setup lets users choose locations for the application, WSL environment, cache, data and results. Upgrade and repair preserve those destinations and files outside the installed components. WSL2 requires virtualization. Initial activation may require internet access, administrative permission and a restart. Windows needs no separate Docker Desktop, R, samtools or Python installation. This package has no NIPAT Authenticode signature. Acceptance by local device protections needs testing on the target workstation.
 
-Su Windows WSL2 richiede virtualizzazione disponibile; la sua attivazione può
-richiedere Internet, autorizzazione amministrativa e riavvio. Non servono
-Docker Desktop, R, samtools o Python installati separatamente. Il pacchetto
-Windows non dispone di una firma Authenticode NIPAT: l'esecuzione deve essere
-verificata con le protezioni dei dispositivi destinatari.
+Ubuntu APT resolves missing Python 3.12, Docker Engine and Compose v2 dependencies. Permission to access the Docker socket is a separate administrative decision. Run NIPAT as a non-root user.
 
-Su Ubuntu APT installa Python 3.12, Docker Engine e Compose v2 se mancanti.
-L'autorizzazione dell'account a usare il socket Docker è un'operazione
-amministrativa distinta. NIPAT va eseguito come utente non root.
+## Menu and preferences
 
-## Menu e configurazione
+DNPcall, SNPcall, Contamination and CPI are available from the text menu. Field instructions guide entry. At the summary, Enter alone cancels. **1 — Avvia analisi** explicitly starts computation. There is no graphical interface.
 
-I quattro workflow sono **DNPcall**, **SNPcall**, **Contamination** e **CPI**.
-Il menu presenta indicazioni nei campi, un riepilogo e una conferma esplicita
-prima del calcolo: il solo Invio nel riepilogo annulla, mentre **1 — Avvia
-analisi** esegue il workflow. Non è inclusa una GUI grafica.
+**Configura** persists data and result directories, modes, references and workflow parameter defaults. Users can override proposed values for the current analysis and must select samples, CPI pairs and a run name each time. **Guida e informazioni** and **Verifica ambiente** are separate menu entries. Menu preferences do not affect direct CLI commands.
 
-- **Configura** conserva cartelle dati e risultati, modalità, riferimenti e
-  parametri predefiniti dei workflow fra gli avvii.
-- I valori proposti possono essere modificati per la singola analisi; campioni,
-  coppie CPI e nome del run si scelgono ogni volta.
-- **Guida e informazioni** e **Verifica ambiente** sono voci separate.
-- Le preferenze del menu non modificano i comandi CLI diretti.
+Preferences live in `%LOCALAPPDATA%\NIPAT-Desktop\preferences.json` on Windows and `${XDG_CONFIG_HOME:-~/.config}/nipat-desktop/preferences.json` on Linux. Moving the application, WSL or cache requires setup.
 
-Le preferenze sono conservate in
-`%LOCALAPPDATA%\NIPAT-Desktop\preferences.json` su Windows e in
-`${XDG_CONFIG_HOME:-~/.config}/nipat-desktop/preferences.json` su Linux.
-Lo spostamento di applicazione, ambiente WSL o cache richiede il setup.
+## Updates
 
-## Aggiornamenti dall'applicazione
+**9 — Verifica aggiornamenti** checks approved published GitHub releases and verifies the complete downloaded installer. Download and installation require separate confirmations. Users can cancel or defer either. Setup preserves paths, preferences, data and results. Installing the Ubuntu `.deb` requires APT administrator permission.
 
-**9 — Verifica aggiornamenti** consulta le release pubblicate e approvate su
-GitHub e permette di scaricare l'installatore completo con verifica di
-integrità. Download e installazione richiedono conferme distinte; è possibile
-annullare o rimandare. Il setup conserva percorsi, preferenze, dati e risultati.
-Su Ubuntu l'installazione del `.deb` richiede autorizzazione amministrativa APT.
+**Configura → Aggiornamenti** offers `testing` (the default, including approved prereleases and stable releases) and `stable` (approved stable releases only). Startup checks are optional and disabled initially. They display a notification without downloading or installing software. Prepared installations and analyses work offline. The updater cannot publish a review build or grant package acceptance. Every run records the application version and actual engine identity.
 
-**Configura → Aggiornamenti** offre i canali `testing` e `stable`. Il primo,
-predefinito, include pre-release e release stabili approvate; il secondo
-considera soltanto le stabili. La verifica all'avvio è facoltativa e
-inizialmente disattivata: mostra un avviso senza scaricare o installare.
-Le analisi restano locali e l'installazione pronta è utilizzabile offline.
+## Engine and records
 
-Il controllo degli aggiornamenti non sostituisce l'accettazione dei pacchetti
-e non rende pubblica una build di revisione. Ogni run conserva la versione
-dell'applicazione e l'identità del motore effettivamente utilizzati.
+The self-contained image includes the R scripts, samtools, dependencies and workflow preparation. Version 0.6 retains the R algorithms. Inputs are mounted read-only and each local analysis creates a separate directory. Results go in `output`, available intermediates in `work`, parameters and status in `run.json`, and messages in `execution.log`. To chain analyses, select compatible outputs for the next workflow. Existing results are preserved.
 
-## Motore e risultati
+Self-tests cover the supplied cases. Publication combines automated checks with documented manual installation and operation evidence, identifying desktop scenarios still pending. Reusing observations from a previous build requires comparing operative source files and cannot establish that the new EXE was manually tested. The release retains evidence and limitations. Domain evaluation with appropriate inputs and reference results was planned for 0.7.
 
-Il motore scientifico è un'immagine autonoma con gli script R, samtools,
-dipendenze e preparazione dei workflow. La versione 0.6 non riscrive gli
-algoritmi scientifici R. I calcoli avvengono localmente; gli input sono montati
-in sola lettura e ogni analisi usa una cartella distinta.
-
-Ogni run conserva risultati in `output`, intermedi disponibili in `work`,
-parametri e stato in `run.json`, messaggi in `execution.log`. Le analisi in
-sequenza si compongono selezionando gli output compatibili come input del
-workflow successivo. I risultati esistenti non vengono sovrascritti.
-
-Gli autotest verificano i casi distribuiti. La decisione di pubblicazione
-integra i controlli automatici con una prova manuale documentata di
-installazione e funzionamento, indicando gli scenari desktop ancora da
-verificare. Un eventuale riferimento a una build precedente richiede il
-confronto dei sorgenti operativi e non equivale a una prova del nuovo EXE.
-Le evidenze e i limiti sono conservati con la release; la valutazione di
-dominio sarà svolta sulla 0.7 con input e risultati di riferimento appropriati.
-
-## Documentazione
-
-- [Guida per l'utilizzo](GUIDA_UTILIZZO.md)
-- [Distribuzione e requisiti](DISTRIBUZIONE.md)
-- [Risultati e registri](ESECUZIONI.md)
-- [Accettazione degli installatori](ACCETTAZIONE_INSTALLATORI.md)
-- [Validazione tecnica e di dominio](VALIDAZIONE.md)
-
-Il codice originale NIPAT è distribuito con licenza
-[GPL-3.0-or-later](../LICENSE). Le attribuzioni sono in
-[THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md).
+[User guide](GUIDA_UTILIZZO.md) · [Distribution requirements](DISTRIBUZIONE.md) · [Results and logs](ESECUZIONI.md) · [Installer acceptance](ACCETTAZIONE_INSTALLATORI.md) · [Technical and domain validation](VALIDAZIONE.md) · [GPL-3.0-or-later](../LICENSE) · [Third-party notices](../THIRD_PARTY_NOTICES.md)

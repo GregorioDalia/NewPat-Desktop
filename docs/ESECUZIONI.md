@@ -1,205 +1,78 @@
-# Risultati e registrazione delle esecuzioni
+# Run folders and records
 
-Ogni analisi crea una nuova cartella, o **run**, nella destinazione dei
-risultati. Se il nome è già in uso, scegliere un nome diverso.
-Nel menu usare **5 — Configura → Cartelle dati e risultati** per la
-destinazione predefinita. Nella CLI usare `--runs-dir` prima del comando.
-La [guida d'uso](GUIDA_UTILIZZO.md#percorsi-e-cartelle) elenca i percorsi
-predefiniti per piattaforma.
+Each experiment gets its own run folder. Open the experiment in NewPat and use its open-folder action to find the exact location. Use a new name for each execution or let NewPat generate one. You can change the results directory in Preferences or pass the global CLI option `--runs-dir`. [Default locations](GUIDA_UTILIZZO.md#file-locations)
 
-## Contenuto del run
+## Where to look first
 
-| Aprire | Per trovare |
+| File or folder | What it contains |
 | --- | --- |
-| `run-report.html` | Esito, file di input, campioni, impostazioni, fasi, risorse e avvisi, in un riepilogo per il browser. |
-| `output/` | Tabelle e grafici canonici prodotti dal motore. |
-| `output/presentation/` | Export leggibili con le etichette dei campioni nelle analisi singole quando disponibili. |
-| `sample-map.tsv` | Associazione fra file originali e ID interni, ad esempio `sample_0001`. |
-| `run.json` | Registro strutturato con stato, input, parametri, software e identità del motore. |
-| `execution.log` | Comandi, messaggi e dettagli degli errori. |
-| `work/` | Richiesta inviata al motore, configurazione dei mount e intermedi conservati. |
+| `run-report.html` | A report you can open in a browser, with status, inputs, samples, parameters, phases, resource information and warnings |
+| `run.json` | The structured run record, including input metadata, settings, status and engine identity |
+| `execution.log` | Commands, diagnostic messages and errors |
+| `output/` | Scientific results and plots |
+| `output/presentation/` | Labeled exports from individual analyses, when available |
+| `sample-map.tsv` | The association between original sample files and internal IDs such as `sample_0001`, where applicable |
+| `work/` | Engine request, input mapping, validation reports and retained intermediate files |
 
-La schermata finale apre il rapporto, le cartelle o i log. **6 — Ultima
-esecuzione** richiama il run più recente della sessione quando ne è stata
-creata la cartella. Per i run precedenti, aprire la cartella dalla destinazione
-dei risultati.
+A workflow has a top-level run record and an `output/workflow/` folder. Its `plan.json` identifies the requested samples, roles, dependencies and steps. Read `workflow-state.json` for the status, artifacts and checksums of each step. Each `steps/<id>/` folder holds the request, `command.log`, `output/` and step-specific `work/`. Presentation exports are in `presentation/`. Compatible groups of SNP results have summaries in directories such as `snp_summary/group_0001/`.
 
-### Workflow automatici
+## Interpret the status
 
-Il workflow ha un solo `run.json` e più passaggi sotto `output/workflow/`.
-
-| Percorso relativo a `output/workflow/` | Contenuto |
+| Status in the run record | Meaning |
 | --- | --- |
-| `plan.json` | Piano canonico con campioni, ruoli, passaggi e dipendenze. |
-| `workflow-state.json` | Esito complessivo e dei singoli passaggi, artefatti e checksum. |
-| `steps/<id>/output/` | Risultati canonici del passaggio. |
-| `steps/<id>/command.log` | Messaggi del processo R. |
-| `steps/<id>/request.json` | Richiesta concreta del passaggio. |
-| `steps/<id>/work/` | Tabelle, pannelli e altri intermedi specifici del passaggio. |
-| `presentation/` | Export del piano organizzati per campione o famiglia. |
-| `snp_summary/group_0001/`, ecc. | Genotipi aggregati, etichette, grafici e risorse dei gruppi SNP compatibili. |
+| `preparing` | NewPat is checking inputs and preparing the environment. |
+| `running` | The engine has started. A final status has yet to be recorded. |
+| `planned` | A dry run prepared a request. |
+| `succeeded` | Execution and the required technical output checks completed. |
+| `failed` | Preparation, execution or verification encountered an error. |
+| `interrupted` | The client recorded an interruption, such as Ctrl+C. |
 
-I preset DNP usano identificativi come `dnp`, `contamination` e `cpi`.
-`workflow analyze` distingue il ramo, per esempio `dnp_cpi` e
-`snp_cpi`. I campioni SNP hanno passaggi `snp_0001`, `snp_0002`, ecc.
-Seguire il piano e le mappe del run per associare un file al suo campione
-o alla sua famiglia.
+Check the overall status as well as the step status. A failed or interrupted workflow can contain valid results from earlier steps. A pending step may become `blocked`; an interrupted step may be `cancelled`. When NewPat cannot verify the workflow state, the report identifies the uncertainty. Scientific interpretation requires suitable reference data and review of any quality warnings.
 
-Un passaggio SNP da BAM conserva `work/snp_regions.bed`,
-`work/pileup.txt` e `preparation.log`. Il pileup fornito come input
-è registrato tra i file originali del run. In DNPcall samtools è invocato
-dal coordinatore R. Il file `work/dnp-acquisition-budget.json` registra i
-processi assegnati al pileup. Il file `work/dnp-pileup.json` descrive il
-lavoro effettivamente eseguito. Per i tempi di acquisizione e calcolo consultare [le misure DNP](PERFORMANCE.md#consultazione-dei-risultati).
+Find input validation in `work/input-validation.json`. Single analyses can record quality warnings in `work/scientific-validation.json`; workflows report them under the step's `artifacts.quality_warnings`. [Validation guide](INPUT_VALIDATION.md)
 
-## Stati e significato dell'esito
+## Outputs by analysis
 
-| Stato del run | Significato |
+The paths below are relative to an individual run or to a workflow's `steps/<id>/` folder.
+
+| Module | Results |
 | --- | --- |
-| `preparing` | Controlli e preparazione in corso. |
-| `running` | Motore avviato, esito finale ancora da registrare. |
-| `planned` | Simulazione con `--dry-run`. |
-| `succeeded` | Esecuzione conclusa e controlli tecnici sugli output superati. |
-| `failed` | Errore durante la preparazione o l'esecuzione. |
-| `interrupted` | Interruzione intercettata dal client, per esempio Ctrl+C. |
+| DNPcall | Per-sample tables in `output/individual_outputs/`, genotype summaries in `output/summary/` and additional figures in `output/plots/` |
+| SNPcall | `output/SNPcall_output.txt`, per-sample plots and tables in `output/summary/` when available |
+| Contamination | `output/contamination_summary.txt` and sample-level `contamination_<sample>.txt` tables |
+| Prenatal CPI | `output/Summary_FetalFraction_CPI.csv`, curves in `output/curves/` and PDF figures in `output/plots/` |
+| Postnatal CPIN | `output/Summary_Postnatal_CPI.txt`, per-site tables in `output/sites/`, threshold curves in `output/curves/` and PDF figures |
 
-L'avanzamento del comando descrive il lavoro nel motore. Il client registra
-l'esito del run dopo aver verificato che gli input siano rimasti coerenti.
-Per confermare il successo di un workflow automatico, il riepilogo verifica
-anche lo stato dei passaggi. Se manca un riscontro valido, mostra **Non verificabile**.
+Use the *individual count table* as the starting point for another module. Match the file against the sample map. In a workflow, use the plan and `workflow-state.json` to trace labels such as `table_0001` back to the sample. The artifact keys `snp-tables`, `cpi-pairs` and `cpin-trios` connect outputs to samples, pairs and trios. Numbering in `summary_rows` starts at the first data row and excludes the header.
 
-Controllare stato e avvisi anche quando tabelle o grafici sono presenti.
-Gli avvisi di qualità possono accompagnare un run riuscito. Nelle analisi
-singole sono registrati in `work/scientific-validation.json`; nei piani
-in `artifacts.quality_warnings` del passaggio. Per i controlli in ingresso
-consultare `work/input-validation.json` nella cartella dell'analisi o
-del passaggio. La [guida ai controlli](INPUT_VALIDATION.md) spiega come
-interpretare errori e avvisi.
+SNP BAM processing keeps `work/snp_regions.bed`, `work/pileup.txt` and the preparation log. Imported pileups are recorded as original inputs. DNP processing uses a temporary pileup. Its acquisition records describe the resource allocation (`work/dnp-acquisition-budget.json`) and the strategy, tasks and observed concurrency (`work/dnp-pileup.json`).
 
-Nel piano i passaggi ancora da iniziare sono `pending`. Dopo un
-errore o un'interruzione diventano `blocked`; il passaggio interrotto
-può essere registrato come `cancelled`. Una singola fase riuscita
-conferma solo l'esecuzione di quella fase. Il collaudo sintetico usa
-risultati attesi per verificare alcuni casi noti; i risultati sui propri
-campioni richiedono una valutazione appropriata al contesto.
+## Reproduce a run
 
-## Metadati e riproducibilità
+Keep the input and sample order, role assignments, panels, allele frequencies and effective scientific settings. By default `--input-hashes auto` calculates SHA-256 for files up to 16 MiB and stores metadata for larger files. Choose `--input-hashes full` when a byte-level identity check is needed for large BAMs or references. Allow for extra full-file reads.
 
-Per confrontare due esecuzioni, conservare almeno:
+The engine mounts selected inputs read-only. Keep the source files unchanged until the run finishes. `work/input-mounts.json` maps paths to the names seen by the engine. `work/engine-request.json` or `work/engine-plan.json` describes the request, and `work/engine-compose.json` describes its execution environment. The run record identifies the client (`source.nipat_version`) and engine (`runtime.engine`). The module's effective settings are recorded in `work/effective-scientific-settings.json` and `output/scientific-settings.json`.
 
-- **Input.** File, ordine dei campioni, mapping di coppie o terne, pannelli
-  e frequenze. `--input-hashes auto` calcola SHA-256 fino a 16 MiB; per
-  quelli maggiori registra i metadati, che non attestano l'identità dei
-  byte. `--input-hashes full` aggiunge il calcolo e le verifiche degli
-  hash anche per BAM e FASTA grandi, con letture complete aggiuntive.
-- **Parametri.** `run.json` registra la richiesta. Il modulo conserva le
-  impostazioni effettive in `work/effective-scientific-settings.json`
-  e in `output/scientific-settings.json`. Nei piani questi file si
-  trovano nella cartella di ogni passaggio.
-- **Software.** `source.nipat_version` identifica il client.
-  `runtime.engine` descrive il motore incorporato, gli script e le
-  interfacce verificate. Il run riporta l'identità risolta dell'immagine
-  e le versioni degli strumenti.
-- **Collegamenti.** `workflow-state.json` collega ID interni, file e
-  checksum. `artifacts.snp-tables` risale alla tabella del campione,
-  `artifacts.cpi-pairs` alle coppie e alle righe CSV,
-  `artifacts.cpin-trios` alle terne. Per interpretare alias come
-  `table_0001` o `Mothers0001-Fathers0002_DNPs` seguire le mappe.
-  `summary_rows` conta le righe dati da 1 ed esclude l'intestazione.
+Keep a complete run directory when moving an experiment. Workflow records refer to files using relative paths. Preserve the original inputs separately and record the source run for any count tables reused in a new analysis. Review identifying names and paths before sharing results or logs.
 
-I file selezionati sono montati in sola lettura nel container per
-limitare le scritture durante il calcolo. Tenere gli originali invariati
-sull'host fino alla fine. `work/input-mounts.json` registra quali file
-sono stati collegati e con quali alias. `work/engine-request.json`
-oppure `work/engine-plan.json` conserva la richiesta; `work/engine-compose.json`
-descrive l'ambiente di esecuzione.
+<a id="misure-delle-prestazioni"></a>
 
-I risultati in `presentation` aggiungono etichette leggibili senza
-ricostruire l'identità biologica dei campioni. I passaggi successivi del
-workflow usano gli artefatti canonici. Per collegare run avviati
-separatamente, annotare il run sorgente e la corrispondenza di eventuali
-copie o tabelle rinominate.
+## Performance measurements
 
-## Limiti delle risorse
+To record timing, CPU and memory observations, select **Record performance diagnostics** in the desktop or put `--performance-diagnostics` before the scientific command. Open `run-report.html` and the `performance/` directory. Container memory, R process RSS and elapsed time describe different aspects of a run. Use the same inputs, settings and resource limits when comparing executions. [Performance guide](PERFORMANCE.md) · [Resources and memory](RISORSE.md)
 
-| Opzione globale | Effetto |
-| --- | --- |
-| `--cpus` | Quota CPU del container, considerata al momento di scegliere il budget di calcolo. |
-| `--memory-mb` | Limite memoria del container in MiB. |
-| `--pids-limit` | Tetto al numero di processi nel container, inclusi i coordinatori. |
-| `--execution-mode serial` | Un solo processo di calcolo alla volta. |
-| `--execution-mode auto` | Scelta automatica secondo risorse disponibili e carico. |
-| `--max-workers` | Massimo dei processi simultanei di calcolo, entro il budget automatico. |
+<a id="esecuzioni-incomplete"></a>
 
-Le prime tre opzioni riguardano il container. Su Windows e macOS le
-risorse di WSL o Lima costituiscono un ulteriore limite. Omettere
-un'opzione mantiene il limite dell'ambiente. Il tetto dei worker è una
-richiesta distinta dalla quota CPU. I [controlli delle risorse](RISORSE.md)
-spiegano valori rilevati, configurazione e diagnostica.
+## Inspect an incomplete run
 
-### Misure delle prestazioni
-
-Scegliere **Avvia analisi con diagnostica prestazioni** nel menu o
-usare `--performance-diagnostics` prima del comando. Il rapporto HTML e
-`performance/` conservano le misure disponibili di tempi, memoria e CPU.
-La [guida alle prestazioni](PERFORMANCE.md) spiega come confrontare modalità,
-fasi e fonti della memoria in prove ripetute.
-
-## Esecuzioni incomplete
-
-Una chiusura forzata può lasciare `preparing` o `running` nel registro.
-Per verificare lo stato del runtime usare **Guida e informazioni →
-Esecuzioni incomplete**, oppure:
+An unexpected exit can leave `preparing` or `running` in the record. On Ubuntu, for example:
 
 ```sh
-nipat runs inspect
-nipat runs inspect --run "/percorso/del/run" --json
-nipat runs stop --run "/percorso/del/run"
+newpat runs inspect
+newpat runs inspect --run "/path/to/run" --json
+newpat runs stop --run "/path/to/run"
 ```
 
-`inspect` consulta senza arrestare processi. `stop` richiede conferma e
-agisce solo sul container riconosciuto per quel run. `--yes` è la conferma
-esplicita per l'uso automatizzato. `recovery.json` conserva l'esito
-dell'arresto; la sola consultazione non lo crea. Per ripetere il calcolo
-correggere la causa e avviare un nuovo run.
+Use the installed launcher for your platform and substitute the actual run directory. `inspect` reads runtime state. `stop` asks for confirmation and acts only on a container associated with the run. For scripted use, `--yes` confirms the operation. The recovery attempt records its outcome in `recovery.json` when applicable.
 
-Dopo la conferma, `stop` restituisce `0` quando tutti i container registrati
-risultano rimossi o assenti. Restituisce `2` se un container è fermato ma
-non rimosso, se la pulizia non è confermata oppure se il runtime o l'identità
-non sono verificabili. Il rapporto e `recovery.json`, quando prodotto,
-conservano l'esito dettagliato. Annullare la conferma restituisce `0` senza
-richiedere operazioni al runtime.
-
-## Intermedi e output per workflow
-
-I percorsi seguenti partono dal run di un modulo singolo o dalla cartella
-`steps/<id>/` del workflow.
-
-| Modulo | Output principali |
-| --- | --- |
-| DNPcall | `output/individual_outputs/` per campione, tabella dei genotipi e grafici in `output/summary/`, altri grafici in `output/plots/`. |
-| SNPcall | `output/SNPcall_output.txt`, grafici per campione e riepiloghi in `output/summary/`. |
-| Contamination | `output/contamination_summary.txt` e tabelle `contamination_<campione>.txt`, con gli alias del run. |
-| CPI | `output/Summary_FetalFraction_CPI.csv`, curve in `output/curves/`, PDF in `output/plots/`. |
-| CPIN | `output/Summary_Postnatal_CPI.txt`, siti in `output/sites/`, curve in `output/curves/` e PDF. |
-
-Le tabelle individuali dei caller possono alimentare una nuova analisi.
-I riepiloghi e i grafici servono per la consultazione. I pileup e altri
-intermedi temporanei DNPcall non sono conservati stabilmente.
-I riepiloghi SNP aggregano solo campioni con pannello, riferimento e
-modalità compatibili. Il grafico UpSet conta loci con genotipo assegnato.
-Il file SNP `resources.tsv` riporta il tempo della fase R e osservazioni
-RSS iniziale e finale; per il picco del container consultare la diagnostica.
-
-## Conservazione e uso successivo
-
-Conservare la cartella completa del run e gli input originali per
-ricostruire l'analisi. Nei workflow, `output/workflow/` contiene percorsi
-relativi tra stati, log, artefatti e richieste; mantenere la struttura
-quando la si sposta. Per avviare un'altra analisi dai risultati seguire
-la [guida alle tabelle esistenti](GUIDA_UTILIZZO.md#utilizzo-di-tabelle-già-disponibili).
-
-Prima di allegare log, metadati o report a una segnalazione, controllare
-nomi e percorsi dei campioni e la presenza di dati identificativi.
-La [scheda di validazione](VALIDAZIONE.md) aiuta a conservare atteso,
-osservato ed evidenze riproducibili.
+A confirmed stop returns exit code 0 when the recorded containers have been removed or are absent. Code 2 indicates that cleanup or runtime identity needs attention. Cancelling the prompt takes no action and returns 0. Once the cause is resolved, start a fresh run and retain the existing records.
