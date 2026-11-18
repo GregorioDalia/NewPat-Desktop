@@ -39,6 +39,23 @@ class SnpAcquisitionTests(unittest.TestCase):
         path.write_text(f"#!{sys.executable}\n" + code + "\n")
         path.chmod(0o755)
 
+    def run_with_fixtures(self, command):
+        # CreateProcess on Windows does not resolve extensionless shebang scripts.
+        # Launch each fixture explicitly in the active interpreter, retaining
+        # real child PIDs, exit codes, stdout handles and cleanup on every OS.
+        spawn = subprocess.Popen
+
+        def spawn_fixture(argv, **options):
+            if argv[0] in {"samtools", "Rscript"}:
+                fixture = self.bin / argv[0]
+                if fixture.is_file():
+                    argv = [sys.executable, str(fixture), *argv[1:]]
+            return spawn(argv, **options)
+
+        self.assertEqual(command[:2], [sys.executable, str(Path(snp.__file__).resolve())])
+        with patch.object(subprocess, "Popen", new=spawn_fixture):
+            snp._run_acquisition(Path(command[2]), command[3:])
+
     def planned(self, order="coordinate"):
         prep = snp.SnpPreparation(self.command, [], self.output, self.bam,
                                   {c: 200 for c in reversed(self.contigs)})
@@ -70,8 +87,8 @@ class SnpAcquisitionTests(unittest.TestCase):
 
     def test_budget_and_failed_index_retry_full_scan_atomically(self):
         self.executable("samtools", "import sys\nif '-r' in sys.argv:\n"
-                        "    print('partial')\n    sys.exit(9)\nprint('complete')")
-        subprocess.run(self.planned(), check=True, capture_output=True)
+                        "    print('partial')\n    sys.exit(9)\nsys.stdout.buffer.write(b'complete\\n')")
+        self.run_with_fixtures(self.planned())
         self.assertEqual(self.output.read_bytes(), b"complete\n")
         diag = json.loads(self.metadata.read_text())
         self.assertEqual(diag["strategy"], "sequential-scan")
@@ -80,7 +97,7 @@ class SnpAcquisitionTests(unittest.TestCase):
         self.output.unlink()
         self.budget["memory_budget_mib"] = 400
         self.executable("Rscript", f"print({json.dumps(self.budget)!r})")
-        subprocess.run(self.planned(), check=True, capture_output=True)
+        self.run_with_fixtures(self.planned())
         diag = json.loads(self.metadata.read_text())
         self.assertEqual(diag["parallel"]["workers"], 1)
         self.assertEqual(diag["parallel"]["observed_max_processes"], 1)
@@ -88,10 +105,10 @@ class SnpAcquisitionTests(unittest.TestCase):
 
     def test_pool_rss_fallback_and_failure_leave_no_partial_pileup(self):
         self.executable("samtools", "import sys\nprint('serial')\nsys.exit(3)")
-        self.planned()
+        command = self.planned()
         with patch.object(snp, "_check_pool_rss", side_effect=snp._PoolMemoryLimit("RSS test")):
             with self.assertRaises(snp.pileup_pool.PileupError):
-                snp._run_acquisition(self.metadata, self.command[2:])
+                self.run_with_fixtures(command)
         self.assertFalse(self.output.exists())
         self.assertFalse(list(self.root.glob(".snp-acquisition-*")))
         self.assertEqual(json.loads(self.metadata.read_text())["parallel"]["reason"], "RSS test")
@@ -155,7 +172,10 @@ class SnpAcquisitionTests(unittest.TestCase):
                 prep.generated_pileup.unlink()
                 code, command = prep.plan_acquisition(lambda a: subprocess.run(a, capture_output=True).returncode, work)
                 self.assertEqual(code, 0)
-                subprocess.run(command, check=True, capture_output=True)
+                if os.name == "nt":
+                    self.run_with_fixtures(command)
+                else:
+                    subprocess.run(command, check=True, capture_output=True)
                 self.assertEqual(prep.generated_pileup.read_bytes(), expected)
                 diag = json.loads((work / "snp-acquisition.json").read_text())
                 self.assertEqual(diag["strategy"], "indexed-chromosomes")
