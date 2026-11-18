@@ -573,6 +573,7 @@ tests/test_gui_windows_launcher.py
 
 # NewPat 0.9.5: diagnostics, fixed resources and public-name compatibility.
 docs/RELEASE_0.9.5.md
+docs/RELEASE_0.9.7.md
 src/nipat/gui/diagnostics.py
 tests/test_gui_diagnostics.py
 tests/test_newpat_branding.py

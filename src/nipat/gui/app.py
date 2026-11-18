@@ -195,7 +195,7 @@ class DesktopApplication:
         logger.setLevel(logging.INFO)
         try:
             with self.server:
-                return self.host.run_window(self.server.url, title=f"{PRODUCT_NAME} {__version__} · Testing",
+                return self.host.run_window(self.server.url, title=f"{PRODUCT_NAME} {__version__}",
                                             on_close=self.on_close,
                                             user_data_dir=layout.workspace_dir / ".gui" / "webview",
                                             smoke_test=smoke_test, smoke_report=smoke_report, timeout=timeout,

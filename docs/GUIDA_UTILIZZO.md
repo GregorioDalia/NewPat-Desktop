@@ -13,10 +13,8 @@ accetta gli stessi tipi di input e permette di ripetere un comando da uno script
 
 ## Requisiti e avvio su Windows
 
-Questa guida descrive il candidato NewPat 0.9.5 Testing. Quando pubblicato,
-scaricare **NewPat-Setup.exe** dalla [release scelta](https://github.com/GregorioDalia/nipat-desktop/releases).
-I pacchetti precedenti conservano il nome NIPAT; il collegamento `latest`
-punta alla stabile e non seleziona automaticamente la 0.9.5 Testing.
+Per installare la versione stabile, scaricare **NewPat-Setup.exe** dalla
+[pagina della release](https://github.com/GregorioDalia/nipat-desktop/releases/latest).
 Il pacchetto è per Windows 10 22H2 x64 (build 19045) o Windows 11 x64 con
 virtualizzazione e WSL2. Il setup prepara un ambiente dedicato con gli strumenti
 scientifici. L'attivazione iniziale di WSL può richiedere Internet, autorizzazione

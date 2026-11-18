@@ -1,10 +1,7 @@
-# Usare NewPat 0.9.5 Testing
+# Usare NewPat
 
 NewPat offre una finestra desktop con analisi, risultati e IGV integrato.
-Non è necessario aprire un browser né installare IGV Desktop. Questa guida
-descrive il candidato 0.9.5, ancora in sviluppo: consultare le
-[note 0.9.5](RELEASE_0.9.5.md) per il perimetro e le verifiche richieste.
-La preview già pubblicata resta la [0.9.1](RELEASE_0.9.1.md).
+Le [note della 0.9.7](RELEASE_0.9.7.md) descrivono le novità di questa versione.
 
 ## Creare un esperimento
 
@@ -158,8 +155,7 @@ la differenza di lunghezza. Il riferimento può essere esplorato anche senza
 un BAM; per visualizzare le letture bisogna aggiungere il campione e il suo
 indice. I messaggi di navigazione distinguono questi casi.
 
-La preview utilizza file locali: non carica automaticamente
-genomi, annotazioni o dati da servizi remoti. I grandi file sono letti
+Il visualizzatore IGV utilizza i file locali selezionati. I grandi file sono letti
 per intervalli, senza trasferire l'intero BAM all'interfaccia.
 
 ## Preferenze e manutenzione
@@ -181,7 +177,7 @@ raccoglie metadati e log limitati per dimensione; è disponibile anche senza
 un esperimento completato. Non include automaticamente BAM, FASTA o tabelle
 genetiche. I log possono comunque contenere nomi e percorsi dei campioni.
 
-## Implementazione e limiti della preview
+## Componenti desktop e accesso ai file
 
 L'applicazione usa WebView2 su Windows, WKWebView su macOS e WebKitGTK su
 Ubuntu. L'interfaccia e igv.js sono incluse nel pacchetto. Un servizio
@@ -189,9 +185,5 @@ riservato al processo su loopback collega la finestra al motore locale,
 con una porta temporanea e un token di sessione; non è un servizio cloud
 e non richiede di gestire indirizzi nel browser.
 
-Le formule scientifiche sono conservate. La 0.9.5 modifica la pianificazione
-dei processi e dei blocchi: i confronti numerici sono parte della sua
-qualificazione, separatamente dalle regressioni dell'interfaccia.
-La preview non converte gli esperimenti storici in nuovi formati distruttivi.
 I file devono rimanere nei percorsi originali per essere riaperti; per
 conservarli altrove è possibile esportarli insieme ai record dell'esecuzione.

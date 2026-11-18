@@ -1,19 +1,10 @@
 # Installazione di NewPat su Ubuntu
 
-Questa guida descrive **NewPat 0.9.5 Testing**, candidata in sviluppo: i
-pacchetti non sono ancora pubblicati né qualificati per la distribuzione.
-Il nuovo download si chiamerà `newpat-desktop_0.9.5_amd64.deb` e conterrà
-l'applicazione, la documentazione e l'immagine scientifica con R, samtools e
-dipendenze. Il nome APT rimane `nipat-desktop` per aggiornare l'installazione
-esistente e conservare dati e preferenze. Sarà mantenuto anche il nome di
-asset precedente come alias compatibile.
-
-Per la versione stabile già pubblicata, **0.8.99**, usare il relativo
-`nipat-desktop_0.8.99_amd64.deb` dalla
-[pagina release](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.8.99).
-Le istruzioni di quella versione mantengono nome e comando NIPAT/`nipat`.
-Per aggiornare un'installazione esistente, APT sostituisce i file applicativi
-dello stesso pacchetto `nipat-desktop`.
+Scaricare `newpat-desktop_0.9.7_amd64.deb` dalla
+[release stabile](https://github.com/GregorioDalia/nipat-desktop/releases/latest).
+Il pacchetto comprende l'applicazione, la documentazione e l'immagine con R,
+samtools e dipendenze. APT riconosce il nome storico `nipat-desktop` e può
+aggiornare un'installazione esistente conservando dati e preferenze.
 
 ## Requisiti
 
@@ -53,12 +44,10 @@ analisi con percorsi o proprietari dei risultati differenti da quelli attesi.
 
 Scaricare il pacchetto `.deb` della versione scelta dagli asset della pagina
 [Releases](https://github.com/GregorioDalia/nipat-desktop/releases).
-Aprire il terminale nella cartella che contiene il pacchetto e sostituire
-il nome del file nell'esempio con quello scaricato. Il comando seguente è
-per il futuro pacchetto 0.9.5, dopo la pubblicazione:
+Per installare la 0.9.7, aprire il terminale nella cartella del download ed eseguire:
 
 ```bash
-sudo apt install ./newpat-desktop_0.9.5_amd64.deb
+sudo apt install ./newpat-desktop_0.9.7_amd64.deb
 ```
 
 APT mostra anche le dipendenze da scaricare e installare. Esaminare il
@@ -153,8 +142,7 @@ newpat --runs-dir "$HOME/risultati-nipat" contamination \
 ## Aggiornamento e rimozione
 
 Nel menu `newpat wizard`, **9 — Verifica aggiornamenti** scarica e verifica il `.deb` completo di una
-release approvata. La candidata 0.9.5 Testing richiede invece il download
-manuale: non viene proposta come aggiornamento stabile. Dopo la conferma esplicita di installazione, la sessione
+release approvata sul canale scelto. Dopo la conferma esplicita di installazione, la sessione
 corrente si chiude e viene aperto un terminale di sistema. L'installazione
 tramite APT richiede autorizzazione amministrativa attraverso Polkit.
 Al termine il launcher normale verifica o prepara il runtime prima dell'apertura dell'applicazione.
@@ -203,8 +191,7 @@ il contenuto prima di condividerli.
 
 ## Verifiche del pacchetto
 
-La pipeline prevede i controlli seguenti; per la 0.9.5 gli esiti devono
-essere raccolti sul pacchetto effettivamente compilato. La build usa il manifest comune di Windows e Ubuntu e verifica che il `.deb`
+La build usa il manifest comune di Windows e Ubuntu e verifica che il `.deb`
 incorpori l'archivio scientifico previsto. I controlli automatici comprendono
 installazione, preparazione con utente non root, autotest SNPcall, CPI
 e Contamination, DNPcall su BAM sintetico, input privati e percorsi con

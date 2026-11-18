@@ -1,6 +1,6 @@
 # Documentazione NewPat
 
-NewPat permette di eseguire analisi scientifiche sul proprio computer dall'applicazione grafica, dal menu guidato o da riga di comando. Le guide correnti descrivono il candidato 0.9.5; le note datate conservano nomi e comportamento delle release precedenti. Per individuare la guida giusta, partire dall'operazione da svolgere.
+NewPat permette di eseguire analisi scientifiche sul proprio computer dall'applicazione grafica, dal menu guidato o da riga di comando. Le guide correnti descrivono la 0.9.7. Le note datate conservano nomi e comportamento delle release precedenti. Per individuare la guida giusta, partire dall'operazione da svolgere.
 
 ## Installare
 
@@ -16,7 +16,7 @@ NewPat permette di eseguire analisi scientifiche sul proprio computer dall'appli
 
 | Operazione | Guida |
 | --- | --- |
-| Usare l'applicazione grafica, l'archivio e IGV integrato | [GUI Testing](GUI.md) · [Candidato 0.9.5](RELEASE_0.9.5.md) · [Preview pubblicata 0.9.1](RELEASE_0.9.1.md) |
+| Usare l'applicazione grafica, l'archivio e IGV integrato | [Guida GUI](GUI.md) · [Novità della 0.9.7](RELEASE_0.9.7.md) |
 | Avviare analisi singole e workflow dal menu o dalla CLI | [Guida per l'utilizzo](GUIDA_UTILIZZO.md) |
 | Preparare BAM, pileup, pannelli, tabelle e frequenze | [Controlli degli input e dei risultati](INPUT_VALIDATION.md) |
 | Consultare formule, costanti e valori configurabili | [Catalogo scientifico](CATALOGO_SCIENTIFICO.md) |

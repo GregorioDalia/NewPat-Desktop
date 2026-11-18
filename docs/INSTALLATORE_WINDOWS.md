@@ -1,12 +1,8 @@
 # Installatore Windows di NewPat
 
-Questa guida descrive **NewPat 0.9.5 Testing**, candidata in sviluppo: non è
-una dichiarazione di pubblicazione o di collaudo Windows concluso. I nomi
-`NewPat-*` indicano gli asset previsti per la release verificata. La release
-stabile precedente resta NIPAT 0.8.99 con i suoi file originali
-[`NIPAT-Setup.exe`](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.8.99/NIPAT-Setup.exe).
-Scaricare il setup stabile non seleziona automaticamente la candidata Testing.
-
+Scaricare **NewPat-Setup.exe** dalla [release stabile](https://github.com/GregorioDalia/nipat-desktop/releases/latest).
+Il setup installa la versione stabile compatibile. Per scegliere il percorso
+del metodo ZIP, vedere [ZIP completo aggiuntivo](#zip-completo-aggiuntivo).
 
 Dalla 0.8.99 Windows dispone di due percorsi indipendenti; dalla 0.9.5
 i nomi pubblici diventano:
@@ -24,10 +20,6 @@ Il setup conservato nell'installazione può essere riutilizzato per i pacchetti
 compatibili successivi. Una modifica al contratto del bootstrap o una sua
 correzione può richiedere un nuovo EXE.
 
-Per la candidata usare la release **0.9.5 Testing**, quando disponibile,
-e il suo archivio `NewPat-0.9.5-Testing-installazione.zip`. L'[ultima release
-stabile](https://github.com/GregorioDalia/nipat-desktop/releases/latest) resta
-un canale distinto.
 Il setup aggiorna le installazioni NewPat riconosciute e conserva
 i percorsi scelti dall'utente. Per verificare una preparazione conclusa,
 usare il [collaudo automatico](COLLAUDO_INSTALLAZIONE.md).
@@ -87,9 +79,6 @@ La raccolta diagnostica non richiede di disattivare la protezione.
 
 ### Procedura del setup classico
 
-Per provare 0.9.5 usare la selezione Testing descritta più avanti;
-il doppio clic diretto sul setup segue il canale stabile.
-
 1. Avviare `NewPat-Setup.exe` con doppio clic dal proprio account Windows,
    senza scegliere «Esegui come amministratore».
 2. Scegliere la cartella applicativa nella pagina di destinazione, quindi
@@ -119,34 +108,12 @@ l'ambiente precedente. I file scientifici selezionati possono risiedere su
 qualsiasi disco locale fisso accessibile all'account; il trasporto WSL non
 supporta condivisioni UNC, unità di rete o dischi rimovibili.
 
-## Installazione di 0.9.5 Testing
+## Passare da Testing alla stabile
 
-Quando la release candidata sarà disponibile:
-
-1. Scaricare `NewPat-0.9.5-Testing-installazione.zip` e verificare il checksum
-   nella stessa release.
-2. Estrarre tutti i file e aprire `INSTALLA-NewPat-TESTING.cmd` con il proprio
-   account Windows. Lo script scarica e verifica il pacchetto della versione
-   esatta e apre l'applicazione quando la preparazione termina.
-3. Per i prossimi avvii, e dopo un eventuale riavvio Windows, usare **NewPat
-   Testing** sul desktop o nel menu Start. Lo stesso file di installazione
-   può riaprire l'applicazione senza ripetere il download.
-
-La posizione resta `%LOCALAPPDATA%\NIPAT-Testing\NIPAT` per conservare
-esperimenti e preferenze delle installazioni precedenti. Non occorre ricordare
-questo percorso per avviare l'app. La versione stabile resta affiancata.
-
-Solo per sostituire esplicitamente l'installazione desktop esistente con la
-candidata, eseguire dalla cartella estratta, in PowerShell:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\install-testing.ps1 -UseSetup
-```
-
-Questo percorso seleziona il setup e il payload esatti di `testing-release.json`.
-Aprire direttamente `NewPat-Setup.exe` seleziona invece il canale stabile.
-I nomi di download NIPAT restano alias con gli stessi byte e checksum per i
-client precedenti; i nuovi collegamenti e il nome dell'app sono NewPat.
+Il collegamento **NewPat Testing** della 0.9.5 riapre l’installazione di
+prova. Per installare la 0.9.7 stabile usare **NewPat-Setup.exe** e il
+collegamento **NewPat** creato dal setup. Le installazioni Testing possono
+coesistere nella cartella separata scelta in precedenza.
 
 ## ZIP completo aggiuntivo
 
@@ -513,8 +480,7 @@ nuovo launcher.
 
 Un aggiornamento del solo payload attraverso il setup **1.0.0** già conservato
 può mantenere i nomi della vecchia procedura Inno. Per aggiornare anche
-collegamenti e voce di disinstallazione usare il nuovo setup **1.1.0**, con
-la selezione Testing sopra descritta per 0.9.5. Vengono sostituiti soltanto
+collegamenti e voce di disinstallazione usare il nuovo setup **1.1.0**, dalla release stabile. Vengono sostituiti soltanto
 i vecchi collegamenti che puntano alla stessa installazione; percorsi, dati,
 registri di proprietà e distribuzioni WSL restano compatibili.
 
@@ -524,7 +490,7 @@ progressivamente prima installazione, riavvio del runtime, analisi di un caso
 noto, coesistenza con le installazioni sperimentali, percorsi personalizzati, reinstallazione
 e disinstallazione. Le prove del codice Windows/WSL non dimostrano attivazione
 e ripresa su un Windows 10 reale; i casi non eseguiti restano espliciti nelle
-note della candidata.
+note della release.
 
 Un aggiornamento fra versioni differenti richiede una prova distinta dalla
 reinstallazione. La [scheda di validazione](VALIDAZIONE.md) raccoglie i risultati

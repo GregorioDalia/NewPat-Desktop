@@ -33,20 +33,20 @@ class ExperimentalDistributionTests(unittest.TestCase):
                 layout = ProjectLayout(app, workspace, workspace / "data", workspace / "runs", app / "compose.yaml")
                 validate_managed_directories(layout)
 
-    def test_installer_and_client_use_same_isolated_identity(self):
+    def test_stable_installer_and_client_share_the_official_identity(self):
         root = Path(__file__).resolve().parents[1]
         profile = json.loads((root / "installer/windows/install-profile.json").read_text())
         self.assertEqual(profile["channel"], CHANNEL)
         self.assertEqual(profile["data_dir_name"], WINDOWS_DIRECTORY)
         self.assertEqual(profile["channel"], "desktop")
-        self.assertTrue(is_experimental_version(__version__))
+        self.assertFalse(is_experimental_version(__version__))
 
     def test_gui_preview_is_isolated_without_reclassifying_stable_releases(self):
         for version in ("0.8.0a1", "0.9.0", "0.9.0a1", "0.9.0b2", "0.9.0rc1",
-                        "0.9.1", "0.9.1a1", "0.9.1b2", "0.9.1rc1"):
+                        "0.9.1", "0.9.1a1", "0.9.1b2", "0.9.1rc1", "0.9.5", "0.9.5rc1"):
             with self.subTest(version=version):
                 self.assertTrue(is_experimental_version(version))
-        for version in ("0.8.99", "0.8.100", "0.9.2", "1.0.0"):
+        for version in ("0.8.99", "0.8.100", "0.9.2", "0.9.7", "1.0.0"):
             with self.subTest(version=version):
                 self.assertFalse(is_experimental_version(version))
 

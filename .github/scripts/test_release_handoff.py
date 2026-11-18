@@ -62,6 +62,16 @@ class AcceptanceBuildTests(unittest.TestCase):
             with self.subTest(version=version):
                 self.check_gui_build(version)
 
+    def test_first_stable_newpat_keeps_all_preview_platform_checks(self):
+        record = dict(self.record, version="0.9.7", publication_channel="stable")
+        required = publisher.required_build_jobs("0.9.5")
+        self.assertEqual(publisher.required_build_jobs("0.9.7"), required)
+        jobs = [{"name": name, "conclusion": "success"} for name in required]
+        checker.validate_build(record, self.run, jobs)
+        for index, job in enumerate(jobs):
+            with self.subTest(job=job["name"]), self.assertRaisesRegex(ValueError, "build job"):
+                checker.validate_build(record, self.run, jobs[:index] + jobs[index + 1:])
+
     def check_gui_build(self, version):
         record = dict(self.record, version=version, publication_channel="testing")
         jobs = [{"name": name, "conclusion": "success"}
@@ -261,6 +271,7 @@ class AutomaticPublicationTests(unittest.TestCase):
 
     def test_retry_requires_separate_payload_and_exact_online_feed(self):
         self.check_bootstrap_retry("0.8.99", "stable")
+        self.check_bootstrap_retry("0.9.7", "stable")
 
     def test_gui_retry_requires_testing_entrypoint_and_exact_testing_feeds(self):
         for version in ("0.9.0", "0.9.1", "0.9.5"):
