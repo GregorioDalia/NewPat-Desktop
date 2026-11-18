@@ -1,102 +1,51 @@
-# Revisione scientifica 0.8.9
+# Scientific code review for 0.8.9
 
-La 0.8.9 revisiona i quattro programmi R per ridurre allocazioni e calcoli
-ripetuti e chiarisce la configurazione delle risorse. Le
-[note di rilascio](RELEASE_0.8.9.md) descrivono distribuzione e perimetro delle
-verifiche. Questo documento definisce il riferimento e il contratto dei
-confronti scientifici.
+This release revised the four R programs to reduce allocations and repeated work and clarified resource configuration. The [release notes](RELEASE_0.8.9.md) describe distribution and verification. This record defines the reference and comparison criteria.
 
-## Riferimento
+## Reference
 
-Il riferimento è la release `v0.8.5`, commit
-`eafadf7002a9c7d7c1b9af9ccafc47d698a059e5`, comprese le modifiche di
-compatibilità già distribuite. Le copie immutabili dei sei file R sono in
-[`tests/reference_r/0.8.5`](../tests/reference_r/0.8.5/README.md), con manifest
-SHA-256. Il codice candidato rimane nelle normali directory del motore.
-Le copie di riferimento sono usate soltanto dai test e non sono installate.
+The baseline is `v0.8.5`, commit `eafadf7002a9c7d7c1b9af9ccafc47d698a059e5`, including its released compatibility changes. Immutable copies of six R files and their SHA-256 manifest are in [the test reference directory](../tests/reference_r/0.8.5/README.md). Only tests use these copies. The installer uses the candidate in the engine's normal directories.
 
-## Interventi
+## Changes
 
-| Componente | Revisione |
+| Component | Revision |
 | --- | --- |
-| DNPcall | Preparazione diretta delle osservazioni, conversione delle qualità tramite tabella, riuso delle estrazioni da stringhe ripetute, raggruppamento unico, indici per locus ed eliminazione dei conteggi duplicati. |
-| SNPcall | Lettura delle colonne utilizzate, preparazione diretta delle osservazioni e aggregazione delle caratteristiche necessarie per lettura, conservando il raggruppamento globale per QNAME. |
-| CPI | Calcolo unico per coppia e pannello, selezione dei soli valori PI, riuso dei risultati fra soglie equivalenti, colonne preallocate e riuso dei campioni condivisi fra coppie consecutive. |
-| Contamination | Raccolta delle righe di riepilogo e assemblaggio finale unico. |
-| Configurazione risorse | Distinzione fra configurazione salvata, risorse effettive, suggerimenti e nuovi limiti; Invio conserva le impostazioni correnti. |
+| DNPcall | Build observations directly, look up quality conversions, reuse extraction from repeated strings, group once, index by locus and remove duplicate counting. |
+| SNPcall | Read the required columns, build observations directly and aggregate necessary features per read, preserving global QNAME grouping. |
+| CPI | Compute once per pair/panel, select only the PI values, share work across equivalent thresholds, preallocate columns and reuse samples shared by consecutive pairs. |
+| Contamination | Collect summary rows and assemble them once at the end. |
+| Resource configuration | Distinguish saved settings, effective resources, suggestions and new limits. Pressing Enter retains the current value. |
 
-Le formule, le soglie, l'accesso al BAM tramite samtools e i formati dei
-risultati scientifici rimangono oggetto del contratto di equivalenza.
-La revisione non introduce nuovi linguaggi o dipendenze R. Modifiche alla
-politica di accesso indicizzato, elaborazione per blocchi, dimensioni dei
-grafici e stime del tempo residuo richiedono verifiche distinte e non sono
-implicite in queste ottimizzazioni.
+The equivalence contract covers formulas, thresholds, samtools BAM access and scientific output formats. This revision introduced no new language or R dependency. Indexed access policy, block processing, plot dimensions and remaining-time estimates require separate verification.
 
-Nei pileup regolari, DNPcall e SNPcall separano direttamente basi, nomi e
-qualità senza costruire stringhe con separatori artificiali. I casi con
-valori mancanti, spazi o lunghezze non corrispondenti conservano il percorso
-di preparazione compatibile. SNPcall conserva le associazioni fra letture
-presenti in finestre diverse. In DNPcall le finestre sovrapposte continuano
-ad assegnare le osservazioni a tutti i loci previsti.
+For regular pileups, DNPcall and SNPcall split bases, names and qualities directly, without constructing strings with artificial separators. Missing values, spaces or unequal lengths select the compatible preparation path. SNPcall preserves associations between reads in different windows. DNPcall assigns shared observations to all applicable overlapping loci.
 
-CPI calcola una volta le statistiche delle soglie che selezionano gli stessi
-loci, poi ricostruisce tutte le righe originali. Media, mediana e grafici
-mantengono quindi il peso di ogni soglia. Il prodotto degli indici conserva
-l'ordine originale; non viene sostituito con prodotti cumulativi o somme di
-logaritmi. Il riuso dei campioni è limitato alla coppia corrente e alla
-successiva, senza accumulare in memoria l'intero insieme di input.
+CPI computes statistics once for thresholds selecting the same loci, then restores every original row. Means, medians and plots retain the weight of each threshold. CPI multiplies indices in the original order without substituting cumulative products or log sums. Reuse covers the current and next pair, bounding the retained input set.
 
-## Criteri di equivalenza
+## Equivalence checks
 
-| Output | Criterio |
+| Output | Criterion |
 | --- | --- |
-| Tabelle scientifiche | Stessi file, intestazioni, ordine, valori e rappresentazione dei dati mancanti. Nessuna tolleranza numerica generale. |
-| Risultati intermedi esposti dai test | Uguaglianza delle quantità non arrotondate e delle serie per soglia, per i casi coperti. |
-| PDF | Stessi documenti e stessa resa delle pagine; metadati variabili come la data di creazione non richiedono byte identici. |
-| Log | Conservati per diagnosi; tempi, percorsi temporanei e messaggi di raggruppamento non sono risultati scientifici. |
+| Scientific tables | Identical files, headers, order, values and missing-value representation. No general numerical tolerance. |
+| Test-visible intermediates | Equal unrounded quantities and per-threshold series for the covered cases. |
+| PDF | Same documents and rendered pages. Nondeterministic metadata such as creation date may differ. |
+| Logs | Retained for diagnosis. Timings, temporary paths and grouping messages are operational metadata. |
 
-I test eseguono il riferimento e il candidato nello stesso ambiente,
-registrando l'identità del runtime e dei sorgenti. Un esito positivo riguarda
-i casi eseguiti: non dimostra equivalenza su ogni possibile input. Le fixture
-coprono sia casi ordinari sia limiti delle formule e dei raggruppamenti.
-I benchmark su dati esterni rimangono separati dalle fixture pubbliche.
+The reference and candidate execute in the same environment with runtime and source identities recorded. Fixtures cover ordinary cases and boundaries of formulas and grouping. Passing demonstrates agreement on those cases. External-data benchmarks are separate.
 
-## Esecuzione dei confronti
+## Running the comparisons
 
-Dalla radice del checkout, con Docker Engine e un'immagine costruita dal
-codice candidato:
+From the checkout root, with Docker Engine available, build the candidate and run the verifier in a fresh output directory:
 
 ```sh
 docker build -f docker/scientific-runtime/Dockerfile -t nipat-scientific-runtime:r089 .
 python scripts/verify_r_equivalence.py --image nipat-scientific-runtime:r089 --output-dir build/r-equivalence-089
 ```
 
-Il confronto PDF richiede `pdftoppm` di Poppler sul sistema che avvia la
-verifica. Usare una nuova cartella di output per ogni prova. Il rapporto
-`r-equivalence.json` e i log permettono di distinguere errori di esecuzione,
-alterazioni dei riferimenti e differenze nei risultati. La CI e la build
-degli installatori eseguono lo stesso controllo; un confronto fallito non
-viene trasformato in un successo o in un test saltato.
+PDF comparison uses Poppler's `pdftoppm` on the verification host. Read `r-equivalence.json` and logs to distinguish runtime failures, changed references and differing results. CI and the installer build use the same check and propagate failures.
 
-## Misura delle prestazioni
+## Performance and distribution
 
-Il superamento dei confronti numerici precede la valutazione di velocità e
-memoria. Confrontare riferimento e candidato sugli stessi input, parametri,
-risorse e modalità diagnostica, registrando commit e immagine. Conservare i
-risultati insieme ai tempi e ai picchi di memoria. I tempi delle fixture
-non rappresentano le prestazioni su BAM grandi e non impongono soglie sui
-runner condivisi. Una riduzione del lavoro ripetuto non è, da sola, una
-misura del guadagno complessivo.
+Check numerical equivalence before evaluating speed or memory. Use the same inputs, parameters, assigned resources and diagnostics for both versions. Record commit, image, outputs, timings and memory peaks. Fixture times do not predict large-BAM performance or impose timing thresholds on shared runners.
 
-## Distribuzione
-
-La pubblicazione lega sorgenti R revisionati, rapporto di equivalenza,
-immagine scientifica, build e installer attraverso commit e checksum.
-Il record di accettazione della 0.8.9 riguarda esclusivamente i suoi
-artefatti; i record delle release precedenti non ne autorizzano la pubblicazione.
-Le build per revisione e i confronti scientifici non modificano da soli
-il canale stabile. La procedura è descritta in [CI/CD](CI_CD.md).
-
-Le ottimizzazioni successive confluiscono in un unico prototipo 0.8.10,
-con commit verificabili e confronti estesi. La 0.8.9 rimane la release
-ufficiale finché non viene approvata una successiva pubblicazione stabile.
+Publication binds revised R sources, equivalence reports, scientific image, build and installers using commit identities and checksums. The 0.8.9 acceptance applies only to its artifacts. Review builds and comparisons alone do not alter the stable channel. See [CI/CD](CI_CD.md). Subsequent work was collected in a single 0.8.10 prototype with identifiable commits and extended comparisons. At that point 0.8.9 remained official until a later stable release was approved.

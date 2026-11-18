@@ -1,161 +1,61 @@
-# NIPAT Desktop 0.8.10 — prototipo integrato
+# NIPAT Desktop 0.8.10 — integrated prototype
 
-La 0.8.10 è un unico candidato di sviluppo per le prove delle ottimizzazioni
-DNPcall e degli indicatori di avanzamento. La release ufficiale rimane la
-[0.8.9](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.8.9).
-Il candidato non è pubblicato nel canale stabile e non viene proposto
-automaticamente dall'aggiornatore.
+This development candidate combined DNPcall optimizations with progress indicators. [0.8.9](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.8.9) remained official. The updater did not offer the 0.8.10 candidate on the stable channel.
 
-## Ottenere e identificare un candidato
+## Identifying a candidate
 
-Aprire il workflow
-[Installers (review build)](https://github.com/GregorioDalia/nipat-desktop/actions/workflows/windows-installer.yml)
-e scegliere una build completata con successo del branch `release/0.8.10-test`.
-Il suo commit deve corrispondere al candidato da provare. Nel riepilogo del
-controllo congiunto `installer-required` sono disponibili i collegamenti ai
-singoli pacchetti verificati:
+Select a successful [Installers (review build)](https://github.com/GregorioDalia/nipat-desktop/actions/workflows/windows-installer.yml) from `release/0.8.10-test` and match its commit to the candidate under test. The `installer-required` summary links the verified platform packages.
 
-| Sistema | Pacchetto |
+| Platform | Package |
 | --- | --- |
 | Windows x64 | `NIPAT-Setup.exe` |
 | Ubuntu 24.04 x86_64 | `nipat-desktop_0.8.10_amd64.deb` |
 | macOS Apple Silicon | `NIPAT-0.8.10-macos-arm64.pkg` |
 | macOS Intel | `NIPAT-0.8.10-macos-x86_64.pkg` |
 
-Scaricare il pacchetto del proprio sistema dal riepilogo della build. Gli
-artefatti di GitHub Actions sono temporanei: conservare il pacchetto e il
-riferimento a commit, build e checksum. Il solo numero `0.8.10` non distingue
-due candidati successivi. La compilazione e il controllo dei pacchetti non
-equivalgono a una prova su ciascun computer finale.
+Actions artifacts are temporary. Retain the installer, commit, build and checksum. Multiple candidates can share the number `0.8.10`. A successful build does not exercise each target workstation. Installing manually upgrades a recognized **NIPAT Desktop** installation in place. Close active analyses and preserve reference runs. Platform requirements are in the [Windows](INSTALLATORE_WINDOWS.md), [Ubuntu](INSTALLATORE_LINUX.md) and [macOS](INSTALLATORE_MACOS.md) guides. Windows uses dedicated WSL2 and NIPAT-managed Docker Engine, macOS uses Lima, and Ubuntu uses local Docker Engine. R remains the scientific core.
 
-Gli installer usano il profilo **NIPAT Desktop**: installare manualmente il
-candidato aggiorna l'installazione locale riconosciuta, senza creare
-automaticamente un'applicazione affiancata. Chiudere le analisi prima del setup
-e conservare i run di riferimento. Seguire le guide
-[Windows](INSTALLATORE_WINDOWS.md), [Ubuntu](INSTALLATORE_LINUX.md) e
-[macOS](INSTALLATORE_MACOS.md) per requisiti e procedure del sistema.
-La disponibilità della build non modifica la release ufficiale su GitHub.
+## Changes
 
-Windows continua a usare WSL2 con Docker Engine gestito da NIPAT; macOS usa
-Lima; Ubuntu usa Docker Engine locale. Il core scientifico resta R.
-
-## Interventi nel candidato
-
-| Area | Comportamento |
+| Area | Behavior |
 | --- | --- |
-| Preparazione DNPcall | Con un indice BAM disponibile, seleziona le letture delle regioni richieste prima di eseguire il pileup. Mantiene BED, opzioni di `mpileup`, profondità massima, BAQ e filtri scientifici. Gli indici mancanti consentono la scansione sequenziale; un indice presente ma inutilizzabile produce un errore. |
-| Elaborazione R | Indicizza le righe del pileup e legge gruppi di finestre DNP complete, rilasciando i dati consumati. Conserva l'inferenza globale dei tipi, gli identificativi dei loci e l'ordine richiesto dai calcoli e dagli output. Quando le regole esistenti creano dipendenze fra finestre, usa automaticamente un unico blocco per campione. |
-| Intermedi | Usa un volume temporaneo anonimo sul filesystem Linux del runtime. Il BAM originale viene letto dal mount in sola lettura; gli intermedi grandi non vengono collocati nel RAM disk. |
-| Avanzamento | Mostra fase, campione e tempo trascorso anche senza diagnostica. Espone conteggi solo nelle fasi che hanno un totale misurabile; uno stato di esecuzione attivo non è una percentuale di completamento. |
+| DNPcall preparation | When a BAM index is available, select reads for the requested regions before producing the pileup. Preserve BED, `mpileup` options, maximum depth, BAQ and scientific filters. A missing index allows sequential scanning. A present but unusable index raises an error. |
+| R processing | Index pileup rows and read groups of complete DNP windows, releasing consumed data. Preserve global type inference, locus identity and calculation/output order. If existing rules couple windows, use one block for the sample. |
+| Intermediate storage | Use a temporary anonymous volume on the runtime's Linux filesystem. The BAM remains on a read-only mount. Large intermediates stay off the RAM disk. |
+| Progress | Show phase, sample and elapsed time even without diagnostics. Report counts when the phase has a measurable total. |
 
-Il limite ordinario è di **64 loci e 8 MiB di righe pileup per blocco**.
-Finestre complete e gruppi con la stessa posizione effettiva rimangono
-indivisibili anche quando superano questi limiti. Le finestre sovrapposte
-possono condividere osservazioni: ogni blocco contiene tutti i dati necessari
-ai loci assegnati. Gli 8 MiB misurano l'input grezzo, **non un limite della
-RAM di R**; le letture non vengono eliminate per rientrare nel budget.
+Ordinary blocks target **64 loci and 8 MiB of raw pileup rows**. Complete windows and groups with the same effective position are indivisible, including when they exceed either target. Overlapping windows can share observations. Each block includes all data needed for its loci. The 8 MiB target describes raw input, leaves reads intact and is independent of R's actual memory use.
 
-La verifica preliminare riconosce inoltre due casi in cui il raggruppamento
-del codice precedente può collegare finestre diverse: coordinate del pileup
-non associabili alle finestre secondo le regole esistenti e QNAME ripetuti
-nella stessa riga del pileup. In questi casi il candidato usa automaticamente
-un unico blocco per l'intero campione e registra la motivazione in
-`work/dnp-blocks.json`. Questo percorso conserva la semantica esistente, ma
-può richiedere la memoria dell'elaborazione completa. Il semplice riutilizzo
-di un QNAME in loci diversi non richiede questo ripiego.
+Preflight detects two cases where existing grouping rules can link windows: pileup coordinates that cannot be matched under those rules, and repeated QNAMEs within one pileup row. Both select one whole-sample block and record the reason in `work/dnp-blocks.json`. This preserves semantics but can require full-sample memory. Reusing a QNAME across different loci is insufficient to trigger fallback. Blocks of one sample execute serially. Existing cross-sample parallelism is bounded by the sample count.
 
-I blocchi di un campione sono elaborati in sequenza; il parallelismo già
-disponibile fra campioni è limitato al numero dei campioni effettivi.
+For a single indexed BAM, selection and pileup use a pipeline. With multiple BAMs, indexed selections are staged on Linux disk in sample order. Overlapping phase durations must not be added. Total elapsed time includes intermediate preparation.
 
-Con un solo BAM indicizzato, selezione delle letture e pileup sono collegati
-da una pipeline. Con più BAM, le selezioni indicizzate vengono preparate su
-disco Linux mantenendo l'ordine dei campioni. I tempi delle fasi sovrapposte
-non devono essere sommati; la durata complessiva comprende anche la preparazione
-degli intermedi.
+Results and logs persist in the run directory. Processing removes temporary intermediates at completion. The client collects container diagnostics before removing the owned container and anonymous volume. Interrupted-run recovery verifies ownership before cleanup.
 
-I risultati e i log restano nella cartella del run. Gli intermedi temporanei
-vengono rimossi alla chiusura della loro elaborazione; il client raccoglie
-prima la diagnostica del container e poi rimuove il container posseduto e il
-suo volume anonimo. Il recupero delle esecuzioni interrotte conserva i
-controlli di identità prima della pulizia.
+Resource settings distinguish saved, effective, suggested and new values. **Enter keeps the current value.** Additional CPUs can affect a single-BAM run only through its actual workload. Compare total time including I/O, preparation and plotting.
 
-La configurazione delle risorse mantiene la distinzione fra valori salvati,
-risorse effettive, suggerimenti e nuovi valori. **Invio conserva il valore
-corrente**. Aumentare le CPU disponibili non garantisce di accelerare un
-singolo BAM: il comportamento va valutato sull'intero run, compresi I/O,
-preparazione e grafici.
+Progress events identify preparation, BAM reading, DNP calculation, plotting and output verification/export. Elapsed time advances even while R writes no log lines. The prototype provides no remaining-time estimate. Structured events and snapshots are available for a future GUI.
 
-Gli indicatori distinguono preparazione, lettura del BAM, calcolo DNP, grafici
-e controllo/esportazione dei risultati. Il tempo trascorso continua ad
-aggiornarsi anche quando R non scrive nuove righe nel log. Il candidato non
-mostra una stima del tempo residuo. Gli eventi strutturati e le istantanee
-di avanzamento sono riutilizzabili da una futura GUI.
-
-| File relativo all'elaborazione DNP | Contenuto |
+| Path | Recorded information |
 | --- | --- |
-| `work/dnp-pileup.json` | Strategia di accesso, tempi di selezione/pileup, dimensioni degli intermedi e del pileup. Un conteggio non misurato rimane assente o nullo. |
-| `work/dnp-blocks.json` | Lettura dell'indice, limiti dei blocchi, eventuali motivi del blocco unico di compatibilità, loci/righe/byte elaborati e tempi per campione e blocco. |
-| `progress/` nella cartella del run | Eventi di avanzamento per processo, disponibili anche senza diagnostica. |
+| `work/dnp-pileup.json` | Access strategy, selection and pileup times, intermediate and pileup sizes. Unmeasured counts are absent or null. |
+| `work/dnp-blocks.json` | Index reading, block limits, any compatibility fallback, processed loci/rows/bytes, timings per sample and block. |
+| `progress/` in the run directory | Per-process progress events, including when performance diagnostics are disabled. |
 
-Nei workflow automatici i due rapporti DNP si trovano nella cartella del
-relativo passaggio. Gli eventi di avanzamento rimangono distinti dal
-monitoraggio di CPU e memoria descritto nella guida alle prestazioni.
+In automatic workflows the DNP step contains both reports. Progress events are separate from CPU and memory monitoring.
 
-## Prima prova e confronto con i run archiviati
+## Comparing a first run with archived results
 
-1. Controllare `NIPAT 0.8.10` all'avvio e registrare commit e build del pacchetto.
-   Eseguire **8 — Verifica ambiente**.
-2. Scegliere un BAM già analizzato e riutilizzare esattamente FASTA, pannello,
-   parametri, verifica degli input e limiti di risorse del run di riferimento.
-   Usare una nuova cartella di esecuzione; conservare l'archivio precedente.
-3. Se il riferimento include la diagnostica, scegliere **Avvia analisi con
-   diagnostica prestazioni** anche per il candidato. Una prova breve con
-   **Avvia analisi** permette inoltre di verificare gli indicatori senza
-   attivare la diagnostica.
-4. Confrontare prima tabelle individuali, riepiloghi, tabelle per la
-   consultazione e PDF. Per i PDF distinguere il contenuto e il rendering
-   dai metadati di creazione. I confronti automatizzati di sviluppo verificano
-   anche le quantità R non arrotondate e, per il percorso indicizzato, i byte
-   del pileup.
-5. Confrontare durata totale e fasi, includendo lettura, scrittura e ogni
-   eventuale copia degli intermedi. Separare il picco del container dalle
-   rilevazioni parziali **Peak RAM** stampate da R. Conservare il run completo,
-   anche in caso di fallimento o annullamento.
+1. Verify `NIPAT 0.8.10`, record the package commit and build, then run **8 — Verifica ambiente**.
+2. Choose a previously analyzed BAM and reuse the exact FASTA, panel, parameters, input verification and resource limits. Choose a fresh run directory.
+3. Match the reference's diagnostic setting. An additional short run with ordinary **Avvia analisi** checks progress indicators with diagnostics disabled.
+4. Compare individual tables, summaries, display tables and PDFs first. Distinguish PDF content and rendering from creation metadata. Development checks also compare unrounded R quantities and, for indexed access, pileup bytes.
+5. Compare end-to-end and phase durations including all intermediate reading, writing and copying. Distinguish the whole-container peak from R's partial **Peak RAM** readings. Retain the entire run even after failure or cancellation.
 
-Non è necessario rieseguire una vecchia versione quando sono già disponibili
-risultati di riferimento e metadati adeguati al confronto. I tempi ricavati da
-run storici sono osservazioni: differenze di cache, carico o risorse vanno
-considerate prima di attribuire un guadagno alla nuova versione. La
-[guida alle prestazioni](PERFORMANCE.md#misure-e-significato) descrive le fonti
-delle misure e il loro significato.
+A suitable archived reference with results and metadata can avoid rerunning an old release. Account for cache, load and resource differences before attributing timing changes to code. See the [performance guide](PERFORMANCE.md). Test cancellation on a new run using **Ctrl+C**. Verify return to the menu, interrupted status and preservation of partial outputs. Keep previously successful runs intact.
 
-Per una prova di annullamento usare un nuovo run e premere **Ctrl+C** durante
-l'analisi. Verificare il ritorno al menu e lo stato interrotto; gli eventuali
-output parziali non costituiscono un risultato completato. Non sovrascrivere
-un run riuscito per eseguire questa prova.
+## Evidence and versioning
 
-## Evidenze e stato delle prove
+The build links the commit, scientific image, installers and reports. Read the actual job outcomes and artifacts. Skipped checks remain distinct from passes. Synthetic equivalence applies to executed cases. End-user system tests and real data are separate. In particular, checking a Mac package does not exercise a complete Lima/Rosetta VM. Measure performance on the target system. Keep private BAMs, real-sample outputs and run archives off GitHub. Logs and metadata can reveal sample names and local paths.
 
-La build deve conservare la corrispondenza fra commit, immagine scientifica,
-installer e rapporti. Consultare gli esiti dei job e gli artefatti di quella
-build: un controllo saltato non è un controllo superato. I test sintetici
-coprono l'equivalenza nei casi eseguiti; le prove su dati reali e sui sistemi
-finali restano evidenze distinte. In particolare, un controllo del pacchetto
-Mac non attesta una prova completa della VM Lima/Rosetta.
-
-Le prestazioni del candidato devono essere misurate sul sistema di utilizzo;
-questa guida non attribuisce un incremento di velocità o una riduzione di
-memoria prima delle relative misure. Non pubblicare su GitHub BAM, output di
-campioni reali o archivi di run che li contengono. Log e metadati possono
-includere nomi dei campioni e percorsi locali.
-
-## Versionamento
-
-Più commit e build possono concorrere alla preparazione della 0.8.10 prima
-della pubblicazione. Per passare a un altro candidato con lo stesso numero
-di versione occorre scaricarne manualmente il pacchetto: l'aggiornatore
-confronta la versione, non il commit. Una release pubblicata rimane immutabile;
-ogni successivo pacchetto ufficiale avrà una versione superiore.
-
-SNP 2.0 e il quinto modulo R non fanno parte di questo candidato. La loro
-integrazione sarà definita dopo la disponibilità degli script scientifici.
+Multiple builds could use 0.8.10 before release. Testing a different same-version candidate requires a manual download because the updater compares versions. Published releases are immutable. A later official package requires a higher version. SNP 2.0 and the fifth R module were deferred until the scientific scripts became available.

@@ -1,19 +1,19 @@
 # NewPat 0.9.7
 
-La 0.9.7 porta l’interfaccia desktop NewPat sul canale stabile e aggiorna la pianificazione di DNPcall. I cambiamenti riguardano l’acquisizione del pileup e la suddivisione del lavoro R. Le dipendenze scientifiche e i parametri dell’analisi mantengono le versioni e i valori della 0.9.5.
+This release brings the NewPat desktop interface to the stable channel and changes how DNPcall schedules pileup acquisition and divides work among R processes. Scientific dependencies and analysis parameter values match 0.9.5.
 
-## Prestazioni DNP
+## DNP performance
 
-Con un singolo BAM indicizzato e impostazioni di acquisizione compatibili con il profilo misurato, NewPat può elaborare più cromosomi in contemporanea. L’assegnazione considera i cromosomi richiesti, la memoria del riferimento, il budget della macchina virtuale o del container e il limite di processi scelto dall’utente. La modalità seriale rimane disponibile.
+For a single indexed BAM and acquisition settings covered by the measured profile, NewPat can process several chromosomes concurrently. It considers the chromosomes requested, reference memory requirements, the VM or container budget, and the user's process limit. Serial execution remains available.
 
-Nel calcolo R, il pianificatore evita di produrre molti blocchi piccoli quando la memoria assegnata consente blocchi più grandi. Per i lavori che possono impegnare tutti i processi anche con un budget ridotto, usa la ripartizione più fine della 0.9.5. Le modalità di compatibilità per le finestre scientifiche rimangono attive.
+The R scheduler avoids splitting work into many small blocks when the assigned memory supports larger ones. For jobs that can keep all workers busy on a smaller budget, it uses the finer partition from 0.9.5. Scientific window compatibility modes remain available.
 
-Il confronto di sviluppo su Windows ha usato un BAM di circa 3,5 GB, gli stessi 22 cromosomi e lo stesso piano R. Con uno, due e cinque processi samtools, i tempi mediani del DNP completo sono stati rispettivamente **4 min 13 s, 2 min 45 s e 1 min 50 s**. Le due ripetizioni per configurazione hanno prodotto pileup e tabelle scientifiche identici. Queste misure descrivono il prototipo sul computer di prova. Le prestazioni dipendono dal pannello, dai dati e dalle risorse disponibili.
+The Windows development benchmark used one BAM of about 3.5 GB, the same 22 chromosomes and the same R execution plan throughout. With one, two and five samtools processes, median elapsed times for the complete DNP analysis were **4 min 13 s, 2 min 45 s and 1 min 50 s**, respectively. Both runs of every configuration produced identical pileups and scientific tables. These measurements describe the prototype on the test computer. Panel, input data and available resources affect performance.
 
-## Installare o aggiornare
+## Installation and upgrades
 
-- **Windows x64**. Avviare `NewPat-Setup.exe` per l’installazione guidata. Chi preferisce preparare l’applicazione nella cartella estratta può scegliere `NewPat-0.9.7-Windows-completo.zip`. [Guida Windows](INSTALLATORE_WINDOWS.md)
-- **macOS 14 o successivo**. Scegliere il pacchetto `arm64` per Apple Silicon, incluso M1 o M3, oppure `x86_64` per Intel. [Guida macOS](INSTALLATORE_MACOS.md)
-- **Ubuntu 24.04 x86_64**. Installare `newpat-desktop_0.9.7_amd64.deb`. [Guida Ubuntu](INSTALLATORE_LINUX.md)
+- **Windows x64.** Run `NewPat-Setup.exe` for guided installation. To prepare the application inside an extracted directory, use `NewPat-0.9.7-Windows-completo.zip`. [Windows guide](INSTALLATORE_WINDOWS.md)
+- **macOS 14 or later.** Choose the `arm64` package for Apple Silicon, including M1 and M3, or `x86_64` for Intel. [macOS guide](INSTALLATORE_MACOS.md)
+- **Ubuntu 24.04 x86_64.** Install `newpat-desktop_0.9.7_amd64.deb`. [Ubuntu guide](INSTALLATORE_LINUX.md)
 
-Chi usa un’installazione separata della 0.9.5 Testing su Windows può installare la stabile con il setup. I pacchetti e i checksum della release sono disponibili nella [pagina di download](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.9.7).
+Users with a separate Windows 0.9.5 Testing installation can install the stable version with the setup program. Packages and checksums are on the [release page](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.9.7).

@@ -1,80 +1,35 @@
-# SNPcall 2.0 in NIPAT
+# SNPcall 2.0
 
-This directory contains NIPAT's adapted SNPcall 2.0 scientific core from
-[NEWPAT commit ce59f4beeeec710b1b42d425cb87d7aad729f71d](https://github.com/lpistacchia/NEWPAT/tree/ce59f4beeeec710b1b42d425cb87d7aad729f71d/SNPcall).
-The unmodified upstream script is retained in
-[`tests/reference_r/2.0/SNPcall.R`](../../../../tests/reference_r/2.0/SNPcall.R).
-Authorship and the upstream GPL license are preserved. NIPAT supplies input
-validation, bounded process scheduling, workflow integration and revised plots.
+NewPat uses the SNPcall 2.0 model to calculate per-sample allele counts, genotype likelihoods and genotypes. The application includes its R dependencies, input validation, bounded scheduling and plot helpers. The original work and GPL license belong to the upstream project. [Upstream implementation](https://github.com/lpistacchia/NEWPAT/tree/ce59f4beeeec710b1b42d425cb87d7aad729f71d/SNPcall) · [Frozen reference](../../../../tests/reference_r/2.0/SNPcall.R) · [License](../LICENSE)
 
-## Running through NIPAT
+## Run the bundled example
+
+From the root of this repository, use the configured NewPat CLI and the included [panel](examples/SNPlist.txt) and [pileup](examples/pileup.txt).
 
 ```sh
-nipat snp-call --pileup examples/pileup.txt --panel examples/SNPlist.txt
-nipat snp-call --bam sample.bam --reference genome.fa --panel panel.tsv
-nipat workflow snp-batch --bamlist samples.txt --reference genome.fa --panel panel.tsv
+newpat snp-call --pileup scientific/vendor/NEWPAT/SNPcall/examples/pileup.txt --panel scientific/vendor/NEWPAT/SNPcall/examples/SNPlist.txt
 ```
 
-These commands use the installed scientific runtime. They create a new run
-rather than overwrite an example result. The packaged example panel retains
-the supported legacy three-column format. The scientific input adapter also
-accepts the new four-column panel described below.
+A new run contains the generated results. For your own BAM, select BAM, FASTA and panel in NewPat or use the CLI's `snp-call --bam` mode. For multiple samples use `workflow snp-batch`. The engine prepares three-base windows and a QNAME pileup with samtools. By default, SNP acquisition uses `-d 0` (unlimited depth). The R adapter receives one prepared sample. [User guide](../../../../docs/GUIDA_UTILIZZO.md) · [Scientific implementation](../../../README.md)
 
-The internal R adapter keeps the following interface for the NIPAT engine:
+## Inputs and results
 
-```sh
-Rscript SNPcall.R --pileup sample.pileup --snplist panel.tsv --out SNPcall_output.txt
-```
+A tab-separated panel uses `chr,pos,ref,alt`, or `pos,ref,alt` with coordinates such as `chr1:1770788`. Positions range from 2 to 2147483646, inclusive. REF and ALT are distinct single A/C/G/T bases, normalized to uppercase in a working copy. The pileup includes reference, bases, Phred qualities and QNAME in columns 3, 5, 6 and 7. The caller associates three-base observations with their SNP, then groups by SNP and read name. Overlapping windows can use the same observation. The reference resolves the `.` and `,` pileup symbols. An indel anywhere in a retained window can exclude the read.
 
-It requires the bundled parallel and plot helpers and R dependencies. The
-upstream BAM-list interface is exposed through `nipat workflow snp-batch`;
-the R adapter itself receives one prepared sample. NIPAT generates each BAM's
-three-base-window pileup with `samtools mpileup -d 0 --output-QNAME`, preserving
-base qualities and the normalized indel/read-end representation.
-
-## Inputs and scientific model
-
-The new panel has tab-separated columns `chr`, `pos`, `ref`, `alt`. The
-legacy `pos`, `ref`, `alt` format, with coordinates such as `chr1:1770788`,
-is accepted and normalized. Positions range from 2 to 2147483646; alleles
-are distinct single A/C/G/T bases. Lowercase alleles become uppercase in a
-working copy; input files remain unchanged.
-
-The pileup requires reference, bases, Phred qualities and QNAME in standard
-samtools columns 3, 5, 6 and 7. SNPcall associates observations with each
-SNP's central position and its two flanking bases, then groups by SNP and
-QNAME. A read spanning neighboring windows contributes to each SNP separately.
-The reference markers `.` and `,` are resolved using the pileup reference.
-Recognized indel markers anywhere in a retained window exclude that read.
-
-## Results
-
-| Columns | Meaning |
+| Columns in `output/SNPcall_output.txt` | Meaning |
 | --- | --- |
 | `chr`, `pos`, `REF`, `ALT` | Panel coordinate and alleles. |
-| `N_REF`, `N_ALT`, `N_Other`, `total_count` | Retained observation counts; total includes other bases. |
-| `ratio` | REF fraction: `N_REF / (N_REF + N_ALT)`. |
-| `GL0`, `GL1`, `GL2` | Natural-log genotype likelihoods for `0/0`, `0/1`, `1/1`, using central-base Phred qualities of REF/ALT observations. |
-| `GT` | Maximum-likelihood genotype; missing with no informative observations or an other-base fraction of at least 0.1. |
-| `reads_discarded_for_indels`, `ratio_reads_discarded_for_indels` | Central-base indel count and fraction before filtering; these do not count all reads removed due to flanking indels. |
+| `N_REF`, `N_ALT`, `N_Other`, `total_count` | Retained read counts, including Other in the total. |
+| `ratio` | REF fraction among REF and ALT observations. |
+| `GL0`, `GL1`, `GL2` | Natural-log likelihoods of genotypes 0/0, 0/1 and 1/1 using central-base qualities. |
+| `GT` | Maximum-likelihood call. Missing when there are no informative observations or the Other fraction reaches the configured threshold (default 0.1). |
+| `reads_discarded_for_indels`, `ratio_reads_discarded_for_indels` | Central-base indel count and fraction before filtering. Reads excluded for flanking indels can differ. |
 | `combined_bases`, `combined_counts` | Matching hyphen-separated observed bases and counts. |
 
-The per-sample table remains `SNPcall_output.txt`. Genotype, REF, ALT and
-other-base plots distinguish zero from missing values. Genotype summaries
-and resource measurements accompany the table; multi-sample workflows add
-merged genotypes and shared-call summaries. Resident memory at start/end
-is not peak memory, and R timing does not include prior BAM acquisition.
+The run also contains genotype and read-count plots and summary tables. Multi-sample workflows add merged genotypes and shared coverage. R start/end RSS, phase duration, whole-container peak and complete elapsed time measure different quantities.
 
-SNPcall 2.0 deliberately differs from the old NIPAT SNP algorithm. The
-immutable upstream 2.0 source is the scientific regression reference;
-performance adaptations must retain its numerical output. See
-[`scientific/README.md`](../../../README.md) for provenance and verification.
+## Upstream contact and citation
 
-## Contact and citation
+Upstream author: Letizia Pistacchia.
 
-Upstream contact: Letizia Pistacchia, letizia.pistacchia@uniroma1.it.
-
-Letizia Pistacchia, Francesco Ravasini, Elisa Bella, Eugenia D’Atanasio,
-Fulvio Cruciani, Beniamino Trombetta, “DNPcall: A New Pipeline for Accurate
-Double Nucleotide Polymorphism Calling”, *Bioinformatics Advances*, 2025,
-vbaf209. https://doi.org/10.1093/bioadv/vbaf209
+Pistacchia L, Ravasini F, Bella E, D’Atanasio E, Cruciani F, Trombetta B. DNPcall: a new pipeline for accurate double nucleotide polymorphism calling. *Bioinformatics Advances*. 2025;5(1):vbaf209. [DOI](https://doi.org/10.1093/bioadv/vbaf209)

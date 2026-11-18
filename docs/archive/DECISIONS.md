@@ -1,4 +1,4 @@
-> Documento storico di sviluppo, conservato per tracciabilità. Non costituisce una guida della versione corrente. Per i contratti attuali consultare [Architettura](../ARCHITECTURE.md) e [CI/CD](../CI_CD.md).
+> Historical development decisions. Current contracts are in the [architecture guide](../ARCHITECTURE.md) and [CI/CD guide](../CI_CD.md).
 
 # Consolidated decisions
 

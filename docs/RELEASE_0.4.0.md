@@ -1,44 +1,20 @@
-# NIPAT CLI 0.4.0 — pre-release per le prove di dominio
+# NIPAT CLI 0.4.0 — prerelease for domain testing
 
-> Note storiche della versione indicata. Per installazione e utilizzo della versione corrente consultare il [README](../README.md) e la [guida per l’utilizzo](GUIDA_UTILIZZO.md).
+This release was prepared for researchers to compare results against expectations for their own data. Its status indicated readiness for testing. Domain validation remained open. For the current release see the [README](../README.md) and [user guide](GUIDA_UTILIZZO.md).
 
-Questa versione è destinata ai ricercatori che devono valutare NIPAT con
-input e risultati attesi del proprio dominio. **Pronto per il testing** non
-significa che la validazione scientifica sia completata.
+## Download and startup
 
-## Download e avvio
-
-| Pacchetto | Procedura |
+| Package | Procedure |
 | --- | --- |
-| [NIPAT-Setup.exe](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.4.0/NIPAT-Setup.exe) | Scaricare il solo EXE, fare doppio clic, attendere `NIPAT: ready`, poi aprire l'icona **NIPAT**. |
-| [NIPAT-DockerDesktop-0.4.0-windows-x64.zip](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.4.0/NIPAT-DockerDesktop-0.4.0-windows-x64.zip) | Con Docker Desktop attivo in modalità Linux, estrarre tutto lo ZIP, aprire `1_SETUP.cmd` una volta, poi `NIPAT.exe`. |
+| [NIPAT-Setup.exe](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.4.0/NIPAT-Setup.exe) | Double-click the EXE, wait for `NIPAT: ready`, then open the **NIPAT** icon. |
+| [NIPAT-DockerDesktop-0.4.0-windows-x64.zip](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.4.0/NIPAT-DockerDesktop-0.4.0-windows-x64.zip) | With Docker Desktop running Linux containers, extract the entire ZIP, run `1_SETUP.cmd` once, then open `NIPAT.exe`. |
 
-L'installatore contiene l'ambiente Linux interno e il runtime scientifico;
-non richiede archivi separati o Docker Desktop. Il perimetro iniziale è
-**Windows 11 x64 con WSL2 già funzionante**. L'attivazione iniziale di WSL può
-richiedere Internet, autorizzazioni e riavvio e resta una verifica separata.
+The setup EXE includes an internal Linux environment and scientific runtime. It needs no separate archives or Docker Desktop. Initial scope was **Windows 11 x64 with working WSL2**. First-time WSL activation may require internet access, administrative permission and restart, and required separate testing.
 
-## Contenuto
+## Included features
 
-- Interfaccia guidata con indicazioni contestuali, controllo e correzione degli
-  input, riepilogo modificabile e conferma esplicita dell'avvio.
-- Launcher `NIPAT.exe` comune ai due pacchetti; apertura di risultati e log dal menu.
-- DNPcall, SNPcall, Contamination e CPI, con le modalità di input già integrate.
-  La conferma **Avvia analisi** esegue gli script scientifici reali.
-- Preparazione riprendibile dell'ambiente interno, con controlli prima
-  dell'attivazione e conservazione di dati, risultati e ambiente precedente.
-- Codice originale NIPAT sotto GPL-3.0-or-later; licenze dei componenti conservate.
+The guided interface provides contextual instructions, checks inputs, accepts corrections and presents an editable summary before confirmation. Both packages use `NIPAT.exe`, with menu actions to open results and logs. **Avvia analisi** runs the actual DNPcall, SNPcall, Contamination or CPI scripts using their supported input modes. Internal environment preparation is resumable and verifies readiness before switching. Data, results and the previous environment are preserved. Original NIPAT code is GPL-3.0-or-later. Bundled components retain their licenses.
 
-## Perimetro delle prove
+## Test scope
 
-Per queste prove si assume WSL2 funzionante. Registrare separatamente
-installazione e analisi per ciascun pacchetto nella
-[scheda di validazione della 0.4.0](https://github.com/GregorioDalia/nipat-desktop/blob/v0.4.0/docs/VALIDAZIONE.md), che include la
-[prima prova con Docker Desktop](https://github.com/GregorioDalia/nipat-desktop/blob/v0.4.0/docs/VALIDAZIONE.md#prima-prova-con-docker-desktop).
-
-La [guida per l’utilizzo](https://github.com/GregorioDalia/nipat-desktop/blob/v0.4.0/docs/GUIDA_UTILIZZO.md) accompagna questa versione.
-Le verifiche tecniche storiche sono conservate separatamente e non attestano
-la correttezza scientifica di nuovi casi. Per WSL sono supportati dischi locali
-fissi; unità di rete e condivisioni UNC non sono incluse. Concatenamento
-automatico dei workflow, cronologia persistente, scelta della lingua e GUI
-restano fuori da questa versione.
+With WSL2 already working, record installation and analysis separately for each package in the [0.4.0 validation sheet](https://github.com/GregorioDalia/nipat-desktop/blob/v0.4.0/docs/VALIDAZIONE.md), including the [first Docker Desktop test](https://github.com/GregorioDalia/nipat-desktop/blob/v0.4.0/docs/VALIDAZIONE.md#prima-prova-con-docker-desktop). See the [versioned user guide](https://github.com/GregorioDalia/nipat-desktop/blob/v0.4.0/docs/GUIDA_UTILIZZO.md). Historical technical checks cover their own cases. Validating new scientific cases requires independent evidence. WSL supports fixed local disks and excludes network drives and UNC shares. Automatic workflow chaining, persistent history, language selection and a GUI were outside this release.

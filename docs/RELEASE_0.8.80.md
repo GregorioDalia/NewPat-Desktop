@@ -1,46 +1,19 @@
-# NIPAT Desktop 0.8.80 — versione stabile pre-GUI
+# NIPAT Desktop 0.8.80 — stable text-menu and CLI release
 
-La 0.8.80 conclude il consolidamento della versione con menu testuale e CLI.
-I cinque moduli e i workflow composti costituiscono la base funzionale per
-l'interfaccia grafica. La manutenzione correttiva rimane prevista.
+Release 0.8.80 consolidated the five scientific modules and composed workflows before GUI development. Corrective maintenance could continue on the backend.
 
-## Correttezza degli input e dei risultati
+## Data and run integrity
 
-- SNPcall conserva esattamente gli identificativi dei contig, inclusi `01`,
-  `1` e `NA`. I caller controllano i dizionari dei BAM e la compatibilità con
-  il riferimento e i marcatori richiesti.
-- Il riepilogo DNP viene confrontato con i genotipi delle tabelle individuali
-  di tutti i campioni e loci.
-- Il piano di analisi e il menu guidato usano gli stessi rami attivi, file e
-  ruoli familiari. Risultati, resoconto e recupero leggono l'esito registrato
-  dopo i controlli finali sugli input.
-- Un errore samtools nella lettura dell'header o nella preparazione SNP
-  conserva il codice di uscita e il percorso del log.
+SNPcall preserves contig names including `01`, `1` and `NA`. The callers check BAM dictionaries against the reference and requested markers. DNP summary validation compares the genotypes for every locus and sample with the individual tables.
 
-## Affidabilità del client e dell'installazione
+The plan and guided menu agree on active branches, files and family roles. Results, reporting and recovery use the outcome recorded after the final input checks. A samtools failure during header reading or SNP preparation retains its exit code and log path.
 
-- Le preferenze salvate da più finestre conservano le modifiche indipendenti
-  e segnalano i conflitti sullo stesso campo.
-- I comandi di configurazione delle risorse e arresto dei run restituiscono
-  un codice non nullo quando l'operazione richiesta rimane incompleta.
-- I controlli di preparazione hanno log durante l'esecuzione e limiti
-  temporali distinti, con diagnostica e possibilità di ripresa. Le analisi
-  scientifiche e il menu interattivo mantengono la propria durata.
-- L'aggiornamento Ubuntu distingue l'avvio del componente di aggiornamento
-  dalla verifica del pacchetto, conservando il controllo del digest prima di APT.
-- La guida incorporata descrive i workflow completi e il canale di aggiornamento.
+## Client and installation
 
-## Installazione e verifiche
+Concurrent preference saves merge independent changes and signal edits to the same field. Resource configuration and run-stop commands return a nonzero exit code for incomplete operations. Preparation checks have live logs, separate time limits, diagnostics and resume support. Scientific analyses and the interactive menu keep their existing duration behavior.
 
-Scaricare `NIPAT-Setup.exe` per Windows, il DEB per Ubuntu 24.04 o il PKG
-macOS dell'architettura del computer. Le [guide](README.md#installare)
-descrivono requisiti, aggiornamento e verifica.
+The Ubuntu updater launches its update component separately from package verification and checks the digest before invoking APT. Built-in help covers complete workflows and the update channel.
 
-Le evidenze della build e il record `desktop-acceptance.json` identificano
-le prove eseguite sugli stessi pacchetti distribuiti. I collaudi storici
-rimangono attribuiti alle versioni provate. Le prove desktop rinviate e la
-validazione di dominio sono distinte dalle verifiche automatiche.
+## Verification
 
-Per verificare l'installazione Windows seguire il [collaudo dei cinque
-moduli](COLLAUDO_INSTALLAZIONE.md). Per confrontare risultati su dati
-rappresentativi usare la [procedura di validazione](VALIDAZIONE.md).
+Download the Windows `NIPAT-Setup.exe`, Ubuntu 24.04 DEB or macOS PKG for the host architecture. See the [installation guides](README.md#install-newpat), [Windows five-module test](COLLAUDO_INSTALLAZIONE.md) and [validation procedure](VALIDAZIONE.md). Build reports and `desktop-acceptance.json` identify tests on the distributed packages. Historical results, deferred desktop tests and domain validation have separate records.

@@ -1,160 +1,64 @@
-# NIPAT Desktop 0.7.0a1 — candidata di verifica
+# NIPAT Desktop 0.7.0a1 — installer qualification candidate
 
-NIPAT Desktop 0.7.0a1 introduce workflow automatici e un catalogo scientifico
-consultabile dal menu. L'interfaccia rimane testuale: questa versione non
-include una GUI grafica. Gli algoritmi dei quattro script R e i relativi
-adattatori scientifici restano invariati.
+This candidate introduced automatic workflows and a scientific catalog in the text menu. It retained the four scientific R algorithms and their adapters. There was no GUI. Building a candidate in GitHub Actions did not replace the official 0.6.0 release, publish a package or validate the scientific method. [Published releases](https://github.com/GregorioDalia/nipat-desktop/releases)
 
-Queste note descrivono la candidata destinata alla verifica degli installatori.
-Una build GitHub Actions completata non equivale alla pubblicazione di una
-release né alla validazione di dominio. La pagina
-[Releases](https://github.com/GregorioDalia/nipat-desktop/releases) identifica
-le versioni effettivamente pubblicate; la costruzione della candidata non
-sostituisce la release ufficiale 0.6.0.
+## Workflows and controls
 
-## Funzionalità
-
-La voce **W — Workflow automatici** offre:
-
-| Selezione | Comportamento |
+| **W — Workflow automatici** | Behavior |
 | --- | --- |
-| **1 — DNPcall → Contamination** | Produce le tabelle DNP e le passa automaticamente a Contamination. |
-| **2 — DNPcall → CPI** | Elabora i BAM delle coppie dichiarate e passa le tabelle a CPI. |
-| **3 — DNPcall → Contamination e CPI** | Esegue le due analisi sulle tabelle originali DNP, senza usare la stima di contaminazione per filtrare CPI. |
-| **4 — SNPcall su più campioni** | Esegue SNPcall separatamente per ciascun BAM o pileup selezionato, nello stesso run. |
+| **1 — DNPcall → Contamination** | Produces DNP tables and passes them to Contamination. |
+| **2 — DNPcall → CPI** | Processes the BAMs in declared pairs and passes their tables to CPI. |
+| **3 — DNPcall → Contamination and CPI** | Both downstream analyses read the original DNP tables. Contamination estimates do not filter CPI. |
+| **4 — Multi-sample SNPcall** | Runs a separate SNPcall analysis for each selected BAM or pileup within the same run. |
 
-I primi tre workflow possono includere SNPcall sugli stessi BAM, con un
-pannello SNP scelto esplicitamente. SNPcall è indipendente: i suoi risultati
-non diventano input di Contamination o CPI. Un solo riepilogo e una sola
-conferma avviano i passaggi selezionati. L'esecuzione è sequenziale; un errore
-o un'interruzione impediscono l'avvio dei passaggi rimanenti. Non è prevista
-la ripresa automatica di un run interrotto.
+An explicit SNP panel enables optional SNPcall on the same BAMs in workflows 1–3. SNPcall results are independent of the Contamination and CPI inputs. A single review and confirmation starts the selected steps. Execution is sequential. An error or cancellation stops remaining steps. Interrupted runs require a new destination.
 
-Per CPI si assegnano esplicitamente un ID a ogni coppia, il BAM del cfDNA
-materno e quello del campione paterno. Un campione condiviso tra coppie viene
-elaborato una sola volta e conserva il ruolo dichiarato. Le modalità ALL,
-pannello singolo e pannelli con etichetta, insieme alla costante di errore,
-restano selezionabili. I comandi delle quattro analisi singole rimangono
-disponibili.
+For CPI, assign each pair an ID, a maternal cfDNA BAM and a paternal BAM. Shared samples are processed once and retain their declared role. ALL, single-panel and labeled-panel modes and the error constant remain available. All four standalone commands are still supported.
 
-**Guida e informazioni → Catalogo scientifico** e `nipat parameters`
-descrivono le opzioni pubbliche degli script, le regole interne e la
-preparazione degli input. Il catalogo è disponibile in italiano e inglese;
-la traduzione completa dell'applicazione e della documentazione è ancora
-pianificata. La consultazione del catalogo non modifica i parametri e non
-avvia analisi.
+**Guida e informazioni → Catalogo scientifico** and `nipat parameters` describe public script options, internal rules and input preparation in Italian and English. Reading the catalog leaves settings and analyses untouched. Full interface and documentation translation was planned.
 
-La navigazione permette il ritorno diretto al menu principale con
-`:annulla` nei campi e nei menu testuali, oppure con Ctrl+C anche durante
-un'analisi. Il calcolo viene interrotto conservando log e risultati già
-prodotti; i passaggi successivi di un workflow automatico non vengono
-avviati. Le modifiche di configurazione non ancora salvate vengono scartate,
-mentre quelle già salvate restano attive. Esc e `:indietro` mantengono la
-navigazione al passaggio precedente; **0 — Esci** chiude NIPAT dal menu
-principale.
+In text fields and menus, `:annulla` returns to the main menu. Ctrl+C also does so during an analysis, stopping processing and preserving logs and partial results. The remaining workflow steps do not start. Unsaved configuration changes are discarded. Esc and `:indietro` go back one step. **0 — Esci** closes NIPAT from the main menu.
 
-## Pacchetti e requisiti
+## Installing and obtaining a review build
 
-| Piattaforma | File da eseguire | Requisiti principali |
+| Platform | Package | Requirements |
 | --- | --- | --- |
-| Windows 11 x64 | `NIPAT-Setup.exe` | Virtualizzazione disponibile e WSL2; l'attivazione può richiedere autorizzazione amministrativa, Internet e riavvio. |
-| Ubuntu 24.04 LTS x86_64 | `nipat-desktop_0.7.0~a1_amd64.deb` | Python 3.12, Docker Engine locale e Compose v2; APT installa le dipendenze mancanti, mentre l'accesso dell'account a Docker richiede autorizzazione amministrativa distinta. |
+| Windows 11 x64 | `NIPAT-Setup.exe` | WSL2 and virtualization. Enabling WSL2 may require internet access, administrator authorization and restart. |
+| Ubuntu 24.04 LTS x86_64 | `nipat-desktop_0.7.0~a1_amd64.deb` | Python 3.12, local Docker Engine and Compose v2. APT resolves missing dependencies. Docker access requires separate authorization. |
 
-Entrambi i pacchetti incorporano lo stesso archivio scientifico, contenente
-R, samtools, dipendenze, preparazione degli input ed esecuzione dei piani.
-Windows include anche Python portabile e l'ambiente WSL dedicato; non
-richiede Docker Desktop o strumenti scientifici installati separatamente.
-La normale installazione usa soltanto l'EXE o il `.deb` della piattaforma.
+Both packages embed the same scientific archive, including R, samtools, dependencies, input preparation and plan execution. Windows also includes portable Python and dedicated WSL. Docker Desktop and separate scientific tools are unnecessary.
 
-Per una build di revisione, aprire il workflow
-[Installers (review build)](https://github.com/GregorioDalia/nipat-desktop/actions/workflows/windows-installer.yml)
-riuscito sul commit scelto e controllare l'esito `installer-required`.
-Per Windows, scaricare l'artefatto **NIPAT-Setup.exe**, disponibile anche dal
-riepilogo della build: il download è direttamente eseguibile. Per Ubuntu,
-scaricare direttamente **nipat-desktop_0.7.0~a1_amd64.deb** dal medesimo
-riepilogo. Entrambi i download contengono il solo installatore, senza ZIP
-da estrarre. Gli archivi runtime separati non servono all'installazione
-ordinaria. Conservare il manifest, i checksum e l'ID della stessa build per
-identificare la prova. Gli artefatti **nipat-windows-setup** e
-**nipat-linux-setup** conservano le evidenze e copie identiche dei pacchetti;
-non occorre scaricarli per installare l'applicazione.
+For a review build, open the successful [Installers (review build) workflow](https://github.com/GregorioDalia/nipat-desktop/actions/workflows/windows-installer.yml) on the selected commit and check `installer-required`. Its summary provides directly executable **NIPAT-Setup.exe** and installable **nipat-desktop_0.7.0~a1_amd64.deb** downloads. Ordinary installation needs only the platform installer. Keep the manifest, checksums and build ID as evidence. The **nipat-windows-setup** and **nipat-linux-setup** artifacts contain identical package copies and supporting evidence. Separate runtime archives are unnecessary.
 
-Le build Actions non sono proposte da **Verifica aggiornamenti**. Tale voce
-considera soltanto release pubblicate e approvate con il relativo manifest.
-Le istruzioni complete di installazione sono nelle guide
-[Windows](INSTALLATORE_WINDOWS.md) e [Ubuntu](INSTALLATORE_LINUX.md).
+In-app update checks see only approved published releases with manifests. See the [Windows](INSTALLATORE_WINDOWS.md) and [Ubuntu](INSTALLATORE_LINUX.md) guides. This candidate shares the 0.6 **NIPAT Desktop** identity and upgrades an existing installation in place. Close NIPAT sessions, check the paths offered by setup and choose a new results directory for testing. Data, results and preferences persist. Keeping files does not roll back the application binary.
 
-La candidata utilizza la stessa identità **NIPAT Desktop** della 0.6:
-sul computer scelto il setup aggiorna l'applicazione esistente, non crea
-una seconda edizione affiancata. Chiudere le sessioni NIPAT prima di
-installare e verificare le destinazioni riproposte dal setup. Dati,
-risultati e preferenze vengono conservati; per il collaudo scegliere una
-nuova cartella risultati. La conservazione dei file non costituisce un
-rollback automatico della versione applicativa.
+## First package test
 
-## Prima prova del pacchetto
+Record the downloaded version, source commit, checksum, operating system, initial WSL or Docker state and findings in the [validation sheet](VALIDAZIONE.md).
 
-Registrare versione, commit e checksum del pacchetto effettivamente scaricato,
-sistema operativo e stato iniziale di WSL o Docker. Conservare gli esiti
-nella [scheda di validazione](VALIDAZIONE.md).
+1. Install and prepare the environment. Wait for `NIPAT: ready` on Windows. On Ubuntu run NIPAT from the user account and wait for preparation, diagnostics and self-tests.
+2. Open **NIPAT Desktop**, verify its version and select a dedicated results directory under **Configura**.
+3. Choose **8 — Verifica ambiente** and inspect the scientific catalog. Record diagnostic and self-test outcomes separately.
+4. Under **W**, select a workflow for which suitable inputs and reference results exist. To test the full plan select **3**, declare pairs and add SNPcall with an explicit SNP panel. Obtain biological roles independently of filenames.
+5. Review the plan and start once. Verify states, sample associations, counts and the results of every step. Compare standalone analyses on the same inputs and parameters. Evaluating scientific accuracy also requires an independent numerical reference.
+6. Use **W → 4** with multiple BAMs. Reuse the saved pileups in pileup mode and compare per-sample results.
+7. Reopen the app, verify preferences and access to results, and record the exact text of difficulties, errors and warnings.
 
-1. Installare il pacchetto e completare la preparazione dell'ambiente.
-   Su Windows attendere `NIPAT: ready`; su Ubuntu avviare NIPAT dal proprio
-   account e attendere preparazione, diagnostica e autotest.
-2. Aprire **NIPAT Desktop** dal collegamento, controllare la versione e
-   selezionare una cartella risultati dedicata in **Configura**.
-3. Eseguire **8 — Verifica ambiente** e consultare il catalogo scientifico.
-   Conservare separatamente l'esito degli autotest e quello della diagnostica.
-4. In **W**, scegliere una composizione per cui siano disponibili input
-   appropriati e risultati di riferimento. Per il piano completo selezionare
-   **3**, dichiarare le coppie e aggiungere SNPcall con un pannello SNP
-   esplicito. Non dedurre il ruolo biologico dal nome del file.
-5. Controllare il riepilogo, avviare una sola volta e verificare stati,
-   associazioni dei campioni, conteggi e risultati di ogni passaggio.
-   Confrontare anche le analisi separate sugli stessi input e con gli stessi
-   parametri; un riferimento numerico indipendente rimane necessario per
-   valutare l'accuratezza scientifica.
-6. Provare **W → 4** con più BAM; riutilizzare poi i pileup conservati,
-   selezionando la modalità pileup, e confrontare i risultati per campione.
-7. Riaprire NIPAT e verificare preferenze e accessibilità dei risultati.
-   Registrare eventuali difficoltà, errori o avvisi con il testo completo.
+This list specifies intended tests. CPI evaluation requires suitable maternal and paternal samples, panels and population frequencies. Record missing prerequisites as a test not performed.
 
-Questa è una sequenza iniziale di collaudo, non la dichiarazione che tutti
-gli scenari siano già superati. La disponibilità di dati materni e paterni,
-pannelli e frequenze di popolazione appropriati determina quali prove CPI
-siano scientificamente valutabili. Quando mancano, registrare il caso come
-non eseguito senza sostituirlo con un'associazione arbitraria di campioni.
+## Results and traceability
 
-## Risultati e tracciabilità
+Each run saves `run.json`, `execution.log` and the submitted plan. In `output/workflow`, `workflow-state.json` records overall and per-step state. `steps/dnp`, `steps/contamination`, `steps/cpi`, `steps/snp_0001`, `steps/snp_0002` and subsequent directories retain selected steps' own results and logs.
 
-Ogni run conserva `run.json`, `execution.log` e il piano inviato al motore.
-In `output/workflow`, `workflow-state.json` registra lo stato complessivo e
-quello delle singole attività. Le sottocartelle `steps/dnp`,
-`steps/contamination`, `steps/cpi` e `steps/snp_0001`, `steps/snp_0002`, ecc.
-contengono risultati e log separati per i passaggi effettivamente selezionati.
+Records identify inputs, parameters, engine, samples, pairs and outputs. BAM-based SNPcall retains its BED, pileup and samtools preparation log. Pileup input reuses those files. A failed run preserves existing evidence and is not reused. See [execution records](ESECUZIONI.md).
 
-I record conservano gli input, i parametri, l'identità del motore e le
-associazioni fra campioni, coppie e risultati. SNPcall da BAM mantiene BED,
-pileup e log della preparazione samtools; la modalità pileup non li rigenera.
-Un run fallito conserva le evidenze già prodotte e non viene riutilizzato:
-la ripetizione richiede una nuova destinazione. I dettagli sono in
-[Esecuzioni e registri](ESECUZIONI.md).
+## Verification scope
 
-## Ambito delle verifiche
+Engine regressions cover compositions, known numeric results, agreement with standalone analyses, sample identity and failures. Package checks apply to specific artifacts.
 
-Le regressioni del motore coprono i workflow automatici, risultati numerici
-noti, parità con le analisi separate, identità dei campioni e gestione
-degli errori. Le prove dei pacchetti aggiungono verifiche riferite agli
-artefatti costruiti. Nessuno di questi livelli attesta da solo l'installazione
-su ogni PC o la validità scientifica per qualsiasi campione.
-
-| Prova automatica del pacchetto | Ambito | Limite |
+| Evidence | Tested | Coverage limit |
 | --- | --- | --- |
-| Windows, `windows-client-check.json` | Client del pacchetto con Python incorporato, catalogo, menu e piani in simulazione, da una cartella con spazi e caratteri Unicode. | Non esegue Inno Setup, WSL o calcolo scientifico sul runner Windows. |
-| Ubuntu, `linux-installation-check.json` | Pacchetto installato, analisi singole e piano completo su BAM sintetici da un account non root; conservazione di input, risultati e preferenze. | Usa un runner già configurato; non prova un desktop pulito né l'aggiornamento da 0.6 a 0.7. |
+| Windows `windows-client-check.json` | The staged client with embedded Python, catalog, menu and simulated plans, including spaces and Unicode in paths. | Inno Setup, WSL and scientific computation on the Windows runner were outside this check. |
+| Ubuntu `linux-installation-check.json` | Installed package, individual analyses and the full plan on synthetic BAMs under a non-root account, preserving inputs, results and preferences. | The configured runner did not establish clean desktop installation or a 0.6 → 0.7 upgrade. |
 
-Per ciascuna build consultare gli esiti e i registri Actions effettivi.
-Le prove sul computer destinatario e la valutazione di dominio
-rimangono evidenze distinte, da riferire alla versione e ai dati utilizzati.
-La [procedura di distribuzione](../.github/RELEASE.md) mantiene separate
-costruzione, accettazione e pubblicazione.
+Use each build's Actions results and logs. Workstation testing and domain evaluation apply to their specific versions and datasets. The [distribution procedure](../.github/RELEASE.md) distinguishes build, acceptance and publication.

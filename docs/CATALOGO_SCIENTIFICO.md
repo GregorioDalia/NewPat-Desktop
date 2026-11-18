@@ -1,111 +1,42 @@
-# Catalogo scientifico
+# Scientific parameter catalog
 
-Il catalogo descrive le interfacce pubbliche e le regole interne dei cinque
-script R distribuiti con NewPat. È consultabile in italiano e inglese, senza
-avviare l'ambiente scientifico o elaborare campioni.
-
-Nel menu scegliere **7 — Guida e informazioni → 6 — Catalogo scientifico**,
-poi l'analisi e la sezione. **L — Lingua / Language** cambia la lingua della
-consultazione. Non modifica la lingua del resto del menu né salva una
-preferenza generale.
-
-Dalla CLI:
+The catalog documents public arguments, calculation rules and input preparation for the five R programs distributed with NewPat. It is available in English and Italian without starting the scientific runtime or opening samples. In the terminal menu, choose **7 → 6** (Help and information → Scientific catalog), then a module and section. **L — Language** changes the language of the catalog view.
 
 ```sh
-nipat parameters cpi
-nipat parameters dnp-call --section rules
-nipat parameters snp-call --section preparation --lang en
-nipat parameters --json
+newpat parameters cpi --lang en
+newpat parameters dnp-call --section rules --lang en
+newpat parameters snp-call --section preparation --lang en
+newpat parameters --json
 ```
 
-In un checkout di sviluppo si può usare `python -m nipat` al posto di
-`nipat`. Su Windows il wrapper `nipat.cmd` accetta gli stessi argomenti.
-Su macOS usare il launcher `NIPAT.command` del pacchetto, come descritto nella
-[guida macOS](INSTALLATORE_MACOS.md#cli-e-diagnostica).
-Il JSON contiene entrambe le lingue; `--lang` e `--section` riguardano
-soltanto la presentazione testuale. Il comando non cambia configurazione,
-non crea run e non richiede Docker o WSL.
+In a source checkout use `python -m nipat`. The packaged Windows wrapper and macOS command launcher accept the same arguments. JSON includes both languages. The `--lang` and `--section` options control text display. [Platform launchers](GUIDA_UTILIZZO.md)
 
-## Contenuto e significato
+## Reading an entry
 
-| Sezione | Significato |
+| Section | What it describes |
 | --- | --- |
-| Opzioni pubbliche R | Argomenti accettati dallo script, obbligatorietà, default R e corrispondenza con CLI e richiesta al motore. |
-| Regole interne R | Regole, formule, filtri, assunzioni di formato e impostazioni di presentazione, consultabili in sola lettura. |
-| Preparazione degli input | Trasformazioni NewPat e impostazioni delle dipendenze, con origine e ambito di applicazione. |
+| Public R arguments | Required and optional arguments, native defaults and mappings to CLI and engine request fields. |
+| Internal R rules | Formulae, filters, format assumptions and presentation rules. |
+| Input preparation | Adapter transformations, their scope and relevant dependency defaults. |
 
-Una corrispondenza **diretta** conserva il significato del parametro nativo.
-Una corrispondenza **adattata** prepara il formato richiesto da R, per esempio
-la directory interna dei campioni CPI. Una destinazione **gestita da NewPat**
-usa cartelle e nomi standardizzati nel run: non equivale a permettere qualsiasi
-nome di output accettato dallo script.
+A **direct** mapping passes the native meaning through. An **adapted** mapping prepares the representation required by R, such as a CPI sample directory. NewPat **manages** destinations when it assigns fixed names and paths within a run.
 
-Il catalogo non è il resoconto di un'esecuzione. I valori effettivamente scelti
-sono nei parametri del relativo `run.json`; i default del catalogo non
-prevalgono sulle opzioni dell'utente. I default aggiunti dal client sono
-distinti da quelli dichiarati da R. Per un pileup importato, le impostazioni
-samtools applicate a monte possono non essere ricostruibili: il catalogo
-non attribuisce a quel file le impostazioni della preparazione BAM di NewPat.
+For an actual run, consult its `run.json` and `work/effective-scientific-settings.json`. The catalog distinguishes R defaults from client defaults. Imported pileups may have been produced with unknown acquisition settings. CPI panels called *cutoffs* select coordinates by membership. Their names do not impose numerical thresholds on samples.
 
-Il registro scientifico indica quali soglie e costanti d'errore sono
-configurabili. `nipat settings` mostra valori predefiniti, intervalli,
-costanti e vincoli. Le opzioni `--scientific-config` e `--set` applicano
-i valori dopo la convalida. Il file `effective-scientific-settings.json`
-registra quelli effettivi. La [guida per l'utilizzo](GUIDA_UTILIZZO.md)
-mostra come impostarli.
-I pannelli CPI chiamati *cutoff* selezionano coordinate; i loro nomi non
-applicano soglie numeriche ai campioni.
+`newpat settings` lists configurable parameters, ranges, model constants and cross-parameter constraints. Global options `--scientific-config PATH` and `--set module.parameter=value` apply validated overrides. [User guide](GUIDA_UTILIZZO.md)
 
-La policy di esecuzione comune ai cinque moduli R è invece configurabile:
-`--execution-mode auto` è il default, `serial` impone un solo processo di
-calcolo e `--max-workers` pone un tetto al pool automatico. Nella CLI queste
-opzioni globali precedono il sottocomando dell'analisi. Il numero effettivo
-dipende anche dalle attività disponibili e dai limiti CPU, RAM e processi
-dell'ambiente. I pool interni a un worker restano seriali. L'opzione DNP storica
-`--parallel` resta accettata per compatibilità; la sua assenza non disattiva
-la modalità automatica e non prevale sulla scelta `serial`.
+Global scheduling options precede the analysis command. `--execution-mode auto` lets the run's resource budget and work determine concurrency. `--execution-mode serial` runs one compute process at a time. `--max-workers` caps the automatic pool. Nested pools remain serial. DNP accepts `--parallel` for CLI compatibility. The global policy controls the actual number of workers.
 
-Per DNP, `--dnp-block-mib` e `--dnp-block-loci` hanno default rispettivamente
-32 MiB e 64 loci. Sono obiettivi di dimensionamento dei blocchi: finestre
-complete e gruppi indivisibili possono superarli, e i byte del pileup non
-sono un limite alla RAM residente di R. I campioni e i blocchi DNP
-usano una coda comune di lavoro. Il numero di processi dipende dal budget e
-dalle attività disponibili.
-Le opzioni effettive sono registrate in `run.json`, mentre `work/dnp-blocks.json`
-documenta blocchi e worker DNP. La policy cambia l'organizzazione del calcolo,
-non le formule, i filtri o le soglie scientifiche descritti nel catalogo.
+DNP defaults are `--dnp-block-mib 32` and `--dnp-block-loci 64`. These targets describe raw input and loci per block. An indivisible group can exceed them. R memory depends on the expanded observations. Samples and blocks share a task queue. `work/dnp-blocks.json` records the resulting blocks and workers. The [input and output checks](INPUT_VALIDATION.md) describe preparatory validation separately from the scientific rules.
 
-I [controlli degli input e dei risultati](INPUT_VALIDATION.md) sono applicati
-dagli adattatori Python. Il catalogo distingue questi controlli dalle
-assunzioni e dalle formule R: una normalizzazione del pannello o un errore
-preliminare non modifica lo script scientifico. Le segnalazioni sui valori
-mantengono disponibili i dati originali per la valutazione di dominio.
+## Provenance
 
-## Provenienza e verifiche
+Every module entry identifies the R source path, SHA-256 and reviewed line ranges across the script. Preparation entries identify adapter sources and their hashes. CI checks both sets of references in the checkout, including the Dockerfile that pins samtools. The engine rechecks available embedded sources in the installed image. Client-only and build-only files are checked during CI.
 
-Ogni scheda identifica il percorso e lo SHA-256 del sorgente R, i riferimenti
-alle righe e la copertura dell'intero script. Una modifica del sorgente rende
-necessaria la revisione della scheda; la CI verifica questa corrispondenza.
-I testi tradotti conservano gli stessi identificatori e valori scientifici.
-Anche i riferimenti alla preparazione sono associati allo SHA-256 dei file
-citati. Nel checkout la CI controlla questi sorgenti, compreso il Dockerfile
-che identifica la versione samtools. Nell'immagine vengono ricontrollati gli
-adapter incorporati; i riferimenti al client e ai file di build assenti
-restano evidenze verificate durante la CI, non nuove verifiche sull'host.
-
-La consultazione ordinaria usa il catalogo incluso nell'applicazione. Il
-motore include la stessa struttura nell'immagine e permette di interrogare
-il catalogo associato ai propri sorgenti:
+The client ships a local catalog. To query the copy packaged with the engine, run the following inside the scientific image.
 
 ```sh
 python3 /opt/nipat/engine/main.py catalog cpi --json
 ```
 
-L'identità del motore registra anche gli hash dei file del catalogo e del
-validatore dei piani. Un hash identifica una revisione: non dimostra da solo
-la correttezza scientifica della descrizione o dell'algoritmo. Le prove
-numeriche e la valutazione di dominio restano distinte dalla copertura del
-catalogo.
-
-Il [contratto dei piani](WORKFLOW_CONTRACT.md) descrive la validazione delle
-relazioni fra analisi. La validazione di un piano non avvia i suoi passaggi.
+The engine identity includes catalog and plan-validator hashes. These identify the reviewed files. Numerical tests and domain validation address correctness. The [workflow contract](WORKFLOW_CONTRACT.md) explains typed links between analyses and the distinction between plan validation and execution.

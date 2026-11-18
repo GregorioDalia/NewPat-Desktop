@@ -1,181 +1,89 @@
-# Pileup parallelo — candidato 0.8.13
+# Parallel pileup acquisition in candidate 0.8.13
 
-La 0.8.13 estende il parallelismo alla **preparazione del pileup DNP**.
-Il riferimento scientifico resta NIPAT 0.8.5, con gli stessi requisiti di
-equivalenza dei [test differenziali](../tests/r_optimization/README.md).
-Questa guida descrive il candidato e il protocollo di collaudo; non dichiara
-un'accelerazione misurata sui dati reali o la validazione degli installer.
+Version 0.8.13 extended parallel execution to **DNP pileup preparation**. NIPAT 0.8.5 remained the scientific reference under the [differential test contract](../tests/r_optimization/README.md). This record covers the candidate and its qualification protocol. Real-data speed and installer validation were separate tests.
 
-## Perché questo intervento
+## Why acquisition was investigated
 
-Un run DNP della 0.8.12 con un BAM e 845 loci ha registrato:
+A 0.8.12 DNP run with one BAM and 845 loci produced these timings:
 
-| Fase | Durata |
+| Stage | Duration |
 | --- | ---: |
-| Acquisizione del pileup | 148,155 s |
-| Scansione e indicizzazione | 16,292 s |
-| Calcolo dei blocchi, con cinque processi R | 41,918 s |
-| Altre operazioni comprese nel run | 9,709 s |
-| Totale del run | 216,074 s |
+| Pileup acquisition | 148.155 s |
+| Scanning and indexing | 16.292 s |
+| Block computation with five R workers | 41.918 s |
+| Other operations in the run | 9.709 s |
+| Total | 216.074 s |
 
-Il precedente run 0.8.10 seriale a 32 MiB durava 298,676 s. Sono singole
-osservazioni: spiegano la priorità data alla preparazione, ma non misurano
-la nuova 0.8.13. I quattro file di tabelle esportate coincidevano nei byte
-fra quei run; il confronto del dataset reale con 0.8.5 resta distinto e da
-completare. I dati identificativi e gli archivi dei run non sono inclusi
-nel repository.
+An earlier serial 0.8.10 run with 32 MiB blocks took 298.676 s. These single observations motivated work on acquisition. The four exported table files matched byte for byte across the two runs. Neither observation measured 0.8.13. The real-data comparison against 0.8.5 was still outstanding. Identifying data and run archives were kept outside the repository.
 
-## Preparazione per cromosoma
+## Preparing one chromosome at a time per worker
 
-Quando tutti i BAM hanno un indice e dizionari di riferimento compatibili,
-il preparatore crea attività per i cromosomi del pannello. Ogni attività
-avvia **un solo processo `samtools mpileup`**, selezionando il cromosoma e
-le posizioni richieste. Mantiene ordine dei campioni, opzioni scientifiche,
-filtri, BAQ e limite di profondità. Le finestre DNP non vengono suddivise
-fra attività.
+With an index for every BAM and compatible reference dictionaries, the preparation stage creates a task per panel chromosome. Each task starts **one `samtools mpileup` process** for that chromosome and its requested positions. Sample order, scientific options, filters, BAQ and depth limit stay fixed. A DNP window stays in a single task.
 
-I risultati parziali sono scritti nello scratch Linux e ricomposti
-nell'ordine del dizionario `@SQ` del BAM, indipendentemente dall'ordine in
-cui terminano i processi. Il file completo passa poi all'indice e al
-calcolo R esistenti. L'inferenza dei tipi e i controlli globali su QNAME e
-coordinate rimangono prima del calcolo dei blocchi.
+Workers write partial results to Linux scratch. Assembly follows the BAM `@SQ` dictionary order regardless of task completion order. The complete file goes through the existing index and R calculation. Type inference and global QNAME and coordinate checks still precede block computation.
 
-La selezione per cromosoma ha un compromesso prestazionale da misurare:
-`mpileup -r` può leggere e decodificare più allineamenti fuori pannello
-rispetto alla preselezione multi-intervallo `view -M -L` della 0.8.12.
-Il filtro BED rimane applicato prima del calcolo BAQ: il costo aggiuntivo
-possibile riguarda lettura e decodifica, senza cambiare le opzioni scientifiche.
-Su un BAM dell'intero genoma con un pannello molto rado, il lavoro supplementare
-può compensare o superare il beneficio del parallelismo. La 0.8.13 è quindi
-un candidato da collaudare per questo carico, non un'accelerazione garantita
-per ogni BAM o pannello.
+Chromosome selection has an I/O tradeoff. `mpileup -r` can read and decode more off-panel alignments than the 0.8.12 multi-interval `view -M -L` preselection. The BED filter still runs before BAQ. On a whole-genome BAM with a sparse panel, the extra reading and decoding can offset parallel gains. The effect needs measuring on the intended workload.
 
-Indici assenti o misti, dizionari non compatibili o nomi di riferimento
-ambigui per la selezione regionale richiedono il percorso seriale
-`sequential-budgeted`. In questo percorso ogni BAM con indice viene prima
-preselezionato da `samtools view -M -L` in un file temporaneo sul disco Linux;
-i BAM senza indice vengono letti dagli originali. Dopo le preselezioni,
-un solo `mpileup` elabora la lista conservando l'ordine dei campioni.
-Queste operazioni avvengono in successione, con un processo samtools alla
-volta. Il tempo e i byte dello staging fanno parte delle misure di acquisizione.
+Missing or mixed indices, incompatible dictionaries or ambiguous names for regional selection use the serial `sequential-budgeted` path. Indexed BAMs are first preselected with `samtools view -M -L` into temporary Linux files. Unindexed BAMs are read at their original paths. One `mpileup` then processes the list in sample order. This path runs one samtools process at a time. Acquisition measurements include staging time and bytes.
 
-La motivazione del ripiego viene registrata. Un indice presente non viene
-ignorato soltanto perché un altro BAM non ne possiede uno: gli errori della
-preselezione o dell'elaborazione indicizzata interrompono il run.
-L'interruzione arresta e attende i processi avviati dal preparatore; un run
-fallito o annullato conserva la diagnostica e non presenta un pileup parziale
-come risultato completato.
+The report records the fallback reason. Each existing index is used even if a different BAM lacks one. Preselection or indexed-processing errors stop the run. Cancellation stops and waits for processes started by the preparer. Failed and cancelled runs retain diagnostics and withhold incomplete pileup from completed results.
 
-La selezione usa le funzionalità di
-[samtools 1.21](https://www.htslib.org/doc/1.21/samtools-mpileup.html).
-La qualificazione deve dimostrare l'identità del pileup rispetto al percorso
-di riferimento: la disponibilità dell'opzione regionale, da sola, non è
-una prova di equivalenza.
+The regional path uses [samtools 1.21](https://www.htslib.org/doc/1.21/samtools-mpileup.html). Qualification must establish pileup identity against the reference path.
 
-## Budget e impostazioni
+## Budget and settings
 
-Le opzioni già disponibili dalla [0.8.12](PARALLELISMO_0.8.12.md) restano:
+The [0.8.12 options](PARALLELISMO_0.8.12.md) continue to apply.
 
-| Impostazione | Valore iniziale | Effetto nella 0.8.13 |
+| Setting | Initial value | Effect in 0.8.13 |
 | --- | --- | --- |
-| `--execution-mode` | `auto` | Scelta automatica; `serial` mantiene un solo processo di calcolo per fase. |
-| `--max-workers` | Nessun massimo manuale | Limita i processi di preparazione DNP e i processi R di calcolo. |
-| `--dnp-block-mib` | `32` | Obiettivo di input grezzo per blocco R, non limite RAM. |
-| `--dnp-block-loci` | `64` | Obiettivo di loci completi per blocco R. |
+| `--execution-mode` | `auto` | Select capacity automatically. `serial` allows one compute process per stage. |
+| `--max-workers` | No manual cap | Cap DNP preparation processes and R workers. |
+| `--dnp-block-mib` | `32` | Target raw input size per R block, in MiB. |
+| `--dnp-block-loci` | `64` | Target number of complete loci per R block. |
 
-La stessa politica considera CPU disponibili, quote del container, memoria,
-PID e limite manuale. La preparazione riceve il budget calcolato da R prima
-dell'acquisizione e lo limita al numero di attività indipendenti disponibili.
-Nella fase di preparazione ogni attività occupa un processo samtools; nella
-fase successiva lo stesso massimo limita i processi R di calcolo. Le due fasi
-non sono concorrenti e non aprono pool annidati.
+The shared policy considers available CPUs, container quotas, memory, PIDs and the manual cap. R calculates the budget before acquisition. Preparation caps it again at the number of independent tasks. Each preparation task uses one samtools process. The same configured maximum applies to R workers in the subsequent stage. Stages execute sequentially without nested pools.
 
-Il numero effettivo può essere inferiore al massimo e diverso fra le fasi.
-Il budget conserva almeno un processo; le stime di memoria non garantiscono
-che qualsiasi dataset rientri nella RAM. Coordinatori, client e monitoraggio
-non sono processi di calcolo del pool: il limite complessivo dei PID del
-container (`--pids-limit`) è un controllo distinto.
+Actual worker counts can differ by stage and can fall below the requested maximum. The policy retains one process even if its memory estimate exceeds available RAM. Coordinators, clients and monitors are outside the worker pool. The separate `--pids-limit` setting covers all container PIDs.
 
-Gli input originali restano in sola lettura. Lo scratch era già nel filesystem
-Linux prima di questa versione: la 0.8.13 non introduce una copia automatica
-integrale di BAM e FASTA. Un eventuale esperimento di località degli input
-deve misurare anche il costo della copia.
+Original inputs remain read-only. Scratch already used the Linux filesystem. Version 0.8.13 did not automatically copy entire BAMs and FASTAs. Any input-locality experiment must include copying time.
 
-## Evidenze da conservare
+## Records to retain
 
-| File relativo al run | Significato |
+| Run-relative file | Contents |
 | --- | --- |
-| `run.json` | Versione, commit, input, opzioni richieste, risorse e stato. |
-| `work/dnp-acquisition-budget.json` | Budget trasmesso alla preparazione. |
-| `work/dnp-pileup.json` | Strategia, motivazione dell'eventuale ripiego, tempi e attività dei processi di acquisizione. |
-| `work/dnp-blocks.json` | Blocchi R, tempi di acquisizione/indice/calcolo e processi effettivi. |
-| `work/parallel/*.jsonl` | Decisioni e intervalli di attività dei processi R. |
-| `performance/engine/summary.json` e `performance/engine/samples.jsonl` | Memoria del container, CPU e contatori dei processi, quando la diagnostica è attiva. |
-| `output/` | Risultati scientifici da confrontare. |
+| `run.json` | Version, commit, inputs, requested options, resources and status. |
+| `work/dnp-acquisition-budget.json` | Budget passed to preparation. |
+| `work/dnp-pileup.json` | Strategy, fallback reason if any, acquisition times and process activity. |
+| `work/dnp-blocks.json` | R blocks, acquisition/index/computation timings and actual workers. |
+| `work/parallel/*.jsonl` | R scheduling decisions and task intervals. |
+| `performance/engine/summary.json` and `performance/engine/samples.jsonl` | Container memory, CPU and process counters when diagnostics are enabled. |
+| `output/` | Scientific results for comparison. |
 
-Nei workflow composti, i file `work/` appartengono al passaggio sotto
-`output/workflow/steps/<id>/`. Il report deve distinguere configurazione
-richiesta e processi osservati: il vecchio parametro DNP `parallel=false`
-non significa che la modalità automatica sia disattivata.
+For compound workflows, the step owns its `work/` files under `output/workflow/steps/<id>/`. Distinguish requested settings from observed workers in the report. The legacy DNP setting `parallel=false` can coexist with automatic execution.
 
-La dicitura R **Maximum observed R-process RSS (MiB)** descrive un massimo
-osservato per processo. Per confrontare il consumo complessivo usare il
-picco cgroup, quando disponibile; non sommare gli RSS, che possono contare
-le stesse pagine condivise.
+**Maximum observed R-process RSS (MiB)** is a per-process maximum. Use the cgroup peak, when available, to compare total memory. Summing process RSS can count shared pages more than once.
 
-## Collaudo Windows
+## Windows qualification protocol
 
-1. Conservare l'identità delle build 0.8.12 e 0.8.13 e dei medesimi BAM,
-   indici, FASTA e pannello. Il numero nel nome di una vecchia cartella
-   risultati non identifica la versione: fanno fede i metadati del run.
-2. Mantenere fisse le risorse WSL/container, la politica dei checksum,
-   **32 MiB / 64 loci** e la diagnostica. Evitare altre analisi concorrenti.
-3. Confrontare le quattro condizioni seguenti. Riutilizzare un run precedente
-   soltanto se input, versione, impostazioni e risultati sono verificabili;
-   assegnare un nome nuovo a ogni nuova esecuzione.
+1. Identify the exact 0.8.12 and 0.8.13 builds and the common BAMs, indices, FASTA and panel. Read the version from run metadata. An older results folder's name can refer to another version.
+2. Hold WSL/container resources, checksum policy, **32 MiB / 64 loci** and diagnostics constant. Avoid concurrent analyses.
+3. Compare all four conditions below. Reuse a prior run only if its inputs, version, settings and outputs are verifiable. Give each new run its own name.
 
-| Versione | Modalità | Scopo |
+| Version | Mode | Purpose |
 | --- | --- | --- |
-| 0.8.12 | Seriale | Controllo del calcolo R precedente. |
-| 0.8.12 | Automatica | Riferimento con il solo parallelismo R. |
-| 0.8.13 | Seriale | Controllo del nuovo percorso con una sola attività alla volta. |
-| 0.8.13 | Automatica | Misura della preparazione e del calcolo paralleli. |
+| 0.8.12 | Serial | Control for the earlier R implementation. |
+| 0.8.12 | Automatic | Reference with parallel R only. |
+| 0.8.13 | Serial | Exercise the new path with one task at a time. |
+| 0.8.13 | Automatic | Measure parallel preparation and computation. |
 
-Nel riepilogo dell'analisi, **4 — Parallelismo e blocchi** permette di scegliere
-la modalità per il solo run corrente. Avviare con diagnostica e conservare
-anche fallimenti o interruzioni. Per ripetizioni sostenibili, alternare l'ordine
-delle condizioni; non interpretare un solo run come una stima stabile della
-velocità o dell'effetto delle cache.
+Option **4 — Parallelism and blocks** in the final review applies to the current run. Enable diagnostics and keep failed or interrupted records. Alternate the order across repeats when feasible. A single run provides limited evidence on speed and cache effects.
 
-4. Verificare i processi effettivi e la sovrapposizione delle attività nelle
-   rispettive fasi. Un massimo richiesto o molti PID osservati in successione
-   non dimostrano parallelismo.
-5. Confrontare il pileup nei test di qualifica e i risultati scientifici con
-   **0.8.5**, inclusi ordine delle tabelle, quantità non arrotondate e grafici.
-   Ripetere almeno la condizione parallela per verificare la ripetibilità.
-   Il confronto già effettuato con 0.8.10 non sostituisce questo riferimento.
-6. Valutare tempi totali e delle fasi, RAM cgroup e correttezza insieme. Solo
-   successivamente confrontare altre dimensioni dei blocchi o altri limiti
-   dei processi.
+4. Verify process counts and overlapping activity within each stage. A requested cap or a series of distinct PIDs alone cannot establish concurrency.
+5. Compare qualification pileups and scientific results with **0.8.5**, including table order, unrounded quantities and plots. Repeat at least the parallel condition. The previous comparison with 0.8.10 addressed a different reference.
+6. Evaluate total and stage times, cgroup RAM and correctness together before changing block sizes or process limits.
 
-La [qualificazione locale 0.8.13](validation/0.8.13-rootless.json) è stata
-completata sui sorgenti identificati dagli hash nel rapporto: **20 casi,
-64 esecuzioni scientifiche e 44 confronti con 0.8.5**, senza riutilizzare
-esecuzioni precedenti. Coincidono i byte di 145 confronti di tabelle, gli
-oggetti R scientifici non arrotondati e 137 pagine PDF renderizzate a 36 DPI
-(metadati PDF esclusi). Sono inoltre passati nove controlli R mirati,
-25 casi di acquisizione pileup e il controllo della cancellazione R.
+[Local 0.8.13 qualification](validation/0.8.13-rootless.json) used the source hashes in the report. It covered **20 cases, 64 scientific executions and 44 comparisons against 0.8.5**, all newly run. The 145 table comparisons matched byte for byte. Unrounded scientific R objects matched, as did 137 rendered PDF pages at 36 DPI, excluding PDF metadata. Nine focused R checks, 25 pileup acquisition cases and R cancellation passed.
 
-I casi pileup comprendono alta profondità, letture accoppiate sovrapposte,
-indel, QNAME ripetuti, pannelli sovrapposti/non ordinati, ordine non lessicografico
-dei cromosomi, input multipli, indici mancanti/corrotti, nomi di contig ambigui
-e cancellazione. Nei test di acquisizione sono stati osservati direttamente
-massimi di uno, due e quattro processi samtools. Nei 24 confronti R paralleli
-il budget di memoria dell'ambiente ha selezionato due worker, anche quando
-il massimo richiesto era quattro; tutti hanno mostrato attività sovrapposte.
+Pileup cases covered high depth, overlapping paired reads, indels, repeated QNAMEs, overlapping or unsorted panels, nonlexicographic chromosome order, multiple inputs, missing/corrupt indices, ambiguous contig names and cancellation. Acquisition tests directly observed maxima of one, two and four samtools processes. The available memory budget selected two workers in all 24 parallel R comparisons, including those capped at four. All 24 showed overlapping activity.
 
-Queste verifiche usano R 4.4.2 e samtools 1.21 su Linux, con runtime R
-rilocato e senza Docker o WSL: non applicano le quote del container scientifico
-e non qualificano gli installer né le prestazioni sul dataset reale.
-Le [evidenze locali 0.8.12](validation/0.8.12-rootless.json) restano il
-riferimento storico separato della versione precedente.
+These tests used R 4.4.2 and samtools 1.21 under Linux with a relocated R runtime and without Docker or WSL. They did not exercise scientific container quotas, installers or real-data performance. The [0.8.12 local evidence](validation/0.8.12-rootless.json) records the preceding release separately.

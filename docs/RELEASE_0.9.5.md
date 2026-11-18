@@ -1,151 +1,58 @@
 # NewPat 0.9.5 Testing
 
-NewPat è il nuovo nome dell'applicazione precedentemente distribuita come
-NIPAT Desktop. La 0.9.5 è preparata per la distribuzione di ricerca sul canale
-**Testing**, dopo il superamento dei controlli CI descritti sotto. La costruzione
-e la verifica degli installatori finali precedono la pubblicazione: queste note
-non attestano che i pacchetti siano già disponibili. La versione stabile resta
-NIPAT 0.8.99; i download e le relative evidenze saranno nella pagina
-[Releases](https://github.com/GregorioDalia/nipat-desktop/releases).
+NewPat is the public name of the application previously distributed as NIPAT Desktop. These notes were prepared for research distribution on the **Testing** channel after the CI checks below passed. At the time of writing, the final installers still required a build and verification before publication. NIPAT 0.8.99 was the stable release. Packages and release evidence are listed under [Releases](https://github.com/GregorioDalia/nipat-desktop/releases).
 
-## Esperimenti e messaggi
+## Experiments and messages
 
-- **Nuovo esperimento** apre una bozza vuota e ripristina le preferenze salvate.
-  Nome, file, campioni, famiglie, riepilogo ed errori del run precedente non
-  vengono riutilizzati. Le risposte tardive a una vecchia richiesta non devono
-  ripopolare la nuova bozza.
-- **Riesegui** e **Prepara analisi** conservano il riuso esplicito della
-  configurazione e degli input pertinenti; ogni esecuzione produce un nuovo run.
-- Gli errori di validazione vengono mostrati con la loro spiegazione, anche
-  quando provengono dal motore scientifico.
-- IGV distingue riferimento assente, campioni non caricati, regione troppo
-  ampia e incompatibilità dei file. Per lunghezze dei cromosomi incompatibili
-  indica i file e i valori confrontati. Non ignora il controllo per consentire
-  una visualizzazione potenzialmente scorretta.
+- **New experiment** opens an empty draft and restores saved preferences. It clears the previous name, files, samples, families, summary and errors. A late response to an earlier request must leave the new draft empty.
+- **Rerun** and **Prepare analysis** explicitly reuse relevant settings and inputs. Each execution creates a new run.
+- Validation errors display their explanations, including errors from the scientific engine.
+- IGV distinguishes a missing reference, unloaded samples, an overly broad region and incompatible files. For a chromosome length mismatch it shows the files and the lengths compared. It rejects the incompatible pair to avoid displaying a misleading alignment.
 
-## Ambiente macOS
+## macOS environment
 
-La preparazione controlla la visibilità effettiva della cartella applicativa
-nella VM. Il passaggio dalla Scrivania ad Applicazioni, o dal vecchio nome
-a **NewPat.app**, richiede che la condivisione corrisponda al percorso corrente.
-Il recupero conserva la VM e le cartelle dell'utente, verifica la proprietà
-dell'ambiente e salva la configurazione prima di modificarla. Una sessione
-attiva impedisce una manutenzione incompatibile con l'analisi in corso.
+Preparation verifies that the application directory is visible inside the VM. Moving the app from Desktop to Applications or renaming it **NewPat.app** requires a share matching its current path. Recovery preserves the VM and user directories, verifies ownership and saves the configuration before changing it. An active session prevents maintenance that would interfere with the analysis.
 
-Il percorso ordinario diventa `/Applications/NewPat.app`. L'area dati
-`~/Library/Application Support/NIPAT-Desktop` e l'identità tecnica della VM
-restano compatibili con le installazioni precedenti.
+The standard application path is `/Applications/NewPat.app`. The data directory `~/Library/Application Support/NIPAT-Desktop` and the VM's technical identity remain compatible with earlier installations.
 
-## Risorse e ripetibilità
+## Resources and reproducibility
 
-Il budget di CPU e memoria è determinato dalle capacità assegnate all'ambiente
-e dai limiti del container. La scelta viene registrata all'inizio del run e
-non segue le oscillazioni della memoria libera causate da altre applicazioni.
-Il tetto globale dei processi rimane fisso durante l'analisi; una fase con
-meno attività indipendenti può impiegarne meno.
+The CPU and memory budget comes from the resources assigned to the environment and container limits. NewPat records this budget at the start of a run. Changes in other applications' memory usage do not change it mid-run. The global process ceiling is fixed for the analysis. A phase with fewer independent tasks can use fewer workers.
 
-Il valore universale di 2 GiB per processo viene sostituito da una pianificazione
-che distingue risorse assegnate, memoria del coordinatore e lavoro previsto.
-Per DNP gli obiettivi dei blocchi devono rispettare le risorse e i limiti
-scelti dall'utente, senza spezzare gruppi indivisibili o modificare i filtri
-scientifici. Le fixture locali verificano equivalenza numerica e ordinamento;
-le misure sui dati reali e il runtime distribuito restano requisiti distinti
-di qualificazione. L’acquisizione DNP e i cicli esterni dei campioni SNP e
-delle tabelle di contaminazione restano seriali quando il loro fabbisogno
-non è osservato. Le fasi interne con dati caricati possono parallelizzare:
-non si presume un miglioramento delle prestazioni dal solo cambio di politica.
+The scheduler replaces the universal 2 GiB allowance per worker with estimates for the assigned resources, coordinator and expected workload. DNP block targets respect the selected limits, keep indivisible groups together and preserve the scientific filters. Local fixtures check numerical equivalence and ordering. Real-data measurements and tests of the distributed runtime are separate qualification steps. DNP acquisition and the outer loops over SNP samples and contamination tables run serially when their memory requirements have not been observed. Inner phases can use parallelism once the data are loaded. The policy change alone provides no timing evidence.
 
-## Diagnostica
+## Diagnostics
 
-La GUI offre l'apertura della cartella dell'esperimento e l'esportazione di
-un archivio diagnostico. Questo raccoglie informazioni sulla versione,
-sull'ambiente e i log pertinenti, con limiti di dimensione. Non include
-automaticamente BAM, FASTA o tabelle dei risultati genetici.
-L'esportazione completa dei risultati rimane un'azione distinta.
+The GUI can open the experiment directory and export a size-limited diagnostic archive with version and environment details and relevant logs. BAMs, FASTAs and genetic result tables require a separate, explicit results export.
 
-## Grafici CPI e CPIN
+## CPI and CPIN plots
 
-I risultati prenatali e postnatali offrono il dettaglio interattivo dei valori
-calcolati. La **Vista combinata** riprende le tre serie degli script originali:
-nero per log₁₀(CPI), verde per i siti compatibili, arancione tratteggiato per
-i siti incompatibili. Gli assi distinguono indice e numero di siti;
-il dettaglio riporta i valori nativi, anche quando il disegno usa una
-trasformazione di scala. Le viste separate restano disponibili.
+Prenatal and postnatal results provide interactive access to calculated values. The **Combined view** reproduces three series from the original scripts. Black shows log₁₀(CPI), green shows compatible sites and a dashed orange line shows incompatible sites. Separate axes distinguish the index from site counts. Point details show the original values even when the drawing uses a scale transformation. Separate views remain available.
 
-Le esportazioni statiche e le tabelle originali sono conservate. La vista
-combinata HTML è una rappresentazione dei dati registrati, non una sostituzione
-del PDF prodotto dal run. Le viste interattive funzionano localmente, senza
-inviare dati a servizi esterni. Curve troppo grandi o senza le colonne
-necessarie rinviano ai file originali con un messaggio esplicito.
+Static exports and original tables are preserved. The combined HTML view renders the recorded data alongside the PDF produced by the run. Interactive views work locally. If the series is too large or required columns are missing, an explanatory message directs the user to the original files.
 
-## Nome, pacchetti e compatibilità
+## Name, packages and compatibility
 
-Il nome pubblico è **NewPat** nelle finestre, nei collegamenti, negli installer,
-nelle icone e nelle guide correnti. Il comando principale è `newpat`; `nipat`
-rimane disponibile per gli script esistenti. I nomi tecnici delle installazioni
-e i percorsi già configurati possono conservare NIPAT per permettere
-aggiornamenti e riapertura degli esperimenti senza spostare i dati.
+Windows, shortcuts, installers, icons and current guides use **NewPat**. The primary command is `newpat`. Existing scripts can still invoke `nipat`. Installation identifiers and configured paths can retain NIPAT so users can upgrade and reopen experiments without moving data.
 
-I pacchetti pubblici della versione usano i nomi `NewPat-Setup.exe`,
-`NewPat-0.9.5-Testing-installazione.zip`, `NewPat-0.9.5-Windows-completo.zip`,
-`NewPat-0.9.5-macos-arm64.pkg`, `NewPat-0.9.5-macos-x86_64.pkg` e
-`newpat-desktop_0.9.5_amd64.deb`. Gli alias destinati ai client precedenti
-devono avere gli stessi byte e checksum dei pacchetti corrispondenti.
+The public package names are `NewPat-Setup.exe`, `NewPat-0.9.5-Testing-installazione.zip`, `NewPat-0.9.5-Windows-completo.zip`, `NewPat-0.9.5-macos-arm64.pkg`, `NewPat-0.9.5-macos-x86_64.pkg` and `newpat-desktop_0.9.5_amd64.deb`. Aliases for earlier clients must have the same bytes and checksums as the corresponding packages.
 
-Il repository resta all'URL storico. Attribuzioni, licenze, riferimenti congelati,
-record degli esperimenti e note delle release precedenti conservano i nomi
-originali. Il cambio di nome non modifica la provenienza dei moduli scientifici.
+The repository retains its historical URL. Attributions, licenses, frozen references, experiment records and earlier release notes keep their original names and identify the provenance of the scientific modules. Recompiling Windows setup creates a different binary. Smart App Control behavior observed for an earlier executable cannot establish acceptance of the new one. System protections remain enabled.
 
-Un setup Windows ricompilato ha una nuova identità binaria. Il comportamento
-osservato per il precedente eseguibile non costituisce una verifica del nuovo
-pacchetto con Smart App Control. Le protezioni del sistema restano attive.
+## Completed checks
 
-## Verifiche eseguite
+[CI run 43904019136](https://github.com/GregorioDalia/nipat-desktop/actions/runs/43904019136) passed on commit `c0cb823602d69fe4998c550b8bd5a560d659655c`. All applicable Windows, Linux, macOS ARM64 and Intel, runtime, packaging and scientific qualification checks passed, including the aggregate gate. Native windows opened using WebView2 on Windows, WKWebView on both Mac architectures and GTK on Linux.
 
-La [CI 43904019136](https://github.com/GregorioDalia/nipat-desktop/actions/runs/43904019136)
-è completata con esito positivo sul commit `c0cb823602d69fe4998c550b8bd5a560d659655c`.
-Sono passati tutti i controlli applicabili di Windows, Linux, macOS ARM64 e
-Intel, runtime, confezionamento e qualificazione scientifica, incluso il
-controllo finale aggregato. Le prove della finestra nativa sono riuscite con
-WebView2 su Windows, WKWebView su entrambe le architetture Mac e GTK su Linux.
+The **seven scientific checks** passed in the exact Linux AMD64 Docker image identified in the CI reports. They covered bundled scripts, labels and results, regressions and input modes, DNP performance measurements and results, edge cases and parameters, updated models, and comparison with immutable references. Five-module qualification recorded **86 successful executions out of 86**. Reports are retained as CI artifacts. Reuse during the installer build requires both the same source tree and the same immutable scientific image ID.
 
-I **sette controlli scientifici** sono passati nell'immagine Docker Linux AMD64
-esatta identificata dai rapporti CI: script incorporati, etichette e risultati,
-regressioni e modalità di input, misure di prestazione e risultati DNP,
-casi limite e parametri, modelli aggiornati e confronto con i riferimenti
-immutabili. La qualificazione dei cinque moduli riporta **86 esecuzioni riuscite
-su 86**. I rapporti sono conservati negli artefatti della stessa CI; il riuso
-durante la build richiede la corrispondenza dell'albero sorgente e dell'ID
-immutabile dell'immagine scientifica.
+Checks included application Python and JavaScript tests, simulated launcher and migration regressions, R budget checks and numerical comparisons for DNP, SNP and contamination against frozen references. Synthetic DNP profiles of 2, 4 and 8 GiB checked values, read identity and ordering. Timing on user BAMs requires separate measurement.
 
-Sono stati eseguiti i test Python e JavaScript dell'applicazione, le regressioni
-simulate dei launcher e della migrazione, i controlli del budget R e i
-confronti numerici DNP/SNP/contaminazione con i riferimenti congelati.
-I profili sintetici DNP da 2, 4 e 8 GiB verificano valori, identità delle
-letture e ordinamento; non misurano le prestazioni sui BAM degli utenti.
+Local R comparisons used R 4.4.2 and test dependencies that can differ from the scientific image. CI records qualification in the actual image separately. On Windows the installer fixture compiled, installed, upgraded and uninstalled successfully, preserving the test data.
 
-I confronti R locali usano R 4.4.2 con dipendenze di test che possono differire
-da quelle dell'immagine scientifica; la qualificazione CI nell'immagine esatta
-è registrata separatamente. Su Windows sono riuscite anche compilazione,
-installazione, aggiornamento e rimozione della fixture dell'installer,
-conservando i dati predisposti dalla prova.
+## Package checks and testing on physical devices
 
-## Verifica dei pacchetti e prove sui dispositivi
+The installer build binds the four final packages to the same commit and scientific archive, verifies their contents and retains checksums and reports. Publication requires a successful build and its acceptance record. Source CI alone does not verify installer bytes.
 
-La build degli installatori lega i quattro pacchetti finali allo
-stesso commit e archivio scientifico, verificarne i contenuti e conservare i
-checksum e i rapporti. La pubblicazione richiede questa build riuscita e il
-record di accettazione corrispondente; una CI sul sorgente non sostituisce
-la verifica dei byte degli installatori.
+Outstanding physical tests included final installation and Lima/Rosetta operation on M1 and M3 Macs, upgrades from NIPAT, environment recovery and complete WSL setup on Windows 10/11. Windows Server 2022 CI cannot establish Smart App Control acceptance on a user's computer. WKWebView tests on Mac runners cannot establish Gatekeeper acceptance or VM startup on the target Mac.
 
-Restano da provare l'installazione finale e il funzionamento di Lima/Rosetta
-sui Mac M1/M3 reali, inclusi aggiornamento da NIPAT e recupero dell'ambiente,
-e il setup completo con WSL su Windows 10/11. I controlli Windows CI sono
-eseguiti su Windows Server 2022 e non attestano l'accettazione dei nuovi binari
-da parte di Smart App Control. Analogamente, le prove WKWebView su runner Mac
-non attestano l'accettazione Gatekeeper o l'avvio della VM sul Mac destinatario.
-
-Le prove desktop rinviate sono dichiarate nel record di accettazione della
-distribuzione pre-1.0. La valutazione scientifica sui dati reali rimane affidata
-ai ricercatori. La 0.9.5 resta sul canale **Testing** e non diventa stabile
-per il solo superamento dei controlli automatici.
+The pre-1.0 acceptance record lists deferred desktop scenarios. Domain researchers retain responsibility for scientific evaluation on real data. This release was designated **Testing** independently of the outcome of automated checks.

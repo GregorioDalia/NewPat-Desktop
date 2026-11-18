@@ -1,92 +1,41 @@
-# Audit tecnico 0.8.20
+# Technical audit of 0.8.20
 
-Data: 9 novembre 2026. Base revisionata: `3cf998bfc49e06ca5025865ef1cd58326dab9e3b`,
-contenente la release 0.8.14. L'audit comprende client Python, orchestrazione,
-quattro moduli R e helper, confezionamento Windows/Linux/macOS, CI e pubblicazione.
-La revisione del codice e i test mirati non costituiscono una prova su ogni
-configurazione hardware o un'attestazione dell'assenza di difetti.
+**9 November 2026.** The review started from `3cf998bfc49e06ca5025865ef1cd58326dab9e3b`, which contains 0.8.14. It covered the Python client and orchestration, four R modules and their helpers, packaging for Windows, Linux and macOS, CI and publication. The findings reflect source inspection and targeted testing.
 
-## Risultati e interventi
+## Findings and changes
 
-| Area | Riscontro | Intervento 0.8.20 |
-| --- | --- | --- |
-| Preparazione Windows | `activity-lock.ps1` compilava codice C# tramite `Add-Type -TypeDefinition` durante installazione e manutenzione. Questa scelta precede la 0.8.14; non identifica da sola il file bloccato da Windows. | Componente compilato durante la build, incluso nell'inventario e verificato prima del caricamento; nessuna compilazione temporanea di ripiego. |
-| Identità dei componenti Windows | Il compilatore precedente produceva nuove identità dei binari anche ricompilando gli stessi sorgenti. | Compilazione deterministica con Roslyn e confronto SHA-256 tra compilazioni ripetute. Il controllo non certifica la riproducibilità dell'intero setup. |
-| Fiducia Windows | Nessuna firma Authenticode NIPAT riconosciuta; i checksum e i test funzionali non soddisfano questo requisito. | Inventario delle firme sui byte distribuiti e raccolta diagnostica in sola lettura. La compatibilità Smart App Control resta non qualificata. |
-| Test del setup | La verifica del payload con Python incorporato non eseguiva le operazioni Inno di installazione e rimozione. | Fixture Inno compilata con le operazioni reali e bootstrap simulato, con prove di aggiornamento e conservazione dei file. Non equivale all'esecuzione del setup distribuito su Windows 11. |
-| Launcher macOS | Ctrl+C poteva terminare il client dal supervisore e rilasciare anticipatamente il lock, mentre il client gestiva l'annullamento. | Il supervisore attende l'uscita del client. Regressione con terminale, gruppo di processi e verifica indipendente del lock. |
-| Aggiornamento Linux | Il processo finale di aggiornamento poteva terminare il client riavviato alla ricezione di Ctrl+C. | Il processo viene sostituito dal launcher; le interruzioni durante APT e preparazione restano invariate. |
-| Input DNP | Una prima posizione uguale a 1 produceva un intervallo BED con inizio negativo nella finestra precedente al sito. | Rifiuto anticipato con messaggio specifico; il confine valido 2 rimane accettato e un pannello non valido non crea output. |
-| Test degli input SNP | Un test configurava un backend inesistente e falliva prima di controllare i pannelli malformati. | Backend valido, verifica degli errori specifici e controllo positivo con pannello corretto. |
-| Concorrenza scientifica | Il verificatore confrontava budget dichiarati e presenza di sovrapposizione, senza verificare il picco reale complessivo né tutti gli esiti delle attività. | Controlli sul numero osservato di processi, sui coordinatori e sull'esito di ogni attività; casi negativi per sovrallocazione e fallimenti. |
-| Pubblicazione scientifica | I casi multibam estesi venivano eseguiti, ma il minimo obbligatorio del publisher non ne impediva l'omissione futura. | Requisiti espliciti dalla 0.8.20 per casi 2/3/6 BAM, seriale/automatico/manuale e ripetibilità, con i relativi helper. |
-| Compilatore Inno | Il download verificava la firma del distributore senza fissare anche l'identità esatta dell'archivio. | SHA-256 e dimensione fissati dalla release ufficiale, oltre al controllo Authenticode già presente. |
+| Area | Finding and response |
+| --- | --- |
+| Windows preparation | `activity-lock.ps1` used `Add-Type -TypeDefinition` to compile C# during installation and maintenance. This behavior predated 0.8.14. The build now produces the component, inventories it and verifies it before loading. A blocked file still has to be identified from Windows events. |
+| Binary identity | Recompiling unchanged Windows sources produced different binary identities. Repeated deterministic Roslyn builds are compared by SHA-256. Whole-installer reproducibility has a broader scope. |
+| Windows trust | No recognized NIPAT Authenticode signature was available. Signature inventory and read-only diagnostics record the delivered files; Smart App Control compatibility remained unqualified. |
+| Setup coverage | Embedded-Python payload verification did not exercise Inno installation or removal. A compiled Inno fixture exercises these operations, updating and file retention with a simulated bootstrap. |
+| macOS launcher | Ctrl+C could cause the supervisor to terminate the client and release its lock before cancellation finished. The supervisor waits for the client. The regression uses a terminal, process group and independent lock check. |
+| Linux updates | Ctrl+C in the final updater could terminate a restarted client. The launcher replaces that process. APT and preparation retain their interruption handling. |
+| DNP input | First position 1 produced a negative BED start for the preceding base. Validation rejects 1 before creating output and accepts the boundary at 2. |
+| SNP input tests | A nonexistent backend prevented malformed-panel tests from reaching validation. Tests use a valid backend, check specific error messages and include a valid control panel. |
+| Scientific concurrency | The verifier previously compared claimed budgets and overlap. It now checks overall observed concurrency, coordinators and every task outcome. Negative cases exercise oversubscription and task failure. |
+| Multi-BAM publication checks | Required evidence covers 2, 3 and 6 BAMs, serial, automatic and capped modes, repeatability, and the relevant helpers. |
+| Inno compiler | The official download size and SHA-256 are pinned alongside the existing distributor signature check. |
 
-## Controlli conservati
+## Execution and release controls
 
-Gli input rimangono in sola lettura e ogni esecuzione mantiene una cartella
-distinta. Il runner usa argomenti separati per i processi e verifica la
-proprietà e l'identità immutabile del container prima della pulizia.
-Aggiornamenti e manifest collegano versione, tag, commit, dimensioni e hash.
-I controlli di percorsi, link, archivi e proprietà delle installazioni
-continuano a proteggere i dati dell'utente durante aggiornamento e rimozione.
+Runs keep separate folders and mount inputs read-only. The runner passes individual process arguments, verifies container ownership and immutable identity before cleanup, and checks paths, links, archives and install ownership during update and removal. Update manifests connect version, tag, commit, file sizes and hashes.
 
-La revisione dei quattro moduli non ha individuato una regressione scientifica
-dimostrata che richiedesse modifiche alle formule. La coda DNP mantiene un
-budget comune a tutti i campioni e conserva l'ordine della ricomposizione.
-I sorgenti R e il riferimento congelato 0.8.5 non vengono modificati dalla
-0.8.20. Il confronto differenziale viene comunque rieseguito sull'immagine
-esatta confezionata, con tabelle, valori non arrotondati e rendering PDF.
+The review found no demonstrated regression requiring a formula change. The DNP queue shares a budget across samples and preserves assembly order. The candidate keeps the R sources and the frozen 0.8.5 reference. The exact packaged image reruns the differential tests on tables, unrounded values and rendered PDFs.
 
-La CI conserva azioni fissate a commit, permessi limitati, controllo degli
-esiti obbligatori e build esplicite. La pubblicazione continua a verificare
-la stessa build in due passaggi, senza ricompilazione e senza sovrascrivere
-release pubblicate. Il monitoraggio delle vulnerabilità resta separato:
-un'associazione componente/CVE non dimostra sfruttabilità, e il superamento
-dei test non equivale a un esito pulito di tale monitoraggio.
+CI pins actions to commits, limits permissions and requires successful checks before explicit installer builds. The two publication steps verify the same build. Vulnerability monitoring remains a separate source of evidence: a component–CVE association alone does not establish exploitability.
 
-## Blocco di Smart App Control
+## Windows Smart App Control
 
-Il confronto tra la candidata `e04ff883fc6417748174d2a7c3b49cadad989308`
-e il commit pubblicato `b3ee5598d86e75884ead424e6c2ad4cbd137d2a1` non mostra
-modifiche ai file Windows dell'installatore, agli entrypoint o al workflow
-di costruzione. Il riuso del numero 0.8.14 riguarda la rilevazione degli
-aggiornamenti, che confronta versioni; non prova la causa di un rifiuto
-di Smart App Control. Una ricompilazione produce comunque nuovi byte del
-setup, che non ereditano automaticamente la reputazione di un altro file.
+The candidate `e04ff883fc6417748174d2a7c3b49cadad989308` and published commit `b3ee5598d86e75884ead424e6c2ad4cbd137d2a1` had identical Windows installer sources, entry points and build workflow. Reusing the 0.8.14 version affected update detection. The audit could not attribute the Smart App Control block to that choice. Rebuilding produces new setup bytes with their own reputation.
 
-Microsoft descrive Smart App Control come un controllo basato sulla valutazione
-di sicurezza e sulla firma attendibile dei componenti. Un file privo di firma
-riconosciuta può essere bloccato quando la valutazione non ne consente
-l'esecuzione. Occorre identificare il file concreto nei registri Code Integrity;
-il nome dell'applicazione mostrato dal messaggio può non bastare.
+Windows evaluates component trust and signatures. Identify the particular file in the Code Integrity log. A precompiled DLL can be identified and signed during the build. On this revision the project had no recognized distributor signing identity for the applicable scripts, installer and uninstaller. No self-signed certificate, policy change or exclusion was introduced.
 
-La DLL precompilata rende il componente identificabile e firmabile durante
-la build, ma **non risolve da sola la fiducia del distributore**. Occorrono
-un'identità di firma riconosciuta, la firma dei componenti pertinenti
-(inclusi script, installer e uninstaller) e la verifica su Windows con Smart
-App Control attivo. Il repository non configura attualmente tale identità.
-Non vengono introdotti certificati autofirmati, esclusioni o modifiche alle
-policy del dispositivo.
+Microsoft references consulted on 9 November 2026: [Smart App Control FAQ](https://support.microsoft.com/it-it/windows/security/threat-malware-protection/smart-app-control-frequently-asked-questions), [application signing](https://learn.microsoft.com/en-us/windows/apps/develop/smart-app-control/code-signing-for-smart-app-control), and [testing and event logs](https://learn.microsoft.com/en-us/windows/apps/develop/smart-app-control/test-your-app-with-smart-app-control).
 
-Riferimenti Microsoft consultati il 9 novembre 2026:
+## Scope of the evidence
 
-- [Funzionamento di Smart App Control](https://support.microsoft.com/it-it/windows/security/threat-malware-protection/smart-app-control-frequently-asked-questions).
-- [Firma delle applicazioni](https://learn.microsoft.com/en-us/windows/apps/develop/smart-app-control/code-signing-for-smart-app-control).
-- [Verifica dei componenti e registri degli eventi](https://learn.microsoft.com/en-us/windows/apps/develop/smart-app-control/test-your-app-with-smart-app-control).
+Python and PowerShell tests covered exercised contracts and process behavior. The Server 2022 Inno fixture covered its installation operations. A full Windows 10/11 setup with WSL and Smart App Control required a separate device test. The Authenticode report records the hashes and signature state observed at the time of testing. Native Mac checks covered the package and architecture; Lima startup and Gatekeeper decisions on the target machine remained separate. R tests in the exact image established agreement with 0.8.5 for the cases exercised and checked observed worker budgets.
 
-## Ambito delle evidenze
-
-| Evidenza | Cosa dimostra | Cosa non dimostra |
-| --- | --- | --- |
-| Test Python e PowerShell | Contratti, errori, proprietà dei processi e operazioni simulate o locali esercitate. | Ogni combinazione di input o policy del computer finale. |
-| Fixture Inno su Server 2022 | Operazioni di confezionamento/installazione esercitate con i componenti indicati. | Installazione del setup finale su Windows 10/11, WSL reale o accettazione Smart App Control. |
-| Rapporto Authenticode | Stato osservato delle firme e hash dei componenti elencati. | Reputazione cloud futura, assenza di malware o esecuzione consentita da ogni policy. |
-| Regressione R nell'immagine esatta | Equivalenza rispetto alla 0.8.5 per i casi coperti e rispetto dei budget osservati. | Validazione biologica generale o accelerazione su BAM reali grandi. |
-| Pacchetti Mac nativi | Contenuto, architettura e verifiche native previste. | Preparazione Lima sui dispositivi finali o autorizzazione Gatekeeper. |
-
-I rapporti della build e il record di accettazione della release conservano
-commit, immagini, checksum, esiti e scenari non eseguiti. Le 42 esecuzioni
-storiche della candidata 0.8.14 restano evidenze di quella candidata;
-non vengono attribuite alla 0.8.20. Gli input BAM/FASTA reali non sono
-disponibili per una nuova misura end-to-end in questo ambiente.
+Build reports and release acceptance identify the commit, image, checksums, test results and unexecuted scenarios. The 42 runs for the 0.8.14 candidate remain attributed to that candidate. Real BAM and FASTA inputs were unavailable for a fresh end-to-end measurement in the review environment.

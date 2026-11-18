@@ -1,217 +1,101 @@
-# Validazione tecnica e di dominio
+# Technical and domain validation worksheet
 
-Questa scheda registra separatamente installazione, esecuzione e concordanza
-scientifica di NewPat. Identificare versione, commit, pacchetto e
-piattaforma effettivamente provati. Per iniziare su Windows è disponibile il
-[collaudo sintetico dell'installazione](COLLAUDO_INSTALLAZIONE.md).
+Record installation, execution and scientific agreement separately. Identify the exact package, commit, platform and data used. Use **not run** or **not assessable** where appropriate. The installed self-test covers its fixtures. Scientific suitability on representative data requires independent domain review. [Installed synthetic suite](COLLAUDO_INSTALLAZIONE.md) · [Installer acceptance](ACCETTAZIONE_INSTALLATORI.md)
 
-La prova può procedere per incrementi: registrare ciò che è stato eseguito
-e ciò che rimane da verificare, senza considerare un caso non eseguito come
-superato. Gli autotest controllano soltanto i casi inclusi; il giudizio
-scientifico su dati rappresentativi richiede una valutazione distinta.
-Il [protocollo dei pacchetti](ACCETTAZIONE_INSTALLATORI.md) distingue pubblicazione per ricerca e qualificazione desktop completa.
+## Environment and installation
 
-## Ambiente e preparazione
+Use a separate record for Windows 10 22H2 x64 build 19045, Windows 11 x64, macOS 14+ Intel, macOS 14+ Apple Silicon and Ubuntu 24.04 x86_64 as applicable. Windows uses WSL2. The Mac uses Lima and an AMD64 scientific image, with Rosetta on Apple Silicon. Ubuntu uses its local Docker daemon. Distinguish installed packages from source checkouts.
 
-Compilare una scheda per ciascuna combinazione di sistema e pacchetto:
-Windows 10 22H2 x64 build 19045, Windows 11 x64, macOS 14 o successivo Intel,
-macOS 14 o successivo Apple Silicon. Windows usa WSL2; macOS usa Lima, con
-immagine scientifica AMD64 e Rosetta su Apple Silicon. Ubuntu 24.04 x86_64 usa
-Docker Engine locale; distinguere pacchetto installato e checkout da sorgenti.
-
-| Campo | Valore da registrare |
+| Field | Observed value |
 | --- | --- |
-| Sistema operativo, versione e architettura | |
-| Versione NewPat e commit o identificativo del pacchetto | |
-| Origine del pacchetto e checksum, se disponibile | |
-| Windows: versione e disponibilità iniziale di WSL2 | |
-| macOS: modello, architettura, versione Lima e disponibilità Rosetta | |
-| Ubuntu: versioni Docker Engine e Compose, origine e accesso utente | |
-| Prima installazione o aggiornamento dello profilo desktop | |
-| Cartelle dati e risultati configurate | |
-| Esito del setup, eventuali autorizzazioni o riavvii | |
-| Esito di `doctor --runtime` | |
-| Esito finale di `self-test` | |
-| Apertura e interazione con il menu | |
-| Isolamento: installazioni sperimentali conservate e non adottate | |
-| Preferenze salvate in Configura e valori effettivi nel riepilogo dell'analisi | |
-| Modalità checksum degli input e limiti CPU, memoria e processi | |
+| OS version, hardware and architecture | |
+| NewPat version, commit or package identity | |
+| Package source and available checksum | |
+| Windows WSL2 version and initial availability | |
+| Mac model, Lima version, guest architecture and Rosetta availability | |
+| Ubuntu Docker Engine and Compose versions, origin and daemon access | |
+| Clean install, repair or upgrade from which version | |
+| Data and results roots | |
+| Setup outcome, permissions, restarts and manual steps | |
+| `doctor --runtime` and final `self-test` result | |
+| Desktop launch, interaction and terminal menu access | |
+| Isolation from other or experimental installations | |
+| Saved preferences and actual values in the run summary | |
+| Input checksum mode and CPU, RAM and process limits | |
 
-Nel pacchetto Windows verificare l'avvio con doppio clic di `NIPAT-Setup.exe`,
-il completamento con `NIPAT: ready` e l'apertura dell'icona **NewPat**.
-Annotare eventuali passaggi manuali non previsti. Conservare `setup.log` e
-`state.json` nella sottocartella `.runtime\installer` dell'applicazione
-selezionata nel setup.
-L'attivazione iniziale di WSL, la ripresa dopo riavvio e un aggiornamento
-costituiscono prove distinte dall'installazione su WSL già funzionante.
+On Windows, launch the distributed setup and open the installed NewPat shortcut. Retain `setup.log` and `state.json` in the installation's `.runtime\installer` directory. Test initial WSL enablement, reboot/resume, installation on a working WSL system and upgrade as separate cases.
 
-Sul Mac verificare l'apertura del `.pkg` della propria architettura, l'avvio
-da Applicazioni, la preparazione Lima e l'apertura del menu nel Terminale.
-Conservare `runtime.json` e `setup.log` in
-`~/Library/Application Support/NIPAT-Desktop/.runtime/macos`.
-Annotare richieste di autorizzazione e limitazioni di Gatekeeper o dei percorsi.
-Su Apple Silicon registrare esplicitamente il funzionamento AMD64 tramite
-Rosetta: la sola riuscita su Intel non copre questa configurazione.
+On the Mac, open the architecture-specific `.pkg`, launch NewPat from Applications, check Lima provisioning and open both the desktop interface and the packaged CLI. Retain `runtime.json` and `setup.log` in `~/Library/Application Support/NIPAT-Desktop/.runtime/macos`. Record Gatekeeper messages and path or authorization issues. On Apple Silicon, confirm that the AMD64 workload actually executes through Rosetta.
 
-Per ogni pacchetto provare progressivamente riapertura, reinstallazione,
-ripresa di una preparazione interrotta e conservazione dei dati. Un aggiornamento
-fra versioni differenti è distinto da una reinstallazione della stessa build.
-Non modificare installazioni stabili o VM estranee; per la rimozione del runtime
-Mac usare il comando documentato che ne verifica la proprietà.
+For each platform test reopening, reinstalling, resuming interrupted setup and retention of user files. Distinguish reinstalling the same build from upgrading between versions. Use the documented ownership check for Mac VM removal. Check the package actually used, in addition to reviewing [automated build evidence](CI_CD.md).
 
-I controlli automatici del repository sono descritti in
-[CI_CD.md](CI_CD.md). Una build riuscita non dimostra il completamento
-dell'installazione sul sistema dell'utilizzatore: registrare l'esito osservato
-sul pacchetto effettivamente provato.
+<a id="prima-prova-con-docker-desktop"></a>
 
-## Prima sequenza operativa
+## First end-to-end check
 
-1. Aprire NewPat, verificare la versione e scegliere una cartella risultati
-   dedicata alla prova.
-2. Eseguire **8 — Verifica ambiente** dal menu principale.
-3. Selezionare **DNPcall** e utilizzare BAM, riferimento indicizzato e pannello
-   di un caso con risultati attesi disponibili. Confermare il riepilogo.
-4. Verificare stato finale, numero di campioni, corrispondenza degli alias,
-   siti analizzati, conteggi e genotipi.
-5. Eseguire **Contamination** sulle tabelle individuali compatibili del run,
-   utilizzando il pannello appropriato. Confrontare riepilogo e risultati per sito.
-6. Eseguire **SNPcall** e **CPI** con casi e riferimenti adeguati ai rispettivi
-   workflow, secondo la [guida per l'utilizzo](GUIDA_UTILIZZO.md).
+1. Open NewPat, check the version and choose a results folder for the test.
+2. Run the environment check (option **8** in the terminal menu).
+3. Run DNPcall on a known BAM, matching indexed reference and DNP panel. Record settings before launch.
+4. Verify final state, sample count, alias mapping, loci, counts and genotypes.
+5. Use the matching panel and individual count tables for Contamination. Compare the summary and per-site results.
+6. Exercise SNPcall, prenatal CPI and postnatal CPIN on cases with the required inputs, roles and independent expectations. [User guide](GUIDA_UTILIZZO.md)
 
-Le conferme di avvio eseguono calcoli reali. Per una prova della sola
-compilazione utilizzare esplicitamente `--dry-run`; tale prova deve essere
-registrata come simulazione e non come analisi riuscita.
+`--dry-run` exercises request preparation. Record it as a simulation. A scientific comparison requires an executed run and actual outputs.
 
-### Workflow automatici
+### Composite plans
 
-La [guida per l'utilizzo](GUIDA_UTILIZZO.md#risultati-e-analisi-in-sequenza) descrive
-configurazione e avvio dal pacchetto installato. Per ogni composizione
-selezionata registrare sia il risultato complessivo sia quello dei singoli passaggi:
+Check both the plan outcome and its individual steps. Compare every DNP or SNP table with the one consumed downstream. Keep marker types distinct. Verify the original BAM-to-table mapping, roles and IDs for pairs or trios, including families sharing a parent. Compare single-module results with the same steps inside a plan at identical settings. For SNPcall compare the BAM and imported-pileup routes from the same case and test same-named files in separate directories. Exercise invalid input and cancellation. Pending dependants should stay blocked and existing evidence should remain available. A repeated experiment gets a new folder.
 
-- per DNPcall → Contamination e/o CPI, confrontare le tabelle DNP prodotte
-  con quelle usate dalle analisi successive; CPI deve mantenere i ruoli e gli
-  ID delle coppie dichiarate, anche quando condividono un campione;
-- quando si aggiunge SNPcall, verificare il pannello scelto, l'associazione
-  di ciascuna tabella al BAM originale e la separazione dai risultati DNP;
-- per SNPcall su più campioni, confrontare BAM e pileup dello stesso caso,
-  verificando anche campioni con lo stesso nome di file in cartelle diverse;
-- confrontare la composizione con le analisi singole a parità di input e
-  parametri, e con risultati indipendenti quando disponibili;
-- provare un input non valido e un'interruzione: i passaggi rimanenti non
-  devono partire, le evidenze già prodotte devono restare disponibili e la
-  ripetizione deve usare una nuova cartella.
+For prenatal CPI, supply appropriate maternal cfDNA and paternal samples and compatible frequencies. For postnatal CPIN, supply distinct mother, father and child samples. SNP and DNP calls can each feed Contamination, CPI and CPIN on their respective branches. A contamination estimate is a separate output and does not drive an automatic CPI filter.
 
-Il piano completo richiede BAM cfDNA materni e paterni appropriati, frequenze
-di popolazione e pannelli compatibili. I casi per cui mancano questi dati
-vanno registrati come non eseguiti. La stima Contamination non rappresenta
-un filtro automatico per CPI; SNPcall non produce tabelle di ingresso per
-Contamination o CPI.
+## Per-analysis record
 
-## Scheda per ciascuna analisi
-
-| Campo | Valore da registrare |
+| Field | Observed value |
 | --- | --- |
-| Identificativo del caso, privo di dati identificativi personali | |
-| Versione NewPat, identificativo dell'immagine e nome del run | |
-| Workflow e modalità di input | |
-| Provenienza degli input; pannello e riferimento genomico | |
-| Parametri configurati | |
-| Workflow automatico: ID dei passaggi, campioni e coppie dichiarate | |
-| Percorsi e destinazione dei risultati | |
-| Risultato atteso e fonte del riferimento | |
-| Risultato osservato: conteggi, stime e grafici pertinenti | |
-| Criterio di confronto e tolleranza numerica applicata | |
-| Esito tecnico: riuscito, fallito o interrotto | |
-| Esito scientifico: concordante, discordante o non valutabile | |
-| Difficoltà di utilizzo o messaggi poco chiari | |
-| Materiali condivisibili per riprodurre la prova | |
+| Case ID suitable for sharing | |
+| NewPat version, image identity and run name | |
+| Workflow, input mode and configured parameters | |
+| Input provenance, genome reference, panels and frequencies | |
+| Plan step IDs, sample IDs, marker types, pairs or trios | |
+| Output location | |
+| Expected result and source of that expectation | |
+| Observed counts, estimates and relevant plots | |
+| Columns, ordering, comparison criteria and numerical tolerance | |
+| Technical outcome (completed, failed or interrupted) | |
+| Scientific outcome (agreement, discrepancy or not assessable) | |
+| Usability problems, exact messages and reproducible materials | |
 
-Preferire un riferimento indipendente quando disponibile. Un confronto
-con un'altra esecuzione dello stesso programma verifica la ripetibilità,
-ma non dimostra da solo l'accuratezza del metodo.
+A rerun of the same implementation measures repeatability. Use an independent analytical result, validated dataset or reference implementation when evaluating accuracy.
 
-## Copertura dei casi
+## Coverage by module
 
-La scelta dei dati e dei criteri di accettazione richiede competenze di dominio.
-Documentare almeno le condizioni rilevanti per l'uso previsto:
-
-| Area | Casi utili |
+| Area | Cases and observations |
 | --- | --- |
-| DNPcall | Uno e più BAM; lista e argomenti ripetuti; modalità seriale e parallela; corrispondenza tra alias, conteggi e genotipi. |
-| SNPcall 2.0 | BAM e pileup compatibile dello stesso caso; conteggi REF/ALT/altre basi, qualità e likelihood, genotipi e soglia del 10% di altre basi, indel centrali e laterali, finestre sovrapposte, loci senza copertura; uno e più campioni. |
-| Contamination | Singoli file e cartella con gli stessi input; presenza e assenza di `ratio_REF_ALT`; nessun sito informativo. |
-| CPI prenatale | Coppie esplicite e frequenze compatibili; ALL, pannello singolo e più cutoff; frazione fetale, curva CPI e caso senza siti informativi. |
-| CPIN postnatale | Terne esplicite; frequenze e loci SNP o DNP; trasmissione compatibile, mismatch e caso senza siti informativi. |
-| Workflow automatici | Rami DNP/SNP verso Contamination, CPI e CPIN; coppie e terne; SNPcall indipendente e batch; corrispondenza fra piano, campioni, output e analisi separate; passaggi bloccati dopo errore o interruzione. |
-| Robustezza | Percorsi con spazi, input fuori dal progetto, risultati in una destinazione scelta; file mancanti, codifica errata, intestazioni duplicate, conteggi non validi e nomi in conflitto. |
-| Utilizzo | Salvataggio e ripristino delle preferenze; persistenza dopo la riapertura; correzione per la singola analisi; campioni, coppie e run sempre selezionati esplicitamente; annullamento, riepilogo, apertura dei risultati e recupero dopo errore. |
+| DNPcall | One and multiple BAMs, list and repeated arguments, serial and parallel execution, sample aliases, locus counts and genotypes. |
+| SNPcall 2.0 | BAM and matching pileup, REF/ALT/Other, qualities, likelihoods, genotypes at the configured Other threshold (default 10%), central and neighboring indels, overlapping windows, uncovered loci and multiple samples. |
+| Contamination | Identical inputs selected by file or directory, optional `ratio_REF_ALT`, no informative sites. |
+| Prenatal CPI | Explicit pairs, compatible frequencies, all loci, one panel or several labeled cutoffs, fetal fraction, CPI curves and no informative sites. |
+| Postnatal CPIN | Explicit trios, SNP and DNP frequencies, compatible transmission, mismatch and no informative sites. |
+| Composite plans | Both caller branches, all three consumers, explicit families, single and batch SNPcall, standalone parity and blocked steps on failure or interruption. |
+| Paths and validation | Spaces, paths outside the project, custom results roots, missing files, invalid encoding, duplicate headers, aliases and case collisions. |
+| User interaction | Saved defaults, a clean new experiment form, per-run overrides, cancellation, results access and reopening after failure. |
 
-Verificare che un cambiamento in **Configura** venga riproposto nel menu dopo
-la riapertura e non alteri un comando CLI diretto. Ripetere un caso con gli
-stessi parametri espliciti, confrontando i valori effettivi in `run.json`.
-Provare l'annullamento senza salvataggio, il ripristino e un riferimento
-salvato non più disponibile. Dati e risultati devono restare invariati.
+Repeat a known case with identical explicit parameters and compare effective values in `run.json`. Test changing, discarding and restoring preferences and a saved reference that becomes unavailable. Direct CLI runs should use their own explicit arguments. Test upper/lowercase SNP alleles and both supported panel representations. Original files must remain intact. Reject negative counts, duplicate loci, zero or nonfinite frequencies. Record warnings separately when supplied values are retained, for example a ratio inconsistent with the counts. [Input and output checks](INPUT_VALIDATION.md)
 
-Per modalità equivalenti, verificare gli stessi risultati usando lo stesso
-insieme di dati. Nei confronti numerici stabilire prima quali colonne,
-ordinamenti e tolleranze considerare; non usare il solo confronto dei nomi
-o delle dimensioni dei file. I casi CPI con più cutoff devono mantenere
-distinti i risultati delle etichette selezionate.
+For equivalent modes, compare the actual tables using the preselected order and tolerance. Keep CPI cutoff labels separate. For plots check zero, class boundaries, missing values, sample labels and legibility with many loci. An `NA` estimate can be expected without informative sites. For DNP, check the samtools exit and artifact validation. [Scientific references](../scientific/README.md)
 
-Per i pannelli SNP confrontare anche rappresentazioni equivalenti in maiuscolo
-e minuscolo: la normalizzazione deve lasciare invariati i conteggi e il file
-originale. Confrontare anche le due rappresentazioni equivalenti dei pannelli
-SNP descritte nei [controlli degli input](INPUT_VALIDATION.md).
-Per le regressioni, usare il riferimento indicato per ciascun modulo nei
-[componenti scientifici](../scientific/README.md#provenienza-e-identità).
-Per i grafici verificare zero, classi ai confini, `NA`, identità dei campioni
-e leggibilità con molti loci.
-Provare tabelle con conteggi negativi, loci duplicati e frequenze zero o non
-finite. NewPat deve rifiutarle prima di avviare R. Registrare separatamente gli
-avvisi che mantengono i valori forniti, come rapporti incoerenti con i conteggi.
+Test cancellation through both the supported interface and CLI. A failed run must remain accessible with its log. Incomplete-run inspection should distinguish unavailable runtime, absent container and active container while preserving the original record. [Run states](ESECUZIONI.md)
 
-Provare Ctrl+C attraverso il collegamento installato, oltre che dalla CLI.
-Dopo un fallimento, verificare che **Ultima esecuzione** mostri il run fallito
-e i suoi log. La consultazione delle esecuzioni incomplete deve distinguere
-runtime irraggiungibile, container assente e container ancora attivo senza
-alterare i record storici.
+## Isolation, updates and resource settings
 
-Distinguere un errore del programma da un risultato scientifico inatteso.
-Un valore `NA` in assenza di siti informativi può essere corretto.
-Per DNPcall verificare che l'esito di samtools e gli output attesi siano
-coerenti con il run registrato.
-Gli stati e i limiti dei record sono descritti in [ESECUZIONI.md](ESECUZIONI.md).
+Record the initial and final application versions, package checksum and update log. Confirm that the offered package is compatible and that an upgrade retains paths, preferences, experiments and results. Run a known case afterwards. Verify isolation from any experimental installation.
 
-## Verifica dell'isolamento e degli aggiornamenti
+For resource configuration, record physical RAM, saved and effective VM settings and container limits. Test preview cancellation, saving with restart deferred and applying after confirmation. Verify backups and unrelated settings. Coordinate a WSL restart with work running in other distributions.
 
-Verificare che **Verifica aggiornamenti** proponga soltanto pacchetti compatibili.
-Registrare versioni iniziale e finale, checksum e log. Dopo l'aggiornamento,
-controllare preferenze, percorsi e conservazione dei risultati, poi eseguire
-un caso noto. Una reinstallazione della stessa build non prova l'aggiornamento
-fra versioni differenti. Le installazioni sperimentali, se presenti, devono
-restare separate.
+Use sample filenames with spaces and identical basenames in different folders. Verify sample maps and labels in tables and PDFs against canonical outputs. For failures distinguish an observed cause, unavailable diagnostics and an inference based on an exit code.
 
-Per le risorse, registrare RAM fisica, configurazione VM, valori effettivi e
-limite del container. Provare annullamento dell'anteprima, salvataggio con
-riavvio rimandato e applicazione dopo conferma. Verificare che i backup esistano
-e che impostazioni estranee siano conservate. Le prove WSL non devono interrompere
-lavori non concordati sulle altre distribuzioni.
+## Evidence and reporting
 
-Per i campioni, usare anche nomi con spazi e due BAM omonimi in cartelle diverse.
-Controllare la mappa, le etichette nelle tabelle e nei PDF e la corrispondenza
-numerica con gli artefatti scientifici. Per un errore, distinguere diagnosi
-acquisita, non disponibile e semplice ipotesi sul codice di uscita.
+Retain the run, including `run.json`, `execution.log`, `work`, outputs and the inputs needed to repeat the case. The default `auto` provenance policy records size and modification time for files larger than 16 MiB. Use `--input-hashes full` when the protocol requires full checksums and account for the additional I/O.
 
-## Conservazione e segnalazioni
-
-Conservare l'intero run, inclusi `run.json`, `execution.log` e `work`, insieme
-ai risultati e agli input necessari alla riproduzione. Per file maggiori di
-16 MiB, la modalità predefinita `auto` registra dimensione e data di modifica
-senza calcolare l'hash. Usare `--input-hashes full` quando il protocollo richiede
-checksum completi, registrando il costo delle letture aggiuntive; conservare
-sempre gli input originali necessari alla riproduzione.
-
-Una segnalazione utile riporta versione, piattaforma, sequenza di operazioni,
-atteso, osservato e messaggio d'errore completo. Nomi e percorsi dei campioni
-non sono anonimizzati automaticamente. Verificare gli allegati e usare un
-canale appropriato al contenuto dei dati.
+Report the software version, platform, exact operations, expected and observed results and complete error message. Logs, names and paths may identify samples. Review materials before sharing them through an appropriate channel.

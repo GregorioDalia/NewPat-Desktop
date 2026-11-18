@@ -1,50 +1,21 @@
 # NIPAT Desktop 0.8.2
 
-NIPAT Desktop 0.8.2 offre la CLI e i workflow automatici su Windows 10/11,
-macOS Intel/Apple Silicon e Ubuntu 24.04 x86_64. Gli algoritmi R distribuiti
-restano invariati; gli interventi riguardano presentazione, tracciabilità,
-risorse e distribuzione.
+Release 0.8.2 provided the CLI and automatic workflows on Windows 10/11, Intel and Apple Silicon Macs, and Ubuntu 24.04 x86_64. The distributed R algorithms remained unchanged.
 
-## Funzionalità
+## Results and resource management
 
-- Risultati per la consultazione con i nomi originali dei campioni nei file,
-  nelle tabelle e nei grafici, mantenendo gli identificativi interni per
-  collegare senza ambiguità le fasi.
-- Mappa dei campioni e resoconto leggibile di ogni run, accanto ai metadati
-  strutturati e ai log.
-- Configurazione delle risorse con distinzione fra computer, VM e container;
-  anteprima, backup e conferma per le modifiche Lima e WSL2.
-- Indicazione delle modifiche salvate che richiedono ancora un riavvio.
-- Diagnostica persistente dello stato del container, quando acquisibile,
-  per distinguere memoria esaurita da una terminazione di causa non accertata.
-- Un installer Windows, un pacchetto Ubuntu e due pacchetti Mac, costruiti
-  dallo stesso commit e con lo stesso archivio scientifico.
+Files, tables and plots use the original sample names. Internal identifiers link workflow steps unambiguously. Each run adds a sample map and a readable report alongside structured metadata and logs.
 
-## Installazione e aggiornamento
+Resource settings distinguish the host, VM and container. WSL2 and Lima changes have a preview, backup and confirmation step. Saved changes that still require a restart appear explicitly. When the container state is available, persistent diagnostics distinguish an out-of-memory exit from an exit of unknown cause. Simulated failures test the reporting path. They do not measure memory use on real data.
 
-Scaricare il pacchetto appropriato dalla pagina
-[Releases](https://github.com/GregorioDalia/nipat-desktop/releases).
-Windows e Ubuntu conservano l'identità desktop. Su Mac l'applicazione è
-**NIPAT Desktop** e usa un ambiente Lima dedicato. Le installazioni
-sperimentali rimangono separate; non vengono rimosse o convertite automaticamente.
+## Installation and evidence
 
-I pacchetti non dispongono di firma NIPAT riconosciuta dal sistema;
-macOS non ha notarizzazione Apple. La [guida di distribuzione](DISTRIBUZIONE.md)
-riporta le procedure di installazione e i collegamenti alle guide per sistema.
+The Windows installer, Ubuntu package and both Mac packages share the same commit and scientific archive. Choose the package for the host from [GitHub Releases](https://github.com/GregorioDalia/nipat-desktop/releases). Windows and Ubuntu retain the desktop installation identity. **NIPAT Desktop** on Mac uses a dedicated Lima environment. Experimental installations remain separate. The [distribution guide](DISTRIBUZIONE.md) covers platform-specific procedures. The packages lacked a recognized NIPAT signature and the Mac packages lacked Apple notarization.
 
-## Evidenze e limiti
+Release records identify package hashes, the commit and executed checks. CI covers contracts, naming, resources, numerical regressions, installers and common archive provenance. Hosted Mac builds verify clients and packaging. Testing Lima and Rosetta requires an environment with virtualization support. The reports identify deferred desktop tests.
 
-I risultati dei controlli sono associati al commit e agli hash dei pacchetti
-nella build e nella pagina della release. La CI verifica contratti, nomi,
-risorse, regressioni numeriche, installer e provenienza comune degli archivi.
-Una prova simulata di errore non è una misura di memoria su dati reali.
-
-Le build Mac ospitate verificano client e pacchetti; l'esecuzione della VM
-Lima e del container tramite Rosetta richiede un ambiente che esponga la
-virtualizzazione. Gli esiti desktop non eseguiti restano indicati come tali.
-
-- [Guida per l'utilizzo](GUIDA_UTILIZZO.md)
-- [Risultati e tracciabilità](ESECUZIONI.md)
-- [Risorse e memoria](RISORSE.md)
-- [CI e distribuzione](CI_CD.md)
-- [Scheda di validazione](VALIDAZIONE.md)
+- [User guide](GUIDA_UTILIZZO.md)
+- [Results and provenance](ESECUZIONI.md)
+- [Resources and memory](RISORSE.md)
+- [CI and distribution](CI_CD.md)
+- [Validation record](VALIDAZIONE.md)

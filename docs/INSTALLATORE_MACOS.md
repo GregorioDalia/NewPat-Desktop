@@ -1,192 +1,71 @@
-# Installatore macOS — NewPat 0.9.7
+# Install NewPat on macOS
 
-NewPat, nuovo nome di NIPAT dalla versione 0.9.5, richiede macOS 14 o
-successivo su Intel o Apple Silicon. Il pacchetto comprende l'interfaccia
-grafica, la CLI guidata, Python e Lima nativi e il motore scientifico Linux AMD64.
-Scaricare il pacchetto per il proprio processore dalla [release stabile](https://github.com/GregorioDalia/nipat-desktop/releases/latest).
+NewPat supports **macOS 14 or later** on Intel and Apple Silicon. Choose the package for the Mac's processor from the [stable release](https://github.com/GregorioDalia/nipat-desktop/releases/latest). In **Apple menu → About This Mac**, an Apple M-series chip means Apple Silicon.
 
-## Requisiti e pacchetti
-
-| Mac | Pacchetto | Esecuzione scientifica |
+| Processor | NewPat 0.9.7 package | Scientific runtime |
 | --- | --- | --- |
-| Intel x86_64 | `NewPat-0.9.7-macos-x86_64.pkg` | Guest Lima AMD64 e container Linux AMD64. |
-| Apple Silicon arm64 | `NewPat-0.9.7-macos-arm64.pkg` | Guest Lima ARM64 e container Linux AMD64 tramite Rosetta. |
+| Apple Silicon | `NewPat-0.9.7-macos-arm64.pkg` | ARM64 Lima guest running the Linux AMD64 image with Rosetta |
+| Intel | `NewPat-0.9.7-macos-x86_64.pkg` | AMD64 Lima guest running the Linux AMD64 image |
 
-Python e Lima nativi per l'host sono inclusi; Homebrew, R, samtools e Docker
-Desktop non sono prerequisiti. Servono spazio per applicazione, immagine,
-disco della VM, input e risultati e una connessione Internet al primo avvio
-per la preparazione del guest e del motore. Rosetta è necessaria alla modalità
-AMD64 su Apple Silicon. La virtualizzazione deve essere disponibile.
+The package includes native Python and Lima, the graphical application, CLI and scientific image. The first launch needs virtualization, internet access for guest preparation and sufficient storage for the application, VM disk, image, input files and results. Homebrew, Docker Desktop and separate R or samtools installations are unnecessary.
 
-Il pacchetto non dispone di firma Developer ID né di notarizzazione Apple.
-Gatekeeper o le policy amministrative possono impedire installazione e avvio.
-Il setup non disattiva le protezioni. In presenza di un blocco, conservare
-messaggio, componente indicato e identità del pacchetto per la diagnosi.
-L'assenza di una firma riconosciuta impedisce di garantire un'esperienza senza
-intervento su ogni dispositivo del team.
+## Install and start
 
-### Autorizzazione del pacchetto non verificato
+1. Download the PKG for your architecture and compare its checksum with the release checksum.
+2. Double-click the PKG and follow Installer. NewPat packages have no Apple Developer ID signature or notarization. If macOS reports that it cannot verify the package, dismiss the dialog, open **System Settings → Privacy & Security**, find the blocked item and choose **Open Anyway** if your device policy allows it. The app may need its own approval on first launch. [Apple's instructions](https://support.apple.com/en-us/102445)
+3. Open **NewPat** from Applications. Keep the preparation window open while the application creates its dedicated Lima environment, imports the verified image and checks engine contracts.
+4. When the main window opens, create an experiment or open previous results. Later launches reuse the prepared environment. Analyses run locally with networking disabled in each analysis container.
 
-Se macOS mostra «Apple non è in grado di verificare» per il pacchetto scaricato
-dal repository del progetto, chiudere l'avviso con **Fine**. Aprire **Impostazioni di
-Sistema → Privacy e sicurezza**, individuare il pacchetto bloccato e scegliere
-**Apri comunque**, quindi confermare. Può essere necessario autorizzare anche
-l'applicazione al primo avvio. Questa eccezione riguarda il software selezionato;
-non richiede di disabilitare Gatekeeper. La procedura ufficiale è descritta nel
-[supporto Apple](https://support.apple.com/it-it/102445).
-Su dispositivi gestiti l'amministratore può limitare le autorizzazioni.
+An error during preparation leaves the environment unready. Record the message and package identity. On a managed Mac, involve the administrator if policy blocks installation.
 
-## Installazione e primo avvio
+## Application, data and mounts
 
-1. Scaricare il `.pkg` della propria architettura dalla pagina Releases. Controllare versione e checksum associati.
-2. Aprirlo con doppio clic e completare la procedura di Installer.
-3. Aprire **NewPat** da Applicazioni. Compare la finestra di preparazione
-   dell'ambiente scientifico; l'avvio grafico non richiede il Terminale.
-4. Attendere la creazione dell'ambiente Lima, l'importazione verificata
-   dell'immagine e il controllo dei contratti del motore. Un errore interrompe
-   la preparazione; non viene avviata un'analisi con stato incompleto.
-5. Quando compare l'interfaccia grafica, creare un esperimento o aprire i
-   risultati. La CLI rimane disponibile dal launcher indicato sotto.
-
-Gli avvii successivi usano lo stesso collegamento e lo stesso ambiente
-verificato. Dopo la preparazione i calcoli sono locali; non richiedono
-una connessione per scaricare componenti scientifici. Il singolo container
-di analisi ha la rete disabilitata.
-
-NewPat usa un ambiente dedicato, distinto dalle installazioni sperimentali.
-Non adotta una VM Lima esistente dell'utente e non modifica configurazioni
-Docker Desktop o altre VM.
-
-## Percorsi e accesso ai file
-
-| Risorsa | Percorso |
+| Item | Default location |
 | --- | --- |
-| Applicazione | `/Applications/NewPat.app` |
-| Launcher CLI | `/Applications/NewPat.app/Contents/Resources/NewPat.command` |
-| Area dell'utente | `~/Library/Application Support/NIPAT-Desktop` |
-| Dati e risultati predefiniti | Sottocartelle `data` e `runs` dell'area utente. |
-| Preferenze | `preferences.json` nell'area utente. |
-| Stato e log runtime | `.runtime/macos/runtime.json` e `.runtime/macos/setup.log` nell'area utente. |
-| Lima home | `~/.nipat/lima` |
-| VM dedicata | `nipat` |
+| Application | `/Applications/NewPat.app` |
+| Command-line launcher | `/Applications/NewPat.app/Contents/Resources/NewPat.command` |
+| User files | `~/Library/Application Support/NIPAT-Desktop` |
+| Data, runs and preferences | `data/`, `runs/` and `preferences.json` under the user directory |
+| Runtime information and setup log | `.runtime/macos/runtime.json` and `.runtime/macos/setup.log` under the user directory |
+| Lima home and instance | `~/.nipat/lima`, instance `nipat` |
 
-I percorsi dell'area utente, l'identità del pacchetto e della VM conservano i
-nomi tecnici NIPAT per riutilizzare le installazioni e i risultati esistenti.
-Nel nuovo bundle è mantenuto anche l'alias `NIPAT.command`.
+In Finder, press **Shift–Command–G**, paste the user directory and press Return. Technical NIPAT names and the older `NIPAT.command` alias preserve access for existing installations. The dedicated VM has an ownership record and is separate from other Lima or Docker Desktop environments.
 
-La cartella Lima ha un percorso breve per rispettare i limiti dei socket
-Unix. La configurazione e il registro di proprietà associano la VM a questa
-installazione; il solo nome non autorizza la rimozione di una VM estranea.
+The VM shares the user's home, `/Volumes`, `/private/tmp` and the account's temporary directory with read/write access. The app directory is mounted read-only when outside the home directory. Each analysis container gets only its selected inputs, read-only, and its run directory with write access. macOS permissions still apply to protected folders and external volumes.
 
-La VM espone la home dell'utente, `/Volumes`, `/private/tmp` e la directory
-temporanea dell'account in lettura/scrittura. La cartella applicativa è
-esposta in sola lettura quando esterna alla home. Questo è l'accesso della
-VM: il **container di ogni analisi** riceve soltanto gli input selezionati
-in sola lettura e la directory del relativo run in lettura/scrittura.
-I permessi macOS, incluse le autorizzazioni per cartelle protette, continuano
-ad applicarsi. Non è garantito accesso indiscriminato a tutti i dischi.
-
-Gli input possono contenere spazi nei percorsi. I percorsi relativi partono
-dalla directory corrente indicata dal menu. Le opzioni `--data-dir` e
-`--runs-dir` selezionano le destinazioni; **Configura** conserva le preferenze
-del menu. La verifica dei mount può rifiutare un percorso non esposto nella VM.
-
-Per una cartella aggiuntiva, usare il launcher con
-`--runtime prepare --mount <percorso>`. Dalla 0.9.5 la configurazione della VM
-gestita viene aggiornata senza ricrearla: le altre condivisioni e le risorse
-assegnate restano conservate. Chiudere prima le altre sessioni NewPat/NIPAT
-e attendere la conclusione delle analisi.
-
-Lo stesso controllo viene eseguito all'avvio se l'applicazione è stata
-spostata, per esempio dalla Scrivania ad Applicazioni, o rinominata in NewPat.
-Prima della modifica vengono verificate proprietà e configurazione della VM;
-una sessione dell'applicazione o un container ancora attivo impediscono la
-manutenzione. Quando necessaria, la VM inattiva viene arrestata e riavviata.
-Sono ritirati soltanto i vecchi mount in sola lettura di un bundle NIPAT/NewPat
-non più presente e già registrati come appartenenti all'installazione.
-Le cartelle personalizzate non vengono rimosse.
-
-Il backup `mount-backup-*.json` in `.runtime/macos` conserva configurazione e
-registro di proprietà precedenti. Se la modifica fallisce, NewPat tenta il
-ripristino e indica eventuali problemi di recupero senza cancellare la VM,
-i dati o i risultati. Prima di dichiarare pronto l'ambiente verifica anche
-che la VM legga il manifesto dell'applicazione corrente con lo stesso checksum.
-
-## CLI e diagnostica
-
-Il launcher accetta i comandi NewPat con gli stessi argomenti scientifici
-delle altre piattaforme. Ad esempio:
+Use `--data-dir` or `--runs-dir` before an analysis command to select destinations. To add a shared location, close other NewPat sessions, finish active analyses and run:
 
 ```bash
-"/Applications/NewPat.app/Contents/Resources/NewPat.command" doctor --runtime
-"/Applications/NewPat.app/Contents/Resources/NewPat.command" self-test
+"/Applications/NewPat.app/Contents/Resources/NewPat.command" --runtime prepare --mount "/path/to/data"
 ```
 
-La preparazione iniziale controlla archivio e contratti del motore; non
-esegue automaticamente gli autotest numerici. Il comando `self-test` li
-esegue esplicitamente. **8 — Verifica ambiente** dal menu offre la diagnostica.
+The launcher also checks mounts when the application moves. It verifies VM ownership, preserves custom mounts and existing resource allocations, and can stop and restart the idle VM. A `mount-backup-*.json` file in `.runtime/macos` records the previous configuration and ownership information for recovery. Preparation verifies the current app manifest through the VM before marking it ready.
 
-I comandi di gestione del runtime sono separati dalle analisi:
+<a id="cli-e-diagnostica"></a>
+
+## Command line and diagnostics
 
 ```bash
-"/Applications/NewPat.app/Contents/Resources/NewPat.command" --runtime status
-"/Applications/NewPat.app/Contents/Resources/NewPat.command" --runtime ensure
-"/Applications/NewPat.app/Contents/Resources/NewPat.command" --runtime stop
+newpat_cli="/Applications/NewPat.app/Contents/Resources/NewPat.command"
+"$newpat_cli" --runtime status
+"$newpat_cli" --runtime ensure
+"$newpat_cli" doctor --runtime
+"$newpat_cli" self-test
+"$newpat_cli" wizard
 ```
 
-`status` consulta lo stato e segnala `repair_required` se i mount non
-corrispondono all'applicazione corrente; `ensure` verifica il runtime preparato;
-`stop` arresta la VM. Non arrestare la VM durante un'analisi: annullare prima
-il calcolo dal menu con Ctrl+C e attendere la conclusione della procedura.
-Per una preparazione fallita conservare `setup.log`, il messaggio completo,
-versione e architettura macOS e commit del pacchetto. Dopo aver risolto la
-causa, riaprire l'applicazione o utilizzare `--runtime prepare`.
+Initial preparation checks the archive and engine contracts. Run `self-test` explicitly for the numerical examples. `--runtime status` can report `repair_required` for a mount mismatch. After fixing the cause, reopen the app or use `--runtime prepare`. Keep the full error, setup log, macOS version, architecture and package identity when reporting a problem. After analyses finish, `--runtime stop` stops the dedicated VM.
 
-## Aggiornamento e rimozione
+## Updates, resources and removal
 
-Usare **Verifica aggiornamenti** per consultare i pacchetti compatibili,
-oppure scaricare il nuovo `.pkg` dalla pagina Releases. Chiudere NewPat e le
-eventuali vecchie sessioni NIPAT prima
-di installare l'aggiornamento. I dati e i risultati dell'account restano separati dal bundle
-applicativo. Non installare un pacchetto per l'architettura diversa da quella
-host per tentare di cambiare la modalità scientifica.
+Use **Check for updates** or download a newer PKG for the same architecture. Close existing NewPat/NIPAT sessions before running Installer. The app bundle and account's data directory are separate.
 
-La rimozione dell'applicazione non elimina automaticamente VM, dati e
-risultati. Per rimuovere **soltanto il runtime Lima gestito da NewPat**, dopo
-aver chiuso le analisi, usare prima di rimuovere l'applicazione:
+The resource settings show host, Lima VM and container allocations. Preview any change to Lima RAM or CPUs and confirm it. NewPat backs up the previous configuration. A necessary restart has its own confirmation and active analyses block maintenance. Increasing the container limit alone cannot increase Lima's assigned RAM. [Resource guide](RISORSE.md)
+
+Removing the app bundle leaves its VM and user files in place. To remove the owned VM as well, close all analyses and run the following **before** removing the application:
 
 ```bash
 "/Applications/NewPat.app/Contents/Resources/NewPat.command" --runtime remove-runtime
 ```
 
-Il comando verifica la proprietà dell'ambiente e rimuove la VM dedicata;
-conserva dati e risultati. Una nuova preparazione dovrà ricreare la VM e
-importare l'immagine. Non rimuovere manualmente altre istanze Lima o cartelle
-con contenuto non identificato come appartenente all'installazione.
-
-## Ambito delle verifiche
-
-La CI è predisposta per controllare client, contratti e confezionamento
-Intel/Apple Silicon. I test automatici della migrazione simulano spostamento e
-rinomina dell'applicazione, sessioni attive, errore di modifica e ripristino.
-Questi test non eseguono una VM macOS reale.
-Le prove di VM Lima reali sono distinte e richiedono runner con virtualizzazione
-appropriata. L'installazione dal Finder, le policy di sicurezza, i permessi
-sui file e la ripresa su un Mac reale vanno registrati separatamente nella
-[scheda di validazione](VALIDAZIONE.md). La medesima versione R e gli stessi
-input attesi non sostituiscono il confronto numerico sul trasporto Rosetta.
-
-La [guida per l'utilizzo](GUIDA_UTILIZZO.md) descrive gli input e i workflow;
-le [release pubblicate](https://github.com/GregorioDalia/nipat-desktop/releases) riportano le verifiche dei singoli pacchetti.
-
-## Configurazione delle risorse
-
-Dal menu **Configura** consultare memoria e CPU del Mac, della VM Lima e del
-container. Per modificare la RAM o le CPU della VM dedicata, verificare
-l'anteprima e confermare la modifica. Un backup conserva la configurazione
-precedente. Se è necessario riavviare la VM, NewPat richiede una conferma
-separata e non interrompe analisi in corso.
-
-Aumentare soltanto il limite del container non aumenta la RAM assegnata a Lima.
-I valori suggeriti aiutano a ripartire le risorse del computer; non stimano il
-fabbisogno scientifico dei BAM. Consultare [Risorse e memoria](RISORSE.md).
+A later preparation will recreate the runtime. Data and results stay in the user directory. Native PKG checks and mount-migration simulations cover packaging and recovery logic. Results for an actual Lima VM, Finder interactions, Gatekeeper or Rosetta belong to the tested device and architecture. See the [validation record](VALIDAZIONE.md), [user guide](GUIDA_UTILIZZO.md) and [release notes](https://github.com/GregorioDalia/nipat-desktop/releases).

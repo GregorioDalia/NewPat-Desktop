@@ -1,510 +1,154 @@
-# Installatore Windows di NewPat
+# Install NewPat on Windows
 
-Scaricare **NewPat-Setup.exe** dalla [release stabile](https://github.com/GregorioDalia/nipat-desktop/releases/latest).
-Il setup installa la versione stabile compatibile. Per scegliere il percorso
-del metodo ZIP, vedere [ZIP completo aggiuntivo](#zip-completo-aggiuntivo).
+Download **NewPat-Setup.exe** from the [stable release](https://github.com/GregorioDalia/nipat-desktop/releases/latest). Run it from your regular Windows account. It installs the latest compatible stable release, preserves the paths of a recognized installation and adds a Start menu shortcut. A separate [complete ZIP](#complete-zip-installation) installs under the directory where you extract it.
 
-Dalla 0.8.99 Windows dispone di due percorsi indipendenti; dalla 0.9.5
-i nomi pubblici diventano:
+## Requirements
 
-- `NewPat-Setup.exe`: installazione guidata; include il Python del bootstrap e
-  scarica da GitHub un pacchetto applicativo separato, con motore scientifico
-  e filesystem WSL. Richiede Internet per acquisire una release non già presente.
-- `NewPat-<versione>-Windows-completo.zip`: contiene già Python, applicazione
-  e archivi del motore; prepara una sottocartella `NIPAT` nella posizione estratta.
+Use Windows 11 x64 or Windows 10 22H2 x64, build 19045, on a computer with hardware virtualization and WSL2. Windows Server, Windows on ARM, 32-bit Windows and earlier Windows 10 builds are outside the supported configuration. The installer checks edition, architecture, build and WSL readiness. Missing Windows features, kernel updates or device policy can require internet access, elevation or a restart. Docker Desktop, Python, R and samtools do not need to be installed separately.
 
-Il setup EXE ha un'identità propria, separata dalla versione applicativa.
-Le installazioni nuove selezionano una release stabile compatibile; gli
-aggiornamenti installano esattamente la versione proposta e accettata.
-Il setup conservato nell'installazione può essere riutilizzato per i pacchetti
-compatibili successivi. Una modifica al contratto del bootstrap o una sua
-correzione può richiedere un nuovo EXE.
+Allow space for the application, downloaded archives, imported WSL filesystem, scientific image, inputs and results. A runtime upgrade may keep a previous filesystem alongside the new one. Choose writable local fixed disks for installed directories and inputs. The WSL transport does not support UNC paths, network drives or removable disks.
 
-Il setup aggiorna le installazioni NewPat riconosciute e conserva
-i percorsi scelti dall'utente. Per verificare una preparazione conclusa,
-usare il [collaudo automatico](COLLAUDO_INSTALLAZIONE.md).
+## Guided setup
 
-## Requisiti e installazione
+1. Double-click `NewPat-Setup.exe` from your regular account. The setup requests elevation for missing Windows prerequisites when needed.
+2. Select the application, WSL environment, cache, data and results directories. An empty application directory starts a new installation. A recognized installation offers update and repair. If Windows needs a reboot, restart and sign back in with the same account. The guided installer normally registers a one-time resume command there. If setup does not resume automatically, open **NewPat - completa preparazione** in the Start menu. This is the installed shortcut's name, including on an English-language system.
+3. Wait for archive verification, runtime preparation, diagnostics and self-tests. The completion message is **NewPat: ready**.
+4. Launch NewPat from setup, the Start menu or the optional desktop shortcut. The Start menu also has a shortcut that opens the application folder. To check the prepared system, run the [installed application test](COLLAUDO_INSTALLAZIONE.md).
 
-I sistemi supportati sono **Windows 10 22H2 x64, build 19045**, e
-**Windows 11 x64**, con virtualizzazione hardware disponibile e WSL2.
-Windows Server, Windows ARM, Windows a 32 bit e build Windows 10 precedenti
-non sono supportati. Il setup legge edizione, build e architettura prima di
-preparare l'ambiente; il controllo non dipende dalla lingua del sistema.
+The setup includes its own Python bootstrap and downloads a verified application payload from GitHub. Future compatible payloads can reuse the saved installer. A newer bootstrap may be required if the installer contract changes. For a new network installation use the installer supplied on the release page.
 
-Il controllo Windows 10 usa la build `19045`. La revisione del cumulativo,
-riportata dopo il punto, può variare. La disponibilità effettiva di WSL2
-va verificata sul dispositivo.
+The **NewPat Testing** shortcut opens its separate testing installation. To switch from 0.9.5 Testing to the 0.9.7 stable installation, run the stable EXE and use the **NewPat** shortcut created by setup. Both installations can coexist.
 
-La disponibilità di WSL viene rilevata sul dispositivo. Il setup distingue
-un componente utilizzabile da prerequisiti mancanti o non pronti e avvia
-la preparazione necessaria. La versione del sistema non basta da sola:
-virtualizzazione, componenti Windows, kernel WSL e policy del dispositivo
-possono impedire l'avvio. I test simulati non qualificano un Windows 10 reale.
-Il setup opera nell'account dell'utente e richiede autorizzazione amministrativa
-soltanto per abilitare i prerequisiti Windows mancanti. L'abilitazione o
-l'aggiornamento dei componenti WSL può richiedere Internet e un riavvio.
-Le politiche di un dispositivo gestito possono richiedere l'intervento
-dell'amministratore. Docker Desktop, R, samtools e Python installati a livello
-di sistema non sono necessari.
+<a id="controlli-di-sicurezza-di-windows-e-del-browser"></a>
 
-### Controlli di sicurezza di Windows e del browser
+## Windows security and browser messages
 
-I checksum identificano i file distribuiti; non costituiscono una firma
-Authenticode né attestano il riconoscimento del distributore da parte di Windows.
-Il pacchetto non dispone di una firma Authenticode NewPat. Smart App Control
-può bloccare il setup, un eseguibile o gli script usati dalla preparazione
-e dall'avvio.
-Un'installazione riuscita non dimostra che tutti i componenti siano autorizzati
-all'esecuzione sul dispositivo.
+The NewPat installer has no NewPat Authenticode signature. SHA-256 checks the identity of a download against the published file. Windows reputation and device policy are separate checks. Smart App Control may block the installer, its temporary Inno file (for example `NewPat-Setup.tmp`), an executable or a script. Distinguish this from browser download warnings, SmartScreen and antivirus detections.
 
-In presenza di un blocco, conservare il testo completo dell'avviso, il nome del
-file indicato e il riferimento alla build scaricata. Distinguere Smart App
-Control, SmartScreen e un rilevamento antivirus: richiedono verifiche diverse.
-Il setup non disattiva le protezioni né introduce esclusioni antivirus.
-Il referente del collaudo deve verificare l'errore sul componente indicato
-prima di considerare utilizzabile il pacchetto su quel dispositivo.
+If a file is blocked, keep the full message, filename, download source, version and time. Open **Event Viewer → Applications and Services Logs → Microsoft → Windows → CodeIntegrity → Operational** and look for nearby events, particularly 3077 (block) or 3076 (audit). The build's `windows-trust-check.json` records component hashes and observed signature states. Keep security controls enabled while gathering evidence. Managed devices may need administrator assistance.
 
-Un controllo delle applicazioni può bloccare anche il file temporaneo di
-Inno Setup, per esempio `NewPat-Setup.tmp`. Per la diagnosi, annotare il file
-indicato da Windows e come è stato avviato il setup. Il rapporto
-`windows-trust-check.json` elenca gli hash e lo stato delle firme dei
-componenti della build.
+For example, immediately after a failed launch, run this read-only query in PowerShell and look for the filename and timestamp that match your attempt:
 
-Per identificare un blocco aprire **Visualizzatore eventi → Registri
-applicazioni e servizi → Microsoft → Windows → CodeIntegrity → Operational**
-e cercare gli eventi vicini all'orario del tentativo, in particolare 3077
-(blocco) e 3076 (audit). Conservare il percorso del file e il messaggio.
-La raccolta diagnostica non richiede di disattivare la protezione.
+```powershell
+Get-WinEvent -FilterHashtable @{
+    LogName = 'Microsoft-Windows-CodeIntegrity/Operational'
+    Id = 3076, 3077
+    StartTime = (Get-Date).AddHours(-2)
+} | Select-Object TimeCreated, Id, Message | Format-List
+```
 
-### Procedura del setup classico
+If the event names a temporary setup executable, include both that filename and the name of the downloaded EXE when reporting the problem. If no matching event appears, retain the original warning so the reviewer can identify which Windows or browser component issued it. The ZIP has a separate installation procedure below; its scripts and embedded executables are also subject to device policy.
 
-1. Avviare `NewPat-Setup.exe` con doppio clic dal proprio account Windows,
-   senza scegliere «Esegui come amministratore».
-2. Scegliere la cartella applicativa nella pagina di destinazione, quindi
-   le cartelle di ambiente WSL, cache, dati e risultati. Verificare la modalità
-   indicata dal setup: **Installazione** per una cartella vuota oppure
-   **Aggiornamento e riparazione** per un’installazione NewPat riconosciuta. Se richiesto,
-   autorizzare l'abilitazione dei componenti Windows. Dopo un riavvio,
-   accedere allo stesso account per riprendere.
-3. Attendere la verifica degli archivi, la preparazione del runtime e gli
-   autotest. La configurazione è completa quando compare `NewPat: ready`.
-4. Se la preparazione è completa e non serve un riavvio, il setup propone
-   **Avvia NewPat**. Per gli utilizzi successivi aprire il
-   collegamento dal menu Start o dal desktop, creato se selezionato nel setup.
+<a id="zip-completo-aggiuntivo"></a>
 
-I collegamenti avviano `2_AVVIA.cmd` con la cartella dati come directory
-corrente e il logo NewPat come icona. `newpat.cmd` espone gli stessi workflow
-per l'uso nei terminali. `nipat.cmd` rimane disponibile per compatibilità. Entrambi passano attraverso `scripts/windows/run.ps1`,
-che verifica stato `ready`, manifest e associazione al runtime prima di
-preparare l'ambiente del client. Non è necessario un launcher separato compilato.
-Il collegamento **Cartella NewPat** nel menu Start apre la cartella applicativa
-selezionata, con documentazione e comandi disponibili.
+## Complete ZIP installation
 
-Lo spazio disponibile deve contenere applicazione, cache degli archivi,
-filesystem WSL importato e immagine scientifica, oltre a input e risultati.
-Un aggiornamento del filesystem WSL richiede spazio anche per conservare
-l'ambiente precedente. I file scientifici selezionati possono risiedere su
-qualsiasi disco locale fisso accessibile all'account; il trasporto WSL non
-supporta condivisioni UNC, unità di rete o dischi rimovibili.
+1. Download `NewPat-0.9.7-Windows-completo.zip` from the release and compare its SHA-256 with `SHA256SUMS`. PowerShell can calculate the hash with `Get-FileHash -Algorithm SHA256 -LiteralPath .\NewPat-0.9.7-Windows-completo.zip`.
+2. Extract the entire archive into its final location on a local fixed disk. Close the compressed-folder view and open the extracted files.
+3. Run `1_INSTALLA.cmd` as your regular user. Wait for **NewPat: ready**, including any required restart.
+4. If Windows asks for a reboot, restart, sign back in and open `NIPAT\NewPat.lnk` **inside the extracted folder** to resume ZIP preparation. Once ready, the same shortcut opens the application. A normal first installation from the ZIP also opens NewPat when preparation succeeds.
 
-## Passare da Testing alla stabile
+Keep the extracted `NIPAT` directory. It contains the active installation, data and results. The ZIP installs no Start menu shortcut. Python and scientific archives are included, but missing Windows prerequisites may still require a connection. Copying the folder to a different PC does not transfer its registered WSL environment.
 
-Il collegamento **NewPat Testing** della 0.9.5 riapre l’installazione di
-prova. Per installare la 0.9.7 stabile usare **NewPat-Setup.exe** e il
-collegamento **NewPat** creato dal setup. Le installazioni Testing possono
-coesistere nella cartella separata scelta in precedenza.
-
-## ZIP completo aggiuntivo
-
-Lo ZIP completo mantiene un percorso di installazione e aggiornamento proprio,
-separato dal setup EXE.
-
-1. Scaricare `NewPat-<versione>-Windows-completo.zip` dagli asset ufficiali e
-   verificare SHA-256 contro `SHA256SUMS` della stessa release.
-2. Estrarlo completamente nella posizione definitiva su un disco locale fisso.
-   Non avviare i file dalla visualizzazione dell'archivio compresso.
-3. Avviare `1_INSTALLA.cmd` senza scegliere «Esegui come amministratore».
-4. La preparazione crea `NIPAT` nella cartella estratta. Attendere `NewPat: ready`.
-5. Aprire `NIPAT\NewPat.lnk`: seleziona automaticamente avvio o completamento
-   della preparazione, anche dopo un riavvio.
-
-Non occorre installare prima Python, R o Docker Desktop. Non vengono creati
-collegamenti ZIP nel menu Start. **Conservare la cartella `NIPAT`: contiene
-l'installazione, i dati e i risultati.** La registrazione WSL appartiene al PC:
-spostare semplicemente la cartella su un altro computer non trasferisce un
-runtime pronto.
-
-| Contenuto | Percorso sotto `cartella estratta\NIPAT` |
+| Item | Location under the extracted `NIPAT` directory |
 | --- | --- |
-| Versioni applicative | `versions\<versione>-<commit>` |
-| Ambiente WSL | `wsl` |
-| Cache degli archivi | `cache` |
-| Dati e risultati | `data` e `runs` |
-| Preferenze | `preferences.json` |
-| Avvio e ripresa | `NewPat.lnk` (gli script precedenti restano compatibili) |
+| Version directories | `versions\<version>-<commit>` |
+| WSL environment and archive cache | `wsl` and `cache` |
+| Data, results and menu preferences | `data`, `runs`, `preferences.json` |
+| Launcher and preparation log | `NewPat.lnk`, `versions\<version>-<commit>\.runtime\installer\setup.log` |
 
-Gli aggiornamenti dalla 0.8.99 in avanti mantengono la radice scelta.
-Non trasferiscono automaticamente dati da installazioni precedenti o da
-un altro canale a una nuova estrazione. Il pacchetto
-viene verificato prima dell'estrazione e la versione precedente rimane
-selezionata fino al completamento della nuova preparazione.
+If Windows blocks the downloaded command file, first verify the original release ZIP checksum. For a verified archive, Windows may offer **Properties → Unblock → Apply** on the ZIP. Extract it into a fresh directory after applying the change. The bundled `LEGGIMI.txt` describes the checksum and extraction procedure for that package. Removing the internet-origin mark does not sign the files or override Code Integrity policy.
 
-Se Windows blocca `1_INSTALLA.cmd` perché proviene da Internet, chiudere
-l'avviso e verificare prima l'hash dello ZIP ufficiale. Nelle proprietà dello
-ZIP scegliere **Sblocca**, se disponibile, quindi estrarre in una cartella
-nuova. `LEGGIMI.txt` contiene anche una procedura PowerShell con verifica
-SHA-256, sblocco limitato allo ZIP e ai file della nuova estrazione, e avvio
-dello stesso installatore. Non occorre disattivare Smart App Control o Defender.
-Lo sblocco rimuove soltanto il contrassegno Internet: non aggiunge una firma
-né elimina un eventuale blocco di Code Integrity su altri componenti.
+ZIP updates retain the selected root, verify the download and activate the new version after successful preparation. Existing data from another root or installation channel remain where they were. Before removing a ZIP installation, preserve its data/results and identify its WSL distribution from the active backend. The ZIP has no Inno uninstaller.
 
-Il log di preparazione è in
-`versions\<versione>-<commit>\.runtime\installer\setup.log`.
-Non rimuovere le versioni manualmente mentre un aggiornamento è in corso.
-Lo ZIP non registra un disinstallatore Inno: prima di rimuoverlo conservare
-dati e risultati e identificare la sua distribuzione WSL tramite il backend
-della versione attiva. Non usare reset WSL generici o rimuovere altri ambienti.
+## Locations and ownership
 
-## Identità e percorsi
-
-Il file [`install-profile.json`](../installer/windows/install-profile.json)
-definisce l'identità del canale. Il builder genera da questo profilo le
-istruzioni Inno Setup e le verifica rispetto al manifest.
-
-| Risorsa | Valore o percorso predefinito |
+| Resource | Default for the guided desktop installation |
 | --- | --- |
-| Canale | `desktop` |
-| Nome applicazione | `NewPat` |
-| Applicazione | `%LOCALAPPDATA%\Programs\NIPAT-Desktop` |
-| Ambiente WSL | `%LOCALAPPDATA%\NIPAT-Desktop\wsl` |
-| Cache | `%LOCALAPPDATA%\NIPAT-Desktop\cache` |
-| Dati | `%LOCALAPPDATA%\NIPAT-Desktop\data` |
-| Risultati | `%LOCALAPPDATA%\NIPAT-Desktop\runs` |
-| Registri delle destinazioni | `%LOCALAPPDATA%\NIPAT-Desktop\installations` |
-| Preferenze del menu | `%LOCALAPPDATA%\NIPAT-Desktop\preferences.json` |
-| Distribuzione WSL2 | Nome con prefisso `NIPAT-Desktop-`, associato al filesystem Linux e alla posizione scelta. |
-| Ripresa al successivo accesso | Valore RunOnce `NIPAT-Desktop-ResumeSetup` |
+| Application | `%LOCALAPPDATA%\Programs\NIPAT-Desktop` |
+| WSL environment and cache | `%LOCALAPPDATA%\NIPAT-Desktop\wsl`, `%LOCALAPPDATA%\NIPAT-Desktop\cache` |
+| Data and results | `%LOCALAPPDATA%\NIPAT-Desktop\data`, `%LOCALAPPDATA%\NIPAT-Desktop\runs` |
+| Installation records | `%LOCALAPPDATA%\NIPAT-Desktop\installations` |
+| Wizard preferences | `%LOCALAPPDATA%\NIPAT-Desktop\preferences.json` |
+| WSL registration | Name beginning with `NIPAT-Desktop-`, tied to the verified filesystem and location |
+| Setup resume on sign-in | `NIPAT-Desktop-ResumeSetup` RunOnce value |
 
-AppId, mutex, collegamenti e voce di disinstallazione appartengono al medesimo
-canale. Le cinque radici di applicazione, ambiente WSL, cache, dati e risultati
-sono configurabili; i registri centrali restano nel profilo dell'utente.
-Le preferenze salvate in `HKCU` ripropongono le scelte nelle reinstallazioni,
-anche dopo la rimozione dell'applicazione. L'aggiornamento di un'installazione
-NewPat deve usare la stessa cartella applicativa.
+The [installation profile](../installer/windows/install-profile.json) defines the channel (`desktop`), application identity and ownership checks. The five roots for the application, WSL, cache, data and results must be absolute, distinct, writable and non-nested on local fixed disks. Setup rejects reparse points, unsuitable system locations and conflicts with another installation. Use an empty or recognized application directory. For another nonempty directory, setup can offer an empty `NIPAT-Desktop` child after confirmation. Existing data and results may remain in the data directories.
 
-Il setup verifica percorsi assoluti su dischi locali fissi, scrivibili
-dall'account e privi di junction o collegamenti. Le cinque radici non possono
-coincidere né essere annidate tra loro; non sono ammesse sovrapposizioni con
-cartelle di sistema, `Windows`, `Program Files` o destinazioni predefinite
-delle altre installazioni NewPat o NIPAT. Sono rifiutati percorsi UNC, unità di rete e supporti
-rimovibili. La cartella applicativa deve essere vuota o riconosciuta come
-appartenente a NewPat. Una configurazione di stato e backend valida può
-identificare anche i residui di una disinstallazione, senza richiedere che
-la cartella contenga soltanto `.runtime`. La presenza di altri file non ne
-autorizza la cancellazione.
+Shortcuts invoke `2_AVVIA.cmd`; `newpat.cmd` and the compatibility alias `nipat.cmd` invoke the terminal client. `scripts/windows/run.ps1` checks the ready state, installed manifest and selected runtime. The installed launcher uses its own backend settings. Preferences supply defaults to interactive use. For direct commands use `--data-dir` and `--runs-dir` before the subcommand.
 
-Per una cartella estranea non vuota, il setup può proporre la sottocartella
-vuota `NIPAT-Desktop`, previa conferma. Questa scelta cambia soltanto la
-destinazione. Se anche la sottocartella contiene file, occorre scegliere
-un'altra cartella vuota: il setup non svuota il contenuto né crea una catena
-di sottocartelle. Dati e risultati possono contenere file preesistenti, che
-non vengono trasferiti o cancellati dal setup.
+## Updates, repair and diagnostics
 
-Manifest, backend, stato, proprietà del runtime e registri di recupero devono
-indicare il canale previsto. Il setup non adotta ambienti o configurazioni
-di altri canali. NewPat conserva la propria identità:
-nessuna installazione sperimentale o di un altro canale viene adottata
-o aggiornata da questo setup. Il componente Windows WSL rimane una risorsa del sistema.
+**Check for updates** selects the download for the installed channel and method. The guided installation uses its saved verified setup and the release payload. The ZIP installation uses a full ZIP. Close active sessions when prompted. To complete an update after a reboot, use the resume action for your installation method described above.
 
-Il launcher installato usa la propria configurazione e non eredita le variabili
-`NIPAT_*` di percorso/backend di una shell esterna. Nel menu, **Configura** applica
-le preferenze salvate alle cartelle e ai parametri delle analisi, senza cambiare
-posizione dell'applicazione, cache o runtime. Le opzioni `--data-dir` e
-`--runs-dir` selezionano esplicitamente le destinazioni; nella sessione guidata
-prevalgono sulle preferenze. I comandi diretti non leggono queste preferenze.
+The setup verifies hashes of both the scientific image archive and WSL filesystem. Inside the owned WSL distribution, `nipat-engine ensure` starts the included Docker Engine. Loading the archive resolves a local immutable Linux AMD64 image ID. The recorded build ID, archive digest and local image ID have distinct roles. Analyses use the verified local image with pulling disabled.
 
-## Preparazione e identità dell'immagine
+A matching owned WSL distribution and location can be reused. Changing the filesystem or location creates a separate distribution and retains the earlier environment. The roots selected for data/results become defaults and existing files stay in place. When an owned registration was removed manually, setup can reimport only if the prior destination is empty. It refuses an unrelated registration with the same name.
 
-Il manifest del pacchetto verificato contiene commit sorgente, versione,
-profilo e identità degli archivi. Il setup verifica SHA-256 e coerenza dei
-file prima dell'utilizzo. Gli archivi sono conservati nella cache con nomi
-comprendenti il digest; la cache permette la ripresa dopo un riavvio.
-L'EXE acquisisce il pacchetto da GitHub; lo ZIP completo contiene già gli archivi.
+Setup verifies the candidate with `doctor --runtime` and `self-test`, activates the backend and writes `ready` last. For the guided installation use **NewPat - completa preparazione** after correcting a setup failure. For the complete ZIP, use its local `NIPAT\NewPat.lnk`. Retain these files for diagnosis:
 
-Il filesystem WSL include Docker Engine e Compose dedicati. Dopo l'importazione,
-`nipat-engine ensure` avvia il motore interno. Il setup carica l'archivio
-scientifico verificato e acquisisce l'unico ID immutabile restituito da
-`docker load`, verificando che l'immagine sia Linux amd64.
+| Evidence | Location |
+| --- | --- |
+| Phase, error and detailed setup log | `.runtime\installer\state.json` and `.runtime\installer\setup.log` under the application |
+| Active backend | `.runtime\backend.json` |
+| Diagnostics and self-tests | `doctor.stdout.log`, `doctor.stderr.log`, `self-test.stdout.log`, `self-test.stderr.log` and corresponding `*.exit-code.txt` files under `.runtime\installer` |
+| Update handoff | `updates\handoff-*\handoff.log` and any `error.txt` under the configured cache |
+| Previous state/backend | `.runtime\installer\recovery` |
 
-L'ID locale può differire dall'ID della build perché i motori Docker possono
-identificare configurazioni o manifest delle immagini in modo diverso.
-Stato e backend conservano separatamente ID della build, ID risolto localmente
-e SHA-256 dell'archivio. Le esecuzioni usano l'ID locale verificato, con pull
-disabilitato. Il launcher ne controlla il legame con il manifest installato.
+A stderr message alone does not establish failure. Check the recorded exit code. Editing the state file does not repair the runtime. Inno copies application files before preparing the runtime, so an incomplete upgrade may block launch while a previous distribution still exists.
 
-## Aggiornamento e riparazione
+The managed-file inventory distinguishes distributed components from user files. Before replacing changed components, setup saves affected files, inventory and configuration in `%LOCALAPPDATA%\NIPAT-Desktop\installations\backups\<UTC-guid>`. It may use a validated legacy manifest if the previous inventory is absent. It removes obsolete managed files only after verifying the previous hash. An invalid new inventory stops preparation. Backups are selective and do not contain the complete Linux filesystem or user datasets.
 
-**9 — Verifica aggiornamenti** consulta il canale selezionato e verifica il
-download del pacchetto previsto dal metodo di installazione. Il canale EXE
-della 0.8.99 usa un payload separato e riavvia la copia verificata del setup
-conservata localmente; il canale ZIP usa lo ZIP completo e gli script.
-Il contratto di aggiornamento è supportato dalla 0.8.99 in avanti.
-Non è prevista una migrazione automatica dai client precedenti. L'installazione usa lo stesso profilo `desktop`,
-conservando le cartelle riconosciute e i risultati. È possibile scaricare
-manualmente il setup dalla pagina Releases.
+## Maintenance and removal
 
-Se altre sessioni NewPat sono aperte, l'aggiornamento viene fermato senza
-terminarle: chiuderle al termine del lavoro e riprovare. Il passaggio al setup
-conserva `handoff.log` e, in caso di errore, `error.txt` nella sottocartella
-`updates\handoff-*` della cache configurata. Se Windows richiede un riavvio,
-completare poi la preparazione dal collegamento nel menu Start; la sola
-conclusione della copia dei file non autorizza le analisi.
+**Environment and help → Installation and storage** displays owned resources and their sizes. Active resources and the most recent prior environment are protected. For the guided setup, the following PowerShell commands locate the installed launcher and display the inventory:
 
-Il setup riutilizza la cartella di NewPat riconosciuta, conservando i
-percorsi selezionati. Un inventario dei file distribuiti distingue i componenti
-gestiti dall'installatore dai file aggiunti dall'utente. Prima di sovrascrivere
-un componente differente, il setup ne salva la copia in
-`%LOCALAPPDATA%\NIPAT-Desktop\installations\backups\<UTC-guid>`.
-Il backup include anche l'inventario precedente, la configurazione dei percorsi,
-lo stato dell'installatore, il backend, il marcatore applicativo e il Python
-portabile generato sotto `.runtime\python`. I componenti applicativi identici
-non richiedono una copia.
-Solo quando `.distribution\application-files.json` è assente, il setup può
-usare la mappa `source_sha256` di `.distribution\installer-manifest.json`
-come inventario precedente, dopo averne verificato schema, profilo, commit e
-corrispondenze fra percorsi e hash; un inventario presente ma non valido non
-abilita questo recupero alternativo.
+```powershell
+$appDir = (Get-ItemProperty -LiteralPath 'HKCU:\Software\NIPAT\desktop' -Name app_dir).app_dir
+$newpat = Join-Path $appDir 'newpat.cmd'
+& $newpat installation inspect --json
+```
 
-I file estranei ai componenti distribuiti rimangono nella loro posizione;
-un file con lo stesso nome di un componente da installare viene salvato prima
-della sovrascrittura. Un componente presente nell'inventario precedente ma non
-più distribuito viene rimosso soltanto se il suo hash coincide con quello
-registrato; se è stato modificato, rimane nella propria posizione e viene
-anche copiato nel backup. I file estranei non elencati negli inventari e non
-coinvolti nelle sostituzioni rimangono in posizione, senza una copia nel backup.
-Un inventario precedente danneggiato viene salvato, ma non autorizza la rimozione di componenti obsoleti.
-Un inventario del nuovo pacchetto non valido interrompe invece la preparazione.
-Non viene svuotata l'intera cartella applicativa. Il backup selettivo non
-comprende tutti i dati o il filesystem WSL e non realizza un ripristino
-automatico completo in caso di errore.
+To remove an item, enter an ID with `removable: true` from that inventory. NewPat checks ownership and asks for confirmation:
 
-### Preparazione del runtime e ripresa
+```powershell
+$targetId = Read-Host 'Removable item ID from the inventory'
+& $newpat installation cleanup --target $targetId
+```
 
-Il manifest distingue applicazione, immagine scientifica e componente WSL.
-La provenienza WSL identifica i suoi sorgenti, la base Linux e le dipendenze
-effettivamente risolte, indipendentemente dal commit del client. Il builder
-può riutilizzare un archivio pubblicato soltanto se il descrittore del
-componente e il contenuto verificato corrispondono. Il setup continua a
-verificare i byte dell'archivio tramite SHA-256 prima dell'importazione.
+To repair the current installation when the inventory marks it recoverable, use:
 
-Una distribuzione può essere riutilizzata soltanto se digest completo,
-registrazione WSL, proprietà del canale e posizione effettiva sono coerenti.
-I nuovi nomi combinano il prefisso del canale, 32 cifre del digest del
-filesystem Linux e 12 cifre del digest della posizione. Un ambiente già
-posseduto da NewPat con un nome precedente può essere riutilizzato nella
-stessa destinazione, dopo le medesime verifiche di proprietà. Un nome occupato
-da un ambiente non riconosciuto interrompe la preparazione senza sostituirlo.
-Se una distribuzione posseduta da NewPat è stata rimossa manualmente da
-WSL, il setup può ricrearla soltanto quando la destinazione precedente è vuota.
-La ricevuta precedente viene conservata nello storico delle registrazioni;
-una cartella ancora contenente file non viene cancellata per forzare l'importazione.
+```powershell
+& $newpat installation recover --target current-installation
+```
 
-Un digest Linux diverso o una diversa cartella dell'ambiente WSL produce una
-distribuzione affiancata: il setup non copia né elimina quella precedente.
-Le cartelle dati e risultati scelte diventano i valori predefiniti del client;
-modificarle non trasferisce i file esistenti. I run precedenti rimangono nella
-loro destinazione e i dati dell'utente non vengono importati nel filesystem Linux.
+Repair validates the installed payload and resumes preparation, diagnostics and self-tests. Cleanup and repair require confirmation (or an explicit `--yes` for automation). The client hands off with exit code 85. Check the final outcome in `.runtime/maintenance/<id>/result.json` and the installer logs.
 
-Il setup conserva una copia dello stato e del backend precedenti per ogni
-combinazione di commit e filesystem in `.runtime\installer\recovery`.
-I piccoli registri centrali delle installazioni conservano le destinazioni
-attuali e precedenti necessarie per la verifica delle risorse del canale.
+The uninstaller removes managed application files, shortcuts and automatic setup resumption. It retains data and results. A separate prompt offers removal of verified owned WSL and cache components, with **No** selected by default. **Cancel** stops before cleanup. A verification or removal error stops uninstallation and records the outcome in `%LOCALAPPDATA%\NIPAT-Desktop\installations\logs\uninstall-*.log`. Other distributions, Docker Desktop, unrelated files and the Windows WSL feature are outside this cleanup. User preferences, ownership records and some generated runtime files may remain for reinstallation.
 
-Il candidato viene verificato con `doctor --runtime` e `self-test` prima
-dell'attivazione del backend; lo stato `ready` viene scritto per ultimo.
-Ogni ripresa verifica e ricarica l'archivio. L'avvio ordinario riusa invece
-l'ID locale registrato e avvia autonomamente il motore se è fermo.
+## Resources
 
-Dopo un errore, aprire **NewPat - completa preparazione** dal menu
-Start. Conservare questi file della cartella applicativa:
+Resource settings distinguish physical memory, WSL's allocation and the container limit. Changes to the account's `.wslconfig` can affect all its WSL2 distributions. NewPat shows the proposed change, keeps a backup and requests confirmation. Restarting WSL is a separate action. Increasing the container limit alone cannot increase WSL memory. [Resource guide](RISORSE.md)
 
-- `.runtime\installer\setup.log`: dettagli della preparazione;
-- `.runtime\installer\state.json`: fase ed errore registrati;
-- `.runtime\backend.json`: configurazione attivata, se presente.
+## Development and verification
 
-Le versioni con diagnostica esplicita conservano anche `doctor.stdout.log`,
-`doctor.stderr.log`, `self-test.stdout.log`, `self-test.stderr.log` e i rispettivi
-file `*.exit-code.txt` in `.runtime\installer`. Questi file descrivono l'ultimo
-controllo concluso. Un messaggio su stderr non equivale da solo a un fallimento:
-il bootstrap considera il codice di uscita e conserva entrambi gli stream.
+To run a source checkout with an already prepared, compatible installation, open PowerShell in the checkout root:
 
-Non modificare questi file per forzare lo stato `ready`. I registri di recupero
-e il backup selettivo hanno scopi distinti; nessuno costituisce una copia
-completa dell'installazione. Inno Setup copia i file applicativi prima della
-preparazione del runtime:
-un errore lascia l'applicazione bloccata fino al completamento del setup,
-anche se la distribuzione precedente è ancora presente.
+```powershell
+$nipatApp = Read-Host "NewPat application directory"
+$nipatBackend = Get-Content -Raw -LiteralPath (Join-Path $nipatApp '.runtime\backend.json') | ConvertFrom-Json
+$env:NIPAT_BACKEND = 'wsl'
+$env:NIPAT_WSL_DISTRO = $nipatBackend.wsl_distro
+$env:NIPAT_RUNTIME_IMAGE = $nipatBackend.runtime_image
+& '.\1_SETUP.cmd'
+if ($LASTEXITCODE -ne 0) { throw 'Client preparation failed.' }
+& '.\2_AVVIA.cmd'
+```
+
+The source setup prepares the client with an explicit distribution and immutable `sha256:` image ID. It does not build the image or create a WSL filesystem. For independent development use a dedicated WSL distribution with `nipat-engine`, Docker Engine, Compose and the matching verified archive.
+
+The [installer build](../.github/workflows/windows-installer.yml) packages the allowlisted source and binds the bootstrap, payloads and hashes in `installer-build.json`. Internal artifact names can retain the NIPAT identifier. The [acceptance protocol](ACCETTAZIONE_INSTALLATORI.md), [CI guide](CI_CD.md) and [validation record](VALIDAZIONE.md) describe what was tested. The bootstrap version and launcher version are recorded separately. Running the guided setup refreshes recognized shortcuts.
 
 <a id="riparazione-dellautotest-cpin-della-0850"></a>
 
-### Autotest e collaudo
-
-La preparazione verifica i cinque moduli con il Python incorporato. Se il setup
-resta incompleto, consultare `.runtime/installer/setup.log` nella cartella
-dell'applicazione. Per verificare tutti i moduli e i workflow dopo il completamento,
-eseguire il [collaudo automatico](COLLAUDO_INSTALLAZIONE.md).
-
-Per riparare una 0.8.50, seguire le [istruzioni specifiche](https://github.com/GregorioDalia/nipat-desktop/blob/main/docs/COLLAUDO_INSTALLAZIONE_0850.md#correzione-locale-dellautotest-cpin).
-
-## Manutenzione dei componenti installati
-
-**Guida e informazioni → Installazione e spazio** legge l'inventario delle
-risorse possedute e le dimensioni di ambienti WSL e cache. Gli elementi
-attivi e il precedente ambiente più recente sono protetti. La pulizia è
-selettiva: richiede un elemento esplicitamente rimovibile, una conferma e
-una nuova verifica di proprietà, percorso e integrità prima della rimozione.
-File estranei, dati e risultati vengono conservati; non viene eseguito un
-`prune` generale di Docker o WSL.
-
-La riparazione riguarda la versione installata: verifica il payload e
-avvia `bootstrap.ps1 -Resume`, con diagnostica e autotest. I registri dei
-backup selettivi sono consultabili ma non autorizzano il ripristino di una
-versione precedente. Un ripristino automatico completo richiederebbe anche
-una copia coerente di tutti i componenti applicativi e della configurazione
-dell'installatore, che il backup selettivo non rappresenta.
-
-I comandi equivalenti sono `installation inspect [--json]`,
-`installation cleanup --target ID` e
-`installation recover --target current-installation`. Le ultime due
-operazioni richiedono conferma, oppure `--yes` per una richiesta automatizzata.
-Un processo separato conferma la ricezione, attende la chiusura del client
-e acquisisce l'accesso esclusivo all'installazione prima di intervenire.
-Il passaggio del client con codice `85` non indica una pulizia o riparazione
-riuscita. Il risultato finale è in
-`.runtime/maintenance/<id>/result.json`; i dettagli della preparazione restano
-nei log dell'installatore. In caso di errore conservare entrambi.
-
-## Disinstallazione
-
-La disinstallazione rimuove i file applicativi gestiti dal setup, i collegamenti
-e la ripresa automatica. Conserva sempre dati e risultati, comprese le
-destinazioni precedenti registrate. Dopo la conferma di disinstallazione,
-una seconda richiesta propone la rimozione dell'ambiente WSL e della cache,
-con **No** come scelta predefinita. **Annulla** interrompe prima della pulizia.
-Con **Sì**, il programma verifica le risorse di NewPat nelle destinazioni
-correnti e nello storico registrato prima di rimuoverle.
-
-La rimozione riguarda soltanto distribuzioni WSL con proprietà e registrazione
-coerenti e archivi della cache riconosciuti e verificati. Non consiste nella
-cancellazione ricorsiva delle radici selezionate: file estranei, Docker Desktop,
-altre distribuzioni WSL e risorse delle altre installazioni NewPat o NIPAT non sono destinazioni
-di rimozione. Una verifica fallita interrompe la pulizia e viene segnalata;
-un errore durante le operazioni può lasciare risorse da rimuovere. In entrambi
-i casi la disinstallazione dei file applicativi viene interrotta. Conservare
-l'esito e il log persistente in
-`%LOCALAPPDATA%\NIPAT-Desktop\installations\logs\uninstall-*.log`
-prima di riprovare.
-
-Preferenze dei percorsi e registri centrali delle installazioni sopravvivono
-alla disinstallazione. Servono a riproporre le destinazioni e a identificare
-le risorse conservate; non sono copie di sicurezza dei dati o del filesystem WSL.
-Nella cartella applicativa possono restare i marcatori di proprietà, la
-configurazione dei percorsi e file generati non gestiti da Inno Setup, come
-Python portabile in `.runtime\python`. La disinstallazione non garantisce
-quindi una cartella applicativa vuota; la configurazione conservata consente
-la verifica della successiva reinstallazione. La rimozione dell'ambiente
-NewPat non disinstalla il componente WSL di Windows.
-
-## Client Windows da sorgenti
-
-Questo percorso è destinato allo sviluppo. `1_SETUP.cmd` prepara il Python
-locale e verifica un runtime WSL già configurato; non crea il filesystem WSL
-e non costruisce o scarica l'immagine scientifica.
-
-Per usare il runtime di un’installazione NewPat già preparata, leggere il suo backend e
-selezionarlo esplicitamente nella sessione PowerShell del checkout:
-
-```powershell
-# Indicare la cartella applicativa scelta nel setup.
-$nipatApp = Read-Host "Cartella applicativa NewPat"
-$nipatBackend = Get-Content -Raw -LiteralPath `
-    (Join-Path $nipatApp ".runtime\backend.json") | ConvertFrom-Json
-$env:NIPAT_BACKEND = "wsl"
-$env:NIPAT_WSL_DISTRO = $nipatBackend.wsl_distro
-$env:NIPAT_RUNTIME_IMAGE = $nipatBackend.runtime_image
-
-# Eseguire dalla radice del checkout NewPat.
-& ".\1_SETUP.cmd"
-if ($LASTEXITCODE -ne 0) { throw "Preparazione del client non riuscita." }
-& ".\2_AVVIA.cmd"
-```
-
-Il pacchetto installato deve aver già completato la preparazione. Il client
-verifica nuovamente l'immagine e le sue interfacce; un runtime incompatibile
-viene rifiutato. Il setup da sorgenti richiede un nome WSL esplicito e un ID
-immagine `sha256:<64 cifre esadecimali>`. Le variabili hanno effetto nella
-sessione corrente e non modificano la configurazione del pacchetto installato.
-Per un ambiente di sviluppo indipendente, usare una distribuzione WSL dedicata
-con `nipat-engine`, Docker Engine e Compose e importarvi l'archivio verificato
-della stessa build; non riutilizzare nomi di distribuzioni gestite da altri canali.
-
-## Costruzione e accettazione del pacchetto
-
-Il workflow [Installers (review build)](../.github/workflows/windows-installer.yml)
-verifica l'avvio e il motore scientifico, esporta gli archivi,
-prepara i sorgenti ammessi da `distribution-files.txt` e compila l'EXE con
-Inno Setup. `installer-build.json` lega l'eseguibile a commit, versione,
-manifest, profilo, bootstrap e pacchetti separati. I dettagli e gli artefatti
-sono descritti in [CI/CD](CI_CD.md).
-
-Il coordinamento fra installazione e analisi usa handle Windows e controlli
-Python, senza caricare `NipatActivityNative.dll`. L'abilitazione dei prerequisiti
-usa gli strumenti Windows con elevazione limitata alla loro configurazione.
-Il pacchetto non richiede la compilazione di helper sulla macchina destinataria.
-Questi cambiamenti non costituiscono una certificazione Smart App Control.
-
-Per una prova tecnica usare **NIPAT-Setup.exe** (nome interno dell’artefatto
-che sarà pubblicato anche come **NewPat-Setup.exe**) della build riuscita identificata
-dal commit. Il riepilogo Actions riporta i download disponibili e il periodo
-di conservazione; per gli artefatti può essere richiesto l'accesso a GitHub.
-L'artefatto `nipat-windows-setup` conserva installatore ed evidenze. Le evidenze del bootstrap restano separate dai contenuti della release.
-
-Il rebranding cambia risorse e byte del setup: il bootstrap passa a **1.1.0**
-e il componente launcher a **0.9.5**. Gli hash e gli esiti di reputazione del
-vecchio EXE non qualificano questi nuovi eseguibili. Servono una nuova build
-Windows e nuove evidenze di firma, avvio e Smart App Control sul dispositivo
-prima di descriverli come collaudati. Il controllo di riproducibilità verifica
-due compilazioni dagli stessi sorgenti, senza attribuire il vecchio hash al
-nuovo launcher.
-
-Un aggiornamento del solo payload attraverso il setup **1.0.0** già conservato
-può mantenere i nomi della vecchia procedura Inno. Per aggiornare anche
-collegamenti e voce di disinstallazione usare il nuovo setup **1.1.0**, dalla release stabile. Vengono sostituiti soltanto
-i vecchi collegamenti che puntano alla stessa installazione; percorsi, dati,
-registri di proprietà e distribuzioni WSL restano compatibili.
-
-Il [protocollo di accettazione](ACCETTAZIONE_INSTALLATORI.md) distingue la
-distribuzione per ricerca dalla qualificazione desktop completa. Registrare
-progressivamente prima installazione, riavvio del runtime, analisi di un caso
-noto, coesistenza con le installazioni sperimentali, percorsi personalizzati, reinstallazione
-e disinstallazione. Le prove del codice Windows/WSL non dimostrano attivazione
-e ripresa su un Windows 10 reale; i casi non eseguiti restano espliciti nelle
-note della release.
-
-Un aggiornamento fra versioni differenti richiede una prova distinta dalla
-reinstallazione. La [scheda di validazione](VALIDAZIONE.md) raccoglie i risultati
-osservati, separando installazione e valutazione scientifica.
-
-## Configurazione delle risorse
-
-Il menu **Configura** mostra RAM e CPU del computer, risorse effettive di WSL
-e limiti del container. Le impostazioni `.wslconfig` sono globali per l'account:
-una modifica può interessare anche altre distribuzioni WSL2. NewPat mostra
-l'anteprima, conserva un backup e richiede conferma prima di applicare la
-modifica. Il riavvio è distinto dal salvataggio; finché non avviene, il menu
-indica che i nuovi valori non sono ancora attivi. Non vengono arrestate analisi
-NewPat in corso per applicare una configurazione.
-
-Il limite memoria del container non aumenta la memoria di WSL.
-La [guida alle risorse](RISORSE.md) descrive impostazioni e diagnosi degli arresti.
+For an installation still on NIPAT 0.8.50, see the [historical CPIN self-test repair on GitHub](https://github.com/GregorioDalia/nipat-desktop/blob/main/docs/COLLAUDO_INSTALLAZIONE_0850.md#correzione-locale-dellautotest-cpin).

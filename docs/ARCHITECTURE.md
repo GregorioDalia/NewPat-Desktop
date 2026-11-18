@@ -1,347 +1,87 @@
-# Architettura di NewPat
+# NewPat architecture
 
-NewPat è un'applicazione locale con interfaccia a riga di comando e menu
-guidato. Il client Python gestisce l'interazione, i percorsi, la configurazione
-e i registri delle esecuzioni. Un'immagine Linux autosufficiente contiene R,
-samtools, le dipendenze, gli script scientifici e il codice necessario alla
-preparazione delle cinque analisi e all'esecuzione dei piani composti.
-Non sono presenti un server web o un servizio
-di analisi remoto.
+NewPat runs on the user's computer. The Python client owns the desktop interface, guided terminal menu, CLI, preferences and run records. The desktop interface uses a local webview and a loopback service for the interface and local genomic tracks. Scientific computation runs in a Linux container that includes R, samtools, the five scientific programs and their dependencies. It can run a single analysis or an entire workflow plan.
 
-## Componenti
+## Components
 
-| Componente | Responsabilità |
+| Component | Responsibility |
 | --- | --- |
-| `src/nipat/cli.py` e `wizard.py` | Comandi, menu, raccolta degli input e conferma dell'analisi. |
-| `src/nipat/execution/workflows.py` | Selezione e convalida preliminare degli input, richiesta del workflow e creazione del run. |
-| `src/nipat/execution/analysis_plan.py` e `analysis_forms.py` | Costruzione e raccolta guidata del piano SNP/DNP con analisi e ruoli familiari espliciti. |
-| `src/nipat/execution/runner.py` | Identificazione del motore, isolamento del container, esecuzione, interruzione e diagnostica. |
-| `src/nipat/execution/transport.py` | Accesso al Docker Engine locale su Linux, al motore WSL2 su Windows o alla VM Lima su macOS. |
-| `src/nipat/execution/performance.py` | Osservazione facoltativa delle statistiche del container dal client. |
-| `src/nipat/storage.py` | Regole condivise per separare dati e risultati dalle cartelle applicative e dalle destinazioni riservate. |
-| `engine/main.py` | Contratto del motore, verifica dei sorgenti scientifici e avvio dei workflow nell'immagine. |
-| `src/nipat_scientific/` | Validatori, catalogo e preparazione dei file, condivisi dal client e dal motore. |
-| `src/nipat_scientific/plan.py` ed `executor.py` | Contratto dei piani e orchestrazione scientifica eseguita nell'immagine. |
-| `src/nipat_scientific/settings_data.json`, `settings.py` e `settings.R` | Registro comune dei parametri, convalida Python/R, costanti leggibili e valori effettivi registrati. |
-| `src/nipat_scientific/dnp_pileup.py` e `dnp_blocks.R` | Acquisizione controllata del pileup e distribuzione dei blocchi DNP di più campioni entro un budget comune. |
-| `src/nipat_scientific/performance.py` | Campionamento facoltativo di cgroup e processi e registrazione delle fasi nel motore. |
-| `scientific/vendor/` | Sorgenti R e risorse dei progetti scientifici integrati. |
+| `src/nipat/gui/` | Desktop windows, local interface, experiments, results and IGV. |
+| `src/nipat/cli.py`, `wizard.py` | Commands, menu, input selection and confirmation. |
+| `src/nipat/execution/workflows.py` | Preliminary validation, workflow request and run creation. |
+| `src/nipat/execution/analysis_plan.py`, `analysis_forms.py` | Plans for SNP and DNP branches, including explicit samples and family roles. |
+| `src/nipat/execution/runner.py` | Engine identity, isolation, execution, cancellation and diagnostics. |
+| `src/nipat/execution/transport.py` | Access to a local Linux Docker Engine or the engine inside WSL2 or Lima. |
+| `src/nipat/execution/performance.py` | Optional client-side observation of container resources. |
+| `src/nipat/storage.py` | Separation of data, results, program files and reserved destinations. |
+| `engine/main.py` | Engine contract, verification of scientific source files and workflow dispatch. |
+| `src/nipat_scientific/` | Shared validation, parameter catalog and input preparation. |
+| `src/nipat_scientific/plan.py`, `executor.py` | Plan contract, dependencies and step execution inside the image. |
+| `src/nipat_scientific/settings_data.json`, `settings.py`, `settings.R` | Parameter registry, Python/R validation, model constants and effective settings. |
+| `src/nipat_scientific/dnp_pileup.py`, `dnp_blocks.R` | BAM acquisition, pileup indexing and scheduling across samples and blocks. |
+| `src/nipat_scientific/performance.py` | Optional cgroup and process sampling and phase events inside the engine. |
+| `scientific/vendor/` | Bundled R programs and upstream scientific resources. |
 
-Il client e il motore includono la stessa libreria di preparazione, ma non
-condividono file montati dall'applicazione. Gli algoritmi scientifici risiedono
-negli script R; gli adattatori Python preparano le loro interfacce di file.
-La validazione semantica dei dati è nel modulo condiviso: conteggi, frequenze,
-loci e alleli sono controllati prima di R. Le normalizzazioni scrivono copie
-di lavoro e i casi che richiedono interpretazione scientifica generano avvisi
-tracciabili. Analisi singole e piani riutilizzano anche i controlli degli output.
-Il comando `execute` avvia una singola analisi; `execute-plan` riceve un piano
-con riferimenti espliciti fra campioni, passaggi e risultati. Il client offre
-`workflow analyze`: DNPcall e/o SNPcall alimentano qualsiasi sottoinsieme di
-Contamination, CPI e CPIN, con selezioni indipendenti per SNP e DNP. Il piano
-può partire anche da pileup SNP o tabelle importate. Restano disponibili i
-cinque comandi singoli, i preset DNP e il batch SNP.
+The client and engine each ship their own copy of the preparation library. Python adapters validate counts, frequencies, loci and alleles, prepare the file formats required by R and check the resulting artifacts. Normalizations write working copies. Cases that require scientific interpretation generate traceable warnings. The scientific equations reside in the R programs.
 
-### Confini dei workflow automatici
+## Workflow execution
 
-Il client raccoglie e conferma il piano, prepara l'accesso ai file e avvia
-un solo container. Il motore incorporato nell'immagine determina l'ordine dei
-passaggi, prepara i loro parametri e associa output e input successivi.
-Non dipende dalla presenza della CLI o di una GUI dentro il container.
-Il contratto usa percorsi Linux assegnati dai mount e può essere utilizzato
-su Windows tramite WSL2, su macOS tramite Lima, su Linux nativo e da un futuro servizio.
+The client builds a request, confirms the inputs and starts one container. The engine determines step order, prepares the files and binds downstream inputs to specific upstream outputs. The container requires neither the GUI nor the host CLI. Its contract uses paths assigned by Linux mounts.
 
-Il validatore e l'esecutore supportano le cinque analisi e controllano i
-collegamenti tipizzati. SNPcall e DNPcall possono condividere BAM; i loro
-conteggi alimentano Contamination, CPI e CPIN in rami distinti, con pannelli e
-frequenze coerenti con il tipo di marcatore. Ogni campione SNPcall ha un
-passaggio distinto; da BAM, samtools prepara il pileup prima di R.
-L'esecutore rispetta le dipendenze e può distribuire i caller SNP indipendenti
-anche nei piani misti. Un unico budget limita il calcolo concorrente;
-`serial` disattiva tale distribuzione e i pool annidati sono evitati.
-Gli altri passaggi mantengono l'ordine del piano. Un errore interrompe
-il piano e blocca tutti i passaggi non ancora avviati. Non è prevista la ripresa.
+`execute` runs one module. `execute-plan` runs an explicit dependency graph. The client command `workflow analyze` supports DNPcall and SNPcall, independently selected downstream analyses, imported SNP pileups and imported count tables. DNP and SNP branches can share BAMs and each can feed Contamination, prenatal CPI and postnatal CPIN with marker-compatible panels and frequencies. A SNPcall batch creates one step per sample. In BAM mode samtools prepares the pileup before R.
 
-Interazione, preferenze locali, traduzione dei testi, avvio del runtime,
-installazione e aggiornamenti restano responsabilità del client e dei pacchetti
-di piattaforma. Gli identificatori del contratto sono indipendenti dalla
-lingua dell'interfaccia. Il [contratto dei piani](WORKFLOW_CONTRACT.md)
-descrive schema, stati e limiti; il [piano di sviluppo](ROADMAP.md) riporta
-gli obiettivi di qualificazione, distribuzione e localizzazione.
+Independent SNP calls can share one bounded pool in mixed plans. Serial mode runs one compute task at a time and nested pools remain serial. Other steps follow plan order and dependencies. Failure stops further scheduling and blocks pending steps. A new run is required to repeat the plan. Interaction, language, preferences, runtime launch, installation and updates belong to the client and platform packages. Protocol identifiers are language-independent. [Workflow contract](WORKFLOW_CONTRACT.md) · [Engine reference](../engine/README.md)
 
-## Ambienti di esecuzione
+## Platform runtimes
 
-Su Windows, Python e gli script di avvio operano nell'account dell'utente.
-Il client esegue `wsl.exe` nella distribuzione dedicata indicata dalla propria
-configurazione. Il comando `nipat-engine ensure` avvia il Docker Engine interno
-quando necessario. Le operazioni di controllo, analisi e interruzione usano
-sempre questo stesso motore; non viene selezionato il contesto Docker dell'utente.
-Il trasporto Docker nativo non è ammesso sul client Windows.
+| Host | Execution environment |
+| --- | --- |
+| Windows | User-account Python and launchers call `wsl.exe` for the configured, dedicated WSL2 distribution. `nipat-engine ensure` starts its Docker Engine as needed. Checks, execution and cancellation use that engine. |
+| macOS | The host-native client uses the dedicated Lima VM and its Docker Engine. Python and Lima are bundled. Intel uses an AMD64 guest. Apple Silicon uses an ARM64 guest and Rosetta to run the same Linux AMD64 scientific image. Preflight checks engine identity and interfaces. |
+| Linux | Ubuntu 24.04 LTS x86_64 uses the local Docker Engine and Compose with a `linux/amd64` container. The installed package uses `unix:///var/run/docker.sock`. It requires a system daemon without rootless mode or user namespace remapping. Results use the caller's UID/GID. |
 
-Su macOS, il client e la CLI operano nel sistema host. Il trasporto seleziona
-una VM Lima dedicata e il suo Docker Engine; la VM espone al container gli input
-selezionati e il singolo run. Python e Lima sono incorporati nell'applicazione.
-Su Intel il guest e il container sono AMD64. Su Apple Silicon il guest è ARM64
-e Rosetta esegue la stessa immagine scientifica Linux AMD64. La verifica del
-motore precede le analisi: non è ammesso un ripiego silenzioso su un'immagine
-con diversa architettura o contratto.
+The WSL transport runs with UID/GID 0 inside its dedicated environment. The Windows account that starts WSL determines access to Windows files.
 
-Su Linux, il client usa Docker Engine e Compose del sistema con un container
-`linux/amd64`. La piattaforma Linux di riferimento è Ubuntu 24.04 LTS x86_64.
-Il pacchetto `.deb` usa il socket locale `unix:///var/run/docker.sock`
-senza modificare il contesto Docker dell’utente. Richiede un daemon di sistema
-senza `rootless` o rimappatura `userns`: il container usa UID e GID
-dell’utente Linux per i risultati. Il trasporto WSL
-usa UID e GID 0 nell'ambiente dedicato; l'accesso ai file Windows dipende dai
-permessi dell'account che ha avviato WSL.
+## Client and engine contract
 
-## Contratto tra client e motore
+A single-analysis JSON request uses schema version 1 and one of `dnp-call-v1`, `snp-call-v2`, `contamination-v2`, `cpi-v2` and `cpin-v1`. The SNP interface identifies SNPcall 2.0 and its 17-column output. Plans use their own schema version 1 and `workflow-plan-execution-v2`. Requests describe container paths, scientific parameters and destinations. The runner resolves the image to an immutable ID and checks that its description supports the required interface and modules. The engine validates the input files again before invoking R. `doctor --runtime` checks all five module contracts and `scientific-settings-v1` against the image.
 
-Ogni analisi produce una richiesta JSON con versione di schema 1 e una delle
-interfacce `dnp-call-v1`, `snp-call-v2`, `contamination-v2`, `cpi-v2` o `cpin-v1`.
-La seconda versione dell'interfaccia SNP identifica il modello SNPcall 2.0
-e il relativo output a 17 colonne; il piano mantiene lo schema versione 1.
-La richiesta contiene percorsi interni al container, parametri e destinazioni.
-Il motore valida nuovamente i file e prepara gli input prima di avviare R.
-I piani usano uno schema distinto, identificato da `schema_version: 1`,
-e l'interfaccia di esecuzione `workflow-plan-execution-v2`. Il runner ne
-verifica la presenza e il sottoinsieme di analisi supportato prima dell'avvio.
-Il contratto completo è descritto nel [riferimento del motore](../engine/README.md).
+Environment probes mount no user data. During analysis, `work/engine-compose.json` gives the container read-only binds for selected input files, read/write access to this run, a read-only image filesystem, dedicated temporary storage and disabled networking. This avoids copying large BAM and FASTA files and limits exposure of sibling files and other runs. Optional CPU, memory and PID limits are recorded. Effective resources and the requested execution mode constrain workers. The container PID limit also covers coordinating processes and threads.
 
-Prima dell'analisi, il runner risolve l'immagine in un ID immutabile e verifica
-la descrizione fornita dall'immagine. Un'interfaccia mancante o incompatibile
-interrompe l'esecuzione: non è previsto un ripiego sugli script R presenti
-nel filesystem del client. `doctor --runtime` verifica il motore e i contratti
-dei cinque workflow e dei parametri `scientific-settings-v1` senza richiedere
-una copia locale dei sorgenti R.
+## File paths and sample identity
 
-Le sonde diagnostiche e le analisi non scaricano dipendenze. Le sonde non
-montano dati o cartelle applicative. Ogni analisi usa esclusivamente il proprio
-`work/engine-compose.json`, con:
+`--data-dir` and `--runs-dir` select independent roots. Relative CLI paths are resolved against the working directory. Paths inside BAM lists are relative to the list. On Windows, the WSL transport accepts local fixed disks. UNC paths, network drives and removable devices are unsupported. The client translates paths separately from scientific arguments and builds argument lists directly. CLI and menu prevent a results directory from overlapping managed runtime or cache destinations.
 
-- file di input selezionati montati in sola lettura;
-- cartella del singolo run montata in lettura e scrittura;
-- filesystem dell'immagine in sola lettura e directory temporanea dedicata;
-- rete disabilitata.
+DNPcall receives ordered aliases such as `sample_0001.bam`. The run record in `run.json` maps them to original files. Standalone Contamination, CPI and CPIN preserve individual names in prepared copies and reject collisions, including case-only differences. In plans, Contamination uses aliases such as `table_0001`. CPI and CPIN use stable aliases for selected tables. State records link each table to its sample and producer step, and each native R result to its declared pair or trio. A branch calls each sample once and reuses the counts across families and downstream steps. Prenatal CPI takes maternal cfDNA and father. CPIN takes mother, father and child. The maternal samples used in the two analyses can differ.
 
-Le quote CPU, memoria e processi sono facoltative e registrate con l'esecuzione.
-Non modificano i parametri scientifici. CPU e memoria effettive concorrono
-invece al budget dei worker, insieme a `--execution-mode` e `--max-workers`;
-il limite PID riguarda tutti i processi/thread del container e non coincide
-con il massimo di processi di calcolo.
+## Preferences and provenance
 
-Le altre analisi, la cartella dei dati predefiniti e il progetto non vengono
-montati. I bind mount dei singoli file evitano di copiare BAM e FASTA di grandi
-dimensioni e non espongono automaticamente le loro cartelle parenti.
+The guided menu stores data/results roots, reference and workflow defaults, checksum policy, worker limits, DNP block settings, optional container limits and scientific overrides. The user selects run names, samples and families per experiment. **Configure** saves changes explicitly. A direct CLI command uses its arguments, environment and distributed defaults. Windows desktop preferences are in `%LOCALAPPDATA%\NIPAT-Desktop\preferences.json`. macOS uses `~/Library/Application Support/NIPAT-Desktop/preferences.json`. Installation configuration separately owns the program, cache and VM paths.
 
-## Percorsi e identità dei campioni
+`newpat settings` lists defaults, types, bounds and constants. `--scientific-config PATH` and `--set module.parameter=value` apply validated overrides. Duplicate keys and inconsistent parameters are rejected. Each scientific step stores effective settings in `work/effective-scientific-settings.json`.
 
-Input, applicazione e risultati possono avere radici distinte. Le opzioni globali
-`--data-dir` e `--runs-dir` selezionano le cartelle richieste dall'utente.
-I percorsi relativi dei comandi sono risolti rispetto alla directory corrente;
-le voci di una lista BAM sono relative alla directory della lista.
-La voce **Configura** del menu conserva cartelle e valori predefiniti del
-workflow fra gli avvii; un'opzione CLI esplicita di percorso ha precedenza
-nella sessione guidata.
+Each run has its own directory. `run.json` records parameters, inputs, path mappings, state, commands and image identity. `runtime.engine` identifies the verified R files and preparation code in the image separately from the client code. `execution.log` records client and engine messages. In plans, `output/workflow/workflow-state.json` records each step and its artifacts, with scientific messages in `steps/<id>/command.log`.
 
-Il client Windows accetta file su dischi locali fissi; condivisioni UNC, unità
-di rete e dispositivi rimovibili non sono supportati dal trasporto WSL.
-I percorsi Windows vengono tradotti separatamente dagli argomenti scientifici.
-Le chiamate sono costruite come liste di argomenti, senza concatenare comandi
-shell a partire dagli input dell'utente.
-Il controllo delle destinazioni riservate è comune a menu e CLI diretta:
-una cartella risultati non può occupare runtime o cache gestiti dall'installatore.
+SNPcall from BAM retains BED and pileup. Both SNP input modes retain the normalized panel. DNPcall retains the panel, BAM list, acquisition and block metrics. Its temporary BED and pileup are removed after completion. Contamination, CPI and CPIN retain prepared tables, normalized panels and required frequencies. Display copies use original sample names and link back to canonical results. Scientific values and sample associations are preserved.
 
-DNPcall riceve alias numerati come `sample_0001.bam`, compatibili con le chiamate
-interne dello script. `run.json` conserva l'associazione con i BAM originali.
-Nelle analisi singole, Contamination, CPI e CPIN mantengono i nomi dei campioni
-nelle copie preparate; collisioni di nome, incluse quelle che differiscono
-soltanto per maiuscole, vengono rifiutate prima della scrittura.
-Nel piano automatico, Contamination usa alias `table_0001`, ecc.; lo stato
-del motore conserva l'associazione con il campione e il passaggio produttore,
-indipendentemente dall'ordine dei file o dai loro nomi originali.
-CPI e CPIN assegnano alias stabili alle tabelle selezionate. Il calling degli
-stessi BAM viene riutilizzato fra le famiglie e le analisi successive.
-L'identificatore di ogni coppia o trio, i riferimenti ai ruoli e il nome nativo
-prodotto da R rimangono associati nello stato del piano; i CSV scientifici non
-vengono riscritti. CPI distingue cfDNA materno e padre; CPIN distingue madre,
-padre e figlio. Il cfDNA e il campione materno postnatale possono essere
-campioni diversi; le relazioni sono dichiarate e non dedotte dai nomi.
+Cancelling requests termination of the active process and removal of its container. Partial results remain available for investigation. A dry run records the request, inputs and planned command. Image availability and scientific results require an actual execution. Full provenance hashes all inputs before and after the run. Automatic mode hashes small files and records metadata for large ones. Reconciliation compares an incomplete record to observed container identity. Explicit stop requires an identity match and produces a separate report. [Runs and results](ESECUZIONI.md)
 
-## Preferenze del menu guidato
+## Installation, updates and maintenance
 
-Le preferenze dell'utente sono separate dal backend installato e dai record
-delle analisi. Su Windows risiedono in
-`%LOCALAPPDATA%\NIPAT-Desktop\preferences.json`; su macOS in
-`~/Library/Application Support/NIPAT-Desktop/preferences.json`. Comprendono
-cartelle dati e risultati, modalità, riferimenti e parametri proposti per i
-workflow. Non comprendono campioni, coppie CPI, trii CPIN o nomi dei run.
-Comprendono anche modalità dei checksum, parallelismo, blocchi DNP, limiti
-facoltativi del container e parametri scientifici personalizzati.
+Release manifests associate version, commit and checksums. Windows and Ubuntu provide manifests compatible with existing clients. macOS uses a feed for its two host architectures. The updater verifies a download before installer handoff. New preferences default to the stable channel. Users can select testing and opt into startup checks.
 
-Il menu carica questi valori e li sottopone alla convalida degli input prima
-dell'esecuzione. Le modifiche effettuate per una singola analisi non aggiornano
-le preferenze; **Configura** richiede un salvataggio esplicito. I comandi diretti
-non leggono questi valori e mantengono il proprio contratto di argomenti,
-ambiente e valori iniziali. La configurazione di installazione resta responsabile
-della posizione dell'applicazione, della cache e dell'ambiente WSL.
+The Windows desktop installer manages separate local roots for the program, WSL, cache, user data and results. Roots must be writable, fixed, independent and free of path links. Repair and update identify the existing package by inventory, then back up changed components, recovery metadata and generated Python before replacement. Unknown files remain in place. Obsolete files are removed only when they match the previous inventory. A modified obsolete component stays in place and is backed up. Account preferences, destination records, data and results survive uninstall.
 
-`nipat settings` espone valori predefiniti, intervalli ammessi e costanti;
-`--scientific-config PATH` e `--set modulo.parametro=valore` applicano override
-espliciti ai comandi diretti. Il registro comune controlla anche i vincoli fra
-parametri. Le chiavi duplicate nei file di configurazione sono rifiutate.
-La modifica guidata opera su una copia validata; non modifica le costanti
-invarianti del modello. Ogni modulo registra `work/effective-scientific-settings.json`
-e il resoconto del run ne rende leggibili parametri e costanti.
+WSL ownership depends on the registered distribution and destination. A missing owned distribution can be recreated in an empty destination while preserving the previous receipt. Changing its filesystem or location provisions a separate environment. Selecting new data or results roots leaves existing files where they are. WSL image provenance includes the Linux base, resolved package versions and engine. Builders may reuse an archive whose descriptor, content and checksum match the required component.
 
-## Esecuzioni, risultati e tracciabilità
+The launcher activates configuration after diagnostics and self-test succeed. Maintenance acquires an exclusive lock after the client exits and rechecks inventories, owned distributions, cache archives and backup records before changing anything. Selective backups support recovery of individual items. [Windows installer](INSTALLATORE_WINDOWS.md)
 
-Ogni run usa una cartella nuova. `run.json` registra parametri, input, mappatura
-dei percorsi, stato, comandi e identità dell'immagine. `runtime.engine` contiene
-il manifest R verificato e gli hash del codice di preparazione effettivamente
-usato nell'immagine; le informazioni sui sorgenti del client sono distinte.
-`execution.log` conserva i messaggi del client e del motore. Nel piano,
-`output/workflow/workflow-state.json` registra stato, comandi e riferimenti
-agli output di ogni passaggio; i messaggi scientifici sono nei rispettivi
-`steps/<id>/command.log`. La struttura dei risultati è illustrata in
-[Esecuzioni e risultati](ESECUZIONI.md).
+The macOS packages install `/Applications/NewPat.app` with host-native portable Python and Lima, plus the AMD64 scientific archive. The user workspace is `~/Library/Application Support/NIPAT-Desktop` and `LIMA_HOME` is `~/.nipat/lima`. First launch provisions the dedicated guest and verifies the bundled archive. Provisioning may use the network. Analysis runs offline in an isolated container. The bundle includes a separate terminal launcher for CLI use. [macOS installer](INSTALLATORE_MACOS.md)
 
-Il motore conserva le richieste e i file preparati nel run; ogni passaggio
-di un piano ha una propria sottocartella `work`. SNPcall da BAM conserva
-BED e pileup, e ogni modalità SNP conserva il pannello normalizzato;
-DNPcall conserva pannello, lista BAM e metadati di acquisizione/lettura,
-mentre BED e pileup temporanei vengono eliminati al termine. Il pileup DNP
-risiede su disco scratch Linux e non è conservato come risultato ordinario.
-CPI, CPIN e Contamination conservano tabelle preparate, frequenze quando
-richieste e pannelli normalizzati. Gli originali non vengono modificati.
+The Ubuntu package includes the scientific archive and uses the host's Docker daemon directly. APT installs missing dependencies. Granting daemon access is an administrative decision. [Linux installer](INSTALLATORE_LINUX.md)
 
-L'interruzione termina il processo attivo e richiede la rimozione del container
-del run. I risultati parziali rimangono disponibili per la diagnosi. Una prova
-`--dry-run` registra input, richiesta e comando previsto senza eseguire R e senza
-attestare la disponibilità dell'immagine.
+## Resource controls and diagnostics
 
-La modalità di provenienza `full` calcola i checksum di tutti gli input prima
-e dopo il calcolo; `auto` limita gli hash ai file piccoli e dichiara gli input
-identificati soltanto dai metadati. La riconciliazione delle esecuzioni incomplete
-confronta il record con il container osservato, senza riscrivere la storia o
-riprendere il piano. Un arresto esplicito richiede la corrispondenza dell'identità
-del container e conserva un rapporto separato.
+Fixed run capacity, phase-specific estimates and execution settings determine compute concurrency. A reconfiguration lock coordinates resource changes with analyses. The preview and its configuration hash prevent applying a stale change. WSL changes require confirmation because settings may affect other distributions. Lima is dedicated to NewPat. Native Linux applies container limits.
 
-## Verifica degli aggiornamenti
-
-Il canale desktop pubblica pacchetti identificati da versione, commit e
-checksum. Windows e Ubuntu mantengono il manifest compatibile con i client
-precedenti; macOS usa un feed dedicato alle due architetture. Il download
-viene verificato prima del passaggio all'installatore. Le installazioni
-sperimentali conservano identità distinta.
-Le preferenze nuove o prive del campo canale usano `stable`; una scelta
-`testing` esplicita resta invariata. Entrambi i canali sono selezionabili dal
-menu; il controllo all'avvio è facoltativo e inizialmente disattivato.
-
-## Installazione Windows
-
-Il profilo `desktop` identifica applicazione, collegamenti e stato di
-configurazione. Il setup gestisce cinque radici configurabili per applicazione,
-ambiente WSL, cache, dati e risultati. Le radici devono essere locali, fisse,
-scrivibili e indipendenti, senza sovrapposizioni o collegamenti nel percorso.
-Le preferenze dell'account e i registri centrali delle destinazioni appartengono
-al canale e vengono conservati dopo la disinstallazione.
-
-L'aggiornamento e la riparazione agiscono nella cartella applicativa riconosciuta.
-L'inventario identifica i file del pacchetto; prima delle sostituzioni viene
-creato un backup selettivo dei componenti differenti, dei metadati di recupero
-e del Python generato. File estranei vengono conservati; i componenti obsoleti
-si rimuovono soltanto se corrispondono all'hash nell'inventario precedente.
-Gli obsoleti modificati vengono conservati in posizione e copiati nel backup.
-Non sono previsti una pulizia indiscriminata o un rollback completo automatico.
-
-L'identità della distribuzione WSL dipende dal filesystem Linux e dalla
-posizione scelta. Il riutilizzo richiede una registrazione posseduta dal
-canale nella destinazione prevista. Una distribuzione posseduta ma rimossa
-dall'elenco WSL può essere ricreata soltanto in una destinazione vuota,
-conservando la ricevuta precedente nello storico. Cambiare filesystem o posizione
-prepara un ambiente affiancato senza copiare o cancellare quello precedente;
-cambiare cartelle dati e risultati non trasferisce i file esistenti.
-
-La provenienza del componente WSL è indipendente dal commit dell'interfaccia:
-comprende sorgenti del componente, base, versioni dei pacchetti risolti e motore.
-Il manifest della release associa applicazione, immagine scientifica e archivio
-WSL. Il builder può riutilizzare i byte pubblicati di un archivio WSL soltanto
-quando descrittore, contenuto e checksum corrispondono al componente richiesto.
-Un cambiamento del solo client non impone quindi un'identità diversa del
-componente; una differenza nelle dipendenze risolte impedisce il riutilizzo.
-
-Il launcher usa esclusivamente il proprio manifest e backend verificati.
-La configurazione è attivata dopo la riuscita di diagnostica e autotest;
-uno stato incompleto impedisce l'avvio dell'analisi. La disinstallazione
-conserva sempre dati e risultati; l'eventuale rimozione aggiuntiva riguarda
-solo distribuzioni WSL possedute e archivi verificati della cache, nelle
-destinazioni attuali e precedenti registrate. Identità, verifiche e recupero
-sono descritti nel [riferimento dell'installatore](INSTALLATORE_WINDOWS.md).
-
-La manutenzione Windows usa un inventario verificato di ambienti, cache e
-registri di backup. Il client può soltanto selezionare elementi dichiarati
-rimovibili o richiedere la ripresa dell'installazione corrente. Il worker
-PowerShell attende l'uscita del client, acquisisce il blocco esclusivo e
-ripete le verifiche prima di modificare componenti. L'esito è un rapporto
-separato; i dati dell'utente restano fuori dalla pulizia. I backup selettivi
-non realizzano un rollback completo della versione applicativa.
-
-## Installazione macOS
-
-I due pacchetti `.pkg` contengono il client, Python portabile e Lima nativi
-per l'architettura host, insieme allo stesso archivio scientifico AMD64 usato
-su Windows. L'applicazione è `/Applications/NIPAT Desktop.app`.
-La configurazione per utente vive in
-`~/Library/Application Support/NIPAT-Desktop`; `LIMA_HOME` è
-`~/.nipat/lima`, un percorso breve dedicato alla VM.
-L'installer non riutilizza automaticamente le VM Lima dell'utente.
-
-Il primo avvio prepara il guest e il motore e verifica l'archivio incorporato
-prima di abilitarne l'utilizzo. Il provisioning può richiedere la rete; le
-analisi si svolgono in container senza rete dopo la preparazione. La CLI
-viene aperta nel Terminale dal launcher dell'applicazione. Dettagli e limiti
-sono nella [guida macOS](INSTALLATORE_MACOS.md).
-
-## Utilizzo Linux
-
-Ubuntu 24.04 x86_64 usa Docker Engine locale. Il pacchetto `.deb` include
-l'archivio scientifico e viene verificato con installazione, analisi e rimozione
-sul runner Ubuntu. APT installa le dipendenze mancanti; l'accesso dell'utente
-al daemon resta una scelta amministrativa. Non è presente una VM NewPat.
-
-## Limiti tecnici
-
-DNPcall delega l'acquisizione a `dnp_pileup.py`: l'helper controlla i codici di
-uscita dei processi samtools, conserva lo stderr nel log e scrive
-`work/dnp-pileup.json`. Un'acquisizione fallita arresta R. La strategia
-indicizzata per cromosoma e il ripiego seriale sono registrati, insieme al
-budget e al numero massimo di processi samtools osservati.
-Il budget di memoria usa stime conservative e non garantisce l'assenza di
-esaurimenti della memoria; i limiti del container sono distinti. Il
-completamento tecnico e i controlli strutturali degli output non sostituiscono
-la valutazione della correttezza scientifica su dati rappresentativi.
-
-Gli hash identificano i file e rilevano alterazioni rispetto al manifest;
-non costituiscono una validazione scientifica. Le prove del motore, le prove
-dell'installatore e la validazione di dominio sono evidenze separate.
-
-## Presentazione e risorse
-
-Gli identificativi interni dei campioni sono separati dalle etichette visibili.
-La presentazione genera copie per la consultazione con nomi originali, mantenendo
-gli artefatti scientifici canonici e le loro associazioni. La sostituzione riguarda
-soltanto identità e testo, non conteggi o stime. Il run collega entrambe le viste.
-
-La gestione risorse distingue configurazione salvata e ambiente effettivo.
-Un blocco delle analisi coordina le riconfigurazioni; anteprima e hash della
-configurazione impediscono di applicare una proposta divenuta obsoleta.
-WSL richiede una conferma distinta per l'effetto globale; Lima è dedicata;
-Linux nativo usa limiti del container senza riconfigurare il sistema.
-
-La diagnostica delle prestazioni è disattivata normalmente e si abilita per
-una singola analisi. Un osservatore nel client e un monitor nel container
-scrivono campioni e riepiloghi separati, senza modificare gli argomenti
-scientifici o gli script R. La raccolta ha limiti di dimensione e segnala
-esplicitamente dati parziali o non disponibili. Un errore del monitoraggio
-non sostituisce l'esito dell'analisi. Contratto, misure e limiti sono descritti
-in [PERFORMANCE.md](PERFORMANCE.md).
+DNPcall checks every samtools exit, keeps stderr and records the strategy and observed concurrency in `work/dnp-pileup.json`. A failed acquisition stops the call. Its memory estimates guide scheduling. Hard container limits and kernel measurements provide separate evidence. Optional diagnostics record client-side samples, cgroup/process measurements and scientific phases with size limits and explicit missing-data indicators. A monitoring error preserves the scientific outcome. Numerical comparisons on representative cases and expert review are needed to assess scientific suitability. [Performance diagnostics](PERFORMANCE.md)

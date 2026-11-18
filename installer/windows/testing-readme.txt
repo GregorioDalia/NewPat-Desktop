@@ -1,40 +1,32 @@
-NewPat 0.9 - versione sperimentale con interfaccia grafica
+NewPat for Windows — testing package
 
-1. Estrarre tutti i file di questo ZIP in una cartella.
-2. Aprire INSTALLA-NewPat-TESTING.cmd, senza eseguirlo come amministratore.
-3. Attendere: NewPat si apre automaticamente quando la preparazione termina.
+1. Extract the entire testing ZIP to a folder.
+2. As a regular Windows user, double-click INSTALLA-NewPat-TESTING.cmd.
+3. Wait for preparation to finish. NewPat opens automatically.
 
-Per i prossimi avvii usare NewPat Testing sul Desktop o nel menu Start.
-Si puo anche riaprire lo stesso INSTALLA-NewPat-TESTING.cmd: riconosce
-l'installazione e apre l'app, senza ripetere il download.
-Se Windows richiede un riavvio, dopo il riavvio usare lo stesso collegamento
-NewPat Testing: completa la preparazione e apre automaticamente l'app.
+For subsequent sessions open NewPat Testing on the desktop or in the Start
+menu. If Windows requires a restart, the same shortcut resumes preparation
+and opens the app. Opening the original CMD file again also starts an
+installation it already recognizes.
 
-Il programma scarica il pacchetto della versione indicata in testing-release.json
-e ne controlla SHA-256 e dimensione prima dell'installazione. Le nuove
-installazioni sono in %LOCALAPPDATA%\NIPAT-Testing\NIPAT.
-Se trova la precedente 0.9.0 Testing nella sua cartella predefinita, aggiorna
-quella stessa installazione conservando esperimenti, dati e preferenze.
-La versione stabile gia installata rimane disponibile e non viene modificata.
-Conservare la cartella installata: contiene anche dati, risultati e runtime.
+The testing entry point downloads the version named in testing-release.json
+and verifies its size and SHA-256 hash. Its default installation directory is
+%LOCALAPPDATA%\NIPAT-Testing\NIPAT. An existing recognized testing installation
+may be reused. Keep its directory in place; it contains your preferences,
+experiments, data, results and runtime. The default testing installation is
+separate from the stable desktop installation.
 
-L'installazione richiede una connessione Internet. L'applicazione comprende
-IGV; non richiede di scaricare o aprire IGV Desktop o un browser esterno.
+An internet connection is required for download. The app includes IGV for
+viewing local data. Open IGV inside NewPat.
 
-SE WINDOWS BLOCCA LO SCRIPT
+If Windows blocks a file, verify the SHA-256 of the downloaded ZIP against
+the entry for that exact filename in SHA256SUMS on the official release page.
+Record the file named in the dialog and its message if the block persists.
+The Windows guide describes installation and diagnostics:
 
-Prima di estrarre, confrontare il SHA-256 dello ZIP con la riga del suo nome
-in SHA256SUMS della stessa release ufficiale GitHub. Se coincide, fare clic
-destro sullo ZIP, Proprieta, Sblocca, Applica. Estrarre nuovamente in una
-cartella nuova e aprire INSTALLA-NewPat-TESTING.cmd.
-Lo sblocco rimuove la provenienza Internet dal file verificato; non disabilita
-Smart App Control o Defender e non equivale a una firma digitale. Lo script
-non puo sbloccare se stesso prima che Windows lo autorizzi a partire.
-Se il blocco resta, conservare il messaggio esatto senza disattivare le protezioni.
+https://github.com/GregorioDalia/nipat-desktop/blob/main/docs/INSTALLATORE_WINDOWS.md
 
-Solo per sostituire esplicitamente l'installazione desktop esistente:
-  powershell -NoProfile -ExecutionPolicy Bypass -File .\install-testing.ps1 -UseSetup
-Questa opzione usa il setup della release selezionata con
-il payload sperimentale verificato; non e un'installazione affiancata.
-Aprire direttamente NewPat-Setup.exe, senza questo script, seleziona invece
-la versione stabile pubblicata.
+Maintainers can explicitly target the existing desktop installation with the
+-UseSetup option of install-testing.ps1. This installs the verified testing
+payload through the setup program. Launching NewPat-Setup.exe on its own
+selects the published stable version.

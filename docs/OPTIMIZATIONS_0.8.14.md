@@ -1,268 +1,107 @@
-# Ottimizzazioni della 0.8.14
+# DNP and CPI performance evidence for 0.8.14
 
-## Coda comune per più BAM e diagnostica finale
+## Multi-BAM work queue and diagnostics
 
-La versione finale usa una coda di attività campione/blocco condivisa da tutti
-i BAM. Con due campioni e un budget di cinque processi, il calcolo non si ferma
-a due worker: i blocchi possono occupare fino a cinque slot complessivi. Con
-più campioni del budget, la stessa coda distribuisce il lavoro nei processi
-disponibili. Non vengono creati pool annidati; ordine dei campioni e dei loci
-viene ricostruito prima della scrittura delle tabelle e dei grafici.
+The final 0.8.14 implementation shares a queue of sample/block tasks across all BAMs. With two samples and a budget of five processes, independent blocks can occupy up to five slots in total. When there are more samples than slots, the same queue schedules the work across the available processes. The coordinator restores sample and locus order before writing tables and plots.
 
-Il budget conserva i limiti CPU, memoria, massimo configurato e modalità
-seriale. Le finestre o i gruppi richiesti dalla compatibilità non vengono
-spezzati per aumentare artificialmente il numero di attività. La preparazione
-del pileup resta una fase precedente al calcolo R, con il proprio uso dello
-stesso limite complessivo.
+CPU, memory, the configured maximum and serial mode bound the worker pool. Complete windows and compatibility groups stay together. Pileup preparation precedes the R calculation and uses the same overall ceiling. The two phases have separate pools and do not overlap.
 
-La raccolta esterna distingue una risposta Docker vuota durante la chiusura
-da un errore su un container attivo. La terminazione deve essere confermata
-sullo stesso ID e con proprietà verificata; gli altri errori restano nei
-rapporti con codici diagnostici fissi. L'assenza di campioni nei run brevi non
-diventa una misura di memoria zero. La diagnostica interna rimane distinta.
+The external collector distinguishes an empty Docker response during shutdown from an error on a running container. It confirms termination against the same container ID and verified ownership. Other errors retain fixed diagnostic codes. A short run with no samples has a missing memory measurement. The internal diagnostics are recorded separately.
 
-Nel JSON DNP, `processing_seconds` globale misura la fase della coda comune;
-i tempi per campione coprono il primo e l’ultimo blocco e possono sovrapporsi.
-Il tempo stampato nel registro individuale decorre dalla preparazione del
-campione e comprende attesa nella coda e produzione dei grafici: non va
-sommato agli altri tempi individuali per stimare la durata complessiva.
+In the DNP JSON report, global `processing_seconds` measures elapsed time for the shared queue. Each sample's interval extends from its first block to its last, and sample intervals may overlap. The individual sample log starts at preparation and includes time waiting for the queue and producing plots. Adding the individual durations would double-count concurrent work.
 
-Le [note di versione](RELEASE_0.8.14.md) descrivono distribuzione e limiti.
-Le [42 osservazioni Windows/WSL](https://github.com/GregorioDalia/nipat-desktop/blob/main/docs/validation/0.8.14-observed-benchmarks.json)
-riguardano il candidato `e04ff883fc6417748174d2a7c3b49cadad989308`, precedente
-a queste modifiche. Hanno guidato la revisione del budget con più BAM;
-non misurano le prestazioni del nuovo installer.
+The [release notes](RELEASE_0.8.14.md) document distribution and scope. The [42 Windows/WSL observations](validation/0.8.14-observed-benchmarks.json) concern candidate `e04ff883fc6417748174d2a7c3b49cadad989308`, before the final multi-BAM changes. They informed the shared-queue revision. Installer performance requires measurements of the installer build itself.
 
-## Primo ciclo del candidato: evidenza storica
+## Reference implementations
 
-Le sezioni seguenti conservano interventi e misure del primo candidato
-0.8.14, successivo alla 0.8.13. I rapporti locali collegati sono storici e non
-vengono riscritti per attribuirli alla nuova build. Il riferimento scientifico
-resta **NIPAT 0.8.5**, commit
-`eafadf7002a9c7d7c1b9af9ccafc47d698a059e5`.
+The following records describe the first 0.8.14 candidate, based on 0.8.13. Each qualification report identifies the sources it tested. The scientific regression reference is **NIPAT 0.8.5**, commit `eafadf7002a9c7d7c1b9af9ccafc47d698a059e5`.
 
-## Punto di partenza
-
-Il controllo dello stato del codice ha distinto le funzioni già presenti
-dagli interventi nuovi:
-
-| Funzione | Provenienza | Intervento 0.8.14 |
+| Capability | Origin | Change tested in 0.8.14 |
 | --- | --- | --- |
-| Modalità automatica o seriale, massimo di processi e blocchi configurabili | 0.8.12 | Controllo aggiuntivo dei thread di readr e dell'avvio nativo del motore. |
-| Parallelismo nei quattro programmi R | 0.8.12 | Conservato; ottimizzazione mirata del riepilogo CPI. |
-| Preparazione del pileup DNP per cromosoma | 0.8.13 | Conservata con lo stesso budget complessivo. |
-| Lettura dei blocchi DNP dall'indice globale | 0.8.10, estesa dal parallelismo successivo | Lettura congiunta di righe contigue nei byte del file. |
+| Automatic or serial mode, maximum workers, configurable blocks | 0.8.12 | Additional readr thread limits and coverage of the native engine entry point. |
+| Parallelism across the four R programs | 0.8.12 | Targeted optimization of the CPI summary. |
+| DNP pileup preparation by chromosome | 0.8.13 | Retained the existing overall budget. |
+| DNP block reads from the global index | 0.8.10, subsequently extended for parallel execution | Combined reads for byte-contiguous rows. |
 
-La [guida 0.8.12](PARALLELISMO_0.8.12.md) descrive la distribuzione del lavoro
-R; la [guida 0.8.13](PILEUP_0.8.13.md) descrive acquisizione del pileup,
-condizioni del percorso parallelo e ripiego seriale. Contamination mantiene
-il calcolo per campione e, quando applicabile, per blocchi di righe. SNPcall
-mantiene i gruppi di QNAME completi. CPI mantiene coppie, pannelli/cutoff e
-intervalli di soglie come livelli alternativi di distribuzione del lavoro.
-Non vengono aperti pool annidati.
+The [R scheduling reference](PARALLELISMO_0.8.12.md) and [pileup acquisition reference](PILEUP_0.8.13.md) describe the applicable execution paths. Contamination works by sample and, where appropriate, by row block. SNPcall keeps QNAME groups intact. CPI can distribute work across pairs, panels/cutoffs or threshold intervals. These levels are alternatives and do not create nested pools.
 
-## Seriale e limite complessivo
+## Serial mode and the overall process limit
 
-`--execution-mode serial` esegue una sola attività di calcolo alla volta:
-un processo samtools nella preparazione, quindi il calcolo R seriale. Le
-fasi sono successive. L'automatico sceglie invece il numero di processi in
-base alle risorse effettive e al lavoro disponibile; `--max-workers N`
-impone un massimo, senza garantire che vengano usati tutti gli N processi.
+`--execution-mode serial` runs one compute task at a time. A single samtools process prepares the pileup, followed by serial R computation. Automatic mode selects concurrency based on effective resources and available tasks. `--max-workers N` sets an upper bound.
 
-Esempio: con un massimo di quattro processi, la preparazione può lavorare
-su quattro cromosomi contemporaneamente. Quando finisce, R può calcolare
-quattro blocchi contemporaneamente. Non si avviano quattro blocchi per
-ciascuno dei quattro processi di preparazione.
+For example, a maximum of four can allow four concurrent chromosome tasks during acquisition and four concurrent R blocks afterwards. The client, Python, R coordinator and optional monitor may still be present. They are distinct from the scientific worker count. Serial mode applies to this analysis and leaves other applications alone.
 
-Il client, Python, il coordinatore R e l'eventuale monitoraggio possono
-restare presenti. Non sono ulteriori attività scientifiche del pool: la
-modalità seriale non significa un unico processo del sistema operativo né
-un vincolo sull'attività delle altre applicazioni del computer.
+The SNP panel reader calls `readr::read_tsv()` with `num_threads = 1L`, independent of the host readr option. The runtime sets `VROOM_THREADS=1` and applies thread limits to the native engine `run` entry point, desktop and JSON paths. Numerical library thread limits remain in force. These constraints also apply in automatic mode, where the application schedules parallel work using bounded processes.
 
-La 0.8.14 chiude due percorsi che potevano introdurre thread aggiuntivi:
+## CPI summary
 
-- La lettura del pannello SNP con `readr::read_tsv()` passa esplicitamente
-  `num_threads = 1L`, indipendentemente dall'opzione readr dell'ambiente.
-- Il runtime imposta anche `VROOM_THREADS=1` e applica i limiti dei thread
-  all'ingresso nativo `run` del motore, oltre ai percorsi Desktop e JSON.
-  Rimangono i limiti delle librerie numeriche già previsti dal runtime.
+The CPI calculation produces the informative maternal rows for each pair and panel. The 0.8.14 summary reuses `out$madre_info` instead of filtering the original maternal table again, as 0.8.13 did. The calculation uses the same fetal-read and fetal-fraction formulae, checks for missing and positive values, and minimum of two reads.
 
-Anche in modalità automatica i thread interni restano limitati: il
-parallelismo richiesto è distribuito dai processi NIPAT, evitando che ogni
-processo apra autonomamente un altro gruppo di thread.
+Maternal keys already belong to the chosen panel. Joining them with the original paternal table selects the same paternal rows without a second panel filter. The arguments to `run_CPI_iteration()`, formulae, order of CPI products and duplicate handling remain the same. The expected saving depends on the number of pairs, panels, cutoffs and rows.
 
-## Riepilogo CPI
+## DNP reading and indexing
 
-Il calcolo CPI produce già le righe materne informative per la coppia e il
-pannello correnti. Il riepilogo della 0.8.13 filtrava nuovamente la tabella
-materna originale sullo stesso pannello; la 0.8.14 riusa `out$madre_info`.
-Applica poi la stessa formula del riepilogo per letture fetali e frazione
-fetale, gli stessi controlli sui valori mancanti e sulla positività e la
-stessa soglia di almeno due letture.
+The previous block reader called `seek()` and `readChar()` for each requested row. The alternative combines rows only when they are contiguous in file bytes and adjacent in request order. Each temporary read range targets up to 8 MiB, except for a single larger indivisible row. The configurable computation block has a separate default of **32 MiB / 64 loci**.
 
-Le chiavi materne sono già limitate al pannello. La join con la tabella
-paterna originale seleziona quindi le stesse righe paterne, evitando un
-secondo filtro del padre sul pannello. La chiamata e gli argomenti di
-`run_CPI_iteration()` restano invariati, così come le formule, l'ordine dei
-prodotti CPI e la gestione dei duplicati.
+Requests may contain gaps, repeated rows or reverse order. The reader preserves the request without sorting or deduplicating row indices. If no two requested rows are adjacent it uses the individual-read path directly. The same `read.csv()` parser consumes the bytes using column types inferred from the entire pileup. A warning or truncated combined read triggers individual-row reads to preserve the original handling of unusual bytes.
 
-L'intervento riguarda il lavoro ripetuto per costruire il riepilogo; non
-modifica la definizione dei siti informativi né l'algoritmo scientifico.
-La sua utilità prestazionale dipende dal numero di coppie, pannelli, cutoff
-e righe: deve essere misurata separatamente dalla correttezza.
+The global index still precedes block processing and performs QNAME and coordinate checks and type inference. Parsing, checking and type inference contribute separately to the cost of building the index. This test changed block reading and retained the existing index implementation.
 
-## Lettura DNP e indicizzazione
+## Helper microbenchmarks
 
-Il lettore precedente eseguiva una coppia `seek()`/`readChar()` per ogni
-riga richiesta. Il nuovo helper combina soltanto righe adiacenti nei byte
-del file e nello stesso ordine della richiesta. Ogni intervallo temporaneo
-ha un obiettivo massimo di 8 MiB, salvo una singola riga indivisibile più
-grande. Questo valore interno riguarda le letture del file: è distinto dal
-blocco di calcolo configurabile, inizialmente da **32 MiB / 64 loci**.
+The [local helper measurements](validation/0.8.14-microbenchmarks.json) isolate the operation being changed. They use synthetic data and exclude installer and full Windows/WSL workflow timing.
 
-L'helper conserva richieste con salti, righe ripetute o ordine inverso;
-non ordina né deduplica gli indici. Quando nessuna coppia di righe è
-adiacente, mantiene direttamente il percorso precedente. I byte letti passano
-allo stesso parser
-`read.csv()` e alle classi inferite sull'intero pileup. Se una lettura
-congiunta produce avvisi o viene troncata, torna alla lettura delle singole
-righe per conservare il comportamento precedente sui byte anomali.
+For CPI, each of two sessions included five repetitions of summary construction using the same previously computed CPI result. The second session also exercised the final reproducible harness. Timing excludes file reads, core calculation, plots and package loading. With 50,000 loci the median times were:
 
-L'indice globale continua a precedere il calcolo dei blocchi e conserva i
-controlli su QNAME e coordinate e l'inferenza dei tipi. La sola sostituzione
-del lettore non accelera necessariamente la costruzione dell'indice:
-parsing, controlli e inferenza possono contribuire al suo costo. Una
-riscrittura dell'indice richiederebbe un beneficio misurato e una verifica
-separata di metadati e risultati.
-
-## Microbenchmark degli interventi
-
-Le [misure locali degli helper](validation/0.8.14-microbenchmarks.json)
-separano il costo dell'operazione modificata dal workflow completo. Non
-sono misure del dataset reale né degli installer Windows/WSL.
-
-Per CPI sono state eseguite due sessioni di cinque ripetizioni della
-costruzione del riepilogo a partire dallo stesso risultato CPI già calcolato.
-La seconda verifica anche l'harness riproducibile finale. Sono esclusi
-lettura dei file, calcolo del core, grafici e caricamento dei pacchetti.
-Con 50.000 loci, le mediane osservate sono:
-
-| Sessione | Selezione CPI | 0.8.13 | 0.8.14 |
+| Session | CPI selection | 0.8.13 | 0.8.14 |
 | --- | --- | ---: | ---: |
-| Prima misura | Pannello completo | 36 ms | 21 ms |
-| Prima misura | Pannello con il 10% dei loci | 16 ms | 10 ms |
-| Prima misura | ALL, senza selezione su pannello | 20 ms | 20 ms |
-| Ripetizione con harness finale | Pannello completo | 41 ms | 36 ms |
-| Ripetizione con harness finale | Pannello con il 10% dei loci | 18 ms | 10 ms |
-| Ripetizione con harness finale | ALL, senza selezione su pannello | 22 ms | 22 ms |
+| First session | Full panel | 36 ms | 21 ms |
+| First session | Panel with 10% of loci | 16 ms | 10 ms |
+| First session | ALL, no panel selection | 20 ms | 20 ms |
+| Repeat with final harness | Full panel | 41 ms | 36 ms |
+| Repeat with final harness | Panel with 10% of loci | 18 ms | 10 ms |
+| Repeat with final harness | ALL, no panel selection | 22 ms | 22 ms |
 
-Il beneficio assoluto osservato è ridotto, varia fra le sessioni e riguarda
-il solo riepilogo. Non tutti i casi migliorano: nel replay con 5.000 loci
-in modalità ALL la mediana passa da 8 a 10 ms. La rimozione di lavoro
-ridondante non implica quindi una percentuale di accelerazione stabile.
-Gli oggetti R confrontati con 0.8.5 e 0.8.13 sono identici secondo `identical()`;
-coincidono inoltre i byte delle tabelle e dei dati/etichette dei grafici
-esportati dal microbenchmark. Questi controlli isolati non sostituiscono il
-confronto degli output dell'intero programma.
+The absolute improvement in the summary was small and varied across sessions. In the 5,000-locus ALL replay the median increased from 8 to 10 ms. The benchmark found identical R objects with `identical()` against 0.8.5 and 0.8.13. The exported tables and plot data/labels also matched byte for byte. Whole-program comparisons were qualified separately.
 
-Per DNP il microbenchmark confronta lettura e parsing dello stesso blocco,
-con cinque ripetizioni alternate e risultati identici. Le mediane sono:
+For DNP, the benchmark compared reading and parsing the same block over five alternating repetitions. Results matched. The table gives median timings.
 
-| Blocco sintetico | Dimensione | 0.8.13 | 0.8.14 |
+| Synthetic block | Size | 0.8.13 | 0.8.14 |
 | --- | ---: | ---: | ---: |
-| 512 righe contigue, profondità 6.000 | 38,096 MiB | 1,292 s | 1,303 s |
-| 20.000 righe contigue, profondità 4 | 1,335 MiB | 0,204 s | 0,039 s |
-| 10.000 righe corte con salti | 0,668 MiB | 0,090 s | 0,085 s |
+| 512 contiguous rows, depth 6,000 | 38.096 MiB | 1.292 s | 1.303 s |
+| 20,000 contiguous rows, depth 4 | 1.335 MiB | 0.204 s | 0.039 s |
+| 10,000 short rows with gaps | 0.668 MiB | 0.090 s | 0.085 s |
 
-Il caso con righe profonde è sostanzialmente neutro: la riduzione delle
-chiamate di lettura non riduce il tempo complessivo di lettura e parsing.
-Il beneficio maggiore compare sulle molte righe corte contigue. La prova
-con salti segue il percorso diretto e mostra una differenza piccola. Queste
-misure non permettono di prevedere una riduzione del tempo totale del run
-reale, né del tempo di costruzione dell'indice.
+With deep rows, fewer reads had little effect on combined reading and parsing time. Many short contiguous rows showed the largest improvement. Rows with gaps used the direct path and showed only a small difference. These measurements do not establish the elapsed time of a real run or its index construction.
 
-La lettura congiunta comporta un piccolo costo di memoria nel caso profondo.
-Misurando tre processi R nuovi e separati per ciascun metodo, la mediana
-del massimo RSS passa da **188,586 a 200,145 MiB**, circa **11,56 MiB in più**.
-È il picco del processo R che legge il blocco con l'indice già costruito,
-non quello di un workflow o del container. Le allocazioni cumulative
-misurate restano circa 114,9 MiB: questa somma non misura il picco di memoria.
+Three fresh R processes per method measured memory in the deep case. Median maximum RSS rose from **188.586 to 200.145 MiB**, an increase of about **11.56 MiB**. This is the peak of the R process reading the block after the index had already been constructed. The cumulative allocations measured about 114.9 MiB. They sum allocation activity rather than simultaneous resident memory.
 
-Il profiling esplorativo dell'indice sullo stesso caso profondo ha osservato
-0,817 s complessivi. Nei 0,79 s campionati, `readLines()` e `strsplit()`
-rappresentano rispettivamente il 46,84% e il 37,97% del tempo proprio. È una
-singola prova sintetica breve, insufficiente per stimare il costo sul dataset
-reale. L'indicizzazione rimane invariata: non è stata adottata una nuova
-implementazione con beneficio ed equivalenza già dimostrati.
+An exploratory profile of index construction on the same deep fixture took 0.817 s. Of the 0.79 s sampled, `readLines()` and `strsplit()` accounted for 46.84% and 37.97% of self time, respectively. This single short run gives limited information about indexing real data.
 
-## Stato delle verifiche
+## Qualification results
 
-La [qualificazione locale 0.8.14](validation/0.8.14-rootless.json) è stata
-completata sui sorgenti identificati dagli hash nel rapporto: **20 casi,
-64 esecuzioni scientifiche e 44 confronti con 0.8.5**. Coincidono i byte di
-145 confronti di tabelle, gli oggetti R scientifici non arrotondati e
-137 pagine PDF renderizzate a 36 DPI, escludendo i metadati PDF. Sono
-passati anche dieci controlli R mirati, 25 casi di acquisizione pileup e
-il controllo della cancellazione R. I checksum confermano che i 154 file
-sorgente sorvegliati e i 55 input non sono cambiati durante la prova.
+The [local 0.8.14 qualification](validation/0.8.14-rootless.json) identifies the tested sources by hash. It covered **20 cases, 64 scientific executions and 44 comparisons with 0.8.5**. Checks found byte-identical tables in 145 comparisons, identical unrounded scientific R objects, and identical rendered content on 137 PDF pages at 36 DPI, excluding PDF metadata. Ten focused R checks, 25 pileup acquisition cases and the R cancellation check also passed. Checksums confirmed that all 154 monitored source files and all 55 inputs were unchanged during the test.
 
-Le varianti comprendono seriale, automatico, massimo due, massimo quattro
-e ripetizione del massimo quattro. Nei casi che esercitano il pool R, il
-budget dell'host ha selezionato un worker in seriale, senza PID figli,
-fino a due con massimo due e fino a tre in automatico e con massimo quattro.
-CPI con una coppia e due cutoff usa due worker perché ha soltanto due task.
-Il massimo richiesto non è quindi un numero di processi garantito. I test della preparazione pileup
-hanno osservato direttamente massimi di uno, due e quattro processi
-samtools. Ordine dei risultati e ripetibilità sono inclusi nei confronti.
+Variants included serial, automatic, a maximum of two, a maximum of four and a repeat of the four-worker maximum. In cases exercising the R pool, the host selected one serial worker with no child PID, up to two workers at a maximum of two, and up to three in automatic mode or with a maximum of four. A CPI pair with two cutoffs used two workers because it provided only two tasks. Acquisition tests directly observed maxima of one, two and four samtools processes. Output ordering and repeatability were covered.
 
-Le prove usano R 4.4.2 e samtools 1.21 su Linux, con runtime rilocato e
-sorgenti del checkout verificati. Non usano Docker o Windows/WSL e non
-applicano le quote del container: qualificano i casi e i sorgenti riportati,
-non gli installer o le prestazioni del dataset reale.
+Tests used R 4.4.2 and samtools 1.21 on Linux with a relocated runtime and verified checkout sources. The environment did not run Docker or Windows/WSL and did not enforce container quotas. These results apply to the recorded cases and sources. Other checks completed included:
 
-Sono stati completati anche:
+- A Python suite of 1,081 tests with four skipped, 224 CI script tests and the Ruff check. The CI script tests ran locally.
+- Loading all four catalogs with full dependency verification, 17 catalog tests and checksum verification for all four R sources.
+- Link checks on 55 Markdown files and the helper microbenchmarks reported above.
 
-- Suite Python di 1.081 test, con quattro casi saltati; 224 test degli script
-  di controllo della CI e controllo Ruff superati. I test locali degli
-  script non equivalgono all'esecuzione dei workflow remoti della nuova build.
-- Tutti e quattro i cataloghi caricati con verifica completa delle dipendenze,
-  17 test del catalogo superati e checksum dei quattro sorgenti R verificati.
-- Controllo dei collegamenti della documentazione su 55 file Markdown e
-  microbenchmark degli helper riportati sopra.
+Build CI and installer qualification refer to the associated GitHub Actions build and commit. Real-data Windows/WSL trials measure phase times and whole-container memory separately. The [0.8.13 qualification](validation/0.8.13-rootless.json) is a separate historical reference.
 
-La distribuzione del candidato richiede inoltre CI e qualificazione degli
-installer sullo stesso commit: gli esiti sono associati alla relativa build
-GitHub Actions. Rimane distinto il collaudo del dataset reale in Windows/WSL
-con tempi delle fasi e memoria dell'intero container. Nessuna accelerazione sui dati
-reali della nuova versione è dichiarata da questa guida. Le evidenze della
-[0.8.13](validation/0.8.13-rootless.json) rimangono un riferimento storico
-separato.
+<a id="collaudo-sugli-input-reali"></a>
 
-## Collaudo sugli input reali
+## Real-input comparison protocol
 
-1. Verificare versione, commit e build effettivamente installati. Conservare
-   il candidato 0.8.13 e i run precedenti; non dedurre la versione dal nome
-   della cartella risultati.
-2. Mantenere gli stessi input, parametri scientifici, risorse WSL/container,
-   politica dei checksum e diagnostica. Iniziare con **32 MiB / 64 loci**.
-3. Nel riepilogo dell'analisi scegliere **4 — Parallelismo e blocchi**, poi
-   modalità **seriale** per il primo run e **automatica** per il secondo.
-   Usare nomi nuovi, per esempio `test0814-serial32-01` e
-   `test0814-auto32-01`. La scelta nel riepilogo riguarda il run corrente.
-4. Confrontare risultati e ordine delle tabelle; il riferimento scientifico
-   resta 0.8.5. Per i tempi riutilizzare i run 0.8.13 verificabili e
-   confrontabili. Se sostenibile, alternare le condizioni e ripeterle tre
-   volte, includendo fallimenti e interruzioni.
-5. Per DNP distinguere acquisizione, indice e blocchi. Per CPI conservare
-   coppie, pannelli e cutoff effettivi. Non attribuire al nuovo lettore una
-   differenza osservata nella preparazione samtools o nell'indice.
+1. Verify the installed version, commit and build. Keep the 0.8.13 candidate and earlier runs. A results directory name alone does not identify a build.
+2. Keep inputs, scientific parameters, WSL/container resources, checksum policy and diagnostics fixed. Start with **32 MiB / 64 loci**.
+3. In the analysis summary, choose **4 — Parallelism and blocks**, then run serial and automatic conditions under new names, for example `test0814-serial32-01` and `test0814-auto32-01`. The summary choice applies to this run.
+4. Compare table contents and order with the scientific reference, 0.8.5. For timings use verified and comparable 0.8.13 runs. Where practical, alternate the conditions and repeat three times. Include failures and interruptions.
+5. For DNP, distinguish acquisition, index construction and block computation. For CPI, record effective pairs, panels and cutoffs. The block reader is downstream of samtools and index construction.
 
-Conservare `run.json`, `execution.log`, `run-report.html`, risultati, `work/`
-e `performance/` quando presente. La [guida alle prestazioni](PERFORMANCE.md)
-spiega quali contatori confrontare. I MiB dei blocchi misurano input grezzo,
-non RAM: il consumo dipende anche da strutture R, numero di processi e cache.
+Retain `run.json`, `execution.log`, `run-report.html`, the results, `work/` and, when available, `performance/`. The [performance guide](PERFORMANCE.md) explains which measures are comparable. Raw block MiB describe input size. R structures, process count and caching also affect resident memory.
 
-I log e i risultati permettono il primo confronto senza trasferire BAM e
-FASTA completi. Gli input originali diventano utili per riprodurre un errore
-o profilare un collo di bottiglia che i resoconti non spiegano; non vanno
-inclusi nel repository o nei pacchetti distribuiti.
+Logs and results allow an initial comparison without transferring whole BAM and FASTA files. Original input may be needed to reproduce an unexplained failure or profile a particular workload. Keep sample files outside the source repository and distributed packages.

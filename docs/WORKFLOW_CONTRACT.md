@@ -1,167 +1,74 @@
-# Contratto dei piani scientifici
+# Scientific workflow plan contract
 
-Un piano descrive campioni, analisi e collegamenti fra risultati attraverso
-identificatori espliciti. Il contratto `schema_version: 1` appartiene al
-motore scientifico `nipat_scientific`, incluso nell'immagine Linux. Non dipende
-dal sistema host, dal menu, da una GUI o dalla lingua dell'interfaccia.
+A plan identifies samples, analysis steps and their input and output relationships. The Linux image contains the `nipat_scientific` engine, which implements `schema_version: 1` independently of the host OS or interface language.
 
-Il comando del motore `validate-plan --plan FILE` controlla la struttura e
-le dipendenze e restituisce JSON. **Questa validazione non esegue il piano**:
-non avvia R o samtools, non crea risultati e non controlla esistenza,
-contenuto o compatibilità biologica dei file.
+`validate-plan --plan FILE` checks the structure and dependencies and returns JSON. It works without the sample files and starts no R or samtools process. File content, reference compatibility and output checks belong to execution.
 
-Il comando distinto `execute-plan --plan FILE --run-dir DIR` esegue
-piani composti dai cinque moduli: DNPcall, SNPcall, Contamination, CPI
-prenatale e CPIN postnatale. DNPcall e SNPcall producono tabelle tipizzate
-utilizzabili da tutti e tre i consumatori. Un passaggio SNPcall seleziona
-un solo BAM o pileup; più passaggi possono condividere il pannello.
-Le analisi singole restano disponibili tramite `execute`.
+`execute-plan --plan FILE --run-dir DIR` runs plans containing DNPcall, SNPcall, Contamination, prenatal CPI and postnatal CPIN. Both callers produce typed count tables accepted by all three downstream modules. Each SNPcall step processes one BAM or pileup. Multiple steps can share a panel. Use `execute` to run a single module.
 
-La CLI desktop `workflow analyze` e il menu **W → 5** compongono i rami DNP,
-SNP o entrambi, anche da tabelle già disponibili. Ogni ramo può eseguire
-qualsiasi sottoinsieme di Contamination, CPI e CPIN; i due rami possono
-scegliere analisi diverse. Il client genera il JSON a partire dagli input
-confermati nel menu o dagli argomenti della CLI.
+The desktop command `workflow analyze` and menu **W → 5** build DNP branches, SNP branches, or both, starting from alignments or existing tables. Each branch can select its own subset of Contamination, CPI and CPIN. The client generates the JSON from the confirmed menu selections or CLI arguments.
 
-Prima dell'avvio di ciascun script R, il motore esegue anche i controlli
-sul contenuto degli input descritti in [INPUT_VALIDATION.md](INPUT_VALIDATION.md).
-Questi controlli appartengono all'esecuzione, non a `validate-plan`, e sono
-condivisi con le analisi singole. I pannelli normalizzati e il resoconto
-`work/input-validation.json` appartengono alla cartella del passaggio.
-Gli output sono verificati prima di essere dichiarati utilizzabili dal
-passaggio dipendente. Gli avvisi numerici sono conservati in
-`artifacts.quality_warnings`: non trasformano le tabelle R e non attestano
-la validità scientifica di un risultato tecnicamente completato.
+Before each R invocation, the engine performs the [input content checks](INPUT_VALIDATION.md) used by single-module analyses. Each step keeps its normalized panels and `work/input-validation.json`. The engine verifies outputs before passing them to dependent steps. Numerical warnings appear in `artifacts.quality_warnings`. They preserve the original R tables and flag results that need scientific interpretation.
 
-## Struttura della richiesta
+## Request structure
 
-La richiesta contiene `schema_version`, `samples` e `steps` e può aggiungere
-il campo opzionale `presentation`.
-Campi sconosciuti o mancanti sono errori; non vengono ignorati. Le opzioni
-obbligatorie di orchestrazione devono essere scritte esplicitamente.
-`scientific_settings` e alcuni campi scientifici sono invece facoltativi:
-l'omissione usa i default del registro incluso nel motore. La configurazione
-effettiva viene conservata per ciascun passaggio.
+A request contains `schema_version`, `samples` and `steps`. It may also include `presentation`. Unknown fields and missing required fields cause validation errors. The caller must supply required orchestration options. Omitted scientific options take their defaults from the engine registry. The engine records the effective settings for each step.
 
-Il registro `samples` contiene oggetti con questi tre campi:
+Each entry in `samples` has three fields.
 
-| Campo | Contenuto |
+| Field | Meaning |
 | --- | --- |
-| `id` | Identità del campione nel piano, indipendente dal nome del file. |
-| `kind` | `bam`, `dnp-table`, `snp-table` oppure `snp-pileup`. |
-| `path` | Percorso assoluto POSIX del file nel container. |
+| `id` | Sample identity within the plan, independent of the filename. |
+| `kind` | `bam`, `dnp-table`, `snp-table` or `snp-pileup`. |
+| `path` | Absolute POSIX path inside the container. |
 
-Gli identificatori di campioni, passaggi, coppie e terne usano da 1 a 64 caratteri
-ASCII: iniziano con una lettera e proseguono con lettere, numeri, `_` o `-`.
-Non sono ammessi duplicati, neppure con differenze di maiuscole/minuscole.
-Il riferimento a un identificatore deve conservarne la scrittura esatta.
-Lo stesso percorso non può essere registrato come due campioni distinti.
-Il confronto è testuale: il validatore non risolve collegamenti simbolici,
-hard link o due percorsi che identificano fisicamente lo stesso file.
+Sample, step, pair and trio identifiers contain 1–64 ASCII characters. The first character must be a letter. Subsequent characters may be letters, digits, `_` or `-`. Identifiers must be unique even when compared without regard to case. Each reference must match the declared spelling exactly. Two samples cannot register the same path string. The validator compares path strings without resolving symlinks, hard links or other names for the same physical file.
 
-I percorsi sono quelli assegnati dal client dopo la preparazione dei mount,
-per esempio `/workspace/inputs/sample_a.bam`. Un percorso Windows come
-`D:\dati\sample.bam` non è un percorso valido in questo contratto. Non sono
-ammessi componenti `.` o `..`, barre ripetute, backslash o caratteri di controllo.
-I valori sono letterali: non sono espansi variabili, comandi, template o glob.
-Il contratto non accetta comandi di shell né programmi arbitrari.
+Use the container paths assigned by the client when it mounts inputs, such as `/workspace/inputs/sample_a.bam`. A Windows host path such as `D:\dati\sample.bam` is invalid here. Paths cannot contain `.` or `..` components, repeated slashes, backslashes or control characters. Values are literal. The contract accepts no shell commands or arbitrary programs and performs no variable, command, template or glob expansion.
 
-Ogni elemento di `steps` contiene esattamente `id`, `workflow`, `inputs` e
-`parameters`. `workflow` identifica uno dei cinque moduli supportati.
+Every entry in `steps` contains exactly `id`, `workflow`, `inputs` and `parameters`. The value of `workflow` selects the module.
 
-| Workflow | Campi esatti di `inputs` | Parametri di orchestrazione |
+| Workflow | Required fields in `inputs` | Orchestration parameters |
 | --- | --- | --- |
-| `dnp-call` | `samples`: lista di ID BAM; `reference`: FASTA; `panel`: pannello DNP | `parallel`: booleano. |
-| `snp-call` | `sample`: ID BAM o pileup; `reference`: FASTA oppure `null`; `panel`: pannello SNP | `mode`: `bam` oppure `pileup`. |
-| `contamination` | `samples`: lista di riferimenti a tabelle; `panel`: pannello di coordinate | Nessun campo obbligatorio specifico. |
-| `cpi` | `pairs`: coppie esplicite; `popfreq`: frequenze di popolazione; `cutoffs`: pannelli selezionati | `cutoff_mode`: `all`, `panel` o `named`; `err_const` facoltativo, finito in `(0, 1]`. |
-| `cpin` | `trios`: terne esplicite; `popfreq`: frequenze di popolazione; `markers`: pannello con REF/ALT oppure `null` | Nessun campo obbligatorio specifico. |
+| `dnp-call` | `samples` (list of BAM IDs), `reference` (FASTA), `panel` (DNP panel) | `parallel` (Boolean) |
+| `snp-call` | `sample` (BAM or pileup ID), `reference` (FASTA or `null`), `panel` (SNP panel) | `mode` (`bam` or `pileup`) |
+| `contamination` | `samples` (list of table references), `panel` (coordinate panel) | No module-specific required field |
+| `cpi` | `pairs` (explicit pairs), `popfreq` (population frequencies), `cutoffs` (selected panels) | `cutoff_mode` (`all`, `panel` or `named`), optional finite `err_const` in `(0, 1]` |
+| `cpin` | `trios` (explicit trios), `popfreq` (population frequencies), `markers` (panel with REF/ALT alleles or `null`) | No module-specific required field |
 
-Tutti i passaggi accettano in `parameters` un oggetto facoltativo
-`scientific_settings`, contenente le modifiche per quel modulo. I consumatori
-accettano anche `marker_type: "SNP"` oppure `"DNP"`: il validatore lo deduce
-se omesso e ne verifica la coerenza se dichiarato. Una singola analisi a valle
-non può mescolare tabelle SNP e DNP. Le frequenze e i pannelli devono avere
-il tipo di coordinate corrispondente; l'esecutore ne verifica il contenuto.
+All steps accept a `scientific_settings` object in `parameters` for module-specific overrides. Downstream steps also accept `marker_type: "SNP"` or `"DNP"`. The validator infers the type if omitted and checks it if supplied. Each downstream analysis uses one table type. Frequencies and panels must use the corresponding coordinates. The engine checks their contents during execution.
 
-`nipat settings` mostra default, tipi, limiti, vincoli fra parametri e costanti
-consultabili; `nipat settings --export FILE` salva un JSON riutilizzabile con
-`--scientific-config FILE`. Le modifiche `--set modulo.parametro=valore`
-prevalgono sul file. Sono rifiutate chiavi sconosciute, valori non finiti,
-tipi errati e combinazioni di soglie non valide. Il client porta queste
-impostazioni nei passaggi e nei metadati del run; Python e R leggono lo stesso
-registro. Le formule e le altre invarianti del modello sono documentate,
-senza diventare parametri modificabili.
+`nipat settings` lists defaults, types, bounds, cross-parameter constraints and model constants. `nipat settings --export FILE` writes reusable JSON for `--scientific-config FILE`. Command-line overrides such as `--set module.parameter=value` take precedence over that file. Validation rejects unknown keys, nonfinite values, incorrect types and invalid threshold combinations. Python and R use the same registry. The client records the settings in the steps and run metadata. The registry documents formulas and other fixed model properties separately from the editable settings.
 
-SNPcall in modalità `bam` richiede un campione `bam` e un FASTA. In modalità
-`pileup` richiede un campione `snp-pileup` e `reference: null`. Le impostazioni
-con cui è stato prodotto un pileup esterno non sono ricostruite né attribuite
-automaticamente a NewPat.
+In `bam` mode, SNPcall requires a sample of kind `bam` and a FASTA reference. In `pileup` mode it requires a sample of kind `snp-pileup` and `reference: null`. An external pileup retains the acquisition settings of its producer. NewPat cannot infer those settings from the imported file.
 
-## Riferimenti tipizzati e ruoli familiari
+## Typed references and family roles
 
-Contamination, CPI e CPIN accettano questi riferimenti:
+Contamination, CPI and CPIN accept the following table references.
 
-- `{"sample": "table_a"}` seleziona un campione registrato come `dnp-table`
-  oppure `snp-table`.
-- `{"step": "dnp", "output": "dnp-tables", "sample": "sample_a"}` seleziona
-  la tabella individuale prodotta da DNPcall per quel campione.
-- `{"step": "snp_a", "output": "snp-tables", "sample": "sample_a"}` seleziona
-  la tabella prodotta dal passaggio SNPcall per quel campione.
+- `{"sample": "table_a"}` selects a registered `dnp-table` or `snp-table` sample.
+- `{"step": "dnp", "output": "dnp-tables", "sample": "sample_a"}` selects the individual table produced by that DNPcall step for the sample.
+- `{"step": "snp_a", "output": "snp-tables", "sample": "sample_a"}` selects the table produced by that SNPcall step for the sample.
 
-Un riferimento a un produttore crea una dipendenza e deve avere il tipo
-corretto: SNPcall produce `snp-tables`, DNPcall produce `dnp-tables`.
-Riepiloghi Contamination e risultati CPI/CPIN non sostituiscono le tabelle
-di conteggi. Non si possono usare percorsi ipotizzati di risultati futuri
-al posto dei riferimenti tipizzati.
+A reference to a producing step creates a dependency. SNPcall produces `snp-tables` and DNPcall produces `dnp-tables`. A Contamination summary, a CPI/CPIN result or a guessed path to a future output cannot serve as a count-table reference.
 
-Ogni coppia CPI contiene `id`, `mother` e `father`:
+Each CPI pair contains `id`, `mother` and `father`. The `mother` reference identifies the **maternal cfDNA table** and `father` the **paternal sample table**. The plan declares these roles explicitly. One sample cannot occupy both roles in a CPI step, even if two different caller steps process it. Multiple pairs may share a sample in the same role. Duplicate pairs are invalid. The validator checks the declared relationships. The person preparing the plan verifies which biological material each sample contains.
 
-- `mother` identifica esplicitamente la tabella **cfDNA materna**;
-- `father` identifica esplicitamente la tabella del **campione paterno**.
+Each CPIN trio contains an `id` and three table references of the same marker type, `mother`, `father` and `child`. Their sample IDs must be distinct. Multiple trios may share a sample in the same role. Duplicate trios and contradictory roles are invalid. The maternal role in postnatal CPIN identifies the mother's sample. Prenatal CPI specifically expects maternal cfDNA.
 
-Entrambi sono riferimenti alle tabelle descritti sopra. I ruoli non vengono
-dedotti da nomi, prefissi o ordine dei campioni. Lo stesso campione non può
-assumere entrambi i ruoli in un passaggio CPI, anche se proviene da due
-elaborazioni del caller differenti. Sono consentite più coppie che riutilizzano
-un campione nello stesso ruolo; coppie duplicate non sono ammesse.
-La correttezza biologica dell'assegnazione resta responsabilità di chi prepara
-il piano: il contratto controlla la coerenza dichiarata, non il tipo di materiale.
+Single-module native requests combine local IDs with filename prefixes. For example, `A:A:A` is valid for CPIN with prefixes `Mother`, `Father` and `Child` when it selects three distinct files and samples. Plans use global references and require no such naming convention.
 
-Ogni terna CPIN contiene `id`, `mother`, `father` e `child`, tutti riferimenti
-alle tabelle dello stesso tipo. I tre campioni devono avere identità globali
-distinte; lo stesso campione può essere riutilizzato in più terne nello stesso
-ruolo. Terne duplicate o ruoli contraddittori vengono respinti. Il ruolo materno
-CPIN riguarda il campione della madre: non viene equiparato automaticamente
-al cfDNA materno del CPI prenatale.
-
-Negli input nativi delle analisi singole, gli ID locali vengono invece
-combinati con i prefissi dei file. `A:A:A` è valido per CPIN con i prefissi
-`Mother`, `Father`, `Child` quando indica tre file e campioni distinti.
-Il piano usa riferimenti globali e non richiede queste convenzioni di nomi.
-
-Le modalità cutoff conservano la struttura dell'adattatore CPI:
-
-| `cutoff_mode` | Valore di `cutoffs` |
+| `cutoff_mode` | Required `cutoffs` value |
 | --- | --- |
-| `all` | Lista vuota `[]`; nessun pannello cutoff. |
-| `panel` | Un elemento con `label: ""` e `path` del pannello. |
-| `named` | Uno o più elementi con `label` non vuota e `path`. |
+| `all` | Empty list `[]`, for all sites without a cutoff panel |
+| `panel` | One object with `label: ""` and the panel `path` |
+| `named` | One or more objects, each with a nonempty `label` and a `path` |
 
-Le etichette dei pannelli devono essere univoche e non possono contenere
-virgole, `=` o caratteri di controllo, né spazi iniziali o finali. `err_const`
-è facoltativo: se presente sovrascrive la costante del tipo di marcatori
-selezionato e deve appartenere a `(0, 1]`. Se omesso, il registro propone
-`err_const_snp = 0.001` e `err_const_dnp = 0.0000892303778101497`, entrambi
-configurabili. Zero non è ammesso dal modello aggiornato.
+Cutoff labels must be unique. Commas, `=`, control characters and leading or trailing whitespace are invalid. Optional `err_const` overrides the error constant for the selected marker type and must be in `(0, 1]`. The configurable defaults are `err_const_snp = 0.001` and `err_const_dnp = 0.0000892303778101497`. Both exclude zero.
 
-## Esempio DNPcall → Contamination e CPI
+## Example: DNPcall, Contamination and CPI
 
-L'esempio seleziona due BAM, elabora i conteggi una sola volta e riferisce
-esplicitamente quei risultati nelle due analisi successive. La stima di
-contaminazione non modifica i dati usati dal CPI. Il piano può essere
-convalidato senza dati con `validate-plan`; per eseguirlo occorrono gli input
-montati nei percorsi indicati, gli indici del FASTA e una destinazione nuova.
+This plan calls two BAMs once and passes the resulting counts to both downstream analyses. Contamination estimation leaves the CPI input intact. `validate-plan` accepts the example without any data files. Execution requires the inputs mounted at the listed paths, the FASTA indexes and a new destination directory.
 
 ```json
 {
@@ -221,39 +128,21 @@ montati nei percorsi indicati, gli indici del FASTA e una destinazione nuova.
 }
 ```
 
-## Risultato della validazione
+## Validation result
 
-L'API Python `nipat_scientific.plan.validate_plan(document)` restituisce un
-nuovo oggetto, senza modificare quello ricevuto:
+The Python API `nipat_scientific.plan.validate_plan(document)` returns a new object and leaves its input intact.
 
-- `schema_version: 1` identifica il formato del resoconto;
-- `plan` contiene la richiesta canonica;
-- `execution_order` elenca gli ID dei passaggi nell'ordine determinato.
+- `schema_version: 1` identifies the report format.
+- `plan` contains the canonical request.
+- `execution_order` lists step IDs in dependency order.
 
-Il registro campioni è ordinato per ID. I passaggi sono ordinati rispettando
-le dipendenze; fra i passaggi disponibili viene scelto quello con ID
-lessicograficamente minore. Per l'esempio l'ordine è `dnp`, `contamination`,
-`cpi`. Questo ordinamento non implica che il validatore li abbia eseguiti.
-L'ordine dei campioni dentro un passaggio, delle coppie e dei pannelli viene
-conservato. Questo è un ordinamento delle dipendenze, non una promessa di
-esecuzione strettamente seriale: l'esecutore può raggruppare passaggi SNP
-indipendenti entro il budget comune, anche in piani misti.
+The canonical sample registry is sorted by ID. Among steps whose dependencies are satisfied, the validator chooses the lexicographically smallest ID first. For the example, the order is `dnp`, `contamination`, `cpi`. The order of samples within a step, pairs and panels is preserved. The executor can group independent SNP steps within the shared budget, including in mixed plans.
 
-`report["plan"]` può essere validato nuovamente ottenendo lo stesso resoconto.
-Il resoconto completo non è invece una richiesta: l'input non ammette
-`execution_order`, perché l'ordine deve derivare dai riferimenti e non può
-essere imposto dal chiamante. I cicli e i riferimenti a passaggi, campioni o
-tipi di output inesistenti vengono respinti.
+Validating `report["plan"]` again produces the same report. The entire report cannot serve as a request because `execution_order` is derived from the references. The validator rejects cycles and references to missing steps, samples or output types.
 
-Le cartelle `work` e `output` appartengono alla singola esecuzione e non
-sono impostate arbitrariamente nel piano. Gli ID del piano identificano i
-campioni; non devono essere interpretati come nomi generati dal codice R.
-Per CPI e CPIN, il contratto rappresenta le selezioni di file mediante
-riferimenti espliciti a coppie e terne. L'esecutore li traduce nei nomi interni
-e conserva la corrispondenza fra famiglie dichiarate, input dei rispettivi
-ruoli e risultati nativi. Non occorre rinominare gli originali.
+The execution owns the `work` and `output` directories. The plan identifies samples by ID. For CPI and CPIN, the executor translates explicit pairs and trios into native filenames and records how the declared families, role-specific inputs and native outputs correspond. Users can keep the original filenames.
 
-## Esecuzione dei piani
+## Plan execution
 
 ```sh
 python3 /opt/nipat/engine/main.py execute-plan \
@@ -261,262 +150,118 @@ python3 /opt/nipat/engine/main.py execute-plan \
   --run-dir /workspace/run/output/workflow
 ```
 
-`execute-plan` usa la stessa struttura di richiesta di `validate-plan`, ma
-aggiunge i controlli necessari all'esecuzione. Al termine mostra un riepilogo
-e il percorso dello stato; `--json` scrive il resoconto completo su stdout,
-riservando stderr ai messaggi di avanzamento. Il codice di uscita non dipende
-dal formato di presentazione. Il descrittore del motore
-espone `plan_execution.interface: workflow-plan-execution-v2`, i workflow
-eseguibili `dnp-call`, `snp-call`, `contamination`, `cpi` e `cpin`, la pianificazione
-`dependency-order-with-bounded-independent-snp` e
-`resume: false`.
+`execute-plan` uses the same request structure as `validate-plan` and adds runtime checks. Its default output includes a summary and the state file path. With `--json`, it writes the full report to stdout and progress messages to stderr. Both forms use the same exit codes. The engine descriptor reports `plan_execution.interface: workflow-plan-execution-v2`, workflows `dnp-call`, `snp-call`, `contamination`, `cpi` and `cpin`, scheduling `dependency-order-with-bounded-independent-snp` and `resume: false`.
 
-La destinazione deve essere nuova, con directory padre già esistente:
-una directory già presente, anche vuota, non viene riutilizzata. Il motore
-controlla l'intero piano, il sottoinsieme
-di analisi supportate e gli input già disponibili prima di creare la
-destinazione. Riferimenti, pannelli, indici e alias richiesti devono essere
-validi. Le tabelle prodotte da un passaggio sono verificate quando diventano
-disponibili, prima di utilizzarle nel passaggio dipendente.
+The parent directory must exist and the destination itself must be new, even if an existing directory is empty. Before creating it, the engine checks the whole plan, the executable workflows and the inputs already available, including required references, panels, indexes and aliases. It verifies a step's output tables when they become available and before a dependent step uses them.
 
-DNPcall richiede BAM esposti con nomi `sample_0001.bam`, `sample_0002.bam` e
-successivi, nell'ordine della lista `inputs.samples` del passaggio. I percorsi
-interni devono essere compatibili con l'interfaccia R e i suoi comandi samtools.
-Il client prepara alias mediante mount in sola lettura, senza copiare i BAM.
-Un piano tecnico con più passaggi DNPcall deve rispettare questa associazione
-in ciascun passaggio: un ordine diverso che rende gli alias incompatibili
-viene rifiutato. Un ID del piano, per esempio `cfDNA_a`, può essere diverso
-dall'alias `sample_0001`; la corrispondenza è conservata nei risultati.
+DNPcall expects `sample_0001.bam`, `sample_0002.bam` and subsequent aliases in `inputs.samples` order. The internal paths must work with the R interface and its samtools calls. The client creates read-only mounts without copying the BAMs. A plan with several DNPcall steps must respect this mapping in every step. An incompatible alias order is rejected. Plan ID `cfDNA_a`, for example, can map to alias `sample_0001`. The results record that mapping.
 
-I piani eseguono i consumatori dopo la disponibilità delle tabelle richieste.
-I passaggi SNPcall indipendenti possono eseguire più campioni contemporaneamente
-entro il budget comune anche nei piani misti; i worker campione mantengono
-seriali i propri pool R. La modalità `serial` impone un solo processo di
-calcolo. Il parametro DNP `parallel` non scavalca la policy comune di esecuzione,
-che determina il parallelismo effettivo.
-Il motore passa le tabelle individuali SNP o DNP a Contamination e conserva
-il riferimento al campione e al passaggio produttore. Lo staging di
-Contamination usa `table_0001.txt`, `table_0002.txt` e successivi nell'ordine
-dichiarato dal consumatore. Questi nomi interni non sostituiscono l'identità
-dei campioni registrata nello stato.
+Downstream steps wait for their tables. The scheduler groups ready independent SNPcall steps under one process budget, including in mixed plans. Work with unknown memory requirements initially admits one sample. Child sample workers use serial inner R pools. Explicit `serial` mode limits computation to one process. The shared execution policy determines actual DNP parallelism, including when the DNP `parallel` parameter is set.
 
-### Preparazione SNPcall e identità dei campioni
+Contamination receives individual SNP or DNP tables and records both the sample and the producing step. It stages tables as `table_0001.txt`, `table_0002.txt` and so on in the consumer's declared order. The state records the original sample identity separately.
 
-Un passaggio SNPcall seleziona un solo ID da `samples`, un pannello SNP e la
-modalità `bam` o `pileup`. Un BAM registrato può essere utilizzato sia da
-DNPcall sia da SNPcall: questa condivisione non crea una dipendenza fra i due
-passaggi. Il piano può contenere più attività SNPcall con risultati separati.
-Le tabelle SNP non sono accettate come riferimenti `dnp-tables`.
+### SNPcall preparation and sample identity
 
-Prima di creare la destinazione, il motore verifica i pannelli e gli input
-esterni di tutti i passaggi: in modalità BAM richiede il FASTA e i suoi indici;
-in modalità pileup controlla il formato con QNAME. Durante l'esecuzione usa
-lo stesso adattatore SNPcall delle analisi singole. La modalità BAM genera
-`work/snp_regions.bed`, esegue samtools per scrivere `work/pileup.txt` e ne
-verifica il formato prima di avviare R. Errori o interruzioni di samtools non
-permettono di proseguire con R. La modalità pileup non esegue samtools.
+Each SNPcall step selects one ID from `samples`, a SNP panel and either `bam` or `pileup` mode. DNPcall and SNPcall can read the same registered BAM independently. Different SNPcall steps have separate outputs. Their tables require references of type `snp-tables`.
 
-Il pannello normalizzato usa `chr`, `pos`, `ref` e `alt`. L'input può
-anche usare tre colonne, con `pos=chr:posizione`, `ref` e `alt`.
-Per default samtools usa `-d 0`, come SNPcall 2.0; `max_depth` e gli altri
-parametri di acquisizione sono configurabili. R usa riferimento e qualità
-del pileup e raggruppa le osservazioni per SNP e QNAME. Una modifica dei
-parametri di acquisizione non ricalcola un pileup importato.
+The preflight checks all panels and external inputs before creating the destination. BAM input requires the FASTA and its indexes. Pileup input requires the QNAME column. Execution uses the same adapter as single-module SNPcall. BAM mode writes `work/snp_regions.bed`, runs samtools to generate `work/pileup.txt` and verifies its format before starting R. If samtools fails or receives an interrupt, R does not start. Pileup mode reads the supplied file directly.
 
-Ogni passaggio produce `output/SNPcall_output.txt`, senza rinominare o
-riscrivere i risultati scientifici. La tabella completata è associata all'ID
-campione in `artifacts.snp-tables`, con percorso relativo e SHA-256.
-I file preparati da NewPat sono elencati in `artifacts.preparation`, con tipo
-`regions-bed` o `pileup`, percorso e SHA-256. Per un pileup importato questa
-lista è vuota: l'input non viene presentato come file generato dal motore.
+The normalized panel columns are `chr`, `pos`, `ref` and `alt`. The three-column form with `pos=chr:position`, `ref` and `alt` is also supported. As in SNPcall 2.0, the samtools default here is `-d 0`. Users can configure `max_depth` and the other acquisition parameters. R uses reference bases and quality values from the pileup and groups observations by SNP and QNAME. Changing acquisition settings leaves an imported pileup unchanged.
 
-La tabella SNP 2.0 comprende conteggi `N_REF`, `N_ALT`, `N_Other`,
-log-likelihood `GL0`/`GL1`/`GL2`, `GT` e statistiche degli indel. Il nuovo
-schema mantiene coordinate e modello SNP: CPI, Contamination e CPIN lo
-consumano come SNP, senza convertirlo artificialmente in DNP.
+Each step writes the scientific table to `output/SNPcall_output.txt`. On completion, `artifacts.snp-tables` associates the sample ID with its relative output path and SHA-256 digest. `artifacts.preparation` lists generated files by type (`regions-bed` or `pileup`), path and SHA-256. For an imported pileup this list is empty.
 
-Per campioni distinti con lo stesso pannello, riferimento e modalità, la
-finalizzazione crea `snp_summary/group_0001` e gruppi successivi, con genotipi
-uniti, risorse per campione, etichette e grafici dei genotipi mancanti e
-delle intersezioni. Analisi ripetute dello stesso campione non diventano
-individui aggiuntivi. Le tabelle individuali e i relativi checksum restano
-disponibili. L'UpSet considera assegnato un genotipo diverso da `NA`.
+The SNPcall 2.0 table includes `N_REF`, `N_ALT` and `N_Other` counts, genotype log-likelihoods `GL0`, `GL1` and `GL2`, the `GT` genotype and indel statistics. CPI, Contamination and CPIN consume the SNP coordinates and model directly.
 
-### Preparazione CPI e identità delle coppie
+For distinct samples that share the same panel, reference and mode, finalization creates `snp_summary/group_0001` and subsequent groups. They contain merged genotypes, per-sample resources, labels and plots of missing genotypes and sample intersections. Repeated analysis of one sample does not create an additional individual. The individual tables and checksums remain available. The UpSet plot counts a genotype as assigned when it differs from `NA`.
 
-CPI accetta tabelle registrate come `dnp-table`/`snp-table` oppure risultati
-DNPcall/SNPcall riferiti esplicitamente dal piano. Ogni passaggio usa un solo
-tipo di marcatori e le frequenze corrispondenti. I ruoli `mother` e `father` sono dichiarati
-nelle coppie; il motore non li ricava dai nomi originali dei file. Riferimenti
-materni e paterni allo stesso campione vengono respinti dal contratto.
+### CPI preparation and pair identity
 
-Le tabelle ricevono identificatori `s0001`, `s0002` e successivi, assegnati alla
-prima occorrenza nell'ordine delle coppie e dei ruoli materno/paterno. Un
-riferimento condiviso nello stesso ruolo viene preparato una sola volta.
-Il motore usa i prefissi interni `Mother` e `Father` e scrive le richieste
-all'adattatore CPI già disponibile. Questi prefissi servono alla selezione
-nativa dei file e non sostituiscono la dichiarazione dei ruoli biologici.
+CPI accepts registered `dnp-table` or `snp-table` samples and explicit DNPcall or SNPcall results. Each step uses one marker type and its matching population frequencies. The plan declares `mother` and `father` for each pair. Both roles cannot refer to the same sample.
 
-I risultati R restano invariati: il motore non sostituisce gli ID delle coppie
-nel CSV e non riscrive i PDF. Lo stato del passaggio associa ogni coppia del
-piano al nome nativo, per esempio `Mothers0001-Fathers0002_DNPs`, alle righe
-del riepilogo e al PDF corrispondente. Le tre modalità di cutoff conservano
-il comportamento dello script:
+The first occurrence of a table, in pair order and then maternal/paternal role order, receives ID `s0001`, `s0002` and so on. The engine prepares a reference shared within one role once. It calls the CPI adapter with internal file prefixes `Mother` and `Father`. The declared biological roles remain in the plan.
 
-- `all`: una riga per coppia, senza colonna `Cutoff` nel CSV;
-- `panel`: una riga per coppia, con il percorso del pannello normalizzato
-  come valore `Cutoff`;
-- `named`: una riga per ogni combinazione coppia/etichetta, con le etichette
-  dichiarate nel piano.
+R keeps its native pair IDs in the CSV and PDFs. The step state maps each declared pair to its native name, such as `Mothers0001-Fathers0002_DNPs`, its summary rows and its PDF.
 
-Lo script produce `Summary_FetalFraction_CPI.csv` e, nella sottocartella
-`plots`, un PDF per coppia e `All_CPIplots.pdf`. Esporta inoltre in `curves`
-le curve per coppia/pannello, calcolate per intervalli di soglie equivalenti;
-non produce una tabella CPI per ogni sito.
-L'esecutore controlla le colonne del riepilogo, l'insieme atteso di coppie e
-cutoff e la presenza e intestazione PDF degli output richiesti. Un CSV
-incompleto, righe duplicate o grafici mancanti impediscono di considerare
-il passaggio completato. Il controllo della struttura non interpreta la
-validità biologica o la plausibilità dei valori scientifici.
-
-### Preparazione CPIN e identità delle terne
-
-CPIN riceve tabelle SNP oppure DNP, una frequenza di popolazione coerente
-e terne esplicite. `inputs.markers` è `null` per tutti i siti oppure indica
-un pannello con coordinate **e alleli REF/ALT**. Un semplice elenco di
-coordinate privo di alleli non è sufficiente per questo parametro.
-
-`scientific_settings.site_selection` seleziona `other_allele`, `all` oppure
-`both`; sono configurabili anche letture minime del figlio, costanti d'errore
-e soglie genotipiche. Le tabelle condivise vengono preparate una volta e
-`trio_mapping` collega ID del piano, tre ruoli e identificativo nativo.
-
-Il modulo produce `Summary_Postnatal_CPI.txt`, dettaglio dei siti in `sites`,
-curve per intervalli in `curves`, PDF per terna/analisi in `plots` e
-`All_CPIplots.pdf` nella radice degli output. La verifica del passaggio
-controlla riepilogo, combinazioni attese di terne e analisi, tabelle e PDF;
-le associazioni completate sono pubblicate in `artifacts.cpin-trios`.
-
-### Evidenze e stati
-
-| Percorso relativo alla destinazione `--run-dir` | Contenuto |
+| Mode | Summary rows |
 | --- | --- |
-| `plan.json` | Piano canonico effettivamente eseguito. |
-| `workflow-state.json` | Stato complessivo, stati e comandi dei passaggi, associazione degli output ai campioni. |
-| `steps/<id>/request.json` | Richiesta concreta preparata per l'adattatore del passaggio. |
-| `steps/<id>/command.log` | Output standard e messaggi di errore del processo R. |
-| `steps/<id>/preparation.log` | Messaggi samtools, per i passaggi SNPcall da BAM. |
-| `steps/<id>/work` | Pannelli, liste e tabelle preparati per R. |
-| `steps/<id>/work/effective-scientific-settings.json` | Parametri effettivi e costanti del passaggio. |
-| `steps/<id>/output` | Risultati scientifici del passaggio. |
+| `all` | One row per pair, without a `Cutoff` column |
+| `panel` | One row per pair, with the normalized panel path in `Cutoff` |
+| `named` | One row per pair and label using the label declared in the plan |
 
-Lo stato viene aggiornato con sostituzione atomica. Lo stato complessivo può
-essere `running`, `succeeded`, `failed` o `cancelled`; i passaggi
-possono assumere anche `pending` e `blocked`. I risultati DNPcall sono
-identificati come `dnp-tables`, quelli SNPcall come `snp-tables` e quelli
-Contamination come `contamination-tables`, con campione,
-nome interno, percorso relativo alla destinazione e SHA-256. Per Contamination
-è conservato anche il riferimento alla tabella sorgente; il riepilogo ha un
-percorso e un checksum distinti. Questi riferimenti evitano la deduzione
-dell'identità dei campioni dai soli nomi dei file.
+The script writes `Summary_FetalFraction_CPI.csv`, one PDF per pair and `All_CPIplots.pdf` in `plots`, and curves for each pair and panel in `curves`. The curves use intervals of equivalent thresholds. There is no per-site CPI table. The executor checks the summary columns, expected pair and cutoff combinations, and presence and PDF headers of required plots. An incomplete CSV, duplicate rows or missing plots prevent completion. These structural checks do not determine the biological plausibility of a value.
 
-Per DNPcall, `artifacts.dnp-summary.genotypes` identifica il riepilogo
-aggregato verificato, con percorso e SHA-256. Il motore controlla che gli
-alleli e i genotipi corrispondano alle tabelle individuali per tutti i loci
-e i campioni. Il campo può essere assente nei run creati con versioni
-precedenti.
+### CPIN preparation and trio identity
 
-Per SNPcall da BAM, `preparation_command`, `preparation_log` e
-`preparation_exit_code` registrano l'ultimo comando samtools avviato, il suo
-log e il suo codice di uscita. Il comando legge l'intestazione BAM prima di
-generare il pileup. Dopo la preparazione valida, il campo
-`preparation_artifacts` conserva BED e pileup prima dell'avvio R. Queste
-evidenze rimangono consultabili anche se R non completa il passaggio.
+CPIN accepts SNP or DNP tables, matching population frequencies and explicit trios. `inputs.markers` is `null` for all sites or points to a panel with coordinates **and REF/ALT alleles**. A coordinate list alone lacks the alleles required for this input.
 
-Prima di preparare i file o avviare R, il passaggio CPI registra `pair_mapping`,
-con `pair`, riferimenti `mother` e `father` e `native_pair`. La mappa rimane
-consultabile anche in caso di fallimento o cancellazione, per attribuire gli
-output parziali. I riferimenti agli artefatti completati vengono aggiunti dopo
-le verifiche degli output.
+`scientific_settings.site_selection` accepts `other_allele`, `all` or `both`. Other settings include minimum child read counts, error constants and genotype thresholds. The engine prepares shared tables once. `trio_mapping` links the plan ID, the three roles and the native trio identifier.
 
-Il passaggio CPI completato registra in `artifacts`:
+Outputs include `Summary_Postnatal_CPI.txt`, site details in `sites`, interval curves in `curves`, individual trio/analysis PDFs in `plots` and `All_CPIplots.pdf` at the root of the output directory. The engine checks the summary, expected trio/analysis combinations, tables and PDFs. Successful mappings appear in `artifacts.cpin-trios`.
 
-| Campo | Contenuto |
+### Evidence and states
+
+| Path relative to `--run-dir` | Contents |
 | --- | --- |
-| `summary` | Percorso e SHA-256 del CSV riepilogativo. |
-| `cpi-pairs` | Elenco delle coppie, ciascuna con `pair`, riferimenti `mother` e `father`, `native_pair`, `plot` e `summary_rows`. |
-| `combined-plot` | Percorso e SHA-256 di `All_CPIplots.pdf`. |
+| `plan.json` | Canonical plan for the run |
+| `workflow-state.json` | Overall state, step states and commands, and output-to-sample mapping |
+| `steps/<id>/request.json` | Concrete request for the step adapter |
+| `steps/<id>/command.log` | R process stdout and stderr |
+| `steps/<id>/preparation.log` | samtools messages for SNPcall steps that start from BAM |
+| `steps/<id>/work` | Panels, lists and tables prepared for R |
+| `steps/<id>/work/effective-scientific-settings.json` | Effective parameters and model constants |
+| `steps/<id>/output` | Scientific results for the step |
 
-`pair` mantiene l'ID del piano; `mother` e `father` mantengono i riferimenti
-agli input. `plot` contiene percorso e checksum del PDF della coppia.
-Ogni elemento di `summary_rows` contiene `row`, a partire da 1 senza contare
-l'intestazione del CSV, e `cutoff`: `null` in modalità ALL, il percorso interno
-del pannello singolo oppure l'etichetta dichiarata. Questa mappa collega i
-risultati nativi alla richiesta senza modificare i file scientifici.
+The engine replaces the state file atomically. Overall states are `running`, `succeeded`, `failed` and `cancelled`. Steps can also be `pending` or `blocked`. The result collections `dnp-tables`, `snp-tables` and `contamination-tables` record the sample, internal name, path relative to the run directory and SHA-256 digest. Contamination also records each source table and a separate summary path and checksum.
 
-Un errore o un'interruzione arrestano il piano e marcano `blocked` tutti i
-passaggi non ancora iniziati, anche se indipendenti. I risultati già prodotti
-rimangono disponibili; non vengono presentati come successo dell'intero piano.
-Un processo R con codice zero ma privo degli output richiesti non permette
-di proseguire. Gli stati tecnici e i controlli delle tabelle non attestano
-la validità scientifica del campione o del modello.
+For DNPcall, `artifacts.dnp-summary.genotypes` identifies the verified aggregate genotype table by path and SHA-256. The engine checks its alleles and genotypes against the individual tables for every locus and sample. Older runs may lack this field.
 
-La cancellazione viene inoltrata al gruppo di processi scientifici, compresi
-i processi figli. Il client concede un intervallo di arresto prima della
-rimozione forzata del container. Uno spegnimento o un arresto forzato possono
-impedire l'ultimo aggiornamento dello stato: `running` non è un esito positivo
-né una prova che il processo sia ancora attivo. Non sono previsti ripresa
-o riutilizzo del run; correggere la causa e scegliere una destinazione nuova.
+For SNPcall from BAM, `preparation_command`, `preparation_log` and `preparation_exit_code` record the last samtools command, its log and its exit code. Preparation reads the BAM header before producing the pileup. After verification, `preparation_artifacts` records the BED and pileup before R starts. These records remain available even if R fails.
 
-Il codice di uscita è `0` solo quando tutti i passaggi sono completati.
-Gli errori di validazione restituiscono `2`; un fallimento scientifico conserva
-il codice del processo e un'interruzione usa `128 + numero del segnale`.
-Lo stato del piano costituisce l'evidenza dei passaggi eseguiti; il record
-`run.json` del client aggiunge input host, immagine e identità dell'applicazione.
+CPI records `pair_mapping` before preparing files or starting R. This map contains the `pair` ID, the `mother` and `father` references and `native_pair`. It can identify partial outputs after failure or cancellation. After output verification, the engine adds the following fields to `artifacts`.
 
-## Errori e limiti della verifica
-
-L'API solleva `PlanValidationError`, sottoclasse di `ValidationError`, con
-attributo `code` stabile. Il testo diagnostico è separato dall'identificatore
-e può essere presentato dall'interfaccia nella lingua selezionata.
-
-| Codice | Significato |
+| Field | Contents |
 | --- | --- |
-| `plan.schema` | Versione del contratto non supportata. |
-| `plan.fields` | Oggetto con campi mancanti, sconosciuti o struttura errata. |
-| `plan.identifier` | Identificatore non ammesso. |
-| `plan.path` | Percorso container non valido. |
-| `plan.list` | Lista richiesta mancante, vuota o di tipo errato. |
-| `plan.duplicate` | Identità, percorso campione, riferimento o coppia duplicati. |
-| `plan.sample_missing` | Campione non presente nel registro. |
-| `plan.sample_kind` | Tipo di campione incompatibile o sconosciuto. |
-| `plan.workflow` | Analisi non supportata. |
-| `plan.step_missing` | Produttore non presente nel piano. |
-| `plan.output_kind` | Tipo di output o produttore incompatibile. |
-| `plan.output_sample` | Campione non prodotto dal passaggio indicato. |
-| `plan.cycle` | Dipendenza ciclica, compreso un riferimento al passaggio stesso. |
-| `plan.parameter` | Parametro non valido o incoerente con la modalità scelta. |
-| `plan.roles` | Assegnazione materna/paterna CPI o madre/padre/figlio CPIN incoerente. |
-| `plan.marker_type` | Tipo SNP/DNP dichiarato incoerente o tabelle di tipi diversi nello stesso consumatore. |
-| `plan.cutoff_mode` | Modalità o numero di pannelli cutoff incoerenti. |
-| `plan.cutoff_label` | Etichetta cutoff non valida. |
+| `summary` | Summary CSV path and SHA-256 |
+| `cpi-pairs` | Pairs with `pair`, `mother`, `father`, `native_pair`, `plot` and `summary_rows` |
+| `combined-plot` | Path and SHA-256 of `All_CPIplots.pdf` |
 
-Un piano accettato dal validatore può ancora contenere file inesistenti,
-tabelle malformate, un riferimento genomico inappropriato o campioni non
-idonei. Queste verifiche appartengono rispettivamente alla preparazione
-effettiva degli input e alla valutazione scientifica. La validazione del
-contratto non sostituisce le regressioni numeriche né le prove di dominio.
+`pair` keeps the plan ID and `mother` and `father` keep their input references. `plot` records the pair PDF path and checksum. Each entry in `summary_rows` contains `row`, numbered from 1 excluding the CSV header, and `cutoff`, which is `null` in all-sites mode, the internal path for a single panel or the declared label for a named panel. The mapping preserves the native scientific output files.
 
-## Presentazione dei campioni
+An error or interruption stops the plan and marks every unstarted step `blocked`, including independent steps. Earlier results remain available. An R process that exits zero but omits required outputs cannot complete a step. These states describe technical execution. Scientific interpretation of the sample and model is a separate task.
 
-`presentation` contiene esattamente `samples` e `pairs`. La prima mappa
-associa ogni ID campione a un nome originale senza componenti di percorso;
-la seconda associa zero o più ID di coppia CPI o terna CPIN presenti nel
-piano a etichette leggibili. Sono rifiutati nomi vuoti, caratteri di controllo, ID estranei e
-mappature incomplete dei campioni. Le etichette non cambiano gli ID del piano.
+Cancellation reaches the scientific process group, including its children. The client allows a shutdown interval before forcibly removing the container. A shutdown or forced stop can prevent the final update. A stale `running` state establishes neither success nor a currently active process. A retry requires a new run directory.
 
-I passaggi producono i propri export in `output/presentation`; l'indice
-complessivo è in `presentation` sotto la radice del workflow. Gli output
-canonici, le dipendenze e i checksum rimangono distinti. Il
-[contratto del motore](../engine/README.md#etichette-leggibili) descrive
-la separazione tra calcolo ed esportazione.
+The exit code is `0` only if every step completes. Validation errors return `2`. A scientific failure propagates the process exit code. An interruption returns `128 + signal number`. The plan state records the steps that ran. The client's `run.json` adds host inputs, image identity and application identity.
+
+## Validation errors and limits
+
+The Python API raises `PlanValidationError`, a subclass of `ValidationError`, with a stable `code` attribute. Interfaces can render the diagnostic message in the selected language while preserving the code.
+
+| Code | Meaning |
+| --- | --- |
+| `plan.schema` | Unsupported contract version |
+| `plan.fields` | Missing or unknown fields, or incorrect object structure |
+| `plan.identifier` | Invalid identifier |
+| `plan.path` | Invalid container path |
+| `plan.list` | Missing, empty or incorrectly typed required list |
+| `plan.duplicate` | Duplicate identity, sample path, reference or pair |
+| `plan.sample_missing` | Sample absent from registry |
+| `plan.sample_kind` | Unknown or incompatible sample type |
+| `plan.workflow` | Unsupported analysis |
+| `plan.step_missing` | Producer absent from the plan |
+| `plan.output_kind` | Incompatible output type or producer |
+| `plan.output_sample` | Specified step does not produce the requested sample |
+| `plan.cycle` | Cyclic dependency, including a step referring to itself |
+| `plan.parameter` | Invalid parameter or value inconsistent with the mode |
+| `plan.roles` | Inconsistent CPI or CPIN role assignment |
+| `plan.marker_type` | Inconsistent declared marker type or mixed table types in one consumer |
+| `plan.cutoff_mode` | Inconsistent cutoff mode or number of panels |
+| `plan.cutoff_label` | Invalid cutoff label |
+
+A structurally valid plan can still refer to missing files, malformed tables, an inappropriate genome reference or unsuitable samples. File preparation and output validation check the data the engine can inspect. Numerical regression tests and domain assessment address separate questions.
+
+## Sample presentation
+
+`presentation` contains exactly `samples` and `pairs`. The first maps every sample ID to its original name without path components. The second maps zero or more CPI pair IDs or CPIN trio IDs in the plan to readable labels. Validation rejects empty names, control characters, unknown IDs and incomplete sample mappings.
+
+Each step writes its exports to `output/presentation`. The workflow-wide index is in `presentation` under the run root. Canonical outputs, dependencies and checksums remain distinct from presentation copies. See the [engine presentation contract](../engine/README.md#readable-labels).

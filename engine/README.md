@@ -1,17 +1,10 @@
-# Interfaccia del motore scientifico
+# Scientific engine interface
 
-L'immagine NIPAT installa il motore in `/opt/nipat/engine`, gli script R in
-`/opt/nipat/scientific` e la libreria di preparazione in
-`/opt/nipat/lib/nipat_scientific`. Il motore non dipende dalla directory
-corrente, dai sorgenti del client o dalla cartella dell’applicazione installata.
-Python usa la sola libreria standard; R, samtools e le dipendenze sono inclusi
-nell'immagine.
+The NewPat image installs the engine in `/opt/nipat/engine`, the R scripts in `/opt/nipat/scientific` and the preparation library in `/opt/nipat/lib/nipat_scientific`. The engine runs independently of the working directory, client source tree and desktop installation directory. Its Python code uses the standard library. The image supplies R, samtools and their dependencies.
 
-Questo riferimento descrive il contratto tecnico. Per l'utilizzo ordinario
-usare la [CLI o il menu guidato](../docs/GUIDA_UTILIZZO.md), che preparano
-richieste e mount e conservano i metadati dell'esecuzione.
+This document describes the engine interface inside the container. The [desktop CLI and guided menu](../docs/GUIDA_UTILIZZO.md) prepare requests and mounts and record run metadata for ordinary use.
 
-## Comandi e identificazione
+## Commands and identity
 
 ```sh
 python3 /opt/nipat/engine/main.py describe --json
@@ -26,111 +19,56 @@ python3 /opt/nipat/engine/main.py execute cpi --request /run/work/request.json
 python3 /opt/nipat/engine/main.py execute cpin --request /run/work/request.json
 ```
 
-`execute` convalida la richiesta, prepara i file e avvia il programma R.
-Per un'invocazione tecnica con argomenti R nativi è disponibile anche `run`:
+`execute` validates the request, prepares the input files and starts the R program. Use `run` for a direct call with native R arguments.
 
 ```sh
 python3 /opt/nipat/engine/main.py run snp-call -- \
   --pileup /inputs/pileup.txt --snplist /inputs/SNPlist.txt --out /outputs/output.txt
 ```
 
-Solo `run` passa direttamente a R gli argomenti dopo il nome del workflow,
-rimuovendo un eventuale `--` iniziale. Questa modalità non esegue la
-preparazione prevista da `execute`.
+`run` passes the arguments following the workflow name directly to R and removes an optional leading `--`. It skips the input preparation performed by `execute`.
 
-Prima di eseguire un workflow, tutti e cinque i sorgenti R devono corrispondere
-al manifest scientifico incluso. `describe --json` restituisce:
+Before running any workflow, the engine checks all five R sources against the bundled scientific manifest. `describe --json` returns the following contract.
 
-| Campo | Contratto |
+| Field | Value or meaning |
 | --- | --- |
 | `schema_version` | `1` |
 | `interface` | `native-r-v1` |
-| `workflow_interfaces` | `dnp-call-v1`, `snp-call-v2`, `contamination-v2`, `cpi-v2`, `cpin-v1`, associati ai rispettivi workflow |
+| `workflow_interfaces` | `dnp-call-v1`, `snp-call-v2`, `contamination-v2`, `cpi-v2` and `cpin-v1` for their respective workflows |
 | `preparation.interface` | `workflow-preparation-v1` |
 | `plan_execution.interface` | `workflow-plan-execution-v2` |
 | `plan_execution.workflows` | `dnp-call`, `snp-call`, `contamination`, `cpi`, `cpin` |
-| `scientific_settings.interface` | `scientific-settings-v1`; registro condiviso e valori effettivi per passaggio |
+| `scientific_settings.interface` | `scientific-settings-v1`, with a shared registry and effective values per step |
 | `plan_execution.scheduling` | `dependency-order-with-bounded-independent-snp` |
 | `plan_execution.resume` | `false` |
-| Identità scientifica | Hash del manifest e percorso/hash dei cinque script R |
-| `preparation.file_sha256` | Hash dell'ingresso del motore, dei moduli Python condivisi, dell'adattatore R di presentazione e delle schede JSON del catalogo |
+| Scientific identity | Manifest hash and path/hash of each of the five R scripts |
+| `preparation.file_sha256` | Hashes of the engine entry point, shared preparation modules, R presentation adapter and JSON catalog records |
 
-Moduli mancanti e percorsi esterni al bundle sono rifiutati. Gli hash della
-preparazione identificano i byte nell'immagine; gli hash R vengono inoltre
-confrontati con il manifest. La descrizione non identifica da sola una release:
-commit, archivio distribuito e ID immagine appartengono alle evidenze di build
-e ai metadati del run.
+Verification rejects missing modules and paths outside the bundle. The preparation hashes identify bytes installed in the image. The engine also checks each R hash against the manifest. Build evidence and run metadata supply the release commit, distributed archive and image ID.
 
-`run` avvia lo script R nativo. `execute` prepara e verifica gli input, esegue
-R e verifica i risultati prima di restituire l’esito; conserva la gestione
-dei segnali durante il processo scientifico.
-Gli errori di verifica o avvio
-restituiscono 2. Nella preparazione SNPcall da BAM, i segnali sono inoltrati
-anche al processo samtools; un suo errore impedisce l'avvio di R.
-Nessun comando del motore scarica o installa dipendenze.
+`execute` validates the inputs and results and handles signals during scientific execution. Verification and startup errors return exit code 2. For SNPcall from BAM, the engine also forwards signals to samtools and only starts R after successful preparation. The image supplies the dependencies before the engine runs.
 
-`catalog` espone le schede scientifiche bilingui e verifica la corrispondenza
-con i sorgenti R nell'immagine. `validate-plan` legge un documento JSON e
-restituisce il piano canonico e l'ordine derivato dalle dipendenze. Non legge
-i campioni, non crea risultati e non avvia R o samtools. Il
-[contratto dei piani](../docs/WORKFLOW_CONTRACT.md) specifica campi e limiti;
-il [catalogo scientifico](../docs/CATALOGO_SCIENTIFICO.md) ne descrive la
-consultazione.
+`catalog` exposes the bilingual scientific catalog and checks its correspondence with the R sources in the image. `validate-plan` reads JSON and returns the canonical plan and dependency order without reading sample files, creating outputs or invoking R or samtools. See the [workflow plan contract](../docs/WORKFLOW_CONTRACT.md) and [scientific catalog](../docs/CATALOGO_SCIENTIFICO.md).
 
-`execute-plan` convalida ed esegue un piano usando una destinazione nuova.
-Al termine mostra l'esito e il percorso di `workflow-state.json`; `--json`
-restituisce invece il resoconto completo in formato JSON su stdout, con gli
-avvisi di avanzamento su stderr. In entrambe le modalità il codice di uscita
-riflette l'esito del piano.
-Sono supportati DNPcall, SNPcall, Contamination, CPI e CPIN. Entrambi i caller
-producono tabelle tipizzate utilizzabili dai tre consumatori, senza mescolare
-SNP e DNP nella stessa analisi. CPI usa coppie esplicite e CPIN terne esplicite.
-Le dipendenze determinano l'ordine; anche nei piani misti gli SNP indipendenti
-pronti possono essere eseguiti entro un budget comune, con pool interni seriali. La modalità seriale rimane disponibile.
-Ogni passaggio conserva la
-propria richiesta, i file preparati, i risultati e il log; lo stato complessivo
-è registrato in `workflow-state.json`. Il processo del motore rimane attivo
-per gestire la sequenza e inoltrare l'interruzione al gruppo di processi
-scientifici. Dopo un errore o un'interruzione, i passaggi successivi non
-vengono avviati. Non sono previsti riutilizzo o ripresa della destinazione.
+`execute-plan` validates and executes a plan in a new destination. It prints the outcome and the path to `workflow-state.json`. With `--json`, it writes the full JSON report to stdout and progress messages to stderr. The exit code reflects the plan outcome in either mode.
 
-Per DNPcall, i BAM devono essere già esposti con alias `sample_0001.bam`,
-`sample_0002.bam` e successivi nell'ordine del passaggio, su percorsi interni
-compatibili con l'interfaccia R. Il client NIPAT prepara questi mount senza
-copiare i BAM. I riferimenti ai risultati prodotti vengono risolti dal motore;
-il client non deve cercare file intermedi né comporre nomi di output futuri.
-Per SNPcall, ogni passaggio identifica un solo campione e un pannello SNP.
-La modalità BAM conserva BED e pileup in `work`, con il log samtools in
-`preparation.log`; un errore o un pileup non valido impedisce l'avvio di R.
-La modalità pileup legge direttamente l'input, senza eseguire samtools.
-Entrambe producono `output/SNPcall_output.txt`; `artifacts.snp-tables`
-associa la tabella all'ID del campione.
-Per CPI, i riferimenti materni/paterni e gli ID delle coppie vengono tradotti
-in nomi interni senza rinominare gli input originali. I genitori condivisi
-vengono preparati una sola volta. Gli output CPI comprendono il riepilogo CSV,
-i PDF delle coppie e quello complessivo; `artifacts.cpi-pairs` conserva la mappa
-fra ID dichiarati, nomi nativi, righe del CSV e grafici. Il contenuto dei
-risultati R non viene riscritto.
-Per struttura, limiti ed evidenze consultare il
-[contratto dei piani](../docs/WORKFLOW_CONTRACT.md#esecuzione-dei-piani).
+The engine supports DNPcall, SNPcall, Contamination, prenatal CPI and postnatal CPIN. Both callers produce typed count tables that feed any of the three downstream modules. A downstream step uses either SNP or DNP tables. CPI selects explicit pairs and CPIN explicit trios. Dependencies determine step order. Ready independent SNP steps share a bounded process budget, including in mixed plans. The policy admits one outer sample when memory demand is unknown. Nested sample workers use serial R pools. Users can request serial execution.
 
-## Regole comuni delle richieste
+Each step keeps its request, prepared files, results and log. The engine maintains the overall state in `workflow-state.json`, coordinates the sequence, and forwards interruptions to the scientific process group. Errors and interruptions prevent later steps from starting. A retry uses a new destination.
 
-Ogni richiesta usa `schema_version: 1` e il nome del workflow. I percorsi
-identificano file e destinazioni **dentro il container**, non percorsi host
-Windows. Gli input devono essere esterni alle directory di lavoro e di output,
-che devono essere distinte. L'output deve essere vuoto e i file di staging
-previsti non devono già esistere. La validazione precede la preparazione;
-nessun file generato viene sovrascritto automaticamente.
+DNPcall requires read-only BAM aliases `sample_0001.bam`, `sample_0002.bam` and so on, in the order specified by the step, on internal paths supported by the R interface. The client exposes these aliases without copying the BAMs. The engine resolves references to produced tables from the plan. The client does not need to predict intermediate filenames.
 
-Il client monta soltanto gli input selezionati in sola lettura e il run corrente
-in scrittura. Il filesystem dell'immagine è in sola lettura, con directory
-temporanea dedicata e rete disabilitata. Non montare sorgenti o cartelle
-applicative sopra `/opt/nipat`. Il Dockerfile consente comandi espliciti per
-le sonde e per le analisi, senza imporre un `ENTRYPOINT`.
+Each SNPcall step selects one sample and a SNP panel. BAM mode keeps the BED and pileup in `work` and records samtools messages in `preparation.log`. A preparation error or an invalid pileup prevents R from starting. Pileup mode reads the supplied file directly. Both write `output/SNPcall_output.txt`. The entry in `artifacts.snp-tables` associates it with the sample ID.
 
-I file parzialmente preparati dopo un errore di I/O rimangono nel run per la
-diagnosi. Una nuova analisi deve usare una nuova directory.
+For CPI, the engine translates maternal/paternal references and pair IDs into internal names while preserving original input filenames. It prepares shared parents once. Outputs include the summary CSV, per-pair PDFs and a combined PDF. `artifacts.cpi-pairs` links the declared pair IDs to native names, CSV rows and plots. These mappings preserve the contents of the R results. See [plan execution](../docs/WORKFLOW_CONTRACT.md#plan-execution).
+
+## Common request rules
+
+Each request contains `schema_version: 1` and the workflow name. Paths describe files and destinations **inside the container**. Inputs must reside outside the distinct work and output directories. The output directory must be empty, and planned staging files must not already exist. Validation precedes preparation. The engine refuses to overwrite existing generated files.
+
+The client mounts only the selected inputs read-only and the current run read-write. The runtime uses a read-only image filesystem, a dedicated temporary directory and disabled networking. Keep source and application directories outside `/opt/nipat`. The Dockerfile allows explicit probe and analysis commands without imposing an `ENTRYPOINT`.
+
+After an I/O failure, partially prepared files remain in the run directory for diagnosis. Start the next analysis in a new directory.
 
 ## Contamination
 
@@ -147,13 +85,7 @@ diagnosi. Una nuova analisi deve usare una nuova directory.
 }
 ```
 
-Il motore convalida pannello e tabelle, copia le tabelle byte per byte in
-`work/inputs` e scrive il pannello R in `work/DNPpanel.txt`. I nomi mantengono
-lo stem originale e usano l'estensione `.txt`. Sono ammessi spazi e Unicode,
-ma non separatori di directory o caratteri di controllo. Collisioni di nome,
-anche limitate alle maiuscole, vengono rifiutate prima dello staging.
-Il client può selezionare singoli file o espandere ricorsivamente una cartella;
-la richiesta contiene l'elenco finale dei soli file selezionati.
+The engine validates the panel and tables, copies the tables byte for byte into `work/inputs` and writes the R panel to `work/DNPpanel.txt`. Each staged table retains its original filename stem and uses the `.txt` extension. Unicode and spaces are permitted. Directory separators, control characters and duplicate names (including case-only collisions) are rejected before staging. The client can select individual files or recursively enumerate a directory. The engine request contains the final list of selected files.
 
 ## SNPcall
 
@@ -171,24 +103,11 @@ la richiesta contiene l'elenco finale dei soli file selezionati.
 }
 ```
 
-Con `mode: "pileup"`, `bam` e `reference` devono essere `null`; `pileup`
-identifica il file con la settima colonna QNAME. Sono ammesse ulteriori colonne.
-Questa modalità non esegue samtools e non genera i file di preparazione BAM.
+With `mode: "pileup"`, both `bam` and `reference` must be `null`. The file specified by `pileup` must include QNAME in column seven. Additional columns are allowed. This mode runs without samtools and does not create BAM preparation files.
 
-Con `mode: "bam"`, `pileup` deve essere `null` e il riferimento deve avere
-l'indice adiacente `.fai`; un riferimento BGZF richiede anche `.gzi`.
-L'indice BAM è facoltativo perché samtools usa `-l`, senza accesso indicizzato
-per regione. Il motore conserva i nomi dei cromosomi del pannello, genera le
-finestre BED di tre basi in `work/snp_regions.bed` ed esegue samtools,
-conservando `work/pileup.txt`. Il comando include `-d 0`, senza limite di
-profondità, come SNPcall 2.0. Entrambe le modalità producono
-`output/SNPcall_output.txt`, con il nuovo schema a 17 colonne, quattro
-grafici del campione e una directory `summary` con genotipi e risorse.
-Il pannello normalizzato ha colonne `chr`, `pos`, `ref`, `alt`; il formato
-precedente `pos=chr:posizione`, `ref`, `alt` resta accettato. Le posizioni
-devono essere comprese fra 2 e 2147483646 anche in modalità pileup.
-L'interfaccia `snp-call-v2` segnala il cambiamento dello schema scientifico;
-la richiesta JSON conserva `schema_version: 1`.
+With `mode: "bam"`, `pileup` must be `null` and the FASTA reference requires an adjacent `.fai` index. BGZF-compressed references also require `.gzi`. A BAM index is optional because samtools uses the `-l` position list. The engine preserves the chromosome names from the panel, creates three-base BED windows in `work/snp_regions.bed` and runs samtools to generate `work/pileup.txt`. As in SNPcall 2.0, its default `-d 0` removes the depth limit.
+
+Both modes produce the 17-column `output/SNPcall_output.txt`, four sample plots and a `summary` directory with genotypes and resources. The normalized panel columns are `chr`, `pos`, `ref` and `alt`. The earlier three-column form (`pos=chr:position`, `ref`, `alt`) is also supported. The position must be between 2 and 2147483646 inclusive in both modes. The `snp-call-v2` interface identifies the scientific table schema. Requests use `schema_version: 1`.
 
 ## DNPcall
 
@@ -207,30 +126,13 @@ la richiesta JSON conserva `schema_version: 1`.
 }
 ```
 
-Il client accetta BAM singoli, multipli o una lista; le voci della lista sono
-relative alla directory che la contiene. I BAM ricevono alias progressivi
-`sample_0001.bam`; `run.json` conserva l'associazione con gli originali.
-BAM e riferimento sono montati in sola lettura. Il riferimento richiede `.fai`
-e, se BGZF, `.gzi`; gli indici BAM sono facoltativi.
+The client accepts one BAM, multiple BAMs or a list. Relative entries in the list resolve against its directory. The client assigns consecutive aliases beginning with `sample_0001.bam` and records the original paths in `run.json`. It mounts the BAMs and reference read-only. The reference requires `.fai` and, for BGZF, `.gzi`. BAM indexes are optional.
 
-Il motore convalida alias e pannello, poi scrive `work/DNP_list.txt` e
-`work/bamlist.txt`. Le directory devono essere sorelle e chiamarsi `work` e
-`output`. L'esecuzione parte dalla loro directory padre con gli argomenti
-relativi `--bamlist=work/bamlist.txt`, `--DNPs=work/DNP_list.txt` e `--out=output`.
-Gli alias ASCII interni sono necessari alle chiamate shell di DNPcall, anche
-quando i nomi originali contengono spazi o Unicode. `parallel` è booleano
-e attiva l'opzione R `--parallel`.
+The engine checks the aliases and panel and writes `work/DNP_list.txt` and `work/bamlist.txt`. Work and output directories must be siblings named `work` and `output`. Execution starts in their parent directory with the relative arguments `--bamlist=work/bamlist.txt`, `--DNPs=work/DNP_list.txt` and `--out=output`. ASCII aliases provide paths compatible with the R interface even when the original names include spaces or Unicode. Boolean `parallel` controls the R `--parallel` option. Actual concurrency is subject to the shared resource policy.
 
-La presenza di staging preesistente, output non vuoto o file `mpileup.txt`
-e `bedfile_for_mpileup.bed` nella radice del run impedisce la preparazione.
-Lo script R genera e rimuove questi ultimi due file al termine. Richiesta,
-pannello normalizzato e lista BAM rimangono disponibili.
+Existing staging files, a nonempty output directory or existing `mpileup.txt` and `bedfile_for_mpileup.bed` in the run root prevent preparation. In ordinary execution the R script creates the latter two files and removes them when it finishes. The request, normalized panel and BAM list remain available.
 
-DNPcall avvia l'helper di acquisizione del pileup con il budget effettivo.
-Se l'helper fallisce, R interrompe l'analisi. `work/dnp-pileup.json` registra
-strategia e processi, e il motore convalida le tabelle attese prima di registrare
-il successo. Il [riferimento DNPcall](../scientific/README.md#dnpcall) descrive
-i percorsi di acquisizione.
+DNPcall passes its effective process budget to the pileup acquisition helper. If the helper fails, R stops the analysis. `work/dnp-pileup.json` records the strategy and processes. The engine checks the required result tables before recording success. See the [DNPcall acquisition paths](../scientific/README.md#dnpcall).
 
 ## CPI
 
@@ -254,80 +156,36 @@ i percorsi di acquisizione.
 }
 ```
 
-Le coppie sono identificate da `madre:padre`, separate da virgole; gli spazi
-esterni agli identificatori sono normalizzati. I prefissi possono essere
-personalizzati o vuoti. I nomi delle tabelle selezionate devono corrispondere
-esattamente a `<prefisso><identificatore>.txt`. Un genitore usato in più coppie
-viene preparato una sola volta.
+The `pairs` string contains comma-separated `mother:father` identifiers. The adapter trims surrounding whitespace. Prefixes are configurable and may be empty. Selected table names must match `<prefix><identifier>.txt`. A parent shared across pairs is staged once.
 
-Il client espone soltanto tabelle richieste, frequenze e pannelli. Il motore
-convalida nuovamente questi file e copia le tabelle senza cambiarne i byte
-in `work/inputs`. I file non selezionati non sono accessibili a R.
+The client exposes the selected tables, frequencies and panels. The engine validates them again and copies tables byte for byte into `work/inputs`. R can access the selected inputs.
 
-| `cutoff_mode` | Richiesta e preparazione |
+| `cutoff_mode` | Request and preparation |
 | --- | --- |
-| `all` | Lista `cutoffs` vuota; nessun `--cutoff_map` nativo e nessuna colonna `Cutoff` nell'output. |
-| `panel` | Un pannello con etichetta vuota; genera `work/DNPpanel.txt` e usa il suo percorso interno come valore `Cutoff`. |
-| `named` | Una o più etichette univoche non vuote; genera `work/cutoff_001.tsv` e successivi. |
+| `all` | Empty `cutoffs` list, no native `--cutoff_map` argument and no output `Cutoff` column |
+| `panel` | One panel with an empty label. The engine writes `work/DNPpanel.txt` and uses its internal path as the `Cutoff` value. |
+| `named` | One or more unique, nonempty labels. The engine writes `work/cutoff_001.tsv` and subsequent files. |
 
-Il client offre `--cutoff` ripetuto e `--cutoff-map`. Un percorso senza
-etichetta nella mappa diventa anche la sua etichetta. I pannelli accettano
-formati testuali a tre colonne, con o senza intestazione, e il formato DNP
-a cinque colonne; vengono normalizzati a `chr`, `pos1`, `pos2`. L'interfaccia
-non accetta pannelli XLSX.
+The CLI accepts repeated `--cutoff` arguments and `--cutoff-map`. An unlabeled path in the map uses that path as its label. Panels can use three text columns with or without a header, or the five-column DNP format. The engine normalizes them to `chr`, `pos1` and `pos2`. XLSX panels are unsupported.
 
-Le etichette non possono contenere virgole, segni uguale o caratteri di controllo.
-I percorsi interni dei cutoff non possono contenere virgole o segni uguale,
-perché il parser R non li può codificare; gli alias del client evitano questa
-limitazione sui percorsi host. `err_const` deve essere finito e non negativo;
-zero è ammesso. Gli argomenti sono passati senza shell, preservando prefissi
-vuoti e valori che iniziano con un trattino.
+Labels cannot contain commas, equals signs or control characters. Internal cutoff paths cannot contain commas or equals signs because the R parser cannot encode them. The client uses aliases for host paths containing these characters. `err_const` must be finite and in `(0, 1]` for the selected marker type. Arguments are passed without a shell, preserving empty prefixes and values beginning with a hyphen.
 
-Le etichette delle coppie e i PDF usano `Mother<id>-Father<id>_DNPs`, indipendentemente
-dai prefissi degli input. Nomi ambigui dei campioni e collisioni degli output
-delle coppie, anche limitate alle maiuscole, sono rifiutati prima dello staging.
-Richiesta, tabelle preparate e pannelli rimangono in `work`. In `output`
-viene scritto `Summary_FetalFraction_CPI.csv`; la sottocartella `output/plots`
-contiene un PDF per coppia e `All_CPIplots.pdf`. In `output/curves` lo script
-salva le tabelle delle iterazioni per coppia e cutoff.
+Pair labels and PDFs use `Mother<id>-Father<id>_DNPs` regardless of the input prefixes. Ambiguous sample names and pair output collisions, including case-only collisions, cause an error before staging. The request, prepared tables and panels remain in `work`. The engine writes `Summary_FetalFraction_CPI.csv` in `output`, one PDF per pair and `All_CPIplots.pdf` in `output/plots`, and iteration tables for each pair and cutoff in `output/curves`.
 
 ## CPIN
 
-La richiesta `execute cpin` usa `schema_version: 1`, `workflow: "cpin"`,
-le tabelle `samples` con `path` e `name`, la selezione `trios`, i tre
-prefissi di ruolo, `popfreq`, `work_dir` e `out_dir`. Il campo opzionale
-`markers` seleziona un pannello con coordinate e alleli REF/ALT.
-`trios` è una lista separata da virgole di triple `madre:padre:figlio`.
-Ciascun ruolo individua una tabella distinta per prefisso e identificatore.
-Il tipo SNP o DNP delle tabelle e del pannello deve corrispondere alle
-frequenze. `scientific_settings` applica gli override validati, fra cui
-`min_child_reads`, `site_selection` e le costanti di mismatch.
+An `execute cpin` request uses `schema_version: 1`, `workflow: "cpin"`, a `samples` list with `path` and `name`, the `trios` selection, the three role prefixes, `popfreq`, `work_dir` and `out_dir`. Optional `markers` selects a panel with coordinates and REF/ALT alleles.
 
-L'output comprende `Summary_Postnatal_CPI.txt`, curve per terna e selezione,
-dettaglio dei siti, PDF separati e `All_CPIplots.pdf`. Il
-[contratto dei piani](../docs/WORKFLOW_CONTRACT.md#preparazione-cpin-e-identità-delle-terne)
-descrive la stessa analisi come passaggio di un workflow.
+`trios` is a comma-separated list of `mother:father:child` triples. Each role selects a distinct table through its prefix and identifier. Tables, the marker panel and population frequencies must use the same marker type, SNP or DNP. `scientific_settings` supplies validated overrides including `min_child_reads`, `site_selection` and mismatch constants.
 
-## Etichette leggibili
+Outputs include `Summary_Postnatal_CPI.txt`, curves by trio and selection, per-site results, individual PDFs and `All_CPIplots.pdf`. See [CPIN preparation and trio identity](../docs/WORKFLOW_CONTRACT.md#cpin-preparation-and-trio-identity) for the workflow-plan equivalent.
 
-Le richieste `execute` e i piani possono includere un campo opzionale
-`presentation` con due mappe: `samples` associa gli ID interni ai nomi
-originali, `pairs` associa gli ID di coppia a etichette leggibili. La mappa
-dei campioni deve essere completa; quella delle coppie può essere parziale.
-Le etichette sono dati: non vengono interpretate come codice R o comandi.
+## Readable labels
 
-Il motore esegue gli script scientifici identificati dal manifest e crea copie leggibili
-in `output/presentation`; nei piani l'indice è in `workflow/presentation`.
-L'adattatore R salva i grafici nativi e rende una copia con le etichette
-originali. L'esportazione delle tabelle modifica solo i campi identificativi.
-I riferimenti tra passaggi e le verifiche numeriche usano gli output canonici.
-Una mancata esportazione richiesta è un errore, non una presentazione riuscita.
+Both `execute` requests and plans can include an optional `presentation` object. Its `samples` map associates internal IDs with original sample names. Its `pairs` map associates pair IDs with readable labels. The sample map must be complete. The pair map may be partial. Labels are treated as data throughout.
 
-Nomi omonimi ricevono un identificatore distintivo. I nomi dei file esportati
-sono adattati ai vincoli dei filesystem e possono essere abbreviati; la mappa
-conserva il nome completo. Le etichette CSV/TSV che potrebbero essere interpretate
-come formule sono protette come testo, senza modificare i valori scientifici.
+The engine runs the scientific scripts identified by the manifest and creates readable copies in `output/presentation`. In plans, the combined index is in `workflow/presentation` for a workflow directory named `workflow`. The R adapter saves the native plots and renders copies with the original labels. Table exports change identifier fields only. Steps use canonical outputs for dependencies and numerical checks. Failure to create a requested export is reported as an error.
 
-La [guida per l'utilizzo](../docs/GUIDA_UTILIZZO.md) descrive la configurazione
-scientifica e i workflow del client. Il motore verifica gli override prima
-dello staging e conserva i parametri effettivi in ogni passaggio.
+When names coincide, the engine adds a distinguishing identifier. Export filenames follow filesystem restrictions and may be shortened. The mapping retains the complete original name. CSV/TSV labels that spreadsheet software might interpret as formulas are protected as text. Scientific values are preserved.
+
+The [user guide](../docs/GUIDA_UTILIZZO.md) covers scientific configuration and desktop workflows. The engine validates overrides before staging and records effective parameters for every step.

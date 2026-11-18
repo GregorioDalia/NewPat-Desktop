@@ -1,63 +1,25 @@
-# NIPAT Desktop 0.8.99 — due percorsi Windows indipendenti
+# NIPAT Desktop 0.8.99 — separate Windows ZIP and setup installations
 
-Questa release modifica installazione, preparazione e aggiornamenti Windows.
-DNPcall, SNPcall, Contamination, CPI prenatale e CPIN postnatale mantengono
-i modelli scientifici della 0.8.95.
+Release 0.8.99 changed Windows installation, preparation and updates. DNPcall, SNPcall, Contamination, prenatal CPI and postnatal CPIN retained the 0.8.95 models.
 
-## ZIP completo locale
+## Local ZIP installation
 
-`NIPAT-0.8.99-Windows-completo.zip` contiene applicazione, Python e i due
-archivi del runtime. Dopo l'estrazione nella posizione definitiva,
-`1_INSTALLA.cmd` prepara la sottocartella `NIPAT`. Avvio e ripresa avvengono
-tramite `NIPAT\2_AVVIA.cmd` e `NIPAT\1_COMPLETA_PREPARAZIONE.cmd`;
-non sono necessari collegamenti nel menu Start.
+`NIPAT-0.8.99-Windows-completo.zip` contains the application, Python and both runtime archives. Extract it to its permanent location and run `1_INSTALLA.cmd` to prepare the `NIPAT` subdirectory. Use `NIPAT\2_AVVIA.cmd` to launch and `NIPAT\1_COMPLETA_PREPARAZIONE.cmd` to resume preparation. Start menu shortcuts are optional to the workflow.
 
-Dati, risultati, cache, ambiente WSL e preferenze rimangono sotto quella
-radice. Gli aggiornamenti ZIP preservano la destinazione originale e
-attivano la nuova versione dopo la preparazione. Non eliminare la cartella
-NIPAT dopo l'installazione. WSL rimane registrato sul computer: il pacchetto
-non è un ambiente portatile fra PC.
+Data, results, cache, the WSL environment and preferences remain under that root. Keep the `NIPAT` directory. ZIP updates preserve the original destination and activate the new version after preparation. WSL is registered on the host, so moving the directory to another computer is insufficient to reproduce the installation.
 
-`LEGGIMI.txt` descrive anche il recupero in PowerShell: verifica dell'hash
-ufficiale, rimozione del contrassegno Internet limitata al pacchetto scelto,
-estrazione nuova e avvio dello stesso installatore. La procedura non
-disattiva le protezioni e non garantisce l'accettazione di ogni componente
-su dispositivi con criteri differenti.
+`LEGGIMI.txt` documents PowerShell recovery, including checking the official hash, handling the selected archive's Internet mark, extracting a fresh copy and starting the same installer. Device policy still applies to individual components.
 
-## Setup EXE con pacchetto separato
+## Online setup
 
-`NIPAT-Setup.exe` conserva l'installazione guidata, ma acquisisce da GitHub
-`NIPAT-<versione>-Windows-payload.zip`. Il bootstrap e la versione NIPAT
-hanno identità separate. La copia del setup conservata nell'applicazione
-viene riutilizzata per aggiornamenti compatibili: i nuovi contenuti arrivano
-come pacchetto verificato, senza richiedere un nuovo EXE per ogni release.
+`NIPAT-Setup.exe` guides installation and downloads `NIPAT-<version>-Windows-payload.zip` from GitHub. The setup has its own bootstrap version. Compatible updates reuse the setup stored with the application and download the verified payload for the new release.
 
-Una prima installazione consulta la release stabile compatibile. Un
-aggiornamento usa la versione esatta proposta al client, con commit,
-dimensione e SHA-256 verificati. Il feed EXE/payload è separato da quello
-ZIP. Il download richiede Internet; i calcoli continuano a essere locali.
-Correzioni del bootstrap o cambiamenti incompatibili possono richiedere
-un nuovo setup: la sua immutabilità non è un vincolo che impedisce fix.
+First installation resolves a compatible stable release. An update requests the exact version offered to the client and verifies its commit, size and SHA-256. The setup/payload and full ZIP have separate update feeds. Downloads require Internet access. Scientific analyses run locally. Bootstrap corrections or incompatible changes can require a new setup.
 
-## Preparazione Windows
+## Preparation and qualification
 
-La preparazione non carica `NipatActivityNative.dll`. Il coordinamento
-fra processi usa primitive Windows e controlli Python. I prerequisiti WSL
-sono configurati con gli strumenti del sistema, limitando l'elevazione
-alle operazioni che la richiedono.
+Preparation uses Windows primitives and Python for process coordination, without loading `NipatActivityNative.dll`. System tools configure WSL. Elevation applies only to operations that require it.
 
-Lo ZIP e il setup EXE hanno destinazioni e meccanismi di aggiornamento
-indipendenti. Questa release non prevede migrazioni automatiche o un
-contratto di retrocompatibilità con le installazioni precedenti; dati e
-risultati estranei non vengono cancellati per adottare il nuovo layout.
+The ZIP and EXE installations have separate locations and update mechanisms. This release provided no automatic migration or general backward-compatibility contract for earlier installations. Unrelated data and results are preserved.
 
-## Verifiche e limiti
-
-I rapporti pubblicati identificano i pacchetti, i relativi hash e le
-verifiche CI effettivamente completate. La qualificazione scientifica resta
-separata dai controlli dell'installer. I runner ospitati non dimostrano
-l'accettazione Smart App Control su un PC reale, né un riavvio Windows/WSL
-fisico. Il setup NIPAT rimane privo di firma Authenticode; una prova positiva
-su un dispositivo non rappresenta un'autorizzazione universale di Windows.
-
-Per procedure, log e controlli consultare la [guida Windows](INSTALLATORE_WINDOWS.md).
+Published reports identify package hashes and completed CI checks. Scientific qualification, a physical Windows/WSL restart and Smart App Control tests on the target device are distinct from hosted installer checks. The setup lacked a NIPAT Authenticode signature. Consult the [Windows guide](INSTALLATORE_WINDOWS.md) for procedures, logs and checks.

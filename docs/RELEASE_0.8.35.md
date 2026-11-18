@@ -1,72 +1,21 @@
 # NIPAT Desktop 0.8.35
 
-Questa versione corregge un errore intermittente di coordinamento nei batch
-SNP paralleli e amplia i controlli sul codice e sull'immagine scientifica
-distribuita. Il modello scientifico resta SNPcall 2.0.
+This release corrected an intermittent coordination error in parallel SNP batches. The model remained SNPcall 2.0. On November 11, 2026, the latest upstream SNPcall revision was [NEWPAT commit ce59f4be](https://github.com/lpistacchia/NEWPAT/tree/ce59f4beeeec710b1b42d425cb87d7aad729f71d/SNPcall), identical to the frozen 0.8.30 reference. The [0.8.30 notes](RELEASE_0.8.30.md) describe the 17 columns, genotypes, indels and multi-sample summaries.
 
-## SNPcall e gestione dei processi
+## Worker coordination
 
-Il riferimento è [NEWPAT, commit ce59f4be](https://github.com/lpistacchia/NEWPAT/tree/ce59f4beeeec710b1b42d425cb87d7aad729f71d/SNPcall),
-verificato come ultimo aggiornamento upstream di SNPcall l'11 novembre 2026.
-Il sorgente originale coincide con il riferimento congelato nella 0.8.30:
-questa release non introduce un ulteriore cambiamento delle formule SNP.
-Le [note della 0.8.30](RELEASE_0.8.30.md) descrivono le 17 colonne,
-i genotipi, gli indel e i riepiloghi per più campioni.
+The coordinator reads final state after each process exits. It retries transient file-visibility failures up to 20 times with at most 0.95 seconds of total waiting. Progress uses its own events. A wrong sample ID or unreadable final state is an explicit error. Diagnostics keep the error type and message.
 
-Il coordinatore legge ora lo stato finale di ciascun processo soltanto dopo
-la sua uscita. Un errore transitorio nella visibilità del file viene ritentato
-con un limite di 20 tentativi e 0,95 secondi complessivi di attesa.
-L'avanzamento continua a usare i propri eventi. Un'identità diversa del
-campione o uno stato finale illeggibile rimangono errori espliciti.
+Batch shutdown preserves the first failure even if another process's status becomes unreadable. It stops running processes and descendants and skips queued samples. The Mac cleanup path handles a permission error when signaling a process group that already exited.
 
-La diagnostica conserva tipo e messaggio dell'errore di lettura. Durante
-l'arresto del batch, un eventuale errore di lettura di un altro processo non
-sostituisce la causa principale. I processi avviati e i loro discendenti
-vengono arrestati; i campioni ancora in attesa non partono dopo un fallimento.
-È gestito separatamente il caso macOS di un gruppo già terminato che risponde
-con un errore di autorizzazione al segnale di pulizia.
+## Regression tests
 
-## Controlli di regressione
+CI and installer qualification exercise state replacement during execution, delayed visibility, missing or malformed state, wrong identity, cancellation and preservation of the primary error. Scientific-image tests cover 2, 3 and 5 BAM paths in serial mode and with two workers, plus repeated automatic three-sample runs. The five-path test reuses three synthetic fixtures and measures batch behavior.
 
-La CI e la build degli installer eseguono:
+Checks compare independently expected counts, likelihoods and genotypes, exact tables, aggregate genotypes, sample identities, final states and the shared worker budget. They also cover all four modules, reference comparisons, presentation, clients and four installers. Linux tests with simulated read failures provide regression evidence. Reproduction on Windows/WSL and tests on the target computer require separate evidence.
 
-- test con processi reali e guasti di lettura simulati: sostituzione dello stato
-  durante l'esecuzione, visibilità ritardata, file assente o malformato,
-  identità errata, annullamento e conservazione dell'errore originale;
-- prove nell'immagine scientifica con 2, 3 e 5 percorsi BAM, in seriale e con
-  massimo due processi, oltre a ripetizioni automatiche con tre campioni;
-- confronto con conteggi, likelihood e genotipi attesi indipendenti, parità
-  esatta delle tabelle e dei genotipi aggregati, identità dei campioni,
-  stati finali dei processi e rispetto del budget comune;
-- regressioni dei quattro moduli, confronto con i riferimenti scientifici,
-  verifiche della presentazione, del client e dei quattro installer.
+## Installation and local test
 
-Il caso a cinque BAM riutilizza tre fixture sintetiche con percorsi distinti:
-verifica la gestione del batch, senza rappresentare cinque campioni biologici
-indipendenti. I test Linux e i guasti simulati non attestano una riproduzione
-nativa del problema su Windows/WSL. Il collaudo sul dispositivo destinatario
-resta distinto dalla qualificazione automatica.
+Use **Check for updates** or choose a package from the [0.8.35 release](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.8.35). Finish active runs, verify version **0.8.35** and run `nipat self-test`. For a parallelism comparison, use the same three or more BAMs and panel for separately named serial, two-worker and automatic runs. Compare SNP tables and aggregate genotypes, repeat automatic runs to check for intermittent failures, and retain `run.json`, `workflow-state.json`, results and logs. Update scripts that explicitly require version 0.8.30 before using them.
 
-## Installazione e collaudo
-
-Scaricare il pacchetto del proprio sistema dalla
-[release 0.8.35](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.8.35)
-oppure usare **Verifica aggiornamenti**. Chiudere le analisi prima
-dell'aggiornamento e verificare che NIPAT riporti **0.8.35**.
-
-Per il primo controllo eseguire `nipat self-test`, che usa i dati di esempio
-distribuiti. Per un confronto del parallelismo selezionare gli stessi
-tre o più BAM e lo stesso pannello SNP, ripetere il batch in seriale,
-con massimo due processi e in automatico, usando nomi di run distinti.
-Le tabelle SNP e i genotipi aggregati devono coincidere; tempi e memoria
-possono differire. Ripetere la modalità automatica per valutare gli errori
-intermittenti. Conservare `run.json`, `workflow-state.json`, risultati e log.
-Gli script di collaudo con controllo rigido della versione 0.8.30 richiedono
-un aggiornamento esplicito prima di provare la 0.8.35.
-
-Non cambia la procedura di installazione rispetto alla 0.8.30. Il setup
-Windows resta privo di firma Authenticode NIPAT e non garantisce l'accettazione
-di Smart App Control. I pacchetti Mac non sono notarizzati; le prove Lima
-sui dispositivi finali rimangono separate dai controlli dei pacchetti.
-Consultare le guide [Windows](INSTALLATORE_WINDOWS.md),
-[macOS](INSTALLATORE_MACOS.md) e [Ubuntu](INSTALLATORE_LINUX.md).
+Installation follows the 0.8.30 procedure. The Windows setup lacked a recognized NIPAT Authenticode signature or Smart App Control qualification. Mac packages lacked notarization. See the [Windows](INSTALLATORE_WINDOWS.md), [macOS](INSTALLATORE_MACOS.md) and [Ubuntu](INSTALLATORE_LINUX.md) guides.

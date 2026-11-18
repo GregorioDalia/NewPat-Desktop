@@ -1,315 +1,80 @@
-> Documento storico di sviluppo, conservato per tracciabilità. Non costituisce una guida della versione corrente. Per i contratti attuali consultare [Architettura](../ARCHITECTURE.md) e [CI/CD](../CI_CD.md).
+# Development plan for NIPAT 0.5
 
-# Percorso incrementale verso NIPAT 0.5
+Historical status on 23 October 2026, during the sixth increment. This document records decisions, completed work and outstanding acceptance criteria. For current contracts see [Architecture](../ARCHITECTURE.md) and [CI/CD](../CI_CD.md).
 
-Stato: sesto incremento tecnico in sviluppo, 23 ottobre 2026. Questo documento
-registra le decisioni, il lavoro già svolto e i controlli ancora necessari.
+## Baseline
 
-## Baseline e separazione dalla validazione in corso
+Domain testing was using `v0.4.1`, commit `8e1f57d4721d7864051747cb5d5b10cfe8408a77`. Development branched from `main` at `30a623a3133171b9ff5610dffa04d4d3b78e783a`, including subsequent CI/CD checks, into a separate checkout of `feature/0.5-foundation`. Existing 0.4.1 tags, assets, manifests and notes were to remain intact. Future removal of Docker Desktop applied to the new product. Candidate testers needed to retain their 0.4.1 installation, with separate application identity, shortcuts, configuration, WSL distribution and default results directory. Increment six introduced the separate Preview channel. Automatic publication and replacement of existing release assets were outside the plan. Migration from 0.4.1 would require an explicit verified step.
 
-- La versione consegnata per le prove di dominio è `v0.4.1`, commit
-  `8e1f57d4721d7864051747cb5d5b10cfe8408a77`.
-- Il punto di partenza dello sviluppo 0.5 è `main` al commit
-  `30a623a3133171b9ff5610dffa04d4d3b78e783a`, che include i successivi controlli CI/CD.
-- Lo sviluppo parte sul branch `feature/0.5-foundation`, in un checkout separato.
-- Tag, asset, manifest e note della release 0.4.1 restano invariati. La dismissione
-  dell'edizione Docker Desktop riguarda il nuovo prodotto, non gli archivi storici.
-- I candidati 0.5 devono poter essere provati senza sostituire l'applicazione 0.4.1:
-  identità dell'installazione, collegamenti, configurazione, distribuzione WSL e
-  cartelle predefinite dei risultati devono essere distinti durante le prove.
-  Il sesto incremento introduce un canale Preview con destinazioni dedicate.
-- Nessuna pubblicazione automatica o sostituzione degli asset distribuiti.
-  L'eventuale migrazione dalla 0.4.1 sarà un passaggio esplicito e verificato.
+## Design decisions
 
-## Decisioni acquisite
+1. R remains the scientific core. Preserve the R files and SHA-256 manifest during packaging.
+2. Windows uses dedicated WSL2 with NIPAT-managed Docker Engine. Remove the Docker Desktop edition from the active application, installers and distribution.
+3. The image already provides R and samtools. Include the scripts and preparation for all four workflows so that the engine can run independently of the checkout and Windows application directory.
+4. Python adapters may run inside the engine. The scientific algorithms remain in R.
+5. The desktop interface stays outside the engine. The existing guided CLI supports independent infrastructure work.
+6. GitHub will provide a Windows installer and a Linux installer using the same engine archive for the supported architecture, built and verified once.
+7. Linux continues to require native Docker Engine. Its Docker transport remains available.
 
-1. Il core scientifico rimane in R. La migrazione di confezionamento conserva
-   i file R e il loro manifest SHA-256; non comprende modifiche agli algoritmi.
-2. Su Windows il percorso definitivo è la distribuzione WSL2 dedicata con
-   Docker Engine gestito da NIPAT. L'edizione Docker Desktop sarà rimossa
-   dall'applicazione, dai nuovi installatori e dal percorso attivo di distribuzione.
-3. R e samtools sono già presenti nell'immagine attuale. Il nuovo motore deve
-   includere anche gli script e la preparazione necessaria ai quattro workflow,
-   senza dipendere dal checkout o dalla cartella dell'applicazione Windows.
-4. Gli adattatori Python necessari alla preparazione scientifica possono essere
-   inclusi nel motore. Questo non cambia il linguaggio degli algoritmi R.
-5. L'interfaccia desktop rimane esterna al motore. Il lavoro sull'infrastruttura
-   deve poter procedere usando la CLI guidata esistente.
-6. La distribuzione 0.5 dovrà offrire tramite GitHub un installer Windows e
-   un installer Linux. I due pacchetti useranno lo stesso archivio del motore
-   per l'architettura supportata, costruito e verificato una sola volta.
-7. Docker Engine nativo rimane necessario per l'edizione Linux. La rimozione
-   di Docker Desktop non implica la rimozione del trasporto Docker per Linux.
+Initial Linux support targets **Ubuntu 24.04 LTS x86_64**, with packaging and dependencies selected for that system. The 0.5 interface is a guided CLI. A future external GUI can use the same execution contract.
 
-## Perimetro confermato
+## Increment 1 — package the R code
 
-- Sistema Linux iniziale: **Ubuntu 24.04 LTS x86_64**. Il formato dell'installer
-  e la preparazione delle dipendenze saranno scelti per questo sistema;
-  non viene dichiarato supporto a tutte le distribuzioni.
-- Interfaccia della release 0.5: **CLI guidata, senza GUI**. La futura GUI resta
-  esterna al motore e utilizzerà il medesimo contratto di esecuzione.
+The Dockerfile installs the four unchanged R scripts, licenses and manifest under `/opt/nipat`. `engine/main.py` verifies hashes and exposes `describe`, `verify` and `run` with native script arguments. Local checks included 204 Python and 37 CI selection/publisher tests. CI and installer review builds run `scripts/verify_engine_package.py` to execute SNPcall, Contamination and CPI without an application or checkout mount, with networking disabled and a read-only image filesystem. It checks numerical expectations from existing regressions.
 
-## Primo incremento: confezionamento del codice R
+[CI 39806767798](https://github.com/GregorioDalia/nipat-desktop/actions/runs/39806767798) and [review build 39806767596](https://github.com/GregorioDalia/nipat-desktop/actions/runs/39806767596) passed at `22e0677`. DNPcall was bundled and checked by hash. A BAM regression through the new entry point was still missing. Installer artifacts exercised the existing packaging structure and were unsuitable for installing alongside 0.4.1. Separate product identities and two new installers belonged to later increments.
 
-Il Dockerfile include i quattro script R invariati, le licenze e il manifest
-in `/opt/nipat`. L'ingresso `engine/main.py` verifica gli hash e offre i comandi
-`describe`, `verify` e `run`, con argomenti nativi degli script.
+## Increment 2 — Contamination
 
-Le verifiche locali comprendono 204 test Python e 37 test della selezione CI
-e del publisher. Il controllo `scripts/verify_engine_package.py`, aggiunto
-alla CI e alla build di revisione dell'installer, esegue SNPcall, Contamination
-e CPI senza mount dell'applicazione o del checkout, con rete disabilitata e
-filesystem dell'immagine in sola lettura. Verifica gli stessi valori numerici
-attesi delle regressioni esistenti. L'esito reale dell'immagine va consultato
-nella relativa esecuzione GitHub Actions: i test Python da soli non lo provano.
+The CLI sends a `contamination-v1` request with the original panel, selected files, sample names and destinations. It supports explicit files and recursive directory discovery. The engine validates inputs, normalizes the panel, prepares `.txt` tables and runs the unchanged R script. Client and engine share validators in `nipat_scientific`.
 
-Il primo incremento è stato verificato nella
-[CI 39806767798](https://github.com/GregorioDalia/nipat-desktop/actions/runs/39806767798)
-e nella [build di revisione 39806767596](https://github.com/GregorioDalia/nipat-desktop/actions/runs/39806767596),
-entrambe concluse con successo sul commit `22e0677`.
-DNPcall è incorporato e verificato tramite hash; manca ancora la regressione
-BAM attraverso il nuovo ingresso. Gli artifact dell'installer generati durante
-questo incremento sono soltanto build di revisione della struttura attuale:
-**non sono candidati 0.5 installabili accanto alla 0.4.1**. La separazione delle
-identità di installazione e i due nuovi installer appartengono ai passi seguenti.
+A self-contained Compose document mounts selected inputs read-only and the single run directory writable. It excludes the application and global data directories, disables networking and uses a read-only image filesystem. `runtime.engine` records hashes of the actual scripts and Python preparation code separately from client hashes. Older images lacking the contract are rejected before analysis.
 
-## Secondo incremento: workflow Contamination completo
+Tests covered preparation, sample names and bytes, invalid requests, tracing and interruption. The image test ran the CLI from an application directory containing only `compose.yaml`. The other three workflows still used their previous paths. Local results were 224 Python and 37 CI/publisher checks passed. Image and packaging checks passed separately in [CI 39812476371](https://github.com/GregorioDalia/nipat-desktop/actions/runs/39812476371) and [review build 39812476253](https://github.com/GregorioDalia/nipat-desktop/actions/runs/39812476253) on `56701ee`. Published installers remained unchanged.
 
-La CLI ora invia al motore una richiesta `contamination-v1` con il pannello
-originale, i file selezionati, i nomi dei campioni e le destinazioni del run.
-Selezione di file espliciti e ricerca ricorsiva in una cartella rimangono disponibili.
-Il motore convalida gli input, normalizza il pannello, prepara le tabelle `.txt`
-ed esegue lo script R invariato. I moduli condivisi `nipat_scientific` conservano
-un'unica implementazione dei validatori usati dal client e dal motore.
+## Increment 3 — SNPcall
 
-L'esecuzione usa un documento Compose autonomo: soli input selezionati in lettura
-e singolo run in scrittura, senza mount dell'applicazione o dei dati globali,
-con rete disabilitata e filesystem dell'immagine in sola lettura.
-`runtime.engine` registra gli hash effettivi degli script e del codice Python di
-preparazione; gli hash locali del client sono distinti. Un'immagine precedente,
-priva del contratto richiesto, viene rifiutata prima dell'analisi.
+`snp-call-v1` accepts an existing pileup with a QNAME column or a BAM with FASTA. In BAM mode the engine validates inputs and reference indexes, generates three-base BED windows and a samtools pileup, and starts R only after samtools succeeds. A BAM index is optional. BGZF references retain `.fai` and `.gzi` support.
 
-Le nuove prove coprono preparazione, nomi e byte dei campioni, richieste non valide,
-tracciamento e interruzione. Il controllo reale dell'immagine include anche un run
-CLI da una cartella applicativa che contiene soltanto `compose.yaml`, senza
-sorgenti scientifici. SNPcall, DNPcall e CPI mantengono ancora il percorso precedente.
-La suite locale comprende 224 test Python e 37 controlli CI/publisher superati;
-la prova dell'immagine e il confezionamento sono verifiche distinte in GitHub Actions.
-Questo incremento non modifica gli installer pubblicati né completa la release 0.5.
+The CLI uses the Contamination isolation and mount contract. `work/snp_regions.bed` and `work/pileup.txt` remain available, and results are written to `output/SNPcall_output.txt`. SNPcall self-test uses the full execution path. R and the scientific manifest were unchanged.
 
-Il secondo incremento è stato verificato nella
-[CI 39812476371](https://github.com/GregorioDalia/nipat-desktop/actions/runs/39812476371)
-e nella [build di revisione 39812476253](https://github.com/GregorioDalia/nipat-desktop/actions/runs/39812476253),
-entrambe concluse con successo sul commit `56701ee`.
+Tests covered the nine distributed reference rows, a synthetic BAM with independent expected counts, both CLI modes without local scientific sources, invalid inputs, samtools failure and interruption. Local results were 243 Python and 37 CI/publisher tests passed. [CI 39940948277](https://github.com/GregorioDalia/nipat-desktop/actions/runs/39940948277) and [review build 39940948282](https://github.com/GregorioDalia/nipat-desktop/actions/runs/39940948282) passed on `aad3002`; the development PR records numerical and packaging outcomes.
 
-## Terzo incremento: workflow SNPcall completo
+## Increment 4 — DNPcall
 
-La richiesta `snp-call-v1` comprende entrambe le modalità esistenti. Con pileup
-già disponibile, il motore verifica il formato con colonna QNAME e avvia R.
-Con BAM e riferimento FASTA, verifica gli input e gli indici richiesti del
-riferimento, genera le finestre BED di tre basi e il pileup tramite samtools,
-quindi avvia R soltanto dopo il successo di samtools. L'indice BAM resta opzionale.
-Sono mantenuti i riferimenti BGZF con indici `.fai` e `.gzi`.
+`dnp-call-v1` carries the original panel, ordered BAM list, reference and serial/parallel choice. The client accepts a single BAM, multiple BAMs or a list with entries relative to the list file. `run.json` maps safe aliases to original files. The engine writes `work/DNP_list.txt` and `work/bamlist.txt`, then runs R from the run root with relative arguments compatible with its output filenames. BAM and FASTA inputs are read-only mounts and require no copies.
 
-La CLI usa gli stessi mount selettivi e lo stesso isolamento di Contamination.
-Gli intermedi `work/snp_regions.bed` e `work/pileup.txt` rimangono consultabili;
-il risultato continua a essere `output/SNPcall_output.txt`. Anche l'autotest
-SNPcall usa il percorso di esecuzione completo. Lo script R e il manifest
-scientifico rimangono invariati.
+Image tests create synthetic BAMs from readable SAM and FASTA, with independent expected counts and genotypes. They cover the full engine and CLI without source mounts, one or multiple samples, relative lists, sample association and serial/parallel agreement. Direct native R execution checks preservation of outputs. Local tests passed 266 Python and 37 CI/publisher checks. [CI 39946173365](https://github.com/GregorioDalia/nipat-desktop/actions/runs/39946173365) and [review build 39946173352](https://github.com/GregorioDalia/nipat-desktop/actions/runs/39946173352) passed on `2592935`. The PR identifies outcomes and limitations.
 
-Le verifiche comprendono le nove righe di riferimento già distribuite e una
-fixture BAM sintetica con conteggi attesi espliciti, entrambe le modalità CLI
-da una cartella applicativa priva di sorgenti scientifici, input non validi,
-fallimento di samtools e gestione dell'interruzione. L'esecuzione reale
-dell'immagine viene verificata in GitHub Actions, separatamente dai test Python.
-I controlli locali comprendono 243 test Python e 37 test CI/publisher superati;
-gli esiti numerici e di confezionamento del commit sono riportati nella PR di sviluppo.
-Il terzo incremento è stato verificato nella
-[CI 39940948277](https://github.com/GregorioDalia/nipat-desktop/actions/runs/39940948277)
-e nella [build di revisione 39940948282](https://github.com/GregorioDalia/nipat-desktop/actions/runs/39940948282),
-entrambe concluse con successo sul commit `aad3002`.
+The R code and manifest remained unchanged. DNPcall still removed pileup and BED files on completion, suppressed samtools stderr and lacked an explicit samtools exit status check. A successful process exit alone could not establish scientific output correctness.
 
-## Quarto incremento: workflow DNPcall completo
+## Increment 5 — CPI
 
-La richiesta `dnp-call-v1` trasferisce al motore il pannello originale, l'elenco
-ordinato dei BAM, il riferimento e la scelta sequenziale/parallela. Il client
-mantiene le modalità BAM singolo, più BAM e lista, con percorsi relativi alla
-lista e corrispondenza fra alias sicuri e file originali in `run.json`.
-Il motore prepara `work/DNP_list.txt` e `work/bamlist.txt`, quindi esegue lo
-script R dalla radice del run con argomenti relativi compatibili con i suoi
-nomi di output. BAM e FASTA vengono montati in sola lettura, senza copiarli.
+`cpi-v1` transfers selected parental tables, pairs, prefixes, population frequencies, error constant and panels to the engine. The engine validates inputs, retains byte-identical tables in `work/inputs`, normalizes panels and runs R. Shared pair members are prepared once. The CLI uses the same isolated execution and engine metadata as the other workflows.
 
-Le prove dell'immagine usano BAM sintetici costruiti da SAM e FASTA leggibili,
-con conteggi e genotipi attesi indipendenti. Coprono il motore completo e la CLI
-senza mount dei sorgenti, campioni singoli e multipli, liste relative,
-corrispondenza dei campioni e parità sequenziale/parallela. Il confronto con
-l'invocazione R nativa verifica anche che il confezionamento conservi gli output.
-Gli esiti effettivi e i limiti delle prove sono riportati nella PR di sviluppo.
-I controlli locali comprendono 266 test Python e 37 test CI/publisher superati;
-l'esecuzione numerica nell'immagine resta una verifica distinta in GitHub Actions.
+Supported choices include ALL without a panel, `--panel`, repeated `--cutoff` and `--cutoff-map`. A single panel can retain its path as its label. Explicit cutoff labels, custom or empty prefixes and a zero error constant remain supported. Staging and pair-PDF filename collisions, including case-only differences on Windows, are rejected before writing.
 
-Il codice R e il manifest rimangono invariati. Rimane quindi anche il comportamento
-interno di DNPcall: elimina pileup e BED al termine e non verifica esplicitamente
-lo stato della chiamata a samtools, di cui nasconde lo stderr. Il successo del
-processo non equivale alla verifica scientifica degli output.
+Image regressions covered known analytical values, no informative sites, CSV and PDF output, mount isolation, original input preservation and CLI operation without local scientific sources. A paternal incompatibility fixture yields two-site CPI products `20e²` and `4e`, tested with `e = 0.01`, `0.1` and `0`. The 293 Python and 37 CI/publisher tests passed locally. [CI 39949743382](https://github.com/GregorioDalia/nipat-desktop/actions/runs/39949743382) and [review build 39949743373](https://github.com/GregorioDalia/nipat-desktop/actions/runs/39949743373) passed on `29fc5be`, with actual R numerical checks in CI.
 
-Il quarto incremento è stato verificato nella
-[CI 39946173365](https://github.com/GregorioDalia/nipat-desktop/actions/runs/39946173365)
-e nella [build di revisione 39946173352](https://github.com/GregorioDalia/nipat-desktop/actions/runs/39946173352),
-entrambe concluse con successo sul commit `2592935`.
+All four scientific workflows now used the new path. Diagnostics, the Windows client, separate installation identities, Docker Desktop retirement and the new installers were outstanding. Review builds were not distributable 0.5 candidates and must not replace 0.4.1. R sources and their manifest were unchanged.
 
-## Quinto incremento: workflow CPI completo
+## Increment 6 — isolated Windows Preview
 
-La richiesta `cpi-v1` trasferisce al motore le tabelle parentali selezionate,
-le coppie, i prefissi, le frequenze di popolazione, la costante d'errore e i
-pannelli richiesti. Il motore verifica questi input, conserva le tabelle senza
-modificarne i byte in `work/inputs` e normalizza i pannelli prima di eseguire R.
-Un campione condiviso fra coppie viene preparato una sola volta. La CLI usa
-l'esecuzione isolata e i metadati dell'immagine già introdotti per gli altri workflow.
+The internal version became `0.5.0a1` without a release. The `preview-0.5` profile has a stable identity across candidate updates: **NIPAT 0.5 Preview**, application directory `%LOCALAPPDATA%\Programs\NIPAT-0.5-Preview`, and data directory `%LOCALAPPDATA%\NIPAT-0.5-Preview` containing `data`, `runs`, `cache` and `wsl`. AppId, shortcuts, uninstall entry, mutex and RunOnce are separate from 0.4.1. An alternative application destination is rejected before copying.
 
-Rimangono disponibili ALL senza pannello, `--panel`, `--cutoff` ripetuto e
-`--cutoff-map`. Sono conservati anche il percorso come etichetta per il pannello
-singolo, le etichette esplicite dei cutoff, i prefissi personalizzati o vuoti e
-la costante d'errore nulla. Nomi che collidono nello staging o nei PDF delle
-coppie sono rifiutati prima di scrivere, anche quando differiscono soltanto
-per maiuscole/minuscole. Questo evita sovrascritture su filesystem Windows.
+WSL names begin with `NIPAT-05-Preview-` followed by the first 40 hexadecimal digits of the rootfs hash. The candidate avoids legacy 0.4.1 registries even for identical rootfs bytes. Manifest, state, backend, ownership and recovery record the channel. A missing channel is rejected. Preview updates preserve paths, resumption and activation guarantees.
 
-Le regressioni dell'immagine confrontano le modalità migrate con i valori
-analitici già disponibili, includono il caso senza siti informativi e verificano
-CSV, PDF, isolamento dei mount e input originali invariati. Una fixture aggiuntiva
-con incompatibilità paterna dimostra numericamente l'effetto della costante
-d'errore: per i due siti sintetici i prodotti CPI sono `20e²` e `4e`, verificati
-con `e = 0.01`, `0.1` e `0`. Le prove usano anche il client senza sorgenti
-scientifici nella sua cartella applicativa. Gli esiti reali della CI e del
-confezionamento vengono riportati nella PR di sviluppo.
-I controlli locali comprendono 293 test Python e 37 controlli CI/publisher superati;
-la verifica numerica nello script R reale rimane distinta e viene eseguita in CI.
+The installed launcher selects its own environment even when the calling shell supplies stable NIPAT variables. Users can select supported local input paths and override destinations explicitly in the CLI. Uninstall preserves data, results, cache and distributions. The host WSL prerequisite is shared.
 
-Con questo incremento i quattro workflow analitici sono migrati. Restano
-l'adeguamento della diagnostica e del client Windows, l'isolamento delle identità
-di installazione, la dismissione Docker Desktop e i nuovi installer Windows/Linux.
-Le build di revisione non sono candidati 0.5 da distribuire e non devono sostituire
-l'installazione 0.4.1. Il codice R e il manifest scientifico rimangono invariati.
+Checks cover manifests, packages, identity isolation, same-channel resume/upgrade and launcher startup. Local results were 300 Python and 43 CI/publisher tests passed. The development PR records actual outcomes. Simulated WSL boundaries in PowerShell cannot establish a real installation. Final client changes, Docker Desktop removal, Ubuntu packaging and package tests remained. The transitional Docker Desktop installer still had the previous identity and was unsuitable for installation or domain testing.
 
-Il quinto incremento è stato verificato nella
-[CI 39949743382](https://github.com/GregorioDalia/nipat-desktop/actions/runs/39949743382)
-e nella [build di revisione 39949743373](https://github.com/GregorioDalia/nipat-desktop/actions/runs/39949743373),
-entrambe concluse con successo sul commit `29fc5be`.
+## Completion criteria at the time
 
-## Sesto incremento: installazione Windows Preview separata
+Each increment required scoped changes, applicable local tests and a separate review before integration.
 
-La versione interna passa a `0.5.0a1`, senza pubblicare una release. Il profilo
-`preview-0.5` mantiene un'identità costante fra gli aggiornamenti del candidato:
-**NIPAT 0.5 Preview**, cartella applicativa
-`%LOCALAPPDATA%\Programs\NIPAT-0.5-Preview` e cartella dati
-`%LOCALAPPDATA%\NIPAT-0.5-Preview`. Quest'ultima contiene `data`, `runs`,
-`cache` e `wsl`. AppId, collegamenti, voce di disinstallazione, mutex e RunOnce
-sono separati da quelli della 0.4.1. Una destinazione applicativa alternativa
-viene rifiutata prima della copia dei file.
+1. **Self-contained engine.** Specify input, parameter, state and output contracts. Bundle R and preparation adapters with baseline dependencies. Separate calculation from Windows path selection and Docker launch. First embed scripts, resources, manifest and engine identity where mounts cannot hide them. Then migrate one workflow at a time, beginning with existing numerical regressions. Completion requires four workflows using only selected inputs, configuration and work/output mounts, numerical expectations and stated tolerances, missing-informative-site cases, supported input modes, sample identities, run metadata, unchanged R/manifest bytes and verifiable engine version and contract.
+2. **Windows WSL-only client.** Connect the CLI to the new engine and remove Docker Desktop launchers, preparation, installers and user-facing recommendations while preserving native Linux execution. Verify separation from 0.4.1's mutable state, start, analysis, cancellation, diagnosis and restart after stopping the runtime, paths containing spaces or on different local disks, one setup procedure and one icon. A physical Windows/WSL test is separate from CI simulation.
+3. **Linux installer.** Deliver one package for the supported system with the same engine archive and a defined dependency procedure. Verify clean installation, archive identity and import, workflow execution, user access to results, error handling and uninstallation that preserves user data.
+4. **CI/CD and release preparation.** Add engine tests without source mounts, which the earlier Compose self-tests did not cover. Make CI selection and build triggers follow embedded files. Replace Docker Desktop tests and artifacts with Linux coverage. Keep the aggregate `required` gate and failure on missing required checks. Update the publisher, which then required a Docker Desktop installer for releases after 0.4.1. Require paired Windows and Linux installers with manifests and checksums tied to one commit and scientific archive. Publish the verified artifacts manually, preserving their bytes and earlier releases.
 
-Il nome WSL contiene il prefisso `NIPAT-05-Preview-` seguito dalle prime
-40 cifre dell'hash del rootfs. Il candidato non legge né riutilizza i registri
-legacy della 0.4.1, anche a parità di rootfs. Manifest, stato, backend,
-proprietà e recupero registrano il canale. Una configurazione priva del canale
-previsto viene rifiutata; gli aggiornamenti Preview conservano invece le
-proprie cartelle dati/risultati e le garanzie di ripresa e attivazione già presenti.
-
-Il launcher installato seleziona il proprio ambiente, evitando che variabili
-NIPAT ereditate da una shell della versione stabile ne cambino le cartelle.
-Gli input restano selezionabili dai percorsi locali supportati e le opzioni
-CLI esplicite permettono di scegliere destinazioni diverse. La disinstallazione
-conserva dati, risultati, cache e distribuzioni; la 0.4.1 resta separata.
-Il prerequisito Windows WSL rimane condiviso a livello di sistema.
-
-Le prove di questo incremento riguardano manifest e pacchetti, separazione
-delle identità, ripresa/aggiornamento nello stesso canale e avvio del launcher.
-I controlli locali comprendono 300 test Python e 43 test CI/publisher superati.
-Gli esiti effettivi sono riportati nella PR; i controlli PowerShell con confini
-WSL simulati non sostituiscono l'installazione reale. Restano l'adeguamento
-finale del client Windows, la rimozione Docker Desktop, l'installer Ubuntu e
-le prove dei pacchetti. Nessuna build di revisione di questo incremento è
-ancora destinata alla distribuzione per il testing di dominio.
-L'installer Docker Desktop ancora prodotto dalla pipeline transitoria conserva
-l'identità precedente: non beneficia dell'isolamento WSL e non deve essere installato.
-
-## Passaggi e criteri di completamento
-
-Ogni passaggio richiede una modifica circoscritta, verifiche locali applicabili
-e una revisione separata prima di proseguire all'integrazione successiva.
-
-### 1. Motore scientifico autosufficiente
-
-Definire il contratto di input, parametri, stato e output. Incorporare gli script
-R e gli adattatori necessari, conservando le dipendenze del punto di partenza.
-Separare il calcolo dalla selezione dei percorsi Windows e dall'avvio di Docker.
-
-Il primo incremento tecnico include soltanto codice R, risorse, manifest e
-identificazione del motore in un percorso interno che i mount non nascondano.
-Una prova senza sorgenti esterni verifica questo confezionamento. Seguono
-incrementi separati per trasferire la preparazione e l'esecuzione di un workflow
-alla volta, iniziando da uno già coperto da regressioni numeriche. La sola
-inclusione dei file R non completa l'autosufficienza di tutti i workflow.
-
-Verifiche di completamento:
-
-- esecuzione dei quattro workflow con soli input, configurazione e destinazioni
-  di lavoro/output montati, senza montare il checkout o l'applicazione;
-- regressioni numeriche con valori attesi e tolleranze dichiarate, casi senza
-  siti informativi e modalità di input previste;
-- conservazione delle identità dei campioni e dei metadati delle esecuzioni;
-- file R e manifest scientifico invariati;
-- identificazione verificabile della versione del motore e del suo contratto.
-
-### 2. Client Windows con solo runtime WSL
-
-Collegare la CLI al nuovo motore e rimuovere il percorso Windows Docker Desktop,
-compresi launcher, preparazione, installer e messaggi che lo propongono.
-Mantenere il codice di esecuzione nativo richiesto su Linux.
-
-Verifiche di completamento:
-
-- installazione del candidato separata dalla 0.4.1, senza riutilizzarne stato
-  mutabile o configurazione;
-- avvio, analisi, annullamento, diagnosi degli errori e nuovo avvio dopo arresto
-  del runtime;
-- percorsi Windows supportati, inclusi spazi e unità locali diverse;
-- una sola procedura di installazione e una sola icona per il candidato Windows;
-- prova reale Windows/WSL del pacchetto, distinta dai controlli simulati in CI.
-
-### 3. Installer Linux
-
-Preparare un singolo pacchetto per il sistema Linux approvato, con il medesimo
-motore scientifico e una procedura definita per le dipendenze. Installazione,
-avvio e permessi devono essere verificati come parte del prodotto.
-
-Verifiche di completamento:
-
-- installazione su ambiente pulito del sistema dichiarato supportato;
-- importazione e identità del medesimo archivio scientifico usato da Windows;
-- esecuzione dei workflow e accessibilità dei risultati da parte dell'utente;
-- gestione di errori e disinstallazione che conservi i dati dell'utilizzatore.
-
-### 4. CI/CD e preparazione della release
-
-Adeguare progressivamente i controlli insieme ai cambiamenti dei passaggi
-precedenti, quindi verificare l'intero percorso dei due installatori.
-
-Interventi già individuati nell'audit della baseline:
-
-- aggiungere il test del motore senza mount dei sorgenti: gli attuali autotest
-  tramite Compose non dimostrano questa proprietà;
-- aggiornare selezione dei test e percorsi che attivano le build quando cambia
-  un componente incorporato nell'immagine;
-- sostituire le prove e gli artifact Docker Desktop con quelli Linux;
-- conservare il controllo aggregato `required` e il fallimento quando manca
-  una verifica obbligatoria;
-- adeguare il publisher: attualmente richiede l'installer Docker Desktop anche
-  per versioni successive alla 0.4.1;
-- richiedere installer Windows e Linux, manifest e checksum coerenti con lo
-  stesso commit e archivio scientifico;
-- pubblicare manualmente gli artifact verificati, senza ricostruirli durante
-  la pubblicazione e senza modificare release già pubblicate.
-
-Le prove del motore in CI, l'installazione su Windows/Linux e la validazione
-scientifica di dominio restano evidenze distinte. La 0.5 potrà essere proposta
-come candidato solo con l'esito e i limiti di ciascuna verifica esplicitati.
+Engine CI, Windows/Linux installation and scientific domain evaluation are distinct observations. A proposed 0.5 candidate required an explicit result and scope for each.

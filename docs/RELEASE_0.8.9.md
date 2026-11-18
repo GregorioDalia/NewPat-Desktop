@@ -1,92 +1,36 @@
 # NIPAT Desktop 0.8.9
 
-NIPAT Desktop 0.8.9 è la release ufficiale per Windows, macOS e Ubuntu.
-Riduce allocazioni e calcoli ripetuti nei quattro programmi R e rende più
-chiara la configurazione delle risorse. Mantiene l'impianto dell'applicazione,
-i parametri scientifici e i formati dei risultati. La diagnostica delle
-prestazioni rimane facoltativa e disattivata per impostazione predefinita.
+Release 0.8.9 reduced repeated calculations and allocations in all four R programs. Scientific parameters, formulas, filters, output formats and the application architecture retained their previous contracts. Optional performance diagnostics default to off.
 
-## Modifiche
+## Changes
 
-- **DNPcall:** preparazione diretta delle osservazioni del pileup, conversione
-  delle qualità tramite tabella, riuso delle estrazioni ripetute e degli indici
-  per locus, riduzione dei raggruppamenti e dei conteggi duplicati.
-- **SNPcall:** lettura delle colonne necessarie e aggregazione delle caratteristiche
-  delle letture, conservando il raggruppamento globale per QNAME e il trattamento
-  compatibile delle osservazioni non standard.
-- **CPI:** riuso dei campioni condivisi fra coppie consecutive e dei risultati
-  fra soglie che selezionano gli stessi loci, con ricostruzione di tutte le righe
-  e conservazione dell'ordine dei prodotti.
-- **Contamination:** raccolta delle righe e assemblaggio finale unico dei riepiloghi.
-- **Risorse:** distinzione fra configurazione salvata, risorse effettive,
-  suggerimenti e nuovi valori. **Invio conserva il valore corrente**, anche
-  quando automatico; `:suggerito` applica esplicitamente il suggerimento.
+- **DNPcall** prepares pileup observations directly, uses a lookup table for qualities and reuses repeated extractions and locus indices. It avoids duplicate grouping and counting. Acquisition still scans the BAM sequentially with `samtools mpileup -l`. DNPcall parallelism operates across samples.
+- **SNPcall** reads the necessary columns and aggregates read features while preserving global QNAME groups and compatibility for nonstandard observations.
+- **CPI** reuses shared samples between consecutive pairs and results across thresholds that select identical loci. It reconstructs every row in the original product order.
+- **Contamination** collects rows and assembles each final summary in one pass.
+- **Resource configuration** distinguishes saved, effective, suggested and newly entered values. Enter keeps the current setting, including automatic selection. The literal command `:suggerito` applies the suggestion.
 
-Le formule, le soglie e i filtri non vengono modificati per ridurre il lavoro.
-DNPcall continua a preparare il pileup tramite scansione sequenziale del BAM
-con `samtools mpileup -l`. Il parallelismo DNPcall riguarda i campioni; non
-suddivide un singolo BAM tra worker. Il
-[contratto di equivalenza](OPTIMIZATION_0.8.9.md) descrive gli interventi e i
-criteri di confronto con la 0.8.5.
+The [equivalence specification](OPTIMIZATION_0.8.9.md) defines comparisons with 0.8.5.
 
-## Download e aggiornamento
+## Installation and updates
 
-Scaricare un solo installer dalla
-[release 0.8.9](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.8.9):
+Choose a package from the [0.8.9 release](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.8.9).
 
-| Sistema | Download |
+| System | Download |
 | --- | --- |
 | Windows 10 22H2 x64 / Windows 11 x64 | [NIPAT-Setup.exe](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.8.9/NIPAT-Setup.exe) |
-| macOS 14 o successivo, Apple Silicon | [NIPAT-0.8.9-macos-arm64.pkg](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.8.9/NIPAT-0.8.9-macos-arm64.pkg) |
-| macOS 14 o successivo, Intel | [NIPAT-0.8.9-macos-x86_64.pkg](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.8.9/NIPAT-0.8.9-macos-x86_64.pkg) |
+| macOS 14 or later, Apple Silicon | [NIPAT-0.8.9-macos-arm64.pkg](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.8.9/NIPAT-0.8.9-macos-arm64.pkg) |
+| macOS 14 or later, Intel | [NIPAT-0.8.9-macos-x86_64.pkg](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.8.9/NIPAT-0.8.9-macos-x86_64.pkg) |
 | Ubuntu 24.04 LTS x86_64 | [nipat-desktop_0.8.9_amd64.deb](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.8.9/nipat-desktop_0.8.9_amd64.deb) |
 
-Chi usa la 0.8.5 può scegliere **9 — Verifica aggiornamenti** e seguire la
-procedura del proprio sistema oppure scaricare il pacchetto manualmente.
-L'installer aggiorna NIPAT Desktop; i risultati precedenti conservano i
-propri metadati e non vengono ricalcolati. Chiudere le analisi prima di aggiornare.
-Le guide [Windows](INSTALLATORE_WINDOWS.md), [macOS](INSTALLATORE_MACOS.md) e
-[Ubuntu](INSTALLATORE_LINUX.md) descrivono requisiti, aggiornamento e rimozione.
+Users of 0.8.5 can choose **9 — Check for updates** or download the package. Finish active analyses before updating. Previous results and their metadata remain available. Windows uses WSL2 with managed Docker Engine, macOS uses Lima with Rosetta on Apple Silicon, and Ubuntu uses local Docker Engine. Docker Desktop is optional. Packages lacked a recognized NIPAT signature and Mac notarization. See the [Windows](INSTALLATORE_WINDOWS.md), [macOS](INSTALLATORE_MACOS.md) and [Ubuntu](INSTALLATORE_LINUX.md) guides for installation and removal.
 
-Windows usa WSL2 con Docker Engine gestito da NIPAT; macOS usa Lima e, su
-Apple Silicon, Rosetta per il container AMD64; Ubuntu usa Docker Engine locale.
-Docker Desktop non è un prerequisito. I pacchetti non hanno una firma NIPAT
-riconosciuta dai sistemi; macOS non dispone di notarizzazione Apple.
-Le guide descrivono le procedure applicabili senza disattivare le protezioni.
+## Qualification and versioning
 
-## Verifiche e limiti
+Differential tests run the frozen 0.8.5 R reference and candidate in the same runtime. They compare table bytes, unrounded intermediate values and rendered PDFs for the covered cases. Targeted tests check DNPcall and SNPcall transformations and CPI calculations. Separate domain validation is needed to assess other inputs.
 
-I confronti differenziali eseguono il riferimento R congelato della 0.8.5 e
-il candidato nello stesso runtime. Controllano i byte delle tabelle,
-le quantità intermedie non arrotondate e il rendering dei PDF nei casi coperti.
-I test mirati verificano inoltre le trasformazioni DNPcall e SNPcall e il
-calcolo CPI. L'equivalenza osservata riguarda i casi eseguiti e non dimostra
-validità scientifica per ogni input possibile.
+CI and installer builds verify the client, workflow contracts, scientific regressions, image integrity and packaged contents. The 0.8.9 acceptance record identifies the revised R sources, commit, image, build, installers and test evidence. Hosted Mac tests cover clients and packages. Dedicated Lima/Rosetta tests on the two architectures remained outstanding.
 
-La CI e la build degli installer verificano client, contratti, regressioni
-scientifiche, integrità dell'immagine e corrispondenza con i pacchetti.
-I rapporti della release identificano commit, immagine, build, installer e
-risultati dei controlli. Il record di accettazione della 0.8.9 è distinto da
-quello della 0.8.5 e include i sorgenti R revisionati e le relative evidenze.
+Microbenchmarks isolate operations on synthetic data and omit some workflow costs. End-to-end time on real BAMs and peak container memory need direct measurement. The [performance guide](PERFORMANCE.md) distinguishes wall time, R time, container memory and partial R-process observations.
 
-Le verifiche automatiche dei client e dei pacchetti Mac non costituiscono
-una prova completa con VM Lima/Rosetta: la qualificazione dedicata sulle due
-architetture non è stata eseguita. Le prove su dispositivi finali e la
-validazione di dominio restano evidenze separate dai test automatici.
-
-I microbenchmark misurano singole operazioni su dati sintetici, escludendo
-alcuni costi del workflow. Non stabiliscono il guadagno su un BAM reale o
-il picco di memoria del container. La [guida alle prestazioni](PERFORMANCE.md)
-distingue durata complessiva, tempo R, memoria del container e rilevazioni
-parziali del processo R. Le prestazioni dipendono da dati, hardware e ambiente.
-
-## Versionamento
-
-I candidati precedenti alla pubblicazione sono identificati da commit,
-build e checksum. La release pubblicata rimane immutabile; ogni successivo
-pacchetto ufficiale ha una versione superiore. L'aggiornatore confronta il
-numero di versione, non il commit: una build diversa denominata ancora
-0.8.9 non viene proposta a chi usa già la 0.8.9.
-
-La 0.8.10 sarà un unico prototipo integrato per le prove di sviluppo e non
-sostituirà automaticamente questa release nel canale stabile.
+Commit, build and checksums identify candidates before publication. Published packages are immutable and subsequent official packages require a higher version. The updater compares version numbers, so a second build labeled 0.8.9 is invisible to clients already on 0.8.9. The planned 0.8.10 integrated prototype belonged to development testing outside the stable channel.
