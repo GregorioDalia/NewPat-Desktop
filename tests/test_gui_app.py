@@ -2,6 +2,7 @@ from pathlib import Path
 from types import SimpleNamespace
 import json
 import struct
+from unittest.mock import Mock
 import zipfile
 
 import pytest
@@ -52,6 +53,16 @@ def reference(tmp_path):
     fai = tmp_path / "reference.fa.fai"
     fai.write_text("chr1\t4\t6\t4\t5\n")
     return fasta, fai
+
+
+@pytest.mark.parametrize("outcome", [True, False, OSError("No browser available")])
+def test_igv_guide_opens_only_its_public_page(app, monkeypatch, outcome):
+    open_tab = Mock(side_effect=outcome) if isinstance(outcome, OSError) else Mock(return_value=outcome)
+    monkeypatch.setattr("nipat.gui.app.webbrowser.open_new_tab", open_tab)
+    assert app.call("igv.about", {}) == {"opened": outcome is True}
+    with pytest.raises(ValidationError):
+        app.call("igv.about", {"url": app.server.url})
+    open_tab.assert_called_once_with("https://igv.org/doc/webapp/")
 
 
 def test_igv_uses_scoped_urls_and_requires_indexes(app, tmp_path):

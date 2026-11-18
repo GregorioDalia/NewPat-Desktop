@@ -15,6 +15,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from nipat.errors import RuntimeExecutionError, ValidationError
+from nipat.execution.progress import ProgressSnapshot
 from nipat.execution.runner import DockerComposeRunner
 from nipat.execution.transport import DockerTransport
 from nipat.gui.jobs import GuiRunner, Job, JobManager
@@ -202,9 +203,52 @@ class GuiServiceTests(GuiFixture):
         manager = JobManager()
         prepared = prepare_analysis(self.draft(), self.layout)
         Path(self.samples[0]["path"]).write_text("new content")
-        with self.assertRaises(ValidationError):
+        with self.assertRaisesRegex(ValidationError, "Plasma with spaces.bam"):
             manager.start(prepared)
         self.assertEqual(manager.list(), [])
+
+    def test_changed_and_missing_files_identified_in_the_selected_language(self):
+        service = self.service()
+        for language, changed, missing in (("en", "has changed", "Input unavailable"),
+                                            ("it", "è cambiato", "Input non disponibile")):
+            with self.subTest(language=language):
+                service.call("ui.save", {"preferences": {"language": language, "reduce_motion": False}})
+                path = Path(self.samples[0]["path"])
+                path.write_text("original")
+                for change, expected in ((lambda: path.write_text("changed contents"), changed),
+                                         (path.unlink, missing)):
+                    preview = service.call("plan.preview", {"draft": self.draft()})
+                    change()
+                    with self.assertRaises(ValidationError) as error:
+                        service.call("analysis.start", {"preview_id": preview["preview_id"]})
+                    self.assertIn(expected, str(error.exception))
+                    self.assertIn(path.name, str(error.exception))
+
+    def test_preview_token_cannot_launch_twice_while_first_start_is_pending(self):
+        entered, release = threading.Event(), threading.Event()
+        jobs = Mock()
+
+        def start(prepared):
+            entered.set()
+            self.assertTrue(release.wait(3))
+            return {"id": "first"}
+
+        jobs.start.side_effect = start
+        service = self.service(jobs=jobs)
+        preview = service.call("plan.preview", {"draft": self.draft()})
+        params = {"preview_id": preview["preview_id"]}
+        results = []
+        worker = threading.Thread(target=lambda: results.append(service.call("analysis.start", params)))
+        worker.start()
+        try:
+            self.assertTrue(entered.wait(3))
+            with self.assertRaises(ValidationError):
+                service.call("analysis.start", params)
+        finally:
+            release.set()
+            worker.join(3)
+        self.assertEqual(results, [{"id": "first"}])
+        jobs.start.assert_called_once()
 
     def test_resource_apply_uses_server_held_preview_and_preserves_confirmation(self):
         change = Mock()
@@ -251,6 +295,35 @@ class GuiJobTests(GuiRuntimeFixture):
                          ("checking-inputs", 4, 16, "bytes"))
         self.assertGreaterEqual(progress["elapsed_seconds"], 0)
         self.assertFalse(job.done.is_set())
+
+    def test_activity_summary_and_on_demand_log_cursor(self):
+        manager = JobManager()
+        job = Job(prepare_analysis(self.draft(), self.layout))
+        manager._jobs[job.id] = job
+        service = self.service(jobs=manager)
+        job.log("initial\nsecond")
+        for phase in ("a", "b", "c", "d", "e", "f", "f"):
+            job.progressed(ProgressSnapshot(status="running", elapsed_seconds=1,
+                           phase=phase, sample_ids=("Plasma",), completed=2, total=10))
+        summary, = service.call("jobs.list", {"include_logs": False})
+        self.assertNotIn("logs", summary)
+        self.assertEqual(summary["sample_count"], 4)
+        self.assertEqual(summary["event_revision"], 6)
+        self.assertEqual([e["progress"]["phase"] for e in summary["events"]], list("bcdef"))
+        self.assertEqual(service.call("jobs.get", {"job_id": job.id})["logs"], ["initial", "second"])
+        params = {"job_id": job.id, "after": 1}
+        self.assertEqual(service.call("jobs.logs", params), {
+            "lines": ["second"], "revision": 2, "limit": 250, "reset": False})
+        self.assertEqual(manager.logs(job.id, 2)["lines"], [])
+        for number in range(260):
+            job.log(str(number))
+        shifted = service.call("jobs.logs", params)
+        self.assertTrue(shifted["reset"])
+        self.assertEqual(shifted["lines"], [str(i) for i in range(10, 260)])
+        self.assertEqual(shifted["revision"], 262)
+        for bad in (-1, True, "1"):
+            with self.assertRaises(ValidationError):
+                manager.logs(job.id, bad)
 
     def test_active_status_covers_final_report_persistence(self):
         reporting = threading.Event()

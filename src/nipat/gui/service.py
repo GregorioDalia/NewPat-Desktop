@@ -76,7 +76,7 @@ class GuiService:
             "preferences.get": self.preferences_get, "preferences.save": self.preferences_save,
             "ui.get": self.ui_get, "ui.save": self.ui_save,
             "plan.preview": self.plan_preview, "analysis.start": self.analysis_start,
-            "jobs.list": self.jobs.list, "jobs.get": self.jobs.get,
+            "jobs.list": self.jobs.list, "jobs.get": self.jobs.get, "jobs.logs": self.jobs.logs,
             "jobs.cancel": self.jobs.cancel, "jobs.active": self.jobs.active,
             "close_status": self.jobs.active, "run.reuse": self.run_reuse,
             "run.prepare": self.run_prepare, "runs.remove": self.run_remove,
@@ -108,7 +108,7 @@ class GuiService:
                 "layout": {"data_dir": str(layout.data_dir), "runs_dir": str(layout.runs_dir),
                            "project_dir": str(layout.project_dir)},
                 "execution": ExecutionOptions(**preferences["execution"]).as_dict(),
-                "ui": self.ui_get(), "jobs": self.jobs.list()}
+                "ui": self.ui_get(), "jobs": self.jobs.list(include_logs=False)}
 
     def catalog(self) -> dict:
         return {"settings": {"schema_version": 1, "workflows": describe_settings()}, "catalog": load_catalog()}
@@ -177,7 +177,8 @@ class GuiService:
 
     def plan_preview(self, draft: dict) -> dict:
         preferences = self.preferences_store.load()
-        prepared = prepare_analysis(draft, preferences.effective_layout(self.base_layout), preferences)
+        prepared = prepare_analysis(draft, preferences.effective_layout(self.base_layout),
+                                    preferences, language=self.ui_get()["language"])
         token = uuid.uuid4().hex
         with self._lock:
             self._plans[token] = prepared
@@ -187,13 +188,10 @@ class GuiService:
 
     def analysis_start(self, preview_id: str) -> dict:
         with self._lock:
-            prepared = self._plans.get(preview_id)
+            prepared = self._plans.pop(preview_id, None)
         if prepared is None:
             raise ValidationError("Il riepilogo non è più disponibile. Verificare di nuovo l’esperimento.")
-        result = self.jobs.start(prepared)
-        with self._lock:
-            self._plans.pop(preview_id, None)
-        return result
+        return self.jobs.start(prepared)
 
     def run_reuse(self, run_id: str) -> dict:
         run = self._results().get_run(run_id)

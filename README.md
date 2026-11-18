@@ -13,13 +13,13 @@ Analyses run on your computer. NewPat packages R and samtools with the scientifi
 
 | System | Package | Installation guide |
 | --- | --- | --- |
-| Windows 11 x64 or Windows 10 22H2 x64 (build 19045) | [Windows setup](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.7/NewPat-Setup.exe) | [Windows](docs/INSTALLATORE_WINDOWS.md) |
-| Windows x64, installation in an extracted folder | [Complete ZIP](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.7/NewPat-0.9.7-Windows-completo.zip) | [Windows](docs/INSTALLATORE_WINDOWS.md) |
-| macOS 14 or later, Apple Silicon | [Apple Silicon package](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.7/NewPat-0.9.7-macos-arm64.pkg) | [macOS](docs/INSTALLATORE_MACOS.md) |
-| macOS 14 or later, Intel | [Intel package](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.7/NewPat-0.9.7-macos-x86_64.pkg) | [macOS](docs/INSTALLATORE_MACOS.md) |
-| Ubuntu 24.04 LTS x86_64 | [Debian package](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.7/newpat-desktop_0.9.7_amd64.deb) | [Ubuntu](docs/INSTALLATORE_LINUX.md) |
+| Windows 11 x64 or Windows 10 22H2 x64 (build 19045) | [Windows setup](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.8/NewPat-Setup.exe) | [Windows](docs/INSTALLATORE_WINDOWS.md) |
+| Windows x64, installation in an extracted folder | [Complete ZIP](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.8/NewPat-0.9.8-Windows-completo.zip) | [Windows](docs/INSTALLATORE_WINDOWS.md) |
+| macOS 14 or later, Apple Silicon | [Apple Silicon package](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.8/NewPat-0.9.8-macos-arm64.pkg) | [macOS](docs/INSTALLATORE_MACOS.md) |
+| macOS 14 or later, Intel | [Intel package](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.8/NewPat-0.9.8-macos-x86_64.pkg) | [macOS](docs/INSTALLATORE_MACOS.md) |
+| Ubuntu 24.04 LTS x86_64 | [Debian package](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.8/newpat-desktop_0.9.8_amd64.deb) | [Ubuntu](docs/INSTALLATORE_LINUX.md) |
 
-Windows uses WSL2, macOS uses Lima, and Ubuntu uses a local Docker Engine. The download page includes the package checksums. [NewPat 0.9.7 downloads](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.9.7)
+Windows uses WSL2, macOS uses Lima, and Ubuntu uses a local Docker Engine. The download page includes the package checksums. [NewPat 0.9.8 downloads](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.9.8)
 
 ## What you can analyze
 
@@ -37,7 +37,7 @@ Run a module on its own or build a workflow. DNPcall and SNPcall can share BAM i
 
 1. Open **NewPat**, choose **New experiment**, and enter a name for the experiment.
 2. For a DNP analysis, select the sample BAM, its reference FASTA and the DNP panel. Keep the FASTA index next to the reference file (for example, `genome.fa.fai` next to `genome.fa`).
-3. Review the settings and results folder, choose **Validate configuration**, then **Start experiment**.
+3. Review the settings and results folder, then choose **Start experiment**. NewPat checks the configuration and runtime before starting the analysis.
 4. Open **Experiments and results** to inspect the tables and plots. The run folder also contains `run-report.html`, `run.json` and `execution.log`.
 
 For the same analysis from PowerShell, open the installed application folder and supply your own file paths:

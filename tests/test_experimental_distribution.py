@@ -46,7 +46,7 @@ class ExperimentalDistributionTests(unittest.TestCase):
                         "0.9.1", "0.9.1a1", "0.9.1b2", "0.9.1rc1", "0.9.5", "0.9.5rc1"):
             with self.subTest(version=version):
                 self.assertTrue(is_experimental_version(version))
-        for version in ("0.8.99", "0.8.100", "0.9.2", "0.9.7", "1.0.0"):
+        for version in ("0.8.99", "0.8.100", "0.9.2", "0.9.7", "0.9.8", "1.0.0"):
             with self.subTest(version=version):
                 self.assertFalse(is_experimental_version(version))
 

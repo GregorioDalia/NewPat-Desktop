@@ -875,7 +875,7 @@ def run_window(url: str, title: str = "NewPat", on_close=None, *, loader_path=No
 
     ``on_close`` may return False to keep an active analysis window open. Native
     dialogs called by RPC workers are marshalled to this UI thread. The caller
-    owns the loopback service lifetime. No external browser is ever opened.
+    owns the loopback service lifetime. The desktop workspace stays in WebView2.
     """
     global _active_host
     if _active_host is not None:

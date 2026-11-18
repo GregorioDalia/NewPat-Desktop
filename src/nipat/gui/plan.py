@@ -65,19 +65,26 @@ class PreparedAnalysis:
     execution: ExecutionOptions
     preview: dict
     evidence: tuple[tuple[str, int, int], ...]
+    language: str = "it"
 
     def assert_inputs_unchanged(self) -> None:
         for name, size, modified in self.evidence:
             try:
                 stat = Path(name).stat()
             except OSError as exc:
-                raise ValidationError("Un input non è più disponibile. Controllare il riepilogo.") from exc
+                filename = Path(name).name
+                message = (f"Input unavailable. Check the file {filename}." if self.language == "en"
+                           else f"Input non disponibile. Controlla il file {filename}.")
+                raise ValidationError(message) from exc
             if stat.st_size != size or stat.st_mtime_ns != modified:
-                raise ValidationError("Un input è cambiato dopo il riepilogo. Verificare di nuovo l’esperimento.")
+                filename = Path(name).name
+                message = (f"The file {filename} has changed. Review it before retrying." if self.language == "en"
+                           else f"Il file {filename} è cambiato. Controllalo prima di riprovare.")
+                raise ValidationError(message)
 
 
 def prepare_analysis(draft: dict, layout: ProjectLayout,
-                     preferences: Preferences | None = None) -> PreparedAnalysis:
+                     preferences: Preferences | None = None, *, language: str = "it") -> PreparedAnalysis:
     draft = deepcopy(_object(draft, "Esperimento", _DRAFT_FIELDS))
     preferences = preferences or Preferences()
     name = _text(draft.get("name"), "Nome dell’esperimento", maximum=160)
@@ -142,4 +149,4 @@ def prepare_analysis(draft: dict, layout: ProjectLayout,
                "samples": mapping, "analyses_by_marker": analyses,
                "effective_settings": effective_config(settings), "execution": execution.as_dict(),
                "input_count": len(files), "results_dir": str(layout.runs_dir)}
-    return PreparedAnalysis(normalized_draft, inputs, layout, settings, execution, preview, evidence)
+    return PreparedAnalysis(normalized_draft, inputs, layout, settings, execution, preview, evidence, language)

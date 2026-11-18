@@ -7,6 +7,7 @@ from copy import deepcopy
 from dataclasses import asdict
 from datetime import datetime, timezone
 import json
+from itertools import islice
 from pathlib import Path
 import threading
 import time
@@ -40,29 +41,52 @@ class Job:
         self.progress = None
         self.error = None
         self.logs = deque(maxlen=250)
+        self.log_revision = 0
+        self.events = deque(maxlen=5)
+        self.event_revision = 0
+        self.sample_labels = tuple(dict.fromkeys(sample["id"] for sample in prepared.draft["samples"]))
         self.cancel_event = threading.Event()
         self.done = threading.Event()
         self.lock = threading.RLock()
         self.runner = None
         self.thread = None
 
-    def snapshot(self) -> dict:
+    def snapshot(self, *, include_logs=True) -> dict:
         with self.lock:
             return {"id": self.id, "name": self.name, "status": self.status,
                     "created_at": self.created_at, "finished_at": self.finished_at,
                     "run_id": self.run_dir.name if self.run_dir else None,
                     "results_root": str(self.prepared.layout.runs_dir),
                     "progress": deepcopy(self.progress), "error": self.error,
-                    "logs": list(self.logs), "cancel_requested": self.cancel_event.is_set()}
+                    "log_revision": self.log_revision, "event_revision": self.event_revision,
+                    "events": list(self.events), "sample_count": len(self.sample_labels),
+                    "only_sample": self.sample_labels[0] if len(self.sample_labels) == 1 else None,
+                    **({"logs": list(self.logs)} if include_logs else {}),
+                    "cancel_requested": self.cancel_event.is_set()}
+
+    def log_since(self, after: int) -> dict:
+        with self.lock:
+            first = self.log_revision - len(self.logs)
+            reset = after < first or after > self.log_revision
+            start = 0 if reset else after - first
+            return {"lines": list(islice(self.logs, start, None)), "reset": reset,
+                    "revision": self.log_revision, "limit": self.logs.maxlen}
 
     def log(self, text: str) -> None:
         with self.lock:
             for line in str(text).splitlines():
                 self.logs.append(line[:4000])
+                self.log_revision += 1
 
     def progressed(self, progress) -> None:
         with self.lock:
             self.progress = asdict(progress)
+            if progress.phase:
+                entry = {"phase": progress.phase, "workflow": progress.workflow,
+                         "step_id": progress.step_id, "sample_ids": progress.sample_ids}
+                if not self.events or entry != self.events[-1]["progress"]:
+                    self.events.append({"at": _now(), "progress": entry})
+                    self.event_revision += 1
 
     def outcome(self, outcome) -> None:
         with self.lock:
@@ -153,19 +177,26 @@ class JobManager:
         self._jobs: dict[str, Job] = {}
         self._lock = threading.RLock()
 
-    def list(self) -> list[dict]:
+    def list(self, include_logs: bool = True) -> list[dict]:
+        if type(include_logs) is not bool:
+            raise ValidationError("Opzione registro non valida.")
         with self._lock:
-            return [job.snapshot() for job in reversed(list(self._jobs.values()))]
+            return [job.snapshot(include_logs=include_logs) for job in reversed(list(self._jobs.values()))]
 
     def active(self) -> dict:
         # The core may report its final status while it is still persisting the
         # report and closing resources. Wait for the worker's completion event.
         with self._lock:
-            jobs = [job.snapshot() for job in self._jobs.values() if not job.done.is_set()]
+            jobs = [job.snapshot(include_logs=False) for job in self._jobs.values() if not job.done.is_set()]
         return {"active": bool(jobs), "jobs": jobs}
 
     def get(self, job_id: str) -> dict:
         return self._get(job_id).snapshot()
+
+    def logs(self, job_id: str, after: int = 0) -> dict:
+        if type(after) is not int or after < 0:
+            raise ValidationError("Posizione nel registro non valida.")
+        return self._get(job_id).log_since(after)
 
     def _get(self, job_id: str) -> Job:
         if not isinstance(job_id, str):
@@ -196,6 +227,9 @@ class JobManager:
         try:
             if job.cancel_event.is_set():
                 raise KeyboardInterrupt("Analisi annullata prima dell’avvio.")
+            job.progressed(ProgressSnapshot(
+                status="starting", elapsed_seconds=time.monotonic() - job.started_monotonic,
+                phase="checking-inputs", sample_ids=()))
             job.prepared.assert_inputs_unchanged()
             runner = self._runner_factory(job.prepared, job)
             with job.lock:
@@ -237,7 +271,7 @@ class JobManager:
                 return job.snapshot()
             job.cancel_event.set()
             job.status = "cancel_requested"
-            job.logs.append("Annullamento richiesto: attendo l’arresto sicuro e il salvataggio dei risultati disponibili.")
+            job.log("Annullamento richiesto: attendo l’arresto sicuro e il salvataggio dei risultati disponibili.")
         threading.Thread(target=self._stop_owned, args=(job,),
                          name="nipat-stop-" + job.id[:8], daemon=True).start()
         return job.snapshot()

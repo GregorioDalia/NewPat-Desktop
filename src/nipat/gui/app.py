@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import shutil
 import sys
+import webbrowser
 import zipfile
 
 from nipat import __version__
@@ -139,6 +140,17 @@ class DesktopApplication:
             raise ValidationError(f"Il percorso di {label} non è un file.")
         return path
 
+    @staticmethod
+    def open_igv_guide(params):
+        if params:
+            raise ValidationError("Unexpected parameters for the IGV guide.")
+        # The native browser receives only the public guide, never a viewer session or file.
+        try:
+            opened = webbrowser.open_new_tab("https://igv.org/doc/webapp/")
+        except (OSError, webbrowser.Error):
+            opened = False
+        return {"opened": opened}
+
     def prepare_igv(self, params):
         from .igv import LocalIGV
         ui = self.service.ui_get() if hasattr(self.service, "ui_get") else {}
@@ -165,7 +177,7 @@ class DesktopApplication:
                      "runs.export": self.export_run, "igv.prepare": self.prepare_igv,
                      "runs.open_directory": self.open_run_directory,
                      "diagnostics.export": self.export_diagnostics,
-                     "igv.session.save": self.save_igv_session,
+                     "igv.about": self.open_igv_guide, "igv.session.save": self.save_igv_session,
                      "app.close": lambda _p: (self.host.request_close(), {"closing": True})[1]}
         if method in callbacks:
             return callbacks[method](params)
