@@ -18,7 +18,9 @@ if ! /usr/bin/xcode-select -p >/dev/null 2>&1 || ! /usr/bin/xcrun --find clang >
     exit 1
 fi
 
-umask 077
+# mktemp creates private work directories. The files staged inside the installer
+# must be readable after Apple's Installer assigns them to root.
+umask 022
 result="$(/usr/bin/mktemp -d "$HOME/Downloads/NewPat-0.9.8-arm64.XXXXXX")"
 work="$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/newpat-098.XXXXXX")"
 exec > >(/usr/bin/tee "$result/preparazione.log") 2>&1
@@ -55,6 +57,21 @@ export PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1
     --output "$work/output"
 
 echo "Verifico il pacchetto e avvio un breve controllo della sua interfaccia sul Mac."
+"$python" - "$work/output/macos-installer-build.json" <<'PY'
+import json
+from pathlib import Path
+import sys
+
+inventory = json.loads(Path(sys.argv[1]).read_text())["payload_inventory"]
+app = "Applications/NewPat.app/Contents/"
+for relative, required in (
+    ("Info.plist", 0o004),
+    ("Resources/app/.distribution/macos-manifest.json", 0o004),
+    ("MacOS/NewPat", 0o005),
+):
+    if inventory[app + relative]["mode"] & required != required:
+        raise SystemExit(f"Il pacchetto non concede i permessi necessari per aprire {relative}.")
+PY
 "$python" "$source_dir/scripts/verify_macos_package.py" \
     --package "$work/output/$package_name" --manifest "$manifest" \
     --report "$work/output/macos-package-verification.json"
