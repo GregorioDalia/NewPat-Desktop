@@ -109,7 +109,8 @@ jobs:
         with:
           python-version: '3.12.10'
       - name: Prepare the native GTK test desktop
-        timeout-minutes: 5
+        # Ubuntu mirror downloads can take several minutes on hosted runners.
+        timeout-minutes: 12
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
