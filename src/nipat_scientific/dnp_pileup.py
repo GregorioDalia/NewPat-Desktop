@@ -275,7 +275,7 @@ def _chromosomes(bams, samples, bed, reference, staging, samtools, cancellation,
     return selected, "indexed-chromosomes"
 
 
-def _parallel_chromosomes(contigs, command, staging, output, cancellation, document, metadata):
+def _parallel_chromosomes(contigs, command, staging, output, cancellation, document, metadata, *, monitor=None, inputs=()):
     """Bound actual samtools processes, then concatenate complete chromosomes."""
     workers = document["parallel"]["workers"]
     active = {}
@@ -297,7 +297,8 @@ def _parallel_chromosomes(contigs, command, staging, output, cancellation, docum
                 started = time.monotonic()
                 try:
                     with path.open("xb") as handle:
-                        process = subprocess.Popen([*command, "-r", contig], stdin=subprocess.DEVNULL, stdout=handle)
+                        process = subprocess.Popen([*command, "-r", contig, *inputs],
+                                                   stdin=subprocess.DEVNULL, stdout=handle)
                 except BaseException:
                     record.update(outcome="failed", finished_at_unix=time.time(),
                                   elapsed_seconds=time.monotonic() - started)
@@ -311,6 +312,8 @@ def _parallel_chromosomes(contigs, command, staging, output, cancellation, docum
                     sum(child.poll() is None for child, _, _ in active.values()))
                 next_index += 1
                 _write_json(metadata, document)
+            if monitor is not None:
+                monitor(process for process, _, _ in active.values())
             completed = []
             failed = None
             for index, (process, started, record) in active.items():

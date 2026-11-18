@@ -281,10 +281,31 @@ sample_names <- file_path_sans_ext(basename(chip_files))
 if (anyDuplicated(tolower(sample_names))) stop("Duplicate sample output names")
 if (!length(chip_files)) stop("No calling-output tables remain after excluding the panel")
 nipat_write_settings("contamination", nipat_cfg, output_dir)
-# These are filenames; their tables are loaded inside process_df. The loaded
-# per-table row calculation may still parallelize within the fixed run ceiling.
+# The file size is a useful workload observation only for uncompressed text.
+# Keep unfamiliar inputs on the existing single-table path; the loaded rows
+# can still use the shared pool when the sample stage runs in the coordinator.
+sample_memory_mib <- function(paths) {
+  if (length(paths) < 2L) return(NULL)
+  rss <- nipat_parallel_rss_mib()
+  sizes <- file.size(paths)
+  if (!is.finite(rss) || any(!is.finite(sizes) | sizes <= 0) ||
+      !all(file_test("-f", paths))) return(NULL)
+  plain_table <- function(path) {
+    tryCatch({
+      connection <- file(path, open = "rb", raw = TRUE)
+      on.exit(close(connection))
+      prefix <- as.integer(readBin(connection, "raw", n = 4096L))
+      any(prefix == 9L) && all(prefix >= 32L | prefix %in% c(9L, 10L, 13L))
+    }, error = function(e) FALSE)
+  }
+  if (!all(vapply(paths, plain_table, logical(1)))) return(NULL)
+  # Allow heap growth for parsing short fields, coercion, joins and temporary
+  # row copies. Charge every active sample for the largest table in the batch.
+  2 * rss + 64 * max(sizes) / 1024^2
+}
+sample_memory <- sample_memory_mib(chip_files)
 summary_rows <- nipat_parallel_lapply(chip_files, process_df, label="contamination-samples",
-                                      workload_observed=FALSE)
+                                      memory_mib=sample_memory, workload_observed=!is.null(sample_memory))
 contamination_summary <- do.call(rbind, summary_rows)
 
 # save final summary

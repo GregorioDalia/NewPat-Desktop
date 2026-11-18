@@ -99,4 +99,46 @@ for (mode in c("serial", "auto")) {
             grepl("finite nonnegative integers", conditionMessage(invalid_error)))
 }
 cat("PASS contamination: duplicate aliases and missing counts rejected in serial and auto.\n")
+batch <- file.path(root, "batch")
+dir.create(batch)
+for (name in c("Alpha", "Beta", "Gamma")) {
+  write.table(template[seq_len(match(name, c("Alpha", "Beta", "Gamma")) + 3L), ],
+              file.path(batch, paste0(name, ".txt")), sep = "\t", row.names = FALSE, quote = FALSE)
+}
+batch_plan <- function(result) {
+  lines <- unlist(lapply(list.files(result$logs, full.names = TRUE), readLines), use.names = FALSE)
+  events <- lapply(lines, jsonlite::fromJSON)
+  plans <- Filter(function(x) x$event == "plan" && x$label == "contamination-samples", events)
+  starts <- Filter(function(x) x$event == "task-start" && x$label == "contamination-samples", events)
+  stopifnot(length(plans) == 1L, length(starts) == 3L)
+  list(plan = plans[[1L]], pids = unique(vapply(starts, function(x) as.integer(x$pid), integer(1))))
+}
+expected <- run_case("batch-reference", batch, "reference", "serial")
+actual <- run_case("batch-parallel", batch, repository, "auto")
+compare(expected, actual)
+evidence <- batch_plan(actual)
+stopifnot(evidence$plan$workers == 2L, length(evidence$pids) >= 2L,
+          !evidence$plan$coordinator_pid %in% evidence$pids,
+          evidence$plan$workload_model == "max-loaded-coordinator-rss-x2-and-module-estimate",
+          evidence$plan$memory_per_worker_mib > 2 * evidence$plan$coordinator_rss_mib - 1)
+old_memory <- Sys.getenv("NIPAT_MEMORY_LIMIT_MIB", unset = NA_character_)
+Sys.setenv(NIPAT_MEMORY_LIMIT_MIB = "1")
+limited <- run_case("batch-limited", batch, repository, "auto")
+if (is.na(old_memory)) Sys.unsetenv("NIPAT_MEMORY_LIMIT_MIB") else Sys.setenv(NIPAT_MEMORY_LIMIT_MIB = old_memory)
+compare(expected, limited)
+evidence <- batch_plan(limited)
+stopifnot(evidence$plan$workers == 1L, evidence$plan$reason == "workload-exceeds-budget-serial",
+          identical(evidence$pids, as.integer(evidence$plan$coordinator_pid)))
+# A compressed table can be read by R, but its on-disk size cannot predict
+# the in-memory table. Preserve the sequential fallback and its exact outputs.
+compressed <- file.path(batch, "Gamma.txt")
+lines <- readLines(compressed)
+connection <- gzfile(compressed, "wt")
+writeLines(lines, connection)
+close(connection)
+unknown <- run_case("batch-compressed", batch, repository, "auto")
+compare(expected, unknown)
+evidence <- batch_plan(unknown)
+stopifnot(evidence$plan$workers == 1L, evidence$plan$reason == "workload-not-observed")
+cat("PASS contamination: measured multi-table workers, tight RAM and compressed input fallback.\n")
 unlink(root, recursive = TRUE)

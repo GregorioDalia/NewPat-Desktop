@@ -35,7 +35,9 @@ main <- function() {
     "assert budget['mode'] in ('serial', 'auto')",
     "if budget['mode'] == 'serial': assert budget['workers'] == 1",
     "if budget['max_workers'] is not None: assert budget['workers'] <= budget['max_workers']",
-    "assert pathlib.Path(args.bamlist).read_text() == 'mounted-sample.bam\\n'",
+    "bams = pathlib.Path(args.bamlist).read_text().splitlines()",
+    "assert bams and bams == [f'mounted-sample-{i+1}.bam' for i in range(len(bams))]",
+    "if 'input_bams' in budget: assert budget['input_bams'] == len(bams)",
     "assert pathlib.Path(args.reference).read_text() == '>chr1\\nACGT\\n'",
     "if os.environ.get('NIPAT_TEST_FAIL_ACQUISITION') == '1': sys.exit(23)",
     "pathlib.Path(args.output).write_text('fixture-pileup\\n')",
@@ -72,7 +74,13 @@ main <- function() {
     list(name = "high-depth", mode = "auto", maximum = "12"),
     list(name = "custom-filters", mode = "auto", maximum = "12"),
     list(name = "recompute-baq", mode = "auto", maximum = "12"),
-    list(name = "multi-bam", mode = "auto", maximum = "12"),
+    list(name = "multi-bam", mode = "auto", maximum = "12", samples = 2L),
+    list(name = "multi-capped", mode = "auto", maximum = "2", samples = 2L),
+    list(name = "multi-limited", mode = "auto", maximum = "12", samples = 2L),
+    list(name = "multi-serial", mode = "serial", maximum = "12", samples = 2L),
+    list(name = "multi-high-depth", mode = "auto", maximum = "12", samples = 2L),
+    list(name = "three-bams", mode = "auto", maximum = "12", samples = 3L),
+    list(name = "eight-bams", mode = "auto", maximum = "12", samples = 8L),
     list(name = "nested", mode = "auto", maximum = "12"),
     list(name = "failure", mode = "auto", maximum = "2")
   )
@@ -90,7 +98,7 @@ main <- function() {
     sys.source(file.path(root, "src/nipat_scientific/dnp_blocks.R"), environment)
     # Exercise both measured capacities deterministically, including on CI
     # runners with a smaller allocation. The policy consumes the real R budget.
-    limited <- configuration$name %in% c("limited", "pair-at-budget", "pair-over-budget",
+    limited <- configuration$name %in% c("limited", "multi-limited", "pair-at-budget", "pair-over-budget",
                                          "larger-worker", "pair-only", "one-cpu", "unknown-reference")
     cpus <- if (configuration$name == "one-cpu") 1L else if (limited) 4L else 32L
     memory <- if (configuration$name == "pair-only") 6200L else if (limited) 3905L else 15858L
@@ -102,9 +110,11 @@ main <- function() {
       "pair-at-budget" = 244, "pair-over-budget" = 245, 125)
     chromosomes <- if (configuration$name == "one-chromosome") "chr1" else paste0("chr", 1:6)
     environment$r_DNPlist <- data.frame(chr = rep(chromosomes, 2L))
-    environment$r_bamlist <- data.frame(bam = seq_len(if (configuration$name == "multi-bam") 2L else 1L))
+    samples <- if (is.null(configuration$samples)) 1L else configuration$samples
+    bam_names <- sprintf("mounted-sample-%d.bam", seq_len(samples))
+    environment$r_bamlist <- data.frame(bam = bam_names)
     environment$nipat_cfg <- list(max_depth = switch(configuration$name,
-      "unlimited-depth" = 0L, "high-depth" = 8001L, 8000L),
+      "unlimited-depth" = 0L, "high-depth" = 8001L, "multi-high-depth" = 8001L, 8000L),
       baq = TRUE, mapping_quality_adjustment = 0L, count_overlaps = FALSE, include_orphans = FALSE,
       min_base_quality = 13L, redo_baq = configuration$name == "recompute-baq",
       excluded_flags = if (configuration$name == "custom-filters") 4L else 1796L)
@@ -114,7 +124,7 @@ main <- function() {
     environment$dnp_scratch <- file.path(work, "scratch space")
     dir.create(environment$dnp_scratch)
     environment$pileup_path <- file.path(environment$dnp_scratch, "mpileup.txt")
-    writeLines("mounted-sample.bam", environment$bamlist)
+    writeLines(bam_names, environment$bamlist)
     writeLines(c(">chr1", "ACGT"), environment$reference)
     longest <- switch(configuration$name, "large-reference" = 3000000000,
                       "larger-worker" = 253000000, 249250621)
@@ -147,8 +157,15 @@ main <- function() {
       }
       if (.Platform$OS.type != "windows") {
         expected <- switch(configuration$name, "capable" = 5L, "maximum-two" = 2L,
-                           "limited" = 2L, "pair-at-budget" = 2L, "pair-only" = 2L, 1L)
+                           "limited" = 2L, "pair-at-budget" = 2L, "pair-only" = 2L,
+                           "multi-bam" = 5L, "multi-capped" = 2L, "three-bams" = 3L, 1L)
         stopifnot(evidence$budget$workers == expected)
+        if (configuration$name %in% c("multi-bam", "multi-limited", "three-bams", "eight-bams")) {
+          stopifnot(evidence$budget$input_bams == samples,
+                    evidence$budget$memory_per_worker_mib == 576 * samples,
+                    evidence$budget$acquisition_pool_budget_mib ==
+                      (evidence$budget$memory_budget_mib - evidence$budget$coordinator_rss_mib) / 2)
+        }
         if (configuration$name == "limited") stopifnot(evidence$budget$reason == "acquisition-memory-budget")
       }
     }

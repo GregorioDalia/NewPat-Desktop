@@ -3,10 +3,19 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import json
+import os
+import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unicodedata
+
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from nipat_scientific import dnp_pileup as pileup_pool
 
 from nipat_scientific.errors import ValidationError
 from nipat_scientific.presentation import validate_request_presentation
@@ -32,18 +41,141 @@ class SnpPreparation:
     bam: Path | None
     target_lengths: dict[str, int]
 
-    def validate_bam(self, run_command: Callable[[list[str]], int], work_dir: Path) -> int:
-        """Read the BAM header before acquisition, using the caller's process supervisor."""
+    def _bam_header(self, run_command, work_dir):
         if self.bam is None:
-            return 0
+            return 0, {}, False
         with TemporaryDirectory(prefix=".bam-header-", dir=work_dir) as directory:
             header = Path(directory) / "header.sam"
             code = run_command(["samtools", "view", "--no-PG", "-H", "-o", str(header), str(self.bam)])
-            if code != 0:
-                return code
-            sequences, _ = read_bam_dictionary(header, self.bam)
+            if code:
+                return code, {}, False
+            sequences, sorted_header = read_bam_dictionary(header, self.bam)
             require_bam_targets(self.bam, sequences, self.target_lengths)
-        return 0
+        return 0, sequences, sorted_header
+
+    def validate_bam(self, run_command: Callable[[list[str]], int], work_dir: Path) -> int:
+        return self._bam_header(run_command, work_dir)[0]
+
+    def plan_acquisition(self, run_command: Callable[[list[str]], int], work_dir: Path
+                         ) -> tuple[int, list[str] | None]:
+        """Check the header once and retain the BAM target order for indexed mpileup."""
+        code, sequences, sorted_header = self._bam_header(run_command, work_dir)
+        if code or self.bam is None:
+            return code, None
+        contigs = [name for name in sequences if name in self.target_lengths]
+        indices = [p for ext in (".bai", ".csi") for p in (Path(str(self.bam) + ext), self.bam.with_suffix(ext))
+                   if p.is_file()]
+        reason = None
+        if os.getenv("NIPAT_EXECUTION_MODE") == "serial":
+            reason = "requested-serial"
+        elif os.getenv("NIPAT_PARALLEL_CHILD") == "1" or os.getenv("NIPAT_MAX_WORKERS") == "1":
+            reason = "shared-worker-limit"
+        elif not sorted_header or len(contigs) < 2:
+            reason = "non-coordinate-header" if not sorted_header else "single-chromosome"
+        elif not indices or any(p.stat().st_mtime_ns < self.bam.stat().st_mtime_ns for p in indices):
+            reason = "missing-or-older-index"
+        elif any(name == "." or not re.fullmatch(r"[A-Za-z0-9_.-]+", name) for name in contigs):
+            reason = "ambiguous-contig"
+        metadata = work_dir / "snp-acquisition.json"
+        plan = {"strategy": "sequential-scan" if reason else "planning", "contigs": contigs,
+                "largest_target_length": max(self.target_lengths.values()),
+                "parallel": {"reason": reason or "planning", "workers": 1,
+                             "observed_max_processes": None, "measurement": "direct-command-unmeasured"
+                             if reason else "awaiting-supervisor"}, "processes": []}
+        pileup_pool._write_json(metadata, plan)
+        if reason:
+            return 0, self.preparation_command
+        return 0, [sys.executable, str(Path(__file__).resolve()), str(metadata), *self.preparation_command[2:]]
+
+
+# Use the same R function as the other engine phases for cgroups, affinity,
+# explicit limits, nested workers and the fixed desktop capacity document.
+_R_BUDGET = """
+a <- commandArgs(trailingOnly=TRUE)
+source(a[[1]])
+p <- nipat_parallel_budget(as.integer(a[[2]]), memory_mib=as.numeric(a[[3]]))
+cat(jsonlite::toJSON(p, auto_unbox=TRUE, null="null"))
+"""
+
+
+class _PoolMemoryLimit(RuntimeError):
+    pass
+
+
+def _check_pool_rss(processes, limit_mib):
+    """Yield to the original scan if live samtools exceed the pool's allowance."""
+    rss_kib = 0
+    for process in processes:
+        if process.poll() is not None:
+            continue
+        try:
+            status = Path(f"/proc/{process.pid}/status").read_text()
+        except FileNotFoundError:
+            continue  # The process may finish between poll() and read_text().
+        match = re.search(r"^VmRSS:\s+(\d+) kB$", status, re.MULTILINE)
+        if match:
+            rss_kib += int(match[1])
+    if rss_kib > 1024 * limit_mib:
+        raise _PoolMemoryLimit("samtools pool exceeded its memory allowance")
+
+
+def _run_acquisition(metadata, arguments):
+    document = json.loads(metadata.read_text())
+    contigs = document["contigs"]
+    if arguments[-3] != "-o":
+        raise ValidationError("Output mpileup non valido.")
+    output = Path(arguments[-2])
+    command = ["samtools", "mpileup", *arguments[:-3], arguments[-1]]
+    cancellation = pileup_pool.Cancellation()
+    with pileup_pool.cancellation_handlers(cancellation), TemporaryDirectory(
+            prefix=".snp-acquisition-", dir=output.parent) as tmp:
+        staging = Path(tmp)
+        budget_path = staging / "budget.json"
+        # Allow for reference expansion and scratch/reader buffers per samtools.
+        # Depth is deliberately unchanged. The live pool also has an RSS guard
+        # because deep coverage and variable read lengths exceed static estimates.
+        estimate = max(256, 2 * (64 + (document["largest_target_length"] + 1048575) // 1048576))
+        staged_output = staging / "pileup.txt"
+        try:
+            with budget_path.open("xb") as handle:
+                pileup_pool._execute(["Rscript", "--vanilla", "-e", _R_BUDGET,
+                                      str(Path(__file__).with_name("parallel.R")), str(len(contigs)),
+                                      str(estimate)], handle, cancellation)
+            budget = json.loads(budget_path.read_text())
+            plan = pileup_pool._budget(budget)
+            available = max(0, (budget.get("memory_budget_mib") or 0) - (budget.get("coordinator_rss_mib") or 0)) / 2
+            plan["workers"] = min(plan["workers"], max(1, int(available // estimate)))
+            plan.update(tasks=len(contigs), pool_rss_limit_mib=available, measurement="supervised-samtools")
+            document["parallel"] = plan
+            completed = False
+            if plan["workers"] > 1:
+                document["strategy"] = plan["reason"] = "indexed-chromosomes"
+                try:
+                    with staged_output.open("xb") as handle:
+                        pileup_pool._parallel_chromosomes(
+                            contigs, command[:-1], staging, handle, cancellation, document, metadata,
+                            monitor=lambda live: _check_pool_rss(live, available), inputs=[command[-1]],
+                        )
+                    completed = True
+                except (_PoolMemoryLimit, pileup_pool.PileupError) as exc:
+                    cancellation.check()
+                    plan["reason"] = str(exc)
+                    print(f"SNP acquisition: retrying the sequential scan ({exc})", file=sys.stderr)
+            else:
+                plan["reason"] = "single-worker-budget"
+            if not completed:
+                document["strategy"] = "sequential-scan"
+                with staged_output.open("wb") as handle:
+                    pileup_pool._tracked_execute(command, handle, cancellation, document,
+                                                {"stage": "mpileup-sequential"})
+            cancellation.check()
+            os.replace(staged_output, output)
+            document["status"] = "completed"
+        except BaseException:
+            document["status"] = "cancelled" if cancellation.signum else "failed"
+            raise
+        finally:
+            pileup_pool._write_json(metadata, document)
 
 
 def _absolute_path(value: object, label: str) -> Path:
@@ -123,7 +255,8 @@ def prepare_snp(request: object) -> SnpPreparation:
     bed_file = work_dir / "snp_regions.bed"
     generated_pileup = work_dir / "pileup.txt"
     normalized_panel = work_dir / "SNPpanel.tsv"
-    for destination in (bed_file, generated_pileup, normalized_panel, work_dir / "input-validation.json"):
+    for destination in (bed_file, generated_pileup, normalized_panel, work_dir / "input-validation.json",
+                        work_dir / "snp-acquisition.json"):
         if destination.exists() or destination.is_symlink():
             raise ValidationError(f"Preparazione già presente: {destination}")
 
@@ -153,3 +286,13 @@ def prepare_snp(request: object) -> SnpPreparation:
         "--pileup", str(pileup), "--snplist", str(normalized_panel),
         "--out", str(out_dir / "SNPcall_output.txt"),
     ], generated_pileup if mode == "bam" else None, bam, target_lengths)
+
+
+if __name__ == "__main__":
+    try:
+        _run_acquisition(Path(sys.argv[1]), sys.argv[2:])
+    except pileup_pool.Cancelled as exc:
+        sys.exit(128 + exc.signum)
+    except (OSError, ValueError, ValidationError, pileup_pool.PileupError) as exc:
+        print(f"SNP acquisition: {exc}", file=sys.stderr)
+        sys.exit(1)

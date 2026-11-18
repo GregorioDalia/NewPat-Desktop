@@ -149,6 +149,12 @@ def fixed_admission_contract(version):
     return bool(match and tuple(map(int, match.groups())) >= (0, 9, 5))
 
 
+def measured_sample_contract(version):
+    """The 0.9.9 caller and sample qualification requires observed execution."""
+    match = re.fullmatch(r"([0-9]+)\.([0-9]+)\.([0-9]+)(?:(?:a|b|rc)[0-9]+)?", version or "")
+    return bool(match and tuple(map(int, match.groups())) >= (0, 9, 9))
+
+
 def reliability_contract(version):
     match = re.fullmatch(r"0\.7\.([0-9]+)(?:(?:a|b|rc)[0-9]+)?", version or "")
     return bool(match and int(match[1]) >= 2) or multiplatform_contract(version)
@@ -846,7 +852,9 @@ def verify_analysis_qualification(record, evidence_directory, read_source):
                 and (cap is None or planned <= cap) and (mode != "serial" or planned == observed == 1)
                 and type(worker.get("completed_worker_tasks")) is int and worker["completed_worker_tasks"] > 0,
                 "Downstream workers exceed their execution budget or did not finish")
-        if workflow == "contamination" and mode == "auto" and fixed_admission_contract(record["version"]):
+        auto_contamination = workflow == "contamination" and mode == "auto"
+        measured_batch = auto_contamination and size > 1 and measured_sample_contract(record["version"])
+        if auto_contamination and not measured_batch and fixed_admission_contract(record["version"]):
             # Tiny fixture tables are deliberately admitted one at a time until
             # their memory use is observed. Loaded-table parallelism has a
             # separate mandatory exact-image helper; this is not a waiver for
@@ -869,6 +877,19 @@ def verify_analysis_qualification(record, evidence_directory, read_source):
             require(planned > 1 and isinstance(children, list)
                     and all(type(pid) is int and pid > 0 for pid in children) and len(set(children)) > 1,
                     "Parallel downstream batches did not execute in distinct child workers")
+            if measured_batch:
+                phases = worker.get("phase_plans")
+                require(isinstance(phases, list) and len(phases) == 1 and isinstance(phases[0], dict),
+                        "Contamination batch lacks its sample resource plan")
+                phase = phases[0]
+                ceiling, memory = phase.get("worker_ceiling"), phase.get("memory_worker_limit")
+                require(phase.get("label") == "contamination-samples" and phase.get("tasks") == size
+                        and phase.get("workload_model") == "max-loaded-coordinator-rss-x2-and-module-estimate"
+                        and type(ceiling) is int and type(memory) is int and min(ceiling, memory) >= 1
+                        and (cap is None or ceiling <= cap)
+                        and planned == phase.get("workers") == min(size, ceiling, memory)
+                        and worker["completed_worker_tasks"] == size,
+                        "Contamination sample workers differ from measured workload or shared budget")
     comparisons = {name.removesuffix("-candidate") for name in expected
                    if name.endswith("-candidate")}
     names = report.get("reference_comparisons")
@@ -894,6 +915,69 @@ def verify_analysis_qualification(record, evidence_directory, read_source):
             "executions_verified": len(results), "reference_comparisons_verified": len(comparisons),
             "batch_executions_verified": sum("-batch" in name for name in expected),
             "scope": "synthetic-independent-oracles-and-upstream-models", "domain_validation_claimed": False}
+
+
+def verify_caller_parallel_qualification(archive, image):
+    """Recheck the exact-image acquisition and composed SNP proofs from 0.9.9."""
+    filename = "caller-parallel-qualification.json"
+    with zipfile.ZipFile(archive) as handle:
+        matches = [item for item in handle.infolist() if item.filename.startswith("scientific/")
+                   and item.filename.endswith("/nipat-engine-check/" + filename)]
+        require(len(matches) == 1 and 0 < matches[0].file_size <= 8 * 1024 * 1024,
+                "Missing, duplicate or oversized caller parallel qualification")
+        report = json.loads(handle.read(matches[0]))
+    require(isinstance(report, dict) and type(report.get("schema_version")) is int
+            and report["schema_version"] == 1 and report.get("status") == "passed"
+            and report.get("runtime_image") == image, "Caller parallel qualification has a different image or status")
+    acquisitions = report.get("acquisitions")
+    require(isinstance(acquisitions, dict) and set(acquisitions) == {"dnp-call", "snp-call"},
+            "Both DNP and SNP acquisition evidence are required")
+    for name, count in (("dnp-call", 2), ("snp-call", 1)):
+        run = acquisitions[name]
+        require(isinstance(run, dict) and type(run.get("bam_count")) is int and run["bam_count"] == count
+                and run.get("contigs") == ["chr2", "chr10"] and run.get("strategy") == "indexed-chromosomes"
+                and type(run.get("workers")) is int and run["workers"] == 2
+                and type(run.get("observed_max_processes")) is int and 0 <= run["observed_max_processes"] <= 2,
+                "Missing multi-contig indexed caller qualification")
+        children = run.get("child_pids")
+        require(isinstance(children, list) and all(type(pid) is int and pid > 0 for pid in children)
+                and len(children) == len(set(children)) == 2, "Caller acquisition did not use distinct samtools processes")
+        pileup, tables = run.get("pileup_sha256"), run.get("scientific_tables_sha256")
+        require(isinstance(pileup, dict) and valid_digest(pileup.get("serial"))
+                and pileup.get("auto") == pileup["serial"]
+                and isinstance(tables, dict) and isinstance(tables.get("serial"), dict) and tables["serial"]
+                and all(isinstance(path, str) and path and valid_digest(value) for path, value in tables["serial"].items())
+                and tables.get("auto") == tables["serial"],
+                "Serial and parallel acquisition pileup or scientific tables are missing or differ")
+    workflow = report.get("five_module_workflow")
+    require(isinstance(workflow, dict) and workflow.get("status") == "passed" and workflow.get("image") == image
+            and workflow.get("bam_count") == 3 and type(workflow.get("identical_scientific_tables")) is int
+            and workflow["identical_scientific_tables"] > 0 and isinstance(workflow.get("runs"), dict),
+            "Missing source-free five-module caller qualification")
+    for mode in ("serial", "capped"):
+        run = workflow["runs"].get(mode)
+        require(isinstance(run, dict) and run.get("status") == "succeeded" and run.get("steps") == 10
+                and isinstance(run.get("snp_execution_evidence"), dict), "Incomplete SNP workflow qualification")
+        policy = run["snp_execution_evidence"]
+        admission, execution = policy.get("outer_admission"), policy.get("outer_execution")
+        if mode == "serial":
+            require(admission is None and execution is None, "Serial SNP workflow launched outer workers")
+        else:
+            require(isinstance(admission, dict) and admission.get("workers") == 2 and admission.get("tasks") == 3
+                    and admission.get("workload_model") == "max-loaded-coordinator-rss-x2-and-module-estimate"
+                    and isinstance(execution, dict) and execution.get("maximum_observed_child_workers") == 2
+                    and execution.get("simultaneous_child_workers") is True and execution.get("maximum_planned_workers") == 2,
+                    "Capped SNP workflow lacks measured two-worker overlap")
+            children = execution.get("observed_child_pids")
+            require(isinstance(children, list) and all(type(pid) is int and pid > 0 for pid in children)
+                    and len(set(children)) >= 2, "Capped SNP workflow lacks distinct child processes")
+        inner = policy.get("loaded_r_execution")
+        require(isinstance(inner, dict) and len(inner) == 3
+                and all(isinstance(worker, dict) and worker.get("maximum_planned_workers") == 1
+                        and worker.get("observed_child_pids") == [] for worker in inner.values()),
+                "SNP workflow multiplied its shared parallel budget inside a sample")
+    return {"acquisitions_verified": sorted(acquisitions),
+            "workflow_identical_tables": workflow["identical_scientific_tables"]}
 
 
 def verify_scientific_equivalence(record, evidence_directory, manifest, read_source):
@@ -1079,8 +1163,11 @@ def verify_scientific_equivalence(record, evidence_directory, manifest, read_sou
                 hashlib.sha256(source(commit, helper["path"])).hexdigest(),
                 "Scientific focused comparison failed or used different test sources")
     analysis = verify_analysis_qualification(record, evidence_directory, read_source) if five_modules else None
+    callers = (verify_caller_parallel_qualification(archive, evidence["runtime_image"])
+               if measured_sample_contract(record["version"]) else None)
     return {"source_commit": commit, "reference_source_commit": R_REFERENCE_COMMIT,
             **({"scientific_analysis_qualification": analysis} if analysis else {}),
+            **({"caller_parallel_qualification": callers} if callers else {}),
             **({"snp_reference": SNP2_REFERENCE} if snp2 else {}),
             "runtime_image": evidence["runtime_image"], "report_sha256": evidence["report_sha256"],
             "candidate_r_sha256": candidate_hashes, "cases_verified": len(cases),

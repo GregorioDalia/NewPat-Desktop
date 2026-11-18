@@ -320,7 +320,7 @@ def _execute_step(plan, step, record, root, scripts, samples, outputs, cancellat
                         record["preparation_log"] = log_path.relative_to(root).as_posix()
                         record["preparation_exit_code"] = None
                         persist()
-                        print(f"Workflow step {step['id']}: samtools {command[1]} "
+                        print(f"Workflow step {step['id']}: {log_name.removesuffix('.log')} "
                               f"(log: {record['preparation_log']})", file=sys.stderr, flush=True)
                         code = (run_process(command, cwd, log_path) if run_process is not None else
                                 _run_process(command, cwd, log_path, cancellation))
@@ -335,9 +335,10 @@ def _execute_step(plan, step, record, root, scripts, samples, outputs, cancellat
                                                      f"{step['id']} preparation exited with code {code}; see {record['preparation_log']}.")
                         return code
 
-                    prepared.validate_bam(lambda command: run_snp_preparation(command, "bam-header.log"), work)
+                    _, acquisition = prepared.plan_acquisition(
+                        lambda command: run_snp_preparation(command, "bam-header.log"), work)
                     with phase("pileup", workflow=step["workflow"], step=step["id"]):
-                        run_snp_preparation(prepared.preparation_command, "preparation.log")
+                        run_snp_preparation(acquisition, "preparation.log")
                     # A zero exit from samtools does not guarantee usable data.
                     # Empty generated pileups represent zero coverage in
                     # SNPcall 2.0; malformed or missing files still fail.

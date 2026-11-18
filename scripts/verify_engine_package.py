@@ -31,6 +31,7 @@ from verify_contamination_update import check_bundled_run
 from verify_contamination_update import check_outputs as check_contamination
 from verify_cpi_update import check_outputs as check_cpi
 from verify_cpin_update import check_outputs as check_cpin
+from verify_caller_acquisition import qualify_acquisitions
 from verify_dnp_engine import check_dnp_client_without_host_scripts, check_dnp_workflow
 from verify_cpi_engine import check_cpi_client_without_host_scripts, check_cpi_workflow
 from verify_workflow_execution import check_workflow_execution, check_cpi_chains, check_imported_cpi_plans
@@ -658,6 +659,8 @@ def main() -> int:
         check_snp_client_without_host_scripts(identifier, root, snp_inputs, snp_expected)
         dnp_inputs = check_dnp_workflow(identifier, root, run_container=run_container,
                                       run_image=run_image, write_request=write_request)
+        acquisitions = qualify_acquisitions(identifier, root, run_container=run_container,
+                                            write_request=write_request)
         check_dnp_client_without_host_scripts(identifier, root, dnp_inputs)
         check_snp_plans(identifier, root, snp_inputs, snp_expected, dnp_inputs,
                         run_image=run_image, run_container=run_container,
@@ -675,6 +678,14 @@ def main() -> int:
         check_contamination_client_without_host_scripts(identifier, root)
         check_cpin_workflow(identifier, root)
         composed = qualify_image(identifier, root / "five-module BAM workflow", run_container=run_container)
+        report = {"status": "passed", "schema_version": 1, "runtime_image": identifier,
+                  "acquisitions": acquisitions, "five_module_workflow": composed}
+        evidence = root.parent / "caller-parallel-qualification.json"
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=evidence.parent, delete=False) as handle:
+            json.dump(report, handle, indent=2)
+            handle.write("\n")
+        Path(handle.name).replace(evidence)
+        print(f"PASS: verified indexed serial/parallel pileups and caller tables; evidence in {evidence}", flush=True)
         print(f"PASS: source-free five-module client, three BAMs, ten steps per run, "
               f"serial/cap2 and {composed['identical_scientific_tables']} identical scientific tables.", flush=True)
     except (NipatError, OSError, RuntimeError, ValueError, KeyError) as exc:
