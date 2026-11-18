@@ -112,6 +112,12 @@ jobs:
         # Ubuntu mirror downloads can take several minutes on hosted runners.
         timeout-minutes: 12
         run: |
+          # On AWS runners the regional mirror repeatedly times out fetching WebKit.
+          # Keep it as a fallback after the official Ubuntu archive.
+          mirrors=/etc/apt/apt-mirrors.txt
+          if [ -f "$mirrors" ]; then
+            sudo sed -i -E '/^https?:\/\/us-east-2\.ec2\.archive\.ubuntu\.com\/ubuntu\/?[[:space:]]+priority:1[[:space:]]*$/s/priority:1/priority:4/' "$mirrors"
+          fi
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             python3-gi gir1.2-gtk-3.0 gir1.2-webkit2-4.1 \
