@@ -19,6 +19,8 @@ These records refer to identified releases, revisions and tests. Files retain th
 - Machine-readable evidence for [0.8.50](../validation/0.8.50-development.json), [0.8.14 microbenchmarks](../validation/0.8.14-microbenchmarks.json), [observed 0.8.14 benchmarks](../validation/0.8.14-observed-benchmarks.json), and rootless testing of [0.8.14](../validation/0.8.14-rootless.json), [0.8.13](../validation/0.8.13-rootless.json) and [0.8.12](../validation/0.8.12-rootless.json).
 - [Acceptance records and reports](../../.github/release-acceptance), [early decisions](DECISIONS.md) and the [0.5 development plan](PIANO_0.5.md).
 
+<a id="profilo-storico-della-build-degli-installatori"></a>
+
 ## Timing of a historical installer build
 
 [Build 43430275209](https://github.com/GregorioDalia/nipat-desktop/actions/runs/43430275209) on 13 November 2026 illustrates the difference between one build's critical path and the cumulative time spent on retries.
