@@ -77,6 +77,7 @@ def check_members(package, sources):
 def check_package(root, work):
     # Only the text slice of the real installer allowlist is staged here. The
     # release workflow separately checks the full packages and runtime assets.
+    root = root.resolve()
     included = {p.relative_to(root).as_posix(): p for p in source_files(root)}
     needed = {"README.md", "LICENSE", "THIRD_PARTY_NOTICES.md", "docs/GUIDA_UTILIZZO.md",
               "installer/windows/zip-readme.txt", "installer/windows/testing-readme.txt"}
