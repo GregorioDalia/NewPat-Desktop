@@ -1,9 +1,9 @@
 """Exercise the shipped UI, HTTP service and bundled IGV with real indexed local data.
 
 Linux CI uses a system Chromium/Chrome through Playwright. Native window smoke
-checks remain separate. Only native file dialogs are replaced by a deterministic
-picker; RPC and genomic decoding/rendering are production code. A non-executing
-Job fixture checks progress rendering without claiming a scientific analysis.
+checks remain separate. Native file dialogs and the external-browser handoff are observed with test doubles.
+RPC and genomic decoding/rendering are production code. A non-executing job
+checks progress rendering and an unavailable-runtime fixture checks startup errors.
 Recorded CPI/CPIN fixtures exercise plots without recalculating scientific results.
 """
 from __future__ import annotations
@@ -19,11 +19,15 @@ import shutil
 import sys
 import tempfile
 import time
+from threading import Event
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "src"), str(ROOT / "tests")]
 
 from nipat import __version__
+from nipat.errors import ValidationError
+from nipat.execution.progress import ProgressSnapshot
 from nipat.gui.app import DesktopApplication
 from nipat.gui.jobs import Job
 from nipat.gui.plan import prepare_analysis
@@ -182,6 +186,68 @@ class BrowserProbe:
         raise AssertionError("Timed out waiting for UI condition: " + expression[:200])
 
 
+def verify_language_controls(page, probe, service, check):
+    italian = page.get_by_role("radio", name="Italiano", exact=True)
+    english = page.get_by_role("radio", name="English", exact=True)
+    check(italian.is_checked() and not english.is_checked(), "The active Italian flag has an accessible language name")
+    flags = page.locator(".language-picker svg")
+    check(flags.count() == 2 and all(flag.is_visible() for flag in flags.all()),
+          "Both language flags render as graphics")
+    italian.focus()
+    with page.expect_response(lambda r: r.request.method == "POST" and
+                              r.request.post_data_json.get("method") == "ui.save"):
+        italian.press("ArrowRight")
+    probe.wait("document.documentElement.lang==='en'")
+    check(english.is_checked() and service.ui_get()["language"] == "en",
+          "Keyboard language selection persists the English preference in the real service")
+    page.reload()
+    probe.wait("document.documentElement.dataset.nipatReady==='true'")
+    check(english.is_checked() and page.locator('html').get_attribute("lang") == "en",
+          "Restarting the interface restores the saved English flag")
+    english.focus()
+    with page.expect_response(lambda r: r.request.method == "POST" and
+                              r.request.post_data_json.get("method") == "ui.save"):
+        english.press("ArrowLeft")
+    probe.wait("document.documentElement.lang==='it'")
+
+
+def verify_single_start(page, probe, service, methods, check):
+    """Hold the real preview long enough to inspect the pending UI and the duplicate-start guard."""
+    release_preview = Event()
+    original = service.plan_preview
+    error = "Runtime di prova non disponibile. Verifica l’ambiente di esecuzione."
+
+    def slow_preview(draft):
+        if not release_preview.wait(timeout=15):
+            raise RuntimeError("Verification timed out waiting to release the plan")
+        return original(draft)
+
+    def unavailable_runtime(_prepared, _job):
+        raise ValidationError(error)
+
+    page.locator('[data-action="step"][data-index="3"]').first.click()
+    button = page.locator('[data-action="start-analysis"]')
+    check(button.is_enabled(), "Review permits starting directly without a separate preview")
+    start = len(methods)
+    with patch.object(service, "plan_preview", side_effect=slow_preview), \
+         patch.object(service.jobs, "_runner_factory", side_effect=unavailable_runtime):
+        try:
+            probe.evaluate("""() => {const b=document.querySelector('[data-action=start-analysis]'); b.click();
+                document.querySelector('[data-action=start-analysis]').click()}""")
+            page.wait_for_selector('.start-check[role="status"]')
+            check(button.is_disabled(), "A visible preflight indicator prevents duplicate starts while checking the plan")
+        finally:
+            release_preview.set()
+        probe.wait("NipatApp.state.view==='activity' && NipatApp.state.jobs.some(j=>j.status==='failed')")
+        page.get_by_text(error, exact=True).first.wait_for()
+    observed = [method for method, _ in methods[start:] if method in {"plan.preview", "analysis.start"}]
+    check(observed == ["plan.preview", "analysis.start"],
+          "One automatic preview leads to one start and displays the runner's actionable error")
+    page.locator('nav [data-view="new"]').click()
+    check(probe.evaluate("NipatApp.state.draft.samples.length===0 && !NipatApp.state.draft.reference"),
+          "New experiment opens a clean input sheet after an attempted run")
+
+
 def run_verification(report_path, executable):
     from playwright.sync_api import sync_playwright
 
@@ -227,9 +293,16 @@ def run_verification(report_path, executable):
                     if message.type == "error" and "favicon.ico" not in message.location.get("url", ""):
                         evidence["errors"].append(message.text)
                 page.on("console", console_message)
+                methods = []
+                def record_rpc(request):
+                    if request.method == "POST" and request.url == app.server.base_url + "api":
+                        body = request.post_data_json
+                        methods.append((body["method"], body["params"]))
+                page.on("request", record_rpc)
                 page.goto(app.server.url)
                 probe.wait("document.documentElement.dataset.nipatReady==='true'")
                 check(page.locator("#version").inner_text().startswith(__version__), "Displayed application version matches source")
+                verify_language_controls(page, probe, service, check)
                 page.locator('[data-action="navigate"][data-view="activity"]').click()
                 page.wait_for_selector('[data-job-card] .dna-rung')
                 check(page.locator('.dna-rung').count() == 10, "Recognizable DNA helix contains ten rungs")
@@ -238,10 +311,29 @@ def run_verification(report_path, executable):
                 check(not progress["inline"] and progress["width"] > 0, "Unknown progress band is visible without zero-width override")
                 probe.wait("window.__qaAnimation && window.__qaAnimation.currentTime>1800")
                 check(probe.evaluate("window.__qaDna===document.querySelector('.dna-loader')&&window.__qaAnimation===document.querySelector('.dna-rung').getAnimations()[0]"), "Polling preserves the live DNA node and running animation")
-                with job.lock:
-                    job.progress = {"phase": "pileup", "completed": 1, "total": 4, "workflow": "dnp-call"}
+                check(page.locator("[data-job-sample]").inner_text() == "Synthetic" and
+                      bool(page.locator("[data-job-elapsed]").inner_text()),
+                      "Activity shows the sample and elapsed time with the technical log closed")
+                log_button = page.locator('[data-action="job-log"]')
+                check(log_button.get_attribute("aria-expanded") == "false" and
+                      not any(method == "jobs.logs" for method, _ in methods),
+                      "Normal progress polling leaves technical logs on demand")
+                log_button.click()
+                page.locator('[id^="job-log-"]').get_by_text("UI verification fixture", exact=False).wait_for()
+                check(log_button.get_attribute("aria-expanded") == "true" and
+                      any(method == "jobs.logs" for method, _ in methods),
+                      "Opening technical details fetches the real job log")
+                log_button.click()
+                job.progressed(ProgressSnapshot("running", 2.0, "pileup", ("Synthetic",),
+                                                completed=1, total=4, workflow="dnp-call"))
                 probe.wait("document.querySelector('.progress-track').getAttribute('aria-valuenow')==='25'")
                 check(probe.evaluate("window.__qaDna===document.querySelector('.dna-loader')"), "Measured phase progress updates without remounting DNA")
+                check(bool(page.locator('[data-job-phase]').inner_text()) and
+                      page.locator('.job-events li').count() == 1,
+                      "A phase update appears in the current status and the chronological activity list")
+                polls = [params for method, params in methods if method == "jobs.list"]
+                check(polls and all(params.get("include_logs") is False for params in polls),
+                      "The browser requests summaries when polling jobs")
                 activity = report_path.parent / "activity.png"
                 page.screenshot(path=str(activity), full_page=True)
                 evidence["screenshots"].append(activity.name)
@@ -257,6 +349,19 @@ def run_verification(report_path, executable):
                 # IGV 3.8.9 does not export a browser-inventory function.
                 probe.evaluate("""() => {const create=window.igv.createBrowser;window.igv.createBrowser=async function(...args){const instance=await create.apply(this,args);window.__qaIgv=instance;return instance}}""")
                 page.locator('[data-action="navigate"][data-view="igv"]').click()
+                info = page.locator('[data-action="igv-about"]')
+                check(info.is_visible() and info.get_attribute("aria-label") and
+                      page.locator('h1 + [data-action="igv-about"]').count() == 1,
+                      "IGV heading has an accessible information button beside its title")
+                local_url = page.url
+                with patch("nipat.gui.app.webbrowser.open_new_tab", return_value=True) as open_guide:
+                    with page.expect_response(lambda r: r.url == app.server.base_url + "api" and
+                                               r.request.post_data_json.get("method") == "igv.about"):
+                        info.focus()
+                        info.press("Enter")
+                    open_guide.assert_called_once_with("https://igv.org/doc/webapp/")
+                check(page.url == local_url and len(page.context.pages) == 1,
+                      "IGV information hands the official guide to the system browser and retains the local viewer")
                 picker.paths = [Path(selection["reference"]["fasta"])]
                 page.locator('[data-action="choose-path"][data-key="igv-reference.fasta"]').click()
                 page.locator('[data-action="igv-add-track"]').click()
@@ -369,6 +474,7 @@ def run_verification(report_path, executable):
                 probe.wait("NipatApp.state.view==='new'")
                 reused = probe.evaluate("NipatApp.state.draft")
                 check(reused["samples"][0]["path"] == selection["tracks"][0]["path"] and reused["reference"] == selection["reference"]["fasta"], "Run again opens original recorded input selections")
+                verify_single_start(page, probe, service, methods, check)
                 page.locator('[data-action="navigate"][data-view="archive"]').click()
                 page.locator('[data-action="remove-run"][data-id="archived-ui-fixture"]').click()
                 check('file di input resteranno' in page.locator('[role="dialog"]').inner_text(), "Removal confirmation explains source and result preservation")

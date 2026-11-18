@@ -14,6 +14,8 @@ const icon=n=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
 const nav=['home','new','activity','archive','igv','catalog','settings','environment'];
 const state={view:'home',boot:null,settings:{},draft:null,step:0,source:'bam',sampleKind:'bam',preview:null,error:'',jobs:[],runs:[],run:null,runId:null,runTab:'results',overview:null,files:[],module:null,entry:0,table:null,tableFile:null,tableOffset:0,tableSearch:'',allColumns:false,curves:[],curvePages:{},curveModes:{},archiveSearch:'',archivePage:0,archiveStatus:'all',archiveMarker:'all',catalogModule:'all',catalogType:'parameters',catalogSearch:'',catalogDefaults:false,preferences:null,baseline:null,environment:null,resourcePreview:null,igv:{reference:{fasta:'',index:''},tracks:[],locus:'',loaded:false},motion:true};
 let igvNavigationUnsubscribe=null,curveId=0;const curveViews=new Map();
+let startingDraft=null;
+const visibleLogs=new Map();
 let requestId=0,draftRevision=0,draftLoadVersion=0,igvLoadVersion=0,renderGeneration=0,toastTimer,searchTimer,pollTimer,previousFocus=null,entryLoadVersion=0,runLoadVersion=0,tableLoadVersion=0;
 async function rpc(method,params={}){
  const id=++requestId,controller=new AbortController(),timer=setTimeout(()=>controller.abort(),method==='updates.download'?7200000:method==='environment.check'?600000:method.startsWith('dialog.')?600000:180000);
@@ -68,12 +70,12 @@ function parameterRows(module,scope='draft',readonly=false,all=false){const w=st
 function flagsEditor(module,value,scope){const flags=[[4,'Non allineate','Unmapped'],[8,'Compagno non allineato','Unmapped mate'],[256,'Allineamenti secondari','Secondary alignments'],[512,'Controllo qualità non superato','Failed quality control'],[1024,'Duplicati','Duplicates'],[2048,'Allineamenti supplementari','Supplementary alignments']];return `<details class="disclosure"><summary>${L.field('excluded_flags')}</summary><div class="details-body flags">${flags.map(([bit,it,en])=>`<label><input type="checkbox" data-flag="${module}|${bit}|${scope}" ${(Number(value)&bit)?'checked':''}>${esc(L.language==='en'?en:it)}</label>`).join('')}</div></details>`}
 function executionFields(execution,scope='draft'){return `<p class="help">${t('executionHelp')}</p><div class="execution-grid section-gap">${select(t('mode'),scope+'-execution-mode',[['auto',t('automatic')],['serial',t('serial')]],execution.execution_mode||'auto',`data-execution="execution_mode|${scope}"`)}${[['max_workers','maxWorkers',1,1024],['cpus','cpuLimit',.1,1024],['memory_mb','memoryLimit',128,1048576],['pids_limit','processLimit',16,1048576],['dnp_block_mib','blockSize',1,4096],['dnp_block_loci','blockLoci',1,1000000]].map(([k,label,min,max])=>input(t(label),scope+'-'+k,execution[k]??'',`type="number" min="${min}" max="${max}" step="${k==='cpus'?'any':'1'}" data-execution="${k}|${scope}" placeholder="${t('automatic')}"`)).join('')}${select(t('hashes'),scope+'-input-hashes',[['auto',t('automatic')],['full',t('fullHashes')]],execution.input_hashes||'auto',`data-execution="input_hashes|${scope}"`)}</div><label class="check-row section-gap"><input type="checkbox" data-execution="performance_diagnostics|${scope}" ${execution.performance_diagnostics?'checked':''}><span>${t('diagnostics')}</span></label>`}
 function renderParameters(){return `<h2>${t('parameters')}</h2>${selectedModules().map(m=>`<details class="disclosure" open><summary>${moduleName(m)}</summary><div class="details-body">${parameterRows(m)}</div></details>`).join('')}<details class="disclosure"><summary>${t('execution')}</summary><div class="details-body">${executionFields(state.draft.execution)}</div></details>`}
-function renderReview(){const d=state.draft,processed=state.preview?.samples,labels=processed?[...new Set(processed.map(sample=>sample.biological_id||sample.id||sample.sample_id))]:d.samples.map(sample=>sample.id),branches=state.preview?.analyses_by_marker||d.branches;return `<h2>${t('review')}</h2><div class="review-block"><dl class="review-list"><dt>${t('experimentName')}</dt><dd>${esc(d.name)}</dd><dt>${t('samples')}</dt><dd>${labels.map(esc).join(', ')||t('emptyValue')}</dd><dt>${t('markers')}</dt><dd>${activeMarkers().join(' / ')}</dd></dl></div><div class="review-block"><h3>${t('expectedResults')}</h3>${activeMarkers().map(marker=>{const analyses=[...(callerRuns(marker)?[t('genotypes')]:[]),...(branches[marker]||[]).map(moduleName)];return `<p><b>${marker}</b> · ${analyses.length?analyses.join(' · '):(L.language==='it'?'Nessuna analisi selezionata: queste tabelle non saranno elaborate.':'No analysis selected: these tables will not be processed.')}</p>`}).join('')}</div><div class="review-block"><h3>${t('resultLocation')}</h3><p>${t('archive')} → ${esc(d.name)} → ${t('results')}</p></div>${state.preview?`<div class="section-gap">${notice(t('validated'))}<ol class="plan-list">${state.preview.steps.map(step=>`<li>${esc(moduleName(step.workflow||step.module))}${step.parameters?.marker_type?' · '+esc(step.parameters.marker_type):''}${step.inputs?.sample?' · '+esc(step.inputs.sample):''}</li>`).join('')}</ol></div>`:`<p class="help section-gap">${t('validationRequired')}</p>`}<div class="actions section-gap">${button(t('validate'),'validate-plan',{},'','check')}</div>`}
-function renderNew(){const d=state.draft;return heading(t('new'),t('newCopy'))+`${state.error?notice(state.error,'error'):''}<div class="form-layout section-gap"><section class="panel"><div class="steps" role="tablist">${['samples','analysis','parameters','review'].map((key,i)=>`<button class="step ${state.step===i?'active':''}" data-action="step" data-index="${i}" role="tab" aria-selected="${state.step===i}"><span>${i+1}</span>${t(key)}</button>`).join('')}</div><div class="panel-body">${[renderInputs,renderAnalyses,renderParameters,renderReview][state.step]()}</div><div class="form-footer"><span class="help">${state.step+1} / 4</span><div class="actions">${state.step?button(t('back'),'step',{index:state.step-1},'','back'):''}${state.step<3?button(t('continue'),'step',{index:state.step+1},'primary','arrow'):`<button class="button primary" data-action="start-analysis" ${state.preview?'':'disabled'}>${icon('play')}${t('startAnalysis')}</button>`}</div></div></section><aside class="side-summary"><h3>${t('review')}</h3><dl><div><dt>${t('name')}</dt><dd>${esc(d.name)||'—'}</dd></div><div><dt>${t('samples')}</dt><dd>${d.samples.length}</dd></div><div><dt>${t('markers')}</dt><dd>${activeMarkers().join(' / ')||'—'}</dd></div><div><dt>${t('expectedResults')}</dt><dd>${selectedModules().map(moduleName).map(esc).join(', ')||'—'}</dd></div></dl></aside></div>`}
+function renderReview(){const d=state.draft,processed=state.preview?.samples,labels=processed?[...new Set(processed.map(sample=>sample.biological_id||sample.id||sample.sample_id))]:d.samples.map(sample=>sample.id),branches=state.preview?.analyses_by_marker||d.branches;return `<h2>${t('review')}</h2><div class="review-block"><dl class="review-list"><dt>${t('experimentName')}</dt><dd>${esc(d.name)}</dd><dt>${t('samples')}</dt><dd>${labels.map(esc).join(', ')||t('emptyValue')}</dd><dt>${t('markers')}</dt><dd>${activeMarkers().join(' / ')}</dd></dl></div><div class="review-block"><h3>${t('expectedResults')}</h3>${activeMarkers().map(marker=>{const analyses=[...(callerRuns(marker)?[t('genotypes')]:[]),...(branches[marker]||[]).map(moduleName)];return `<p><b>${marker}</b> · ${analyses.length?analyses.join(' · '):(L.language==='it'?'Nessuna analisi selezionata: queste tabelle non saranno elaborate.':'No analysis selected: these tables will not be processed.')}</p>`}).join('')}</div><div class="review-block"><h3>${t('resultLocation')}</h3><p>${t('archive')} → ${esc(d.name)} → ${t('results')}</p></div>${state.preview?`<div class="section-gap">${notice(t('validated'))}<ol class="plan-list">${state.preview.steps.map(step=>`<li>${esc(moduleName(step.workflow||step.module))}${step.parameters?.marker_type?' · '+esc(step.parameters.marker_type):''}${step.inputs?.sample?' · '+esc(step.inputs.sample):''}</li>`).join('')}</ol></div>`:`<p class="help section-gap">${t('startChecksHelp')}</p>`}<div class="actions section-gap">${startingDraft===d?`<span class="start-check" role="status"><span aria-hidden="true" class="check-spinner ${state.motion?'':'paused'}"></span>${t('checkingPlan')}</span>`:button(t('showPlan'),'validate-plan',{},'quiet small')}</div>`}
+function renderNew(){const d=state.draft;return heading(t('new'),t('newCopy'))+`${state.error?notice(state.error,'error'):''}<div class="form-layout section-gap"><section class="panel"><div class="steps" role="tablist">${['samples','analysis','parameters','review'].map((key,i)=>`<button class="step ${state.step===i?'active':''}" data-action="step" data-index="${i}" role="tab" aria-selected="${state.step===i}"><span>${i+1}</span>${t(key)}</button>`).join('')}</div><div class="panel-body">${[renderInputs,renderAnalyses,renderParameters,renderReview][state.step]()}</div><div class="form-footer"><span class="help">${state.step+1} / 4</span><div class="actions">${state.step?button(t('back'),'step',{index:state.step-1},'','back'):''}${state.step<3?button(t('continue'),'step',{index:state.step+1},'primary','arrow'):`<button class="button primary" data-action="start-analysis" ${startingDraft?'disabled aria-busy="true"':''}>${icon('play')}${t('startAnalysis')}</button>`}</div></div></section><aside class="side-summary"><h3>${t('review')}</h3><dl><div><dt>${t('name')}</dt><dd>${esc(d.name)||'—'}</dd></div><div><dt>${t('samples')}</dt><dd>${d.samples.length}</dd></div><div><dt>${t('markers')}</dt><dd>${activeMarkers().join(' / ')||'—'}</dd></div><div><dt>${t('expectedResults')}</dt><dd>${selectedModules().map(moduleName).map(esc).join(', ')||'—'}</dd></div></dl></aside></div>`}
 function renderArchive(){if(state.run)return renderRun();return heading(t('archive'),t('archiveCopy'),button(t('openFolder'),'import-run',{},'','archive')+button(t('new'),'navigate',{view:'new'},'primary','plus'))+`<section class="panel"><div class="panel-body"><div class="toolbar"><input class="input stretch" id="archive-search" placeholder="${t('archiveSearch')}" aria-label="${t('search')}" value="${esc(state.archiveSearch)}" data-search="archive">${select(t('status'),'archive-status',[['all',t('all')],['succeeded',t('succeeded')],['failed',t('failed')],['running',t('running')],['interrupted',t('interrupted')],['unknown',t('unknown')]],state.archiveStatus,'data-field="archiveStatus"')}${select(t('markers'),'archive-marker',[['all',t('all')],['DNP','DNP'],['SNP','SNP']],state.archiveMarker,'data-field="archiveMarker"')}</div></div>${filteredRuns().length?archiveRows():empty(t(state.runs.length?'noFilteredRuns':'noRuns'),state.runs.length?'':t('noRunsCopy'))}</section>`}
 function jobProgress(job){const p=job.progress;if(p&&Number.isFinite(p.completed)&&Number.isFinite(p.total)&&p.total>0)return Math.max(0,Math.min(100,p.completed/p.total*100));if(typeof p==='number')return Math.max(0,Math.min(100,p));if(p&&typeof p==='object'){const value=p.percent??p.percentage??p.overall_percent;if(Number.isFinite(Number(value)))return Math.max(0,Math.min(100,Number(value)))}return null}
 function terminal(job){return ['succeeded','completed','failed','cancelled','canceled','interrupted','planned'].includes(job.status)}
-function progressLabel(p){if(!p)return '';const phases={'preparing-runtime':['Avvio dell’ambiente di calcolo','Starting the computation environment'],'verifying-engine':['Verifica del motore di analisi','Checking the analysis engine'],'checking-inputs':['Verifica degli input','Checking inputs'],'preparation':['Preparazione degli input','Preparing inputs'],'plan-preflight':['Verifica del piano','Checking plan'],'presentation-preparation':['Preparazione dei risultati','Preparing results'],'r-execution':['Calcolo R','R computation'],'output-validation':['Controllo dei risultati','Checking outputs'],'presentation-finalization':['Esportazione dei risultati','Exporting results'],'plan-presentation':['Riepilogo delle analisi','Analysis summary'],'pileup':['Preparazione del pileup','Preparing pileup'],'pileup-index':['Indicizzazione del pileup','Indexing pileup'],'pileup-reading':['Lettura del pileup','Reading pileup'],'dnp-processing':['Calcolo DNP','DNP computation'],'plots':['Creazione dei grafici','Creating plots'],'dnp-indexed-selection':['Selezione delle letture','Selecting reads'],'dnp-indexed-pileup':['Pileup dalle regioni indicizzate','Pileup from indexed regions'],'dnp-pileup':['Preparazione pileup DNP','Preparing DNP pileup']};const phase=phases[p.phase]?.[L.language==='en'?1:0]||p.phase||t('progressUnknown');return [p.workflow?moduleName(p.workflow):'',phase,...(p.sample_ids||[])].filter(Boolean).join(' · ')}
+function progressLabel(p, withSamples=true){if(!p)return '';const phases={'preparing-runtime':['Avvio dell’ambiente di calcolo','Starting the computation environment'],'verifying-engine':['Verifica del motore di analisi','Checking the analysis engine'],'checking-inputs':['Verifica degli input','Checking inputs'],'preparation':['Preparazione degli input','Preparing inputs'],'plan-preflight':['Verifica del piano','Checking plan'],'presentation-preparation':['Preparazione dei risultati','Preparing results'],'r-execution':['Calcolo R','R computation'],'output-validation':['Controllo dei risultati','Checking outputs'],'presentation-finalization':['Esportazione dei risultati','Exporting results'],'plan-presentation':['Riepilogo delle analisi','Analysis summary'],'pileup':['Preparazione del pileup','Preparing pileup'],'pileup-index':['Indicizzazione del pileup','Indexing pileup'],'pileup-reading':['Lettura del pileup','Reading pileup'],'dnp-processing':['Calcolo DNP','DNP computation'],'plots':['Creazione dei grafici','Creating plots'],'dnp-indexed-selection':['Selezione delle letture','Selecting reads'],'dnp-indexed-pileup':['Pileup dalle regioni indicizzate','Pileup from indexed regions'],'dnp-pileup':['Preparazione pileup DNP','Preparing DNP pileup']};const phase=phases[p.phase]?.[L.language==='en'?1:0]||p.phase||t('progressUnknown');return [p.workflow?moduleName(p.workflow):'',phase,...(withSamples?p.sample_ids||[]:[])].filter(Boolean).join(' · ')}
 function elapsedTime(job){
  const started=Date.parse(job.created_at||job.started_at||''),finished=job.finished_at?Date.parse(job.finished_at):Date.now();
  if(!Number.isFinite(started)||!Number.isFinite(finished))return '';
@@ -81,12 +83,58 @@ function elapsedTime(job){
  return t('elapsed')+': '+(hours?hours+' h ':'')+(minutes?minutes%60+' min ':'')+seconds%60+' s';
 }
 function progressText(job){const p=jobProgress(job);return p===null?t('progressUnknown'):format(p,1)+' % · '+t('currentPhase')}
-function jobLogs(job){return Array.isArray(job.logs)?job.logs.map(x=>typeof x==='string'?x:JSON.stringify(x)).join('\n'):job.logs||''}
+function phaseTitle(job){
+ const label=progressLabel(job.progress,false);
+ return label||job.message||(terminal(job)?t(job.status):t('preparingAnalysis'));
+}
+function sampleLabel(job){
+ const current=job.progress?.sample_ids||[];
+ if(current.length)return current.join(', ');
+ if(job.only_sample)return job.only_sample;
+ return job.sample_count?t('samplesInExperiment')+' · '+format(job.sample_count,0):'—';
+}
+function eventsMarkup(job){
+ const events=job.events||[];
+ return events.map(event=>{
+  const time=new Date(event.at);
+  const label=Number.isNaN(time.getTime())?'':time.toLocaleTimeString(L.language==='en'?'en-GB':'it-IT');
+  return `<li><time datetime="${esc(event.at)}">${esc(label)}</time> ${esc(progressLabel(event.progress))}</li>`;
+ }).join('');
+}
+function logText(entry){return entry.error||entry.lines.join('\n')||(entry.revision===null?t('loading'):t('noLogEntries'))}
+async function refreshJobLog(job){
+ const entry=visibleLogs.get(job.id);
+ if(!entry||entry.busy||entry.revision===job.log_revision)return;
+ entry.busy=true;
+ try{
+  const result=await rpc('jobs.logs',{job_id:job.id,after:entry.revision??0});
+  if(visibleLogs.get(job.id)!==entry)return;
+  entry.lines=(result.reset?result.lines:entry.lines.concat(result.lines)).slice(-result.limit);
+  entry.revision=result.revision;entry.error='';
+ }catch(error){entry.error=humanError(error)}
+ finally{
+  entry.busy=false;
+  if(state.view==='activity'&&visibleLogs.get(job.id)===entry){
+   const el=$('job-log-'+job.id);
+   if(el){const atEnd=el.scrollHeight-el.scrollTop-el.clientHeight<20;el.textContent=logText(entry);if(atEnd)el.scrollTop=el.scrollHeight}
+  }
+ }
+}
 function dnaLoader(){return `<div class="dna-loader helix ${state.motion?'':'paused'}" aria-hidden="true">${Array.from({length:10},(_,i)=>`<span class="dna-rung" style="--rung:${i}"></span>`).join('')}</div>`}
 function renderActivity(){
  return heading(t('activity'),t('jobHelp'),button(t('reload'),'refresh-jobs',{},'','activity'))+(state.jobs.length?state.jobs.map(job=>{
   const p=jobProgress(job),indeterminate=p===null&&!terminal(job);
-  return `<section class="panel section-gap" data-job-card="${esc(job.id)}" data-job-status="${esc(job.status)}" data-job-run="${esc(job.run_id||'')}"><div class="progress-card"><div class="job-header"><div><h2>${esc(job.name||job.run_name||job.id)}</h2><p data-job-phase>${esc(progressLabel(job.progress)||job.message||t('preparingAnalysis'))}</p></div>${badge(job.status)}</div>${!terminal(job)?`<div class="job-progress section-gap">${dnaLoader()}<div><span data-job-progress-text>${progressText(job)}</span><p class="help" data-job-elapsed>${esc(elapsedTime(job))}</p></div></div>`:`<p class="help section-gap" data-job-elapsed>${esc(elapsedTime(job))}</p>`}<div class="progress-track ${indeterminate?'indeterminate':''} ${state.motion?'':'paused'}" role="progressbar" aria-label="${esc(t('currentPhase'))}" aria-valuemin="0" aria-valuemax="100" ${p===null?'':`aria-valuenow="${p}"`}><span ${indeterminate?'':`style="width:${p??(job.status==='succeeded'?100:0)}%"`}></span></div>${job.error?notice(typeof job.error==='string'?job.error:job.error.message,'error'):''}<div class="actions section-gap">${!terminal(job)?button(t('stopAnalysis'),'cancel-job',{id:job.id},'danger','stop'):''}${job.run_id?button(t('openResults'),'open-run',{id:job.run_id},'primary','arrow'):''}</div><details class="disclosure"><summary>${t('logs')}</summary><div class="details-body"><pre class="job-log">${esc(jobLogs(job))}</pre></div></details></div></section>`;
+  const log=visibleLogs.get(job.id);
+  return `<section class="panel section-gap" data-job-card="${esc(job.id)}" data-job-status="${esc(job.status)}" data-job-run="${esc(job.run_id||'')}"><div class="progress-card">
+   <div class="job-header"><h2>${esc(job.name||job.run_name||job.id)}</h2>${badge(job.status)}</div>
+   <dl class="job-facts"><div><dt>${t(terminal(job)?'lastPhase':'activityPhase')}</dt><dd data-job-phase>${esc(phaseTitle(job))}</dd></div><div><dt>${t('samples')}</dt><dd data-job-sample>${esc(sampleLabel(job))}</dd></div></dl>
+   ${!terminal(job)?`<div class="job-progress">${dnaLoader()}<div><span data-job-progress-text>${progressText(job)}</span><p class="help" data-job-elapsed>${esc(elapsedTime(job))}</p></div></div>`:`<p class="help" data-job-elapsed>${esc(elapsedTime(job))}</p>`}
+   <div class="progress-track ${indeterminate?'indeterminate':''} ${state.motion?'':'paused'}" role="progressbar" aria-label="${esc(t('currentPhase'))}" aria-valuemin="0" aria-valuemax="100" ${p===null?'':`aria-valuenow="${p}"`}><span ${indeterminate?'':`style="width:${p??(job.status==='succeeded'?100:0)}%"`}></span></div>
+   ${job.error?notice(humanError(job.error.message||job.error),'error'):''}
+   <section class="job-events" ${job.events?.length?'':'hidden'}><h3>${t('recentActivity')}</h3><ol data-event-revision="${job.event_revision??0}">${eventsMarkup(job)}</ol></section>
+   <div class="actions section-gap">${!terminal(job)?button(t('stopAnalysis'),'cancel-job',{id:job.id},'danger','stop'):''}${job.run_id?button(t('openResults'),'open-run',{id:job.run_id},'primary','arrow'):''}
+    <button class="button quiet small" data-action="job-log" data-id="${esc(job.id)}" aria-expanded="${!!log}" aria-controls="job-log-${esc(job.id)}">${t('technicalLog')}</button>
+   </div><pre id="job-log-${esc(job.id)}" class="job-log" ${log?'':'hidden'}>${log?esc(logText(log)):''}</pre></div></section>`;
  }).join(''):`<section class="panel">${empty(t('noJobs'),'',button(t('new'),'navigate',{view:'new'},'primary','plus'))}</section>`);
 }
 function updateActivity(){
@@ -95,7 +143,13 @@ function updateActivity(){
  if(cards.length!==state.jobs.length||cards.some((card,i)=>card.dataset.jobCard!==state.jobs[i].id||card.dataset.jobStatus!==state.jobs[i].status||card.dataset.jobRun!==(state.jobs[i].run_id||'')))return false;
  cards.forEach((card,i)=>{
   const job=state.jobs[i],p=jobProgress(job),unknown=p===null&&!terminal(job);
-  card.querySelector('[data-job-phase]').textContent=progressLabel(job.progress)||job.message||t('preparingAnalysis');
+  card.querySelector('[data-job-phase]').textContent=phaseTitle(job);
+  card.querySelector('[data-job-sample]').textContent=sampleLabel(job);
+  const events=card.querySelector('[data-event-revision]');
+  if(events.dataset.eventRevision!==String(job.event_revision??0)){
+   events.innerHTML=eventsMarkup(job);events.dataset.eventRevision=String(job.event_revision??0);
+   card.querySelector('.job-events').hidden=!job.events?.length;
+  }
   const label=card.querySelector('[data-job-progress-text]');if(label)label.textContent=progressText(job);
   card.querySelector('[data-job-elapsed]').textContent=elapsedTime(job);
   const track=card.querySelector('.progress-track'),bar=track.querySelector('span');
@@ -103,7 +157,7 @@ function updateActivity(){
   if(p===null)track.removeAttribute('aria-valuenow');else track.setAttribute('aria-valuenow',String(p));
   if(unknown)bar.style.removeProperty('width');else bar.style.width=(p??(job.status==='succeeded'?100:0))+'%';
   const dna=card.querySelector('.dna-loader');if(dna)dna.classList.toggle('paused',!state.motion);
-  const log=card.querySelector('.job-log'),text=jobLogs(job);if(log.textContent!==text){const atEnd=log.scrollHeight-log.scrollTop-log.clientHeight<20;log.textContent=text;if(atEnd)log.scrollTop=log.scrollHeight;}
+
  });
  return true;
 }
@@ -285,9 +339,11 @@ function syncIgvNavigation(n){
 }
 function renderIGV(){
  const v=state.igv,loaded=v.loadedSources,dirty=v.loaded&&JSON.stringify({reference:v.reference,tracks:v.tracks})!==JSON.stringify({reference:loaded?.reference,tracks:loaded?.tracks});
- return heading(t('igv'),t('igvHelp'))+`<details class="panel igv-sources" ${v.loaded?'':'open'}><summary>${t('igvFiles')}${v.loaded?` · ${esc(basename(loaded?.reference?.fasta))} · ${loaded?.tracks?.length||0} ${t('tracks').toLowerCase()}`:''}</summary><div class="panel-body"><h2>${t('igvReferenceStep')}</h2><p class="help section-gap">${t('igvReferenceHelp')}</p><div class="form-row">${fileField(t('reference'),'igv-reference.fasta',v.reference.fasta,'igv-reference')}${fileField(t('fastaIndex'),'igv-reference.index',v.reference.index,'fai')}</div><div class="section-title"><h2>${t('igvTracksStep')}</h2>${button(t('addTrack'),'igv-add-track',{},'small','plus')}</div><p class="help">${t('igvTrackHelp')}</p>${v.tracks.map((track,i)=>`<div class="igv-track">${input(t('name'),'track-name-'+i,track.name,`data-track-name="${i}"`)}${fileField(t('alignment'),`igv-track.${i}.path`,track.path,'alignment')}${fileField(t(trackIndexFilter(track.path)==='crai'?'cramIndex':trackIndexFilter(track.path)==='tabix'?'annotationIndex':'alignmentIndex'),`igv-track.${i}.index`,track.index,trackIndexFilter(track.path))}${button(t('removeTrack'),'igv-remove-track',{index:i},'quiet small','close')}</div>`).join('')}<div class="actions section-gap">${button(t(v.loaded?'reloadGenome':'loadGenome'),'igv-load',{},'primary','igv')}<span class="help">${t('igvMissing')}</span></div></div></details>${dirty?notice(t('igvUnapplied'),'warning'):''}<section id="igv-navigation" class="panel igv-navigation section-gap" aria-label="${t('igvNavigation')}">${renderIgvNavigation()}</section><div id="igv-container" class="igv-container section-gap">${empty(t('igvNotLoaded'))}</div>`;
+ const infoLabel=esc(t('igvAbout'));
+ const header=`<div class="page-heading"><div><div class="igv-title"><h1>${esc(t('igv'))}</h1><button type="button" class="button igv-info" data-action="igv-about" title="${infoLabel}" aria-label="${infoLabel}">${icon('info')}</button></div><p>${esc(t('igvHelp'))}</p></div></div>`;
+ return header+`<details class="panel igv-sources" ${v.loaded?'':'open'}><summary>${t('igvFiles')}${v.loaded?` · ${esc(basename(loaded?.reference?.fasta))} · ${loaded?.tracks?.length||0} ${t('tracks').toLowerCase()}`:''}</summary><div class="panel-body"><h2>${t('igvReferenceStep')}</h2><p class="help section-gap">${t('igvReferenceHelp')}</p><div class="form-row">${fileField(t('reference'),'igv-reference.fasta',v.reference.fasta,'igv-reference')}${fileField(t('fastaIndex'),'igv-reference.index',v.reference.index,'fai')}</div><div class="section-title"><h2>${t('igvTracksStep')}</h2>${button(t('addTrack'),'igv-add-track',{},'small','plus')}</div><p class="help">${t('igvTrackHelp')}</p>${v.tracks.map((track,i)=>`<div class="igv-track">${input(t('name'),'track-name-'+i,track.name,`data-track-name="${i}"`)}${fileField(t('alignment'),`igv-track.${i}.path`,track.path,'alignment')}${fileField(t(trackIndexFilter(track.path)==='crai'?'cramIndex':trackIndexFilter(track.path)==='tabix'?'annotationIndex':'alignmentIndex'),`igv-track.${i}.index`,track.index,trackIndexFilter(track.path))}${button(t('removeTrack'),'igv-remove-track',{index:i},'quiet small','close')}</div>`).join('')}<div class="actions section-gap">${button(t(v.loaded?'reloadGenome':'loadGenome'),'igv-load',{},'primary','igv')}<span class="help">${t('igvMissing')}</span></div></div></details>${dirty?notice(t('igvUnapplied'),'warning'):''}<section id="igv-navigation" class="panel igv-navigation section-gap" aria-label="${t('igvNavigation')}">${renderIgvNavigation()}</section><div id="igv-container" class="igv-container section-gap">${empty(t('igvNotLoaded'))}</div>`;
 }
-function render(){if(!state.boot)return;curveViews.clear();const existingIgv=state.view==='igv'&&state.igv.loaded?$('igv-container'):null;renderGeneration++;$('navigation').innerHTML=nav.map((key,i)=>`${i===5?'<div class="nav-divider"></div>':''}<button class="nav-button ${state.view===key?'active':''}" data-action="navigate" data-view="${key}" ${state.view===key?'aria-current="page"':''}>${icon(key)}<span>${t(key)}</span></button>`).join('');$('breadcrumb').textContent='NewPat / '+t(state.view);$('version').textContent=state.boot.version;$('language').value=L.language;document.querySelectorAll('[data-text]').forEach(el=>el.textContent=t(el.dataset.text));const active=state.jobs.filter(j=>!terminal(j));$('job-indicator').textContent=active.length?active.length+' · '+t('running'):'';$('main').innerHTML=({home:renderHome,new:renderNew,archive:renderArchive,activity:renderActivity,catalog:renderCatalog,settings:renderPreferences,environment:renderEnvironment,igv:renderIGV}[state.view]||renderHome)();if(existingIgv){$('igv-container').replaceWith(existingIgv);window.NipatIGV?.resize?.()}}
+function render(){if(!state.boot)return;curveViews.clear();const existingIgv=state.view==='igv'&&state.igv.loaded?$('igv-container'):null;renderGeneration++;$('navigation').innerHTML=nav.map((key,i)=>`${i===5?'<div class="nav-divider"></div>':''}<button class="nav-button ${state.view===key?'active':''}" data-action="navigate" data-view="${key}" ${state.view===key?'aria-current="page"':''}>${icon(key)}<span>${t(key)}</span></button>`).join('');$('breadcrumb').textContent='NewPat / '+t(state.view);$('version').textContent=state.boot.version;$('language-'+L.language).checked=true;document.querySelectorAll('[data-text]').forEach(el=>el.textContent=t(el.dataset.text));const active=state.jobs.filter(j=>!terminal(j));$('job-indicator').textContent=active.length?active.length+' · '+t('running'):'';$('main').innerHTML=({home:renderHome,new:renderNew,archive:renderArchive,activity:renderActivity,catalog:renderCatalog,settings:renderPreferences,environment:renderEnvironment,igv:renderIGV}[state.view]||renderHome)();if(existingIgv){$('igv-container').replaceWith(existingIgv);window.NipatIGV?.resize?.()}}
 function refreshPreservingInput(id){const inputElement=$(id),start=inputElement?.selectionStart,value=inputElement?.value;render();const next=$(id);if(next){next.focus();if(typeof start==='number'&&next.setSelectionRange)next.setSelectionRange(start,start)}}
 function humanError(error){let message=String(error?.message||error||t('operationError'));message=message.replace(/--(dnp|snp)-(contamination-panel|cpi-cutoffs|cpin-panel|popfreq|panel)/g,(_,marker,kind)=>({panel:t('panel'),popfreq:t('population'),'contamination-panel':t('contaminationPanel'),'cpi-cutoffs':t('cpiPanels'),'cpin-panel':t('cpinPanel')}[kind]+' '+marker.toUpperCase()));for(const key of Object.keys(L.fields).sort((a,b)=>b.length-a.length))message=message.replaceAll(key,L.field(key));for(const module of Object.keys(state.settings))message=message.replaceAll(module,moduleName(module));return message}
 function showError(error){const message=humanError(error);if(state.view==='new'){state.error=message;render()}else toast(message)}
@@ -298,7 +354,7 @@ async function loadEntry(){const version=++entryLoadVersion;++tableLoadVersion;c
 async function loadTable(offset=0){if(!state.tableFile)return;const version=++tableLoadVersion;const context=[state.runId,state.module,state.entry,state.tableFile].join('|');const table=await rpc('runs.table',{run_id:state.runId,file_id:state.tableFile,offset,limit:100,query:state.tableSearch});if(version!==tableLoadVersion||context!==[state.runId,state.module,state.entry,state.tableFile].join('|'))return;state.table=table;state.tableOffset=offset;render()}
 function safeLocalUrl(url){const parsed=new URL(url,location.href);if(parsed.origin!==location.origin||!['http:','https:'].includes(parsed.protocol))throw new Error(t('operationError'));return parsed.href}
 async function openFile(id){const file=state.files.find(f=>f.id===id);if(!file)return;if(file.kind==='table'){const table=await rpc('runs.table',{run_id:state.runId,file_id:id,offset:0,limit:100});state.modalTable=table;modal(file.label||file.name,tableView(table,{compact:true,all:true})+`<div class="pager"><span>${format(table.rows.length,0)} / ${format(table.total,0)} ${t('rows')}</span><div class="actions"><button class="button small" data-action="modal-table-page" data-offset="0" disabled>${t('previous')}</button><button class="button small" data-action="modal-table-page" data-offset="100" ${table.has_more?'':'disabled'}>${t('next')}</button></div></div>`,button(t('download'),'export-file',{id},'','download'));}else if(file.kind==='pdf'){const info=await rpc('files.url',{run_id:state.runId,file_id:id});modal(file.label||file.name,`<p class="help">${t('pdfFallback')}</p><iframe class="pdf-preview" src="${esc(safeLocalUrl(info.url))}" title="${esc(file.label||file.name)}"></iframe>`,button(t('download'),'export-file',{id},'','download'))}}
-async function navigate(view){if(!nav.includes(view))return;++runLoadVersion;++entryLoadVersion;++tableLoadVersion;if(state.view==='igv'&&view!=='igv'){++igvLoadVersion;igvNavigationUnsubscribe?.();igvNavigationUnsubscribe=null;window.NipatIGV?.dispose();state.igv.loaded=false}state.error='';state.view=view;if(view==='archive')state.run=null;render();$('main').focus();try{if(['home','archive'].includes(view)){await loadRuns();if(state.view===view)render()}else if(view==='activity'){const jobs=await rpc('jobs.list');state.jobs=jobs.jobs||jobs;if(state.view===view)render()}else if(view==='environment'){const results=await Promise.allSettled([rpc('resources.get'),rpc('installation.get')]);if(results[0].status==='fulfilled')state.environment=results[0].value;else showError(results[0].reason);if(results[1].status==='fulfilled')state.installation=results[1].value;if(state.view===view)render()}}catch(error){showError(error)}}
+async function navigate(view){if(!nav.includes(view))return;if(view!=='activity')visibleLogs.clear();++runLoadVersion;++entryLoadVersion;++tableLoadVersion;if(state.view==='igv'&&view!=='igv'){++igvLoadVersion;igvNavigationUnsubscribe?.();igvNavigationUnsubscribe=null;window.NipatIGV?.dispose();state.igv.loaded=false}state.error='';state.view=view;if(view==='archive')state.run=null;render();$('main').focus();try{if(['home','archive'].includes(view)){await loadRuns();if(state.view===view)render()}else if(view==='activity'){const jobs=await rpc('jobs.list',{include_logs:false});state.jobs=jobs.jobs||jobs;if(state.view===view)render()}else if(view==='environment'){const results=await Promise.allSettled([rpc('resources.get'),rpc('installation.get')]);if(results[0].status==='fulfilled')state.environment=results[0].value;else showError(results[0].reason);if(results[1].status==='fulfilled')state.installation=results[1].value;if(state.view===view)render()}}catch(error){showError(error)}}
 async function savePreferences(){const saved=await rpc('preferences.save',{preferences:state.preferences,baseline:state.baseline});state.preferences=clone(saved);state.baseline=clone(saved);await rpc('ui.save',{preferences:{language:L.language,reduce_motion:!state.motion}});toast(t('saved'))}
 function showConfirmation(title,message,action,data={}){modal(title,`<p>${esc(message)}</p>`,button(t('cancel'),'close-modal')+button(title,action,data,'primary'))}
 function safeSampleId(path,kind){let name=basename(path).replace(/\.[^.]+$/,'').replace(/[^A-Za-z0-9_-]/g,'_');if(!/^[A-Za-z]/.test(name))name='S_'+name;name=name.slice(0,42)||'Sample';let candidate=name,n=2;while(state.draft.samples.some(s=>s.id.toLowerCase()===candidate.toLowerCase()&&(s.kind===kind||(!s.kind.endsWith('-table')&&!kind.endsWith('-table')))))candidate=name+'_'+n++;return candidate}
@@ -320,10 +376,36 @@ async function action(name,data,element){
  if(name==='remove-cutoff'){state.draft.resources[data.marker].cpi_cutoffs.splice(Number(data.index),1);invalidate();render();return}
  if(name==='reset-param'){const target=data.scope==='defaults'?(state.preferences.scientific_settings[data.module]??={}):state.draft.scientific_settings[data.module];target[data.key]=state.settings[data.module].parameters[data.key].default;invalidate();render();return}
  if(name==='validate-plan'){state.error='';const revision=draftRevision,draft=state.draft;let result;try{result=await rpc('plan.preview',{draft:submittedDraft()})}catch(error){if(draft===state.draft&&revision===draftRevision)throw error;return}if(draft!==state.draft)return;if(revision!==draftRevision){toast(L.language==='it'?'La configurazione è cambiata. Verificala di nuovo.':'Configuration changed. Validate it again.');return}state.preview=result;render();return}
- if(name==='start-analysis'){if(!state.preview)return;const draft=state.draft,preview=state.preview;let job;try{job=await rpc('analysis.start',{preview_id:preview.preview_id})}catch(error){if(draft===state.draft)throw error;return}state.jobs.unshift(job);if(draft===state.draft){state.preview=null;state.view='activity';render()}await loadRuns();return}
- if(name==='refresh-jobs'){const jobs=await rpc('jobs.list');state.jobs=jobs.jobs||jobs;render();return}
+ if(name==='start-analysis'){
+  const draft=state.draft,revision=draftRevision;
+  if(startingDraft)return;
+  startingDraft=draft;state.error='';render();
+  const current=()=>draft===state.draft&&revision===draftRevision;
+  try{
+   const preview=state.preview||await rpc('plan.preview',{draft:submittedDraft()});
+   if(!current())return;
+   const job=await rpc('analysis.start',{preview_id:preview.preview_id});
+   state.jobs=[job,...state.jobs.filter(item=>item.id!==job.id)];
+   if(current()&&state.view==='new'){state.view='activity';render()}
+   await loadRuns();
+  }catch(error){if(current())throw error}
+  finally{startingDraft=null;if(current())state.preview=null;if(state.view==='new')render()}
+  return;
+ }
+ if(name==='job-log'){
+  const job=state.jobs.find(item=>item.id===data.id);if(!job)return;
+  if(visibleLogs.has(job.id))visibleLogs.delete(job.id);
+  else visibleLogs.set(job.id,{revision:null,lines:[],busy:false,error:''});
+  const toggle=document.querySelectorAll('[data-action="job-log"]');
+  const control=[...toggle].find(button=>button.dataset.id===job.id);
+  const area=$('job-log-'+job.id),entry=visibleLogs.get(job.id);
+  if(control&&area){control.setAttribute('aria-expanded',String(!!entry));area.hidden=!entry;area.textContent=entry?logText(entry):''}
+  if(entry)await refreshJobLog(job);
+  return;
+ }
+ if(name==='refresh-jobs'){const jobs=await rpc('jobs.list',{include_logs:false});state.jobs=jobs.jobs||jobs;render();return}
  if(name==='cancel-job'){showConfirmation(t('stopAnalysis'),t('stopConfirm'),'confirm-cancel-job',{id:data.id});return}
- if(name==='confirm-cancel-job'){await rpc('jobs.cancel',{job_id:data.id});closeModal();const jobs=await rpc('jobs.list');state.jobs=jobs.jobs||jobs;render();return}
+ if(name==='confirm-cancel-job'){await rpc('jobs.cancel',{job_id:data.id});closeModal();const jobs=await rpc('jobs.list',{include_logs:false});state.jobs=jobs.jobs||jobs;render();return}
  if(name==='open-run')return loadRun(data.id);
  if(name==='back-archive'){state.run=null;state.module=null;return navigate('archive')}
  if(name==='import-run'){const paths=await choosePath(null,'directory');if(paths.length){const result=await rpc('runs.import',{path:paths[0]});await loadRuns();const id=result.imported?.[0];if(id)return loadRun(id);state.view='archive';state.run=null;render()}return}
@@ -356,6 +438,11 @@ async function action(name,data,element){
  if(name==='confirm-install-update'){const r=await rpc('updates.install',{offer_id:state.update.offer_id,confirmed:true});closeModal();if(r.close_required)await rpc('app.close');return}
  if(name==='maintain'){const item=[...(state.installation.runtimes||[]),...(state.installation.cache||[])].find(i=>i.id===data.target)||state.installation.recovery;showConfirmation(data.operation==='cleanup'?t('remove'):(L.language==='it'?'Ripara installazione':'Repair installation'),`${item.name||''} ${item.path||''}\n${item.reason||''}\n${L.language==='it'?'NewPat verrà chiuso per questa operazione.':'NewPat will close for this operation.'}`,'confirm-maintain',{operation:data.operation,target:data.target});return}
  if(name==='confirm-maintain'){const r=await rpc('installation.maintain',{operation:data.operation,target:data.target,confirmed:true});closeModal();if(r.close_required)await rpc('app.close');return}
+ if(name==='igv-about'){
+  const result=await rpc('igv.about');
+  if(!result.opened)throw new Error(t('igvAboutFailed'));
+  return;
+ }
  if(name==='igv-add-track'){state.igv.tracks.push({name:'',path:'',index:''});render();return}
  if(name==='igv-remove-track'){state.igv.tracks.splice(Number(data.index),1);render();return}
  if(name==='igv-load'){
@@ -391,14 +478,28 @@ function onValue(target){const value=target.type==='checkbox'?target.checked:tar
  if(target.dataset.field){const key=target.dataset.field;if(key==='source'){state.source=value;state.draft.caller=value==='tables'?'tables':state.draft.caller==='tables'?'dnp':state.draft.caller;state.sampleKind=value==='tables'?'dnp-table':'bam';if(value==='tables'){state.draft.samples=state.draft.samples.filter(s=>s.kind.endsWith('-table'));state.draft.reference=null}else if(value==='bam')state.draft.samples=state.draft.samples.filter(s=>!s.kind.endsWith('-table'));invalidate();render()}else if(key==='igvLocus'){state.igv.locus=value}else if(key==='igvChromosome'){window.NipatIGV.search(value).catch(showError)}else if(key==='runtimeMemory'||key==='runtimeCpus'){state[key]=value;state.resourcePreview=null}else{state[key]=value;if(key==='archiveStatus'||key==='archiveMarker')state.archivePage=0;if(key==='sampleKind'&&value==='snp-pileup'&&state.draft.caller==='dnp'){state.draft.caller='snp';invalidate()}if(key!=='motion')render();else rpc('ui.save',{preferences:{language:L.language,reduce_motion:!value}}).catch(showError)}return}
  if(target.dataset.result){if(target.dataset.result==='module'){state.module=value;state.entry=0}else state.entry=Number(value);loadEntry().catch(showError);return}
 }
-async function changeLanguage(language){L.setLanguage(language);window.NipatIGV?.setLanguage(language);await rpc('ui.save',{preferences:{language:L.language,reduce_motion:!state.motion}});if(state.run){const saved={id:state.runId,module:state.module,entry:state.entry,tab:state.runTab};await loadRun(saved.id);state.module=saved.module;state.entry=saved.entry;state.runTab=saved.tab;if(state.module&&state.module!=='files')await loadEntry();else render()}else render()}
+let languageWrite=Promise.resolve();
+async function changeLanguage(language){
+ const preferences={language,reduce_motion:!state.motion};
+ // Native radio arrows can change the selection again before the first save finishes.
+ const write=languageWrite.catch(()=>{}).then(()=>rpc('ui.save',{preferences}));
+ languageWrite=write;
+ try{await write}catch(error){
+  if(write===languageWrite)render();
+  throw error;
+ }
+ L.setLanguage(language);
+ window.NipatIGV?.setLanguage(L.language);
+ if(write!==languageWrite)return;
+ if(state.view==='archive'&&state.run){const saved={id:state.runId,module:state.module,entry:state.entry,tab:state.runTab};await loadRun(saved.id);state.module=saved.module;state.entry=saved.entry;state.runTab=saved.tab;if(state.module&&state.module!=='files')await loadEntry();else render()}else render();
+}
 function bind(){
  document.addEventListener('mouseover',event=>showCurvePoint(event.target,event));
  document.addEventListener('focusin',event=>showCurvePoint(event.target));
  document.addEventListener('mouseout',event=>{const point=event.target.closest?.('[data-curve-point]');if(point&&!point.contains?.(event.relatedTarget))hideCurvePoint(point)});
  document.addEventListener('focusout',event=>hideCurvePoint(event.target));
  document.addEventListener('click',async event=>{if(showCurvePoint(event.target,event))event.target.closest('[data-curve-point]').focus();const element=event.target.closest('[data-action]');if(!element||element.disabled)return;if(element.dataset.action==='modal-backdrop'){if(event.target===element)closeModal();return}event.preventDefault();const actionName=element.dataset.action;const longAction=['validate-plan','start-analysis','import-run','reuse-run','run-igv','confirm-remove-run','prepare-module','check-environment','check-updates','download-update','igv-load','export-diagnostics'].includes(actionName);try{element.disabled=true;if(longAction){$('operation-indicator').textContent=t('loading');element.setAttribute?.('aria-busy','true');}await action(actionName,element.dataset,element)}catch(error){showError(error)}finally{element.disabled=false;if(longAction){$('operation-indicator').textContent='';element.removeAttribute?.('aria-busy');}}});
- document.addEventListener('change',event=>{if(event.target.id==='language'){changeLanguage(event.target.value).catch(showError);return}onValue(event.target)});
+ document.addEventListener('change',event=>{if(event.target.name==='language'&&event.target.checked){changeLanguage(event.target.value).catch(showError);return}onValue(event.target)});
  document.addEventListener('input',event=>{const el=event.target;if(el.dataset.search){clearTimeout(searchTimer);const kind=el.dataset.search;const value=el.value;if(kind==='archive'){state.archiveSearch=value;state.archivePage=0;refreshPreservingInput('archive-search')}else if(kind==='catalog'){state.catalogSearch=value;refreshPreservingInput('catalog-search')}else{state.tableSearch=value;searchTimer=setTimeout(()=>loadTable(0).then(()=>$('site-search')?.focus()).catch(showError),300)}return}if(el.tagName==='INPUT'&&!['checkbox','radio'].includes(el.type))onValue(el)});
  document.addEventListener('keydown',event=>{if(curveKey(event))return;const dialog=$('modal-root').querySelector('[role=dialog]');if(dialog){if(event.key==='Escape'){closeModal();return}if(event.key==='Tab'){const nodes=[...dialog.querySelectorAll('button,input,select,summary,[tabindex="0"]')].filter(n=>!n.disabled);const first=nodes[0],last=nodes[nodes.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus()}}}else if(event.key==='Enter'&&event.target.id==='igv-locus'){event.preventDefault();action('igv-search',{}).catch(showError)}});
 }
@@ -416,10 +517,13 @@ async function refreshOpenedRun(){
 }
 async function poll(){
  try{
-  const jobs=await rpc('jobs.list'),before=state.jobs.map(j=>j.status).join('|');state.jobs=jobs.jobs||jobs;
+  const jobs=await rpc('jobs.list',{include_logs:false}),before=state.jobs.map(j=>j.status).join('|');state.jobs=jobs.jobs||jobs;
   const active=state.jobs.filter(j=>!terminal(j));$('job-indicator').textContent=active.length?active.length+' · '+t('running'):'';
   if(state.view==='activity'&&!$('modal-root').innerHTML&&!updateActivity()){
-   const logOpen=[...document.querySelectorAll('.disclosure')].map(d=>d.open);render();document.querySelectorAll('.disclosure').forEach((d,i)=>d.open=logOpen[i]||false);
+   render();
+  }
+  if(state.view==='activity'&&visibleLogs.size){
+   await Promise.all(state.jobs.filter(job=>visibleLogs.has(job.id)).map(refreshJobLog));
   }
   if(before!==state.jobs.map(j=>j.status).join('|')){await loadRuns();if(state.view==='home'||state.view==='archive'&&!state.run)render()}
   if(state.view==='archive'&&state.run&&(!terminal(state.run)||active.some(j=>j.run_id===state.runId)))await refreshOpenedRun();

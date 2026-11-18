@@ -59,7 +59,13 @@ main <- function() {
     list(name = "maximum-one", mode = "auto", maximum = "1"),
     list(name = "maximum-two", mode = "auto", maximum = "2"),
     list(name = "capable", mode = "auto", maximum = "12"),
-    list(name = "limited", mode = "auto", maximum = "4"),
+    list(name = "limited", mode = "auto", maximum = ""),
+    list(name = "pair-at-budget", mode = "auto", maximum = "4"),
+    list(name = "pair-over-budget", mode = "auto", maximum = "4"),
+    list(name = "larger-worker", mode = "auto", maximum = "4"),
+    list(name = "pair-only", mode = "auto", maximum = "4"),
+    list(name = "one-cpu", mode = "auto", maximum = "4"),
+    list(name = "unknown-reference", mode = "auto", maximum = "4"),
     list(name = "one-chromosome", mode = "auto", maximum = "12"),
     list(name = "large-reference", mode = "auto", maximum = "12"),
     list(name = "unlimited-depth", mode = "auto", maximum = "12"),
@@ -84,13 +90,16 @@ main <- function() {
     sys.source(file.path(root, "src/nipat_scientific/dnp_blocks.R"), environment)
     # Exercise both measured capacities deterministically, including on CI
     # runners with a smaller allocation. The policy consumes the real R budget.
-    limited <- configuration$name == "limited"
+    limited <- configuration$name %in% c("limited", "pair-at-budget", "pair-over-budget",
+                                         "larger-worker", "pair-only", "one-cpu", "unknown-reference")
+    cpus <- if (configuration$name == "one-cpu") 1L else if (limited) 4L else 32L
+    memory <- if (configuration$name == "pair-only") 6200L else if (limited) 3905L else 15858L
     environment$nipat_parallel_capacity <- function() list(
-      cpu_limit = if (limited) 4L else 32L, worker_ceiling = if (limited) 4L else 32L,
-      memory_budget_mib = if (limited) 3124L else 12686L,
-      memory_capacity_mib = if (limited) 3905L else 15858L, memory_reserve_fraction = 0.20,
+      cpu_limit = cpus, worker_ceiling = cpus, memory_budget_mib = floor(0.8 * memory),
+      memory_capacity_mib = memory, memory_reserve_fraction = 0.20,
       interface = "nipat-fixed-resources-v1", source = "assigned-capacity-at-run-start")
-    environment$nipat_parallel_rss_mib <- function() 250
+    environment$nipat_parallel_rss_mib <- function() switch(configuration$name,
+      "pair-at-budget" = 244, "pair-over-budget" = 245, 125)
     chromosomes <- if (configuration$name == "one-chromosome") "chr1" else paste0("chr", 1:6)
     environment$r_DNPlist <- data.frame(chr = rep(chromosomes, 2L))
     environment$r_bamlist <- data.frame(bam = seq_len(if (configuration$name == "multi-bam") 2L else 1L))
@@ -107,9 +116,11 @@ main <- function() {
     environment$pileup_path <- file.path(environment$dnp_scratch, "mpileup.txt")
     writeLines("mounted-sample.bam", environment$bamlist)
     writeLines(c(">chr1", "ACGT"), environment$reference)
-    longest <- if (configuration$name == "large-reference") 3000000000 else 249250621
+    longest <- switch(configuration$name, "large-reference" = 3000000000,
+                      "larger-worker" = 253000000, 249250621)
     writeLines(paste(chromosomes, format(longest, scientific = FALSE), 6, 80, 81, sep = "\t"),
                paste0(environment$reference, ".fai"))
+    if (configuration$name == "unknown-reference") unlink(paste0(environment$reference, ".fai"))
     writeLines("chr1\t0\t4", "bedfile_for_mpileup.bed")
 
     error <- tryCatch({
@@ -124,16 +135,19 @@ main <- function() {
     } else {
       if (!is.null(error)) stop(error)
       evidence <- jsonlite::fromJSON("work/dnp-pileup.json")
+      if (nzchar(configuration$maximum)) {
+        stopifnot(evidence$budget$max_workers == as.integer(configuration$maximum),
+                  evidence$budget$workers <= as.integer(configuration$maximum))
+      } else stopifnot(is.null(evidence$budget$max_workers))
       stopifnot(identical(evidence$budget$mode, configuration$mode),
-                evidence$budget$max_workers == as.integer(configuration$maximum),
-                evidence$budget$workers <= as.integer(configuration$maximum),
                 is.finite(environment$acquisition_seconds),
                 identical(readLines(environment$pileup_path), "fixture-pileup"))
       if (configuration$mode == "serial" || configuration$maximum == "1") {
         stopifnot(evidence$budget$workers == 1L)
       }
       if (.Platform$OS.type != "windows") {
-        expected <- switch(configuration$name, "capable" = 5L, "maximum-two" = 2L, 1L)
+        expected <- switch(configuration$name, "capable" = 5L, "maximum-two" = 2L,
+                           "limited" = 2L, "pair-at-budget" = 2L, "pair-only" = 2L, 1L)
         stopifnot(evidence$budget$workers == expected)
         if (configuration$name == "limited") stopifnot(evidence$budget$reason == "acquisition-memory-budget")
       }

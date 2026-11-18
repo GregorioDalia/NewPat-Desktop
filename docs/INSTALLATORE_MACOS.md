@@ -2,10 +2,10 @@
 
 NewPat supports **macOS 14 or later** on Intel and Apple Silicon. Choose the package for the Mac's processor from the [stable release](https://github.com/GregorioDalia/nipat-desktop/releases/latest). In **Apple menu → About This Mac**, an Apple M-series chip means Apple Silicon.
 
-| Processor | NewPat 0.9.7 package | Scientific runtime |
+| Processor | NewPat 0.9.8 package | Scientific runtime |
 | --- | --- | --- |
-| Apple Silicon | `NewPat-0.9.7-macos-arm64.pkg` | ARM64 Lima guest running the Linux AMD64 image with Rosetta |
-| Intel | `NewPat-0.9.7-macos-x86_64.pkg` | AMD64 Lima guest running the Linux AMD64 image |
+| Apple Silicon | `NewPat-0.9.8-macos-arm64.pkg` | ARM64 Lima guest running the Linux AMD64 image with Rosetta |
+| Intel | `NewPat-0.9.8-macos-x86_64.pkg` | AMD64 Lima guest running the Linux AMD64 image |
 
 The package includes native Python and Lima, the graphical application, CLI and scientific image. The first launch needs virtualization, internet access for guest preparation and sufficient storage for the application, VM disk, image, input files and results. Homebrew, Docker Desktop and separate R or samtools installations are unnecessary.
 

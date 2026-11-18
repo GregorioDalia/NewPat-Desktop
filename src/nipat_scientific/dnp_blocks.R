@@ -427,11 +427,18 @@ nipat_dnp_acquisition_budget <- function(chromosomes, samples, settings, referen
   }, error = function(e) NA_real_)
   if (any(!is.finite(lengths)) || any(lengths <= 0)) return(plan)
 
-  # Allow for non-reference RSS and double the estimate for depth/allocator
-  # variability. Use at most a quarter of the remaining fixed budget for this
-  # pool, leaving room for filesystem cache, helper and unmodelled allocations.
-  estimate <- 2 * max(288, ceiling(max(lengths) / 1024^2) + 48)
-  available <- max(0, plan$memory_budget_mib - plan$coordinator_rss_mib) / 4
+  # Allow for non-reference RSS and double the estimate for depth/allocator variability.
+  measured_rss_mib <- 288
+  estimate <- 2 * max(measured_rss_mib, ceiling(max(lengths) / 1024^2) + 48)
+  remaining <- max(0, plan$memory_budget_mib - plan$coordinator_rss_mib)
+  available <- remaining / 4
+  # On the 3,905 MiB profile two GRCh37 workers fit in 40% of the remaining
+  # work budget. Grant only those two slots; larger pools and larger reference
+  # footprints continue to use the quarter-budget allowance.
+  pair <- 2 * estimate
+  if (plan$worker_ceiling >= 2L && estimate == 2 * measured_rss_mib && pair <= 0.4 * remaining) {
+    available <- max(available, pair)
+  }
   plan$workload_model <- "single-bam-bounded-depth-reference-and-rss"
   plan$memory_per_worker_mib <- estimate
   plan$acquisition_pool_budget_mib <- available

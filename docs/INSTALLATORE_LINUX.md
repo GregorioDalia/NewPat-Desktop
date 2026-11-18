@@ -1,13 +1,13 @@
 # Install NewPat on Ubuntu
 
-The supported system is **Ubuntu 24.04 LTS on x86_64/amd64**. Download `newpat-desktop_0.9.7_amd64.deb` from the [stable release](https://github.com/GregorioDalia/nipat-desktop/releases/latest). The package contains the desktop client, documentation and the Linux image with R, samtools and the scientific dependencies. Its APT package name remains `nipat-desktop` so existing systems can upgrade in place.
+The supported system is **Ubuntu 24.04 LTS on x86_64/amd64**. Download `newpat-desktop_0.9.8_amd64.deb` from the [stable release](https://github.com/GregorioDalia/nipat-desktop/releases/latest). The package contains the desktop client, documentation and the Linux image with R, samtools and the scientific dependencies. Its APT package name remains `nipat-desktop` so existing systems can upgrade in place.
 
 ## Install and start
 
 1. In a terminal, change to the directory containing the downloaded package and run:
 
    ```bash
-   sudo apt install ./newpat-desktop_0.9.7_amd64.deb
+   sudo apt install ./newpat-desktop_0.9.8_amd64.deb
    ```
 
 2. Review the dependencies APT proposes. It uses the configured repositories to install Python 3.12, GTK/WebKit bindings, Docker Engine (`docker.io` or `docker-ce`) and Compose v2 (`docker-compose-v2` or `docker-compose-plugin`). Missing packages require internet access. APT handles dependencies for local packages. A graphical package manager can do this if it supports installation of local files.

@@ -17,7 +17,7 @@ Allow space for the application, downloaded archives, imported WSL filesystem, s
 
 The setup includes its own Python bootstrap and downloads a verified application payload from GitHub. Future compatible payloads can reuse the saved installer. A newer bootstrap may be required if the installer contract changes. For a new network installation use the installer supplied on the release page.
 
-The **NewPat Testing** shortcut opens its separate testing installation. To switch from 0.9.5 Testing to the 0.9.7 stable installation, run the stable EXE and use the **NewPat** shortcut created by setup. Both installations can coexist.
+The **NewPat** shortcut opens the stable installation. If a separate testing installation is present, its **NewPat Testing** shortcut opens that copy.
 
 <a id="controlli-di-sicurezza-di-windows-e-del-browser"></a>
 
@@ -43,7 +43,7 @@ If the event names a temporary setup executable, include both that filename and 
 
 ## Complete ZIP installation
 
-1. Download `NewPat-0.9.7-Windows-completo.zip` from the release and compare its SHA-256 with `SHA256SUMS`. PowerShell can calculate the hash with `Get-FileHash -Algorithm SHA256 -LiteralPath .\NewPat-0.9.7-Windows-completo.zip`.
+1. Download `NewPat-0.9.8-Windows-completo.zip` from the release and compare its SHA-256 with `SHA256SUMS`. PowerShell can calculate the hash with `Get-FileHash -Algorithm SHA256 -LiteralPath .\NewPat-0.9.8-Windows-completo.zip`.
 2. Extract the entire archive into its final location on a local fixed disk. Close the compressed-folder view and open the extracted files.
 3. Run `1_INSTALLA.cmd` as your regular user. Wait for **NewPat: ready**, including any required restart.
 4. If Windows asks for a reboot, restart, sign back in and open `NIPAT\NewPat.lnk` **inside the extracted folder** to resume ZIP preparation. Once ready, the same shortcut opens the application. A normal first installation from the ZIP also opens NewPat when preparation succeeds.

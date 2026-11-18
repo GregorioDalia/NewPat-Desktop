@@ -1,13 +1,13 @@
 # Desktop guide
 
-Use NewPat to set up an experiment, follow its progress, read results and inspect alignments. The language control in the top bar switches between English and Italian. The labels below use English.
+Use NewPat to set up an experiment, follow its progress, read results and inspect alignments. Choose the British or Italian flag in the top bar to switch between English and Italian. NewPat remembers this choice when you reopen the application. The labels below use English.
 
 ## Set up an experiment
 
 1. Choose **New experiment** and give the experiment a name. Select the starting material (BAM files, SNP pileups or existing count tables). For BAM inputs, supply the reference FASTA, the marker panel for each caller and a sample ID for each file.
 2. Select the analyses. Contamination, prenatal CPI and postnatal CPIN can each use a caller's count tables. For parentage analyses, identify each sample's role in its pair or trio and select population frequencies for the marker type.
-3. Review the scientific parameters, sample list, execution settings and destination. Select **Validate configuration**, then **Start experiment**. Select **Record performance diagnostics** if you need timing and resource measurements.
-4. Open **Activity** to see the current phase and elapsed time. The DNA animation shows activity while the engine prepares. When a phase has measurable progress, the percentage refers to that phase. Stopping an analysis can take time while its processes exit.
+3. Review the scientific parameters, sample list, execution settings and destination. Select **Record performance diagnostics** if you need timing and resource measurements. Choose **Start experiment** once. NewPat checks the configuration and runtime and starts the analysis when the checks pass. If a check fails, use the displayed message to correct the problem before trying again.
+4. Open **Activity** to see the current phase, the sample when available, and the elapsed time. Recent activity lists changes as they happen. Expand **Technical log** for detailed messages. The DNA animation shows activity while the engine prepares. When a phase has measurable progress, the percentage refers to that phase. Stopping an analysis can take time while its processes exit.
 
 **New experiment** starts with the defaults in Preferences. **Run again** opens a fresh draft with an existing run's input files and settings. Review those paths before starting it. See the [input and command reference](GUIDA_UTILIZZO.md) for panel formats and sample roles.
 
@@ -36,7 +36,7 @@ Interactive files are limited to 20,000 rows and 16 MiB each. The plot and detai
 
 ## Inspect alignments in IGV
 
-The fastest way to see reads is to start with a covered site. In a result table with coordinates and available BAM and FASTA inputs, choose **View in IGV**. To open your own files, use **IGV viewer** and select the reference genome and its tracks.
+The fastest way to see reads is to start with a covered site. In a result table with coordinates and available BAM and FASTA inputs, choose **View in IGV**. To open your own files, use **IGV viewer** and select the reference genome and its tracks. The information button beside the viewer title opens the official introduction in your system browser. Your local tracks stay in the NewPat window. [About IGV](https://igv.org/doc/webapp/)
 
 | Input | Matching index |
 | --- | --- |
