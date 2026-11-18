@@ -1,0 +1,1299 @@
+{
+  "schema_version": 7,
+  "version": "0.9.9",
+  "source_commit": "adc659bd132cc24353e637f6430e3cc470e0a8f8",
+  "installer_manifest_sha256": "17f0f237c1ec7074d4ac4ea7fce0898532eaf7eef6e0654b6eaa053ef3d2ea75",
+  "scientific_archive_sha256": "d9a4bfc6c703f05282ffb74a7b40ac4b7475046af3b92b70419ca28eeee78ebb",
+  "windows_installer_sha256": "bc8088b42a02b187771a62210bea1054a06e0b22b26ccb3c0a455f997ddf493f",
+  "linux_installer_sha256": "b8bb9fb6c8305ab482d16310eb69414d7312060210950280e31683939d63f39f",
+  "macos_arm64_installer_sha256": "6e34d7286f409b338a028e4e8b3304a1c55115ab6ba7199c7ff72bd7e2008652",
+  "macos_x86_64_installer_sha256": "d5399dcbd95a4acaaebd77cdb4417c5ecd5304c3bdc61a695de721dd3f85b668",
+  "windows_zip_sha256": "63ea0f08ddb57d2bda15d1986a854f6a9ceec31dc70b71b183b4f345f1b708d2",
+  "windows_payload_sha256": "af5d2ebd131d414493f93c5402cd196a8bc84a8fb6ccc35de58a0f20a24bb970",
+  "build_run_id": 44395258945,
+  "decision": "accepted-for-research",
+  "scope": "pre-1.0-research",
+  "review": {
+    "reviewer": "Codex (authorized by GregorioDalia)",
+    "reviewed_at": "2026-11-18T21:32:48Z",
+    "evidence": [
+      "https://github.com/GregorioDalia/nipat-desktop/actions/runs/44395258945/attempts/1",
+      "https://github.com/GregorioDalia/nipat-desktop/actions/runs/44395258945/job/135145687531",
+      "https://github.com/GregorioDalia/nipat-desktop/actions/runs/44395258945/job/135139338270",
+      "https://github.com/GregorioDalia/nipat-desktop/pull/77",
+      "https://github.com/GregorioDalia/nipat-desktop/actions/runs/44393170134"
+    ]
+  },
+  "observed_baseline": {
+    "source_commit": "d19e6bf58941a349d26d2f32ebb79bd24b6b7fcc",
+    "observations": [
+      "installation_ready",
+      "runtime_diagnostics",
+      "scientific_self_tests",
+      "dnp_sample_analysis",
+      "automatic_workflow_sample_analysis"
+    ],
+    "evidence": [
+      "https://github.com/GregorioDalia/nipat-desktop/blob/ea7029742afcb3e376968e1d360202915fa88248/docs/AUDIT_0.8.70.md",
+      "https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.8.60"
+    ],
+    "role": "historical-platform-evidence",
+    "source_comparison_scope": "reviewed-operative-changes-with-versioned-scientific-models-v1"
+  },
+  "reviewed_source_changes": [
+    {
+      "path": "2_AVVIA.cmd",
+      "before_sha256": "34c5180ed8cbe4978a7dda761b961ddb276d18d7c6204ac90836a5ca60e60474",
+      "after_sha256": "567ff9676020268edddf8c40c578ff8f60c04f4b89907d0b0e2358cd6126c812"
+    },
+    {
+      "path": "assets/branding/build_assets.py",
+      "before_sha256": "df5403a430ecb2d28959e0ccda39f6843711df558a86be75dec59c423db7d276",
+      "after_sha256": "28f33e5f8bc41be64c3aef1bfed1ae5270e1f3de60ce38705d33f7937266621e"
+    },
+    {
+      "path": "assets/branding/nipat-logo-dark.svg",
+      "before_sha256": "3919509cdbe809e9b4ac8cc0d9e676938197677f1640af060908a32c2ed3183e",
+      "after_sha256": "ed8482f5d595ff82d4e828bdff508c5fc37f14aa28c9411f8945d6dd43f8bdd7"
+    },
+    {
+      "path": "assets/branding/nipat-logo.svg",
+      "before_sha256": "4f2a0d9367575529c91057870248f14fdc95727ffcba8723bb49d0fd24b7e125",
+      "after_sha256": "c39c49e7ce6967194534ffc8fe21bd4d617c35b7a4b36a77d016629074ad729c"
+    },
+    {
+      "path": "assets/branding/nipat-symbol.svg",
+      "before_sha256": "9b7d1c27daa9e952ff2807e528f5bb18166e2674af068075be1ffbf46b9ce967",
+      "after_sha256": "706c37c6d134bb27f22c6587ae0504378433af6a83cddc70c5c55e06175be4ea"
+    },
+    {
+      "path": "engine/main.py",
+      "before_sha256": "5667313e61ee8f13eedc026e0fd374f98a96fc6a852f77f234d53ff215417532",
+      "after_sha256": "c6167dec986a47910de8e4d2177d1cbda57e7ae41dd0717bb295097f7ef2afa8"
+    },
+    {
+      "path": "installer/linux/launch.py",
+      "before_sha256": "251ce2f17aaff1f8c97f3bb7514d4f5f4ca9845c46e7767bfdcf322ea5d2d07d",
+      "after_sha256": "9c1f63f45fd863ba9b52274b6f629e95bf5bad293d542212746835c87c4710df"
+    },
+    {
+      "path": "installer/macos/NIPAT.command",
+      "before_sha256": "d39042dcee80eeca4f05f0bd253a426ce069bc6fea3e184fe6918ac569876072",
+      "after_sha256": "d3f885695ff82c9f8852d162aefbd1dfa626dc7f19e861ab951da98b9900dc43"
+    },
+    {
+      "path": "installer/macos/launch.py",
+      "before_sha256": "7dbb3d810ae7c5e9d400f25f66a2db922b7331d573b99acdb91f8a4a3247507b",
+      "after_sha256": "c373898017c44ce7d6ddafe5018dc77a59dcac622a20064b66391e0b45a9da7f"
+    },
+    {
+      "path": "installer/macos/launcher.c",
+      "before_sha256": "4fb401bd27e93550b445930aa39f2d5a793418c2503ae66e73e0ccb515f79424",
+      "after_sha256": "76e474539ab3c86bed02bdb62fab26e9e088035ac6d34678f759ba2f65e1e11d"
+    },
+    {
+      "path": "installer/macos/migrate_legacy.py",
+      "before_sha256": null,
+      "after_sha256": "cdd6c8f27c1537f3f44acf184caa45ea73fc626b7253c7212e954daea93925da"
+    },
+    {
+      "path": "installer/macos/package-guard.c",
+      "before_sha256": "944da94994d8e04f0c89a7b8dc3d545e4ef15f1806b42fb5efc2a6f22dcd9208",
+      "after_sha256": "f709e645808cb6b2cc5a0c405ac7c56107fe9faf320e8377040655bc0e4cb6dc"
+    },
+    {
+      "path": "installer/windows/EnableWsl.cs",
+      "before_sha256": "7b4e3d59754608d3269559b85d709e3c4d1d5c758c2e4a22153d31993727f2ad",
+      "after_sha256": "179f9a5b6bc127c5fe7d08b5f4bb7b479f4ad35070d4bbd478b7f2eb22a785a3"
+    },
+    {
+      "path": "installer/windows/NIPAT.iss",
+      "before_sha256": "b14f6b8b88c5e6f8c823d93ae6de8c592940df26c4a3a2f7ddb1bbdb8b244589",
+      "after_sha256": "162603d363759bd327860aa00e1aa3f6b3f1130d7d62b325d75c4d3ee891c9d9"
+    },
+    {
+      "path": "installer/windows/NipatLauncher.cs",
+      "before_sha256": "e3c0b2da393691ec5b6510e2aec9b094e90a574d1fcbf3b0b01e53aab6682345",
+      "after_sha256": "66e5d41870b80b6968bccdbd819e2ac2aae3e9ddd1dbe8a74af4640a7b0020d6"
+    },
+    {
+      "path": "installer/windows/activity-lock.ps1",
+      "before_sha256": "87df878590c018ace5679a1503a5912c582ca195b3da404329d54585c5f95118",
+      "after_sha256": "3005e3412d3af216f5f7e5a4bbfd234ece3838ead084345ac8eeba007796d639"
+    },
+    {
+      "path": "installer/windows/bootstrap-common.ps1",
+      "before_sha256": "150671b1e1a037e87b830eb84218a245d666a18c0bba6ec364701834367580b6",
+      "after_sha256": "0fb8caf4f039474831d0348573e0d14f7da5cfd44f109caca45d48087497510e"
+    },
+    {
+      "path": "installer/windows/bootstrap-migration.ps1",
+      "before_sha256": "4e572c14f7160287d0363fa3fef9e50993d70f7c3d1f291f9b490a7346583992",
+      "after_sha256": "56b4f37dc116c7916ab373214c050a5a8c4fa602d77d47754456e9e8d96e4364"
+    },
+    {
+      "path": "installer/windows/bootstrap-profile.iss",
+      "before_sha256": null,
+      "after_sha256": "4a8d9081840acc62235a914b566b3c701b1b3aee185e938beb1a336e0630638e"
+    },
+    {
+      "path": "installer/windows/bootstrap.ps1",
+      "before_sha256": "f701c08f95a01471d2831d4d5ed0ebf3485d2e505b09ed8262b2f34267b05ec1",
+      "after_sha256": "14acdcd93b566d4134ebe9c154944dba8b9c21cf623a171db2f5daa86bcc9284"
+    },
+    {
+      "path": "installer/windows/bootstrap_download.py",
+      "before_sha256": null,
+      "after_sha256": "5d8b03b4f31b6f8bdc9efdc283f4d44a0627caf6963ac55cb44bc1294670747f"
+    },
+    {
+      "path": "installer/windows/build-launcher.ps1",
+      "before_sha256": "33a32c2a47f89c79b2d84d6279c581ea2035f9b2e1a54fdb0e5273f7a7285569",
+      "after_sha256": "2a68ff78e5b2616decc4a3827476acfed846ce633b07b4698a99181b3a580560"
+    },
+    {
+      "path": "installer/windows/build-native.ps1",
+      "before_sha256": "a572c99b509b192850d3aecf74665f1fb8c117e8b24649a4dc007ef98d1d6440",
+      "after_sha256": "c1cfb149e4fea68df6933b159ac2001c2f31ff3772cc950bf47b66d330697526"
+    },
+    {
+      "path": "installer/windows/desktop_payload.py",
+      "before_sha256": null,
+      "after_sha256": "8550688b7217eab3c895a76de7fee0ed467db0bacacc36f0031b61f887298c2d"
+    },
+    {
+      "path": "installer/windows/install-layout.ps1",
+      "before_sha256": "941e577850e35620aa68abb9dec5e21777ba3ea295d4cc2da492a55b3096cbb2",
+      "after_sha256": "4a5517f420ca3bb97862608ce720b2c6bc3a0ce53487909c6b83c7e51d3523e3"
+    },
+    {
+      "path": "installer/windows/install-profile.json",
+      "before_sha256": "2a1d18ca9af6b9b044f34d8a86e435c54af238dda8d4a51e13b1d6890a5e7c52",
+      "after_sha256": "358a61fe49638d3cb7ab907437f599be87ee2c6d3abc3655446e1104fe15c81a"
+    },
+    {
+      "path": "installer/windows/install-profile.ps1",
+      "before_sha256": "08b94b29f54a41c08d8780e69ab67d4ee560dfdd4e4793da05bcf317149a6cbb",
+      "after_sha256": "f9e553517980e7907e95cbc9dc32a929a9ba51cef2745d9725ccc84dcf798221"
+    },
+    {
+      "path": "installer/windows/install-testing.ps1",
+      "before_sha256": null,
+      "after_sha256": "20da468fe86f06f6c33e24cff71f046f29a4fb73ec6bad05f489ba2f3b940be1"
+    },
+    {
+      "path": "installer/windows/install-zip.ps1",
+      "before_sha256": null,
+      "after_sha256": "e573302dac0c35ffad84642451c4f4f0ab6014484181ab521e01e454ab899ea2"
+    },
+    {
+      "path": "installer/windows/launch.ps1",
+      "before_sha256": "0dbb56667ec143869f2ba1977966d6e4fbb1063d95025667f661bf52c59e52f5",
+      "after_sha256": "3d1a9b49f45df1b5c23354b2fd17bc2b51d0f64181ff2d73244fc3bd8f8573d4"
+    },
+    {
+      "path": "installer/windows/launcher-version.txt",
+      "before_sha256": null,
+      "after_sha256": "8780409dbc52c96276102c5a079a7d3e325510d7bf87af5257508ecc088a3730"
+    },
+    {
+      "path": "installer/windows/maintenance.ps1",
+      "before_sha256": "6f45df0eab722feaef13a415efa5f768964633a60398a94e2984c6021971eed4",
+      "after_sha256": "ad2eb5e1507c5df90994da277c373b08a8adc39e8f40512aada0ff19fdd53e70"
+    },
+    {
+      "path": "installer/windows/repair-installation.ps1",
+      "before_sha256": "8a98e7335757ce8a4be912b6d08ae13b6670396a00d6a04c1dbb40f15efd6851",
+      "after_sha256": "cd76592e06548b81bde0e319444c6e0819eb723ee4d832cf74bde31324c9f644"
+    },
+    {
+      "path": "installer/windows/test-activity-lock.ps1",
+      "before_sha256": "04aecfbd5440675de6140a53c3aea1c388411dabd359e13b44f2535c32f09948",
+      "after_sha256": "adcf91eefabac0d0f2e7f321e682b8237f77561e8202eec5ef78d480d60a80aa"
+    },
+    {
+      "path": "installer/windows/test-bootstrap.ps1",
+      "before_sha256": "43a1871cfcaf6e8ec35010091f19da071009a060e142610cb39872716d5faa10",
+      "after_sha256": "9da368ee117ac25c0a4afc1c846b3958e1eb9a8bcbf9ab734cbb6a6e41e442d8"
+    },
+    {
+      "path": "installer/windows/test-compiled-installer.ps1",
+      "before_sha256": "cbf126130889a1c18a003691b317701859cab8c377767111b347d7dc70a2ea66",
+      "after_sha256": "afaf2d14669c7a520001d965b55f83840773f28459d97b59bcabedee6c9678ae"
+    },
+    {
+      "path": "installer/windows/test-installer-layout.ps1",
+      "before_sha256": "71793d5eda856d33393ad806f63debaf58d873179d00690b5bf30fcab45b06ac",
+      "after_sha256": "83fa1fae37217cf8356e82c18f7d2b895e8ca6cebfd3c885b0de3d8692cadd1f"
+    },
+    {
+      "path": "installer/windows/test-launcher.ps1",
+      "before_sha256": "0cbd78a73f023ecfe1d7d086ae41f012f0d6b3ba2eb02a9e4649052372fd42f1",
+      "after_sha256": "f4b93d7bdb4b271feb9632586c784ac839fb674047adf6da8e81761e184f3724"
+    },
+    {
+      "path": "installer/windows/test-native-build.ps1",
+      "before_sha256": "2a8785ec7773b706f43be9917c6ddaa63a97d49db9a07ee77f9ca3847ed0f885",
+      "after_sha256": "647868a8a3737a2ef538a23eb544d2b8a1d40859b329d8e5366a0526654e81ff"
+    },
+    {
+      "path": "installer/windows/test-packaged-client.ps1",
+      "before_sha256": "7675f4530c855c89fda5e841ad24cf072f4bcc124e3144d172d0f21604aa99de",
+      "after_sha256": "24eca008cfeda76908bdae5416423ef0569aa215c243b73cec09b002d1431f91"
+    },
+    {
+      "path": "installer/windows/test-testing-install.ps1",
+      "before_sha256": null,
+      "after_sha256": "771cd2a996f9af566070163c4d483ed363f59c0f26f47eba3df149786476c4bc"
+    },
+    {
+      "path": "installer/windows/test-update-handoff.ps1",
+      "before_sha256": "0fe6f4c2dacd8811b0a88c98d0d1a83aeb6701144669972102ead01f7448acd2",
+      "after_sha256": "c5e4078b8db9a1bde365a2d2c52bd8919e3cdff6826f629be1efa7237fd44009"
+    },
+    {
+      "path": "installer/windows/test-windows-environment.ps1",
+      "before_sha256": "c6a90cbb1a3d19150a685cf477318fc1dc49d896d0e8c4c53adbbe46b8ad4e3e",
+      "after_sha256": "9ef60c34399e16fffd4333676b09ac2d7e554a7c9a2c8603f52068111f22687d"
+    },
+    {
+      "path": "installer/windows/test-zip-install.ps1",
+      "before_sha256": null,
+      "after_sha256": "e24961d35dbf91a574691a5d09eea5c020090bf507bc3ad1ef99eb257d48f632"
+    },
+    {
+      "path": "installer/windows/test-zip-package.ps1",
+      "before_sha256": null,
+      "after_sha256": "1e65ec453527fbe31ee1ab8c751b221110254a309c48ba282bc735624ddfcf8b"
+    },
+    {
+      "path": "installer/windows/testing-install.cmd",
+      "before_sha256": null,
+      "after_sha256": "0c102df4c6e7250eb4d212737b02acfd73e41b22ef4c67e14afdb8aeafb9ac1c"
+    },
+    {
+      "path": "installer/windows/testing-readme.txt",
+      "before_sha256": null,
+      "after_sha256": "f022d1bf9a83212030c514746c533d4ebc514a27b2676143ca5c90dee959ed07"
+    },
+    {
+      "path": "installer/windows/testing_package.py",
+      "before_sha256": null,
+      "after_sha256": "0583efeea8a233c7a822482c101e405461cde0d6eac1881a9f151ffd46ddc8a3"
+    },
+    {
+      "path": "installer/windows/uninstall-runtime.ps1",
+      "before_sha256": "eaa1e571300509c3c2ba0dfc59e1a5645b03c094c723efc9bf4a17d15dd87248",
+      "after_sha256": "f78edf98bd7f165a3019cc46a5d23c26c2369547783669ee0bcfad1c01812413"
+    },
+    {
+      "path": "installer/windows/update-handoff.ps1",
+      "before_sha256": "8a66b9befc9fe6bcf7924a8e4213a8832f72bb82b1303b68f75e3cf98b6faacc",
+      "after_sha256": "5a11141ae383d4bf13ec35092e3dbf43f6ff988b5050b77e183cc702ddab69f6"
+    },
+    {
+      "path": "installer/windows/validate-install-layout.ps1",
+      "before_sha256": "0d827efd80374a5eff000e2516653f9e5e7ed2428f7b35e7af64e5a086f06d37",
+      "after_sha256": "1f0d924eb390cdbe1fca70ad02e2a39bdca787ee75b25bca0c67a0906802254e"
+    },
+    {
+      "path": "installer/windows/zip-common.ps1",
+      "before_sha256": null,
+      "after_sha256": "04ae46758d80150228d0c9262ae9c9ce3b706279b9ead45418617d41d9fd0b31"
+    },
+    {
+      "path": "installer/windows/zip-entry.ps1",
+      "before_sha256": null,
+      "after_sha256": "59abaadb256adead4d015ddfbe67c38d736d01ac326308014243ec00750090d7"
+    },
+    {
+      "path": "installer/windows/zip-install.cmd",
+      "before_sha256": null,
+      "after_sha256": "174411052a9e29ed43595a295184019e740f12a21d9090c27b7d4e19fbe57df7"
+    },
+    {
+      "path": "installer/windows/zip-readme.txt",
+      "before_sha256": null,
+      "after_sha256": "0ab1896b1e9a76f0644d2ec43b8a833183113e8cf81ef030a6d3df70bd901c0e"
+    },
+    {
+      "path": "installer/windows/zip_package.py",
+      "before_sha256": null,
+      "after_sha256": "387654e15c0d2c3320f8512cf542b90baa8399e8efc4ad7a856e35ac47305b34"
+    },
+    {
+      "path": "newpat.cmd",
+      "before_sha256": null,
+      "after_sha256": "70ec4cda1e6f988af3671e7be9195ba9a340d41cd87af355b04950813c053970"
+    },
+    {
+      "path": "pyproject.toml",
+      "before_sha256": "b3868e9837eb0decc5e2002e7b87f3e922751928ffd3c63ae07edb9e5c15cba2",
+      "after_sha256": "fae335084d5d2c254faffed9d61c65b48cca22600626d7fd9474391057daa60f"
+    },
+    {
+      "path": "scientific/SHA256SUMS",
+      "before_sha256": "22500bebef02c717cb8e31abef4963be0a37dc7100849695b303269bae94d5b6",
+      "after_sha256": "d840654cebfdd1a30425bf9729e2ea5a0a857456b0c645f9f6fc10956cc12859"
+    },
+    {
+      "path": "scientific/vendor/DNPcall/DNPcall.R",
+      "before_sha256": "4904721e258190ace5cb0fc7df367c0d6f2f68abfc5d794aea83ed0a43db2088",
+      "after_sha256": "b972d90b8335afdbbe160c4925655c6c6d962083def25877cc2334c422d3df9b"
+    },
+    {
+      "path": "scientific/vendor/NEWPAT/CPI_from_cffDNA/cfDNA_CPI_estimator.R",
+      "before_sha256": "d5a7518e5d4b41a2c1b2a780c186595edc617a0963ff7cdb63843f202f1c4f10",
+      "after_sha256": "719ecf368c6375fda8ad0d17021a1ac9e195c6fc70e8ca57b878e84c8273b17b"
+    },
+    {
+      "path": "scientific/vendor/NEWPAT/CPI_postnatal/Postnatal_CPI.R",
+      "before_sha256": "947723633cbd9563fee34d638522fe0edb37498ca0e3eb00aef1b21900f4d10c",
+      "after_sha256": "b23bc0a0a7b16fbffe44f449306cc20610c5aa3097d6466218e24051327ff37d"
+    },
+    {
+      "path": "scientific/vendor/NEWPAT/SNPcall/SNPcall.R",
+      "before_sha256": "e27981da3e4c061068f1d17751e45223674b1a1fa01c177f1c5f858162f62c73",
+      "after_sha256": "19d377f5f360fe00a4fd72f9b6b0501fbdbd754311c5169338d77720b08e1981"
+    },
+    {
+      "path": "scientific/vendor/NEWPAT/contamination/detect_contamination.R",
+      "before_sha256": "3660122faa2a07984ef26c2adbb6c3407928976c634c21fa8574c3630371dca0",
+      "after_sha256": "8ceb587e19bb2f0b8f08051a894cd1780254b7ffe0959b0e48755c96f4792f66"
+    },
+    {
+      "path": "scripts/acceptance/bundle-manifest.json",
+      "before_sha256": "d6c40349c21bd8218ed348fd286ad2279ac9c5088389d661ce24c0e683a07dc2",
+      "after_sha256": "f12afbef98d2a3117c1bf2bd6ac52c6e6e4945af015ec03e759dabe0ec59581a"
+    },
+    {
+      "path": "scripts/acceptance/installed_workflows.py",
+      "before_sha256": "985b26f66f9f3ede061485ca4c6c4b677add70ae2f34f0be1dd44963e13d8189",
+      "after_sha256": "febddafdb4f30b47db998cd0ae8e55130396d6b76652a5d8d78dd246fd4d9079"
+    },
+    {
+      "path": "scripts/build_linux_installer.py",
+      "before_sha256": "bc5dc50ab26624b3efd02a52f30592301310eee71d2246953ef58d867a4f0f19",
+      "after_sha256": "23058e486c42ed528a5d91adf304337ea21c68ef315c4e6f191dd028d3994784"
+    },
+    {
+      "path": "scripts/build_macos_installer.py",
+      "before_sha256": "e615428308b2b1ec272d1bfb018c885bd5f217f9032bd4a46f8aee3294abf59e",
+      "after_sha256": "8a4c0b4402c7c8e6140d69fe90c0ece2ce3db69425d87b9a386cd0ac223118cf"
+    },
+    {
+      "path": "scripts/build_windows_installer_assets.py",
+      "before_sha256": "b62db58a84fb5fdce5d38dfbd74324f0995806dfe577bd22cfa8d68186c179b0",
+      "after_sha256": "0c71bcc8d04f3d5fa00ebe555f5f08eb78df7158ee09c23516549a777dd6412f"
+    },
+    {
+      "path": "scripts/scientific_worker_evidence.py",
+      "before_sha256": null,
+      "after_sha256": "dd4678bc93b9f283f613f366a4cd01cc86668bd6abd747c525f9df272cd17b8f"
+    },
+    {
+      "path": "scripts/test_gui_frontend.cjs",
+      "before_sha256": null,
+      "after_sha256": "52275dd9f1a12d546e217fec63f07ab0e6704e0de535656134e8aa4932fcaa0c"
+    },
+    {
+      "path": "scripts/test_gui_macos_native.py",
+      "before_sha256": null,
+      "after_sha256": "9359eaa69ac602af36a57ea444cc917e608bfe2906ae07647807765cbbf56c55"
+    },
+    {
+      "path": "scripts/test_gui_windows_native.py",
+      "before_sha256": null,
+      "after_sha256": "7c6aa325c7cadbb14add3fb1a8a095453f11348cc3779cc57992d33fa98e82ce"
+    },
+    {
+      "path": "scripts/verify_caller_acquisition.py",
+      "before_sha256": null,
+      "after_sha256": "f2303c64af7f15e9e3d0a07183f29b75ea94ac5b1e6f3c1d142a9df947055d7a"
+    },
+    {
+      "path": "scripts/verify_engine_package.py",
+      "before_sha256": "14c5bbd78723fbd0dc58090487067b52b1eb82151164c7aa2e479d7f7a8398da",
+      "after_sha256": "e921d557d9c7a666e57de032d0bcd013fb8330500dfb485a567f813ccdf33dd7"
+    },
+    {
+      "path": "scripts/verify_five_module_workflow.py",
+      "before_sha256": "e5ee6684b1c0702e18336fb5c694d8490e8747c2d3db6d3f3962241baaf7ca56",
+      "after_sha256": "3adf190133e2ff195c05f6ccdccf6b47fc1a911700c6df676309b49818931a81"
+    },
+    {
+      "path": "scripts/verify_gui_app.py",
+      "before_sha256": null,
+      "after_sha256": "6a5fa1884971057bf5b85239e2ab7c80892c8128c1c94f4551afa38e7d6a10d7"
+    },
+    {
+      "path": "scripts/verify_gui_distribution.py",
+      "before_sha256": null,
+      "after_sha256": "bee6c0c46759609db444752227d7e2ca064ad9784fb9cb420e42f15089b3059d"
+    },
+    {
+      "path": "scripts/verify_gui_interactions.py",
+      "before_sha256": null,
+      "after_sha256": "3350e6d2c57f459ce140a6785b125972e17a3507082ec2e2786300bd40015952"
+    },
+    {
+      "path": "scripts/verify_linux_dependencies.py",
+      "before_sha256": "4b9c5c816de03318870c3db79901200108323eb66b7bc3345b6a54a0aa822f81",
+      "after_sha256": "9f0f347dbc993c6b7dafa4c34c65617b90a3bff17c98fd0d3cf9d82c20e1f8ab"
+    },
+    {
+      "path": "scripts/verify_linux_installer.py",
+      "before_sha256": "5c3fd1439c7e983dd13a981e88aec2d4a5b26a3646e8e670f33afbf85da1f588",
+      "after_sha256": "30e1834c7c8bfb75f0dcb7cdb28f1a5bf7d5e723df0000c51f74ff45f0fcc1e7"
+    },
+    {
+      "path": "scripts/verify_linux_upgrade.py",
+      "before_sha256": "a97fa48a9a4d623388ce90362d4fc89dd8c842a30db334a177c30bcd41e52745",
+      "after_sha256": "5140cf0525b566c6250740163a5ae5ac4db0ac94a58271c156c50631a18cc999"
+    },
+    {
+      "path": "scripts/verify_macos_package.py",
+      "before_sha256": "ea4f347190439db9443d1c74141488d9bc555a79a682f5ce10a7c9b4c62f8abc",
+      "after_sha256": "4cd0b3be9b41096a23d7477b07401f0b79377d22a39e217bb08e6dfc15338d9d"
+    },
+    {
+      "path": "scripts/verify_performance.py",
+      "before_sha256": "974452ee8b5010110c322f35f0afd95e65a035d4a6e5defb8e6d1f94691c6886",
+      "after_sha256": "c9114ee449251518ad16999657d28243432ac8f3413c20df6117ca5096d2e345"
+    },
+    {
+      "path": "scripts/verify_snp_workflow.py",
+      "before_sha256": "2467c8a50c177efdcbe35a1eca05771cf1964b15cc1e449739f957fe52175fe5",
+      "after_sha256": "ef4479650a7ea6dda1e8b98ac82ba33053bd0cb802fd7fb3fe39e9e531c2db24"
+    },
+    {
+      "path": "scripts/verify_windows_payload.py",
+      "before_sha256": "74f6f3a360bf54a6c0f1088d625b1fbb5a6c771b1d11973f992b27561158b37d",
+      "after_sha256": "07137424274a2e7c3a7ab58c23b26db181f6c739281c99aede5d6b516f02541b"
+    },
+    {
+      "path": "scripts/windows/common.ps1",
+      "before_sha256": "1a7b0c5250a7d0789d961b820d09a1c6163d453f3c0719fc2081b35e77437367",
+      "after_sha256": "51824d46eb1ced2d79d6a1abd8d77bf354f1e8edd2fd7c0dbd837afcf823318c"
+    },
+    {
+      "path": "scripts/windows/gui-launch.py",
+      "before_sha256": null,
+      "after_sha256": "1c9c256dba35ac3dbdff39d16236a949c8f4bbaed4f9c350d4658cf6cf40a762"
+    },
+    {
+      "path": "scripts/windows/run.ps1",
+      "before_sha256": "4038abee060a05b3483757ccbdbee1f1c3e141ad7c30e52c451f12ac47a40587",
+      "after_sha256": "29471a11c226eaee5389ab523c4e13465cfd539dc35bd46b16a4893d09544ff5"
+    },
+    {
+      "path": "scripts/windows/setup.ps1",
+      "before_sha256": "374a7fdd3948b652e05b3834255f945721f0aed3c38d4a3e92112778f17ce216",
+      "after_sha256": "bece279bec5f2949a373b69692379de2e69cb2a639cea99d41ecceb4b99a74c4"
+    },
+    {
+      "path": "scripts/windows/test-installed.ps1",
+      "before_sha256": "fb234a00ada9cd87858da5e0c34c43d3132b4af5116b009adc25a0259ed4ddf9",
+      "after_sha256": "59786858873889fb9662a073f36c83ecc1abf2b082e02398f158ef5355d6a4d2"
+    },
+    {
+      "path": "src/nipat/__init__.py",
+      "before_sha256": "647afed1865dff3f937029baca1aca21c181910f79cdb8181514dbc0a4e8d349",
+      "after_sha256": "c4147d33309e4c2069ab2af7f933560b9455472fbb9c1fdefe2f7c92c50720c4"
+    },
+    {
+      "path": "src/nipat/activity.py",
+      "before_sha256": "b9adb269e234ca736dcb6985d57dbef0f2c0dd0f2b3910035e90ca2826c80880",
+      "after_sha256": "cd11add6bfd6c0f920a1ceb1e9659d09374cd7733ac4a90a9cd7d7c94dfb9866"
+    },
+    {
+      "path": "src/nipat/analysis_forms.py",
+      "before_sha256": "efd34307b4c416d32b420d84d6cf79cca360acdd66fcc03fa62093eaa9361c28",
+      "after_sha256": "ee6a8e0a6fef6215f87fd83ed11c1cc3708d9fd9a00b777b390de601da4007c2"
+    },
+    {
+      "path": "src/nipat/branding.py",
+      "before_sha256": null,
+      "after_sha256": "ff54f83e6251c06b5c935fb43620047c2dcc97dbdfe998574ca22dc285df2d46"
+    },
+    {
+      "path": "src/nipat/catalog_ui.py",
+      "before_sha256": "3fc7914d0e897c714716fd61101fc6a8e227ab4a6d115fd633b6b5f80542c3b3",
+      "after_sha256": "3f23d4742c19f44d3d1647c0bcd9091cdde17ec6b97e1ab6315ebf57788b0330"
+    },
+    {
+      "path": "src/nipat/cli.py",
+      "before_sha256": "1c64c65cf1020a00e654c98c0d1d5e17804b721514ecc86ea852a69c2f7652c7",
+      "after_sha256": "9e6944a22d673fd0f29193ef80dcd013aba6fab8b57c8d4f246f372a48f2c666"
+    },
+    {
+      "path": "src/nipat/distribution.py",
+      "before_sha256": "b16fe45f8754805160af773eb73453ef48185bfceb625c634fd828aa8ebc295c",
+      "after_sha256": "74ff0a9a2559a350cfa2de8ab2034039fc41022a1f69a773a24d31f6876b3b6a"
+    },
+    {
+      "path": "src/nipat/execution/analysis_plan.py",
+      "before_sha256": "dfbc6980618474e584a534db95bcd7cfc958d87ee9089f45e84027e9e3d3bd20",
+      "after_sha256": "c5b98121898c15d1b9c830ecd9bed711d010502034a57fd36df8412ae9c9947e"
+    },
+    {
+      "path": "src/nipat/execution/progress.py",
+      "before_sha256": "2e12b564c0e945bf8a28f1311659ffa9b612ade2e81c5c388cc95c907a0f7d6e",
+      "after_sha256": "6ccbb653d4cdca6dcf1f6169984a9e45a313da6992b20742e705bfa3011a51bf"
+    },
+    {
+      "path": "src/nipat/execution/recovery.py",
+      "before_sha256": "5d8a9d0d4a0e0c6cceaaac7009bdad9f475b6c5193e44610af30e9677514823c",
+      "after_sha256": "1932ecfecd7a52dde82c64a454a027d0ce0893c0c030b00f104db9297aabb34e"
+    },
+    {
+      "path": "src/nipat/execution/runner.py",
+      "before_sha256": "b10793c827f0892556ea075ff2bc49f11d96cf46ddbb23b040e78c055cc09830",
+      "after_sha256": "77fd4dd63f28ed82aa47898d1cf3496281965e7415025a87961fd53fad4b9e7d"
+    },
+    {
+      "path": "src/nipat/execution/tracking.py",
+      "before_sha256": "3b3c0e979df17391cc300ea186fd11e7aee0b5d47346b54ff16461987a531001",
+      "after_sha256": "cdfb1c1c19acd7a11a73ca51c3579847e64c6dfeb365b5fe12541dd50a84b880"
+    },
+    {
+      "path": "src/nipat/execution/transport.py",
+      "before_sha256": "46d89ca43d9e65858cae2905cc769ff12f72a51861f8e916e73717bcf5de00be",
+      "after_sha256": "4b84c586a222bfb0beddb718da60c605130a194143009f68d238e7bbdc1259fc"
+    },
+    {
+      "path": "src/nipat/execution/workflows.py",
+      "before_sha256": "2bd16b0ee2e20c38ac6d43828ae4598951e83dcdd9a9535138de11988877a034",
+      "after_sha256": "577ffc46d05b1be93d2cefd73afa27074145bbf9e3ff390cdf9ce6f770f4b8c5"
+    },
+    {
+      "path": "src/nipat/gui/__init__.py",
+      "before_sha256": null,
+      "after_sha256": "dc5ff52404ee930990ed95df9093f3ba99e4a4f6e6d9d844bfcc7afd41525169"
+    },
+    {
+      "path": "src/nipat/gui/app.py",
+      "before_sha256": null,
+      "after_sha256": "5329003313bdf0a2a4ee72da8bbb472311800af33d8f79b59eb506611abe5ab8"
+    },
+    {
+      "path": "src/nipat/gui/diagnostics.py",
+      "before_sha256": null,
+      "after_sha256": "550daaacdb07e3e6ead2f4ba468382ba0a9dee3542663fd245ae90afe03eaa45"
+    },
+    {
+      "path": "src/nipat/gui/host.py",
+      "before_sha256": null,
+      "after_sha256": "4c0e4efb37c7a4fec0ae6e1cac46078e86497494733bab23f41fe4040b20f976"
+    },
+    {
+      "path": "src/nipat/gui/igv.py",
+      "before_sha256": null,
+      "after_sha256": "fe815cb1ad28af0cd40b1cd9953f4561ffdb46ef0cb9467f49b6bb78fed9e544"
+    },
+    {
+      "path": "src/nipat/gui/jobs.py",
+      "before_sha256": null,
+      "after_sha256": "c4ebfd895dae1d787c898f892cda0baef59809dea6589009d4f665dce228800d"
+    },
+    {
+      "path": "src/nipat/gui/lifecycle.py",
+      "before_sha256": null,
+      "after_sha256": "5454d1a18f3c85a03f370d2082b5381429619d0cdd623bd3c0f3b26b6afc5021"
+    },
+    {
+      "path": "src/nipat/gui/linux_host.py",
+      "before_sha256": null,
+      "after_sha256": "64b1da261c12edc36d33a3d8536fed6024f84503d930c7f14afbb37e10062802"
+    },
+    {
+      "path": "src/nipat/gui/macos_host.py",
+      "before_sha256": null,
+      "after_sha256": "f1fe195e73ecb2b74cef5878347e9439afec19ee5e557408407803d57e0a0184"
+    },
+    {
+      "path": "src/nipat/gui/native/windows/LICENSE.txt",
+      "before_sha256": null,
+      "after_sha256": "0af8f1b807512aae39c2ac1aa4d0cae65cabecb6fd554b8439a5162a0d6eca55"
+    },
+    {
+      "path": "src/nipat/gui/native/windows/dependencies.json",
+      "before_sha256": null,
+      "after_sha256": "c7cee66ed968ade74699c7d60c575f8e7feb1ed54db611d06128735249e635a4"
+    },
+    {
+      "path": "src/nipat/gui/native/windows/x64/MicrosoftEdgeWebview2Setup.exe",
+      "before_sha256": null,
+      "after_sha256": "cf2f2445fef0c5c14e372045f84998771eeb8bb01d59be4afd00692fa160082e"
+    },
+    {
+      "path": "src/nipat/gui/native/windows/x64/WebView2Loader.dll",
+      "before_sha256": null,
+      "after_sha256": "d3fce90bdeecb08596e377dea6a316354dd8949e32ff09b89d51be00c14e21b6"
+    },
+    {
+      "path": "src/nipat/gui/plan.py",
+      "before_sha256": null,
+      "after_sha256": "826ff6aba657ce4c967869f3afed4a423d8aea41c7f8a909646bd05529bd1a0f"
+    },
+    {
+      "path": "src/nipat/gui/results.py",
+      "before_sha256": null,
+      "after_sha256": "5de6d137128c320aad7ea15bbf4da13aa9b5cd9af59cb404b2ca48bf9f8aa860"
+    },
+    {
+      "path": "src/nipat/gui/server.py",
+      "before_sha256": null,
+      "after_sha256": "a5f6d9bc5b206bb4f0044de6ac86e3e331c2a1be6bc52477f749fd26620108f6"
+    },
+    {
+      "path": "src/nipat/gui/service.py",
+      "before_sha256": null,
+      "after_sha256": "267c3c5b428100003614b5c26dad0b53d7fba06a51b033ac4aef1c05a90f6d77"
+    },
+    {
+      "path": "src/nipat/gui/startup.py",
+      "before_sha256": null,
+      "after_sha256": "680726f95cdd7534fd012c4b0e17c3293db0dbc1fc0dde18b032a681f3401f26"
+    },
+    {
+      "path": "src/nipat/gui/web/app.js",
+      "before_sha256": null,
+      "after_sha256": "53d1d08faee3029efb6e395e81c5d2fd249067e90ede3a4f67285333fc7b9665"
+    },
+    {
+      "path": "src/nipat/gui/web/i18n.js",
+      "before_sha256": null,
+      "after_sha256": "7ff43e7c07605c5a64e662ec3ac4d0555e99f082000ee795a1114130b3a1a792"
+    },
+    {
+      "path": "src/nipat/gui/web/igv-view.js",
+      "before_sha256": null,
+      "after_sha256": "9f13fc395e5e0fb23d180ceb5435c1a83c70e2b740a713f408d927c334a426db"
+    },
+    {
+      "path": "src/nipat/gui/web/index.html",
+      "before_sha256": null,
+      "after_sha256": "7b5a2702996519c4cf418a53e954f1a95634cb959daa127a66036767fe1ede75"
+    },
+    {
+      "path": "src/nipat/gui/web/style.css",
+      "before_sha256": null,
+      "after_sha256": "21da69ff5e41cc01f4f4657d3842a0e1bbdec221ccb99951ade2369a9cf6f783"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/igv.LICENSE.txt",
+      "before_sha256": null,
+      "after_sha256": "fd69572836ffc3e7e17d19177bcd55c62c74c5c8a3db0d7a5f867759d7f9d443"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/igv.min.js",
+      "before_sha256": null,
+      "after_sha256": "240c31f8dc20d233b023e8482cb4b388f87679f69779afe3685a5c0c979e93ff"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/licenses/canvas2svg.LICENSE.txt",
+      "before_sha256": null,
+      "after_sha256": "e74ea1f767c879c2e6c8a787ffe2868f9323ddd5b507e18878e52c5876c2da1e"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/licenses/circular-view.LICENSE.txt",
+      "before_sha256": null,
+      "after_sha256": "718a9c12726a4cc7c88859c365778bedeb2988aa7c6d9b3c8ac41b19b0b8b495"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/licenses/cram-bundle.js.LICENSE.txt",
+      "before_sha256": null,
+      "after_sha256": "89f37b2690ea830d3a1437d5a57903e765037b7efb135aaf183ce52f686518f0"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/licenses/dompurify-3.4.16-LICENSE-MPL.txt",
+      "before_sha256": null,
+      "after_sha256": "fab3dd6bdab226f1c08630b1dd917e11fcb4ec5e1e020e2c16f83a0a13863e85"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/licenses/dompurify-3.4.16-LICENSE.txt",
+      "before_sha256": null,
+      "after_sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/licenses/gmod-cram.LICENSE.txt",
+      "before_sha256": null,
+      "after_sha256": "404439bb6a5c127f0a99ae2ddda56b0a1926f75e0065f9f6ce85a09855aa19f5"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/licenses/hdf5-indexed-reader.LICENSE.txt",
+      "before_sha256": null,
+      "after_sha256": "24424412c2098bd787de2603a9c7f04f0cdfaaa77546762f88fcdff918ea7ad3"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/licenses/hic-straw-2.1.3-LICENSE.txt",
+      "before_sha256": null,
+      "after_sha256": "feb87a2e0c305de3464cc44077da5393c52d8ca6362d37427157d04ec6f4510d"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/licenses/igv-utils.package.json",
+      "before_sha256": null,
+      "after_sha256": "153570b0d7680dc950ceebd0b41043b98f9d817a23711cfbf8e658ec671ab1be"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/licenses/pako-2.0.4-LICENSE.txt",
+      "before_sha256": null,
+      "after_sha256": "a04665b3b2de56c66730c1f720f528175739e4104f79073614aa611da1e85539"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/licenses/pako-2.1.0-LICENSE.txt",
+      "before_sha256": null,
+      "after_sha256": "a04665b3b2de56c66730c1f720f528175739e4104f79073614aa611da1e85539"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/licenses/regenerator-runtime-0.14.1-LICENSE.txt",
+      "before_sha256": null,
+      "after_sha256": "51887a3d47051ac2fce1210562e5b9fe0830a8a8fabeb272c2d586eeb18a05fd"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/licenses/sources.json",
+      "before_sha256": null,
+      "after_sha256": "d0cf2bdc769a43cafafc709ffe6391dac0baad4aca70b99f6f2cc98d4ce5d3a9"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/licenses/twobit-js.LICENSE.txt",
+      "before_sha256": null,
+      "after_sha256": "404439bb6a5c127f0a99ae2ddda56b0a1926f75e0065f9f6ce85a09855aa19f5"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/licenses/vanilla-picker-2.12.1-LICENSE.md.txt",
+      "before_sha256": null,
+      "after_sha256": "a4294f0f987ce43d315e3d6db2bd46a2254fdec0b8996427daaa8a910ca1d7ca"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/licenses/vanilla-picker-2.12.3-LICENSE.md.txt",
+      "before_sha256": null,
+      "after_sha256": "a4294f0f987ce43d315e3d6db2bd46a2254fdec0b8996427daaa8a910ca1d7ca"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/manifest.json",
+      "before_sha256": null,
+      "after_sha256": "c904ac4d2afebb71fd05b76a3a5ee86fe480cee87fa13cd0346bc1e7f0c54221"
+    },
+    {
+      "path": "src/nipat/gui/windows_host.py",
+      "before_sha256": null,
+      "after_sha256": "a67e16e289d594dbafdf009e203d829a11c60b87845baca022ef0cf3c9819df5"
+    },
+    {
+      "path": "src/nipat/installation.py",
+      "before_sha256": "889bbe96be1042624ffc3bb7661b87fe953b22cd8a335abb833086d7a25d50d8",
+      "after_sha256": "8a4bfa99ce3b61435de5c4f5da9b8e7646bf1b4536eb9318bcadc296a11b6c8a"
+    },
+    {
+      "path": "src/nipat/linux_update.py",
+      "before_sha256": "be274d30d566ad91f287288c34b1b34f2ecec839248f3d8e1edca2e56d02c6c3",
+      "after_sha256": "be98293c9e9ab906a3bd948da0cfd0d43ad9db63853806963c4d72fe7062298e"
+    },
+    {
+      "path": "src/nipat/macos_runtime.py",
+      "before_sha256": "a2a38be8ce4d471c91ba635da828e0ea5a105cb963860ed3078f7e66df1fffcb",
+      "after_sha256": "7e019f7af09c6d05b2bb8a593aa3076e5f1bcd5efb1a535e68baa8167f7b155e"
+    },
+    {
+      "path": "src/nipat/preferences.py",
+      "before_sha256": "f79e130b9da8f321fb1445d86727e82064dbc29e29060d77165590e7541f8a7d",
+      "after_sha256": "d575fdbbc3e9e612f8854a1f82347bbc58e0e8ff46c0a5a07e2d4ee1ed073e1b"
+    },
+    {
+      "path": "src/nipat/processes.py",
+      "before_sha256": null,
+      "after_sha256": "80dfc3d4d344998982f69d5d8c62f60b4011c62ebaa2a3ba743785b299f0ee13"
+    },
+    {
+      "path": "src/nipat/resource_ui.py",
+      "before_sha256": "49e091d544ebb4b478494df03c467a6da7fac83ddc8e19aa25f2d5530aca3521",
+      "after_sha256": "d838c9f4928577e02794b8877ac8556f5ed8621d7e1897aa6e51b3cc4f928bb5"
+    },
+    {
+      "path": "src/nipat/resources.py",
+      "before_sha256": "1315ea0ee7bcf48400c584c43b43bcfd9e8d738140c7d746bbe00e432e9b5479",
+      "after_sha256": "a49528bb9e20ed8b48ca3d12ed90642931535c9e60cd694a97221c155d628751"
+    },
+    {
+      "path": "src/nipat/results.py",
+      "before_sha256": "15e36644cf2620e776a4b83075586b21a174ae7bc4894a0b0a22ab343a84b8f5",
+      "after_sha256": "0e8675b3d8b6ec05c3fbc88c33712ebabbbf5afd2fc0519807ebfb80a0a4edc2"
+    },
+    {
+      "path": "src/nipat/run_report.py",
+      "before_sha256": "45394eabf4cdeef60fe56c253405e6452933accbb0cd3f45222c2d6ed523fa0b",
+      "after_sha256": "eac662d89b29de9b1659600d0dda0a556302cb7a219e8ef4ecb4e7f539a473b2"
+    },
+    {
+      "path": "src/nipat/storage.py",
+      "before_sha256": "efc18f1d9064bbf7bb1e9d52c4681b9e2bc65e54d0b6f1035f2d05e649beb38b",
+      "after_sha256": "dc66fa9558172f6328435b4edd8f95b92e6bb6e2435147a14ddc4896616d8842"
+    },
+    {
+      "path": "src/nipat/terminal.py",
+      "before_sha256": "2daeaff2f3fa02bb7150d1d46238fd1ed94f44654974612eaf8e1590242dcbd0",
+      "after_sha256": "c008739ab01348e0c089cb521ddd36186df435912d610eb39d5efc0f7e61bfb1"
+    },
+    {
+      "path": "src/nipat/update_handoff.py",
+      "before_sha256": "cc73c33c42e12fe1f2db28b05434228dee3f40f97aad03c4be2e00c2dace4616",
+      "after_sha256": "6d3e048c761242be6482c83a99e999d8524ba9ce9c5e41ecfe2eacac263669e5"
+    },
+    {
+      "path": "src/nipat/update_ui.py",
+      "before_sha256": "d48a2b4c17989a0c7b5110dc3f68461e24bc1e71d3e643b0305fc82d1f24dea7",
+      "after_sha256": "ec57b80ebe30b2bdd1302a135521aeadf7c266ca90fc352ade1320ee9e6e3d63"
+    },
+    {
+      "path": "src/nipat/updates.py",
+      "before_sha256": "00f43e9e981ce5e56d380f717ee02787c386acc1380b03584a883faee6af0db1",
+      "after_sha256": "b8292a45711ec26eaac113aeb30768a4a8d9c16e9a7560e0f9e4199115536836"
+    },
+    {
+      "path": "src/nipat/windows_install_activity.py",
+      "before_sha256": null,
+      "after_sha256": "e82444aa24c6b5f4474a4fdcb7fbd0f57f57753453da5514707254d9ddc7eeec"
+    },
+    {
+      "path": "src/nipat/windows_setup_check.py",
+      "before_sha256": null,
+      "after_sha256": "0ba80fe6d866e2c48d7b2c14dd8331fab99f8775eae786970aef12782f4655a3"
+    },
+    {
+      "path": "src/nipat/windows_wsl_prerequisites.py",
+      "before_sha256": null,
+      "after_sha256": "bbda4b9c44e7593773d18a851e4319d21c1230f0bce9589ff4d47d056683a49a"
+    },
+    {
+      "path": "src/nipat/wizard.py",
+      "before_sha256": "410422e72069f24387825eefeca04afb25875c146fa8c46bb316aceedcd21ac9",
+      "after_sha256": "572cfd8e003b1a1cfefab4e123a6708aaeefa791c24d01583118f3bad396b5d5"
+    },
+    {
+      "path": "src/nipat/wizard_forms.py",
+      "before_sha256": "bdf58420c79a921e7571769e0092a5e18d3aa1a5ebc556bdc25cc3c47a722e94",
+      "after_sha256": "b0650f8d4f602960ef1702b5158a4fa48770538778c05cf0135f9bead0f00cd7"
+    },
+    {
+      "path": "src/nipat/wizard_settings.py",
+      "before_sha256": "74ca539d80ad80f3a106f5d7a20df991ec69117c970d753c5be008fa13061e3a",
+      "after_sha256": "6a0aea9289c5fedf82d8805bd3d2d08c44a07e0ab0a3c3861a9d098ad93cb540"
+    },
+    {
+      "path": "src/nipat/workflow_forms.py",
+      "before_sha256": "527818ac7df680c28e6cad5c57aeff11f46e1bb37c210565fbe8fb438aa8d677",
+      "after_sha256": "457362f99437d5ef9a0310ae393e7109ca76b89e9f0d8b6b279efdd8cd0327f5"
+    },
+    {
+      "path": "src/nipat_scientific/catalog_data/contamination.json",
+      "before_sha256": "9727f1b8d7167e21c3d25382b631fd2afcf300a933d4ee104602c9b9a2a1acff",
+      "after_sha256": "d508078f219658d047506eaeab8ad9e59b7f74e04b637627e63df6d9d57d9556"
+    },
+    {
+      "path": "src/nipat_scientific/catalog_data/cpi.json",
+      "before_sha256": "0cf06e791acc62e3324897872349103c5c82fd8facaad2869d8e0e55ecfeb7f8",
+      "after_sha256": "afaba812436c1fecb7d0b120b885bfe4f1c3059e758b85665087c136dce68641"
+    },
+    {
+      "path": "src/nipat_scientific/catalog_data/cpin.json",
+      "before_sha256": "45325482725641b0b21ff14e071543c6065d8caf0c25c41fbe7392c266189add",
+      "after_sha256": "868f8f606ab10be0431f7da5e3065479d9250e07722518f131795bc0fe5d02ba"
+    },
+    {
+      "path": "src/nipat_scientific/catalog_data/dnp-call.json",
+      "before_sha256": "b3a90b32f89d42834940524111e69434c63c001f244f10cd2e9a0fba4f0816be",
+      "after_sha256": "b0d148e03cc6c34b6d72b1cc0030847030b5e76951bedd355b866c63a1bb0681"
+    },
+    {
+      "path": "src/nipat_scientific/catalog_data/snp-call.json",
+      "before_sha256": "af7b856fb72a3df4804e8a0f006b130277a615af6dfb1b5d9150cce9f919681a",
+      "after_sha256": "f9d1404e5c93f1aeb49d7b99f126671ffe38565313b180fa975aa9b253b50bf2"
+    },
+    {
+      "path": "src/nipat_scientific/cpi.py",
+      "before_sha256": "e15ea2eeaa02f184e03512875c74c5d92052f4e25821b36b4a43facfa038b4e7",
+      "after_sha256": "cf21054d212f2d2b578ad2cec9404ab05ddbb79485767dab361170434dee9b15"
+    },
+    {
+      "path": "src/nipat_scientific/dnp.py",
+      "before_sha256": "33684104949046d2726d749971e9a19c17bcba0f54269948172668035adf8b46",
+      "after_sha256": "f2727422db7b92ad4608f274d0a379452181426eee500b578dc44896c1b78f08"
+    },
+    {
+      "path": "src/nipat_scientific/dnp_blocks.R",
+      "before_sha256": "717fbe409caf1b80f1a6fa1734b454ea5e31da910b67fcf0db8b7e72294441ca",
+      "after_sha256": "7ce2b0bf616ce8b27c1d35dd6440671e001d555372444c1ee14e51e9bcfc3c23"
+    },
+    {
+      "path": "src/nipat_scientific/dnp_pileup.py",
+      "before_sha256": "8f0da5988f7b203ae2d37057e38c2ab4f6c15c434757b3dd0ae7f021b5a7b762",
+      "after_sha256": "49662c2995e192495501439db2e8dba734ee199a4e8d29f395747ac658df5de7"
+    },
+    {
+      "path": "src/nipat_scientific/executor.py",
+      "before_sha256": "452bcfbeadbf725b886e0768f2cccdea5178a7fd6df8bc92afc8ac7490f00665",
+      "after_sha256": "c7678ecc3523403f70046ed263170685fec42a81acb355cc60e1b32d74059f22"
+    },
+    {
+      "path": "src/nipat_scientific/files.py",
+      "before_sha256": "cb6d5e52658233b8f20f8f86739710a3a7af84d7901d02821f33e1fd182447d0",
+      "after_sha256": "da59fd1cbc700d1aaf6cabe59a8849907bbf5d469dcaf52e01c033ed497b97a6"
+    },
+    {
+      "path": "src/nipat_scientific/outputs.py",
+      "before_sha256": "2778f6a453de036bbd1eb73161db6b2d8924cc42d524c757f714b29788cd6651",
+      "after_sha256": "405f1be20b5475451d39c7088b8cd5d720c419bf9c5d756eb23fcac3e058c8d6"
+    },
+    {
+      "path": "src/nipat_scientific/panels.py",
+      "before_sha256": "c05735970f78fa4527a195f599dc58d198872b557a64105f191e939e26699c65",
+      "after_sha256": "a22cbc37601c4cd79dca6ad69d20b4cc2a21a568a89ba3034a33dbf53fc23905"
+    },
+    {
+      "path": "src/nipat_scientific/parallel.R",
+      "before_sha256": "2e8ebb3c0ccfa36e5e67f64392e5d8da166f149667d7b1d559de95054d307e42",
+      "after_sha256": "4902b20a9d29a82777274777c8a365ef7d1da48974392292e514cf682d87cf9b"
+    },
+    {
+      "path": "src/nipat_scientific/snp.py",
+      "before_sha256": "d508ce9ad617f27976941c870ff41edb9fea950a1dc3514fab5be53d8cd2541c",
+      "after_sha256": "5e2dd735412f015dd2f3291bb1049a315774d186f1e23bf87470ed4b0a016934"
+    },
+    {
+      "path": "src/nipat_scientific/snp_parallel.py",
+      "before_sha256": "f8493ce29953ce44c0fbad945305ede8afdd20bd7bcabb4d089e151bf49b2ae1",
+      "after_sha256": "585dbdb55ea7e530af69b5b688acd9174ca16f34fe7b54f79288336616659846"
+    },
+    {
+      "path": "tests/test_background_processes.py",
+      "before_sha256": null,
+      "after_sha256": "130271a38474a491516bc1cf0d3349bed0762a93b02465e5543897c8692d12a1"
+    },
+    {
+      "path": "tests/test_cli_validation.py",
+      "before_sha256": "1bb9bfb8230510d0de96f22735b92331bafc113eb0dce6858e12301f25d9c5e0",
+      "after_sha256": "dff8279b74825c8b45350e5b9722372311821f8f4de261995747d1c7c77ebcdc"
+    },
+    {
+      "path": "tests/test_client_reliability.py",
+      "before_sha256": "dd1722b30e66c5393f395bb664e763621774955d7451aea966052dfd33e59e16",
+      "after_sha256": "a35c19995bc932714101c8d0a0c7dbfe780dfcfab07ffa872e1ca6af473ce61e"
+    },
+    {
+      "path": "tests/test_cpi_engine.py",
+      "before_sha256": "9efa52aec1506926b698c65c524f210a6d9487043e38a1fcec3ce171518eb685",
+      "after_sha256": "31c241859be92dba12c81ad01db295075f090d7e9b2812bb1678f89624c3e7a5"
+    },
+    {
+      "path": "tests/test_desktop_payload.py",
+      "before_sha256": null,
+      "after_sha256": "08ffc3175d33d48576884ea99b522e97c65b3147562596a9ca1eefb57e7ddd32"
+    },
+    {
+      "path": "tests/test_dnp_engine.py",
+      "before_sha256": "19b11d67963955b2fda152ca466efb4b1e46211f20a6e6e26cf5d8e1a7bb4079",
+      "after_sha256": "a1c06b78835c474108981d840a2a1efe48992831742ed9a59a421111e27211a3"
+    },
+    {
+      "path": "tests/test_dnp_pileup.py",
+      "before_sha256": "2f08a6cfcef1df8eca6f245feaf4a9a95270f96f5292e77f2d2540b2cbd21fd5",
+      "after_sha256": "e1ec48ddc1610e27f39d009e610b6e738a1a5915d5cfaf6a30a3a1141db6dbdb"
+    },
+    {
+      "path": "tests/test_engine_package.py",
+      "before_sha256": "5a59fc6690284f8282a808ddc1d09ff1e82653c9d56b3559718dcc0adc673fec",
+      "after_sha256": "71d57dbaa1ac866bc0424ed68a6ea3bc2e636aad36afde7fc5d551dc9438396e"
+    },
+    {
+      "path": "tests/test_experimental_distribution.py",
+      "before_sha256": "ea32a034530bce4c0243e0bb6089d2c0b14382f019018e137f4692e63c42e8f4",
+      "after_sha256": "820db21d1f47eea1d9154b37da416b3399e6c0277d9e46fbb081cdbf744a62d5"
+    },
+    {
+      "path": "tests/test_fixed_resource_budget.py",
+      "before_sha256": null,
+      "after_sha256": "84bf51f0b8161064f7a34b8badb8118fd115abf127466be24c01039a8d8c2fde"
+    },
+    {
+      "path": "tests/test_gui_app.py",
+      "before_sha256": null,
+      "after_sha256": "431ab81ae1a519ee6568078ff99ed601c306db929717f8c0d3b381695833c9dc"
+    },
+    {
+      "path": "tests/test_gui_app_verification.py",
+      "before_sha256": null,
+      "after_sha256": "ebd00181b1aec85ee2389cfe29de54fe30c7c9a3a0dd3191837657ec54901e1d"
+    },
+    {
+      "path": "tests/test_gui_diagnostics.py",
+      "before_sha256": null,
+      "after_sha256": "106dad67e5a24ca2813c9044e01b9586bd95897c8c06e556d9d83f8b4e0b06e7"
+    },
+    {
+      "path": "tests/test_gui_distribution.py",
+      "before_sha256": null,
+      "after_sha256": "1b36d373115fa866a3acd70bbf96d9cd58424b93127afaa4bdc6216dea331634"
+    },
+    {
+      "path": "tests/test_gui_frontend.py",
+      "before_sha256": null,
+      "after_sha256": "6ea900f65b411e01aa455b876f9a967495449f6629d6940067e4cb98b977b303"
+    },
+    {
+      "path": "tests/test_gui_igv.py",
+      "before_sha256": null,
+      "after_sha256": "0aabb57373706f4e69b81fc35c59a610b2087994d1150bafb1bcebc88c068f0e"
+    },
+    {
+      "path": "tests/test_gui_igv_adapter.cjs",
+      "before_sha256": null,
+      "after_sha256": "43bd58bdfc5dc8f0fd08739c88014faeb1d1d9caccafdcf5498825c6896258c3"
+    },
+    {
+      "path": "tests/test_gui_lifecycle.py",
+      "before_sha256": null,
+      "after_sha256": "6afa627cd21e58ac74a2afd1eea1092e73cc42e85025d8d4d5d625a477f543ba"
+    },
+    {
+      "path": "tests/test_gui_macos_host.py",
+      "before_sha256": null,
+      "after_sha256": "5eeb324e54a934a8ace1a1ec5565b3ff4302c84e367afb9567d16bf34c22cde1"
+    },
+    {
+      "path": "tests/test_gui_results.py",
+      "before_sha256": null,
+      "after_sha256": "8cce9741a7f47ef4565ba8ad99f64ece9c6b94c702771a3d38bb02f82e0625be"
+    },
+    {
+      "path": "tests/test_gui_server.py",
+      "before_sha256": null,
+      "after_sha256": "e0d6e6c94502d35351a8a2ddf43a859e02f41e7a1de8778af9c4f1b6af7f444b"
+    },
+    {
+      "path": "tests/test_gui_service.py",
+      "before_sha256": null,
+      "after_sha256": "b3538a745315d26e309289b49c122163a54c9c8824c701802e3beddc8772ed15"
+    },
+    {
+      "path": "tests/test_gui_smoke.py",
+      "before_sha256": null,
+      "after_sha256": "cf855e8a2f22943410d36c42f8b9187a4d48be9a1f598230927b9a1ffbef364e"
+    },
+    {
+      "path": "tests/test_gui_windows_host.py",
+      "before_sha256": null,
+      "after_sha256": "4a971d5414217b944f11914b37cd2be55a8d81fb0092daf97120142b40791f79"
+    },
+    {
+      "path": "tests/test_gui_windows_launcher.py",
+      "before_sha256": null,
+      "after_sha256": "9ec39b71d13a883249c003925b097b1338e3b8126e4738fadf86dc055fd7c26c"
+    },
+    {
+      "path": "tests/test_installer_assets.py",
+      "before_sha256": "36e329300c82925d10ba4940bb0c41dc238ecf9d0cd19ec3859350e7832ce550",
+      "after_sha256": "5772ab7fc2e1d4d3b8fe65e485547389e80b37524a858f5eaad443c67081876c"
+    },
+    {
+      "path": "tests/test_linux_installation_check.py",
+      "before_sha256": "247513a0b37241cc1e0aef477b9d1642fc94c4ba0a3f6f2a26ff38f761d609f7",
+      "after_sha256": "6cc52b1743a88fa77aabcdcae6907f48f2ae89877025ce1c654fe6a48bb0b2c2"
+    },
+    {
+      "path": "tests/test_linux_installer.py",
+      "before_sha256": "cd60eeb2067e1e41882bc1ca60acaea16db2a73fa5ed59e0532d58c78f10e60a",
+      "after_sha256": "f77875491e283e7eb4b5f8fddc364138ef6177317fb1490764fc8b5dc65bbff9"
+    },
+    {
+      "path": "tests/test_linux_launcher.py",
+      "before_sha256": "5bddd22da875a124b88733d3c3e982e3a8b9df30aa7b7117768865d1cf1e21e1",
+      "after_sha256": "d7968c6a4ba6f8bf084d98902f56776b184d368a9de782543fa968fdc961c10c"
+    },
+    {
+      "path": "tests/test_linux_updates.py",
+      "before_sha256": "c753c60d84b2e93d5e534e6d3d5ecd6b95aea54c21068e96445fdd03a1aa2646",
+      "after_sha256": "de5d950546ebf3d09cac4e514392434cbc253e55fd578e8127c86cae15a17cc0"
+    },
+    {
+      "path": "tests/test_macos_installer.py",
+      "before_sha256": "aac6af4ca9c4d0735de09f05fde478d3f21707e78ba305a6ba8eed51d52a5e0a",
+      "after_sha256": "5539103ff83649d6e37ce8fe56312fab852623ae5d9d1a925b6b4af3c22a812b"
+    },
+    {
+      "path": "tests/test_macos_runtime.py",
+      "before_sha256": "fbe16f7727720ca5eef73207f746e88f9b12cd72602bb09d07d2cc6410dab43e",
+      "after_sha256": "bd972f177a81d171a8b23f22136b5dac33f993fd1326ac14e183ea1b87dd7ea8"
+    },
+    {
+      "path": "tests/test_newpat_branding.py",
+      "before_sha256": null,
+      "after_sha256": "335ef220407f8b189a1a2da19e2577743af6cdba0d23e9a51687489bc47dbb55"
+    },
+    {
+      "path": "tests/test_preferences.py",
+      "before_sha256": "e444f777ac196eb968ae482a1e76af972cb94494f6ce87580a37c44703d5b1dc",
+      "after_sha256": "c974f04aaaf7372f1205182a70ebe7344a84b8d8415fb5d88ffc3f3c64260692"
+    },
+    {
+      "path": "tests/test_resource_ui.py",
+      "before_sha256": "b5fea34eef626ae71e06be69aa30415da0fb759ce10bf8ed6df211e345f40432",
+      "after_sha256": "90edc89aa6d77ed6a3256a5e6309d6e53d0df38d6877696243995d93d3d3338f"
+    },
+    {
+      "path": "tests/test_resources.py",
+      "before_sha256": "bfa4adbe0b972f878df2f5a56aeb9c6ac6e09160d6d12b094383a3d8bb1204a0",
+      "after_sha256": "d59331359b3576796d60d1b872afb82f277439f195498421f9cf2060056638c2"
+    },
+    {
+      "path": "tests/test_results.py",
+      "before_sha256": "de9786a83dd995ae9613328533ec43f7617c1bdd1a8ae6695bdf5ce074421d94",
+      "after_sha256": "abae787ba755c05a718ecef3bd5fc487314789d06bb83d2de59ccee6e12a0d42"
+    },
+    {
+      "path": "tests/test_run_recovery.py",
+      "before_sha256": "b4d0c35e5a39368ff58338344fd8918b18cda48aa1790fb63e0df4e0d0d6b0de",
+      "after_sha256": "62cbd3302a3ac3ef4b98844cfd2adba2215ad36a63ee68cbaece15ce1f7e24c6"
+    },
+    {
+      "path": "tests/test_run_report.py",
+      "before_sha256": "dba79e62d3909f2a06c9a6098183e4d7adf4745ac6d18e5126478a01a021dfc8",
+      "after_sha256": "e498669d092cba4de3c1733fcae9e2b61ee7e175071afa8ef44cda4b35688229"
+    },
+    {
+      "path": "tests/test_run_tracking.py",
+      "before_sha256": "0a53e37085a0f40d68409a7b7280948a9c5e280165847e7e22b638eaef9cca33",
+      "after_sha256": "617d98c7e2bb5a7c7dd332fccee0a79537f2b53ff6036aeb29177f598b81693e"
+    },
+    {
+      "path": "tests/test_runtime_component.py",
+      "before_sha256": "733ff9a049d8f3b8adde6984f7907f417f32fe72f5c53c7723e5338cee017533",
+      "after_sha256": "cee8cd09b9baca48e1d91977de9632c21b751987a308be70dfbbc899fd48b2a8"
+    },
+    {
+      "path": "tests/test_scientific_outputs.py",
+      "before_sha256": "f2171637b9a961655006b6c42c05c089fbb9f5532bfdd6149598db5c1f6c3288",
+      "after_sha256": "d2ab892f858d9ea419f6f21e192ffb4e6c41b751290e090844ce8b64efc1158e"
+    },
+    {
+      "path": "tests/test_scientific_preflight.py",
+      "before_sha256": "0b42c411ac5fd4d14737addf7e5701176b9dc4ee4512b6c3f89ceedf2e4ddaae",
+      "after_sha256": "2f1d0ae001c50de19a1addf570247263e188fbd601f421b12a42462809fe939b"
+    },
+    {
+      "path": "tests/test_snp_acquisition.py",
+      "before_sha256": null,
+      "after_sha256": "6345573f8419792aabd38aa6d8e62123b5fcf9be8608474cc45ecca95b1437a6"
+    },
+    {
+      "path": "tests/test_snp_engine.py",
+      "before_sha256": "d54ebbebf53f8afb0316d48cd5e967e93f60dd24670389b752879e3953aea12b",
+      "after_sha256": "327333d8b03a50dd875b05d353e57f5283728fcc6b1c04af43ca5b896d9b02c5"
+    },
+    {
+      "path": "tests/test_snp_parallel.py",
+      "before_sha256": "b78f35f16d0ff37b006c734f5526ecbfe3ba29037cfd06010a7691004ec1af9c",
+      "after_sha256": "7e5146a1a89ea7cfc4b91cbf9981fea8a0e5ffc15544069f9b802e302280f2d2"
+    },
+    {
+      "path": "tests/test_snp_workflow_execution.py",
+      "before_sha256": "db43ec1dd54f7a539f1cc5783db44e4a923e0ba2516bcd4706b99c56e1361365",
+      "after_sha256": "ac171c7ce36cf0aa4ec492969df430d210e7665548acafbc244451d9337a60e2"
+    },
+    {
+      "path": "tests/test_terminal.py",
+      "before_sha256": "bc77f9161e5f190a7d600cfe820550bfaf5f6b01557a1f8e0357a165cdfca1cf",
+      "after_sha256": "085a1561d6e218dd0975f69966088a3ebcd4bb9a27e2cce7dea2328f24d892ca"
+    },
+    {
+      "path": "tests/test_update_handoff.py",
+      "before_sha256": "3fe01c9e96ced16f48fec61af1914ed7881e16425d2e39ce9eabcd412a823c73",
+      "after_sha256": "712c3f0ef923a6a7fb3f6a0bae4caebedfb282b20c402edf80fb860413c54983"
+    },
+    {
+      "path": "tests/test_update_ui.py",
+      "before_sha256": "f6ca8f6e9e137d12283ca5fa92fd08a416c49a4ad3ef6f7c1eb7798a289006ee",
+      "after_sha256": "e724af19ce45161178c1a6bfba1f54598c81449e77ca77276bd6f738d898ac7d"
+    },
+    {
+      "path": "tests/test_updates.py",
+      "before_sha256": "9c2032492b9c3932be59f3479db2609c10b1f5282ce9f192f67770a749a747a0",
+      "after_sha256": "a09213e445ec588930f9ee378b8bb683c7662f7fcb8be384546e9d10f27234ec"
+    },
+    {
+      "path": "tests/test_windows_bootstrap_download.py",
+      "before_sha256": null,
+      "after_sha256": "fb44802b60d8ec52712f76b35c9e113e94e33c3711949d979ad36db4a3f76a50"
+    },
+    {
+      "path": "tests/test_windows_install_activity.py",
+      "before_sha256": null,
+      "after_sha256": "8dc1d2d38c26e8f343f9ee9a5947427f560ded3911d5b18e99db04a7cf4961d7"
+    },
+    {
+      "path": "tests/test_windows_testing_package.py",
+      "before_sha256": null,
+      "after_sha256": "42c754450154c0a2c77c12e5037f4128d8be67cc2992ecd7cd54408a2b77367b"
+    },
+    {
+      "path": "tests/test_windows_wsl_prerequisites.py",
+      "before_sha256": null,
+      "after_sha256": "59a9f96b112e2961d4a482e2fc08fa9224a2b4354fd3238896038ad21e18a2a6"
+    },
+    {
+      "path": "tests/test_windows_zip.py",
+      "before_sha256": null,
+      "after_sha256": "c0342c21c3a898c59b6d17cc99cd9534891e029908b2510576e1a6a694d4d6bf"
+    },
+    {
+      "path": "tests/test_wizard_guidance.py",
+      "before_sha256": "81c1084c1c56b53636f31d7b1b386678d4da6d34f5bba80eb86b857ccbaddefa",
+      "after_sha256": "1e6499fb2b5aba8a4d155cffcbb65c171641841cf0b36688f5f81dd25f0b7016"
+    },
+    {
+      "path": "tests/test_wizard_settings.py",
+      "before_sha256": "cf9b5ce6924e17d2bd28ce3497b0dfc887bdacd5601a390ea8ca79869d09445d",
+      "after_sha256": "d695bb0528edef5a05b992db9864a3664c39f14c1e8d8e7d02bd76178af831d3"
+    },
+    {
+      "path": "tests/test_workflow_execution.py",
+      "before_sha256": "59ee58490bdb7bdadac4720af3956beeb90b4be6987b7d5dc69ad941c91cd46c",
+      "after_sha256": "98f03ecc3d18724678fa0102ca7e27e09f7b3fbc18be78449178e34af0d7283d"
+    }
+  ],
+  "deferred_desktop_scenarios": [
+    "ubuntu_clean_dependencies",
+    "ubuntu_existing_docker",
+    "ubuntu_reinstall_removal",
+    "windows_clean_wsl",
+    "windows_reinstall_removal",
+    "windows_stable_coexistence"
+  ],
+  "domain_validation": "pending-domain-researchers",
+  "qualification_evidence_sha256": "4939382708f658097395fa4d08c9aaab33729c3243fd441054f164f85ba3b780",
+  "linux_upgrade_check_sha256": "47e22dbff97defbe77b2e8c708d609853762e6fe800a7c899fd967dbfafd4b7c",
+  "macos_validation": {
+    "arm64": {
+      "status": "not-performed",
+      "evidence": []
+    },
+    "x86_64": {
+      "status": "not-performed",
+      "evidence": []
+    }
+  },
+  "scientific_equivalence": {
+    "reference_source_commit": "eafadf7002a9c7d7c1b9af9ccafc47d698a059e5",
+    "report_path": "scientific/_temp/nipat-r-equivalence-check/artifacts/r-equivalence.json",
+    "report_sha256": "9512dacbb6b0204b0be9ca421029a02dccf48b1942c17db671f94629b997648a",
+    "runtime_image": "sha256:69ae82ef5d81facbb48a8b820674fe53c38b0b897e33cb4948cce017a0775b58"
+  },
+  "scientific_analysis_qualification": {
+    "reference_source_commit": "9c2a8be60afcb944153710da6a61cd0559e2b4cf",
+    "report_path": "scientific/_temp/nipat-five-modules-check/artifacts/five-module-qualification.json",
+    "report_sha256": "0b9b5fed827ebf27941e19dd74a92e7151fa9fa66a9edd15c9cda6e08758af8f",
+    "runtime_image": "sha256:69ae82ef5d81facbb48a8b820674fe53c38b0b897e33cb4948cce017a0775b58"
+  },
+  "publication_channel": "stable"
+}
