@@ -4,7 +4,7 @@ The repository separates source verification, installer construction and publica
 
 | Workflow | Trigger | Result |
 | --- | --- | --- |
-| [CI](../.github/workflows/ci.yml) | Pull request, push to `main`, or manual dispatch | Required checks selected from the source changes; dedicated Linux verification for acceptance-only changes |
+| [CI](../.github/workflows/ci.yml) | Pull request, push to `main`, or manual dispatch | Required checks for the changed files, with dedicated Linux jobs for documentation and release acceptance |
 | [Installers (review build)](../.github/workflows/windows-installer.yml) | Manual dispatch on a reviewed release revision | Windows, Ubuntu and both macOS packages, Windows ZIP/payload, manifests and package evidence |
 | [Prepare or publish verified release](../.github/workflows/publish-windows-release.yml) | Manual dispatch on `main` | Verified draft, publication of a verified draft, or combined preparation and publication |
 | [Publish accepted release](https://github.com/GregorioDalia/nipat-desktop/blob/main/.github/workflows/publish-accepted-release.yml) | Successful qualifying CI push on `main` | Selection of acceptance-only changes and publication of the identified accepted build |
@@ -14,9 +14,11 @@ The repository separates source verification, installer construction and publica
 
 CI uses the Git change set to select relevant tests and `required` to check their outcomes. Development branches normally receive CI via pull requests. A branch without an open PR can use manual dispatch. Full installer builds run separately on request.
 
+When a change consists entirely of recognized guides, CI runs the `documentation` job on Linux. It checks repository links and heading anchors, parses CLI examples in the current user guides, validates the documented workflow plan and compares shipping text with the contents of small archives created by the Windows package builders. Changes to `LICENSE` or `THIRD_PARTY_NOTICES.md` trigger scientific qualification. CI also checks both files inside the built image against their source hashes. A manual CI dispatch selects all integration layers.
+
 An unavailable comparison or an unfamiliar workflow change receives conservative coverage. Changes to core CI, its selector or installer construction retain applicable integration levels. Changes limited to the manual publisher activate its fast and packaging checks. Changes to automatic publication select the complete integration matrix. A simultaneous scientific change requires scientific checks.
 
-A change limited to `.github/release-acceptance/vVERSION.json` uses `acceptance` and `required` on Linux. The job fetches bounded textual evidence to verify the build, source, completed platform jobs, four package digests, common manifest, historical baseline and scientific reports. Missing or mismatched records fail verification.
+A change limited to `.github/release-acceptance/vVERSION.json` uses `acceptance` and `required` on Linux. The job fetches bounded textual evidence to verify the build, source, completed platform jobs, four package digests, common manifest, historical baseline and scientific reports. A mixed change checks the affected acceptance records alongside the applicable source checks. Missing or mismatched records fail verification.
 
 | Area | Coverage and interpretation |
 | --- | --- |
@@ -56,7 +58,7 @@ The final job downloads the original packages to verify their identities, then p
 
 ## Scientific evidence reuse
 
-After seven scientific checks pass, CI makes `nipat-scientific-qualification-N-TREE`, where N is the workflow attempt and TREE is the full Git tree. It contains a descriptor and bounded synthetic text evidence. Failed-run diagnostics are separate. The installer build reconstructs the image using its cache, then searches completed CI runs from the same repository.
+After executing all seven scientific checks successfully, a trusted CI run uploads `nipat-scientific-qualification-N-TREE`, where N is the workflow attempt and TREE is the full Git tree. It contains a descriptor and bounded synthetic text evidence. Consumers build the image and inspect its identity before looking up a qualification.
 
 Reuse requires all of the following:
 
@@ -68,7 +70,9 @@ Reuse requires all of the following:
 
 Distinct commits may have the same tree. A documentation change normally changes the tree and invalidates reuse. Identical Dockerfiles alone do not establish identical images. The build restores verified reports with their original timestamps, results and image identity. `build/scientific-reuse/reuse.json` records reuse or fresh execution, the build and the original producer where applicable.
 
-If compatible evidence is missing, expired, inaccessible or invalid, all seven checks run in the installer build. The search considers up to 30 completed runs within two minutes and does not wait for an active CI run. The build still verifies the client, evidence preflight, WSL runtime, exported archive in the distributed engine and each installer. To benefit from reuse, complete successful CI on the frozen tree before dispatching the installer build.
+On a push to protected `main`, CI also verifies that the producing pull request actually merged at the push commit and that the recorded host tools match. A successful lookup writes a receipt pointing to the original producer. Only a run that executed the checks can issue a new qualification. If any requirement fails or the reports have expired, CI runs all seven checks.
+
+The installer first searches up to 30 completed CI runs with a two-minute lookup budget. On a miss it can wait up to 15 minutes for an identified CI run already qualifying that source. If the candidate succeeds, the installer repeats the full evidence lookup. Otherwise it runs the scientific suite itself. Independent Windows checks can proceed while the Linux job waits. The build verifies the client, evidence preflight, WSL runtime, exported archive in the distributed engine and each installer on either path.
 
 <a id="audit-windows-e-concorrenza-dalla-0820"></a>
 
