@@ -112,7 +112,8 @@ class ScientificReuseTests(unittest.TestCase):
         self.artifact.update(size_in_bytes=len(data), digest="sha256:" + reuse.sha256(data))
 
     def fetch(self, path, *, deadline=None):
-        if path == "actions/workflows/ci.yml/runs?status=completed&per_page=30":
+        if path in ("actions/workflows/ci.yml/runs?status=completed&per_page=30",
+                    "actions/workflows/ci.yml/runs?status=completed&per_page=30&event=pull_request"):
             return {"workflow_runs": [copy.deepcopy(self.run)]}
         if path == "actions/runs/123/attempts/1/jobs?per_page=100":
             return {"total_count": 1, "jobs": [copy.deepcopy(self.job)]}
@@ -155,6 +156,65 @@ class ScientificReuseTests(unittest.TestCase):
         self.write_remote()
         result = self.perform_restore()
         self.assertTrue(result["reused"], result)
+
+    def merged_pr(self):
+        # A squash or merge changes the commit ID while retaining its qualified tree.
+        self.source["commit"] = "e" * 40
+        self.run["event"] = "pull_request"
+        self.record["producer"].update(event="pull_request", checkout_commit=MERGE,
+            pull_request={"number": 12, "base_sha": BASE, "head_sha": HEAD})
+        self.commit.update(sha=MERGE, parents=[{"sha": BASE}, {"sha": HEAD}])
+        self.write_remote()
+        return {"number": 12, "merge_commit_sha": self.source["commit"], "merged": True,
+                "base": {"ref": "main", "repo": {"full_name": reuse.REPOSITORY}},
+                "head": {"sha": HEAD, "repo": {"full_name": reuse.REPOSITORY}}}
+
+    def restore_on_main(self, pull, *, variables=None, host_tool="poppler 24.02"):
+        environment = {"GITHUB_EVENT_NAME": "push", "GITHUB_WORKFLOW_REF": reuse.REPOSITORY
+                       + "/.github/workflows/ci.yml@refs/heads/main", "GITHUB_REF": "refs/heads/main",
+                       "GITHUB_REF_PROTECTED": "true", "GITHUB_SHA": self.source["commit"]}
+
+        def fetch(path, **kwargs):
+            return pull if path == "pulls/12" else self.fetch(path, **kwargs)
+
+        with self.runtime(), patch.dict(os.environ, {**environment, **(variables or {})}), \
+                patch.object(reuse, "tool_version", return_value=host_tool):
+            return reuse.restore("scientific:test", self.output, self.consumer_temp, fetch=fetch,
+                                 download=lambda artifact, path, **kw: shutil.copyfile(self.remote, path))
+
+    def test_main_restores_the_original_merged_pr_and_records_provenance(self):
+        result = self.restore_on_main(self.merged_pr())
+        self.assertTrue(result["reused"], result)
+        self.assertEqual(result["consumer"]["checkout"], self.source)
+        self.assertEqual(result["producer"]["pull_request"]["number"], 12)
+        self.assertEqual(result["artifact"]["digest"], self.artifact["digest"])
+        self.assertEqual(result["scientific_job_id"], self.job["id"])
+        self.assertEqual((self.consumer_temp / "nipat-engine-check/verification.log").read_bytes(),
+                         self.evidence["nipat-engine-check/verification.log"])
+
+    def test_main_requires_the_merged_pr_to_match_the_checked_out_push(self):
+        original = self.merged_pr()
+        for fields in ({"merge_commit_sha": MERGE}, {"merged": False}, {"number": 13},
+                       {"base": {"ref": "other", "repo": {"full_name": reuse.REPOSITORY}}},
+                       {"head": {"sha": BASE, "repo": {"full_name": reuse.REPOSITORY}}},
+                       {"head": {"sha": HEAD, "repo": {"full_name": "another/repo"}}}):
+            with self.subTest(fields=fields):
+                self.assertFalse(self.restore_on_main({**original, **fields})["reused"])
+                self.assertEqual(list(self.consumer_temp.iterdir()), [])
+
+    def test_main_requires_protected_push_exact_host_and_original_execution(self):
+        pull = self.merged_pr()
+        for variables in ({"GITHUB_REF_PROTECTED": "false"}, {"GITHUB_REF": "refs/heads/other"},
+                          {"GITHUB_WORKFLOW_REF": "other/repo/.github/workflows/ci.yml@refs/heads/main"},
+                          {"GITHUB_SHA": HEAD}, {"GITHUB_EVENT_NAME": "workflow_dispatch"}):
+            with self.subTest(variables=variables):
+                self.assertFalse(self.restore_on_main(pull, variables=variables)["reused"])
+        self.assertFalse(self.restore_on_main(pull, host_tool="different version")["reused"])
+        self.job["steps"][0]["conclusion"] = "skipped"
+        self.assertFalse(self.restore_on_main(pull)["reused"])
+        self.run["event"] = "push"
+        self.assertFalse(self.restore_on_main(pull)["reused"])
+        self.assertEqual(list(self.consumer_temp.iterdir()), [])
 
     def test_pr_merge_with_wrong_historical_head_is_rejected(self):
         self.run["event"] = "pull_request"

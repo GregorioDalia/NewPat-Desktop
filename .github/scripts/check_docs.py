@@ -13,7 +13,7 @@ import unicodedata
 from urllib.parse import unquote, urlsplit
 
 
-DOC_DIRECTORIES = ("docs", ".github", "engine", "scientific", "assets", "tests/fixtures")
+DOC_DIRECTORIES = ("docs", ".github", "engine", "scientific", "assets", "tests/fixtures", "tests/r_optimization")
 INLINE_LINK = re.compile(r"!?\[[^\]\n]*\]\(")
 REFERENCE = re.compile(r"^ {0,3}\[([^\]]+)\]:\s*(.*)$", re.MULTILINE)
 REFERENCE_LINK = re.compile(r"!?\[([^\]\n]+)\]\[([^\]\n]*)\]")

@@ -39,17 +39,34 @@ class ScientificReuseWorkflows(unittest.TestCase):
         self.assertNotIn("continue-on-error:", step)
         self.assertIn(re.findall(r"(?m)^        if: (.+)$", step), ([], ["success()"], ["${{ success() }}"]))
 
+    def test_only_the_protected_main_push_can_restore_scientific_evidence_in_ci(self):
+        name = "Check the merged pull request for matching scientific evidence"
+        step = steps(self.producer)[name]
+        self.assertIn("id: scientific_reuse", step)
+        self.assertIn("if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.ref_protected", step)
+        self.assertIn("GH_TOKEN: ${{ github.token }}", step)
+        self.assertIn('scientific_reuse.py restore', step)
+        self.assertLess(self.producer.index("Build scientific runtime"), self.producer.index(name))
+        self.assertLess(self.producer.index("Prepare scientific presentation tools"), self.producer.index(name))
+        self.assertTrue(all(self.producer.index(name) < self.producer.index(check) for check in CHECKS))
+        self.assertIn("build/scientific-reuse/reuse.json", steps(self.producer)["Retain scientific diagnostics"])
+
     def test_producer_seals_and_uploads_only_after_all_seven_checks_succeed(self):
         producer = steps(self.producer)
         seal_name = "Seal successful scientific qualification for exact-image reuse"
         upload_name = "Retain reusable scientific qualification"
         for name, commands in CHECKS.items():
             with self.subTest(check=name):
-                self.assert_blocking(producer[name])
+                self.assertEqual(re.findall(r"(?m)^        if: (.+)$", producer[name]), [FALLBACK])
+                self.assertNotIn("continue-on-error:", producer[name])
                 for command in commands:
                     self.assertIn(command, producer[name])
                 self.assertLess(self.producer.index(name), self.producer.index(seal_name))
-        self.assert_blocking(producer[seal_name])
+        for name in (seal_name, upload_name):
+            self.assertEqual(re.findall(r"(?m)^        if: (.+)$", producer[name]), [
+                FALLBACK + " && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)"])
+            self.assertNotIn("continue-on-error:", producer[name])
+
         self.assertIn("id: scientific_qualification", producer[seal_name])
         self.assertIn('scientific_reuse.py seal', producer[seal_name])
         self.assertIn('--image "$NIPAT_RUNTIME_IMAGE" --output-dir build/scientific-qualification', producer[seal_name])
@@ -57,7 +74,6 @@ class ScientificReuseWorkflows(unittest.TestCase):
         self.assertIn('>> "$GITHUB_OUTPUT"', producer[seal_name])
         self.assertLess(self.producer.index(seal_name), self.producer.index(upload_name))
         upload = producer[upload_name]
-        self.assert_blocking(upload)
         self.assertIn("actions/upload-artifact@", upload)
         self.assertIn("name: nipat-scientific-qualification-${{ github.run_attempt }}-"
                       "${{ steps.scientific_qualification.outputs.source_tree }}", upload)
