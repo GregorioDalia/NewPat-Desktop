@@ -415,35 +415,28 @@ positions <- unique(gl_reads$df.chr)
 # Index once instead of rescanning every read for each SNP; ordering is the
 # same as the upstream unique(gl_reads$df.chr) / subset sequence.
 gl_rows <- split(seq_len(nrow(gl_reads)), match(gl_reads$df.chr, positions))
-gl_list <- lapply(seq_along(positions), function(index) {
-  position <- positions[[index]]
-  sub <- gl_reads[gl_rows[[as.character(index)]], , drop = FALSE]
-  logL <- computeGL_snp(
-    haps = sub$df.V5.1,
-    Qavg = sub$Q_snp,
-    ref_hap = sub$ref[1],
-    ploidy = 2
-  )
-  data.frame(
-    SNPs = position,
-    GL0 = unname(logL["0"]),
-    GL1 = unname(logL["1"]),
-    GL2 = unname(logL["2"]),
-    GT = c("0/0", "0/1", "1/1")[which.max(logL)],
-    stringsAsFactors = FALSE
-  )
-})
-gl_table <- if (length(gl_list) > 0L) {
-  bind_rows(gl_list)
-} else {
-  data.frame(
-    SNPs = character(),
-    GL0 = numeric(),
-    GL1 = numeric(),
-    GL2 = numeric(),
-    GT = character()
-  )
+fit_block <- function(indices) {
+  likelihoods <- vapply(indices, function(index) {
+    rows <- gl_rows[[as.character(index)]]
+    computeGL_snp(haps = gl_reads$df.V5.1[rows], Qavg = gl_reads$Q_snp[rows],
+                  ref_hap = gl_reads$ref[rows[[1L]]], ploidy = 2)
+  }, numeric(3))
+  best <- vapply(seq_along(indices), function(i) which.max(likelihoods[, i]), integer(1))
+  data.frame(SNPs = positions[indices],
+             GL0 = unname(likelihoods[1L, ]), GL1 = unname(likelihoods[2L, ]),
+             GL2 = unname(likelihoods[3L, ]), GT = c("0/0", "0/1", "1/1")[best],
+             stringsAsFactors = FALSE)
 }
+# Keep full loci together so read order within each likelihood is unchanged.
+# Small panels use one block; deeper loci can justify workers at lower counts.
+locus_count <- length(positions)
+task_limit <- min(locus_count, max(1L, locus_count %/% 1024L, nrow(gl_reads) %/% 524288L))
+memory_mib <- if (task_limit > 1L) 3 * as.numeric(object.size(gl_reads)) / 1024^2 else NULL
+workers <- if (task_limit > 1L) nipat_parallel_workers(task_limit, memory_mib) else 1L
+blocks <- if (workers > 1L) parallel::splitIndices(locus_count, min(task_limit, 2 * workers)) else
+  list(seq_along(positions))
+gl_table <- bind_rows(nipat_parallel_lapply(blocks, fit_block, label = "snp-likelihood-loci",
+  workers = workers, memory_mib = memory_mib))
 idx <- match(
   paste(dataframe_final$chr, dataframe_final$pos, sep = ":"),
   gl_table$SNPs

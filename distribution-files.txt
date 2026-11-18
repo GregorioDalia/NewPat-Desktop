@@ -127,6 +127,7 @@ scripts/verify_linux_dependencies.py
 scripts/verify_linux_installer.py
 scripts/verify_snp_example.py
 scripts/verify_snp_workflow.py
+scripts/verify_caller_acquisition.py
 scripts/scientific_worker_evidence.py
 scripts/windows/common.ps1
 scripts/windows/run.ps1
@@ -414,6 +415,7 @@ docs/RELEASE_0.8.30.md
 tests/snp_output_helpers.py
 tests/test_snp_summary.py
 tests/test_snp_parallel.py
+tests/test_snp_acquisition.py
 
 # SNP batch state recovery and expanded package qualification (0.8.35).
 docs/RELEASE_0.8.35.md
@@ -575,6 +577,7 @@ tests/test_gui_windows_launcher.py
 docs/RELEASE_0.9.5.md
 docs/RELEASE_0.9.7.md
 docs/RELEASE_0.9.8.md
+docs/RELEASE_0.9.9.md
 src/nipat/gui/diagnostics.py
 tests/test_gui_diagnostics.py
 tests/test_newpat_branding.py

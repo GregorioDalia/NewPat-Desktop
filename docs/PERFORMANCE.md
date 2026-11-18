@@ -35,7 +35,7 @@ In the terminal menu, change parallelism and block size in the run summary. Save
 & $nipat --execution-mode auto dnp-call --bam ".\sample.bam" --reference ".\genome.fa" --panel ".\DNP_list.txt" --run-name dnp-auto-01
 ```
 
-Check overlapping worker events in `work/parallel/*.jsonl` for actual concurrency. For DNP acquisition inspect the observed processes in `work/dnp-pileup.json`.
+Check overlapping worker events in `work/parallel/*.jsonl` for actual concurrency. For DNP acquisition inspect the observed processes in `work/dnp-pileup.json`. For SNP BAM acquisition, inspect the strategy, fallback reason and observed process count in the sample’s `work/snp-acquisition.json`. For a multi-sample workflow, follow the work directory recorded for each step and inspect the outer sample events separately.
 
 <a id="misure-e-significato"></a>
 

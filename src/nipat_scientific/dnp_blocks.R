@@ -406,12 +406,12 @@ nipat_dnp_write_metrics <- function(path, value) {
 }
 
 # Single-BAM runs with bounded depth measured up to 283 MiB RSS per samtools
-# on GRCh37 (largest target ~238 MiB as sequence). Keep unmeasured workloads
-# serial. The container budget is fixed at run start, independent of free RAM.
+# on GRCh37 (largest target ~238 MiB as sequence). The container budget is
+# fixed at run start, independent of free RAM.
 nipat_dnp_acquisition_budget <- function(chromosomes, samples, settings, reference) {
   chromosomes <- unique(chromosomes)
   plan <- nipat_parallel_budget(length(chromosomes), workload_observed = FALSE)
-  if (!identical(plan$reason, "workload-not-observed") || samples != 1L ||
+  if (!identical(plan$reason, "workload-not-observed") || samples < 1L ||
       settings$max_depth <= 0L || settings$max_depth > 8000L || length(chromosomes) < 2L ||
       !settings$baq || settings$redo_baq || settings$mapping_quality_adjustment > 0L ||
       settings$count_overlaps || settings$include_orphans || settings$min_base_quality < 13L ||
@@ -429,17 +429,26 @@ nipat_dnp_acquisition_budget <- function(chromosomes, samples, settings, referen
 
   # Allow for non-reference RSS and double the estimate for depth/allocator variability.
   measured_rss_mib <- 288
-  estimate <- 2 * max(measured_rss_mib, ceiling(max(lengths) / 1024^2) + 48)
+  per_input <- 2 * max(measured_rss_mib, ceiling(max(lengths) / 1024^2) + 48)
+  # Each chromosome worker reads every BAM. Charge the full reference and
+  # allocator allowance again for each input even though the reference is shared.
+  estimate <- samples * per_input
   remaining <- max(0, plan$memory_budget_mib - plan$coordinator_rss_mib)
-  available <- remaining / 4
-  # On the 3,905 MiB profile two GRCh37 workers fit in 40% of the remaining
-  # work budget. Grant only those two slots; larger pools and larger reference
-  # footprints continue to use the quarter-budget allowance.
-  pair <- 2 * estimate
-  if (plan$worker_ceiling >= 2L && estimate == 2 * measured_rss_mib && pair <= 0.4 * remaining) {
-    available <- max(available, pair)
+  if (samples == 1L) {
+    available <- remaining / 4
+    # The 3,905 MiB profile can fit two GRCh37 workers in 40% of its remaining budget.
+    pair <- 2 * estimate
+    if (plan$worker_ceiling >= 2L && estimate == 2 * measured_rss_mib && pair <= 0.4 * remaining) {
+      available <- max(available, pair)
+    }
+    plan$workload_model <- "single-bam-bounded-depth-reference-and-rss"
+  } else {
+    # Acquisition finishes before the R block workers start. Keep half of the
+    # remaining work budget available for I/O buffers and unmodelled costs.
+    available <- remaining / 2
+    plan$workload_model <- "joint-bam-bounded-depth-reference-and-rss"
   }
-  plan$workload_model <- "single-bam-bounded-depth-reference-and-rss"
+  plan$input_bams <- samples
   plan$memory_per_worker_mib <- estimate
   plan$acquisition_pool_budget_mib <- available
   plan$memory_worker_limit <- max(1L, floor(available / estimate))

@@ -90,6 +90,7 @@ class FiveModuleAcceptanceTests(unittest.TestCase):
                 self.report["reference_comparisons"].append(key)
                 self.report["reference_comparison_evidence"][key] = {
                     "equal": True, "candidate_sha256": "d" * 64, "reference_sha256": "d" * 64}
+        self.caller_parallel = None
         self.summaries = {}
         for case in self.report["results"]:
             marker, workflow, size = case["marker"], case["workflow"], case["batch_size"]
@@ -131,6 +132,9 @@ class FiveModuleAcceptanceTests(unittest.TestCase):
     def write_reports(self):
         archive = self.legacy.directory / "qualification-evidence.zip"
         with zipfile.ZipFile(archive, "w") as handle:
+            if self.caller_parallel is not None:
+                handle.writestr("scientific/_temp/nipat-engine-check/caller-parallel-qualification.json",
+                                json.dumps(self.caller_parallel))
             base = Path(self.record["scientific_analysis_qualification"]["report_path"]).parent
             for path, raw in self.summaries.items():
                 handle.writestr((base / path).as_posix(), raw)
@@ -347,6 +351,81 @@ class FiveModuleAcceptanceTests(unittest.TestCase):
                                   "tasks": case["batch_size"], "reason": "workload-not-observed",
                                   "worker_ceiling": case["max_workers"] or 8}])
         self.write_reports()
+
+    def prepare_parallel_report(self):
+        self.prepare_fixed_admission_report("0.9.9")
+        self.record.pop("windows_testing_sha256")
+        self.record["publication_channel"] = "stable"
+        for case in self.report["results"]:
+            if (case["candidate"] and case["workflow"] == "contamination"
+                    and case["mode"] == "auto" and case["batch_size"] > 1):
+                worker = case["worker_evidence"]
+                workers = min(case["batch_size"], case["max_workers"] or 8)
+                worker.update(max_planned_workers=workers, observed_child_pids=[111, 222])
+                worker["phase_plans"][0].update(workers=workers, memory_worker_limit=8,
+                    reason="fixed-capacity-task-budget", workload_model="max-loaded-coordinator-rss-x2-and-module-estimate")
+        self.write_reports()
+
+    def caller_report_fixture(self):
+        acquisition = {"contigs": ["chr2", "chr10"], "strategy": "indexed-chromosomes",
+                       "workers": 2, "observed_max_processes": 1, "child_pids": [17, 21],
+                       "pileup_sha256": {"serial": "d"*64, "auto": "d"*64},
+                       "scientific_tables_sha256": {"serial": {"calls.txt": "f"*64}, "auto": {"calls.txt": "f"*64}}}
+        inner = {name: {"observed_child_pids": [], "maximum_planned_workers": 1}
+                 for name in ("mother", "father", "child")}
+        policies = {"serial": {"outer_admission": None, "outer_execution": None},
+                    "capped": {"outer_admission": {"workers": 2, "tasks": 3,
+                        "workload_model": "max-loaded-coordinator-rss-x2-and-module-estimate"},
+                        "outer_execution": {"observed_child_pids": [18, 19], "simultaneous_child_workers": True,
+                            "maximum_planned_workers": 2, "maximum_observed_child_workers": 2}}}
+        return {"schema_version": 1, "status": "passed", "runtime_image": IMAGE,
+                "acquisitions": {name: dict(copy.deepcopy(acquisition), bam_count=bams)
+                                 for name, bams in (("dnp-call", 2), ("snp-call", 1))},
+                "five_module_workflow": {"image": IMAGE, "status": "passed", "bam_count": 3,
+                    "identical_scientific_tables": 54, "runs": {
+                        k: {"status": "succeeded", "steps": 10, "snp_execution_evidence":
+                            dict(v, loaded_r_execution=copy.deepcopy(inner))} for k, v in policies.items()}}}
+
+    def test_099_requires_measured_contamination_and_exact_image_caller_proof(self):
+        self.prepare_parallel_report()
+        with self.assertRaisesRegex(ValueError, "Missing.*caller parallel"):
+            self.verify()
+        self.caller_parallel = self.caller_report_fixture()
+        self.write_reports()
+        checked = self.verify()
+        self.assertEqual(checked["caller_parallel_qualification"]["acquisitions_verified"], ["dnp-call", "snp-call"])
+        for version, expected in (("0.9.8", False), ("0.9.9", True), ("0.9.10", True)):
+            self.assertEqual(acceptance.measured_sample_contract(version), expected)
+        original = copy.deepcopy(self.report)
+        for field, value in (("tasks", 1), ("workers", 1), ("memory_worker_limit", 1),
+                             ("worker_ceiling", 8), ("workload_model", "not-observed")):
+            self.report = copy.deepcopy(original)
+            case = next(c for c in self.report["results"] if c["name"] == "SNP-contamination-batch5-auto-cap2")
+            case["worker_evidence"]["phase_plans"][0][field] = value
+            self.write_reports()
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, "measured workload"):
+                self.verify()
+
+    def test_099_rejects_partial_parallel_execution_or_changed_scientific_outputs(self):
+        self.prepare_parallel_report()
+        for path, value in (
+                (["runtime_image"], "sha256:"+"0"*64),
+                (["acquisitions","snp-call","child_pids"], [4, 4]),
+                (["acquisitions","snp-call","observed_max_processes"], 3),
+                (["acquisitions","dnp-call","pileup_sha256","auto"], "e"*64),
+                (["acquisitions","snp-call","scientific_tables_sha256","auto"], {}),
+                (["five_module_workflow","runs","capped","snp_execution_evidence","outer_execution",
+                  "simultaneous_child_workers"], False),
+                (["five_module_workflow","runs","capped","snp_execution_evidence","loaded_r_execution",
+                  "child","maximum_planned_workers"], 2)):
+            self.caller_parallel = self.caller_report_fixture()
+            item = self.caller_parallel
+            for key in path[:-1]:
+                item = item[key]
+            item[path[-1]] = value
+            self.write_reports()
+            with self.subTest(path=path), self.assertRaises(ValueError):
+                self.verify()
 
     def test_newpat_serial_outer_admission_keeps_loaded_parallel_proof_required(self):
         self.prepare_fixed_admission_report()

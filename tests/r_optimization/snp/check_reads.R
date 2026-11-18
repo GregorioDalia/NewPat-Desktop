@@ -139,5 +139,43 @@ trace("read_tsv", where = asNamespace("readr"), print = FALSE,
 invisible(candidate$call_sample(ordinary, legacy))
 untrace("read_tsv", where = asNamespace("readr"))
 options(settings)
+# Cross the likelihood threshold by one locus. Input order differs from the
+# lexical order of coordinate strings; compare all GL/GT and count columns.
+likelihood_oracles <- new.env(parent = emptyenv())
+check_likelihood <- function(count, mode, child = FALSE) {
+  coords <- rev(50L + 5L * seq_len(count))
+  snps <- file.path(root, "likelihood.tsv")
+  reads <- file.path(root, "likelihood.pileup")
+  write.table(panel(coords), snps, sep = "\t", quote = FALSE, row.names = FALSE)
+  writeLines(unlist(lapply(sort(coords), function(p) {
+    bases <- c("..GG", "GGGG", "....")[[1L + p %% 3L]]
+    window(p, bases, "r1,r2,r3,r4", qualities = "5?II")
+  }), use.names = FALSE), reads)
+  logs <- tempfile("likelihood-events-", tmpdir = root)
+  Sys.setenv(NIPAT_EXECUTION_MODE = mode, NIPAT_MAX_WORKERS = "2",
+             NIPAT_PARALLEL_LOG_DIR = logs, NIPAT_PARALLEL_CHILD = if (child) "1" else "")
+  key <- as.character(count)
+  if (!exists(key, envir = likelihood_oracles, inherits = FALSE)) {
+    likelihood_oracles[[key]] <- evaluate(reference, reads, snps)
+  }
+  expected <- likelihood_oracles[[key]]
+  actual <- evaluate(candidate, reads, snps)
+  stopifnot(expected$ok, actual$ok, identical(actual$result, expected$result),
+            nrow(actual$result) == count)
+  lines <- unlist(lapply(list.files(logs, full.names = TRUE), readLines), use.names = FALSE)
+  events <- Filter(function(x) x$label == "snp-likelihood-loci", lapply(lines, jsonlite::fromJSON))
+  plans <- Filter(function(x) x$event == "plan", events)
+  starts <- Filter(function(x) x$event == "task-start", events)
+  expected_workers <- if (mode == "auto" && !child && count >= 2048L) 2L else 1L
+  stopifnot(length(plans) == 1L, plans[[1L]]$workers == expected_workers,
+            length(starts) == expected_workers)
+  pids <- unique(vapply(starts, function(x) as.integer(x$pid), integer(1)))
+  stopifnot(length(pids) == expected_workers,
+            (plans[[1L]]$coordinator_pid %in% pids) == (expected_workers == 1L))
+}
+check_likelihood(2047L, "auto")
+check_likelihood(2048L, "serial")
+check_likelihood(2048L, "auto")
+check_likelihood(2048L, "auto", child = TRUE)
 unlink(root, recursive = TRUE)
 cat("PASS SNP 2.0 tables:", comparisons, "strict oracle comparisons and edge assertions\n")

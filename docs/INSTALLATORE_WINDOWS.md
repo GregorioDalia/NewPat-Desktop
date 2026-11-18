@@ -43,7 +43,7 @@ If the event names a temporary setup executable, include both that filename and 
 
 ## Complete ZIP installation
 
-1. Download `NewPat-0.9.8-Windows-completo.zip` from the release and compare its SHA-256 with `SHA256SUMS`. PowerShell can calculate the hash with `Get-FileHash -Algorithm SHA256 -LiteralPath .\NewPat-0.9.8-Windows-completo.zip`.
+1. Download `NewPat-0.9.9-Windows-completo.zip` from the release and compare its SHA-256 with `SHA256SUMS`. PowerShell can calculate the hash with `Get-FileHash -Algorithm SHA256 -LiteralPath .\NewPat-0.9.9-Windows-completo.zip`.
 2. Extract the entire archive into its final location on a local fixed disk. Close the compressed-folder view and open the extracted files.
 3. Run `1_INSTALLA.cmd` as your regular user. Wait for **NewPat: ready**, including any required restart.
 4. If Windows asks for a reboot, restart, sign back in and open `NIPAT\NewPat.lnk` **inside the extracted folder** to resume ZIP preparation. Once ready, the same shortcut opens the application. A normal first installation from the ZIP also opens NewPat when preparation succeeds.

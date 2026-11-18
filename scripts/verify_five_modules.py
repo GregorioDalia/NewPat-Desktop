@@ -391,7 +391,8 @@ def check_worker_limits(path, cap):
             "observed_peak_workers": peak, "completed_worker_tasks": len(completed),
             "observed_child_pids": sorted(children), "event_sha256": tree_hashes(path),
             "phase_plans": [{key: event[key] for key in
-                             ("label", "workers", "tasks", "reason", "worker_ceiling") if key in event}
+                             ("label", "workers", "tasks", "reason", "worker_ceiling", "workload_model",
+                              "memory_worker_limit") if key in event}
                             for event in plans]}
 
 
@@ -500,15 +501,14 @@ def run_case(root, name, workflow, marker, *, candidate=True, minimum=2,
     worker = check_worker_limits(destination / "parallel", 1 if mode == "serial" else cap) if candidate else None
     if candidate and workflow == "contamination" and mode == "auto":
         outer = [item for item in worker["phase_plans"] if item["label"] == "contamination-samples"]
-        require(len(outer) == 1 and outer[0]["workers"] == 1
-                and outer[0]["reason"] == "workload-not-observed"
-                and outer[0]["tasks"] == families,
-                "Unloaded contamination tables must use explained serial outer admission")
-        # These fixtures are intentionally tiny. The separate contamination
-        # check_parallel.R requires two actual children after loading a large
-        # table and exact values against the current frozen NEWPAT oracle.
-        require(not worker["observed_child_pids"], "Tiny unloaded sample batches must not launch child pools")
-    elif candidate and families > 1 and mode == "auto":
+        require(len(outer) == 1 and outer[0]["tasks"] == families,
+                "Contamination must record all input tables in one sample plan")
+        if families > 1:
+            phase = outer[0]
+            require(phase["workload_model"] == "max-loaded-coordinator-rss-x2-and-module-estimate"
+                    and phase["workers"] == min(families, phase["worker_ceiling"], phase["memory_worker_limit"]),
+                    "Contamination sample workers must fit measured table and coordinator memory")
+    if candidate and families > 1 and mode == "auto":
         # Millisecond workloads need not overlap on a loaded host. Require real
         # child execution here; the controlled scheduler barrier test proves overlap.
         require(worker["max_planned_workers"] > 1 and len(worker["observed_child_pids"]) > 1,

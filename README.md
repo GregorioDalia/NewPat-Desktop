@@ -13,13 +13,13 @@ Analyses run on your computer. NewPat packages R and samtools with the scientifi
 
 | System | Package | Installation guide |
 | --- | --- | --- |
-| Windows 11 x64 or Windows 10 22H2 x64 (build 19045) | [Windows setup](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.8/NewPat-Setup.exe) | [Windows](docs/INSTALLATORE_WINDOWS.md) |
-| Windows x64, installation in an extracted folder | [Complete ZIP](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.8/NewPat-0.9.8-Windows-completo.zip) | [Windows](docs/INSTALLATORE_WINDOWS.md) |
-| macOS 14 or later, Apple Silicon | [Apple Silicon package](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.8/NewPat-0.9.8-macos-arm64.pkg) | [macOS](docs/INSTALLATORE_MACOS.md) |
-| macOS 14 or later, Intel | [Intel package](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.8/NewPat-0.9.8-macos-x86_64.pkg) | [macOS](docs/INSTALLATORE_MACOS.md) |
-| Ubuntu 24.04 LTS x86_64 | [Debian package](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.8/newpat-desktop_0.9.8_amd64.deb) | [Ubuntu](docs/INSTALLATORE_LINUX.md) |
+| Windows 11 x64 or Windows 10 22H2 x64 (build 19045) | [Windows setup](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.9/NewPat-Setup.exe) | [Windows](docs/INSTALLATORE_WINDOWS.md) |
+| Windows x64, installation in an extracted folder | [Complete ZIP](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.9/NewPat-0.9.9-Windows-completo.zip) | [Windows](docs/INSTALLATORE_WINDOWS.md) |
+| macOS 14 or later, Apple Silicon | [Apple Silicon package](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.9/NewPat-0.9.9-macos-arm64.pkg) | [macOS](docs/INSTALLATORE_MACOS.md) |
+| macOS 14 or later, Intel | [Intel package](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.9/NewPat-0.9.9-macos-x86_64.pkg) | [macOS](docs/INSTALLATORE_MACOS.md) |
+| Ubuntu 24.04 LTS x86_64 | [Debian package](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.9/newpat-desktop_0.9.9_amd64.deb) | [Ubuntu](docs/INSTALLATORE_LINUX.md) |
 
-Windows uses WSL2, macOS uses Lima, and Ubuntu uses a local Docker Engine. The download page includes the package checksums. [NewPat 0.9.8 downloads](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.9.8)
+Windows uses WSL2, macOS uses Lima, and Ubuntu uses a local Docker Engine. The download page includes the package checksums. [NewPat 0.9.9 downloads](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.9.9)
 
 ## What you can analyze
 

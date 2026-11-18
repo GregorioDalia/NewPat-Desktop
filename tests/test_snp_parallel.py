@@ -1,10 +1,12 @@
 """Exercise bounded SNP worker processes, state ownership and descendant cleanup."""
 
 import errno
+import gzip
 import json
 import os
 from pathlib import Path
 import signal
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -15,17 +17,22 @@ from unittest.mock import Mock, patch
 
 from nipat_scientific.executor import _atomic_json, _Cancellation, execute_plan
 from nipat_scientific.parallel import THREAD_LIMITS
-from nipat_scientific.snp_parallel import _kill_group, execute_independent_snp_steps
+from nipat_scientific.snp_parallel import (
+    _indexed_observations, _kill_group, _ProbeWindow, _query_budget, _sample_estimate, execute_independent_snp_steps,
+)
 
 
 FAKE_R = r'''
 import json, os, pathlib, signal, subprocess, sys, time
 args = sys.argv[1:]
 if args[0] == "-e":
-    assert "workload_observed=FALSE" in args[1], "Bare R probe is not a loaded sample workload"
-    tasks = int(args[-1])
+    assert "memory_mib=m, workload_observed=observed" in args[1]
+    tasks = int(args[-2])
+    estimate = None if args[-1] == "unknown" else int(args[-1])
+    capacity = int(os.environ.get("SNP_FIXTURE_MEMORY_MIB", 16384))
+    slots = max(1, capacity // estimate) if estimate else 1
     cap = int(os.environ.get("NIPAT_MAX_WORKERS") or tasks)
-    print(json.dumps({"mode":"auto", "max_workers":cap, "workers":min(tasks,cap),
+    print(json.dumps({"mode":"auto", "max_workers":cap, "workers":min(tasks,cap,slots),
                       "tasks":tasks,"reason":"controlled-test-budget"}))
     raise SystemExit(0)
 if pathlib.Path(args[0]).name == "contamination.R":
@@ -130,6 +137,164 @@ class SnpParallelTests(unittest.TestCase):
                 self.assertTrue(all(observed[key] == "1" for key in THREAD_LIMITS))
                 worker_state = json.loads((run / "parallel/snp" / f"state-{record['id']}.json").read_text())
                 self.assertEqual(record, worker_state)
+
+    def test_worst_sample_memory_reduces_the_whole_pool_even_with_spare_cpu(self):
+        run = self.root / "low-memory"
+        # The fake R budget enforces the passed MiB, a CPU cap of 3 would
+        # otherwise admit three samples. Changing input size affects admission.
+        pileup = Path(self.plan["samples"][2]["path"])
+        with pileup.open("a") as stream:
+            stream.write("chr1\t10\tA\t1\t.\tI\t" + "x" * (2 * 1024 * 1024) + "\n")
+        state = self.execute(run, NIPAT_MAX_WORKERS="3", SNP_FIXTURE_MEMORY_MIB="3200")
+        self.assertEqual(state["status"], "succeeded", state)
+        self.assertEqual(state["snp_parallel"]["workers"], 1)
+        estimates = json.loads((run / "parallel/snp/sample-estimates.json").read_text())
+        self.assertGreater(estimates["snp2"]["memory_mib"], 1600)
+        self.assertLess(estimates["snp0"]["memory_mib"], 1000)
+        self.assertFalse(list((run / "parallel/snp").glob("job-*.json")))
+
+    def test_bam_estimate_uses_decompressed_records_or_bounded_depth_then_real_panel_count(self):
+        reference = self.root / "reference.fa"
+        Path(str(reference) + ".fai").write_text("chr1\t5000\t0\t5000\t5001\n")
+        source = self.root / "reads.bam"
+        source.write_bytes(gzip.compress(b"BAM\1" + bytes(396)))
+        step = {**self.plan["steps"][0], "inputs": {**self.plan["steps"][0]["inputs"],
+                "reference": str(reference)}, "parameters": {"mode": "bam"}}
+        size, observation = _sample_estimate(step, source, self.root, _Cancellation())
+        self.assertGreater(size, 0)
+        self.assertEqual(observation["observations"], 3 * (400 // 36))
+        self.assertEqual(observation["largest_target_contig"], 5000)
+        # A highly compressible large workload is not admitted as a small BAM.
+        source.write_bytes(gzip.compress(b"BAM\1" + bytes(1024 * 1024)))
+        self.assertIsNone(_sample_estimate(step, source, self.root, _Cancellation())[0])
+        step["parameters"]["scientific_settings"] = {"max_depth": 200}
+        _, bounded = _sample_estimate(step, source, self.root, _Cancellation())
+        self.assertEqual((bounded["basis"], bounded["observations"]), ("configured-bam-depth", 600))
+        step["parameters"].pop("scientific_settings")
+        source.with_suffix(".bai").touch()
+
+        def count(command, directory, path, cancellation):
+            if command[1] == "view":
+                self.assertEqual(command[:5], ["samtools", "view", "--no-PG", "-H", "-o"])
+                Path(command[-2]).write_text("@HD\tSO:coordinate\n@SQ\tSN:chr1\tLN:5000\n")
+            else:
+                self.assertEqual(command[:6], ["samtools", "bedcov", "-g", "0x704", "-c", "--max-depth"])
+                self.assertEqual(Path(command[-2]).read_text(), "chr1\t8\t11\n")
+                path.write_text("chr1\t8\t11\t31\t12\n")
+            self.assertEqual(command[-1], str(source))
+            return 0
+
+        with patch("nipat_scientific.executor._run_process", side_effect=count):
+            _, counted = _sample_estimate(step, source, self.root, _Cancellation())
+        self.assertEqual((counted["basis"], counted["observations"]), ("indexed-window-coverage", 31))
+        self.assertEqual(counted["peak_depth_bound"], 12)
+        os.utime(source.with_suffix(".bai"), ns=(1, 1))
+        with patch("nipat_scientific.executor._run_process") as probe:
+            self.assertIsNone(_sample_estimate(step, source, self.root, _Cancellation())[0])
+            probe.assert_not_called()
+        source.with_suffix(".bai").touch()
+        panel = Path(step["inputs"]["panel"])
+        panel.write_text("chr\tpos\tref\talt\n" + "".join(f"chr1\t{i}\tA\tG\n" for i in range(10, 2059)))
+        with patch("nipat_scientific.executor._run_process") as probe:
+            self.assertIsNone(_sample_estimate(step, source, self.root, _Cancellation())[0])
+            probe.assert_not_called()
+
+    def test_unusable_bam_header_or_probe_io_reverts_to_normal_calling(self):
+        reference = self.root / "ref.fa"
+        Path(str(reference) + ".fai").write_text("chr1\t50\t0\t50\t51\n")
+        path = self.root / "large.bam"
+        with path.open("wb") as handle:
+            handle.truncate(2 * 1024 * 1024)
+        path.with_suffix(".bai").touch()
+        steps = [{**step, "inputs": {**step["inputs"], "reference": str(reference)},
+                  "parameters": {"mode": "bam"}} for step in self.plan["steps"]]
+        source = {step["inputs"]["sample"]: str(path) for step in steps}
+        from nipat_scientific.executor import _run_process
+        for case in ("header-length", "unsorted", "samtools-error", "wrong-region", "io"):
+            with self.subTest(case=case):
+                directory = self.root / case
+                directory.mkdir()
+
+                def run(command, work, log, cancellation):
+                    if command[0] == "Rscript":
+                        return _run_process(command, work, log, cancellation)
+                    if case == "io":
+                        raise OSError("temporary input error")
+                    if command[1] == "view":
+                        header = "@HD\tSO:" + ("unsorted" if case == "unsorted" else "coordinate")
+                        length = 51 if case == "header-length" else 50
+                        Path(command[-2]).write_text(header + f"\n@SQ\tSN:chr1\tLN:{length}\n")
+                    elif case == "samtools-error":
+                        return 1
+                    else:
+                        log.write_text("chr1\t9\t12\t10\t4\n")
+                    return 0
+
+                with patch.dict(os.environ, self.environment), patch(
+                        "nipat_scientific.executor._run_process", side_effect=run):
+                    result = _query_budget(steps, source, directory, _Cancellation())
+                self.assertEqual(result["workers"], 1)
+                estimates = json.loads((directory / "sample-estimates.json").read_text())
+                self.assertIsNone(estimates["snp0"]["memory_mib"])
+
+    @unittest.skipUnless(shutil.which("samtools"), "requires real samtools")
+    def test_real_indexed_projection_counts_overlaps_indels_skips_and_flagged_reads(self):
+        sam = self.root / "reads.sam"
+        source = self.root / "reads.bam"
+        header = "@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:chr1\tLN:10000\n"
+        sam.write_text(header + "".join(
+            f"read{i}\t{flag}\tchr1\t10\t60\t{cigar}\t*\t0\t0\t{'A' * length}\t{'I' * length}\n"
+            for i, (flag, cigar, length) in enumerate(((0, "4M2D4M", 8), (0, "3M4N3M", 6),
+                                                       (0, "2M3I3M", 8), (1024, "5M", 5)))))
+        subprocess.run(["samtools", "view", "-b", "-o", str(source), str(sam)], check=True)
+        subprocess.run(["samtools", "index", str(source)], check=True)
+        positions = [("chr1", 13), ("chr1", 14)] + [("chr1", i) for i in range(30, 1030)]
+        self.assertEqual(_indexed_observations(source, positions, {"chr1": 10000}, self.root,
+                                               "sparse", _ProbeWindow(_Cancellation())), (22, 4))
+
+        sam.write_text(header + "".join(
+            f"high{i}\t0\tchr1\t10\t60\t10M\t*\t0\t0\tAAAAAAAAAA\tIIIIIIIIII\n"
+            for i in range(2100)))
+        subprocess.run(["samtools", "view", "-b", "-o", str(source), str(sam)], check=True)
+        subprocess.run(["samtools", "index", str(source)], check=True)
+        self.assertIsNone(_indexed_observations(source, positions[:1], {"chr1": 10000}, self.root,
+                                                "saturated", _ProbeWindow(_Cancellation())))
+
+    def test_expiring_optional_probe_reaps_a_stubborn_descendant_and_does_not_cancel_analysis(self):
+        source = self.root / "reads.bam"
+        source.touch()
+        source.with_suffix(".bai").touch()
+        fake = self.bin / "samtools"
+        ext = self.root / "descendant.pid"
+        fake.write_text(f"#!{sys.executable}\n" + textwrap.dedent(f"""
+            import pathlib, signal, subprocess, sys, time
+            if sys.argv[1] == "view":
+                pathlib.Path(sys.argv[-2]).write_text("@HD\\tSO:coordinate\\n@SQ\\tSN:chr1\\tLN:100\\n")
+            else:
+                child = subprocess.Popen([sys.executable, "-c",
+                    "import signal,time; signal.signal(signal.SIGTERM,signal.SIG_IGN); time.sleep(20)"])
+                pathlib.Path({str(ext)!r}).write_text(str(child.pid))
+                time.sleep(20)
+        """))
+        fake.chmod(0o755)
+        real = _Cancellation()
+        with patch.dict(os.environ, self.environment), patch("nipat_scientific.snp_parallel._PROBE_SECONDS", .7):
+            self.assertIsNone(_indexed_observations(source, [("chr1", 12)], {"chr1": 100}, self.root,
+                                                    "timeout", _ProbeWindow(real)))
+        self.assertIsNone(real.signum)
+        self.assertTrue(ext.exists())
+        self.assert_descendants_stopped(self.root)
+
+    def test_unknown_input_stops_subsequent_probes_and_requests_only_one_worker(self):
+        directory = self.root / "admission"
+        directory.mkdir()
+        paths = {item["id"]: item["path"] for item in self.plan["samples"]}
+        with patch.dict(os.environ, self.environment), patch(
+                "nipat_scientific.snp_parallel._sample_estimate", return_value=(None, {"basis": "unknown"})
+        ) as estimate:
+            budget = _query_budget(self.plan["steps"], paths, directory, _Cancellation())
+        self.assertEqual(estimate.call_count, 1)
+        self.assertEqual(budget["workers"], 1)
 
     def test_mixed_plan_batches_ready_snp_samples_and_registers_each_result_for_downstream(self):
         panel = self.root / "contamination_panel.tsv"

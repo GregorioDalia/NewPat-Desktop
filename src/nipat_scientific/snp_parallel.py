@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
+import gzip
 import json
 import os
 from pathlib import Path
@@ -15,9 +16,13 @@ import signal
 import subprocess
 import sys
 import time
+import zlib
 
-from nipat_scientific.errors import PlanExecutionError
+from nipat_scientific.errors import PlanExecutionError, ValidationError
+from nipat_scientific.panels import (read_bam_dictionary, read_snp_positions,
+                                     require_bam_targets, require_reference_windows)
 from nipat_scientific.parallel import THREAD_LIMITS
+from nipat_scientific.settings import normalize_settings
 
 _STARTED = time.monotonic()
 _STATE_READ_ATTEMPTS = 20
@@ -36,18 +41,172 @@ def _event(directory, event, budget, coordinator, index=None, outcome=None):
         stream.write(json.dumps(payload, allow_nan=False, separators=(",", ":")) + "\n")
 
 
-def _query_budget(tasks, directory, cancellation):
-    # R remains the single authority for fixed capacities and explicit caps.
-    # This probe has not loaded any sample. Its own RSS cannot estimate a full
-    # SNP worker, so sample scheduling stays serial; each loaded SNP aggregation
-    # can still parallelize using its observations and the same run ceiling.
+_MIB = 1024 * 1024
+# Includes the fresh Python worker, the R scientific packages and plotting.
+# Subsequent allowances size the arrays created from rows/observations. These
+# are scheduling estimates, never a change to scientific depth or read filters.
+_SAMPLE_BASE_BYTES = 768 * _MIB
+_BYTES_PER_OBSERVATION = 2048
+_SMALL_BAM_LIMIT = 1024 * 1024
+_MAX_PROBE_SITES = 2048
+_PROBE_SECONDS = 5
+_PROBE_DEPTH = 2048
+_MAX_BOUNDED_DEPTH = 8000
+
+
+def _small_bam_records(path):
+    """Bound record count by uncompressed bytes; never scan a large BAM."""
+    if path.stat().st_size > _SMALL_BAM_LIMIT:
+        return None
+    try:
+        with gzip.open(path, "rb") as stream:
+            data = stream.read(_SMALL_BAM_LIMIT + 1)
+    except (OSError, EOFError, zlib.error):
+        return None
+    if len(data) > _SMALL_BAM_LIMIT or not data.startswith(b"BAM\x01"):
+        return None
+    # Each alignment has a four-byte block length and a 32-byte fixed core.
+    # Counting the header and variable fields as potential cores overestimates.
+    return len(data) // 36
+
+
+class _ProbeWindow:
+    """Use the production runner's group cancellation for optional measurement."""
+    def __init__(self, cancellation):
+        self.cancellation = cancellation
+        self.deadline = time.monotonic() + _PROBE_SECONDS
+
+    @property
+    def signum(self):
+        return self.cancellation.signum or (signal.SIGTERM if time.monotonic() >= self.deadline else None)
+
+    @property
+    def exit_code(self):
+        return self.cancellation.exit_code if self.cancellation.signum else 124
+
+
+def _indexed_observations(source, positions, targets, directory, identifier, probe):
+    """Measure each three-base window; overlapping windows may overcount."""
     from nipat_scientific.executor import _run_process
 
-    expression = ('a <- commandArgs(TRUE); source(a[[1]]); '
-                  'cat(jsonlite::toJSON(nipat_parallel_budget(as.integer(a[[2]]), workload_observed=FALSE), '
-                  'auto_unbox=TRUE, null="null", digits=NA))')
+    if len(positions) > _MAX_PROBE_SITES or probe.signum is not None:
+        return None
+    indexes = [p for ext in (".bai", ".csi")
+               for p in (Path(str(source) + ext), source.with_suffix(ext)) if p.is_file()]
+    if not indexes or any(p.stat().st_mtime_ns < source.stat().st_mtime_ns for p in indexes):
+        return None
+    header = directory / f"coverage-{identifier}.sam"
+    log = directory / f"coverage-{identifier}.log"
+    if _run_process(["samtools", "view", "--no-PG", "-H", "-o", str(header), str(source)],
+                    directory, log, probe) or probe.signum is not None:
+        return None
+    sequences, sorted_header = read_bam_dictionary(header, source)
+    if not sorted_header:
+        return None
+    require_bam_targets(source, sequences, targets)
+    bed = directory / f"coverage-{identifier}.bed"
+    output = directory / f"coverage-{identifier}.tsv"
+    with bed.open("x", encoding="utf-8") as handle:
+        for chrom, position in positions:
+            handle.write(f"{chrom}\t{position - 2}\t{position + 1}\n")
+    # Include all mapped flags and leave D/N included. The extra count covers
+    # all accepted alignments at the window. Well before the probe can clip
+    # depth, retreat to one sample; scientific mpileup keeps its own settings.
+    command = ["samtools", "bedcov", "-g", "0x704", "-c", "--max-depth", str(_PROBE_DEPTH),
+               str(bed), str(source)]
+    if _run_process(command, directory, output, probe) or probe.signum is not None:
+        return None
+    total = peak = count = 0
+    with output.open(encoding="utf-8") as rows:
+        for row in rows:
+            fields = row.rstrip("\n").split("\t")
+            if count >= len(positions) or len(fields) != 5:
+                return None
+            chrom, position = positions[count]
+            if fields[:3] != [chrom, str(position - 2), str(position + 1)] or not all(
+                    x.isdecimal() for x in fields[3:]):
+                return None
+            coverage, reads = map(int, fields[3:])
+            if reads >= _PROBE_DEPTH // 2 or coverage > 3 * reads:
+                return None
+            total += coverage
+            peak = max(peak, reads)
+            count += 1
+    return (total, peak) if count == len(positions) else None
+
+
+def _sample_estimate(step, source, directory, cancellation):
+    parameters = step["parameters"]
+    bam = parameters["mode"] == "bam"
+    positions = read_snp_positions(Path(step["inputs"]["panel"]), for_bed=bam)
+    input_bytes = source.stat().st_size
+    # Materialized R tables and plots grow with panel size even at zero depth.
+    base = _SAMPLE_BASE_BYTES + 8192 * len(positions)
+    evidence = {"input_bytes": input_bytes, "panel_sites": len(positions)}
+    if not bam:
+        # Plain-text pileups are already expanded. Charge a generous per-byte
+        # multiplier for token vectors, joins, read groups and fallback parsing.
+        return base + 512 * input_bytes, {**evidence, "basis": "pileup-bytes"}
+    targets = require_reference_windows(Path(step["inputs"]["reference"] + ".fai"),
+                                        ((chrom, pos - 1, pos + 1) for chrom, pos in positions))
+    reference_bytes = max(targets.values())
+    depth = normalize_settings("snp-call", parameters.get("scientific_settings"))["max_depth"]
+    evidence.update(max_depth=depth, largest_target_contig=reference_bytes)
+    records = _small_bam_records(source)
+    if records is not None:
+        peak = min(records, depth) if depth else records
+        basis = "small-bam-uncompressed-record-bound"
+    elif 0 < depth <= _MAX_BOUNDED_DEPTH:
+        peak = depth
+        basis = "configured-bam-depth"
+    else:
+        peak = None
+    observations = None if peak is None else 3 * len(positions) * peak
+    # A whole-file/depth upper bound is enough for small jobs. Across a large
+    # sparse panel it can overstate the workload by orders of magnitude.
+    if observations is None or observations * _BYTES_PER_OBSERVATION > _SAMPLE_BASE_BYTES:
+        measured = _indexed_observations(source, positions, targets, directory, step["id"], cancellation)
+        if measured is not None:
+            observations, peak = measured
+            basis = "indexed-window-coverage"
+    if observations is None:
+        return None, {**evidence, "basis": "bam-coverage-unavailable"}
+    # The largest referenced chromosome can be resident during acquisition.
+    # Allow for read buffers independently of R's expanded observations.
+    size = base + 2 * reference_bytes + 16384 * peak + _BYTES_PER_OBSERVATION * observations
+    return size, {**evidence, "basis": basis, "observations": observations, "peak_depth_bound": peak}
+
+
+def _query_budget(steps, samples, directory, cancellation):
+    from nipat_scientific.executor import _run_process
+
+    estimates = {}
+    probe = _ProbeWindow(cancellation)
+    for step in steps:
+        if cancellation.signum is not None:
+            raise KeyboardInterrupt
+        source = Path(samples[step["inputs"]["sample"]])
+        try:
+            size, evidence = _sample_estimate(step, source, directory, probe)
+        except (OSError, ValidationError, UnicodeError):
+            # Normal execution retains the detailed scientific/input error.
+            size, evidence = None, {"basis": "sample-size-unavailable"}
+        estimates[step["id"]] = {**evidence, "memory_mib": (size + _MIB - 1) // _MIB if size else None}
+        if size is None:
+            break  # The batch cannot acquire extra slots, so skip later probes.
+    if cancellation.signum is not None:
+        raise KeyboardInterrupt
+    (directory / "sample-estimates.json").write_text(json.dumps(estimates, indent=2), encoding="utf-8")
+    sizes = [item["memory_mib"] for item in estimates.values()]
+    # One fixed budget protects even the worst pair/order and mixed inputs.
+    memory = str(max(sizes)) if all(sizes) else "unknown"
+    tasks = len(steps)
+    expression = ('a <- commandArgs(TRUE); source(a[[1]]); observed <- a[[3]] != "unknown"; '
+                  'm <- if (observed) as.numeric(a[[3]]) else NULL; '
+                  'cat(jsonlite::toJSON(nipat_parallel_budget(as.integer(a[[2]]), '
+                  'memory_mib=m, workload_observed=observed), auto_unbox=TRUE, null="null", digits=NA))')
     target = directory / "budget.json"
-    code = _run_process(["Rscript", "-e", expression, str(Path(__file__).with_name("parallel.R")), str(tasks)],
+    code = _run_process(["Rscript", "-e", expression, str(Path(__file__).with_name("parallel.R")), str(tasks), memory],
                         directory, target, cancellation)
     if cancellation.signum is not None:
         raise KeyboardInterrupt
@@ -58,7 +217,8 @@ def _query_budget(tasks, directory, cancellation):
     except (ValueError, OSError) as exc:
         raise PlanExecutionError("execution.parallel_budget", "The R process budget is invalid.") from exc
     if (not isinstance(budget, dict) or type(budget.get("workers")) is not int
-            or not 1 <= budget["workers"] <= tasks or budget.get("tasks") != tasks):
+            or not 1 <= budget["workers"] <= tasks or budget.get("tasks") != tasks
+            or (memory == "unknown" and budget["workers"] != 1)):
         raise PlanExecutionError("execution.parallel_budget", "The R process budget is inconsistent with the batch.")
     return budget
 
@@ -134,7 +294,8 @@ def execute_independent_snp_steps(plan, state, root, scripts, cancellation, *, a
         raise KeyboardInterrupt
     directory = root / "parallel" / "snp"
     directory.mkdir(parents=True)
-    budget = _query_budget(len(steps), directory, cancellation)
+    samples = {sample["id"]: sample["path"] for sample in plan["samples"]}
+    budget = _query_budget(steps, samples, directory, cancellation)
     state["snp_parallel"] = {"interface": "nipat-parallel-v1", **budget,
                              "diagnostics": "parallel/snp"}
     _event(directory, "plan", budget, os.getpid())

@@ -243,51 +243,65 @@ def _deep_sample(identifier: str, root: Path, *, run_container) -> tuple[Path, P
 
 def check_snp_execution_policy(run: Path, state: dict, *, options: ExecutionOptions,
                                count: int, require_inner: bool = True) -> dict:
-    """Require explained serial sample admission and real loaded-R execution.
+    """Check the batch budget, the processes that used it and ownership of inner pools."""
+    from scientific_worker_evidence import verify_parallel_execution
 
-    A fresh R budget probe has no sample workload. It may not authorize outer
-    sample processes. Once SNP observations are loaded, each inner R pool must
-    actually exercise the requested serial/parallel policy within its budget.
-    Scientific equality is checked independently by each caller of this helper.
-    """
     directory = run / "parallel/snp"
+    outer_execution = None
+    outer = state.get("snp_parallel")
     if options.execution_mode == "serial":
-        if "snp_parallel" in state or directory.exists():
+        if outer is not None or directory.exists():
             raise ValueError("Serial SNP qualification launched a parallel coordinator.")
-        outer = None
     else:
-        outer = state.get("snp_parallel", {})
-        expected = {"mode": "auto", "workers": 1, "tasks": count,
-                    "reason": "workload-not-observed", "resource_policy": "nipat-fixed-resources-v1",
-                    "workload_model": "not-observed", "memory_per_worker_mib": None}
-        if any(key not in outer or type(outer[key]) is not type(value) or outer[key] != value
-               for key, value in expected.items()):
-            raise ValueError("Unloaded SNP samples require explicit serial workload-not-observed admission.")
         budget = json.loads((directory / "budget.json").read_text(encoding="utf-8"))
         events = [json.loads(line) for path in directory.glob("worker-*.jsonl")
                   for line in path.read_text(encoding="utf-8").splitlines()]
-        if (len(events) != 1 or events[0].get("event") != "plan"
-                or events[0].get("label") != "snp-samples"
-                or any(budget.get(key) != value or events[0].get(key) != value
-                       for key, value in expected.items())
-                or any(directory.glob("state-*.json")) or any(directory.glob("job-*.json"))):
-            raise ValueError("SNP sample admission evidence is missing, inconsistent, or launched outer workers.")
+        plans = [event for event in events if event.get("event") == "plan"]
+        if (not isinstance(outer, dict) or len(plans) != 1
+                or any(event.get("label") != "snp-samples" for event in events)
+                or any(outer.get(key) != value or plans[0].get(key) != value
+                       for key, value in budget.items())
+                or budget.get("resource_policy") != "nipat-fixed-resources-v1"
+                or type(budget.get("tasks")) is not int or budget["tasks"] != count
+                or type(budget.get("workers")) is not int or budget.get("mode") != "auto"):
+            raise ValueError("Inconsistent SNP sample admission evidence.")
+        if require_inner:
+            estimate = budget.get("memory_per_worker_mib")
+            if (budget.get("workload_model") != "max-loaded-coordinator-rss-x2-and-module-estimate"
+                    or not isinstance(estimate, (int, float)) or not math.isfinite(estimate)
+                    or estimate <= 0 or budget.get("reason") == "workload-not-observed"):
+                raise ValueError("Valid SNP inputs require a measured sample workload budget.")
+        elif (budget.get("reason") != "workload-not-observed" or budget["workers"] != 1
+              or budget.get("workload_model") != "not-observed"
+              or budget.get("memory_per_worker_mib") is not None):
+            raise ValueError("Unreadable SNP inputs require workload-not-observed admission.")
+        parallel_samples = budget["workers"] > 1
+        outer_execution = verify_parallel_execution(directory, mode="auto", cap=options.max_workers,
+                                                      require_parallel=parallel_samples)
+        if parallel_samples:
+            started = [event["task_index"] for event in events if event["event"] == "task-start"]
+            if sorted(started) != list(range(1, count + 1)):
+                raise ValueError("SNP sample workers did not execute every requested sample exactly once.")
+        elif (len(events) != 1 or any(directory.glob("state-*.json")) or any(directory.glob("job-*.json"))):
+            raise ValueError("Single-worker SNP admission launched outer workers.")
     inner = {}
     if require_inner:
-        from scientific_worker_evidence import verify_parallel_execution
-
         steps = [step for step in state["steps"] if step["workflow"] == "snp-call"]
         if len(steps) != count or any(step["status"] != "succeeded" for step in steps):
             raise ValueError("SNP qualification lost a completed sample.")
+        nested = bool(outer and outer["workers"] > 1)
         for step in steps:
-            # Same strict observed-process/CPU/RAM/manual-cap checker used by
-            # frozen-reference caller qualification, now at the loaded phase.
-            directory = run / step["work_dir"] / "parallel"
-            evidence = verify_parallel_execution(directory, mode=options.execution_mode,
-                cap=options.max_workers, require_parallel=options.execution_mode == "auto",
-                require_overlap=False)
+            evidence = verify_parallel_execution(run / step["work_dir"] / "parallel",
+                mode=options.execution_mode, cap=1 if nested else options.max_workers,
+                require_parallel=False, require_overlap=False)
+            if (evidence["maximum_planned_workers"] > 1
+                    and len(evidence["observed_child_pids"]) < 2):
+                raise ValueError("A loaded parallel SNP plan did not execute child workers.")
+            if nested and (evidence["observed_child_pids"] or
+                           any(plan.get("reason") != "shared-budget-child" for plan in evidence["plans"])):
+                raise ValueError("A parallel SNP sample did not respect the shared child budget.")
             inner[step["id"]] = evidence
-    return {"outer_admission": outer, "loaded_r_execution": inner}
+    return {"outer_admission": outer, "outer_execution": outer_execution, "loaded_r_execution": inner}
 
 
 def _batch_snapshot(parent: Path, *, options: ExecutionOptions, count: int) -> dict[str, bytes]:
@@ -297,7 +311,10 @@ def _batch_snapshot(parent: Path, *, options: ExecutionOptions, count: int) -> d
     result = {step["id"]: _artifact(run, step["artifacts"]["snp-tables"][0]).read_bytes()
               for step in state["steps"]}
     result["genotypes"] = _artifact(run, state["snp_summary"][0]["genotypes"]).read_bytes()
-    check_snp_execution_policy(run, state, options=options, count=count)
+    policy = check_snp_execution_policy(run, state, options=options, count=count)
+    if options.execution_mode == "auto" and count == 2:
+        if not policy["outer_execution"]["simultaneous_child_workers"]:
+            raise ValueError("Tiny two-BAM SNP qualification did not exercise concurrent sample processing.")
     return result
 
 
@@ -329,7 +346,7 @@ def _check_batch_modes(root: Path, layout: ProjectLayout, inputs: Path,
             references[count] = snapshot
         elif snapshot != references[count]:
             raise ValueError(f"Scientific SNP tables or aggregate genotypes changed: {name}")
-        print(f"PASS: {name}; 17-column independent oracle, serial admission, observed loaded-R workers and exact table parity.", flush=True)
+        print(f"PASS: {name}; 17-column independent oracle, bounded sample and R workers, and exact table parity.", flush=True)
     if any(path.read_bytes() != content for path, content in originals.items()):
         raise ValueError("SNP batch mode qualification changed an input BAM.")
 
