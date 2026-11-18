@@ -97,7 +97,10 @@ class CheckOwnership(unittest.TestCase):
 class RequiredGate(unittest.TestCase):
     def results(self, scientific="true"):
         return {
-            "changes": {"result": "success", "outputs": {"run_checks": "true", "scientific": scientific, "runtime": scientific, "packaging": scientific}},
+            "changes": {"result": "success", "outputs": {"run_checks": "true", "scientific": scientific,
+                        "runtime": scientific, "packaging": scientific, "acceptance_only": "false",
+                        "acceptance_paths": "[]", "documentation_scope": "none", "client": scientific}},
+            "documentation": {"result": "skipped"},
             "linux-checks": {"result": "success"}, "windows-checks": {"result": "success"},
             "macos-checks": {"result": "success"}, "acceptance": {"result": "skipped"},
             "scientific": {"result": "success" if scientific == "true" else "skipped"},
@@ -114,7 +117,8 @@ class RequiredGate(unittest.TestCase):
 
     def test_acceptance_only_requires_its_validator_and_skips_clients(self):
         results = self.results("false")
-        results["changes"]["outputs"].update(acceptance_only="true", client="false")
+        results["changes"]["outputs"].update(acceptance_only="true", client="false",
+                                             acceptance_paths='[".github/release-acceptance/v0.9.7.json"]')
         for job in ("linux-checks", "windows-checks", "macos-checks"):
             results[job]["result"] = "skipped"
         results["acceptance"]["result"] = "success"
@@ -134,6 +138,46 @@ class RequiredGate(unittest.TestCase):
         del results["acceptance"]
         self.assertTrue(self.errors(results))
 
+    def test_documentation_job_must_pass_and_native_jobs_must_skip_for_guides(self):
+        results = self.results("false")
+        results["changes"]["outputs"]["documentation_scope"] = "guides"
+        for job in ("linux-checks", "windows-checks", "macos-checks"):
+            results[job]["result"] = "skipped"
+        results["documentation"]["result"] = "success"
+        self.assertEqual(self.errors(results), [])
+        self.assertTrue(self.errors(results, "workflow_dispatch", "refs/heads/main"))
+        for outcome in ("skipped", "failure", "cancelled", None):
+            results["documentation"]["result"] = outcome
+            self.assertTrue(self.errors(results))
+        del results["documentation"]
+        self.assertTrue(self.errors(results))
+
+    def test_mixed_application_and_acceptance_request_both_validations(self):
+        results = self.results()
+        results["changes"]["outputs"]["acceptance_paths"] = '[".github/release-acceptance/v0.9.7.json"]'
+        self.assertTrue(self.errors(results))
+        results["acceptance"]["result"] = "success"
+        self.assertEqual(self.errors(results), [])
+        results["linux-checks"]["result"] = "skipped"
+        self.assertTrue(self.errors(results))
+
+    def test_image_notices_cannot_pass_without_both_documentation_and_science(self):
+        results = self.results("false")
+        outputs = results["changes"]["outputs"]
+        outputs.update(documentation_scope="image", scientific="true")
+        for job in ("linux-checks", "windows-checks", "macos-checks"):
+            results[job]["result"] = "skipped"
+        results["documentation"]["result"] = "success"
+        self.assertTrue(self.errors(results))
+        results["scientific"]["result"] = "success"
+        self.assertEqual(self.errors(results), [])
+        results["documentation"]["result"] = "failure"
+        self.assertTrue(self.errors(results))
+        results["documentation"]["result"] = "success"
+        outputs["scientific"] = "false"
+        results["scientific"]["result"] = "skipped"
+        self.assertTrue(self.errors(results))
+
     def test_failed_cancelled_skipped_or_missing_required_jobs_fail_closed(self):
         for name in ("changes", "linux-checks", "windows-checks", "macos-checks", "scientific", "runtime", "packaging"):
             for result in ("failure", "cancelled", "skipped", None):
@@ -146,7 +190,8 @@ class RequiredGate(unittest.TestCase):
             self.assertTrue(self.errors(results))
 
     def test_unknown_selection_fails_closed(self):
-        for field in ("run_checks", "scientific", "runtime", "packaging"):
+        for field in ("run_checks", "scientific", "runtime", "packaging", "documentation_scope",
+                      "acceptance_only", "acceptance_paths"):
             for value in (None, "", "unexpected"):
                 results = self.results()
                 results["changes"]["outputs"][field] = value

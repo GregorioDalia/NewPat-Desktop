@@ -1,7 +1,7 @@
 """Reuse successful CI science only for identical source trees and Docker images.
 
 This optional cache never authorizes a release. Any unavailable or mismatched
-proof is a cache miss; the installer workflow then runs every scientific gate.
+proof is a cache miss; the consumer then runs every scientific gate.
 """
 
 import argparse
@@ -229,6 +229,11 @@ def tool_version(name):
     return lines[0][:200]
 
 
+def host_environment():
+    return {"python": platform.python_version(), "system": platform.system(), "machine": platform.machine(),
+            "pdfinfo": tool_version("pdfinfo"), "pdftoppm": tool_version("pdftoppm")}
+
+
 def seal(image, output, runner_temp):
     source = checkout()
     producer = producer_identity(source)
@@ -237,8 +242,7 @@ def seal(image, output, runner_temp):
     verify_required(evidence, identity)
     require(checkout() == source, "Producer checkout changed while sealing")
     require(platform.python_version() == "3.12.10", "Scientific producer must use pinned Python 3.12.10")
-    environment = {"python": platform.python_version(), "system": platform.system(), "machine": platform.machine(),
-                   "pdfinfo": tool_version("pdfinfo"), "pdftoppm": tool_version("pdftoppm")}
+    environment = host_environment()
     require(environment["system"] == "Linux" and environment["machine"] == "x86_64", "Unexpected producer host")
     output.mkdir(parents=True, exist_ok=True)
     require(not output.is_symlink() and not any(output.iterdir()), "Scientific qualification output must be empty")
@@ -498,6 +502,16 @@ def consumer_identity():
     return result
 
 
+def verify_merged_pr(producer, source, fetch, deadline):
+    pull = producer["pull_request"]
+    merged = fetch(f"pulls/{pull['number']}", deadline=deadline)
+    require(merged.get("number") == pull["number"] and merged.get("merged") is True
+            and merged.get("merge_commit_sha") == source["commit"]
+            and merged.get("base", {}).get("ref") == "main" and merged.get("head", {}).get("sha") == pull["head_sha"]
+            and all((merged.get(side, {}).get("repo") or {}).get("full_name") == REPOSITORY for side in ("base", "head")),
+            "Scientific producer is not the pull request merged at this main commit")
+
+
 def restore(image, output, runner_temp, *, fetch=fetch_json, download=download_artifact):
     deadline = time.monotonic() + SEARCH_BUDGET_SECONDS
     receipt = {"schema_version": 1, "reused": False, "reason": "No matching successful CI scientific qualification",
@@ -505,20 +519,36 @@ def restore(image, output, runner_temp, *, fetch=fetch_json, download=download_a
     try:
         consumer = receipt["consumer"]
         require(consumer["repository"] == REPOSITORY and positive(consumer["run_id"]) and positive(consumer["attempt"])
-                and consumer["event"] == "workflow_dispatch" and isinstance(consumer["workflow_ref"], str)
-                and consumer["workflow_ref"].startswith(REPOSITORY + "/.github/workflows/windows-installer.yml@refs/heads/"),
-                "Scientific reuse requires an identified installer workflow in this repository")
+                and isinstance(consumer["workflow_ref"], str), "Unknown scientific consumer identity")
+        main_push = consumer["event"] == "push"
+        if main_push:
+            require(consumer["workflow_ref"] == REPOSITORY + "/.github/workflows/ci.yml@refs/heads/main"
+                    and os.environ.get("GITHUB_REF") == "refs/heads/main"
+                    and os.environ.get("GITHUB_REF_PROTECTED") == "true",
+                    "CI scientific reuse requires a push to protected main")
+        else:
+            require(consumer["event"] == "workflow_dispatch"
+                    and consumer["workflow_ref"].startswith(REPOSITORY + "/.github/workflows/windows-installer.yml@refs/heads/"),
+                    "Unknown scientific consumer workflow")
         source, identity = checkout(), image_identity(image)
+        if main_push:
+            require(source["commit"] == os.environ.get("GITHUB_SHA"), "Main checkout differs from the push")
+            environment = host_environment()
         require(platform.python_version() == "3.12.10" and platform.system() == "Linux" and platform.machine() == "x86_64",
                 "Consumer must use the pinned Linux Python host")
         receipt["consumer"].update(checkout=source, image=identity)
-        runs = fetch("actions/workflows/ci.yml/runs?status=completed&per_page=30", deadline=deadline).get("workflow_runs")
+        query = "actions/workflows/ci.yml/runs?status=completed&per_page=30"
+        if main_push:
+            query += "&event=pull_request"
+        runs = fetch(query, deadline=deadline).get("workflow_runs")
         require(isinstance(runs, list) and len(runs) <= 30, "Unexpected CI history response")
         misses = []
         for candidate in runs:
             remaining_timeout(deadline)
             try:
                 validate_run(candidate)
+                if main_push:
+                    require(candidate["event"] == "pull_request", "A main push needs an original PR qualification")
                 run_id, attempt = candidate["id"], candidate["run_attempt"]
                 artifacts = fetch(f"actions/runs/{run_id}/artifacts?per_page=100", deadline=deadline)
                 name = f"nipat-scientific-qualification-{attempt}-{source['tree']}"
@@ -530,6 +560,9 @@ def restore(image, output, runner_temp, *, fetch=fetch_json, download=download_a
                     downloaded = directory / "artifact.zip"
                     download(artifact, downloaded, deadline=deadline)
                     record, evidence = verify_bundle(downloaded, directory, candidate, source, identity, fetch, deadline=deadline)
+                    if main_push:
+                        verify_merged_pr(record["producer"], source, fetch, deadline)
+                        require(record["environment"] == environment, "Scientific qualification host tools changed")
                     remaining_timeout(deadline)
                     require(checkout() == source and image_identity(image) == identity, "Consumer changed during scientific restore")
                     restore_files(evidence, runner_temp)
@@ -561,6 +594,7 @@ def main():
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--runner-temp", type=Path, default=os.environ.get("RUNNER_TEMP"))
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--wait-for-active-ci", action="store_true")
     args = parser.parse_args()
     require(args.runner_temp is not None, "RUNNER_TEMP is required")
     if args.operation == "seal":
@@ -570,9 +604,17 @@ def main():
     else:
         require(args.output is not None, "Restore requires the workflow output file")
         receipt = restore(args.image, args.output_dir, args.runner_temp)
+        if args.wait_for_active_ci and not receipt["reused"]:
+            from installer_science_wait import producer_finished
+            if producer_finished(receipt):
+                receipt = restore(args.image, args.output_dir, args.runner_temp)
         with args.output.open("a", encoding="utf-8") as stream:
             stream.write(f"reused={str(receipt['reused']).lower()}\n")
         print(f"Scientific reuse {'hit' if receipt['reused'] else 'miss'}: {receipt['reason']}")
+        if receipt["reused"]:
+            producer = receipt["producer"]
+            url = f"https://github.com/{REPOSITORY}/actions/runs/{producer['run_id']}/job/{receipt['scientific_job_id']}"
+            print(f"Original seven checks: {url} (attempt {producer['attempt']}, artifact {receipt['artifact']['digest']})")
 
 
 if __name__ == "__main__":

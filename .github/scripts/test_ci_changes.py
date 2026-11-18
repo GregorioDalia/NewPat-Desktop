@@ -1,6 +1,8 @@
 import importlib.util
+import json
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -54,8 +56,6 @@ class ScientificSelection(unittest.TestCase):
         path = ".github/release-acceptance/v0.8.60.json"
         self.write(path, "{}")
         head = self.commit()
-        import json
-        import sys
         for event in ("pull_request", "workflow_dispatch"):
             output = self.root / (event + ".out")
             subprocess.run([sys.executable, str(Path(changes.__file__).resolve()),
@@ -65,6 +65,79 @@ class ScientificSelection(unittest.TestCase):
             self.assertEqual(values["acceptance_only"], "true" if event == "pull_request" else "false")
             self.assertEqual(json.loads(values["acceptance_paths"]), [path] if event == "pull_request" else [])
             self.assertEqual(values["scientific"], "false" if event == "pull_request" else "true")
+            self.assertEqual(values["documentation_scope"], "none")
+
+    def selection(self, event="pull_request"):
+        head = self.commit()
+        with tempfile.TemporaryDirectory() as folder:
+            output = Path(folder) / "selection"
+            subprocess.run([sys.executable, str(Path(changes.__file__).resolve()),
+                            "--base", self.base, "--head", head, "--event", event,
+                            "--output", str(output)], cwd=self.root, check=True, capture_output=True)
+            return dict(line.split("=", 1) for line in output.read_text().splitlines())
+
+    def test_guide_and_shipped_readmes_use_the_documentation_job(self):
+        for path in ("docs/archive/guide.md", "docs/WORKFLOW_CONTRACT.md", "engine/README.md",
+                     "scientific/vendor/NEWPAT/SNPcall/README.md", "installer/windows/zip-readme.txt",
+                     "installer/windows/testing-readme.txt"):
+            self.write(path, "revised guidance")
+        values = self.selection()
+        self.assertEqual(values["documentation_scope"], "guides")
+        self.assertTrue(all(values[layer] == "false" for layer in changes.LAYERS))
+        self.assertEqual(values["acceptance_only"], "false")
+
+    def test_mixed_documents_and_code_keep_native_and_applicable_integration(self):
+        self.write("docs/GUIDA_UTILIZZO.md", "guide")
+        self.write("engine/main.py", "updated")
+        values = self.selection()
+        self.assertEqual(values["documentation_scope"], "none")
+        self.assertEqual(values["scientific"], "true")
+
+    def test_changed_image_notices_with_guides_require_the_image_and_documentation(self):
+        self.write("docs/GUI.md", "guide")
+        self.write("THIRD_PARTY_NOTICES.md", "image notice")
+        values = self.selection()
+        self.assertEqual(values["documentation_scope"], "image")
+        self.assertEqual(values["scientific"], "true")
+        self.assertTrue(all(values[layer] == "false" for layer in ("client", "packaging", "runtime")))
+
+    def test_mixed_records_still_verify_acceptance_without_delegating_native_checks(self):
+        record = ".github/release-acceptance/v0.9.7.json"
+        self.write("docs/GUIDA_UTILIZZO.md", "guide")
+        self.write(record, "{}")
+        values = self.selection()
+        self.assertEqual(values["documentation_scope"], "none")
+        self.assertEqual(values["acceptance_only"], "false")
+        self.assertEqual(json.loads(values["acceptance_paths"]), [record])
+
+    def test_manually_dispatched_or_unrecognized_inputs_keep_full_ci(self):
+        self.write("docs/GUI.md", "user guide")
+        values = self.selection(event="workflow_dispatch")
+        self.assertEqual(values["documentation_scope"], "none")
+        self.assertTrue(all(values[layer] == "true" for layer in changes.LAYERS))
+        for path in ("docs/validation/record.json", "new-area/README.md", "new-code/tool.py"):
+            self.assertEqual(changes.layers_for_path(path), set(changes.LAYERS))
+        for path in ("tests/fixtures/cpi/samples/example.md", "src/nipat/gui/web/vendor/README.md",
+                     "scientific/vendor/unknown/README.md"):
+            self.assertFalse(changes.is_documentation(path))
+            self.assertIn("scientific", changes.layers_for_path(path))
+
+    def test_documentation_shortcut_never_includes_scientific_image_sources(self):
+        root = Path(__file__).resolve().parents[2]
+        dockerfile = (root / "docker/scientific-runtime/Dockerfile").read_text()
+        for line in dockerfile.splitlines():
+            if line.startswith("COPY "):
+                for source in line.split()[1:-1]:
+                    path = root / source
+                    for file in path.rglob("*") if path.is_dir() else [path]:
+                        if file.is_file():
+                            name = file.relative_to(root).as_posix()
+                            self.assertIn("scientific", changes.layers_for_path(name), name)
+
+    def test_scientific_validator_and_its_evidence_dependencies_request_real_execution(self):
+        for path in (".github/scripts/check_native_r.py", ".github/scripts/qualification_evidence.py",
+                     ".github/scripts/release_acceptance.py"):
+            self.assertIn("scientific", changes.layers_for_path(path), path)
 
     def test_publisher_workflow_requires_packaging_without_scientific_or_runtime_checks(self):
         self.write(".github/workflows/publish-windows-release.yml", "updated publication policy\n")

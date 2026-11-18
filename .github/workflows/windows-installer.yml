@@ -94,6 +94,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      pull-requests: read
     env:
       PYTHONPATH: src
       NIPAT_RUNTIME_IMAGE: nipat-scientific-runtime:installer-test
@@ -144,7 +145,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          python .github/scripts/scientific_reuse.py restore \
+          python .github/scripts/scientific_reuse.py restore --wait-for-active-ci \
             --image "$NIPAT_RUNTIME_IMAGE" --output-dir build/scientific-reuse \
             --runner-temp "$RUNNER_TEMP" --output "$GITHUB_OUTPUT"
       - name: Verify bundled scientific scripts without host sources

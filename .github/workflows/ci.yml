@@ -25,6 +25,7 @@ jobs:
       ownership_reason: ${{ steps.ownership.outputs.ownership_reason }}
       acceptance_only: ${{ steps.select.outputs.acceptance_only }}
       acceptance_paths: ${{ steps.select.outputs.acceptance_paths }}
+      documentation_scope: ${{ steps.select.outputs.documentation_scope }}
       client: ${{ steps.select.outputs.client }}
       scientific: ${{ steps.select.outputs.scientific }}
       runtime: ${{ steps.select.outputs.runtime }}
@@ -54,7 +55,7 @@ jobs:
 
   acceptance:
     needs: changes
-    if: needs.changes.outputs.run_checks == 'true' && needs.changes.outputs.acceptance_only == 'true'
+    if: needs.changes.outputs.run_checks == 'true' && needs.changes.outputs.acceptance_paths != '[]'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -73,9 +74,27 @@ jobs:
           ACCEPTANCE_PATHS: ${{ needs.changes.outputs.acceptance_paths }}
         run: python .github/scripts/acceptance_ci.py
 
+  documentation:
+    needs: changes
+    if: needs.changes.outputs.run_checks == 'true' && (needs.changes.outputs.documentation_scope == 'guides' || needs.changes.outputs.documentation_scope == 'image')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      PYTHONPATH: src
+    steps:
+      - name: Checkout documentation and validation tools
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Validate links, examples and packaged documentation
+        run: |
+          python3.12 .github/scripts/check_docs.py
+          python3.12 -m unittest discover -s tests -p test_workflow_plan.py
+          python3.12 .github/scripts/check_documentation_package.py
+
   linux-checks:
     needs: changes
-    if: needs.changes.outputs.run_checks == 'true' && needs.changes.outputs.acceptance_only != 'true'
+    if: needs.changes.outputs.run_checks == 'true' && needs.changes.outputs.acceptance_only == 'false' && needs.changes.outputs.documentation_scope == 'none'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
@@ -152,15 +171,17 @@ jobs:
           if-no-files-found: error
       - name: CI selection and release guard tests
         run: python -m unittest discover -s .github/scripts -p 'test_*.py' -v
-      - name: Validate local documentation links and anchors
-        run: python .github/scripts/check_docs.py
+      - name: Validate local documentation links, examples and packaged documentation
+        run: |
+          python .github/scripts/check_docs.py
+          python .github/scripts/check_documentation_package.py
       - name: Check dedicated daemon helper syntax
         run: bash -n installer/runtime/nipat-engine
 
   windows-checks:
     name: Windows client (Server 2022; simulated Windows 10/11 decisions)
     needs: changes
-    if: needs.changes.outputs.run_checks == 'true' && needs.changes.outputs.acceptance_only != 'true'
+    if: needs.changes.outputs.run_checks == 'true' && needs.changes.outputs.acceptance_only == 'false' && needs.changes.outputs.documentation_scope == 'none'
     runs-on: windows-2022
     timeout-minutes: 20
     env:
@@ -218,7 +239,7 @@ jobs:
   macos-checks:
     name: macOS client (${{ matrix.architecture }})
     needs: changes
-    if: needs.changes.outputs.run_checks == 'true' && needs.changes.outputs.acceptance_only != 'true'
+    if: needs.changes.outputs.run_checks == 'true' && needs.changes.outputs.acceptance_only == 'false' && needs.changes.outputs.documentation_scope == 'none'
     strategy:
       fail-fast: false
       matrix:
@@ -301,7 +322,26 @@ jobs:
           provenance: false
           cache-from: type=gha,version=2,scope=nipat-scientific-linux-amd64
           cache-to: type=gha,version=2,scope=nipat-scientific-linux-amd64,mode=max,ignore-error=true
+      - name: Verify distribution notices in the built image
+        run: |
+          set -o pipefail
+          sha256sum LICENSE THIRD_PARTY_NOTICES.md |
+            docker run --rm -i --network=none --workdir /opt/nipat --entrypoint sha256sum "$NIPAT_RUNTIME_IMAGE" --check -
+      - name: Prepare scientific presentation tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends poppler-utils
+      - name: Check the merged pull request for matching scientific evidence
+        id: scientific_reuse
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.ref_protected
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python .github/scripts/scientific_reuse.py restore \
+            --image "$NIPAT_RUNTIME_IMAGE" --output-dir build/scientific-reuse \
+            --runner-temp "$RUNNER_TEMP" --output "$GITHUB_OUTPUT"
       - name: Verify bundled scientific scripts without host sources
+        if: steps.scientific_reuse.outputs.reused != 'true'
         env:
           TMPDIR: ${{ runner.temp }}/nipat-engine-check
         run: |
@@ -309,15 +349,15 @@ jobs:
           set -o pipefail
           python scripts/verify_engine_package.py --image "$NIPAT_RUNTIME_IMAGE" 2>&1 | tee "$TMPDIR/verification.log"
       - name: Verify original sample labels and unchanged scientific results
+        if: steps.scientific_reuse.outputs.reused != 'true'
         env:
           TMPDIR: ${{ runner.temp }}/nipat-presentation-check
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends poppler-utils
           mkdir -p "$TMPDIR"
           set -o pipefail
           python scripts/verify_presentation.py --image "$NIPAT_RUNTIME_IMAGE" --output-dir "$TMPDIR/artifacts" 2>&1 | tee "$TMPDIR/verification.log"
       - name: Scientific regression and input-mode checks
+        if: steps.scientific_reuse.outputs.reused != 'true'
         env:
           NIPAT_DATA_DIR: ${{ runner.temp }}/nipat-validation/data
           NIPAT_RUNS_DIR: ${{ runner.temp }}/nipat-validation/runs
@@ -326,6 +366,7 @@ jobs:
           python -m nipat doctor --runtime
           python -m nipat self-test
       - name: Verify optional performance evidence and unchanged DNP results
+        if: steps.scientific_reuse.outputs.reused != 'true'
         env:
           TMPDIR: ${{ runner.temp }}/nipat-performance-check
         run: |
@@ -333,6 +374,7 @@ jobs:
           set -o pipefail
           python scripts/verify_performance.py --image "$NIPAT_RUNTIME_IMAGE" --output-dir "$TMPDIR/artifacts" 2>&1 | tee "$TMPDIR/verification.log"
       - name: Verify native scientific edge cases and settings in the installed image
+        if: steps.scientific_reuse.outputs.reused != 'true'
         env:
           TMPDIR: ${{ runner.temp }}/nipat-native-r-check
         run: |
@@ -344,6 +386,7 @@ jobs:
             --entrypoint python3 "$NIPAT_RUNTIME_IMAGE" /qualification/.github/scripts/check_native_r.py \
             2>&1 | tee "$TMPDIR/verification.log"
       - name: Verify updated CPI Contamination and CPIN models
+        if: steps.scientific_reuse.outputs.reused != 'true'
         env:
           TMPDIR: ${{ runner.temp }}/nipat-five-modules-check
         run: |
@@ -351,6 +394,7 @@ jobs:
           set -o pipefail
           python scripts/verify_five_modules.py --image "$NIPAT_RUNTIME_IMAGE" --output "$TMPDIR/artifacts" --full 2>&1 | tee "$TMPDIR/verification.log"
       - name: Compare scientific cores with immutable versioned references
+        if: steps.scientific_reuse.outputs.reused != 'true'
         env:
           TMPDIR: ${{ runner.temp }}/nipat-r-equivalence-check
         run: |
@@ -358,12 +402,14 @@ jobs:
           set -o pipefail
           python scripts/verify_r_equivalence.py --image "$NIPAT_RUNTIME_IMAGE" --output-dir "$TMPDIR/artifacts" 2>&1 | tee "$TMPDIR/verification.log"
       - name: Seal successful scientific qualification for exact-image reuse
+        if: steps.scientific_reuse.outputs.reused != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         id: scientific_qualification
         run: |
           python .github/scripts/scientific_reuse.py seal \
             --image "$NIPAT_RUNTIME_IMAGE" --output-dir build/scientific-qualification
           echo "source_tree=$(git rev-parse 'HEAD^{tree}')" >> "$GITHUB_OUTPUT"
       - name: Retain reusable scientific qualification
+        if: steps.scientific_reuse.outputs.reused != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         # A failed/cancelled check never produces reusable evidence. Attempts
         # have separate immutable artifacts; ordinary diagnostics remain below.
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -386,6 +432,7 @@ jobs:
             ${{ runner.temp }}/nipat-r-equivalence-check/
             ${{ runner.temp }}/nipat-five-modules-check/
             ${{ runner.temp }}/nipat-native-r-check/
+            build/scientific-reuse/reuse.json
           retention-days: 14
           if-no-files-found: ignore
 
@@ -449,7 +496,7 @@ jobs:
     # A delegated branch push cannot satisfy the protected PR/main context.
     name: ${{ github.event_name == 'push' && github.ref != 'refs/heads/main' && 'branch-required' || 'required' }}
     if: always()
-    needs: [changes, linux-checks, windows-checks, macos-checks, scientific, runtime, packaging, acceptance]
+    needs: [changes, documentation, linux-checks, windows-checks, macos-checks, scientific, runtime, packaging, acceptance]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
