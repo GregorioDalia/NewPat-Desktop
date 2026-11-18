@@ -516,6 +516,8 @@ jobs:
       - name: Install and exercise the package as a non-root user
         # The runner already has Docker access. This is not a clean Ubuntu Desktop test.
         run: |
+          # The runner image may reference package revisions that Ubuntu has removed.
+          sudo apt-get update
           package=(build/linux-output/*.deb)
           test "${#package[@]}" -eq 1
           python scripts/verify_linux_installer.py \
@@ -527,7 +529,6 @@ jobs:
       - name: Exercise the packaged native GTK application
         # Xvfb supplies a desktop to the native GTK window; no browser is launched.
         run: |
-          sudo apt-get update
           sudo apt-get install -y --no-install-recommends xvfb xauth dbus-x11 python3-cairo python3-gi-cairo
           package=(build/linux-output/*.deb)
           test "${#package[@]}" -eq 1
