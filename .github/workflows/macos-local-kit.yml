@@ -1,0 +1,48 @@
+name: NewPat 0.9.8 offline Apple Silicon build kit
+
+on:
+  push:
+    branches: ['review/0.9.8-macos-arm64']
+    paths:
+      - '.github/workflows/macos-local-kit.yml'
+      - '.github/review-kit/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  assemble:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Check out the exact tested release source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: aec701f6f14bbd0f770dd79812b085be1e17096c
+          path: release
+          persist-credentials: false
+      - name: Check out the kit scripts
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          path: review
+          sparse-checkout: .github/review-kit
+          persist-credentials: false
+      - name: Fetch the existing successful scientific build
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: nipat-runtime-assets
+          run-id: 44344894151
+          github-token: ${{ github.token }}
+          path: scientific
+      - name: Assemble and re-open the offline kit
+        run: python3 review/.github/review-kit/assemble.py
+      - name: Deliver the offline kit
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: NewPat-0.9.8-Apple-Silicon-kit
+          path: delivery/NewPat-0.9.8-Apple-Silicon.tar.gz
+          compression-level: 0
+          retention-days: 14
+          if-no-files-found: error
