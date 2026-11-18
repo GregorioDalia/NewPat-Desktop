@@ -48,8 +48,9 @@ o alla sua famiglia.
 Un passaggio SNP da BAM conserva `work/snp_regions.bed`,
 `work/pileup.txt` e `preparation.log`. Il pileup fornito come input
 è registrato tra i file originali del run. In DNPcall samtools è invocato
-all'interno del processo R tramite l'acquisizione DNP; per individuarne
-tempi ed esito consultare [le misure DNP](PERFORMANCE.md#consultazione-dei-risultati).
+dal coordinatore R. Il file `work/dnp-acquisition-budget.json` registra i
+processi assegnati al pileup. Il file `work/dnp-pileup.json` descrive il
+lavoro effettivamente eseguito. Per i tempi di acquisizione e calcolo consultare [le misure DNP](PERFORMANCE.md#consultazione-dei-risultati).
 
 ## Stati e significato dell'esito
 

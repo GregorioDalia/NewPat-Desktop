@@ -5,10 +5,8 @@ su Windows, macOS e Ubuntu. Lo ZIP completo Windows e i pacchetti macOS/Ubuntu
 contengono l'immagine scientifica. Il setup EXE Windows scarica il pacchetto
 applicativo e gli archivi necessari, verificandoli prima dell'installazione.
 
-Questa guida descrive NewPat 0.9.5 Testing, ancora candidato. I pacchetti
-pubblicati si trovano negli **Assets** delle [release](https://github.com/GregorioDalia/nipat-desktop/releases);
-la stabile 0.8.99 e la preview 0.9.1 conservano il nome NIPAT. I nomi NewPat
-riportati di seguito si applicano dalla 0.9.5, quando pubblicata.
+Questa guida descrive **NewPat 0.9.7**. I pacchetti verificati e i checksum
+sono negli **Assets** della [release](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.9.7).
 Gli archivi **Source code** servono a consultare o costruire i sorgenti. Per la
 revisione di una build candidata, seguire invece la [procedura di accettazione](ACCETTAZIONE_INSTALLATORI.md).
 
@@ -77,7 +75,7 @@ Installare il `.deb` con il gestore pacchetti oppure aprire il terminale nella c
 Nel comando di esempio usare il nome effettivo del file scaricato:
 
 ```bash
-sudo apt install ./newpat-desktop_0.9.5_amd64.deb
+sudo apt install ./newpat-desktop_0.9.7_amd64.deb
 ```
 
 APT installa le dipendenze mancanti dai repository configurati, inclusi Python,

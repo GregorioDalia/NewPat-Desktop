@@ -3,7 +3,7 @@
   "workflow": "dnp-call",
   "source": {
     "path": "scientific/vendor/DNPcall/DNPcall.R",
-    "sha256": "58ca85d7e121a9e88842e14ec4389397b5817b526ec1f27d46e162951ded9d0a",
+    "sha256": "b972d90b8335afdbbe160c4925655c6c6d962083def25877cc2334c422d3df9b",
     "line_count": 913
   },
   "public_parameters": [
@@ -994,7 +994,7 @@
               157,
               190
             ],
-            "sha256": "58ca85d7e121a9e88842e14ec4389397b5817b526ec1f27d46e162951ded9d0a"
+            "sha256": "b972d90b8335afdbbe160c4925655c6c6d962083def25877cc2334c422d3df9b"
           },
           {
             "path": "src/nipat_scientific/settings.py",
@@ -1108,7 +1108,9 @@
         "fallback": "sequential-budgeted: indexed inputs selected to disk sequentially, then one whole mpileup; original unindexed inputs retained",
         "failed_indexed_read": "execution failure; no silent sequential retry",
         "internal_unbudgeted_legacy": "0.8.12 view -u -M -L pipe/disk path retained for regression comparison",
-        "dictionary_requirements": "identical ordered BAM @SQ names and lengths; every target matches the FASTA index"
+        "dictionary_requirements": "identical ordered BAM @SQ names and lengths; every target matches the FASTA index",
+        "concurrent_samtools_cap": 5,
+        "concurrency_estimate": "Single BAM, 1–8000 depth, standard or stricter supported read filters, indexed target lengths. Budget share: 25% after coordinator RSS. Estimated MiB per process: 2 * max(288, 48 + ceil(largest target length / 2^20))."
       },
       "applies_to": "dnp-call",
       "origin": "NewPat scientific engine",
@@ -1162,7 +1164,15 @@
               157,
               190
             ],
-            "sha256": "58ca85d7e121a9e88842e14ec4389397b5817b526ec1f27d46e162951ded9d0a"
+            "sha256": "b972d90b8335afdbbe160c4925655c6c6d962083def25877cc2334c422d3df9b"
+          },
+          {
+            "path": "src/nipat_scientific/dnp_blocks.R",
+            "source_lines": [
+              411,
+              445
+            ],
+            "sha256": "848ebae1b195d69e7380f705d4787be6e16deb614ba041d35f1e71136962a2fd"
           }
         ]
       }
@@ -1197,21 +1207,21 @@
         "read_range_target_bytes": 8388608,
         "read_range_oversize": "a single indivisible row can exceed the target",
         "sample_columns": "parse common fields and selected sample columns using declared types and original names",
-        "effective_byte_target": "at most requested raw bytes; reduced using assigned budget and existing 512+48*rawMiB model; whole groups remain indivisible"
+        "effective_byte_target": "Estimated tasks at the requested block size and fixed VM capacity guide the byte target. Admission uses the largest actual block and coordinator RSS."
       },
       "applies_to": "dnp-call",
       "origin": "NewPat scientific engine",
       "description": {
-        "it": "Un primo passaggio sul pileup usa tipi espliciti per contig, coordinate, basi, qualità e QNAME e conserva coordinate, offset e lunghezze delle righe. Ogni blocco legge finestre complete nell’ordine del file e mantiene gli identificativi globali del pannello; posizioni effettive uguali restano nello stesso blocco. I limiti ordinari di 64 loci e 32 MiB riguardano i byte grezzi, non la RAM di R: una finestra o un gruppo indivisibile può superarli. I risultati dei blocchi vengono riuniti e ordinati per chiave di coordinate prima degli output. Coordinate non associabili alle finestre o QNAME ripetuti nella stessa riga attivano un unico blocco per campione, preservando i raggruppamenti del codice precedente. Le finestre prive di righe pileup restano nei risultati; un campione senza copertura mantiene conteggi zero e genotipi non assegnati. Se sono presenti letture ma mancano likelihood REF/ALT, il run termina con errore. L’ordinamento riutilizza le stringhe DNP originali, evitando differenze dovute alla notazione scientifica delle coordinate. Dimensione e numero di loci sono configurabili. Ogni task apre una connessione pileup separata; metriche e avanzamento sono raccolti dal coordinatore. La stima per worker considera il blocco effettivo più grande, inclusi i gruppi indivisibili. La lettura combina righe contigue nei byte e nell’ordine richiesto in intervalli temporanei fino a 8 MiB, salvo righe singole più grandi. Non ordina né deduplica le richieste; avvisi o letture tronche ripristinano il percorso per singola riga. Questo intervallo di lettura è distinto dal blocco di calcolo. I task campione/blocco condividono un unico pool limitato: il numero di campioni non limita il parallelismo dei blocchi. La coda alterna i campioni per blocco e riordina i risultati esplicitamente. Il parser conserva solo i tre campi comuni e i quattro del campione corrente, usando i tipi espliciti; la stima di memoria continua a considerare tutti i byte grezzi del blocco. Il piano indicizza una sola volta appartenenza dei loci e coordinate, evitando scansioni complete ripetute del pannello senza cambiare i blocchi. Dalla 0.9.5 il budget può ridurre l’obiettivo in byte: richiesta ed effettivo sono registrati separatamente; i gruppi indivisibili restano interi.",
-        "en": "A first pileup pass uses a declared column layout and retains coordinates, row offsets and lengths. Each block reads complete windows in file order and keeps global panel identifiers; equal effective positions remain in one block. The default limits of 64 loci and 32 MiB concern raw input bytes, not R memory: an indivisible window or group can exceed them. Block results are combined and sorted by coordinate key before output. Coordinates that cannot be assigned to windows or repeated QNAMEs within one row select a single block per sample, preserving legacy grouping. Windows without pileup rows remain in the results; an uncovered sample retains zero counts and unassigned genotypes; covered samples without usable likelihoods fail. Sorting reuses original DNP strings, avoiding differences caused by scientific notation of numeric coordinates. Block size and locus count are configurable. Each task opens a separate pileup connection; the coordinator collects metrics and progress. The per-worker estimate accounts for the largest actual block, including indivisible groups. Reads combine byte-contiguous rows in requested order into temporary ranges up to 8 MiB, except for larger individual rows. Requests are neither sorted nor deduplicated; warnings or truncated reads restore the per-row path. This read range is separate from the calculation block. Sample/block tasks share one bounded pool: sample count does not cap block parallelism. The queue interleaves samples for each block and explicitly restores result order. Parsing retains only the three common fields and the current sample's four columns, using declared column types; memory estimation still accounts for the entire raw block. Planning indexes locus membership and coordinates once, avoiding repeated whole-panel scans without changing the blocks. Since 0.9.5 the budget may reduce the raw-byte target: requested and effective targets are recorded separately; indivisible groups remain intact."
+        "it": "Un primo passaggio sul pileup usa tipi espliciti per contig, coordinate, basi, qualità e QNAME e conserva coordinate, offset e lunghezze delle righe. Ogni blocco legge finestre complete nell’ordine del file e mantiene gli identificativi globali del pannello; posizioni effettive uguali restano nello stesso blocco. I limiti ordinari di 64 loci e 32 MiB riguardano i byte grezzi, non la RAM di R: una finestra o un gruppo indivisibile può superarli. I risultati dei blocchi vengono riuniti e ordinati per chiave di coordinate prima degli output. Coordinate non associabili alle finestre o QNAME ripetuti nella stessa riga attivano un unico blocco per campione, preservando i raggruppamenti del codice precedente. Le finestre prive di righe pileup restano nei risultati; un campione senza copertura mantiene conteggi zero e genotipi non assegnati. Se sono presenti letture ma mancano likelihood REF/ALT, il run termina con errore. L’ordinamento riutilizza le stringhe DNP originali, evitando differenze dovute alla notazione scientifica delle coordinate. Dimensione e numero di loci sono configurabili. Ogni task apre una connessione pileup separata; metriche e avanzamento sono raccolti dal coordinatore. La stima per worker considera il blocco effettivo più grande, inclusi i gruppi indivisibili. La lettura combina righe contigue nei byte e nell’ordine richiesto in intervalli temporanei fino a 8 MiB, salvo righe singole più grandi. Non ordina né deduplica le richieste; avvisi o letture tronche ripristinano il percorso per singola riga. Questo intervallo di lettura è distinto dal blocco di calcolo. I task campione/blocco condividono un unico pool limitato: il numero di campioni non limita il parallelismo dei blocchi. La coda alterna i campioni per blocco e riordina i risultati esplicitamente. Il parser conserva solo i tre campi comuni e i quattro del campione corrente, usando i tipi espliciti; la stima di memoria continua a considerare tutti i byte grezzi del blocco. Il piano indicizza una sola volta appartenenza dei loci e coordinate, evitando scansioni complete ripetute del pannello senza cambiare i blocchi. Dalla 0.9.5 il budget può ridurre l’obiettivo in byte: richiesta ed effettivo sono registrati separatamente; i gruppi indivisibili restano interi. Per scegliere la dimensione dei blocchi, il pianificatore stima prima quante attività offrono i campioni e i loci ai limiti richiesti. Quando il budget residuo copre meno di due blocchi della dimensione richiesta e ci sono attività sufficienti a occupare il pool, usa la ripartizione della memoria della 0.9.5. Negli altri casi privilegia blocchi più grandi, tenendo conto del lavoro disponibile.",
+        "en": "A first pileup pass uses a declared column layout and retains coordinates, row offsets and lengths. Each block reads complete windows in file order and keeps global panel identifiers; equal effective positions remain in one block. The default limits of 64 loci and 32 MiB concern raw input bytes, not R memory: an indivisible window or group can exceed them. Block results are combined and sorted by coordinate key before output. Coordinates that cannot be assigned to windows or repeated QNAMEs within one row select a single block per sample, preserving legacy grouping. Windows without pileup rows remain in the results; an uncovered sample retains zero counts and unassigned genotypes; covered samples without usable likelihoods fail. Sorting reuses original DNP strings, avoiding differences caused by scientific notation of numeric coordinates. Block size and locus count are configurable. Each task opens a separate pileup connection; the coordinator collects metrics and progress. The per-worker estimate accounts for the largest actual block, including indivisible groups. Reads combine byte-contiguous rows in requested order into temporary ranges up to 8 MiB, except for larger individual rows. Requests are neither sorted nor deduplicated; warnings or truncated reads restore the per-row path. This read range is separate from the calculation block. Sample/block tasks share one bounded pool: sample count does not cap block parallelism. The queue interleaves samples for each block and explicitly restores result order. Parsing retains only the three common fields and the current sample's four columns, using declared column types; memory estimation still accounts for the entire raw block. Planning indexes locus membership and coordinates once, avoiding repeated whole-panel scans without changing the blocks. Since 0.9.5 the budget may reduce the raw-byte target: requested and effective targets are recorded separately; indivisible groups remain intact. To select a block size, the planner first estimates how many tasks the samples and loci provide at the requested limits. When the remaining budget fits fewer than two requested-size blocks and there are enough tasks to fill the pool, it uses the 0.9.5 memory split. Otherwise it favors coarser blocks within the available work and memory."
       },
       "evidence": {
         "path": "src/nipat_scientific/dnp_blocks.R",
         "source_lines": [
           1,
-          386
+          406
         ],
-        "sha256": "590bae22837537f19fae9147a66b9da33c0b80cf8ce4f5244af76ad5aa4a977e",
+        "sha256": "848ebae1b195d69e7380f705d4787be6e16deb614ba041d35f1e71136962a2fd",
         "dependencies": [
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
@@ -1219,7 +1229,7 @@
               767,
               787
             ],
-            "sha256": "58ca85d7e121a9e88842e14ec4389397b5817b526ec1f27d46e162951ded9d0a"
+            "sha256": "b972d90b8335afdbbe160c4925655c6c6d962083def25877cc2334c422d3df9b"
           },
           {
             "path": "src/nipat_scientific/parallel.R",
@@ -1235,7 +1245,7 @@
               822,
               848
             ],
-            "sha256": "58ca85d7e121a9e88842e14ec4389397b5817b526ec1f27d46e162951ded9d0a"
+            "sha256": "b972d90b8335afdbbe160c4925655c6c6d962083def25877cc2334c422d3df9b"
           }
         ]
       }
@@ -1310,7 +1320,7 @@
           885,
           907
         ],
-        "sha256": "58ca85d7e121a9e88842e14ec4389397b5817b526ec1f27d46e162951ded9d0a",
+        "sha256": "b972d90b8335afdbbe160c4925655c6c6d962083def25877cc2334c422d3df9b",
         "dependencies": [
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
@@ -1347,10 +1357,10 @@
           {
             "path": "src/nipat_scientific/dnp_blocks.R",
             "source_lines": [
-              297,
-              386
+              317,
+              406
             ],
-            "sha256": "590bae22837537f19fae9147a66b9da33c0b80cf8ce4f5244af76ad5aa4a977e"
+            "sha256": "848ebae1b195d69e7380f705d4787be6e16deb614ba041d35f1e71136962a2fd"
           },
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
@@ -1358,7 +1368,7 @@
               157,
               226
             ],
-            "sha256": "58ca85d7e121a9e88842e14ec4389397b5817b526ec1f27d46e162951ded9d0a"
+            "sha256": "b972d90b8335afdbbe160c4925655c6c6d962083def25877cc2334c422d3df9b"
           }
         ]
       }
@@ -1392,7 +1402,7 @@
               149,
               155
             ],
-            "sha256": "58ca85d7e121a9e88842e14ec4389397b5817b526ec1f27d46e162951ded9d0a"
+            "sha256": "b972d90b8335afdbbe160c4925655c6c6d962083def25877cc2334c422d3df9b"
           },
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
@@ -1400,7 +1410,7 @@
               767,
               787
             ],
-            "sha256": "58ca85d7e121a9e88842e14ec4389397b5817b526ec1f27d46e162951ded9d0a"
+            "sha256": "b972d90b8335afdbbe160c4925655c6c6d962083def25877cc2334c422d3df9b"
           },
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
@@ -1408,7 +1418,7 @@
               828,
               833
             ],
-            "sha256": "58ca85d7e121a9e88842e14ec4389397b5817b526ec1f27d46e162951ded9d0a"
+            "sha256": "b972d90b8335afdbbe160c4925655c6c6d962083def25877cc2334c422d3df9b"
           }
         ]
       }
@@ -1436,7 +1446,7 @@
         "nested_worker_pools": false,
         "result_order": "input task order",
         "memory_estimate": "max(2 * loaded coordinator RSS, module estimate); serial if workload is not observed",
-        "acquisition_phase": "serial until samtools workload demand is observed; acquisition precedes the R block pool",
+        "acquisition_phase": "Up to five whole-chromosome tasks for supported single-BAM runs within the memory and CPU budget. Other runs use serial acquisition.",
         "stage_overlap": false,
         "accounting": "one samtools process per acquisition task; waiting coordinators excluded",
         "internal_library_threads": 1,
@@ -1450,8 +1460,8 @@
       "applies_to": "dnp-call",
       "origin": "NewPat scientific engine and client",
       "description": {
-        "it": "Il tetto dei processi è fissato all’avvio dalle capacità assegnate a hardware, ambiente e container e dal massimo richiesto; non segue la memoria libera istantanea. Ogni fase fissa il proprio pool entro quel tetto, con riserva proporzionale del 20%, memoria residente del coordinatore conteggiata separatamente e stima del carico. Non esiste un minimo universale di 2 GiB per worker: la stima usa il maggiore fra il doppio della RSS del coordinatore caricato e il modello del modulo, quando disponibile. La stima non è una prenotazione di memoria né una garanzia contro OOM. Capacità o carico non misurabili mantengono la fase seriale. I pool annidati restano seriali, i thread interni sono limitati e i risultati mantengono l’ordine delle attività. L’acquisizione samtools resta seriale in assenza di una stima del suo carico. Il calcolo dei blocchi DNP usa la dimensione effettiva dei blocchi nel proprio modello; non sovrappone acquisizione e calcolo.",
-        "en": "The run-wide process ceiling is fixed at startup from assigned hardware, environment and container capacities and the requested maximum; it does not track transient free memory. Each phase fixes its pool within that ceiling, reserving 20% proportionally, accounting separately for coordinator RSS and estimating its workload. There is no universal 2GiB floor per worker: the estimate is the larger of twice the loaded coordinator RSS and a module workload estimate when available. This is neither a memory reservation nor an OOM guarantee. Unknown capacity or workload keeps the phase serial. Nested pools stay serial, internal threads are limited and results retain task order. Samtools acquisition stays serial without a workload estimate. DNP block processing uses actual block sizes in its workload model; acquisition and processing do not overlap."
+        "it": "Il tetto dei processi è fissato all’avvio dalle capacità assegnate a hardware, ambiente e container e dal massimo richiesto; non segue la memoria libera istantanea. Ogni fase fissa il proprio pool entro quel tetto, con riserva proporzionale del 20%, memoria residente del coordinatore conteggiata separatamente e stima del carico. Non esiste un minimo universale di 2 GiB per worker: la stima usa il maggiore fra il doppio della RSS del coordinatore caricato e il modello del modulo, quando disponibile. La stima non è una prenotazione di memoria né una garanzia contro OOM. Capacità o carico non misurabili mantengono la fase seriale. I pool annidati restano seriali, i thread interni sono limitati e i risultati mantengono l’ordine delle attività. Con un singolo BAM, profondità limitata e filtri compatibili, il numero di samtools può salire a cinque in base ai cromosomi, alle CPU e alla memoria assegnata. Gli altri casi usano un solo samtools. Il calcolo dei blocchi DNP usa la dimensione effettiva dei blocchi nel proprio modello; non sovrappone acquisizione e calcolo.",
+        "en": "The run-wide process ceiling is fixed at startup from assigned hardware, environment and container capacities and the requested maximum; it does not track transient free memory. Each phase fixes its pool within that ceiling, reserving 20% proportionally, accounting separately for coordinator RSS and estimating its workload. There is no universal 2GiB floor per worker: the estimate is the larger of twice the loaded coordinator RSS and a module workload estimate when available. This is neither a memory reservation nor an OOM guarantee. Unknown capacity or workload keeps the phase serial. Nested pools stay serial, internal threads are limited and results retain task order. For one BAM with bounded depth and compatible filters, acquisition can use up to five samtools processes according to the target chromosomes, CPU and memory budget. Other cases use one samtools process. DNP block processing uses actual block sizes in its workload model; acquisition and processing do not overlap."
       },
       "evidence": {
         "path": "src/nipat_scientific/parallel.R",
@@ -1467,7 +1477,7 @@
               91,
               91
             ],
-            "sha256": "58ca85d7e121a9e88842e14ec4389397b5817b526ec1f27d46e162951ded9d0a"
+            "sha256": "b972d90b8335afdbbe160c4925655c6c6d962083def25877cc2334c422d3df9b"
           },
           {
             "path": "src/nipat/execution/options.py",
@@ -1491,7 +1501,7 @@
               157,
               190
             ],
-            "sha256": "58ca85d7e121a9e88842e14ec4389397b5817b526ec1f27d46e162951ded9d0a"
+            "sha256": "b972d90b8335afdbbe160c4925655c6c6d962083def25877cc2334c422d3df9b"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
@@ -1528,10 +1538,10 @@
           {
             "path": "src/nipat_scientific/dnp_blocks.R",
             "source_lines": [
-              294,
-              365
+              314,
+              385
             ],
-            "sha256": "590bae22837537f19fae9147a66b9da33c0b80cf8ce4f5244af76ad5aa4a977e"
+            "sha256": "848ebae1b195d69e7380f705d4787be6e16deb614ba041d35f1e71136962a2fd"
           },
           {
             "path": "src/nipat/resources.py",
@@ -1556,6 +1566,14 @@
               220
             ],
             "sha256": "77fd4dd63f28ed82aa47898d1cf3496281965e7415025a87961fd53fad4b9e7d"
+          },
+          {
+            "path": "src/nipat_scientific/dnp_blocks.R",
+            "source_lines": [
+              411,
+              445
+            ],
+            "sha256": "848ebae1b195d69e7380f705d4787be6e16deb614ba041d35f1e71136962a2fd"
           }
         ]
       }

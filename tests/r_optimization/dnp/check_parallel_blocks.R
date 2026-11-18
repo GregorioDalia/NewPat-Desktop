@@ -165,28 +165,28 @@ main <- function() {
   expected <- nipat_dnp_combine(list(numerical(all_rows, labels, refs)))
   planning_index <- index
   planning_index$lengths[] <- 1024^2
-  profiles <- list(
-    list(memory = 2048, blocks = 4L, workers = 2L),
-    list(memory = 4096, blocks = 2L, workers = 2L),
-    list(memory = 8192, blocks = 1L, workers = 1L))
-  for (profile in profiles) {
+  resource_env <- function(memory, cpus, rss_kib) {
     env <- new.env(parent = globalenv())
     sys.source(file.path(root, "src/nipat_scientific/parallel.R"), env)
     sys.source(file.path(root, "src/nipat_scientific/dnp_blocks.R"), env)
-    env$nipat_parallel_cpu_count <- function() 64L
+    env$nipat_parallel_cpu_count <- function() cpus
     env$nipat_parallel_lines <- function(path) {
-      if (path == "/proc/self/status") "VmRSS: 262144 kB" else character()
+      if (path == "/proc/self/status") paste("VmRSS:", rss_kib, "kB") else character()
     }
     Sys.setenv(NIPAT_FIXED_RESOURCE_BUDGET = jsonlite::toJSON(list(
       interface = "nipat-fixed-resources-v1", source_version = "resource-profile-fixture",
-      memory_capacity_mib = profile$memory, cpu_limit = 4L, worker_ceiling = 4L,
+      memory_capacity_mib = memory, cpu_limit = cpus, worker_ceiling = cpus,
       memory_reserve_fraction = 0.20), auto_unbox = TRUE))
+    env
+  }
+  for (memory in c(2048, 4096, 8192)) {
+    env <- resource_env(memory, 4L, 262144)
     derived <- env$nipat_dnp_plan(planning_index, labels, refs)
     stopifnot(derived$requested_max_bytes == 32 * 1024^2,
               derived$max_bytes > 0, derived$max_bytes <= derived$requested_max_bytes,
-              length(derived$blocks) == profile$blocks)
+              length(derived$blocks) == 1L)
     result <- env$nipat_dnp_process_blocks(index, derived, labels, refs, numerical)
-    stopifnot(result$workers == profile$workers,
+    stopifnot(result$workers == 1L,
               identical(env$nipat_dnp_combine(result$results), expected))
     # A whole window over the derived byte target is retained intact, and its
     # actual size reduces the pool budget rather than truncating observations.
@@ -198,6 +198,66 @@ main <- function() {
               env$nipat_parallel_budget(length(indivisible$blocks),
                 memory_mib = env$nipat_dnp_worker_memory_mib(indivisible))$workers == 1L)
   }
+  # Replay the deep synthetic workload as byte metadata. These checks verify
+  # plans and peak-worker estimates, without imposing wall-clock thresholds.
+  count <- 64L
+  depth_refs <- data.frame(POS = paste0("L", seq_len(count)))
+  depth_labels <- data.frame(df.chr = paste0("chr1:", seq_len(count)), uniq = seq_len(count))
+  # Exactly 43,522,784 bytes as in both deep reports.
+  depth_index <- list(chromosomes = "chr1", chromosome = rep(1L, count),
+    positions = seq_len(count), lengths = c(rep(680040, 8L), rep(680044, 56L)),
+    classes = index$classes)
+  stopifnot(sum(depth_index$lengths) == 43522784)
+  for (profile in list(list(cpus = 4L, capacity = 3905, blocks = 3L),
+                       list(cpus = 32L, capacity = 15858, blocks = 2L))) {
+    Sys.unsetenv("NIPAT_MAX_WORKERS")
+    env <- resource_env(profile$capacity, profile$cpus, 202752)
+    deep <- env$nipat_dnp_plan(depth_index, depth_labels, depth_refs)
+    sizes <- vapply(deep$blocks, function(block) block$raw_bytes, numeric(1))
+    workers <- env$nipat_parallel_budget(length(sizes), env$nipat_dnp_worker_memory_mib(deep))
+    stopifnot(length(sizes) == profile$blocks, workers$workers == 2L,
+              identical(unlist(lapply(deep$blocks, `[[`, "locus_ids")), seq_len(count)),
+              identical(unlist(lapply(deep$blocks, `[[`, "row_ids")), seq_len(count)),
+              sum(sizes) == sum(depth_index$lengths), all(sizes <= deep$max_bytes),
+              workers$workers * workers$memory_per_worker_mib + workers$coordinator_rss_mib <=
+                workers$memory_budget_mib)
+    # User-selected small targets and serial operation remain available.
+    small <- env$nipat_dnp_plan(depth_index, depth_labels, depth_refs, max_bytes = 1024^2)
+    stopifnot(small$requested_max_bytes == 1024^2, small$max_bytes <= 1024^2,
+              length(small$blocks) == count)
+    Sys.setenv(NIPAT_MAX_WORKERS = "2")
+    capped <- env$nipat_dnp_plan(depth_index, depth_labels, depth_refs, max_bytes = 1024^2)
+    stopifnot(capped$max_bytes == 1024^2, length(capped$blocks) == count)
+    Sys.setenv(NIPAT_EXECUTION_MODE = "serial")
+    serial_depth <- env$nipat_dnp_plan(depth_index, depth_labels, depth_refs)
+    stopifnot(identical(vapply(serial_depth$blocks, function(b) length(b$locus_ids), integer(1)),
+                        c(49L, 15L)), env$nipat_parallel_workers(2) == 1L)
+    Sys.setenv(NIPAT_EXECUTION_MODE = "auto")
+  }
+  # Replay the total pileup size from the Windows real-BAM comparison with
+  # synthetic equal-sized loci. The small VM keeps the validated 0.9.5 grain;
+  # the ample VM keeps the validated P1 grain. No sample data are required.
+  count <- 844L
+  total_bytes <- 474497291
+  rows <- seq_len(count)
+  real_size_index <- list(chromosomes = "chr1", chromosome = rep(1L, count),
+    positions = rows, lengths = total_bytes %/% count + (rows <= total_bytes %% count),
+    classes = index$classes)
+  real_size_labels <- data.frame(df.chr = paste0("chr1:", rows), uniq = rows)
+  real_size_refs <- data.frame(POS = as.character(rows))
+  Sys.unsetenv("NIPAT_MAX_WORKERS")
+  for (profile in list(list(cpu = 4L, ram = 3905, rss = 192, target = 4827818, blocks = 106L, pool = 4L),
+                       list(cpu = 32L, ram = 15858, rss = 191, target = 27809109, blocks = 18L, pool = 7L))) {
+    env <- resource_env(profile$ram, profile$cpu, profile$rss * 1024)
+    sized <- env$nipat_dnp_plan(real_size_index, real_size_labels, real_size_refs)
+    peak <- env$nipat_dnp_worker_memory_mib(sized)
+    pool <- env$nipat_parallel_budget(length(sized$blocks), peak)
+    stopifnot(sized$max_bytes == profile$target, length(sized$blocks) == profile$blocks,
+              pool$workers == profile$pool,
+              pool$coordinator_rss_mib + pool$workers * peak <= pool$memory_budget_mib,
+              identical(unlist(lapply(sized$blocks, `[[`, "locus_ids")), rows))
+  }
+  cat("DNP deep scheduling: VM profiles, both block limits, ordered loci and estimated concurrent memory passed.\n")
   cat("DNP resource profiles: 2/4/8 GiB fixed budgets preserve numeric values, read identity, row order and indivisible windows.\n")
   cat("DNP parallel dispatcher: ordered fork results, isolated connections, parent progress, errors and limits passed.\n")
 }

@@ -12,19 +12,11 @@ menu testuale e la riga di comando. Le analisi usano il runtime scientifico
 locale con R e samtools. Dopo la preparazione
 dell'ambiente, i calcoli si possono eseguire offline.
 
-La [0.8.99](docs/RELEASE_0.8.99.md) offre due percorsi Windows indipendenti:
-uno ZIP completo, che prepara l’applicazione nella cartella estratta, e un setup EXE
-che scarica il pacchetto applicativo della release. Python è incluso in entrambi;
-lo ZIP include anche il motore scientifico. I cinque moduli scientifici
-restano invariati.
-
-La **[NewPat 0.9.5 Testing](docs/RELEASE_0.9.5.md)** è il candidato in sviluppo
-che introduce il nuovo nome, corregge la creazione degli esperimenti e il
-cambio di percorso dell'app su Mac, rende accessibili gli errori e la
-diagnostica e aggiorna la pianificazione delle risorse. **Non è ancora una
-release qualificata da questo documento.** La prerelease pubblicata precedente
-è [NIPAT 0.9.1](docs/RELEASE_0.9.1.md), mentre **NIPAT 0.8.99 rimane stabile**.
-La [guida GUI](docs/GUI.md) descrive la versione corrente del codice.
+**[NewPat 0.9.7](docs/RELEASE_0.9.7.md)** porta la grafica NewPat sul canale
+stabile e aggiorna la pianificazione del pileup e del calcolo R di DNPcall.
+L’installazione Windows offre un setup guidato e uno ZIP completo. Entrambi
+includono Python. Lo ZIP comprende anche il motore scientifico. Per iniziare
+con la finestra desktop, consulta la [guida GUI](docs/GUI.md).
 
 Gli esperimenti, le preferenze e i percorsi esistenti restano riconoscibili.
 Alcuni nomi tecnici, gli alias CLI e l'URL del repository conservano NIPAT
@@ -32,19 +24,15 @@ per compatibilità; la denominazione pubblica dalla 0.9.5 è NewPat.
 
 ## Download
 
-Scarica un pacchetto effettivamente pubblicato per il tuo sistema. La
-[release stabile](https://github.com/GregorioDalia/nipat-desktop/releases/latest)
-riporta anche checksum e verifiche dei pacchetti. I collegamenti seguenti
-puntano alla stabile NIPAT precedente; non installano il candidato NewPat
-0.9.5. Per le prerelease consultare i relativi asset nella pagina Releases.
+Scegli il download per il tuo sistema. La [pagina della release](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.9.7) raccoglie i pacchetti della 0.9.7 e i rispettivi checksum.
 
 | Sistema | Pacchetto | Guida |
 | --- | --- | --- |
-| Windows 10 22H2 x64 (build 19045) o Windows 11 x64 | [Setup Windows](https://github.com/GregorioDalia/nipat-desktop/releases/latest/download/NIPAT-Setup.exe) | [Windows](docs/INSTALLATORE_WINDOWS.md) |
-| Windows x64, metodo aggiuntivo | [ZIP completo 0.8.99](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.8.99/NIPAT-0.8.99-Windows-completo.zip) | [Installazione ZIP](docs/INSTALLATORE_WINDOWS.md#zip-completo-aggiuntivo) |
-| macOS 14 o successivo, Apple Silicon | [PKG Apple Silicon](https://github.com/GregorioDalia/nipat-desktop/releases/latest) | [macOS](docs/INSTALLATORE_MACOS.md) |
-| macOS 14 o successivo, Intel | [PKG Intel](https://github.com/GregorioDalia/nipat-desktop/releases/latest) | [macOS](docs/INSTALLATORE_MACOS.md) |
-| Ubuntu 24.04 LTS x86_64 | [Pacchetto DEB](https://github.com/GregorioDalia/nipat-desktop/releases/latest) | [Ubuntu](docs/INSTALLATORE_LINUX.md) |
+| Windows 10 22H2 x64 (build 19045) o Windows 11 x64 | [Setup Windows](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.7/NewPat-Setup.exe) | [Windows](docs/INSTALLATORE_WINDOWS.md) |
+| Windows x64, metodo aggiuntivo | [ZIP completo](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.7/NewPat-0.9.7-Windows-completo.zip) | [Installazione ZIP](docs/INSTALLATORE_WINDOWS.md#zip-completo-aggiuntivo) |
+| macOS 14 o successivo, Apple Silicon | [PKG Apple Silicon](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.7/NewPat-0.9.7-macos-arm64.pkg) | [macOS](docs/INSTALLATORE_MACOS.md) |
+| macOS 14 o successivo, Intel | [PKG Intel](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.7/NewPat-0.9.7-macos-x86_64.pkg) | [macOS](docs/INSTALLATORE_MACOS.md) |
+| Ubuntu 24.04 LTS x86_64 | [Pacchetto DEB](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.7/newpat-desktop_0.9.7_amd64.deb) | [Ubuntu](docs/INSTALLATORE_LINUX.md) |
 
 Windows usa WSL2, macOS usa Lima e Ubuntu usa il Docker Engine locale.
 La [guida alla distribuzione](docs/DISTRIBUZIONE.md) spiega i prerequisiti,

@@ -61,10 +61,11 @@ si osservano a parte. Il budget si applica alle attività di calcolo senza
 moltiplicare pool interni. In DNPcall l'acquisizione del pileup, eventualmente
 in parallelo per cromosoma, precede il calcolo R. Per un primo confronto
 mantenere fissi i massimi richiesti di **32 MiB** di input grezzo e **64
-loci** per blocco. La 0.9.5 può ridurre l'obiettivo in byte in base al budget:
-registrare anche il valore effettivo. Una finestra indivisibile può superarlo.
+loci** per blocco. Il pianificatore della 0.9.7 può ridurre l'obiettivo in byte in base alla
+memoria disponibile nel budget del run e al numero di blocchi e campioni.
+Registrare anche il valore effettivo. Una finestra indivisibile può superarlo.
 La dimensione in MiB descrive i dati del blocco; la RAM effettiva dipende
-dal calcolo. Il [budget delle risorse](RISORSE.md#budget-fisso-della-095)
+dal calcolo. Il [budget delle risorse](RISORSE.md#budget-del-run-e-numero-di-processi)
 descrive stima, riserva e casi seriali.
 
 Dal menu usare **Parallelismo e blocchi** nel riepilogo per cambiare la

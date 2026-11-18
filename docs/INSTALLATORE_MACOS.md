@@ -1,19 +1,16 @@
-# Installatore macOS — NewPat 0.9.5 Testing
+# Installatore macOS — NewPat 0.9.7
 
 NewPat, nuovo nome di NIPAT dalla versione 0.9.5, richiede macOS 14 o
 successivo su Intel o Apple Silicon. Il pacchetto comprende l'interfaccia
 grafica, la CLI guidata, Python e Lima nativi e il motore scientifico Linux AMD64.
-Questa guida descrive la candidata **0.9.5 Testing**: le modifiche sono in
-sviluppo e non costituiscono una release già pubblicata o una qualificazione
-su Mac reale. Quando pubblicati, i pacchetti e le verifiche associate saranno
-negli asset della [release corrispondente](https://github.com/GregorioDalia/nipat-desktop/releases).
+Scaricare il pacchetto per il proprio processore dalla [release stabile](https://github.com/GregorioDalia/nipat-desktop/releases/latest).
 
 ## Requisiti e pacchetti
 
 | Mac | Pacchetto | Esecuzione scientifica |
 | --- | --- | --- |
-| Intel x86_64 | `NewPat-0.9.5-macos-x86_64.pkg` | Guest Lima AMD64 e container Linux AMD64. |
-| Apple Silicon arm64 | `NewPat-0.9.5-macos-arm64.pkg` | Guest Lima ARM64 e container Linux AMD64 tramite Rosetta. |
+| Intel x86_64 | `NewPat-0.9.7-macos-x86_64.pkg` | Guest Lima AMD64 e container Linux AMD64. |
+| Apple Silicon arm64 | `NewPat-0.9.7-macos-arm64.pkg` | Guest Lima ARM64 e container Linux AMD64 tramite Rosetta. |
 
 Python e Lima nativi per l'host sono inclusi; Homebrew, R, samtools e Docker
 Desktop non sono prerequisiti. Servono spazio per applicazione, immagine,

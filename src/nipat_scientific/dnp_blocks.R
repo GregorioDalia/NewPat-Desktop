@@ -73,20 +73,34 @@ nipat_dnp_index <- function(path, empty_samples = NULL) {
        elapsed_seconds = unname(proc.time()[["elapsed"]] - started))
 }
 
-nipat_dnp_target_bytes <- function(requested) {
+nipat_dnp_target_bytes <- function(requested, tasks = .Machine$integer.max) {
   if (identical(Sys.getenv("NIPAT_EXECUTION_MODE", "auto"), "serial") ||
       !exists("nipat_parallel_budget", mode = "function")) return(requested)
-  # First check the minimum DNP workload from the existing expansion model.
-  # High-core/low-RAM machines may fit fewer processes than the global ceiling.
-  minimum <- nipat_dnp_worker_memory_mib(list(blocks = list(list(raw_bytes = 1))))
-  budget <- nipat_parallel_budget(.Machine$integer.max, memory_mib = minimum)
+  # Keep useful work in each fork: an additional parallel lane can justify
+  # smaller blocks, but never size every block for the machine's CPU ceiling.
+  # Half the requested grain bounds the fragmentation incurred for parallelism.
+  budget <- nipat_parallel_budget(tasks, memory_mib = nipat_dnp_estimate_mib(requested / 2))
   remaining <- budget$memory_budget_mib - budget$coordinator_rss_mib
-  allocation <- if (length(remaining) && is.finite(remaining)) floor(remaining / budget$workers) else NULL
-  # Invert the existing raw-pileup expansion model. The configured target is
-  # an upper bound; complete windows/compatibility groups remain indivisible.
-  # Unknown/insufficient capacity leaves the target unchanged and the pool's
-  # workload check falls back to serial execution where necessary.
-  if (!length(allocation) || !is.finite(allocation) || allocation <= 512) return(requested)
+  if (!length(remaining) || !is.finite(remaining)) return(requested)
+  full_block <- nipat_dnp_estimate_mib(requested)
+  workers <- min(budget$workers, max(1, ceiling(remaining / full_block)))
+  if (remaining < 2 * full_block) {
+    # For substantial jobs on a small allocation, retain the 0.9.5 division
+    # of the available memory. Coarsening those jobs left usable cores idle.
+    # A short job can still use the coarser plan when it has too few tasks
+    # at the requested size to keep the finer-grained pool busy.
+    fine <- nipat_parallel_budget(.Machine$integer.max, memory_mib = nipat_dnp_estimate_mib(1))
+    if (tasks >= fine$workers) {
+      workers <- fine$workers
+      remaining <- fine$memory_budget_mib - fine$coordinator_rss_mib
+      if (!length(remaining) || !is.finite(remaining)) return(requested)
+    }
+  }
+  allocation <- floor(remaining / workers)
+  # A single worker can still require smaller blocks to fit the fixed budget.
+  # If even the model's base footprint does not fit, the pool falls back to
+  # serial execution. Indivisible groups are checked at their actual size.
+  if (allocation <= 512) return(requested)
   max(1, min(requested, floor((allocation - 512) / 48 * 1024^2)))
 }
 
@@ -94,7 +108,11 @@ nipat_dnp_plan <- function(index, labels, ref_alt,
                            max_loci = nipat_dnp_number("NIPAT_DNP_BLOCK_LOCI", 64),
                            max_bytes = nipat_dnp_number("NIPAT_DNP_BLOCK_BYTES", 32 * 1024^2)) {
   requested_max_bytes <- max_bytes
-  max_bytes <- nipat_dnp_target_bytes(requested_max_bytes)
+  # Approximate the number of tasks before reducing any blocks. Independent
+  # samples share the pool. The final partition enforces complete locus groups.
+  coarse_blocks <- max(1, ceiling(sum(index$lengths) / max_bytes), ceiling(nrow(ref_alt) / max_loci))
+  samples <- max(1, (length(index$classes) - 3L) / 4L)
+  max_bytes <- nipat_dnp_target_bytes(requested_max_bytes, coarse_blocks * samples)
   keys <- paste(index$chromosomes[index$chromosome], index$positions, sep = ":")
   by_coordinate <- split(seq_along(keys), keys)
   unmatched <- sum(!keys %in% labels$df.chr)
@@ -244,9 +262,11 @@ nipat_dnp_read <- function(index, rows, connection, columns = NULL) {
 # Scheduling estimate, not an allocation limit: expanded observations, joins
 # and R's own heap are larger than the raw pileup. Account for indivisible
 # oversize/compatibility blocks instead of assuming the configured target held.
+nipat_dnp_estimate_mib <- function(raw_bytes) ceiling(512 + 48 * raw_bytes / 1024^2)
+
 nipat_dnp_worker_memory_mib <- function(plan) {
   largest <- max(c(0, vapply(plan$blocks, function(block) block$raw_bytes, numeric(1))))
-  ceiling(512 + 48 * largest / 1024^2)
+  nipat_dnp_estimate_mib(largest)
 }
 
 nipat_dnp_run_block <- function(index, block, labels, ref_alt, compute, columns = NULL) {
@@ -383,4 +403,43 @@ nipat_dnp_write_metrics <- function(path, value) {
     jsonlite::write_json(value, path, auto_unbox = TRUE, pretty = TRUE,
                          digits = NA, null = "null")
   }, error = function(error) warning("DNP execution metrics unavailable: ", conditionMessage(error)))
+}
+
+# Single-BAM runs with bounded depth measured up to 283 MiB RSS per samtools
+# on GRCh37 (largest target ~238 MiB as sequence). Keep unmeasured workloads
+# serial. The container budget is fixed at run start, independent of free RAM.
+nipat_dnp_acquisition_budget <- function(chromosomes, samples, settings, reference) {
+  chromosomes <- unique(chromosomes)
+  plan <- nipat_parallel_budget(length(chromosomes), workload_observed = FALSE)
+  if (!identical(plan$reason, "workload-not-observed") || samples != 1L ||
+      settings$max_depth <= 0L || settings$max_depth > 8000L || length(chromosomes) < 2L ||
+      !settings$baq || settings$redo_baq || settings$mapping_quality_adjustment > 0L ||
+      settings$count_overlaps || settings$include_orphans || settings$min_base_quality < 13L ||
+      bitwAnd(settings$excluded_flags, 1796L) != 1796L ||
+      is.null(plan$memory_budget_mib) || is.null(plan$coordinator_rss_mib)) return(plan)
+
+  # Estimate the largest reference sequence fetched by a chromosome task.
+  # The acquisition helper performs the authoritative FASTA/BAM validation.
+  lengths <- tryCatch({
+    fai <- scan(paste0(reference, ".fai"), what = list("", 0, NULL, NULL, NULL),
+                sep = "\t", quote = "", flush = TRUE, quiet = TRUE)
+    fai[[2L]][match(chromosomes, fai[[1L]])]
+  }, error = function(e) NA_real_)
+  if (any(!is.finite(lengths)) || any(lengths <= 0)) return(plan)
+
+  # Allow for non-reference RSS and double the estimate for depth/allocator
+  # variability. Use at most a quarter of the remaining fixed budget for this
+  # pool, leaving room for filesystem cache, helper and unmodelled allocations.
+  estimate <- 2 * max(288, ceiling(max(lengths) / 1024^2) + 48)
+  available <- max(0, plan$memory_budget_mib - plan$coordinator_rss_mib) / 4
+  plan$workload_model <- "single-bam-bounded-depth-reference-and-rss"
+  plan$memory_per_worker_mib <- estimate
+  plan$acquisition_pool_budget_mib <- available
+  plan$memory_worker_limit <- max(1L, floor(available / estimate))
+  plan$workload_fits_memory_budget <- estimate <= available
+  # Five concurrent chromosome tasks were qualified on the real BAM.
+  plan$workers <- as.integer(min(5L, length(chromosomes), plan$worker_ceiling, plan$memory_worker_limit))
+  plan$reason <- if (plan$memory_worker_limit < min(5L, length(chromosomes), plan$worker_ceiling))
+    "acquisition-memory-budget" else "acquisition-capacity-task-budget"
+  plan
 }

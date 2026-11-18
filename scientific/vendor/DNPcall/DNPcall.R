@@ -169,9 +169,9 @@ pileup_helper <- Sys.getenv("NIPAT_DNP_PILEUP_HELPER", unset = "/opt/nipat/lib/n
 # policy to the Python scheduler instead of creating a second independent pool
 # or interpreting the legacy --parallel flag. The helper caps this upper bound
 # by the actual number of chromosome tasks and counts each samtools process.
-# The R coordinator has not observed the memory needed by samtools.
-# Keep acquisition serial until a workload-specific admission estimate exists.
-acquisition_budget <- nipat_parallel_budget(.Machine$integer.max, workload_observed = FALSE)
+# Size the external samtools pool separately from the later R block workers.
+# The Python helper still validates indices and dictionaries before partitioning.
+acquisition_budget <- nipat_dnp_acquisition_budget(r_DNPlist$chr, nrow(r_bamlist), nipat_cfg, reference)
 acquisition_budget_path <- file.path("work", "dnp-acquisition-budget.json")
 dir.create(dirname(acquisition_budget_path), recursive = TRUE, showWarnings = FALSE)
 jsonlite::write_json(c(list(schema_version = 1L, interface = "nipat-parallel-v1"),

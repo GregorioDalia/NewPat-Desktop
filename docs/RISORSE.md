@@ -41,7 +41,9 @@ manuale può restringere ulteriormente il tetto. Elaborare più campioni in
 parallelo può aumentare il consumo di memoria; il formato e la copertura dei
 dati contano oltre alla dimensione del BAM su disco.
 
-## Budget fisso della 0.9.5
+<a id="budget-fisso-della-095"></a>
+
+## Budget del run e numero di processi
 
 All'avvio di ogni analisi NewPat registra in `run.json`, sotto
 `resource_budget`, la capacità effettiva dell'ambiente, gli eventuali limiti
@@ -66,24 +68,26 @@ consente di ridurre l'obiettivo in byte rispetto al massimo scelto dall'utente,
 senza spezzare una finestra indivisibile. Il log distingue obiettivo richiesto,
 obiettivo effettivo e dimensione reale dei blocchi.
 
-Il tetto globale resta fisso; ogni fase sceglie il proprio pool prima di
-avviarlo, entro quel tetto e il budget stimato. Poche attività o un blocco
-indivisibile grande possono richiedere meno worker. I pool interni di un
-worker non moltiplicano i processi. In assenza di capacità o di una misura
-utilizzabile del lavoro viene usata l'esecuzione seriale. In particolare,
-un interprete R appena aperto non misura il fabbisogno di un intero campione
-SNP: la concorrenza fra campioni resta seriale quando quella stima manca;
-le fasi interne possono usare il parallelismo del loro lavoro osservato.
-Lo stesso criterio mantiene seriali l’acquisizione DNP tramite samtools e
-il ciclo esterno dei file di contaminazione quando il loro fabbisogno non
-è osservato. Questo può ridurre la concorrenza rispetto alle versioni
-precedenti: i benchmark devono misurare anche queste fasi, senza presumere
-un miglioramento dei tempi dal solo cambio di politica.
+Il tetto globale resta fisso. Ogni fase sceglie il proprio numero di processi
+entro quel tetto e il budget del run. Per i campioni SNP e il ciclo esterno
+dei file di contaminazione, le fasi senza una stima del fabbisogno restano
+seriali. I processi interni condividono il limite complessivo.
 
-Questa politica è una stima di pianificazione, non una garanzia contro ogni
-esaurimento di memoria. La 0.9.5 richiede confronti numerici e misure sui dati
-reali prima della qualificazione delle prestazioni. In caso di errore non
-vengono ridotte qualità, filtri o precisione scientifica per completare il run.
+Dalla 0.9.7, per un singolo BAM indicizzato con parametri di acquisizione
+compatibili con il profilo misurato, DNPcall usa il dizionario del riferimento
+per stimare il costo di un samtools. Il limite è il minimo tra la capacità
+di memoria stimata, il tetto di processi del run, il numero di cromosomi e
+cinque. Se mancano i dati necessari alla stima, la preparazione procede con un
+processo. Un pannello su un solo cromosoma o la modalità seriale richiedono
+sempre un solo processo di acquisizione.
+
+Per il calcolo R, il pianificatore considera il numero di blocchi necessari
+per il pileup e i campioni, i processi disponibili e il costo stimato di
+un blocco. Con memoria sufficiente evita di frammentare eccessivamente il
+lavoro. Nei run con poca memoria e abbastanza lavoro da occupare il pool
+più fine conserva la ripartizione della 0.9.5. La stima riguarda un singolo
+run e dipende dagli input. I limiti di CPU, memoria e processi scelti
+dall’utente si applicano a entrambe le fasi.
 
 ## macOS e Lima
 
