@@ -28,6 +28,8 @@ The archived 0.8.99 M1 run used nine BAMs totaling 20,443,505,239 bytes and prod
 
 ## Measurements and verification boundaries
 
+The historical nine-BAM M1 worker log contains 136 completed R tasks out of 918. Between the first and 137th task starts, 47,166.5 seconds elapsed. One interval accounts for 11,131 seconds. The records capture elapsed time and do not distinguish active CPU work from sleep or other delays. A separate completed DNP and contamination run with two real BAMs on an M3 took 596.22 seconds overall, including 449.62 seconds in DNP R processing. The two machines used different memory budgets and inputs.
+
 | Workload | Comparison | What was verified |
 | --- | --- | --- |
 | Export one 100,000-row table on Linux | Peak Python allocations fell from 46,689,764 to 194,417 bytes. Both runs took about 1.28 seconds. | Identical 4,188,953-byte output, SHA-256 `889c06fe9f8cfd04d532aab145fdc390c5c168bed5e688eceb072ff0fb8c80f4`. The measurement is for the presentation copy. |
@@ -35,7 +37,7 @@ The archived 0.8.99 M1 run used nine BAMs totaling 20,443,505,239 bytes and prod
 | DNP acquisition and worker selection | 24 scenarios with ordinary settings and again with the small-ARM policy flag. GNU R 4.5.0 also ran the resource-policy fixture with real worker processes on Linux. | 16 successful output scenarios matched the samtools oracle byte for byte. The other eight exercised errors or cancellation. The native resource-policy test passed 60 checks. Linux exercises the algorithm and output identity. Real elapsed time on the M1 still needs to be measured. |
 | Desktop rendering | Actual service, bundled IGV, production frontend and synthetic indexed BAM. Eight screens checked at widths of 390, 768, 1,024 and 1,440 pixels with reduced motion. | Back navigation, archive/detail actions, the single primary Home action, status indicators, small-width table behavior and the original Intreccio assets. Windows taskbar and macOS Dock appearance still require native visual inspection. |
 
-The five distributed scientific entry scripts match the 0.9.9 versions byte for byte. The DNP resource and acquisition changes reside in the surrounding helpers. In the desktop results view, postnatal CPI retains the 0.9.9 curve and summary behavior pending the original researcher's update. This audit does not establish a new scientific interpretation of the CPI values.
+At `a771bd9` all five distributed scientific entry scripts matched 0.9.9 byte for byte. The subsequent DNP entry-script changes export block measurements and the memory estimate used for scheduling. Its genotype calculations and the four other entry scripts retain their earlier behavior. Postnatal CPI retains the 0.9.9 curve and summary pending the original researcher's update.
 
 ## Follow-up checks on result summaries and reference genomes
 
@@ -44,6 +46,28 @@ The distributed synthetic trio exercised all five modules. Starting from its thr
 For the separate timing sample, three warm, alternating Linux AMD64 engine runs gave medians of 18.451 s in serial and 15.682 s in automatic mode with a ceiling of two workers. The first run per condition was excluded. The complete DNP and SNP call tables matched across all eight executions, including warm-up. This measures the engine using the 0.9.9 scientific image with candidate source and performance diagnostics active. The desktop timing protocol is included with the example. [Dataset and instructions](../examples/synthetic-trio/README.md)
 
 The human-reference qualification used the complete initial UCSC FASTAs. The hg19 archive contained 93 contigs and hg38 contained 455. Both compressed files matched UCSC's published MD5 digests. The downloader also checks independent SHA-256 pins for the archives and the decompressed FASTAs. For each assembly, a synthetic BAM with its full sequence dictionary and a two-site panel produced two heterozygous calls in each caller, each with 60 reference and 40 alternate reads. Switching assemblies failed in both directions for each caller before it returned any genotypes. In the offline desktop viewer, each matching BAM displayed the expected reads. Four sequence intervals per assembly, including a mitochondrial interval, matched samtools. [Reference sources and variants](GUI.md#choose-a-reference-genome)
+
+## Multi-sample DNP follow-up
+
+The comparison used the 0.9.10 candidate at `a771bd9` and its updated DNP reader and scheduler. Both ran in the released Linux AMD64 scientific userspace with R 4.4.2 and samtools 1.21. The planner saw four CPUs, 3,905 MiB and the small Apple Silicon profile. Each sample used a distinct path to the same distributed timing BAM. Both panels have 128 loci with 1,000 observations per locus. The table gives one complete DNP and SNP run per revision and sample count. It excludes desktop startup and represents this Linux setup. Hardware timings for the updated engine on the physical M1 are still outstanding.
+
+| BAMs | Workflow before → after (s) | DNP step before → after (s) | DNP R block phase before → after (s) |
+| ---: | ---: | ---: | ---: |
+| 1 | 16.47 → 16.71 | 7.77 → 8.73 | 2.51 → 2.95 |
+| 2 | 33.70 → 31.81 | 15.31 → 13.47 | 5.76 → 4.32 |
+| 9 | 254.17 → 133.13 | 177.81 → 51.46 | 152.61 → 24.68 |
+
+The updated reader is enabled for joint pileups. Twelve DNP-only single-BAM trials compared the readers and the previous implementation. With two R workers, median DNP time on the updated scheduler was 7.95 seconds using the experimental parser and 8.01 seconds using the established parser. The corresponding sampled process-tree peaks were 638 and 608 MiB. The final candidate therefore uses the established parser for one BAM and retains the two-worker automatic ceiling. The two- and nine-BAM timing pairs preceded this single-sample condition and exercise the same joint-pileup path. The one-BAM timing and the nine-distinct-BAM comparison were repeated on the final source.
+
+At nine BAMs the previous engine read 984,040,560 logical bytes from the joint pileup. The updated engine read 328,013,520 bytes in 21 scheduled groups and returned 63 sample/block results. A separate DNP-only pair using the same four CPUs gave 185.80 and 55.07 seconds for the DNP step. Peak sampled proportional memory across the DNP process tree was 571.8 and 563.5 MiB, respectively. These observations do not establish the maximum resident memory on macOS. The source tree contains individual timings, affinity, hashes and the memory measurement method in `docs/validation/0.9.10-dnp-scaling.json`.
+
+Two additional nine-BAM DNP-only comparisons isolated the changes on that CPU set. Grouping with the previous parser took 102.30 seconds. The new parser with individual reads per sample took 65.31 seconds. All four configurations produced the same native tables and genotype matrix.
+
+All 24 native individual tables from the 1/2/9 comparison and their genotype summaries matched the prior candidate byte for byte. Nine distinct synthetic BAMs gave the expected sample-specific counts at all three loci and identical native output across revisions. The ordinary resource profile kept the same task and worker counts on the heterogeneous trio. Reader tests also covered repeated and reversed rows, overlapping windows, repeated read names, numeric contigs, malformed fields and oversized blocks.
+
+The indexed pileup comparison used samtools 1.21 on 25 scenarios under each of two resource profiles. In a concentrated panel with six target sites and nine synthetic BAMs, median acquisition fell from about 127 to 8 ms in five Linux runs. Whole-contig and restricted scans preserved the pileup bytes across capped depth, indels and overlapping read pairs. Each interval on the historical M1 panel spans more than half of its target chromosome, so its acquisition still uses the previous scan.
+
+The ZIP upgrade fixture now recreates the 0.9.9 launcher and keeps historical results through a failed and a successful upgrade. A desktop service integration test starts two experiments, stops and removes the first, reopens the archive and verifies that the second succeeded and both output files remain intact. That test substitutes a controlled engine command. A real Windows installation upgrade and direct visual inspection of the taskbar and macOS Dock remain final device checks. [Installed upgrade procedure](WINDOWS_INSTALLER.md#verify-an-installed-099-upgrade)
 
 ## Scope and how to verify
 
@@ -58,7 +82,7 @@ The installed workflow checks now compare aggregate REF/ALT values to the existi
 The ordinary checks are `python -m pytest tests`, `node scripts/test_gui_frontend.cjs` and `python -m unittest discover -s .github/scripts` with the official repository identity in CI. Use `scripts/verify_gui_interactions.py` for the rendered checks. The indexed-pileup qualification and the R budget fixture belong to the scientific test path. CI uses the pinned release image, including R 4.4.2. [PR #79 and its current checks](https://github.com/GregorioDalia/nipat-desktop/pull/79)
 ### File inventory
 
-These are physical source lines in the candidate, including comments and blank lines. Each file appears once. Standalone test sources and frozen reference fixtures are grouped separately. Platform-specific checks shipped alongside their launchers are listed under the corresponding platform or build area. Package locks, datasets, third-party bundled JavaScript and native binaries are outside these line counts.
+This inventory records the original audit snapshot, including comments and blank lines. Later checks on results, reference genomes and DNP performance are reported separately above. Each file appears once. Standalone test sources and frozen reference fixtures are grouped separately. Platform-specific checks shipped alongside their launchers are listed under the corresponding platform or build area. Package locks, datasets, third-party bundled JavaScript and native binaries are outside these line counts.
 
 | Reviewed area | Files | Source lines |
 | --- | ---: | ---: |

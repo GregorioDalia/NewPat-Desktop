@@ -73,6 +73,13 @@ The installer checks ownership, uses the same data and runs directories and acti
 
 ZIP updates retain the selected root, verify the download and activate the new version after successful preparation. Existing data from another root or installation channel remain where they were. Before removing a ZIP installation, preserve its data/results and identify its WSL distribution from the active backend. The ZIP has no Inno uninstaller.
 
+### Verify an installed 0.9.9 upgrade
+
+1. Before the upgrade, open a completed experiment in 0.9.9. Record its run directory, the SHA-256 of its `run.json` and the SHA-256 of one scientific result table. For each file, run `Get-FileHash -Algorithm SHA256 -LiteralPath '<full path>'` in PowerShell.
+2. After upgrading, launch `NewPat.lnk` from the same installation root. Open the historical experiment, verify that the two paths and hashes match, and check the NewPat icon in the taskbar.
+3. With the [synthetic timing workload](../examples/synthetic-trio/README.md#run-the-timing-experiment), start two experiments with different names. Stop one while both are active. Record its run directory. Once it shows as interrupted, remove its card and let the other experiment finish.
+4. Reopen NewPat. The interrupted card should stay hidden. Its run directory and any files already written should still exist. Open the completed experiment and check the reported genotypes against the timing workload's expected counts.
+
 ## Locations and ownership
 
 | Resource | Default for the guided desktop installation |

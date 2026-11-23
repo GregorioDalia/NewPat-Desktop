@@ -22,6 +22,14 @@ def read_json(path):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def optional_report(path):
+    try:
+        data = read_json(path)
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
 def scientific_tables(work):
     report = read_json(work / "scientific-validation.json")
     if report["status"] != "validated" or report["workflow"] != "dnp-call":
@@ -33,10 +41,10 @@ def scientific_tables(work):
     digests = {row["sample"]: row["sha256"] for row in tables}
     if len(digests) != len(tables):
         raise ValueError("Duplicate sample in validated DNP tables.")
-    digests["genotype-matrix"] = artifacts["dnp-summary"]["genotypes"]["sha256"]
-    if not all(re.fullmatch(r"[0-9a-f]{64}", value) for value in digests.values()):
+    matrix = artifacts["dnp-summary"]["genotypes"]["sha256"]
+    if not all(re.fullmatch(r"[0-9a-f]{64}", value) for value in [matrix, *digests.values()]):
         raise ValueError("Invalid scientific output checksum.")
-    return digests
+    return {"samples": digests, "genotype_matrix": matrix}
 
 
 def compare(args):
@@ -67,7 +75,7 @@ def compare(args):
                 cases.append(case)
                 with (output / f"{name}.log").open("x", encoding="utf-8") as log:
                     tick = time.monotonic()
-                    proc = subprocess.run([launcher, "--runs-dir", str(run.parent), *options, *dnp,
+                    proc = subprocess.run([launcher, "--runs-dir", str(run.parent), "--performance-diagnostics", *options, *dnp,
                                            "--run-name", name], stdin=subprocess.DEVNULL,
                                           stdout=log, stderr=subprocess.STDOUT)
                     case.update(wall_seconds=round(time.monotonic() - tick, 3), exit_code=proc.returncode)
@@ -80,14 +88,22 @@ def compare(args):
                 pileup = read_json(work / "dnp-pileup.json")
                 blocks = read_json(work / "dnp-blocks.json")
                 pool = pileup.get("parallel", {})
+                memory = optional_report(run / "performance/engine/summary.json")
                 case.update(resources=record["resource_snapshot"], budget=record["resource_budget"],
                             acquisition_strategy=pileup["strategy"], acquisition_seconds=pileup.get("elapsed_seconds"),
                             observed_samtools=pool.get("observed_max_processes"), acquisition_reason=pool.get("reason"),
                             indexing_seconds=blocks.get("index_seconds"), calculation_seconds=blocks.get("processing_seconds"),
-                            observed_r_workers=blocks.get("observed_workers"))
+                            observed_r_workers=blocks.get("observed_workers"),
+                            sampled_cgroup_max_bytes=memory.get("sampled_memory_max_bytes"),
+                            observed_kernel_memory_peak_bytes=memory.get("observed_kernel_memory_peak_bytes"))
+                # Older packages do not record the block reader and computation separately.
+                case["block_work"] = {key: blocks[key] for key in (
+                    "task_count", "sample_block_count", "block_read_count", "block_logical_bytes_read",
+                    "block_read_seconds", "block_compute_seconds") if key in blocks}
                 tables = scientific_tables(work)
                 if baseline is None:
                     baseline = tables
+                    report["serial_tables_sha256"] = tables
                 case["matches_serial_tables"] = tables == baseline
                 if not case["matches_serial_tables"]:
                     raise ValueError(f"{name}: individual DNP tables or genotype matrix differ from serial.")
@@ -99,6 +115,11 @@ def compare(args):
         print(json.dumps(report["median_wall_seconds"], indent=2))
     except (OSError, KeyError, ValueError, subprocess.CalledProcessError, KeyboardInterrupt) as exc:
         report["error"] = str(exc) or type(exc).__name__
+        if cases:
+            last = cases[-1]
+            path = output / "runs" / last["run"] / "work/dnp-block-progress.json"
+            if partial := optional_report(path):
+                last["last_completed_block_work"] = partial
         raise
     finally:
         log_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")

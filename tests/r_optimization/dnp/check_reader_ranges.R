@@ -117,3 +117,60 @@ stopifnot(identical(huge_ranges$first, 1:3),
 checks <- checks + 1L
 cat("DNP byte-range reader:", checks,
     "strict checks passed (order, repeats, gaps, EOL, large rows and NUL warnings/errors).\n")
+
+# Compare the small-ARM decoder and its fallback with the standard reader.
+# Count scanner calls to ensure ordinary pileups actually exercise the shortcut.
+check_arm_decoder <- function() {
+  flag <- "NIPAT_DNP_SMALL_ARM_GUEST"
+  previous <- Sys.getenv(flag, unset = NA_character_)
+  on.exit(if (is.na(previous)) Sys.unsetenv(flag) else Sys.setenv(NIPAT_DNP_SMALL_ARM_GUEST = previous))
+  api <- new.env(parent = globalenv())
+  sys.source(file.path(root, "src/nipat_scientific/dnp_blocks.R"), api)
+  scans <- 0L
+  api$read.csv <- function(...) {
+    scans <<- scans + 1L
+    utils::read.csv(...)
+  }
+  path <- tempfile()
+  on.exit(unlink(path), add = TRUE)
+  count <- 0L
+  compare <- function(text, rows, columns = NULL, expected_scans = 0L, classes = NULL) {
+    writeBin(charToRaw(text), path)
+    index <- nipat_dnp_index(path)
+    if (!is.null(classes)) index$classes <- classes
+    reader <- function(i, r, c) api$nipat_dnp_read(i, r, c, columns)
+    Sys.unsetenv(flag)
+    standard <- capture(reader, index, rows)
+    scans <<- 0L
+    Sys.setenv(NIPAT_DNP_SMALL_ARM_GUEST = "1")
+    arm <- capture(reader, index, rows)
+    stopifnot(identical(arm, standard), scans == expected_scans)
+    count <<- count + 1L
+  }
+  text <- paste0(
+    'chr1\t17\tA\t2\t.,\tI#\t01,02\t0\t*\t*\t*\n',
+    'chr2\t21\tC\t1\t.\tI\tNA\t1\t,\t"\tfoo\\bar\n',
+    'chr2\t22\tG\t1\t,\tI\t#abc\t1\t.\tI\t001\n')
+  # A real single-BAM pileup keeps the standard scanner, even on this guest.
+  single <- "chr1\t17\tA\t2\t.,\tII\t01,02\nchr1\t18\tC\t1\t.\tI\tNA\n"
+  compare(single, 1:2, expected_scans = 1L)
+  last <- c(11:8, 3:1)
+  for (columns in list(NULL, last, c(2L, 4L, 8L), 11L)) {
+    for (rows in list(1:3, c(3L, 1L, 2L, 2L), c(1L, 3L), 2L, integer())) {
+      compare(text, rows, columns)
+    }
+  }
+  for (unusual in c(sub("foo", "fo\u00f2", text), sub("foo", " foo", text),
+                    gsub("\n", "\r\n", text), sub("\n$", "", text),
+                    sub("\tI#\t", "\t\t", text), sub("\t2\t", "\t+2\t", text),
+                    sub("\t2\t", "\t01\t", text), sub("\t2\t", "\t2.5\t", text),
+                    sub("\t2\t", "\t2147483648\t", text))) {
+    compare(unusual, 1:3, expected_scans = 1L)
+  }
+  # A non-integer token in an unselected depth column was ignored by read.csv.
+  compare(sub("\t2\t", "\tinvalid\t", text), 1:3, last)
+  compare(text, 1:3, c(1L, 2L), expected_scans = 1L,
+          classes = c("character", "numeric", rep("character", 9L)))
+  cat("DNP small-ARM tab decoder:", count, "differential checks passed.\n")
+}
+check_arm_decoder()

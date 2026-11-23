@@ -298,6 +298,29 @@ class DnpPileupTests(unittest.TestCase):
             expected = b'' if empty else b'chr2:reads-0|reads-1\nchr1:reads-0|reads-1\n'
             self.assertEqual(outputs, [expected] * 3)
 
+    def test_small_guest_bounds_only_large_contigs_with_clustered_targets(self):
+        bam, = self.samples([True])
+        sizes = {"cluster": 2_000_000, "spread": 2_000_000, "tiny": 1000}
+        self.reference.with_suffix(".fa.fai").write_text(
+            "".join(f"{name}\t{size}\t0\t1000\t1001\n" for name, size in sizes.items()))
+        Path(str(bam) + ".header").write_text("@HD\tSO:coordinate\n" + "".join(
+            f"@SQ\tSN:{name}\tLN:{size}\n" for name, size in sizes.items()))
+        self.bed.write_text("tiny\t5\t10\nspread\t100\t110\ncluster\t1000040\t1000050\n"
+                            "spread\t1800000\t1800004\ncluster\t50\t54\n")
+        for flag, expected in (("", "cluster"), ("1", "{cluster}:51-1000050")):
+            with self.subTest(flag=flag), patch.dict(os.environ, NIPAT_DNP_SMALL_ARM_GUEST=flag):
+                result = self.generate({"mode": "auto", "workers": 1})
+                args = [item["args"] for item in self.commands() if item["stage"] == "mpileup"]
+                self.assertEqual([cmd[cmd.index("-r") + 1] for cmd in args], [expected, "spread", "tiny"])
+                tasks = [item for item in result["processes"] if item["stage"] == "mpileup-chromosome"]
+                self.assertEqual([item["contig"] for item in tasks], list(sizes))
+                self.assertEqual([item["region"] for item in tasks if "region" in item],
+                                 [expected] if flag else [])
+                self.assertEqual(result["staged_bytes"], 0)
+                self.output.unlink()
+                self.metadata.unlink()
+                self.log.unlink()
+
     def test_streamed_failure_on_second_contig_discards_first_contig(self):
         self.samples([True])
         self.bed.write_text('chr2\t0\t10\nchr1\t0\t10\n')

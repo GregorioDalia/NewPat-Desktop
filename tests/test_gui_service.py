@@ -422,12 +422,25 @@ class GuiJobTests(GuiRuntimeFixture):
         release = threading.Event()
         both_running = threading.Barrier(3)
         class PausedRunner(GuiRunner):
-            def _prepare_runtime(self):
+            # Exercise the real client and archive with a controlled engine boundary.
+            def _prepare_runtime(self): pass
+            def _record_resource_snapshot(self): pass
+            def _describe_bundled_engine(self): self._image_id = "sha256:" + "1" * 64
+
+            def _run_command(self, command, *, working_dir=None):
+                output = self.last_run_dir / "output" / "workflow"
+                output.mkdir()
+                (output / "calls.tsv").write_text(f"sample\tchr\tpos1\tpos2\n{self.job.id}\tchr1\t2\t3\n",
+                                                  encoding="utf-8")
                 both_running.wait(timeout=5)
                 while not release.wait(.02):
                     self._cancel_point()
                 self._cancel_point()
-                raise RuntimeExecutionError("end of second fixture")
+                plan = json.loads((self.last_run_dir / "work/engine-plan.json").read_text(encoding="utf-8"))
+                state = {"schema_version": 1, "interface": "workflow-plan-execution-v2", "status": "succeeded",
+                         "steps": [{"id": step["id"], "workflow": step["workflow"], "status": "succeeded"}
+                                   for step in plan["steps"]]}
+                (output / "workflow-state.json").write_text(json.dumps(state), encoding="utf-8")
         manager = JobManager(runner_factory=PausedRunner, reconcile=lambda *_a, **_k: {"containers": []})
         service = self.service(jobs=manager)
         def launch():
@@ -442,6 +455,9 @@ class GuiJobTests(GuiRuntimeFixture):
             self.assertEqual(cancelled["status"], "interrupted")
             original = self.layout.runs_dir / cancelled["run_id"] / "run.json"
             evidence = original.read_bytes()
+            partial_output = original.parent / "output/workflow/calls.tsv"
+            partial_bytes = partial_output.read_bytes()
+            self.assertIn(first.encode(), partial_bytes)
             with self.assertRaises(ValidationError):
                 service.call("jobs.remove", {"job_id": second})
             self.assertTrue(service.call("jobs.remove", {"job_id": first})["outputs_preserved"])
@@ -455,7 +471,16 @@ class GuiJobTests(GuiRuntimeFixture):
         finally:
             release.set()
         other = manager.wait(second, 5)
-        self.assertEqual(other["status"], "failed")
+        self.assertEqual(other["status"], "succeeded", other)
+        self.assertFalse(manager.active()["active"])
+        # A fresh GUI session reads the persisted hide decision and the surviving result.
+        reopened = self.service()
+        survivor, = reopened.call("runs.list")["runs"]
+        self.assertEqual((survivor["id"], survivor["status"]), (other["run_id"], "succeeded"))
+        self.assertEqual(partial_output.read_bytes(), partial_bytes)
+        self.assertEqual(original.read_bytes(), evidence)
+        completed_output = self.layout.runs_dir / other["run_id"] / "output/workflow/calls.tsv"
+        self.assertIn(second.encode(), completed_output.read_bytes())
         self.assertTrue(service.call("runs.remove", {"run_id": other["run_id"]})["outputs_preserved"])
         self.assertEqual(manager.list(), [])
         self.assertEqual(service.call("runs.list")["total"], 0)

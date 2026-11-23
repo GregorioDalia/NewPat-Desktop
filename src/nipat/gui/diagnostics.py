@@ -37,10 +37,10 @@ RUN_FILES = (
     "run.json", "execution.log", "performance/summary.json",
     "performance/engine/summary.json", "performance/engine/phases.jsonl",
     "output/workflow/workflow-state.json", "work/input-validation.json",
-    "work/dnp-blocks.json", "work/dnp-pileup.json", "work/dnp-acquisition-budget.json",
+    "work/dnp-blocks.json", "work/dnp-block-progress.json", "work/dnp-pileup.json", "work/dnp-acquisition-budget.json",
 )
 STEP_FILES = (
-    "command.log", "work/input-validation.json", "work/dnp-blocks.json",
+    "command.log", "work/input-validation.json", "work/dnp-blocks.json", "work/dnp-block-progress.json",
     "work/dnp-pileup.json", "work/dnp-acquisition-budget.json",
 )
 

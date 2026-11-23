@@ -1,0 +1,603 @@
+{
+  "schema_version": 1,
+  "observed_date": "2026-11-23",
+  "baseline_commit": "a771bd9be1e4f1f7ba5692c32a5eeaf82085fbd6",
+  "candidate_file_sha256": {
+    "scientific/SHA256SUMS": "62002115350e31df3b74c42ff5ec25487c5038f648b69d42c275bb6564ee2877",
+    "scientific/vendor/DNPcall/DNPcall.R": "880b52f8644c60d5133341ec8212ba20c1eee14789121ca8634a081537c7e1e1",
+    "src/nipat_scientific/dnp_blocks.R": "1f280311cd665adc46b6d762395780a8290582907036e0a76a9c882011483a90",
+    "src/nipat_scientific/dnp_pileup.py": "0e3eddc8ebd1f776762c994b0d8b91f9a0debce7665f9a0c757ea140fb1360f9"
+  },
+  "candidate_before_singleton_guard_sha256": {
+    "scientific/SHA256SUMS": "62002115350e31df3b74c42ff5ec25487c5038f648b69d42c275bb6564ee2877",
+    "scientific/vendor/DNPcall/DNPcall.R": "880b52f8644c60d5133341ec8212ba20c1eee14789121ca8634a081537c7e1e1",
+    "src/nipat_scientific/dnp_blocks.R": "057086519c5f8c3ca3296455a7465b1bda3c0ffb176a0142e4ff37fa6b8bfc2f",
+    "src/nipat_scientific/dnp_pileup.py": "0e3eddc8ebd1f776762c994b0d8b91f9a0debce7665f9a0c757ea140fb1360f9"
+  },
+  "runtime_image_archive_sha256": "d9a4bfc6c703f05282ffb74a7b40ac4b7475046af3b92b70419ca28eeee78ebb",
+  "environment": "Linux AMD64 with R 4.4.2 and samtools 1.21 from the 0.9.9 engine. The planner received four CPUs and 3,905 MiB with the small Apple Silicon guest flag. The ordinary-profile comparison used the same budget with the flag off. Each run used a four-CPU affinity set recorded with the measurement. The nine-BAM DNP-only repeat used the same four CPUs on both revisions. This environment had no Lima, Rosetta or enforced 3,905 MiB cgroup limit.",
+  "timing": "The final reader uses the original parser for a single BAM. Multi-sample timing pairs were run just before this singleton guard and follow the same multi-sample path. Each before/after pair ran once. Durations are elapsed seconds from native workflow and DNP step records with performance diagnostics. The read and compute durations are summed over workers. DNP-only repetitions exclude SNP execution.",
+  "input": "The timing workload is the distributed synthetic-trio timing.bam, repeated at distinct paths with separate sample IDs. Both panels have 128 loci on four contigs, each with 600 REF and 400 ALT reads. The nine-distinct sample test uses three sites with 50 REF reads and respectively 1, 6, 11, 16, 21, 26, 31, 36 and 41 ALT reads per sample. The ordinary-profile test uses the distributed heterogeneous trio.",
+  "timing_bam_sha256": "53b921513716cc9d5e1774e374f0d2a415daa8c5af20eb342ff318396faf214a",
+  "memory": "The observer sampled summed proportional set size of the process tree approximately every half second during the DNP R coordinator lifetime. A null value indicates that the observer had no reliable measurement. An individual sample may miss transient peaks.",
+  "outputs": "The individual call tables and aggregate genotype summaries were compared byte for byte. Positions and counts were independently checked against expected results. All recorded comparisons passed.",
+  "comparisons": {
+    "one_bam": {
+      "after_source": "candidate",
+      "before": {
+        "experiment_seconds": 16.466,
+        "dnp_step_seconds": 7.771,
+        "dnp_acquisition_seconds": 0.856,
+        "dnp_index_seconds": 0.305,
+        "dnp_block_processing_wall_seconds": 2.506,
+        "dnp_observed_workers": 2,
+        "dnp_scheduled_tasks": 2,
+        "cpu_affinity": [
+          4,
+          5,
+          6,
+          7
+        ],
+        "dnp_logical_bytes_read": 12157168,
+        "dnp_sampled_process_tree_peak_pss_mib": 604.34
+      },
+      "after": {
+        "experiment_seconds": 16.714,
+        "dnp_step_seconds": 8.726,
+        "dnp_acquisition_seconds": 0.778,
+        "dnp_index_seconds": 0.554,
+        "dnp_block_processing_wall_seconds": 2.952,
+        "dnp_observed_workers": 2,
+        "dnp_scheduled_tasks": 2,
+        "cpu_affinity": [
+          4,
+          5,
+          6,
+          7
+        ],
+        "dnp_logical_bytes_read": 12157168,
+        "dnp_sampled_process_tree_peak_pss_mib": 614.09,
+        "block_read_seconds": 0.468,
+        "block_compute_seconds": 5.02,
+        "block_read_count": 2,
+        "sample_block_count": 2
+      },
+      "native_sample_table_sha256_in_input_order": {
+        "dnp": [
+          "af4ad1fcfe1db05dc3438d79d4937dbf6a524177e5a1cce5a1a065f96ff256f4"
+        ],
+        "snp": [
+          "d4d7e18da28dacefbece7b3c777649ce85c937839a2512957cc525bd08accf3d"
+        ]
+      },
+      "dnp_genotype_matrix_sha256": "59a9f874625e7630622d60537f6715c0b7eaf93737240417a77609f4dc95f6ed"
+    },
+    "two_bams": {
+      "after_source": "candidate_before_singleton_guard",
+      "before": {
+        "experiment_seconds": 33.702,
+        "dnp_step_seconds": 15.314,
+        "dnp_acquisition_seconds": 2.797,
+        "dnp_index_seconds": 0.599,
+        "dnp_block_processing_wall_seconds": 5.761,
+        "dnp_observed_workers": 2,
+        "dnp_scheduled_tasks": 4,
+        "cpu_affinity": [
+          4,
+          5,
+          6,
+          7
+        ],
+        "dnp_logical_bytes_read": 48609504,
+        "dnp_sampled_process_tree_peak_pss_mib": 656.59
+      },
+      "after": {
+        "experiment_seconds": 31.809,
+        "dnp_step_seconds": 13.467,
+        "dnp_acquisition_seconds": 2.791,
+        "dnp_index_seconds": 0.704,
+        "dnp_block_processing_wall_seconds": 4.323,
+        "dnp_observed_workers": 2,
+        "dnp_scheduled_tasks": 2,
+        "cpu_affinity": [
+          4,
+          5,
+          6,
+          7
+        ],
+        "dnp_logical_bytes_read": 24304752,
+        "dnp_sampled_process_tree_peak_pss_mib": 646.24,
+        "block_read_seconds": 0.231,
+        "block_compute_seconds": 7.703,
+        "block_read_count": 2,
+        "sample_block_count": 4
+      },
+      "native_sample_table_sha256_in_input_order": {
+        "dnp": [
+          "af4ad1fcfe1db05dc3438d79d4937dbf6a524177e5a1cce5a1a065f96ff256f4",
+          "af4ad1fcfe1db05dc3438d79d4937dbf6a524177e5a1cce5a1a065f96ff256f4"
+        ],
+        "snp": [
+          "d4d7e18da28dacefbece7b3c777649ce85c937839a2512957cc525bd08accf3d",
+          "d4d7e18da28dacefbece7b3c777649ce85c937839a2512957cc525bd08accf3d"
+        ]
+      },
+      "dnp_genotype_matrix_sha256": "94fd394fc1be3d18678a7244c476742caab1e0180a31e1a2b4d3636bc4638840"
+    },
+    "nine_bams": {
+      "after_source": "candidate_before_singleton_guard",
+      "before": {
+        "experiment_seconds": 254.169,
+        "dnp_step_seconds": 177.809,
+        "dnp_acquisition_seconds": 11.635,
+        "dnp_index_seconds": 2.851,
+        "dnp_block_processing_wall_seconds": 152.614,
+        "dnp_observed_workers": 2,
+        "dnp_scheduled_tasks": 54,
+        "cpu_affinity": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "dnp_logical_bytes_read": 984040560,
+        "dnp_sampled_process_tree_peak_pss_mib": null
+      },
+      "after": {
+        "experiment_seconds": 133.125,
+        "dnp_step_seconds": 51.463,
+        "dnp_acquisition_seconds": 11.766,
+        "dnp_index_seconds": 2.821,
+        "dnp_block_processing_wall_seconds": 24.677,
+        "dnp_observed_workers": 2,
+        "dnp_scheduled_tasks": 21,
+        "cpu_affinity": [
+          4,
+          5,
+          6,
+          7
+        ],
+        "dnp_logical_bytes_read": 328013520,
+        "dnp_sampled_process_tree_peak_pss_mib": 568.54,
+        "block_read_seconds": 6.034,
+        "block_compute_seconds": 35.108,
+        "block_read_count": 21,
+        "sample_block_count": 63
+      },
+      "native_sample_table_sha256_in_input_order": {
+        "dnp": [
+          "af4ad1fcfe1db05dc3438d79d4937dbf6a524177e5a1cce5a1a065f96ff256f4",
+          "af4ad1fcfe1db05dc3438d79d4937dbf6a524177e5a1cce5a1a065f96ff256f4",
+          "af4ad1fcfe1db05dc3438d79d4937dbf6a524177e5a1cce5a1a065f96ff256f4",
+          "af4ad1fcfe1db05dc3438d79d4937dbf6a524177e5a1cce5a1a065f96ff256f4",
+          "af4ad1fcfe1db05dc3438d79d4937dbf6a524177e5a1cce5a1a065f96ff256f4",
+          "af4ad1fcfe1db05dc3438d79d4937dbf6a524177e5a1cce5a1a065f96ff256f4",
+          "af4ad1fcfe1db05dc3438d79d4937dbf6a524177e5a1cce5a1a065f96ff256f4",
+          "af4ad1fcfe1db05dc3438d79d4937dbf6a524177e5a1cce5a1a065f96ff256f4",
+          "af4ad1fcfe1db05dc3438d79d4937dbf6a524177e5a1cce5a1a065f96ff256f4"
+        ],
+        "snp": [
+          "d4d7e18da28dacefbece7b3c777649ce85c937839a2512957cc525bd08accf3d",
+          "d4d7e18da28dacefbece7b3c777649ce85c937839a2512957cc525bd08accf3d",
+          "d4d7e18da28dacefbece7b3c777649ce85c937839a2512957cc525bd08accf3d",
+          "d4d7e18da28dacefbece7b3c777649ce85c937839a2512957cc525bd08accf3d",
+          "d4d7e18da28dacefbece7b3c777649ce85c937839a2512957cc525bd08accf3d",
+          "d4d7e18da28dacefbece7b3c777649ce85c937839a2512957cc525bd08accf3d",
+          "d4d7e18da28dacefbece7b3c777649ce85c937839a2512957cc525bd08accf3d",
+          "d4d7e18da28dacefbece7b3c777649ce85c937839a2512957cc525bd08accf3d",
+          "d4d7e18da28dacefbece7b3c777649ce85c937839a2512957cc525bd08accf3d"
+        ]
+      },
+      "dnp_genotype_matrix_sha256": "14e1824f6f51af02c31923c8fbf4eca9c29b74d2e7316d2231edbad0189560be"
+    },
+    "nine_bams_dnp_only": {
+      "after_source": "candidate_before_singleton_guard",
+      "before": {
+        "experiment_seconds": 185.811,
+        "dnp_step_seconds": 185.797,
+        "dnp_acquisition_seconds": 12.584,
+        "dnp_index_seconds": 3.007,
+        "dnp_block_processing_wall_seconds": 157.856,
+        "dnp_observed_workers": 2,
+        "dnp_scheduled_tasks": 54,
+        "cpu_affinity": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "dnp_logical_bytes_read": 984040560,
+        "dnp_sampled_process_tree_peak_pss_mib": 571.81
+      },
+      "after": {
+        "experiment_seconds": 55.082,
+        "dnp_step_seconds": 55.071,
+        "dnp_acquisition_seconds": 12.451,
+        "dnp_index_seconds": 3.2,
+        "dnp_block_processing_wall_seconds": 26.821,
+        "dnp_observed_workers": 2,
+        "dnp_scheduled_tasks": 21,
+        "cpu_affinity": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "dnp_logical_bytes_read": 328013520,
+        "dnp_sampled_process_tree_peak_pss_mib": 563.54,
+        "block_read_seconds": 6.38600000000001,
+        "block_compute_seconds": 37.907,
+        "block_read_count": 21,
+        "sample_block_count": 63
+      },
+      "native_sample_table_sha256_in_input_order": {
+        "dnp": [
+          "af4ad1fcfe1db05dc3438d79d4937dbf6a524177e5a1cce5a1a065f96ff256f4",
+          "af4ad1fcfe1db05dc3438d79d4937dbf6a524177e5a1cce5a1a065f96ff256f4",
+          "af4ad1fcfe1db05dc3438d79d4937dbf6a524177e5a1cce5a1a065f96ff256f4",
+          "af4ad1fcfe1db05dc3438d79d4937dbf6a524177e5a1cce5a1a065f96ff256f4",
+          "af4ad1fcfe1db05dc3438d79d4937dbf6a524177e5a1cce5a1a065f96ff256f4",
+          "af4ad1fcfe1db05dc3438d79d4937dbf6a524177e5a1cce5a1a065f96ff256f4",
+          "af4ad1fcfe1db05dc3438d79d4937dbf6a524177e5a1cce5a1a065f96ff256f4",
+          "af4ad1fcfe1db05dc3438d79d4937dbf6a524177e5a1cce5a1a065f96ff256f4",
+          "af4ad1fcfe1db05dc3438d79d4937dbf6a524177e5a1cce5a1a065f96ff256f4"
+        ]
+      },
+      "dnp_genotype_matrix_sha256": "14e1824f6f51af02c31923c8fbf4eca9c29b74d2e7316d2231edbad0189560be"
+    },
+    "one_bam_dnp_only_before_singleton_guard": {
+      "after_source": "candidate_before_singleton_guard",
+      "before": {
+        "experiment_seconds": 7.325,
+        "dnp_step_seconds": 7.314,
+        "dnp_acquisition_seconds": 0.873,
+        "dnp_index_seconds": 0.333,
+        "dnp_block_processing_wall_seconds": 2.437,
+        "dnp_observed_workers": 2,
+        "dnp_scheduled_tasks": 2,
+        "cpu_affinity": [
+          4,
+          5,
+          6,
+          7
+        ],
+        "dnp_logical_bytes_read": 12157168,
+        "dnp_sampled_process_tree_peak_pss_mib": 601.74
+      },
+      "after": {
+        "experiment_seconds": 8.107,
+        "dnp_step_seconds": 8.095,
+        "dnp_acquisition_seconds": 0.994,
+        "dnp_index_seconds": 0.372,
+        "dnp_block_processing_wall_seconds": 2.595,
+        "dnp_observed_workers": 2,
+        "dnp_scheduled_tasks": 2,
+        "cpu_affinity": [
+          4,
+          5,
+          6,
+          7
+        ],
+        "dnp_logical_bytes_read": 12157168,
+        "dnp_sampled_process_tree_peak_pss_mib": 628.71,
+        "block_read_seconds": 0.13,
+        "block_compute_seconds": 4.665,
+        "block_read_count": 2,
+        "sample_block_count": 2
+      },
+      "native_sample_table_sha256_in_input_order": {
+        "dnp": [
+          "af4ad1fcfe1db05dc3438d79d4937dbf6a524177e5a1cce5a1a065f96ff256f4"
+        ]
+      },
+      "dnp_genotype_matrix_sha256": "59a9f874625e7630622d60537f6715c0b7eaf93737240417a77609f4dc95f6ed"
+    },
+    "two_bams_dnp_only": {
+      "after_source": "candidate_before_singleton_guard",
+      "before": {
+        "experiment_seconds": 16.474,
+        "dnp_step_seconds": 16.463,
+        "dnp_acquisition_seconds": 2.94,
+        "dnp_index_seconds": 0.62,
+        "dnp_block_processing_wall_seconds": 6.482,
+        "dnp_observed_workers": 2,
+        "dnp_scheduled_tasks": 4,
+        "cpu_affinity": [
+          4,
+          5,
+          6,
+          7
+        ],
+        "dnp_logical_bytes_read": 48609504,
+        "dnp_sampled_process_tree_peak_pss_mib": 666.37
+      },
+      "after": {
+        "experiment_seconds": 15.464,
+        "dnp_step_seconds": 15.42,
+        "dnp_acquisition_seconds": 2.957,
+        "dnp_index_seconds": 1.127,
+        "dnp_block_processing_wall_seconds": 4.912,
+        "dnp_observed_workers": 2,
+        "dnp_scheduled_tasks": 2,
+        "cpu_affinity": [
+          4,
+          5,
+          6,
+          7
+        ],
+        "dnp_logical_bytes_read": 24304752,
+        "dnp_sampled_process_tree_peak_pss_mib": 658.28,
+        "block_read_seconds": 0.347,
+        "block_compute_seconds": 8.697,
+        "block_read_count": 2,
+        "sample_block_count": 4
+      },
+      "native_sample_table_sha256_in_input_order": {
+        "dnp": [
+          "af4ad1fcfe1db05dc3438d79d4937dbf6a524177e5a1cce5a1a065f96ff256f4",
+          "af4ad1fcfe1db05dc3438d79d4937dbf6a524177e5a1cce5a1a065f96ff256f4"
+        ]
+      },
+      "dnp_genotype_matrix_sha256": "94fd394fc1be3d18678a7244c476742caab1e0180a31e1a2b4d3636bc4638840"
+    },
+    "nine_distinct_bams": {
+      "after_source": "candidate",
+      "before": {
+        "experiment_seconds": 26.807,
+        "dnp_step_seconds": 13.222,
+        "dnp_acquisition_seconds": 0.584,
+        "dnp_index_seconds": 0.00999999999999979,
+        "dnp_block_processing_wall_seconds": 1.961,
+        "dnp_observed_workers": 2,
+        "dnp_scheduled_tasks": 9,
+        "cpu_affinity": [
+          4,
+          5,
+          6,
+          7
+        ],
+        "dnp_logical_bytes_read": 2261592,
+        "dnp_sampled_process_tree_peak_pss_mib": 304.7
+      },
+      "after": {
+        "experiment_seconds": 23.529,
+        "dnp_step_seconds": 11.61,
+        "dnp_acquisition_seconds": 0.582,
+        "dnp_index_seconds": 0.0089999999999999,
+        "dnp_block_processing_wall_seconds": 1.473,
+        "dnp_observed_workers": 2,
+        "dnp_scheduled_tasks": 3,
+        "cpu_affinity": [
+          4,
+          5,
+          6,
+          7
+        ],
+        "dnp_logical_bytes_read": 753864,
+        "dnp_sampled_process_tree_peak_pss_mib": 336.82,
+        "block_read_seconds": 0.0189999999999997,
+        "block_compute_seconds": 0.761,
+        "block_read_count": 3,
+        "sample_block_count": 9
+      },
+      "native_sample_table_sha256_in_input_order": {
+        "dnp": [
+          "e6cffa257b0644d48f8ca2c91b7e7a25a957c73181d523126b2e9d2fd5fb3bb0",
+          "a583de7697a0f60f8c98aae338c5506cc0d5dc1e10c648990447f1b77bcca523",
+          "e9039b2387c0354623234875ee52cf33ba4c58b9b4c22c38870f54f59c8e8d38",
+          "f31621a9e5fab024f2f09fcbfe6513b355a4a0d4fad6d33f942c9483a8f93a1f",
+          "34296e024070324c622317db4a59b8f3b2e798f426f8c659c352ccc1b8cd72f2",
+          "5e96444a5a9369dc96d409223c99377a4cd7a55aedf7ed6be5d3fe1c8afd1eb4",
+          "b9318303218e35bfe5787121ce639a1797ee4fb5644ef238f691dd5480259509",
+          "0eb6c3bf18892bc73152d6751a5d82040d885a30e3f4bb2712ffb306bcbad035",
+          "3314de7d6f3c7e2959cdf51b2c8a5bad105dc6500a49cb78704db3f5b7ad574e"
+        ],
+        "snp": [
+          "f0e65f116b2a52bba033f138c74b66f58aa2c1687e182b1be836955d95b35573",
+          "d321284024bbe74555c5bfacf0678ebdc1ea41b023bb68ae03ec59301e69c348",
+          "8567014bda759dc5e56da418adf5bcb4d0141e7c1620a38b3f0dd582399822e3",
+          "6be6d584137a869bec05c0e0daa1aa0c9ccfac76a68ff3594f4b5555a35e1c38",
+          "976d34181c9de2339bc553056c8723361f531b700818c43f8396864adaff1791",
+          "32b7ede7f12d428790b6baf76914a25bdde79e205da8c5b739d12dc1054d71e5",
+          "0bb87da714db06dc8346755da8eb6dc9f28e19d122ed672a095b2c3759dadd2c",
+          "594f73c0ed36d8993f69b01ba790f05d4bf1a1dba58739319da172211c87a1a6",
+          "d89f8129c9556310330d44e436d6383860f6b4692e77de7bb48bc72599cd77bf"
+        ]
+      },
+      "dnp_genotype_matrix_sha256": "ea31d984fbc61b4029883994972e87be815294d62fa52bf1ba55c192f25f4729"
+    },
+    "trio_ordinary_profile": {
+      "after_source": "candidate_before_singleton_guard",
+      "before": {
+        "experiment_seconds": 6.375,
+        "dnp_step_seconds": 6.363,
+        "dnp_acquisition_seconds": 0.276,
+        "dnp_index_seconds": 0.00500000000000012,
+        "dnp_block_processing_wall_seconds": 0.479,
+        "dnp_observed_workers": 3,
+        "dnp_scheduled_tasks": 3,
+        "cpu_affinity": [
+          4,
+          5,
+          6,
+          7
+        ],
+        "dnp_logical_bytes_read": 350628,
+        "dnp_sampled_process_tree_peak_pss_mib": 227.93
+      },
+      "after": {
+        "experiment_seconds": 6.234,
+        "dnp_step_seconds": 6.226,
+        "dnp_acquisition_seconds": 0.27,
+        "dnp_index_seconds": 0.00299999999999989,
+        "dnp_block_processing_wall_seconds": 0.362,
+        "dnp_observed_workers": 3,
+        "dnp_scheduled_tasks": 3,
+        "cpu_affinity": [
+          4,
+          5,
+          6,
+          7
+        ],
+        "dnp_logical_bytes_read": 350628,
+        "dnp_sampled_process_tree_peak_pss_mib": 183.07,
+        "block_read_seconds": 0.0389999999999993,
+        "block_compute_seconds": 0.43,
+        "block_read_count": 3,
+        "sample_block_count": 3
+      },
+      "native_sample_table_sha256_in_input_order": {
+        "dnp": [
+          "f63420f01a4d8087a1b16d6b10401c5201003921bffcd8ed530b673357655246",
+          "bece08ffc718038789bd29a23d1a1c1c164f1303b4ebd4dabf1b2936e1c43489",
+          "bece08ffc718038789bd29a23d1a1c1c164f1303b4ebd4dabf1b2936e1c43489"
+        ]
+      },
+      "dnp_genotype_matrix_sha256": "58348c44c0058dd6cc0e35638593eba85264cbf07efc3a7208189e5242cca173"
+    }
+  },
+  "single_bam_parser_selection": [
+    {
+      "r_workers": 1,
+      "replicate": 1,
+      "configuration": "updated_scheduler_experimental_parser",
+      "dnp_step_seconds": 10.172,
+      "r_block_processing_wall_seconds": 4.427,
+      "dnp_sampled_process_tree_peak_pss_mib": 281.16796875
+    },
+    {
+      "r_workers": 1,
+      "replicate": 2,
+      "configuration": "updated_scheduler_experimental_parser",
+      "dnp_step_seconds": 10.49,
+      "r_block_processing_wall_seconds": 4.568,
+      "dnp_sampled_process_tree_peak_pss_mib": 294.6201171875
+    },
+    {
+      "r_workers": 1,
+      "replicate": 3,
+      "configuration": "updated_scheduler_experimental_parser",
+      "dnp_step_seconds": 10.521,
+      "r_block_processing_wall_seconds": 5.233,
+      "dnp_sampled_process_tree_peak_pss_mib": 282.142578125
+    },
+    {
+      "r_workers": 1,
+      "replicate": 1,
+      "configuration": "updated_scheduler_original_parser",
+      "dnp_step_seconds": 9.822,
+      "r_block_processing_wall_seconds": 4.364,
+      "dnp_sampled_process_tree_peak_pss_mib": 281.1611328125
+    },
+    {
+      "r_workers": 1,
+      "replicate": 2,
+      "configuration": "updated_scheduler_original_parser",
+      "dnp_step_seconds": 9.885,
+      "r_block_processing_wall_seconds": 4.509,
+      "dnp_sampled_process_tree_peak_pss_mib": 281.0791015625
+    },
+    {
+      "r_workers": 1,
+      "replicate": 3,
+      "configuration": "updated_scheduler_original_parser",
+      "dnp_step_seconds": 10.341,
+      "r_block_processing_wall_seconds": 4.908,
+      "dnp_sampled_process_tree_peak_pss_mib": 280.611328125
+    },
+    {
+      "r_workers": 2,
+      "replicate": 1,
+      "configuration": "updated_scheduler_experimental_parser",
+      "dnp_step_seconds": 8.162,
+      "r_block_processing_wall_seconds": 2.875,
+      "dnp_sampled_process_tree_peak_pss_mib": 632.6845703125
+    },
+    {
+      "r_workers": 2,
+      "replicate": 2,
+      "configuration": "updated_scheduler_experimental_parser",
+      "dnp_step_seconds": 7.746,
+      "r_block_processing_wall_seconds": 2.431,
+      "dnp_sampled_process_tree_peak_pss_mib": 643.634765625
+    },
+    {
+      "r_workers": 2,
+      "replicate": 1,
+      "configuration": "updated_scheduler_original_parser",
+      "dnp_step_seconds": 7.923,
+      "r_block_processing_wall_seconds": 2.679,
+      "dnp_sampled_process_tree_peak_pss_mib": 603.3154296875
+    },
+    {
+      "r_workers": 2,
+      "replicate": 2,
+      "configuration": "updated_scheduler_original_parser",
+      "dnp_step_seconds": 8.096,
+      "r_block_processing_wall_seconds": 2.647,
+      "dnp_sampled_process_tree_peak_pss_mib": 613.5595703125
+    },
+    {
+      "r_workers": 2,
+      "replicate": 1,
+      "configuration": "baseline_candidate",
+      "dnp_step_seconds": 7.965,
+      "r_block_processing_wall_seconds": 2.485,
+      "dnp_sampled_process_tree_peak_pss_mib": 610.2509765625
+    },
+    {
+      "r_workers": 2,
+      "replicate": 2,
+      "configuration": "baseline_candidate",
+      "dnp_step_seconds": 7.462,
+      "r_block_processing_wall_seconds": 2.519,
+      "dnp_sampled_process_tree_peak_pss_mib": 614.072265625
+    }
+  ],
+  "nine_bam_dnp_only_components": {
+    "previous_reader_and_dispatcher": {
+      "dnp_step_seconds": 185.797,
+      "r_block_processing_wall_seconds": 157.856,
+      "dnp_scheduled_tasks": 54,
+      "cpu_affinity": [
+        0,
+        1,
+        2,
+        3
+      ]
+    },
+    "previous_reader_with_grouping": {
+      "dnp_step_seconds": 102.299,
+      "r_block_processing_wall_seconds": 75.225,
+      "dnp_scheduled_tasks": 21,
+      "cpu_affinity": [
+        4,
+        5,
+        6,
+        7
+      ]
+    },
+    "new_reader_without_grouping": {
+      "dnp_step_seconds": 65.311,
+      "r_block_processing_wall_seconds": 36.291,
+      "dnp_scheduled_tasks": 63,
+      "cpu_affinity": [
+        0,
+        1,
+        2,
+        3
+      ]
+    },
+    "new_reader_with_grouping": {
+      "dnp_step_seconds": 55.071,
+      "r_block_processing_wall_seconds": 26.821,
+      "dnp_scheduled_tasks": 21,
+      "cpu_affinity": [
+        0,
+        1,
+        2,
+        3
+      ]
+    }
+  }
+}

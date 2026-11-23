@@ -4,8 +4,8 @@ The BED comes from DNPcall and acquisition options from the scientific registry.
 Indexed view selects alignments overlapping the same BED; reads are not
 deduplicated by name and original BAMs remain read-only. Default quality,
 filter and depth options preserve the original acquisition behavior.
-An explicit R-owned budget enables whole-chromosome indexed tasks, with exactly
-one samtools process per task. Output is reassembled in BAM dictionary order.
+An explicit R-owned budget enables indexed chromosome tasks, with exactly one
+samtools process per task. Output is reassembled in BAM dictionary order.
 The unbudgeted API retains the 0.8.12 acquisition path for regression comparison.
 """
 
@@ -265,20 +265,36 @@ def _chromosomes(bams, samples, bed, reference, staging, samtools, cancellation,
         dictionary = order
         all_coordinate_sorted &= coordinate_sorted
     if not all(sample["indexed"] for sample in samples):
-        return [], "missing-index"
+        return [], "missing-index", {}
     if not all_coordinate_sorted:
-        return [], "non-coordinate-header"
+        return [], "non-coordinate-header", {}
     selected = [name for name, _ in dictionary if name in targets]
     # ':' and region metacharacters can change -r interpretation. Exotic but
     # valid BAM names still work through the unpartitioned fallback.
     if any(name == "." or not re.fullmatch(r"[A-Za-z0-9_.-]+", name) for name in selected):
-        return [], "ambiguous-contig"
-    return selected, "indexed-chromosomes"
+        return [], "ambiguous-contig", {}
+    regions = {}
+    if "parallel" in document and os.environ.get("NIPAT_DNP_SMALL_ARM_GUEST") == "1":
+        # One bounding interval retains every BED window for this contig without
+        # splitting depth/overlap handling across tasks or staging new BAMs.
+        bounds = {}
+        for name, first, last in windows:
+            lo, hi = bounds.get(name, (first, last))
+            bounds[name] = min(lo, first), max(hi, last)
+        for name, (first, last) in bounds.items():
+            width = last - first + 1
+            # Keep the existing scan for dispersed panels and small contigs.
+            if width * 2 <= lengths[name] and lengths[name] - width >= 1_000_000:
+                regions[name] = f"{{{name}}}:{first}-{last}"
+    return selected, "indexed-chromosomes", regions
 
 
-def _parallel_chromosomes(contigs, command, staging, output, cancellation, document, metadata, *, monitor=None, inputs=(), stream_serial=False):
-    """Bound actual samtools processes, then concatenate complete chromosomes."""
+def _parallel_chromosomes(contigs, command, staging, output, cancellation, document, metadata, *,
+                          monitor=None, inputs=(), stream_serial=False, regions=None):
+    """Bound concurrent samtools processes and assemble targets in dictionary order."""
     workers = document["parallel"]["workers"]
+    if regions is None:
+        regions = {}
     active = {}
     paths = []
     next_index = 0
@@ -298,11 +314,14 @@ def _parallel_chromosomes(contigs, command, staging, output, cancellation, docum
                           "contig": contig, "pid": None, "started_at_unix": time.time(),
                           "finished_at_unix": None, "elapsed_seconds": None,
                           "returncode": None, "outcome": "running"}
+                region = regions.get(contig, contig)
+                if region != contig:
+                    record["region"] = region
                 document["processes"].append(record)
                 started = time.monotonic()
                 try:
                     with (path.open("xb") if path is not None else nullcontext(output)) as handle:
-                        process = subprocess.Popen([*command, "-r", contig, *inputs],
+                        process = subprocess.Popen([*command, "-r", region, *inputs],
                                                    stdin=subprocess.DEVNULL, stdout=handle)
                 except BaseException:
                     record.update(outcome="failed", finished_at_unix=time.time(),
@@ -361,7 +380,7 @@ def _parallel_chromosomes(contigs, command, staging, output, cancellation, docum
 
 def _budgeted_acquisition(bams, samples, bed, reference, staging, output, cancellation,
                           document, metadata, samtools):
-    contigs, reason = _chromosomes(bams, samples, bed, reference, staging, samtools, cancellation, document)
+    contigs, reason, regions = _chromosomes(bams, samples, bed, reference, staging, samtools, cancellation, document)
     selected_list = staging / "original-bamlist.txt"
     parallel = document["parallel"]
     parallel.update(tasks=len(contigs) or 1, workers=min(parallel["workers"], len(contigs)) if contigs else 1,
@@ -401,7 +420,7 @@ def _budgeted_acquisition(bams, samples, bed, reference, staging, output, cancel
             if stream_serial:
                 parallel["output_strategy"] = "direct-dictionary-order"
             _parallel_chromosomes(contigs, command, staging, output, cancellation, document,
-                                  metadata, stream_serial=stream_serial)
+                                  metadata, stream_serial=stream_serial, regions=regions)
         else:
             _tracked_execute(command, output, cancellation, document, {"stage": "mpileup"})
 

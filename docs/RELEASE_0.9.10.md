@@ -22,6 +22,8 @@ The Intreccio wordmark and new palette appear throughout the desktop app. Native
 
 On Apple Silicon Macs with at most 8 GiB of physical memory and a Lima VM with at most 4 GiB available, automatic DNP block calculation uses up to two R workers when both memory sizes are known. An explicit worker ceiling takes precedence. Serial mode keeps one worker. With one worker reading chromosomes, the pileup writes directly to the aggregate file to avoid a full temporary copy. Windows keeps its existing single-experiment resource policy. [Comparing worker settings on Apple Silicon](MACOS_INSTALLER.md#compare-worker-settings-on-an-apple-silicon-mac)
 
+For DNP runs on this Mac profile, the reader can now decode a regular pileup block once for several samples within the available memory. Compact panels can also use a narrower indexed chromosome scan. With performance diagnostics enabled, an interrupted run retains a small record of completed work for troubleshooting.
+
 ## Windows upgrade from 0.9.9
 
 The complete ZIP uses English launcher names. The 0.9.9 ZIP updater expects the previous archive layout, so this transition requires a manual download. Extract the new ZIP into a fresh directory and use its installer to target the existing installation root containing `installation.json`, `data` and `runs`. Subsequent launches use `NewPat.lnk`. [Complete ZIP installation and upgrade commands](WINDOWS_INSTALLER.md#complete-zip-installation)

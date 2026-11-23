@@ -836,6 +836,8 @@ observed_workers <- processed_samples$observed_workers
 observed_sample_workers <- processed_samples$observed_samples
 processing_seconds <- processed_samples$elapsed_seconds
 processing_tasks <- processed_samples$task_count
+processing_totals <- processed_samples$totals
+processing_memory_mib <- processed_samples$memory_mib
 cat(paste0("\nDNP shared sample/block pool: ", ncores, " worker(s), ",
            processing_tasks, " task(s) across ", length(samplelist), " sample(s)\n"))
 results <- vector("list", length(samplelist))
@@ -882,7 +884,7 @@ cat(paste0("Number of individuals processed: ", length(samplelist), "\n"))
 # Plot only copies of the final genotype table; retain every scientific row.
 nipat_genotype_summary(final_merged_data, file.path(output, "summary"), locus_kind = "DNP")
 
-nipat_dnp_write_metrics("work/dnp-blocks.json", list(
+nipat_dnp_write_metrics("work/dnp-blocks.json", c(processing_totals, list(
   schema_version = 1L, status = "succeeded", acquisition_seconds = acquisition_seconds,
   index_seconds = pileup_index$elapsed_seconds, index_rows = pileup_index$rows,
   index_bytes = pileup_index$bytes, column_classes = pileup_index$classes,
@@ -899,12 +901,12 @@ nipat_dnp_write_metrics("work/dnp-blocks.json", list(
   sample_processing_seconds_scope = "first block start to last block finish; sample intervals may overlap",
   sample_workers = observed_sample_workers,
   block_workers = max(vapply(results, function(result) result$observed_block_workers, integer(1))),
-  estimated_worker_memory_mib = nipat_dnp_worker_memory_mib(block_plan),
+  estimated_worker_memory_mib = processing_memory_mib,
   samples = setNames(lapply(results, function(result) list(
     processing_seconds = result$processing_seconds, block_workers = result$block_workers,
     observed_block_workers = result$observed_block_workers, blocks = result$block_metrics)), samplelist),
   elapsed_seconds_including_acquisition_and_index = as.numeric(difftime(Sys.time(), start_time, units = "secs"))
-))
+)))
 
 # remove now useless files; the retained test copy is separate from scratch.
 unlink(pileup_path)
