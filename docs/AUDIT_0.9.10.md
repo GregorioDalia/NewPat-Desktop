@@ -37,6 +37,14 @@ The archived 0.8.99 M1 run used nine BAMs totaling 20,443,505,239 bytes and prod
 
 The five distributed scientific entry scripts match the 0.9.9 versions byte for byte. The DNP resource and acquisition changes reside in the surrounding helpers. In the desktop results view, postnatal CPI retains the 0.9.9 curve and summary behavior pending the original researcher's update. This audit does not establish a new scientific interpretation of the CPI values.
 
+## Follow-up checks on result summaries and reference genomes
+
+The distributed synthetic trio exercised all five modules. Starting from its three BAMs reproduced all 18 native per-locus count rows in the supplied tables. The six downstream summaries were byte-identical across the BAM and count-table paths. The desktop displayed three assigned genotypes per sample and marker, prenatal log₁₀(CPI) of 0.903 and 0.301 for the full and single-site panels, and postnatal CPI of 8 for both site selections. The mother had 4% mean contamination. The other two samples had no informative sites.
+
+For the separate timing sample, three warm, alternating Linux AMD64 engine runs gave medians of 18.451 s in serial and 15.682 s in automatic mode with a ceiling of two workers. The first run per condition was excluded. The complete DNP and SNP call tables matched across all eight executions, including warm-up. This measures the engine using the 0.9.9 scientific image with candidate source and performance diagnostics active. The desktop timing protocol is included with the example. [Dataset and instructions](../examples/synthetic-trio/README.md)
+
+The human-reference qualification used the complete initial UCSC FASTAs. The hg19 archive contained 93 contigs and hg38 contained 455. Both compressed files matched UCSC's published MD5 digests. The downloader also checks independent SHA-256 pins for the archives and the decompressed FASTAs. For each assembly, a synthetic BAM with its full sequence dictionary and a two-site panel produced two heterozygous calls in each caller, each with 60 reference and 40 alternate reads. Switching assemblies failed in both directions for each caller before it returned any genotypes. In the offline desktop viewer, each matching BAM displayed the expected reads. Four sequence intervals per assembly, including a mitochondrial interval, matched samtools. [Reference sources and variants](GUI.md#choose-a-reference-genome)
+
 ## Scope and how to verify
 
 The review covered the client and desktop GUI, engine and scientific adapters, vendored entry points, operating-system launchers, update and release logic, installers, packaging inputs, performance verification and installed acceptance. Source enumeration and parsing covered complete files. Semantic review followed the jobs, inputs, calculations, cleanup, exports and installation paths listed above. A passing parser or unit test does not establish that every line or hardware-specific behavior was exercised.

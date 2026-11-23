@@ -532,10 +532,10 @@
       "evidence": {
         "path": "src/nipat_scientific/snp.py",
         "source_lines": [
-          192,
-          288
+          193,
+          291
         ],
-        "sha256": "5e2dd735412f015dd2f3291bb1049a315774d186f1e23bf87470ed4b0a016934"
+        "sha256": "2b39ef5b45a86fd6f25624cc675ace392d4c86978d32819ad446b5b5ab04dd8a"
       }
     },
     {
@@ -555,9 +555,9 @@
         "path": "src/nipat_scientific/panels.py",
         "source_lines": [
           1,
-          278
+          281
         ],
-        "sha256": "a22cbc37601c4cd79dca6ad69d20b4cc2a21a568a89ba3034a33dbf53fc23905"
+        "sha256": "b102d8ac8ed99608df48c3493fb85a42233361feec4ca82ea1e02fef904e9b28"
       }
     },
     {
@@ -590,9 +590,9 @@
         "path": "src/nipat_scientific/panels.py",
         "source_lines": [
           1,
-          278
+          281
         ],
-        "sha256": "a22cbc37601c4cd79dca6ad69d20b4cc2a21a568a89ba3034a33dbf53fc23905"
+        "sha256": "b102d8ac8ed99608df48c3493fb85a42233361feec4ca82ea1e02fef904e9b28"
       }
     },
     {
@@ -608,16 +608,16 @@
       "applies_to": "bam",
       "origin": "nipat_engine",
       "description": {
-        "it": "Gli indici FASTA richiesti vengono forniti come input; gli indici BAM presenti vengono conservati come file associati. La preparazione non crea indici accanto agli originali. Le intere finestre devono rientrare nel contig secondo il file .fai. I contig richiesti devono esistere nel dizionario BAM con la stessa lunghezza del FASTA.",
-        "en": "Required FASTA indexes are supplied as inputs; existing BAM indexes are retained as sidecars. Preparation does not create indexes beside original inputs. Each complete window must fit within its contig in the .fai file. Target contigs must exist in the BAM dictionary with the same length as in the FASTA."
+        "it": "Gli indici FASTA richiesti vengono forniti come input; gli indici BAM presenti vengono conservati come file associati. La preparazione non crea indici accanto agli originali. Le intere finestre devono rientrare nel contig secondo il file .fai. I contig del pannello devono essere presenti con lo stesso nome nel BAM e nel FASTA. Anche fuori pannello, i contig presenti in entrambi devono avere la stessa lunghezza.",
+        "en": "Required FASTA indexes are supplied as inputs; existing BAM indexes are retained as sidecars. Preparation does not create indexes beside original inputs. Each complete window must fit within its contig in the .fai file. Every panel contig must be present by exact name in the BAM and the FASTA. Shared contigs must have matching lengths even outside the panel."
       },
       "evidence": {
         "path": "src/nipat_scientific/snp.py",
         "source_lines": [
-          192,
-          288
+          193,
+          291
         ],
-        "sha256": "5e2dd735412f015dd2f3291bb1049a315774d186f1e23bf87470ed4b0a016934"
+        "sha256": "2b39ef5b45a86fd6f25624cc675ace392d4c86978d32819ad446b5b5ab04dd8a"
       }
     },
     {
@@ -641,18 +641,18 @@
       "evidence": {
         "path": "src/nipat_scientific/snp.py",
         "source_lines": [
-          192,
-          288
+          193,
+          291
         ],
-        "sha256": "5e2dd735412f015dd2f3291bb1049a315774d186f1e23bf87470ed4b0a016934",
+        "sha256": "2b39ef5b45a86fd6f25624cc675ace392d4c86978d32819ad446b5b5ab04dd8a",
         "dependencies": [
           {
             "path": "src/nipat_scientific/snp.py",
             "source_lines": [
-              44,
-              178
+              45,
+              179
             ],
-            "sha256": "5e2dd735412f015dd2f3291bb1049a315774d186f1e23bf87470ed4b0a016934"
+            "sha256": "2b39ef5b45a86fd6f25624cc675ace392d4c86978d32819ad446b5b5ab04dd8a"
           }
         ]
       }
@@ -683,11 +683,11 @@
       "evidence": {
         "path": "src/nipat_scientific/snp.py",
         "source_lines": [
-          192,
-          288
+          193,
+          291
         ],
         "url": "https://www.htslib.org/doc/1.21/samtools-mpileup.html",
-        "sha256": "5e2dd735412f015dd2f3291bb1049a315774d186f1e23bf87470ed4b0a016934",
+        "sha256": "2b39ef5b45a86fd6f25624cc675ace392d4c86978d32819ad446b5b5ab04dd8a",
         "dependencies": [
           {
             "path": "docker/scientific-runtime/Dockerfile",
@@ -753,10 +753,10 @@
       "evidence": {
         "path": "src/nipat_scientific/snp.py",
         "source_lines": [
-          192,
-          288
+          193,
+          291
         ],
-        "sha256": "5e2dd735412f015dd2f3291bb1049a315774d186f1e23bf87470ed4b0a016934"
+        "sha256": "2b39ef5b45a86fd6f25624cc675ace392d4c86978d32819ad446b5b5ab04dd8a"
       }
     },
     {
@@ -985,7 +985,7 @@
               44,
               224
             ],
-            "sha256": "585dbdb55ea7e530af69b5b688acd9174ca16f34fe7b54f79288336616659846"
+            "sha256": "7b04bad8872aede7d35d74ad206c377bdae82a5f4228169325e6052bbae5ba97"
           },
           {
             "path": "scientific/vendor/NEWPAT/SNPcall/SNPcall.R",
@@ -1018,7 +1018,7 @@
       },
       "evidence": {
         "path": "src/nipat_scientific/snp_parallel.py",
-        "sha256": "585dbdb55ea7e530af69b5b688acd9174ca16f34fe7b54f79288336616659846",
+        "sha256": "7b04bad8872aede7d35d74ad206c377bdae82a5f4228169325e6052bbae5ba97",
         "source_lines": [
           1,
           446

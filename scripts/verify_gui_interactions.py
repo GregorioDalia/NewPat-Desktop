@@ -395,6 +395,28 @@ def run_verification(report_path, executable):
                     open_guide.assert_called_once_with("https://igv.org/doc/webapp/")
                 check(page.url == local_url and len(page.context.pages) == 1,
                       "IGV information hands the official guide to the system browser and retains the local viewer")
+                # Preparing a reference is explicit. Merely inspecting a named build never starts a transfer.
+                assemblies = page.locator("#igv-reference-assembly")
+                for build, alias in (("grch37", "hg19"), ("grch38", "hg38")):
+                    assemblies.select_option(build)
+                    download = page.get_by_role("button", name=f"Scarica da UCSC {alias}")
+                    download.wait_for()
+                    check(download.is_visible() and not any(method == "references.download" for method, _ in methods),
+                          f"{alias} offers local registration and an explicit download on a fresh installation")
+                assemblies.select_option("custom")
+                picker.paths = [Path(selection["reference"]["fasta"])]
+                page.locator('[data-action="reference-register"][data-scope="igv"]').click()
+                probe.wait("!!NipatApp.state.igv.reference.fasta")
+                check(page.locator("#igv-registered-fasta").input_value() != "" and
+                      probe.evaluate("NipatApp.state.igv.reference.fasta") == selection["reference"]["fasta"],
+                      "The registered local genome opens in IGV with the exact selected path")
+                page.locator('nav [data-view="new"]').click()
+                page.locator("#new-reference-assembly").select_option("custom")
+                probe.wait("!!NipatApp.state.draft.reference_id")
+                check(probe.evaluate("NipatApp.state.draft.reference") == selection["reference"]["fasta"],
+                      "A local FASTA registered in IGV can be selected in a new experiment")
+                page.locator('nav [data-view="igv"]').click()
+                page.locator("#igv-reference-assembly").select_option("file")
                 picker.paths = [Path(selection["reference"]["fasta"])]
                 page.locator('[data-action="choose-path"][data-key="igv-reference.fasta"]').click()
                 page.locator('[data-action="igv-add-track"]').click()

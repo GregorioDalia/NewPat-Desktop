@@ -104,6 +104,55 @@ class GuiPlanTests(GuiFixture):
         self.assertNotIn("dnp_cpi", ids)
         self.assertFalse(self.layout.runs_dir.exists(), "preview must not create a run")
 
+    def test_named_reference_is_bound_to_the_reviewed_fasta_and_reopened_in_igv(self):
+        from nipat.gui.results import ResultsStore
+        from test_gui_igv import _bam
+
+        entry = {"id": "reference-1", "build": "grch38", "label": "UCSC hg38",
+                 "fasta": str(self.reference), "index": str(self.reference) + ".fai",
+                 "naming": "chr", "index_sha256": hashlib.sha256(Path(str(self.reference) + ".fai").read_bytes()).hexdigest()}
+        catalog = Mock()
+        catalog.resolve.return_value = entry
+        draft = self.draft("both")
+        draft.update(reference_id=entry["id"], reference_genome={"build": "grch37"})
+        for sample in draft["samples"]:
+            sample["path"] = str(_bam(self.root, chromosome="chr1", length=4, name=sample["id"]))
+        service = self.service()
+        with patch.object(service, "reference_catalog", return_value=catalog):
+            preview = service.plan_preview(draft)
+        prepared = service._plans[preview["preview_id"]]
+        catalog.resolve.assert_called_once_with(entry["id"])
+        self.assertEqual(preview["reference_genome"], entry)
+        self.assertEqual(prepared.draft["reference_genome"], entry)
+        self.assertEqual(prepared.inputs["reference"], self.reference)
+        results = ResultsStore(self.layout.runs_dir)
+        with patch.object(results, "_context", return_value={"gui": {"draft": prepared.draft}}):
+            reference, tracks = results.igv_sources("archived")
+        self.assertEqual(reference, {"build": "grch38", "fasta": str(self.reference), "index": entry["index"],
+                                     "index_sha256": entry["index_sha256"]})
+        self.assertEqual([t["name"] for t in tracks], [s["id"] for s in draft["samples"]])
+
+        bad = deepcopy(draft)
+        bad["samples"][0]["path"] = str(_bam(self.root, chromosome="chr1", length=5, name="wrong-build"))
+        with self.assertRaisesRegex(ValidationError, "BAM and FASTA lengths differ"):
+            prepare_analysis(bad, self.layout, language="en", reference_catalog=catalog)
+        bad["samples"][0]["path"] = str(_bam(self.root, chromosome="1", length=4, name="other-naming"))
+        with self.assertRaisesRegex(ValidationError, "BAM usa 1.*FASTA usa chr1"):
+            prepare_analysis(bad, self.layout, language="it", reference_catalog=catalog)
+        bad = deepcopy(draft)
+        bad["resources"]["SNP"]["panel"] = str(self.file("wrong-panel.tsv", "chr\tpos\tref\talt\nchr2\t9\tC\tT\n"))
+        with self.assertRaisesRegex(ValidationError, "Panel window chr2:8-10 is outside FASTA"):
+            prepare_analysis(bad, self.layout, language="en", reference_catalog=catalog)
+
+        draft["reference"] = str(self.file("different.fa", ">ref\nA\n"))
+        with self.assertRaisesRegex(ValidationError, "differs"):
+            prepare_analysis(draft, self.layout, language="en", reference_catalog=catalog)
+        del draft["reference_id"]
+        draft["reference"] = str(self.reference)
+        manual = prepare_analysis(draft, self.layout)
+        self.assertNotIn("reference_genome", manual.preview)
+        self.assertNotIn("reference_genome", manual.draft)
+
     def test_tables_only_never_schedule_calling_or_require_a_reference(self):
         prepared = prepare_analysis(self.draft("tables", snp=["contamination"]), self.layout)
         self.assertEqual([s["workflow"] for s in prepared.preview["steps"]], ["contamination"])

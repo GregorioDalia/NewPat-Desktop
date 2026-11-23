@@ -521,6 +521,8 @@ src/nipat/gui/native/windows/dependencies.json
 src/nipat/gui/native/windows/x64/MicrosoftEdgeWebview2Setup.exe
 src/nipat/gui/native/windows/x64/WebView2Loader.dll
 src/nipat/gui/plan.py
+src/nipat/gui/reference_downloads.py
+src/nipat/gui/references.py
 src/nipat/gui/results.py
 src/nipat/gui/server.py
 src/nipat/gui/service.py

@@ -102,3 +102,7 @@
 .outcome-preview strong{font-size:18px;line-height:1.35;font-variant-numeric:tabular-nums}
 .outcome-preview small,.outcome-previews>small{color:var(--muted)}
 @media(max-width:550px){.module-card:has(.outcome-previews){grid-template-columns:minmax(0,1fr)}}
+
+.reference-chooser,.reference-library{display:grid;gap:12px;min-width:0}
+.reference-chooser .form-row{margin-top:0}
+.reference-library .help{margin:0}

@@ -6,6 +6,7 @@ recomputes scientific outputs. File type checks do not prove index freshness.
 from __future__ import annotations
 
 import gzip
+import hashlib
 from pathlib import Path
 import re
 import struct
@@ -48,15 +49,19 @@ class LocalIGV:
             self.fail(f"File non leggibile o incompleto: {path.name}.",
                       f"Unreadable or incomplete file: {path.name}.")
 
-    def fasta_index(self, fasta, index):
+    def fasta_index(self, fasta, index, *, expected_sha256=None):
         if index.suffix.lower() != ".fai":
             self.fail("Il riferimento FASTA richiede il suo indice .fai. Un file .bai è invece l’indice di una traccia BAM.",
                       "The FASTA reference requires its .fai index. A .bai file is the index of a BAM track.")
-        compressed = fasta.name.lower().endswith((".gz", ".bgz"))
+        compressed = fasta.name.lower().endswith((".gz", ".bgz", ".bgzf"))
         prefix = self._prefix(fasta, 4096, compressed=compressed)
         if not prefix.startswith(b">"):
             self.fail("Il genoma di riferimento non è un file FASTA valido (atteso un nome preceduto da >).",
                       "The reference genome is not a valid FASTA file (expected a name preceded by >).")
+        if expected_sha256 is not None and (
+                not isinstance(expected_sha256, str) or not re.fullmatch(r"[0-9a-f]{64}", expected_sha256)):
+            self.fail("Impronta SHA-256 dell’indice FASTA non valida.", "Invalid FASTA index SHA-256 digest.")
+        digest = hashlib.sha256() if expected_sha256 is not None else None
         chromosomes = []
         seen = set()
         try:
@@ -67,6 +72,8 @@ class LocalIGV:
                 total = 0
                 while raw := stream.readline(8193):
                     total += len(raw)
+                    if digest is not None:
+                        digest.update(raw)
                     if len(raw) > 8192 or total > 32 * 1024 * 1024 or len(chromosomes) >= 100_000:
                         self.fail("L’indice FASTA è troppo grande o contiene righe non valide.",
                                   "The FASTA index is too large or contains invalid lines.")
@@ -85,6 +92,9 @@ class LocalIGV:
                                   "The FAI index does not match the selected FASTA size. Select its matching index or regenerate it.")
                     seen.add(name)
                     chromosomes.append({"name": name, "length": length})
+            if digest is not None and digest.hexdigest() != expected_sha256:
+                self.fail("L’indice FASTA differisce da quello registrato per questo esperimento. Ripristina il FASTA e il FAI originali.",
+                          "The FASTA index differs from the one recorded for this experiment. Restore the original FASTA and FAI.")
             first_name = prefix[1:].splitlines()[0].split()[0].decode("utf-8")
             if not chromosomes or first_name != chromosomes[0]["name"]:
                 self.fail("Il primo cromosoma del FASTA non corrisponde all’indice FAI. Seleziona l’indice dello stesso riferimento.",
@@ -162,36 +172,78 @@ class LocalIGV:
                 if not 0 <= count <= 100_000:
                     raise ValueError
                 references = []
+                seen = set()
                 for _ in range(count):
                     raw_name = read(number())
                     if not raw_name.endswith(b"\0"):
                         raise ValueError
                     name = raw_name[:-1].decode("utf-8")
                     length = number()
-                    if not name or length < 1:
+                    if not name or name in seen or length < 1:
                         raise ValueError
+                    seen.add(name)
                     references.append((name, length))
                 return references
         except (OSError, EOFError, ValueError, struct.error):
             self.fail(f"Il file {path.name} non contiene un’intestazione BAM valida o è incompleto. Seleziona il BAM del campione, non il suo indice.",
                       f"{path.name} has an invalid or incomplete BAM header. Select the sample BAM file, not its index.")
 
+    def check_bam_reference(self, path, fasta, fai, lengths, *, exact_names, targets=frozenset()):
+        """Check metadata only. Extra decoys are allowed and target names must match."""
+        references = self.bam_references(path)
+        common = set()
+        for name, length in references:
+            alias = self.chromosome_alias(name, lengths)
+            if alias:
+                if alias != name and exact_names:
+                    self.fail(
+                        f"Il BAM usa {name}, mentre il FASTA usa {alias}. Seleziona il FASTA con i nomi usati per l’allineamento.",
+                        f"The BAM uses {name}, while the FASTA uses {alias}. Select the FASTA with the names used for alignment.")
+                common.add(alias)
+                if lengths[alias] != length:
+                    self.fail(
+                        f"Il BAM e il FASTA indicano lunghezze diverse per {name}: "
+                        f"{path.name} dichiara {length} basi; {fasta.name}, tramite "
+                        f"{fai.name}, dichiara {lengths[alias]} basi per {alias}. "
+                        "Seleziona il FASTA usato per l’allineamento e il suo indice FAI corrispondente.",
+                        f"BAM and FASTA lengths differ for {name}: "
+                        f"{path.name} declares {length} bases; {fasta.name}, through "
+                        f"{fai.name}, declares {lengths[alias]} bases for {alias}. "
+                        "Select the FASTA used for alignment and its matching FAI index.")
+        if (references or exact_names) and not common:
+            self.fail("BAM e FASTA non hanno cromosomi in comune. Seleziona il riferimento usato per l’allineamento.",
+                      "BAM and FASTA have no chromosomes in common. Select the reference used for alignment.")
+        missing = targets - common
+        if missing:
+            name = min(missing)
+            self.fail(f"Il cromosoma {name} del pannello manca nel BAM {path.name}. Verifica il riferimento e il pannello.",
+                      f"Panel chromosome {name} is missing from BAM {path.name}. Check the reference and the panel.")
+        return len(references)
+
     def prepare(self, params):
         reference = params.get("reference", {})
         if not isinstance(reference, dict):
             self.fail("Seleziona il riferimento e il suo indice.", "Select the reference and its index.")
+        build = reference.get("build")
+        if build not in (None, "", "custom", "grch37", "grch38"):
+            self.fail("Build di riferimento non supportata.", "Unsupported reference build.")
         fasta = self.local_file(reference.get("fasta"), "FASTA")
         automatic_fai = Path(str(fasta) + ".fai")
         if not reference.get("index") and not automatic_fai.is_file():
             self.fail(f"Indice FASTA non trovato: {automatic_fai.name}. Seleziona il file .fai dello stesso riferimento; il file .bai appartiene al BAM.",
                       f"FASTA index not found: {automatic_fai.name}. Select the .fai of the same reference; .bai belongs to the BAM.")
         fai = self.local_file(reference.get("index") or str(automatic_fai), "FAI")
-        chromosomes = self.fasta_index(fasta, fai)
+        expected_digest = reference.get("index_sha256")
+        chromosomes = self.fasta_index(fasta, fai, expected_sha256=expected_digest)
         locus = self.locus(params.get("locus"), chromosomes)
         ref = {"id": "nipat-local", "name": fasta.name,
                "fastaURL": self.register(fasta)["url"], "indexURL": self.register(fai)["url"]}
         sources = {"reference": {"fasta": str(fasta), "index": str(fai)}, "tracks": []}
-        if fasta.name.lower().endswith((".gz", ".bgz")):
+        if build in ("grch37", "grch38"):
+            sources["reference"]["build"] = build
+        if expected_digest is not None:
+            sources["reference"]["index_sha256"] = expected_digest
+        if fasta.name.lower().endswith((".gz", ".bgz", ".bgzf")):
             gzi = self.local_file(reference.get("compressedIndex") or str(fasta) + ".gzi", "GZI")
             ref["compressedIndexURL"] = self.register(gzi)["url"]
             sources["reference"]["compressedIndex"] = str(gzi)
@@ -236,29 +288,11 @@ class LocalIGV:
                     self.fail(f"Il file {index_path.name} non è un indice {index_path.suffix[1:].upper()} valido.",
                               f"{index_path.name} is not a valid {index_path.suffix[1:].upper()} index.")
             if fmt == "bam":
-                references = self.bam_references(path)
-                common = []
-                for name, length in references:
-                    alias = self.chromosome_alias(name, lengths)
-                    if alias:
-                        common.append(alias)
-                        if lengths[alias] != length:
-                            self.fail(
-                                f"Il BAM e il FASTA indicano lunghezze diverse per {name}: "
-                                f"{path.name} dichiara {length} basi; {fasta.name}, tramite "
-                                f"{fai.name}, dichiara {lengths[alias]} basi per {alias}. "
-                                "Seleziona il FASTA usato per l’allineamento e il suo indice FAI corrispondente.",
-                                f"BAM and FASTA lengths differ for {name}: "
-                                f"{path.name} declares {length} bases; {fasta.name}, through "
-                                f"{fai.name}, declares {lengths[alias]} bases for {alias}. "
-                                "Select the FASTA used for alignment and its matching FAI index.")
-                if references and not common:
-                    self.fail("BAM e FASTA non hanno cromosomi in comune. Seleziona il riferimento usato per l’allineamento.",
-                              "BAM and FASTA have no chromosomes in common. Select the reference used for alignment.")
+                count = self.check_bam_reference(path, fasta, fai, lengths, exact_names=build in ("grch37", "grch38"))
                 if index_path and index_path.suffix.lower() == ".bai":
                     header = self._prefix(index_path, 8)
-                    if (len(header) != 8 or struct.unpack("<i", header[4:])[0] != len(references)
-                            or index_path.stat().st_size < 8 + 8 * len(references)):
+                    if (len(header) != 8 or struct.unpack("<i", header[4:])[0] != count
+                            or index_path.stat().st_size < 8 + 8 * count):
                         self.fail("L’indice BAI non corrisponde al numero di cromosomi del BAM o è incompleto. Seleziona il suo indice o rigeneralo.",
                                   "The BAI index does not match the BAM chromosome count or is incomplete. Select its matching index or regenerate it.")
             elif fmt == "cram" and self._prefix(path) != b"CRAM":

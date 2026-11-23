@@ -81,14 +81,14 @@ async function pageBack(){
   if(page.view==='catalog')state.catalogDefaults=page.catalogDefaults;
   await navigate(page.view,{remember:false});
   if(page.viewer&&state.view==='igv'){
-   Object.assign(state.igv,page.viewer);await action('igv-load',{});
+   Object.assign(state.igv,page.viewer);referenceForms.delete(state.igv);await action('igv-load',{});
   }
  }
  if(state.view===page.view)window.scrollTo?.(0,page.scroll||0);
 }
 let requestId=0,draftRevision=0,draftLoadVersion=0,igvLoadVersion=0,renderGeneration=0,toastTimer,searchTimer,pollTimer,previousFocus=null,entryLoadVersion=0,runLoadVersion=0,tableLoadVersion=0;
 async function rpc(method,params={}){
- const id=++requestId,controller=new AbortController(),timer=setTimeout(()=>controller.abort(),method==='updates.download'?7200000:method==='environment.check'?600000:method.startsWith('dialog.')?600000:180000);
+ const id=++requestId,controller=new AbortController(),timer=setTimeout(()=>controller.abort(),method==='updates.download'?7200000:method==='environment.check'?600000:method==='references.register'?3600000:method.startsWith('dialog.')?600000:180000);
  try{const response=await fetch('../api',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,method,params}),signal:controller.signal,credentials:'same-origin'});let message;try{message=await response.json()}catch{throw new Error(t('connectionError'))}if(message.error)throw new Error(typeof message.error==='string'?message.error:message.error.message||t('operationError'));if(!response.ok)throw new Error(t('connectionError'));return message.result??message;}catch(error){if(error.name==='AbortError'||error instanceof TypeError)throw new Error(t('connectionError'));throw error;}finally{clearTimeout(timer)}
 }
 window.nipatRpc=rpc;
@@ -99,6 +99,149 @@ function empty(title,copy='',action=''){return `<div class="empty-state"><div cl
 function select(label,id,options,value,attrs=''){return `<div class="field"><label for="${id}">${esc(label)}</label><select id="${id}" class="input" ${attrs}>${options.map(([v,l])=>`<option value="${esc(v)}" ${v===value?'selected':''}>${esc(l)}</option>`).join('')}</select></div>`}
 function input(label,id,value,attrs='',help=''){return `<div class="field"><label for="${id}">${esc(label)}</label><input id="${id}" class="input" value="${esc(value??'')}" ${attrs}>${help?`<p class="help">${esc(help)}</p>`:''}</div>`}
 function fileField(label,key,value,filter='all'){return `<div class="field"><label>${esc(label)}</label><div class="file-field"><input class="input" value="${esc(value||'')}" readonly placeholder="${esc(t('chooseFile'))}" aria-label="${esc(label)}">${button(t('browse'),'choose-path',{key,filter},'small','archive')}${value?button(t('remove'),'clear-path',{key},'quiet small','close'):''}</div></div>`}
+const referenceBuilds=[['file','directFasta'],['grch37','GRCh37 / hg19'],['grch38','GRCh38 / hg38'],['custom','savedCustomFasta']];
+const assemblyLabel=build=>{const key=referenceBuilds.find(([id])=>id===build)?.[1];return key?.startsWith('GRCh')?key:t(key||'directFasta')};
+const referenceForms=new WeakMap();
+let referenceEntries=[],referenceListVersion=0;
+const referenceDownloads=new Map(),referenceReceivers=new Map();
+function referenceForm(scope){
+ const owner=scope==='new'?state.draft:state.igv;
+ if(!referenceForms.has(owner)){
+  const saved=scope==='new'?owner.reference_genome:owner.reference;
+  referenceForms.set(owner,{build:saved?.build||(owner.reference_id?referenceEntries.find(e=>e.id===owner.reference_id)?.build:null)||'file',token:0});
+ }
+ return referenceForms.get(owner);
+}
+function referencePath(scope){return scope==='new'?state.draft.reference:state.igv.reference.fasta}
+function setRegisteredReference(scope,entry){
+ if(scope==='new'){
+  state.draft.reference=entry?.fasta||null;
+  delete state.draft.reference_genome;
+  if(entry)state.draft.reference_id=entry.id;else delete state.draft.reference_id;
+  invalidate();
+ }else{
+  ++igvLoadVersion;
+  const reference={fasta:entry?.fasta||'',index:entry?.index||''};
+  if(entry?.build&&entry.build!=='custom')reference.build=entry.build;
+  if(entry?.index_sha256)reference.index_sha256=entry.index_sha256;
+  if(entry?.compressedIndex)reference.compressedIndex=entry.compressedIndex;
+  state.igv.reference=reference;
+ }
+}
+async function loadReferenceEntries(){
+ const version=++referenceListVersion;
+ const result=await rpc('references.list',{language:L.language});
+ if(version===referenceListVersion)referenceEntries=result.entries||[];
+}
+function activeTransfer(transfer){return ['downloading','unpacking','indexing'].includes(transfer?.status)}
+function transferCaption(transfer){
+ if(transfer?.status!=='downloading')return t(transfer?.status==='indexing'?'indexingFasta':'unpackingFasta');
+ const mib=bytes=>format(bytes/1048576,0);
+ const progress=transfer.total_bytes>0?mib(transfer.received_bytes)+' / '+mib(transfer.total_bytes):mib(transfer.received_bytes);
+ return t('downloadingFasta')+' · '+progress+' MiB';
+}
+function renderReferencePicker(scope){
+ const form=referenceForm(scope),build=form.build,path=referencePath(scope);
+ const options=referenceBuilds.map(([id])=>[id,assemblyLabel(id)]);
+ const selector=select(t('referenceAssembly'),scope+'-reference-assembly',options,build,`data-reference-build="${scope}"`);
+ let body;
+ if(build==='file'){
+  body=scope==='new'?fileField(t('reference'),'reference',path,'reference'):
+   fileField(t('reference'),'igv-reference.fasta',path,'igv-reference')+fileField(t('fastaIndex'),'igv-reference.index',state.igv.reference.index,'fai');
+ }else{
+  const saved=referenceEntries.filter(e=>e.build===build),id=scope==='new'?state.draft.reference_id:null;
+  const selected=saved.find(e=>e.fasta===path&&(!id||e.id===id));
+  const notation={chr:'chr1',unprefixed:'1',accession:'NC_000001…'};
+  const records=[['',t('selectReferenceFile')],...saved.map(e=>{
+   const convention=notation[e.naming]?' ('+notation[e.naming]+')':'';
+   return [e.id,e.label+convention+' · '+e.fasta+(e.available?'':' · '+t('referenceFileMissing'))];
+  })];
+  const original=path&&!selected;
+  if(original)records.push(['original',basename(path)+' · '+path]);
+  const local=saved.length||original?select(t('savedFasta'),scope+'-registered-fasta',records,selected?.id||(original?'original':''),`data-reference-entry="${scope}"`):'';
+  const unavailable=original||selected&&!selected.available;
+  const named=build!=='custom',ucsc=named?(build==='grch37'?'hg19':'hg38'):'';
+  const transfer=referenceDownloads.get(build),active=activeTransfer(transfer);
+  const downloadButton=named&&!active?button(t('downloadUCSC')+' '+ucsc,'reference-download',{scope,build},'small','download'):'';
+  const details=named?`<p class="help">${esc(t('referenceCompatibility'))}</p>`:'';
+  body=`<div class="reference-library">${local}
+   ${unavailable?notice(t('savedReferenceUnavailable'),'warning'):''}
+   <div class="actions">${button(t('registerFasta'),'reference-register',{scope,build},'small','archive')}${downloadButton}</div>
+   ${details}${named&&!active?`<p class="help">${esc(t('ucscDownloadHelp'))}</p>`:''}
+   ${active?`<div class="actions"><span role="status" id="${scope}-fasta-transfer">${esc(transferCaption(transfer))}</span>${button(t('cancel'),'reference-cancel',{scope,build},'quiet small','stop')}</div>`:''}
+   ${transfer?.status==='failed'?notice(transfer.error||t('referenceDownloadFailed'),'error'):''}</div>`;
+ }
+ return `<div class="reference-chooser section-gap">${selector}<div class="${build==='file'?'form-row':'reference-files'}">${body}</div></div>`;
+}
+function activeReferenceSelection(scope,form,token){return state.view===scope&&referenceForm(scope)===form&&form.token===token}
+async function selectReferenceEntry(scope,id,form=referenceForm(scope)){
+ const token=++form.token;
+ if(id==='original')return;
+ setRegisteredReference(scope,null);render();
+ if(!id)return;
+ const {entry}=await rpc('references.resolve',{id,language:L.language});
+ if(activeReferenceSelection(scope,form,token)&&entry?.build===form.build){setRegisteredReference(scope,entry);render()}
+}
+async function chooseReferenceBuild(scope,build){
+ if(!referenceBuilds.some(([id])=>id===build))return;
+ const form=referenceForm(scope);form.build=build;++form.token;
+ setRegisteredReference(scope,null);render();
+ if(build==='file')return;
+ const local=referenceEntries.filter(e=>e.build===build&&e.available);
+ // A family with several FASTA variants always requires an explicit file choice.
+ if(local.length===1)await selectReferenceEntry(scope,local[0].id,form);
+ if(build==='custom'||state.view!==scope||referenceForm(scope)!==form||form.build!==build)return;
+ const token=form.token;
+ const transfer=await rpc('references.download_status',{build});
+ if(!activeReferenceSelection(scope,form,token))return;
+ if(activeTransfer(transfer)){referenceDownloads.set(build,transfer);render()}
+}
+async function updateReferenceTransfer(build,result,scope){
+ referenceDownloads.set(build,result);
+ if(result.status==='ready'){
+  await loadReferenceEntries();
+ }
+ if(state.view===scope)render();
+}
+async function referenceAction(name,{scope,build}){
+ if(!['igv','new'].includes(scope)||state.view!==scope)return;
+ const form=referenceForm(scope);
+ if(form.build!==build||build==='file')return;
+ const token=++form.token;
+ if(name==='reference-register'){
+  const result=await rpc('references.register',{build,language:L.language});
+  if(!result.entry)return;
+  await loadReferenceEntries();
+  if(activeReferenceSelection(scope,form,token)){setRegisteredReference(scope,result.entry);render()}
+  return;
+ }
+ if(build==='custom')return;
+ const cancel=name==='reference-cancel';
+ const result=await rpc(cancel?'references.download_cancel':'references.download',cancel?{build}:{build,language:L.language});
+ if(!cancel&&activeTransfer(result))referenceReceivers.set(build,{scope,form,token});
+ else referenceReceivers.delete(build);
+ await updateReferenceTransfer(build,result,scope);
+ if(!cancel&&result.status==='ready'&&result.entry&&activeReferenceSelection(scope,form,token)){setRegisteredReference(scope,result.entry);render()}
+}
+async function pollReferenceDownloads(){
+ for(const [build,last] of referenceDownloads){
+  if(!activeTransfer(last))continue;
+  const next=await rpc('references.download_status',{build});
+  if(referenceDownloads.get(build)!==last)continue;
+  referenceDownloads.set(build,next);
+  if(!activeTransfer(next)){
+   const receiver=referenceReceivers.get(build);referenceReceivers.delete(build);
+   if(next.status==='ready'){
+    await loadReferenceEntries();
+    if(receiver&&next.entry&&activeReferenceSelection(receiver.scope,receiver.form,receiver.token))setRegisteredReference(receiver.scope,next.entry);
+   }
+  }
+  if(!['new','igv'].includes(state.view)||referenceForm(state.view).build!==build)continue;
+  if(next.status!==last.status)render();
+  else{const caption=$(state.view+'-fasta-transfer');if(caption)caption.textContent=transferCaption(next)}
+ }
+}
+
 const statusPresentation = {
  running: ['in-progress','activity'], starting: ['in-progress','activity'], finalizing: ['in-progress','activity'],
  succeeded: ['success','check'], completed: ['success','check'],
@@ -132,16 +275,17 @@ function archiveRows(){const runs=filteredRuns(),limit=25,pages=Math.max(1,Math.
 function normalizeDraft(value){const base=blankDraft(''),draft=clone(value.draft||value);return {...base,...draft,branches:{...base.branches,...draft.branches},resources:{DNP:{...base.resources.DNP,...draft.resources?.DNP},SNP:{...base.resources.SNP,...draft.resources?.SNP}},families:{...base.families,...draft.families},scientific_settings:Object.fromEntries(Object.entries(base.scientific_settings).map(([module,values])=>[module,{...values,...draft.scientific_settings?.[module]}])),execution:{...base.execution,...draft.execution}}}
 function applyDraft(value){state.profileChoice='';++draftLoadVersion;state.draft=normalizeDraft(value);state.source=state.draft.caller==='tables'?'tables':state.draft.samples.some(sample=>sample.kind.endsWith('-table'))?'mixed':'bam';state.sampleKind=state.source==='tables'?(state.draft.samples.find(s=>s.kind.endsWith('-table'))?.kind||'dnp-table'):'bam';state.step=0;invalidate()}
 function newExperiment(){applyDraft(blankDraft());state.profileChoice=state.baseline?.default_profile||'';closeModal();return navigate('new')}
-function submittedDraft(){const draft=clone(state.draft),markers=activeMarkers();for(const marker of ['DNP','SNP'])if(!markers.includes(marker))draft.branches[marker]=[];const selected=markers.flatMap(marker=>draft.branches[marker]||[]);if(!draft.samples.some(sample=>sample.kind==='bam'))draft.reference=null;for(const module of ['cpi','cpin'])if(!selected.includes(module))draft.families[module]=[];for(const marker of ['DNP','SNP']){const branch=draft.branches[marker],resources=draft.resources[marker];if(!callerRuns(marker)&&!branch.includes('contamination'))delete resources.panel;if(!branch.some(module=>module==='cpi'||module==='cpin'))delete resources.popfreq;if(!branch.includes('contamination'))delete resources.contamination_panel;if(!branch.includes('cpi'))delete resources.cpi_cutoffs;if(!branch.includes('cpin'))delete resources.cpin_panel;}return draft}
+function submittedDraft(){const draft=clone(state.draft),markers=activeMarkers();for(const marker of ['DNP','SNP'])if(!markers.includes(marker))draft.branches[marker]=[];const selected=markers.flatMap(marker=>draft.branches[marker]||[]);if(!draft.samples.some(sample=>sample.kind==='bam')){draft.reference=null;delete draft.reference_id;delete draft.reference_genome}for(const module of ['cpi','cpin'])if(!selected.includes(module))draft.families[module]=[];for(const marker of ['DNP','SNP']){const branch=draft.branches[marker],resources=draft.resources[marker];if(!callerRuns(marker)&&!branch.includes('contamination'))delete resources.panel;if(!branch.some(module=>module==='cpi'||module==='cpin'))delete resources.popfreq;if(!branch.includes('contamination'))delete resources.contamination_panel;if(!branch.includes('cpi'))delete resources.cpi_cutoffs;if(!branch.includes('cpin'))delete resources.cpin_panel;}return draft}
 function activeMarkers(){const set=new Set(state.draft.caller==='both'?['DNP','SNP']:state.draft.caller==='tables'?[]:[state.draft.caller.toUpperCase()]);for(const s of state.draft.samples)if(s.kind==='dnp-table')set.add('DNP');else if(s.kind==='snp-table')set.add('SNP');return [...set]}
 function callerRuns(marker){return state.draft.caller==='both'||state.draft.caller===marker.toLowerCase()}
 function selectedModules(){return [...new Set([...(state.draft.caller==='tables'?[]:state.draft.caller==='both'?['dnp-call','snp-call']:[state.draft.caller+'-call']),...activeMarkers().flatMap(m=>state.draft.branches[m]||[])])]}
 function invalidate(){++draftRevision;state.preview=null;state.error=''}
-function setPath(key,value){const [root,a,b]=key.split('.');if(root==='reference')state.draft.reference=value;else if(root==='resource')state.draft.resources[a][b]=value;else if(root==='preference')state.preferences[a]=value;else if(root==='igv-reference'){state.igv.reference[a]=value;if(a==='fasta')state.igv.reference.index=''}else if(root==='igv-track'){state.igv.tracks[Number(a)][b]=value;if(b==='path')state.igv.tracks[Number(a)].index=''}else if(root==='cutoff')state.draft.resources[a].cpi_cutoffs[Number(b)].path=value;invalidate()}
+function setPath(key,value){const [root,a,b]=key.split('.');if(root==='reference'){state.draft.reference=value;delete state.draft.reference_id;delete state.draft.reference_genome}else if(root==='resource')state.draft.resources[a][b]=value;else if(root==='preference')state.preferences[a]=value;else if(root==='igv-reference'){++igvLoadVersion;state.igv.reference[a]=value;delete state.igv.reference.index_sha256;delete state.igv.reference.build;referenceForm('igv').build='file';if(a==='fasta'){state.igv.reference.index='';delete state.igv.reference.compressedIndex}}else if(root==='igv-track'){state.igv.tracks[Number(a)][b]=value;if(b==='path')state.igv.tracks[Number(a)].index=''}else if(root==='cutoff')state.draft.resources[a].cpi_cutoffs[Number(b)].path=value;invalidate()}
 async function choosePath(key,filter='all',multiple=false){
  const extensions={bam:['bam'],pileup:['txt','tsv','pileup'],table:['txt','tsv','csv'],reference:['fa','fasta','fna'],'igv-reference':['fa','fasta','fna','gz','bgz'],fai:['fai'],bai:['bai','csi'],crai:['crai'],tabix:['tbi','csi'],index:['fai','bai','crai','csi','tbi'],alignment:['bam','cram','vcf','bed','gff','gff3','gtf','bw','bigwig','bb','bigbed','wig','bedgraph','seg','gz','bgz'],all:['*']}[filter]||['*'];
  const draft=state.draft,revision=draftRevision,draftField=!!key&&/^(reference$|resource\.|cutoff\.)/.test(key);
- const current=()=>!draftField||draft===state.draft&&revision===draftRevision;
+ const igvForm=key?.startsWith('igv-reference.')?referenceForm('igv'):null,igvToken=igvForm?.token;
+ const current=()=>(!draftField||draft===state.draft&&revision===draftRevision)&&(!igvForm||activeReferenceSelection('igv',igvForm,igvToken));
  try{
   const result=await rpc('dialog.open',{kind:filter==='directory'?'directory':'files',directory:filter==='directory',multiple,title:t('browse'),filters:[{name:t('selectedFile'),extensions}]});
   if(!current())return[];const paths=Array.isArray(result)?result:result?.paths||[];if(!paths.length)return[];if(key)setPath(key,paths[0]);return paths;
@@ -172,7 +316,7 @@ function renderHome(){
   <section class="panel"><div class="panel-header"><h2>${t('recent')}</h2>${button(t('allExperiments'),'navigate',{view:'archive'},'quiet','arrow')}</div>${runRows(state.runs.slice(0,5))}</section>
   <div class="grid two-columns section-gap">${tools.map(([view,description])=>`<button class="home-card" data-action="navigate" data-view="${view}"><span class="icon-box">${icon(view)}</span><span><strong>${t(view)}</strong><small>${esc(description)}</small></span>${icon('arrow')}</button>`).join('')}</div>`;
 }
-function renderInputs(){const d=state.draft,markers=activeMarkers();return `<div class="section-title"><h2>${t('addSamples')}</h2></div><div class="form-row">${input(t('experimentName'),'experiment-name',d.name,'data-draft="name" maxlength="120" placeholder="'+esc(t('experimentPlaceholder'))+'"')}${select(t('startFrom'),'source',[['bam',t('rawInputs')],['tables',t('existingTables')],['mixed',t('mixedInputs')]],state.source,'data-field="source"')}</div>${state.source!=='tables'?`<fieldset class="choice-fieldset"><legend>${t('whichMarkers')}</legend><div class="choices">${[['dnp','onlyDnp','dnpDescription'],['snp','onlySnp','snpDescription'],['both','both','bothDescription']].map(([v,key,help])=>`<label class="choice ${d.caller===v?'selected':''}"><input type="radio" name="caller" value="${v}" data-draft="caller" ${d.caller===v?'checked':''}><span><b>${t(key)}</b><small>${t(help)}</small></span></label>`).join('')}</div></fieldset>`:''}<div class="toolbar">${select(t('sampleKind'),'sample-kind',(state.source==='tables'?[['dnp-table',t('dnpTable')],['snp-table',t('snpTable')]]:state.source==='bam'?[['bam',t('bam')],['snp-pileup',t('snpPileup')]]:[['bam',t('bam')],['snp-pileup',t('snpPileup')],['dnp-table',t('dnpTable')],['snp-table',t('snpTable')]]),state.sampleKind,'data-field="sampleKind"')}${button(t('addSamples'),'add-samples',{},'primary','plus')}</div><div class="table-scroll"><table class="table"><thead><tr><th>${t('sampleName')}</th><th>${t('sampleFile')}</th><th>${t('fileType')}</th><th></th></tr></thead><tbody>${d.samples.map((s,i)=>`<tr><td class="sample-name"><input class="input" value="${esc(s.id)}" data-sample="${i}" maxlength="48" aria-label="${t('sampleName')} ${i+1}"></td><td><b>${esc(basename(s.path))}</b><details class="file-name"><summary>${t('details')}</summary>${esc(s.path)}</details></td><td>${esc({bam:t('bam'),'snp-pileup':t('snpPileup'),'dnp-table':t('dnpTable'),'snp-table':t('snpTable')}[s.kind])}</td><td>${button(t('remove'),'remove-sample',{index:i},'quiet small','close')}</td></tr>`).join('')}</tbody></table>${!d.samples.length?empty(t('noSamples')):''}</div><p class="help section-gap">${t('sampleIdHelp')}</p>${d.samples.some(s=>s.kind==='bam')?`<div class="form-row">${fileField(t('reference'),'reference',d.reference,'reference')}<p class="help">${t('referenceHelp')}</p></div>`:''}${d.caller!=='tables'?`<div class="form-row">${(d.caller==='both'?['DNP','SNP']:[d.caller.toUpperCase()]).map(m=>fileField(t('panel')+' '+m,'resource.'+m+'.panel',d.resources[m].panel,'table')).join('')}</div>`:''}`}
+function renderInputs(){const d=state.draft,markers=activeMarkers();return `<div class="section-title"><h2>${t('addSamples')}</h2></div><div class="form-row">${input(t('experimentName'),'experiment-name',d.name,'data-draft="name" maxlength="120" placeholder="'+esc(t('experimentPlaceholder'))+'"')}${select(t('startFrom'),'source',[['bam',t('rawInputs')],['tables',t('existingTables')],['mixed',t('mixedInputs')]],state.source,'data-field="source"')}</div>${state.source!=='tables'?`<fieldset class="choice-fieldset"><legend>${t('whichMarkers')}</legend><div class="choices">${[['dnp','onlyDnp','dnpDescription'],['snp','onlySnp','snpDescription'],['both','both','bothDescription']].map(([v,key,help])=>`<label class="choice ${d.caller===v?'selected':''}"><input type="radio" name="caller" value="${v}" data-draft="caller" ${d.caller===v?'checked':''}><span><b>${t(key)}</b><small>${t(help)}</small></span></label>`).join('')}</div></fieldset>`:''}<div class="toolbar">${select(t('sampleKind'),'sample-kind',(state.source==='tables'?[['dnp-table',t('dnpTable')],['snp-table',t('snpTable')]]:state.source==='bam'?[['bam',t('bam')],['snp-pileup',t('snpPileup')]]:[['bam',t('bam')],['snp-pileup',t('snpPileup')],['dnp-table',t('dnpTable')],['snp-table',t('snpTable')]]),state.sampleKind,'data-field="sampleKind"')}${button(t('addSamples'),'add-samples',{},'primary','plus')}</div><div class="table-scroll"><table class="table"><thead><tr><th>${t('sampleName')}</th><th>${t('sampleFile')}</th><th>${t('fileType')}</th><th></th></tr></thead><tbody>${d.samples.map((s,i)=>`<tr><td class="sample-name"><input class="input" value="${esc(s.id)}" data-sample="${i}" maxlength="48" aria-label="${t('sampleName')} ${i+1}"></td><td><b>${esc(basename(s.path))}</b><details class="file-name"><summary>${t('details')}</summary>${esc(s.path)}</details></td><td>${esc({bam:t('bam'),'snp-pileup':t('snpPileup'),'dnp-table':t('dnpTable'),'snp-table':t('snpTable')}[s.kind])}</td><td>${button(t('remove'),'remove-sample',{index:i},'quiet small','close')}</td></tr>`).join('')}</tbody></table>${!d.samples.length?empty(t('noSamples')):''}</div><p class="help section-gap">${t('sampleIdHelp')}</p>${d.samples.some(s=>s.kind==='bam')||state.source!=='tables'&&state.sampleKind==='bam'?`${renderReferencePicker('new')}<p class="help">${t('referenceHelp')}</p>`:''}${d.caller!=='tables'?`<div class="form-row">${(d.caller==='both'?['DNP','SNP']:[d.caller.toUpperCase()]).map(m=>fileField(t('panel')+' '+m,'resource.'+m+'.panel',d.resources[m].panel,'table')).join('')}</div>`:''}`}
 function renderFamilies(module){const rows=state.draft.families[module],roles=module==='cpi'?['mother','father']:['mother','father','child'];const samples=[...new Set(state.draft.samples.map(s=>s.id))];return `<section class="section-gap"><div class="section-title"><h3>${moduleName(module)} · ${t('family')}</h3>${button(t('addFamily'),'add-family',{module},'small','plus')}</div><p class="help">${t('familyHelp')}</p>${rows.map((r,i)=>`<div class="family-row ${module==='cpi'?'pair':''}">${input(t('familyName'),`${module}-family-${i}`,r.id,`data-family="${module}|${i}|id" maxlength="48"`)}${roles.map(role=>select(t(role==='mother'&&module==='cpi'?'maternalCfdna':role),`${module}-${i}-${role}`,[['',t('assign')],...samples.map(s=>[s,s])],r[role]||'',`data-family="${module}|${i}|${role}"`)).join('')}${button(t('remove'),'remove-family',{module,index:i},'quiet small','close')}</div>`).join('')}</section>`}
 function renderAnalyses(){const d=state.draft,markers=activeMarkers(),selected=selectedModules();return `<h2>${t('whichAnalyses')}</h2><p class="muted section-gap">${t(d.caller==='tables'?'tableAnalyses':'optionalAnalyses')}</p><div class="grid ${markers.length>1?'two-columns':''} section-gap">${markers.map(m=>`<section class="branch"><div class="branch-header"><b>${m}</b><span class="badge neutral">${t(callerRuns(m)?'genotypes':'existingTables')}</span></div><div class="branch-body">${['contamination','cpi','cpin'].map(mod=>`<label class="check-row"><input type="checkbox" data-branch="${m}|${mod}" ${d.branches[m].includes(mod)?'checked':''}><span><b>${moduleName(mod)}</b><p>${t(mod+'Help')}</p></span></label>`).join('')}</div></section>`).join('')}</div>${selected.includes('cpi')?renderFamilies('cpi'):''}${selected.includes('cpin')?renderFamilies('cpin'):''}<div class="form-row">${markers.filter(m=>d.branches[m].some(a=>a==='cpi'||a==='cpin')).map(m=>fileField(t('population')+' '+m,'resource.'+m+'.popfreq',d.resources[m].popfreq,'table')).join('')}</div>${selected.some(mod=>mod==='cpi'||mod==='cpin')?`<p class="help">${esc(t('frequencyTableHelp'))}</p>`:''}<details class="disclosure"><summary>${t('optionalPanels')}</summary><div class="details-body">${markers.map(m=>`<h3 class="section-gap">${m}</h3><div class="form-row">${d.branches[m].includes('contamination')?fileField(t('contaminationPanel'),'resource.'+m+'.contamination_panel',d.resources[m].contamination_panel,'table'):''}${d.branches[m].includes('cpin')?fileField(t('cpinPanel'),'resource.'+m+'.cpin_panel',d.resources[m].cpin_panel,'table'):''}</div>${d.branches[m].includes('cpi')?`<div class="section-title"><h3>${t('cpiPanels')}</h3>${button(t('addPanel'),'add-cutoff',{marker:m},'small','plus')}</div><p class="help">${t('allSitesHelp')}</p>${(d.resources[m].cpi_cutoffs||[]).map((c,i)=>`<div class="form-row">${input(t('name'),`cutoff-${m}-${i}`,c.label,`data-cutoff="${m}|${i}"`)}<div class="actions">${fileField(t('panel'),`cutoff.${m}.${i}`,c.path,'table')}${button(t('remove'),'remove-cutoff',{marker:m,index:i},'quiet small','close')}</div></div>`).join('')}`:''}`).join('')}</div></details>`}
 function phase(key){if(['min_base_quality','min_mapping_quality','max_depth','mapping_quality_adjustment','baq','redo_baq','count_overlaps','include_orphans','excluded_flags'].includes(key))return 'phasePileup';if(['err_const_snp','err_const_dnp','min_fetal_reads','min_child_reads','include_zero'].includes(key))return 'phaseEstimate';if(key.startsWith('log_cpi_'))return 'phasePlot';return 'phaseSelection'}
@@ -202,7 +346,7 @@ function renderProfilePicker(){
  return `<div class="section-gap">${select(t('parameterProfile'),'parameter-profile',profileOptions(state.baseline),selected,'data-field="profileChoice"')}<p class="help">${t('profileScope')}</p><div class="actions">${button(t('applyProfile'),'apply-profile')}${button(t('saveAsProfile'),'new-profile',{},'','plus')}${selected?button(t('removeProfile'),'remove-profile',{name:selected},'quiet'):''}</div></div>`;
 }
 function renderParameters(){return `<h2>${t('parameters')}</h2>${renderProfilePicker()}${selectedModules().map(m=>`<details class="disclosure" open><summary>${moduleName(m)}</summary><div class="details-body">${parameterRows(m)}</div></details>`).join('')}<details class="disclosure"><summary>${t('execution')}</summary><div class="details-body">${executionFields(state.draft.execution)}</div></details>`}
-function renderReview(){const d=state.draft,processed=state.preview?.samples,labels=processed?[...new Set(processed.map(sample=>sample.biological_id||sample.id||sample.sample_id))]:d.samples.map(sample=>sample.id),branches=state.preview?.analyses_by_marker||d.branches;return `<h2>${t('review')}</h2>${state.jobs.some(job=>!terminal(job))?notice(t('concurrentWarning'),'warning'):''}<div class="review-block"><dl class="review-list"><dt>${t('experimentName')}</dt><dd>${esc(d.name)}</dd><dt>${t('samples')}</dt><dd>${labels.map(esc).join(', ')||t('emptyValue')}</dd><dt>${t('markers')}</dt><dd>${activeMarkers().join(' / ')}</dd></dl></div><div class="review-block"><h3>${t('expectedResults')}</h3>${activeMarkers().map(marker=>{const analyses=[...(callerRuns(marker)?[t('genotypes')]:[]),...(branches[marker]||[]).map(moduleName)];return `<p><b>${marker}</b> · ${analyses.length?analyses.join(' · '):(L.language==='it'?'Nessuna analisi selezionata: queste tabelle non saranno elaborate.':'No analysis selected: these tables will not be processed.')}</p>`}).join('')}</div><div class="review-block"><h3>${t('resultLocation')}</h3><p>${t('archive')} → ${esc(d.name)} → ${t('results')}</p></div>${state.preview?`<div class="section-gap">${notice(t('validated'))}<ol class="plan-list">${state.preview.steps.map(step=>`<li>${esc(moduleName(step.workflow||step.module))}${step.parameters?.marker_type?' · '+esc(step.parameters.marker_type):''}${step.inputs?.sample?' · '+esc(step.inputs.sample):''}</li>`).join('')}</ol></div>`:`<p class="help section-gap">${t('startChecksHelp')}</p>`}<div class="actions section-gap">${startingDraft===d?`<span class="start-check" role="status"><span aria-hidden="true" class="check-spinner ${state.motion?'':'paused'}"></span>${t('checkingPlan')}</span>`:button(t('showPlan'),'validate-plan',{},'quiet small')}</div>`}
+function renderReview(){const d=state.draft,processed=state.preview?.samples,labels=processed?[...new Set(processed.map(sample=>sample.biological_id||sample.id||sample.sample_id))]:d.samples.map(sample=>sample.id),branches=state.preview?.analyses_by_marker||d.branches;return `<h2>${t('review')}</h2>${state.jobs.some(job=>!terminal(job))?notice(t('concurrentWarning'),'warning'):''}<div class="review-block"><dl class="review-list"><dt>${t('experimentName')}</dt><dd>${esc(d.name)}</dd><dt>${t('samples')}</dt><dd>${labels.map(esc).join(', ')||t('emptyValue')}</dd><dt>${t('markers')}</dt><dd>${activeMarkers().join(' / ')}</dd>${d.reference&&d.samples.some(s=>s.kind==='bam')?`<dt>${t('reference')}</dt><dd class="path">${esc(d.reference_id?assemblyLabel((state.preview?.reference_genome||d.reference_genome)?.build||referenceForm('new').build)+' · ':'')}${esc(d.reference)}</dd>`:''}</dl></div><div class="review-block"><h3>${t('expectedResults')}</h3>${activeMarkers().map(marker=>{const analyses=[...(callerRuns(marker)?[t('genotypes')]:[]),...(branches[marker]||[]).map(moduleName)];return `<p><b>${marker}</b> · ${analyses.length?analyses.join(' · '):(L.language==='it'?'Nessuna analisi selezionata: queste tabelle non saranno elaborate.':'No analysis selected: these tables will not be processed.')}</p>`}).join('')}</div><div class="review-block"><h3>${t('resultLocation')}</h3><p>${t('archive')} → ${esc(d.name)} → ${t('results')}</p></div>${state.preview?`<div class="section-gap">${notice(t('validated'))}<ol class="plan-list">${state.preview.steps.map(step=>`<li>${esc(moduleName(step.workflow||step.module))}${step.parameters?.marker_type?' · '+esc(step.parameters.marker_type):''}${step.inputs?.sample?' · '+esc(step.inputs.sample):''}</li>`).join('')}</ol></div>`:`<p class="help section-gap">${t('startChecksHelp')}</p>`}<div class="actions section-gap">${startingDraft===d?`<span class="start-check" role="status"><span aria-hidden="true" class="check-spinner ${state.motion?'':'paused'}"></span>${t('checkingPlan')}</span>`:button(t('showPlan'),'validate-plan',{},'quiet small')}</div>`}
 function renderNew(){const d=state.draft;return heading(t('new'),t('newCopy'))+`${state.error?notice(state.error,'error'):''}<div class="form-layout section-gap"><section class="panel"><div class="steps" role="tablist">${['samples','analysis','parameters','review'].map((key,i)=>`<button class="step ${state.step===i?'active':''}" data-action="step" data-index="${i}" role="tab" aria-selected="${state.step===i}"><span>${i+1}</span>${t(key)}</button>`).join('')}</div><div class="panel-body">${[renderInputs,renderAnalyses,renderParameters,renderReview][state.step]()}</div><div class="form-footer"><span class="help">${state.step+1} / 4</span><div class="actions">${state.step?button(t('back'),'step',{index:state.step-1},'','back'):''}${state.step<3?button(t('continue'),'step',{index:state.step+1},'primary','arrow'):`<button class="button primary" data-action="start-analysis" ${startingDraft?'disabled aria-busy="true"':''}>${icon('play')}${t('startAnalysis')}</button>`}</div></div></section><aside class="side-summary"><h3>${t('review')}</h3><dl><div><dt>${t('name')}</dt><dd>${esc(d.name)||'—'}</dd></div><div><dt>${t('samples')}</dt><dd>${d.samples.length}</dd></div><div><dt>${t('markers')}</dt><dd>${activeMarkers().join(' / ')||'—'}</dd></div><div><dt>${t('expectedResults')}</dt><dd>${selectedModules().map(moduleName).map(esc).join(', ')||'—'}</dd></div></dl></aside></div>`}
 function renderArchive(){if(state.run)return renderRun();return heading(t('archive'),t('archiveCopy'),button(t('openFolder'),'import-run',{},'','archive')+button(t('new'),'navigate',{view:'new'},'primary','plus'))+`<section class="panel"><div class="panel-body"><div class="toolbar"><input class="input stretch" id="archive-search" placeholder="${t('archiveSearch')}" aria-label="${t('search')}" value="${esc(state.archiveSearch)}" data-search="archive">${select(t('status'),'archive-status',[['all',t('all')],['succeeded',t('succeeded')],['failed',t('failed')],['running',t('running')],['interrupted',t('interrupted')],['unknown',t('unknown')]],state.archiveStatus,'data-field="archiveStatus"')}${select(t('markers'),'archive-marker',[['all',t('all')],['DNP','DNP'],['SNP','SNP']],state.archiveMarker,'data-field="archiveMarker"')}</div></div>${filteredRuns().length?archiveRows():empty(t(state.runs.length?'noFilteredRuns':'noRuns'),state.runs.length?'':t('noRunsCopy'))}</section>`}
 function jobProgress(job){const p=job.progress;if(p&&Number.isFinite(p.completed)&&Number.isFinite(p.total)&&p.total>0)return Math.max(0,Math.min(100,p.completed/p.total*100));if(typeof p==='number')return Math.max(0,Math.min(100,p));if(p&&typeof p==='object'){const value=p.percent??p.percentage??p.overall_percent;if(Number.isFinite(Number(value)))return Math.max(0,Math.min(100,Number(value)))}return null}
@@ -534,7 +678,7 @@ function renderIGV(){
  const v=state.igv,loaded=v.loadedSources,dirty=v.loaded&&JSON.stringify({reference:v.reference,tracks:v.tracks})!==JSON.stringify({reference:loaded?.reference,tracks:loaded?.tracks});
  const infoLabel=esc(t('igvAbout'));
  const header=`<div class="page-heading"><div><div class="igv-title"><h1>${esc(t('igv'))}</h1><button type="button" class="button igv-info" data-action="igv-about" title="${infoLabel}" aria-label="${infoLabel}">${icon('info')}</button></div><p>${esc(t('igvHelp'))}</p></div></div>`;
- return header+`<details class="panel igv-sources" ${v.loaded?'':'open'}><summary>${t('igvFiles')}${v.loaded?` · ${esc(basename(loaded?.reference?.fasta))} · ${loaded?.tracks?.length||0} ${t('tracks').toLowerCase()}`:''}</summary><div class="panel-body"><h2>${t('igvReferenceStep')}</h2><p class="help section-gap">${t('igvReferenceHelp')}</p><div class="form-row">${fileField(t('reference'),'igv-reference.fasta',v.reference.fasta,'igv-reference')}${fileField(t('fastaIndex'),'igv-reference.index',v.reference.index,'fai')}</div><div class="section-title"><h2>${t('igvTracksStep')}</h2>${button(t('addTrack'),'igv-add-track',{},'small','plus')}</div><p class="help">${t('igvTrackHelp')}</p>${v.tracks.map((track,i)=>`<div class="igv-track">${input(t('name'),'track-name-'+i,track.name,`data-track-name="${i}"`)}${fileField(t('alignment'),`igv-track.${i}.path`,track.path,'alignment')}${fileField(t(trackIndexFilter(track.path)==='crai'?'cramIndex':trackIndexFilter(track.path)==='tabix'?'annotationIndex':'alignmentIndex'),`igv-track.${i}.index`,track.index,trackIndexFilter(track.path))}${button(t('removeTrack'),'igv-remove-track',{index:i},'quiet small','close')}</div>`).join('')}<div class="actions section-gap">${button(t(v.loaded?'reloadGenome':'loadGenome'),'igv-load',{},'primary','igv')}<span class="help">${t('igvMissing')}</span></div></div></details>${dirty?notice(t('igvUnapplied'),'warning'):''}<section id="igv-navigation" class="panel igv-navigation section-gap" aria-label="${t('igvNavigation')}">${renderIgvNavigation()}</section><div id="igv-container" class="igv-container section-gap">${empty(t('igvNotLoaded'))}</div>`;
+ return header+`<details class="panel igv-sources" ${v.loaded?'':'open'}><summary>${t('igvFiles')}${v.loaded?` · ${esc(basename(loaded?.reference?.fasta))} · ${loaded?.tracks?.length||0} ${t('tracks').toLowerCase()}`:''}</summary><div class="panel-body"><h2>${t('igvReferenceStep')}</h2><p class="help section-gap">${t('igvReferenceHelp')}</p>${renderReferencePicker('igv')}<div class="section-title"><h2>${t('igvTracksStep')}</h2>${button(t('addTrack'),'igv-add-track',{},'small','plus')}</div><p class="help">${t('igvTrackHelp')}</p>${v.tracks.map((track,i)=>`<div class="igv-track">${input(t('name'),'track-name-'+i,track.name,`data-track-name="${i}"`)}${fileField(t('alignment'),`igv-track.${i}.path`,track.path,'alignment')}${fileField(t(trackIndexFilter(track.path)==='crai'?'cramIndex':trackIndexFilter(track.path)==='tabix'?'annotationIndex':'alignmentIndex'),`igv-track.${i}.index`,track.index,trackIndexFilter(track.path))}${button(t('removeTrack'),'igv-remove-track',{index:i},'quiet small','close')}</div>`).join('')}<div class="actions section-gap">${button(t(v.loaded?'reloadGenome':'loadGenome'),'igv-load',{},'primary','igv')}<span class="help">${t('igvMissing')}</span></div></div></details>${dirty?notice(t('igvUnapplied'),'warning'):''}<section id="igv-navigation" class="panel igv-navigation section-gap" aria-label="${t('igvNavigation')}">${renderIgvNavigation()}</section><div id="igv-container" class="igv-container section-gap">${empty(t('igvNotLoaded'))}</div>`;
 }
 function render(){if(!state.boot)return;curveViews.clear();const existingIgv=state.view==='igv'&&state.igv.loaded?$('igv-container'):null;renderGeneration++;$('navigation').innerHTML=nav.map((key,i)=>`${i===5?'<div class="nav-divider"></div>':''}<button class="nav-button ${state.view===key?'active':''}" data-action="navigate" data-view="${key}" ${state.view===key?'aria-current="page"':''}>${icon(key)}<span>${t(key)}</span></button>`).join('');$('breadcrumb').textContent='NewPat / '+t(state.view);$('page-back').hidden=state.view==='home';$('version').textContent=state.boot.version;$('language-'+L.language).checked=true;document.querySelectorAll('[data-text]').forEach(el=>el.textContent=t(el.dataset.text));const active=state.jobs.filter(j=>!terminal(j));$('job-indicator').textContent=active.length?active.length+' · '+t('running'):'';$('main').innerHTML=({home:renderHome,new:renderNew,archive:renderArchive,activity:renderActivity,catalog:renderCatalog,settings:renderPreferences,environment:renderEnvironment,igv:renderIGV}[state.view]||renderHome)();if(existingIgv){$('igv-container').replaceWith(existingIgv);window.NipatIGV?.resize?.()}}
 function refreshPreservingInput(id){const inputElement=$(id),start=inputElement?.selectionStart,value=inputElement?.value;render();const next=$(id);if(next){next.focus();if(typeof start==='number'&&next.setSelectionRange)next.setSelectionRange(start,start)}}
@@ -567,7 +711,7 @@ async function openFile(id,offset=0){
   if(generation===runLoadVersion)modal(file.label||file.name,`<p class="help">${t('pdfFallback')}</p><iframe class="pdf-preview" src="${esc(safeLocalUrl(info.url))}" title="${esc(file.label||file.name)}"></iframe>`,button(t('download'),'export-file',{id},'','download'),'close-modal');
  }
 }
-async function navigate(view,{remember=true,keepRun=false}={}){if(!nav.includes(view))return;if(remember&&(view!==state.view||view==='archive'&&state.run&&!keepRun))rememberPage();if(view==='home')pageTrail.length=0;if(view!=='activity')visibleLogs.clear();++runLoadVersion;++entryLoadVersion;++tableLoadVersion;if(state.view==='igv'&&view!=='igv'){++igvLoadVersion;igvNavigationUnsubscribe?.();igvNavigationUnsubscribe=null;window.NipatIGV?.dispose();state.igv.loaded=false}state.error='';state.view=view;if(view==='archive'&&!keepRun)state.run=null;render();$('main').focus();try{if(['home','archive'].includes(view)){await loadRuns();if(state.view===view)render()}else if(view==='activity'){const jobs=await rpc('jobs.list',{include_logs:false});state.jobs=jobs.jobs||jobs;if(state.view===view)render()}else if(view==='environment'){const results=await Promise.allSettled([rpc('resources.get'),rpc('installation.get')]);if(results[0].status==='fulfilled')state.environment=results[0].value;else showError(results[0].reason);if(results[1].status==='fulfilled')state.installation=results[1].value;if(state.view===view)render()}}catch(error){showError(error)}}
+async function navigate(view,{remember=true,keepRun=false}={}){if(!nav.includes(view))return;if(remember&&(view!==state.view||view==='archive'&&state.run&&!keepRun))rememberPage();if(view==='home')pageTrail.length=0;if(view!=='activity')visibleLogs.clear();++runLoadVersion;++entryLoadVersion;++tableLoadVersion;if(state.view==='igv'&&view!=='igv'){++igvLoadVersion;igvNavigationUnsubscribe?.();igvNavigationUnsubscribe=null;window.NipatIGV?.dispose();state.igv.loaded=false}state.error='';state.view=view;if(view==='archive'&&!keepRun)state.run=null;render();$('main').focus();try{if(['home','archive'].includes(view)){await loadRuns();if(state.view===view)render()}else if(view==='activity'){const jobs=await rpc('jobs.list',{include_logs:false});state.jobs=jobs.jobs||jobs;if(state.view===view)render()}else if(view==='new'||view==='igv'){await loadReferenceEntries();if(state.view===view)render()}else if(view==='environment'){const results=await Promise.allSettled([rpc('resources.get'),rpc('installation.get')]);if(results[0].status==='fulfilled')state.environment=results[0].value;else showError(results[0].reason);if(results[1].status==='fulfilled')state.installation=results[1].value;if(state.view===view)render()}}catch(error){showError(error)}}
 async function savePreferences(){const saved=await rpc('preferences.save',{preferences:state.preferences,baseline:state.baseline});state.preferences=clone(saved);state.baseline=clone(saved);await rpc('ui.save',{preferences:{language:L.language,reduce_motion:!state.motion}});toast(t('saved'))}
 async function persistProfile(name,remove=false){
  const baseline=state.baseline;
@@ -600,6 +744,7 @@ async function persistProfile(name,remove=false){
 function showConfirmation(title,message,action,data={}){modal(title,`<p>${esc(message)}</p>`,button(t('cancel'),'close-modal')+button(title,action,data,'primary'))}
 function safeSampleId(path,kind){let name=basename(path).replace(/\.[^.]+$/,'').replace(/[^A-Za-z0-9_-]/g,'_');if(!/^[A-Za-z]/.test(name))name='S_'+name;name=name.slice(0,42)||'Sample';let candidate=name,n=2;while(state.draft.samples.some(s=>s.id.toLowerCase()===candidate.toLowerCase()&&(s.kind===kind||(!s.kind.endsWith('-table')&&!kind.endsWith('-table')))))candidate=name+'_'+n++;return candidate}
 async function action(name,data,element){
+ if(['reference-register','reference-download','reference-cancel'].includes(name))return referenceAction(name,data);
  if(name==='page-back')return pageBack();
  if(name==='back-to-table'&&state.modalTable)return showTableDialog(state.modalTable);
  if(name==='navigate'){
@@ -748,6 +893,8 @@ async function action(name,data,element){
  if(name==='igv-save'){const snapshot=await window.NipatIGV.exportSession(),sources=state.igv.loadedSources||state.igv;await rpc('igv.session.save',{session:{schema_version:1,reference:sources.reference,tracks:sources.tracks,locus:snapshot.locus||state.igv.locus,view:snapshot}});return}
 }
 function onValue(target){const value=target.type==='checkbox'?target.checked:target.value;
+ if(target.dataset.referenceBuild)return chooseReferenceBuild(target.dataset.referenceBuild,value).catch(showError);
+ if(target.dataset.referenceEntry)return selectReferenceEntry(target.dataset.referenceEntry,value).catch(showError);
  if(target.dataset.draft){state.draft[target.dataset.draft]=value;invalidate();if(target.dataset.draft==='caller')render();return}
  if(target.dataset.sample!==undefined){state.draft.samples[Number(target.dataset.sample)].id=value;invalidate();return}
  if(target.dataset.family){const [m,index,key]=target.dataset.family.split('|');state.draft.families[m][Number(index)][key]=value;invalidate();return}
@@ -758,7 +905,7 @@ function onValue(target){const value=target.type==='checkbox'?target.checked:tar
  if(target.dataset.execution){const [key,scope]=target.dataset.execution.split('|');const dest=scope==='defaults'?state.preferences.execution:state.draft.execution;dest[key]=['execution_mode','input_hashes'].includes(key)?value:key==='performance_diagnostics'?!!value:value===''?null:Number(value);invalidate();return}
  if(target.dataset.preference){state.preferences[target.dataset.preference]=value;return}
  if(target.dataset.trackName!==undefined){state.igv.tracks[Number(target.dataset.trackName)].name=value;return}
- if(target.dataset.field){const key=target.dataset.field;if(key==='source'){state.source=value;state.draft.caller=value==='tables'?'tables':state.draft.caller==='tables'?'dnp':state.draft.caller;state.sampleKind=value==='tables'?'dnp-table':'bam';if(value==='tables'){state.draft.samples=state.draft.samples.filter(s=>s.kind.endsWith('-table'));state.draft.reference=null}else if(value==='bam')state.draft.samples=state.draft.samples.filter(s=>!s.kind.endsWith('-table'));invalidate();render()}else if(key==='igvLocus'){state.igv.locus=value}else if(key==='igvChromosome'){window.NipatIGV.search(value).catch(showError)}else if(key==='runtimeMemory'||key==='runtimeCpus'){state[key]=value;state.resourcePreview=null}else{state[key]=value;if(key==='archiveStatus'||key==='archiveMarker')state.archivePage=0;if(key==='sampleKind'&&value==='snp-pileup'&&state.draft.caller==='dnp'){state.draft.caller='snp';invalidate()}if(key!=='motion')render();else rpc('ui.save',{preferences:{language:L.language,reduce_motion:!value}}).catch(showError)}return}
+ if(target.dataset.field){const key=target.dataset.field;if(key==='source'){state.source=value;state.draft.caller=value==='tables'?'tables':state.draft.caller==='tables'?'dnp':state.draft.caller;state.sampleKind=value==='tables'?'dnp-table':'bam';if(value==='tables'){state.draft.samples=state.draft.samples.filter(s=>s.kind.endsWith('-table'));state.draft.reference=null;delete state.draft.reference_id;delete state.draft.reference_genome;referenceForms.delete(state.draft)}else if(value==='bam')state.draft.samples=state.draft.samples.filter(s=>!s.kind.endsWith('-table'));invalidate();render()}else if(key==='igvLocus'){state.igv.locus=value}else if(key==='igvChromosome'){window.NipatIGV.search(value).catch(showError)}else if(key==='runtimeMemory'||key==='runtimeCpus'){state[key]=value;state.resourcePreview=null}else{state[key]=value;if(key==='archiveStatus'||key==='archiveMarker')state.archivePage=0;if(key==='sampleKind'&&value==='snp-pileup'&&state.draft.caller==='dnp'){state.draft.caller='snp';invalidate()}if(key!=='motion')render();else rpc('ui.save',{preferences:{language:L.language,reduce_motion:!value}}).catch(showError)}return}
  if(target.dataset.result){if(target.dataset.result==='module'){state.module=value;state.entry=0}else state.entry=Number(value);loadEntry().catch(showError);return}
 }
 let languageWrite=Promise.resolve();
@@ -785,7 +932,7 @@ function bind(){
  document.addEventListener('focusin',event=>showCurvePoint(event.target));
  document.addEventListener('mouseout',event=>{const point=event.target.closest?.('[data-curve-point]');if(point&&!point.contains?.(event.relatedTarget))hideCurvePoint(point)});
  document.addEventListener('focusout',event=>hideCurvePoint(event.target));
- document.addEventListener('click',async event=>{if(showCurvePoint(event.target,event))event.target.closest('[data-curve-point]').focus();const element=event.target.closest('[data-action]');if(!element||element.disabled)return;if(element.dataset.action==='modal-backdrop'){if(event.target===element)closeModal();return}event.preventDefault();const actionName=element.dataset.action;const longAction=['validate-plan','start-analysis','import-run','reuse-run','run-igv','confirm-remove-run','prepare-module','check-environment','check-updates','download-update','igv-load','export-diagnostics'].includes(actionName);try{element.disabled=true;if(longAction){$('operation-indicator').textContent=t('loading');element.setAttribute?.('aria-busy','true');}await action(actionName,element.dataset,element)}catch(error){showError(error)}finally{element.disabled=false;if(longAction){$('operation-indicator').textContent='';element.removeAttribute?.('aria-busy');}}});
+ document.addEventListener('click',async event=>{if(showCurvePoint(event.target,event))event.target.closest('[data-curve-point]').focus();const element=event.target.closest('[data-action]');if(!element||element.disabled)return;if(element.dataset.action==='modal-backdrop'){if(event.target===element)closeModal();return}event.preventDefault();const actionName=element.dataset.action;const longAction=['validate-plan','start-analysis','import-run','reuse-run','run-igv','confirm-remove-run','prepare-module','check-environment','check-updates','download-update','igv-load','export-diagnostics','reference-register'].includes(actionName);try{element.disabled=true;if(longAction){$('operation-indicator').textContent=t('loading');element.setAttribute?.('aria-busy','true');}await action(actionName,element.dataset,element)}catch(error){showError(error)}finally{element.disabled=false;if(longAction){$('operation-indicator').textContent='';element.removeAttribute?.('aria-busy');}}});
  document.addEventListener('change',event=>{if(event.target.name==='language'&&event.target.checked){changeLanguage(event.target.value).catch(showError);return}onValue(event.target)});
  document.addEventListener('input',event=>{const el=event.target;if(el.dataset.search){clearTimeout(searchTimer);const kind=el.dataset.search;const value=el.value;if(kind==='archive'){state.archiveSearch=value;state.archivePage=0;refreshPreservingInput('archive-search')}else if(kind==='catalog'){state.catalogSearch=value;refreshPreservingInput('catalog-search')}else{state.tableSearch=value;searchTimer=setTimeout(()=>loadTable(0).then(()=>$('site-search')?.focus()).catch(showError),300)}return}if(el.tagName==='INPUT'&&!['checkbox','radio'].includes(el.type))onValue(el)});
  document.addEventListener('keydown',event=>{if(curveKey(event))return;const dialog=$('modal-root').querySelector('[role=dialog]');if(dialog){if(event.key==='Escape'){closeModal();return}if(event.key==='Tab'){const nodes=[...dialog.querySelectorAll('button,input,select,summary,[tabindex="0"]')].filter(n=>!n.disabled);const first=nodes[0],last=nodes[nodes.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus()}}}else if(event.key==='Enter'&&event.target.id==='igv-locus'){event.preventDefault();action('igv-search',{}).catch(showError)}});
@@ -804,6 +951,7 @@ async function refreshOpenedRun(){
 }
 async function poll(){
  try{
+  await pollReferenceDownloads().catch(()=>{});
   const jobs=await rpc('jobs.list',{include_logs:false});
   const archiveKeys=rows=>JSON.stringify(rows.map(job=>[job.id,job.run_id,job.status]));
   const before=archiveKeys(state.jobs);state.jobs=jobs.jobs||jobs;
@@ -821,7 +969,7 @@ async function poll(){
   }
   if(state.view==='archive'&&state.run&&(!terminal(state.run)||active.some(j=>j.run_id===state.runId)))await refreshOpenedRun();
  }catch{/* A transient poll error must not replace work in progress. */}
- finally{pollTimer=setTimeout(poll,state.jobs.some(j=>!terminal(j))?1500:5000)}
+ finally{pollTimer=setTimeout(poll,state.jobs.some(j=>!terminal(j))||[...referenceDownloads.values()].some(activeTransfer)?1500:5000)}
 }
 async function boot(){delete document.documentElement.dataset.nipatReady;try{const data=await rpc('bootstrap');state.boot=data;state.settings=data.settings?.workflows||data.settings||{};state.preferences=clone(data.preferences);state.preferences.scientific_settings??={};state.preferences.execution??={};state.baseline=clone(data.preferences);state.jobs=data.jobs||[];state.motion=!data.ui?.reduce_motion;L.setLanguage(data.ui?.language||'it');applyDraft(blankDraft());state.profileChoice=state.baseline?.default_profile||'';await loadRuns();render();document.documentElement.dataset.nipatReady='true';clearTimeout(pollTimer);pollTimer=setTimeout(poll,1500);if(state.preferences.check_updates_on_startup){rpc('updates.check',{channel:state.preferences.update_channel}).then(result=>{state.update=result;if(result.offer)toast(result.message)}).catch(()=>{})}}catch(error){$('main').innerHTML=heading(t('loadingFailed'))+notice(humanError(error),'error')+`<div class="actions section-gap">${button(t('retry'),'retry-boot',{},'primary')}</div>`}}
 window.NipatApp={state,rpc,boot,render,navigate,action,onValue,activeMarkers,selectedModules,blankDraft,normalizeDraft,submittedDraft,loadRuns,parameterVisible,range,choiceLabel,metricValue,resultCell,shownColumns,curveChart,curvePointDetails,curveDefinition,combinedCurveScale,renderCurve,constantValue,genotypeBars,jobProgress,terminal,safeSampleId,missing:absent,number,esc,changeLanguage,loadRun,loadEntry,loadTable,renderRun,renderNew,renderActivity,updateActivity,elapsedTime,rowLocus,renderIGV,renderIgvNavigation,syncIgvNavigation,refreshOpenedRun,poll};

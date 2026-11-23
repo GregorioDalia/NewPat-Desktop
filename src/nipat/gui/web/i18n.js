@@ -1,6 +1,22 @@
 /* UI translations never change scientific values, persisted keys or source files. */
 window.NipatI18n = (() => {
 const strings = {
+ referenceAssembly:['Genoma di riferimento','Reference assembly'],
+ directFasta:['Scegli un file FASTA','Choose a FASTA file'],
+ savedCustomFasta:['Altri riferimenti locali','Other local references'],
+ selectReferenceFile:['Seleziona un riferimento…','Select a reference…'],
+ savedFasta:['FASTA registrati su questo computer','FASTA files registered on this computer'],
+ referenceFileMissing:['indisponibile','unavailable'],
+ savedReferenceUnavailable:['Verifica il percorso del FASTA o registra nuovamente il file.','Check the FASTA path or register the file again.'],
+ registerFasta:['Aggiungi FASTA locale','Add local FASTA'],
+ downloadUCSC:['Scarica da UCSC','Download from UCSC'],
+ referenceCompatibility:['Usa il FASTA con cui sono stati allineati i BAM e pannelli sulla stessa assemblea. Controlla anche i nomi dei cromosomi (per esempio chr1 oppure 1).','Use the FASTA used to align the BAMs and panels on the same assembly. Check chromosome names as well (for example, chr1 or 1).'],
+ ucscDownloadHelp:['Il primo download richiede Internet (circa 1 GB) e almeno 4,5 GB liberi. Dopo il download puoi selezionare il FASTA anche offline.','The first download requires internet access (about 1 GB) and at least 4.5 GB of free space. The FASTA can then be selected offline.'],
+ downloadingFasta:['Download del FASTA','Downloading FASTA'],
+ unpackingFasta:['Estrazione del FASTA…','Extracting FASTA…'],
+ indexingFasta:['Indicizzazione del FASTA…','Indexing FASTA…'],
+ referenceDownloadFailed:['Download del riferimento non riuscito.','The reference download failed.'],
+
  resultOverview:['Risultato sintetico','Result summary'],
  homozygousReference:['Omozigote di riferimento','Homozygous reference'],
  heterozygousCall:['Eterozigote','Heterozygous'],

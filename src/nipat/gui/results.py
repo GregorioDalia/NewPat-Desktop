@@ -678,7 +678,21 @@ class ResultsStore:
         return reference if isinstance(reference, str) else None, tracks
 
     def igv_sources(self, run_id):
-        return self._igv_sources(self._context(run_id))
+        context = self._context(run_id)
+        fasta, tracks = self._igv_sources(context)
+        reference = {"fasta": fasta, "index": ""}
+        draft = context["gui"].get("draft")
+        recorded = draft.get("reference_genome") if isinstance(draft, dict) else None
+        if (isinstance(recorded, dict) and fasta and recorded.get("fasta") == fasta
+                and recorded.get("build") in ("grch37", "grch38", "custom")
+                and recorded.get("index") == fasta + ".fai"):
+            reference["index"] = recorded["index"]
+            if recorded["build"] != "custom":
+                reference["build"] = recorded["build"]
+            digest = recorded.get("index_sha256")
+            if isinstance(digest, str) and re.fullmatch(r"[0-9a-f]{64}", digest):
+                reference["index_sha256"] = digest
+        return reference, tracks
 
     def _run_record(self, run_id, context=None):
         ctx = context or self._context(run_id)

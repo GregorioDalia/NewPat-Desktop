@@ -19,7 +19,7 @@ import time
 import zlib
 
 from nipat_scientific.errors import PlanExecutionError, ValidationError
-from nipat_scientific.panels import (read_bam_dictionary, read_snp_positions,
+from nipat_scientific.panels import (read_bam_dictionary, read_snp_positions, reference_lengths,
                                      require_bam_targets, require_reference_windows)
 from nipat_scientific.parallel import THREAD_LIMITS
 from nipat_scientific.settings import normalize_settings
@@ -85,7 +85,7 @@ class _ProbeWindow:
         return self.cancellation.exit_code if self.cancellation.signum else 124
 
 
-def _indexed_observations(source, positions, targets, directory, identifier, probe):
+def _indexed_observations(source, positions, reference, directory, identifier, probe):
     """Measure each three-base window; overlapping windows may overcount."""
     from nipat_scientific.executor import _run_process
 
@@ -103,7 +103,7 @@ def _indexed_observations(source, positions, targets, directory, identifier, pro
     sequences, sorted_header = read_bam_dictionary(header, source)
     if not sorted_header:
         return None
-    require_bam_targets(source, sequences, targets)
+    require_bam_targets(source, sequences, {chrom for chrom, _ in positions}, reference)
     bed = directory / f"coverage-{identifier}.bed"
     output = directory / f"coverage-{identifier}.tsv"
     with bed.open("x", encoding="utf-8") as handle:
@@ -147,8 +147,8 @@ def _sample_estimate(step, source, directory, cancellation):
         # Plain-text pileups are already expanded. Charge a generous per-byte
         # multiplier for token vectors, joins, read groups and fallback parsing.
         return base + 512 * input_bytes, {**evidence, "basis": "pileup-bytes"}
-    targets = require_reference_windows(Path(step["inputs"]["reference"] + ".fai"),
-                                        ((chrom, pos - 1, pos + 1) for chrom, pos in positions))
+    reference = reference_lengths(Path(step["inputs"]["reference"] + ".fai"))
+    targets = require_reference_windows(reference, ((chrom, pos - 1, pos + 1) for chrom, pos in positions))
     reference_bytes = max(targets.values())
     depth = normalize_settings("snp-call", parameters.get("scientific_settings"))["max_depth"]
     evidence.update(max_depth=depth, largest_target_contig=reference_bytes)
@@ -165,7 +165,7 @@ def _sample_estimate(step, source, directory, cancellation):
     # A whole-file/depth upper bound is enough for small jobs. Across a large
     # sparse panel it can overstate the workload by orders of magnitude.
     if observations is None or observations * _BYTES_PER_OBSERVATION > _SAMPLE_BASE_BYTES:
-        measured = _indexed_observations(source, positions, targets, directory, step["id"], cancellation)
+        measured = _indexed_observations(source, positions, reference, directory, step["id"], cancellation)
         if measured is not None:
             observations, peak = measured
             basis = "indexed-window-coverage"

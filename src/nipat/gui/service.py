@@ -175,10 +175,15 @@ class GuiService:
             temporary.unlink(missing_ok=True)
         return value
 
+    def reference_catalog(self, language: str):
+        from nipat.gui.references import ReferenceCatalog
+        return ReferenceCatalog(self.preferences_store.path.with_name("references.json"), language=language)
+
     def plan_preview(self, draft: dict) -> dict:
         preferences = self.preferences_store.load()
-        prepared = prepare_analysis(draft, preferences.effective_layout(self.base_layout),
-                                    preferences, language=self.ui_get()["language"])
+        language = self.ui_get()["language"]
+        prepared = prepare_analysis(draft, preferences.effective_layout(self.base_layout), preferences,
+                                    language=language, reference_catalog=self.reference_catalog(language))
         token = uuid.uuid4().hex
         with self._lock:
             self._plans[token] = prepared
@@ -243,13 +248,13 @@ class GuiService:
         """Select recorded reference/BAM sources, preserving every original file."""
         reference, tracks = self._results().igv_sources(run_id)
         english = self.ui_get()["language"] == "en"
-        if not isinstance(reference, str) or not reference or not tracks:
+        if not reference.get("fasta") or not tracks:
             raise ValidationError("This experiment has no recorded FASTA reference and BAM inputs. Select the files in IGV."
                                   if english else "Questo esperimento non contiene i collegamenti a un riferimento FASTA e a file BAM. Seleziona i file nella pagina IGV.")
         if locus is not None and (not isinstance(locus, str) or len(locus) > 300
                 or not re.fullmatch(r"[A-Za-z0-9_.-]+(?::[0-9,]+(?:-[0-9,]+)?)?", locus)):
             raise ValidationError("Invalid genomic coordinates." if english else "Coordinate genomiche non valide.")
-        return {"reference": {"fasta": reference, "index": ""}, "tracks": tracks, "locus": locus or "all"}
+        return {"reference": reference, "tracks": tracks, "locus": locus or "all"}
 
     def run_prepare(self, run_id: str, module: str) -> dict:
         """Prepare only one new consumer using recorded counts, never call again.

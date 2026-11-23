@@ -465,10 +465,10 @@
           },
           {
             "path": "src/nipat_scientific/panels.py",
-            "sha256": "a22cbc37601c4cd79dca6ad69d20b4cc2a21a568a89ba3034a33dbf53fc23905",
+            "sha256": "b102d8ac8ed99608df48c3493fb85a42233361feec4ca82ea1e02fef904e9b28",
             "source_lines": [
               1,
-              278
+              281
             ]
           }
         ]

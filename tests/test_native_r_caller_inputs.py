@@ -98,6 +98,8 @@ class NativeCallerInputs(unittest.TestCase):
         for case, dictionary, error in (
             ("missing", [("chrB", 100)], "assente dal dizionario BAM"),
             ("unequal", [("chrA", 101)], "lunghezza discordante"),
+            ("other-build", [("chrA", 100), ("chrB", 101)], "lunghezza discordante per chrB"),
+            ("extra-decoy", [("chrA", 100), ("decoy", 90)], None),
             ("empty", [("chrA", 100)], None),
         ):
             with self.subTest(case=case):

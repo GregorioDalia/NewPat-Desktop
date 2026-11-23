@@ -32,7 +32,7 @@ if __package__ in {None, ""}:
 from nipat_scientific import progress
 from nipat_scientific.errors import ValidationError
 from nipat_scientific.files import input_text, require_sidecar
-from nipat_scientific.panels import read_bam_dictionary, require_bam_targets, require_reference_windows
+from nipat_scientific.panels import read_bam_dictionary, reference_lengths, require_bam_targets, require_reference_windows
 from nipat_scientific.settings import samtools_options, settings_from_environment
 
 MPILEUP_OPTIONS = ["--output-QNAME", "--no-output-ins", "--no-output-del", "--no-output-ends"]
@@ -242,7 +242,8 @@ def _chromosomes(bams, samples, bed, reference, staging, samtools, cancellation,
                     or int(fields[2]) <= int(fields[1])):
                 raise PileupError(f"{bed.name}: invalid target interval")
             windows.append((fields[0], int(fields[1]) + 1, int(fields[2])))
-    targets = require_reference_windows(require_sidecar(reference, ".fai", "Indice FASTA"), windows)
+    lengths = reference_lengths(require_sidecar(reference, ".fai", "Indice FASTA"))
+    targets = require_reference_windows(lengths, windows)
     if not targets:
         raise PileupError(f"{bed.name}: no target intervals")
     dictionary = None
@@ -253,7 +254,7 @@ def _chromosomes(bams, samples, bed, reference, staging, samtools, cancellation,
             _tracked_execute([samtools, "view", "--no-PG", "-H", str(bam)], handle,
                              cancellation, document, {"stage": "header", "sample_id": samples[number - 1]["sample_id"]})
         sequences, coordinate_sorted = read_bam_dictionary(header, bam)
-        require_bam_targets(bam, sequences, targets)
+        require_bam_targets(bam, sequences, targets, lengths)
         order = list(sequences.items())
         # Joint mpileup matches BAM target IDs by position, even in serial mode.
         if dictionary is not None and order != dictionary:

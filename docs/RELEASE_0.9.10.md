@@ -10,6 +10,10 @@ The desktop summary now highlights recorded genotype, CPI and contamination meas
 
 The installation includes an offline synthetic trio with example alignments, indexed reference, panels, frequencies and count tables for both marker types. Use **Environment and help → Save example data** to copy it to a local folder, then follow its README to check the five analyses on the trio. The separate timing workload runs both callers on a single BAM with 128 loci across four contigs.
 
+## Human reference genomes
+
+BAM experiments and IGV share a local reference catalog. Choose GRCh37 / hg19 or GRCh38 / hg38 and register the FASTA used for alignment, or explicitly download the corresponding UCSC reference. The application verifies the downloaded archive and prepares the reference locally for offline reuse. The synthetic datasets include their own reference FASTAs. [Choosing a reference genome](GUI.md#choose-a-reference-genome)
+
 ## Desktop appearance
 
 The Intreccio wordmark and new palette appear throughout the desktop app. Native Windows and macOS icons use a version of the mark drawn for small sizes. Home provides a single control for starting an experiment and gives more space to the experiment list. Status labels pair text and icons with color.

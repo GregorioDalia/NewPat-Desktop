@@ -53,6 +53,14 @@ class GuiDistributionTests(unittest.TestCase):
             with self.subTest(changes=changes), self.assertRaisesRegex(ValueError, "Authenticode"):
                 VERIFY.signature_observations(json.dumps(observations))
 
+    def test_reference_catalog_and_downloader_are_in_every_desktop_source_bundle(self):
+        # The Windows, macOS and Linux builders stage code from this common inventory.
+        shipped = (PROJECT / "distribution-files.txt").read_text(encoding="utf-8").splitlines()
+        for source in ("src/nipat/gui/references.py", "src/nipat/gui/reference_downloads.py"):
+            with self.subTest(source=source):
+                self.assertIn(source, shipped)
+                self.assertTrue((PROJECT / source).is_file())
+
     def test_pinned_dependencies_have_complete_verified_inventory(self):
         report = VERIFY.verify(PROJECT)
         self.assertEqual(report["status"], "passed")

@@ -15,7 +15,7 @@ import unicodedata
 from nipat_scientific.errors import ValidationError
 from nipat_scientific.presentation import validate_request_presentation
 from nipat_scientific.files import require_file, require_sidecar, write_input_report
-from nipat_scientific.panels import read_dnp_list, require_reference_windows, write_dnp_list
+from nipat_scientific.panels import read_dnp_list, reference_lengths, require_reference_windows, write_dnp_list
 from nipat_scientific.settings import normalize_settings
 
 
@@ -75,7 +75,7 @@ def prepare_dnp(request: object) -> DnpPreparation:
     reference = require_file(_absolute_path(request["reference"], "FASTA"), "FASTA")
     native_reference = _native_path(reference, "FASTA")
     fasta_index = require_sidecar(reference, ".fai", "Indice FASTA").resolve()
-    require_reference_windows(fasta_index, (
+    require_reference_windows(reference_lengths(fasta_index), (
         (row.chromosome, row.pos1 - 1, row.pos2 + 1) for row in records
     ))
     sources = [panel, reference, fasta_index]

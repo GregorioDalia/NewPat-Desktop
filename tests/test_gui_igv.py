@@ -181,6 +181,57 @@ def test_reference_alias_and_region_bounds(local_igv, tmp_path):
     assert local_igv.prepare({**params, "locus": ["X", "1:2"]})["locus"] == ["X", "1:2"]
 
 
+@pytest.mark.parametrize("build", ["grch37", "grch38"])
+def test_named_reference_requires_matching_bam_contig_names(local_igv, tmp_path, build):
+    fasta = _reference(tmp_path)
+    reference = {"fasta": str(fasta), "build": build}
+    bam = _bam(tmp_path, chromosome="chr1")
+    with pytest.raises(ValidationError, match="BAM usa chr1.*FASTA usa 1"):
+        local_igv.prepare({"reference": reference, "tracks": [{"path": str(bam)}]})
+    bam = _bam(tmp_path, chromosome="1")
+    prepared = local_igv.prepare({"reference": reference, "tracks": [{"path": str(bam)}], "locus": "chr1:1"})
+    assert prepared["sources"]["reference"]["build"] == build
+    assert prepared["locus"] == "1:1"
+
+
+def test_named_reference_allows_targeted_bam_if_panel_chromosomes_are_present(local_igv, tmp_path):
+    fasta, bam = _reference(tmp_path), _bam(tmp_path)
+    index = Path(str(fasta) + ".fai")
+    lengths = {"1": 4, "X": 4}
+    assert local_igv.check_bam_reference(bam, fasta, index, lengths, exact_names=True, targets={"1"}) == 1
+    with pytest.raises(ValidationError, match="X del pannello manca nel BAM"):
+        local_igv.check_bam_reference(bam, fasta, index, lengths, exact_names=True, targets={"1", "X"})
+
+
+def test_recorded_igv_reference_checks_and_preserves_fai_digest(local_igv, tmp_path):
+    fasta = _reference(tmp_path)
+    index = Path(str(fasta) + ".fai")
+    digest = hashlib.sha256(index.read_bytes()).hexdigest()
+    reference = {"fasta": str(fasta), "index": str(index), "index_sha256": digest}
+    assert local_igv.prepare({"reference": reference})["sources"]["reference"] == reference
+
+    # A syntactically valid replacement FAI can still describe a different reference.
+    index.write_text("1\t4\t3\t4\t5\nY\t4\t11\t4\t5\n", encoding="ascii")
+    with pytest.raises(ValidationError, match="differisce"):
+        local_igv.prepare({"reference": reference})
+    with pytest.raises(ValidationError, match="SHA-256"):
+        local_igv.prepare({"reference": {**reference, "index_sha256": "invalid"}})
+
+
+def test_bgzf_reference_requires_and_registers_compressed_index(local_igv, tmp_path):
+    plain = _reference(tmp_path)
+    fasta = tmp_path / "reference.fa.bgzf"
+    fasta.write_bytes(_bgzf(plain.read_bytes()) + _bgzf(b""))
+    shutil.copyfile(str(plain) + ".fai", str(fasta) + ".fai")
+    with pytest.raises(ValidationError, match="GZI"):
+        local_igv.prepare({"reference": {"fasta": str(fasta)}})
+    gzi = Path(str(fasta) + ".gzi")
+    gzi.write_bytes(struct.pack("<Q", 0))
+    prepared = local_igv.prepare({"reference": {"fasta": str(fasta)}})
+    assert prepared["sources"]["reference"]["compressedIndex"] == str(gzi)
+    assert "compressedIndexURL" in prepared["reference"]
+
+
 def test_bounded_index_line_does_not_read_entire_invalid_file(local_igv, tmp_path):
     fasta = _reference(tmp_path)
     Path(str(fasta) + ".fai").write_bytes(b"a" * 9000)

@@ -15,6 +15,14 @@ You can start another experiment while one is running. Each has its own progress
 
 In the **Parameters** step, save a named profile to reuse your scientific settings and execution limits. Select and apply a profile to change those values on the current draft. Sample files, reference, panels and family roles belong to the experiment. You can replace or remove a saved profile and choose a default for new experiments in **Preferences**.
 
+## Choose a reference genome
+
+For BAM experiments and the **IGV viewer**, choose **GRCh37 / hg19**, **GRCh38 / hg38**, or a custom local reference. Use the exact FASTA used for alignment and panels designed for its coordinates. The analysis records the selected file. When reopening an experiment, IGV uses the reference recorded for that run.
+
+- **Use a local FASTA.** Select the build and register your local FASTA. For an uncompressed FASTA, NewPat can create a missing `.fai` beside it in a writable folder. A BGZF-compressed FASTA requires the matching `.fai` and `.gzi`. Keep the FASTA at its registered path so future experiments can reuse it. You can keep more than one file for the same assembly family. Use a custom reference for the bundled synthetic data or a reference with a different sequence dictionary.
+- **Obtain a standard reference.** Choose the build and start its UCSC download. The download screen reports progress. After verification and indexing, the reference is available locally for both experiments and IGV. Allow about 1 GB of network traffic and at least 4.5 GB of free disk space per build for preparation. With the reference installed, subsequent selections work offline.
+- **Check the variant.** The downloadable presets are the UCSC initial hg19 and hg38 FASTA releases with `chr`-prefixed names. A BAM aligned against a numbered-contig GRCh37 FASTA, for example, should use that file. The original hg19 mitochondrial sequence also differs from the GRC GRCh37 sequence. Choosing a build preserves input coordinates. [UCSC assembly conventions](https://genome.ucsc.edu/FAQ/FAQreleases.html) · [UCSC hg19 downloads](https://hgdownload.soe.ucsc.edu/goldenPath/hg19/bigZips/initial/) · [UCSC hg38 downloads](https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/initial/)
+
 ## Find or reopen results
 
 In **Experiments and results**, search by experiment name, status or marker type. Open a result to see its summary, module tables, plots and original files. A paged table is a preview; export the original file to work with the complete rows and stored values. You can export a single file or a ZIP of the results.

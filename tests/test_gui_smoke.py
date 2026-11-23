@@ -17,7 +17,7 @@ def test_full_application_smoke_cli_accepts_screenshot():
     assert args.smoke_timeout == 90
 
 
-def test_application_forwards_native_smoke_and_screenshot(tmp_path):
+def test_application_forwards_native_smoke_and_screenshot(tmp_path, monkeypatch):
     seen = {}
     class Server:
         url = "http://127.0.0.1:5678/capability/web/index.html"
@@ -26,10 +26,11 @@ def test_application_forwards_native_smoke_and_screenshot(tmp_path):
     def native_run(url, **options):
         seen.update(url=url, **options)
         return 0
-    application = app.DesktopApplication.__new__(app.DesktopApplication)
-    application.host = SimpleNamespace(run_window=native_run)
-    application.service = SimpleNamespace(layout=SimpleNamespace(workspace_dir=tmp_path))
-    application.server = Server()
+    monkeypatch.setattr(app, "DesktopServer", lambda dispatcher, *, assets: Server())
+    application = app.DesktopApplication(
+        host=SimpleNamespace(run_window=native_run),
+        service=SimpleNamespace(layout=SimpleNamespace(workspace_dir=tmp_path)),
+    )
     report, screenshot = tmp_path / "native.json", tmp_path / "native.png"
     assert application.run(smoke_test=True, smoke_report=report, smoke_screenshot=screenshot, timeout=90) == 0
     assert seen["smoke_test"] is True and seen["smoke_report"] == report

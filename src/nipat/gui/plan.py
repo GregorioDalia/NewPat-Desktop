@@ -13,13 +13,15 @@ from typing import Any
 from nipat.errors import ValidationError
 from nipat.execution.analysis_plan import build_analysis_plan
 from nipat.execution.options import ExecutionOptions
+from nipat.gui.igv import LocalIGV
 from nipat.paths import ProjectLayout
 from nipat.preferences import Preferences
 from nipat.scientific_options import effective_config, normalize_config
+from nipat_scientific.panels import read_dnp_list, read_snp_positions
 from nipat_scientific.plan import validate_plan
 
 _DRAFT_FIELDS = {"name", "caller", "samples", "branches", "reference", "resources",
-                 "families", "scientific_settings", "execution"}
+                 "families", "scientific_settings", "execution", "reference_id", "reference_genome"}
 _RESOURCE_FIELDS = {"panel", "popfreq", "contamination_panel", "cpi_cutoffs", "cpin_panel"}
 _KINDS = {"bam": "samples", "snp-pileup": "pileups", "dnp-table": "dnp_tables",
           "snp-table": "snp_tables"}
@@ -83,8 +85,33 @@ class PreparedAnalysis:
                 raise ValidationError(message)
 
 
+def _check_named_reference(entry, inputs, caller, language):
+    checker = LocalIGV(None, language=language)
+    fasta, fai = Path(entry["fasta"]), Path(entry["index"])
+    chromosomes = checker.fasta_index(fasta, fai, expected_sha256=entry["index_sha256"])
+    lengths = {item["name"]: item["length"] for item in chromosomes}
+    targets = set()
+
+    def check_window(chromosome, first, last):
+        if first < 1 or last > lengths.get(chromosome, 0):
+            region = f"{chromosome}:{first}-{last}"
+            checker.fail(f"La finestra {region} del pannello non rientra nel FASTA {fasta.name}.",
+                         f"Panel window {region} is outside FASTA {fasta.name}.")
+        targets.add(chromosome)
+
+    if caller in ("dnp", "both"):
+        for site in read_dnp_list(inputs["dnp_panel"]):
+            check_window(site.chromosome, site.pos1 - 1, site.pos2 + 1)
+    if caller in ("snp", "both"):
+        for chromosome, position in read_snp_positions(inputs["snp_panel"], for_bed=True):
+            check_window(chromosome, position - 1, position + 1)
+    for _, path in inputs["samples"]:
+        checker.check_bam_reference(path, fasta, fai, lengths, exact_names=True, targets=targets)
+
+
 def prepare_analysis(draft: dict, layout: ProjectLayout,
-                     preferences: Preferences | None = None, *, language: str = "it") -> PreparedAnalysis:
+                     preferences: Preferences | None = None, *, language: str = "it",
+                     reference_catalog=None) -> PreparedAnalysis:
     draft = deepcopy(_object(draft, "Esperimento", _DRAFT_FIELDS))
     preferences = preferences or Preferences()
     name = _text(draft.get("name"), "Nome dell’esperimento", maximum=160)
@@ -105,6 +132,22 @@ def prepare_analysis(draft: dict, layout: ProjectLayout,
     for marker in ("DNP", "SNP"):
         inputs[marker.lower() + "_analyses"] = _rows(branches.get(marker, []), "Analisi", 3)
     inputs["reference"] = _path(draft.get("reference"), "Riferimento FASTA")
+    # A reopened draft can carry a historical label. Only the selected local
+    # entry can establish the identity of the FASTA for this new experiment.
+    draft.pop("reference_genome", None)
+    reference_id = draft.pop("reference_id", None)
+    if reference_id is not None:
+        if not inputs["samples"] or reference_catalog is None:
+            raise ValidationError("Select a local reference for the BAM samples." if language == "en"
+                                  else "Seleziona un riferimento locale per i campioni BAM.")
+        entry = reference_catalog.resolve(_text(reference_id, "ID FASTA", maximum=128))
+        if Path(entry["fasta"]) != inputs["reference"]:
+            raise ValidationError("The selected FASTA differs from the catalog entry. Select the reference again."
+                                  if language == "en" else
+                                  "Il FASTA selezionato è diverso da quello in catalogo. Seleziona di nuovo il riferimento.")
+        draft["reference_id"] = entry["id"]
+        draft["reference_genome"] = {key: entry[key] for key in
+                                     ("id", "build", "label", "fasta", "index", "naming", "index_sha256")}
     resources = _object(draft.get("resources", {}), "Pannelli e frequenze", {"DNP", "SNP"})
     for marker in ("DNP", "SNP"):
         fields = _object(resources.get(marker, {}), "Risorse " + marker, _RESOURCE_FIELDS)
@@ -137,6 +180,9 @@ def prepare_analysis(draft: dict, layout: ProjectLayout,
     execution = ExecutionOptions(**execution_values)
     plan, _mounts, files, mapping, analyses = build_analysis_plan(
         layout=layout, caller=caller, analyses=[], **inputs)
+    reference = draft.get("reference_genome")
+    if reference and reference["build"] in ("grch37", "grch38"):
+        _check_named_reference(reference, inputs, caller, language)
     for step in plan["steps"]:
         step.setdefault("parameters", {})["scientific_settings"] = deepcopy(
             settings.get(step["workflow"], {}))
@@ -149,4 +195,6 @@ def prepare_analysis(draft: dict, layout: ProjectLayout,
                "samples": mapping, "analyses_by_marker": analyses,
                "effective_settings": effective_config(settings), "execution": execution.as_dict(),
                "input_count": len(files), "results_dir": str(layout.runs_dir)}
+    if "reference_genome" in draft:
+        preview["reference_genome"] = deepcopy(draft["reference_genome"])
     return PreparedAnalysis(normalized_draft, inputs, layout, settings, execution, preview, evidence, language)

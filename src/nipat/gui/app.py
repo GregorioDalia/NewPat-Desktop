@@ -17,6 +17,7 @@ from nipat import __version__
 from nipat.branding import PRODUCT_NAME
 from nipat.errors import ValidationError
 from .host import native_host
+from .reference_downloads import ReferenceDownloads
 from .server import DesktopServer
 from .service import GuiService
 
@@ -38,6 +39,7 @@ class DesktopApplication:
         self.host = host or native_host()
         self.service = service or GuiService(layout)
         self.server = DesktopServer(self.call, assets=assets)
+        self.reference_downloads = ReferenceDownloads(lambda language: self.service.reference_catalog(language))
 
     def dialog(self, params):
         title = str(params.get("title") or "Seleziona file")[:200]
@@ -112,6 +114,23 @@ class DesktopApplication:
             return {"cancelled": True}
         target = save_example_data(self.service.base_layout.project_dir, Path(parent), language)
         return {"path": str(target)}
+
+    def references_list(self, params):
+        return self.service.reference_catalog(params.get("language", "it")).list()
+
+    def references_register(self, params):
+        language = params.get("language", "it")
+        title = "Choose a local reference FASTA" if language == "en" else "Scegli un FASTA di riferimento locale"
+        files = self.host.pick_files(title, [{"name": "FASTA", "extensions": ["fa", "fasta", "fna", "fas", "gz", "bgz", "bgzf"]}], False)
+        if not files:
+            return {"cancelled": True}
+        path = files if isinstance(files, (str, Path)) else files[0]
+        entry = self.service.reference_catalog(language).register(params.get("build"), path)
+        return {"entry": entry}
+
+    def references_resolve(self, params):
+        entry = self.service.reference_catalog(params.get("language", "it")).resolve(params.get("id"))
+        return {"entry": entry}
 
     def open_run_directory(self, params):
         from .diagnostics import open_directory
@@ -195,6 +214,11 @@ class DesktopApplication:
 
     def call(self, method, params):
         callbacks = {"dialog.open": self.dialog, "dialog.directory": lambda p: self.dialog({**p, "directory": True}),
+                     "references.list": self.references_list, "references.register": self.references_register,
+                     "references.resolve": self.references_resolve,
+                     "references.download": lambda p: self.reference_downloads.call("start", p),
+                     "references.download_status": lambda p: self.reference_downloads.call("status", p),
+                     "references.download_cancel": lambda p: self.reference_downloads.call("cancel", p),
                      "files.url": self.file_url, "files.open": self.file_url, "files.export": self.export_file,
                      "runs.export": self.export_run, "igv.prepare": self.prepare_igv,
                      "runs.open_directory": self.open_run_directory,
@@ -235,6 +259,7 @@ class DesktopApplication:
                                             smoke_test=smoke_test, smoke_report=smoke_report, timeout=timeout,
                                             screenshot_path=smoke_screenshot)
         finally:
+            self.reference_downloads.close()
             logger.removeHandler(handler)
             handler.close()
 
