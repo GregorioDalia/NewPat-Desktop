@@ -15,6 +15,7 @@ from nipat.resources import fixed_execution_budget
 from nipat_scientific.desktop_scheduling import DesktopStepBudget, INTERFACE
 from nipat_scientific.errors import PlanExecutionError
 from nipat_scientific.executor import _Cancellation, _atomic_json, execute_plan
+from nipat_scientific.files import require_file
 
 
 def budget(cpus=4, memory=4096, **options):
@@ -114,15 +115,22 @@ class DesktopStepBudgetTests(unittest.TestCase):
                     self.scheduler.boundary(self.cancellation)
 
     def snp_plan(self):
+        # Model the container's input mount while running preflight on the host.
+        def mounted_file(path, label):
+            if path.parent == Path("/inputs"):
+                path = self.root / path.name
+            return require_file(path, label)
+
+        self.enterContext(patch("nipat_scientific.executor.require_file", new=mounted_file))
         panel = self.root / "panel.tsv"
         panel.write_text("chr\tpos\tref\talt\nchr1\t10\tA\tG\n")
         plan = {"schema_version": 1, "samples": [], "steps": []}
         for name in ("s1", "s2"):
             source = self.root / (name + ".pileup")
             source.write_text("chr1\t10\tA\t2\t.G\tII\tread1,read2\n")
-            plan["samples"].append({"id": name, "kind": "snp-pileup", "path": str(source)})
+            plan["samples"].append({"id": name, "kind": "snp-pileup", "path": f"/inputs/{source.name}"})
             plan["steps"].append({"id": "call_" + name, "workflow": "snp-call",
-                "inputs": {"sample": name, "panel": str(panel), "reference": None}, "parameters": {"mode": "pileup"}})
+                "inputs": {"sample": name, "panel": "/inputs/panel.tsv", "reference": None}, "parameters": {"mode": "pileup"}})
         script = self.root / "SNPcall.R"
         script.touch()
         return plan, {"snp-call": script}

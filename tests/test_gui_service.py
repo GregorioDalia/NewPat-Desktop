@@ -546,10 +546,15 @@ class GuiJobTests(GuiRuntimeFixture):
             self.assertEqual(service["environment"]["NIPAT_DESKTOP_SCHEDULER"],
                              str(self.layout.container_path(scheduler.directory)))
             self.assertNotIn("mem_limit", service)
+            # The registry timestamp may be identical across two ticket changes.
+            # Advance the observer clock to the periodic rescan on each change.
+            clock = self.enterContext(patch("nipat.gui.admission.time", wraps=time))
+            clock.monotonic.return_value = 0.0
             scheduler.poll()
             self.assertFalse((scheduler.directory / "request.json").exists())
             with contender.registration():
                 self.assertIsNone(contender.try_admit(4, 3905, ExecutionOptions(), Mock()))
+                clock.monotonic.return_value = 2.0
                 scheduler.poll()
                 request = json.loads((scheduler.directory / "request.json").read_text())
                 runner._admission._write(scheduler.directory / "ack.json", {**request, "token": "f" * 32})
@@ -574,6 +579,7 @@ class GuiJobTests(GuiRuntimeFixture):
                                  (2, 1952))
                 admitted = contender.try_admit(4, 3905, ExecutionOptions(), Mock())
                 self.assertEqual((admitted.cpus, admitted.memory_mib), (2, 1953))
+            clock.monotonic.return_value = 4.0
             scheduler.poll()
             resume = json.loads((scheduler.directory / "request.json").read_text())
             self.assertNotEqual(request["token"], resume["token"])
