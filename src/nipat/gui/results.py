@@ -467,6 +467,28 @@ class ResultsStore:
             self._write_registry(registry)
             return True
 
+    def identifier_for_path(self, path: Path) -> str:
+        if path.is_relative_to(self.root):
+            return path.relative_to(self.root).as_posix()
+        return "imported-" + hashlib.sha256(str(path).encode("utf-8")).hexdigest()[:32]
+
+    def session_run_id(self, path: Path) -> str:
+        """Resolve the exact directory recorded by a desktop job, even after an archive change."""
+        if not path.is_absolute() or _is_link(path) or path.resolve() != path:
+            raise ValueError("Cartella dell’esperimento non valida.")
+        identifier = self.identifier_for_path(path)
+        if path.is_relative_to(self.root):
+            self._run(identifier)
+        else:
+            _scoped(path, "run.json", file=True)
+            read_run_metadata(path)
+            with settings_file_lock(self.registry_path):
+                registry = self._registry()
+                if registry["imports"].get(identifier) != str(path):
+                    registry["imports"][identifier] = str(path)
+                    self._write_registry(registry)
+        return identifier
+
     def register_run(self, path: Path | str) -> dict:
         """Register a user-selected run/archive in place; copy no input/output data.
 
@@ -487,11 +509,7 @@ class ResultsStore:
             directories[:] = []
             _scoped(current, "run.json", file=True)
             read_run_metadata(current)
-            if current.is_relative_to(self.root):
-                identifier = current.relative_to(self.root).as_posix()
-            else:
-                identifier = "imported-" + hashlib.sha256(str(current).encode("utf-8")).hexdigest()[:32]
-            imported[identifier] = str(current)
+            imported[self.identifier_for_path(current)] = str(current)
         if not imported:
             raise ValueError("La cartella non contiene esperimenti NewPat con run.json.")
         # Other application windows may import or dismiss cards sharing this
@@ -521,7 +539,9 @@ class ResultsStore:
         if not isinstance(query, str) or len(query) > 1000:
             raise ValueError("Ricerca dell’archivio non valida.")
         found = []
-        hidden = set(self._registry()["hidden"])
+        registry = self._registry()
+        hidden = set(registry["hidden"])
+        imports = {Path(path): identifier for identifier, path in registry["imports"].items()}
         for directory, directories, files in os.walk(self.root, followlinks=False):
             path = Path(directory)
             directories[:] = [name for name in sorted(directories) if not _is_link(path / name)
@@ -530,6 +550,7 @@ class ResultsStore:
                 continue
             directories[:] = []
             run_id = path.relative_to(self.root).as_posix()
+            imports.pop(path, None)  # A registered run can also be in the current archive.
             if str(path.resolve()) in hidden:
                 continue
             try:
@@ -545,8 +566,8 @@ class ResultsStore:
             if query.casefold() not in searchable.casefold() or status and item["status"] != status:
                 continue
             found.append(item)
-        for identifier, imported_path in self._imports().items():
-            if str(Path(imported_path).resolve()) in hidden:
+        for imported_path, identifier in imports.items():
+            if str(imported_path.resolve()) in hidden:
                 continue
             try:
                 item = self._run_record(identifier)
@@ -802,17 +823,17 @@ class ResultsStore:
                 record["warnings"].append({"code": "archive.settings", "message": str(exc)})
         execution = context["gui"].get("execution", context["metadata"].get("execution_options"))
         if context["metadata"].get("concurrent_execution"):
-            execution = context["metadata"]["execution_options"]
+            execution = context["metadata"].get("execution_options", execution)
         record.update(steps=context["steps"], families=families, settings=settings,
                       draft=context["gui"].get("draft"), execution=execution,
                       configuration_source="gui" if context["gui"].get("draft") else "run",
                       recorded_parameters=context["parameters"], error=context["metadata"].get("error"))
         return record
 
-    def _file_descriptors(self, run_id, context=None):
+    def _file_descriptors(self, run_id, context=None, *, artifact_index=None):
         context = context or self._context(run_id)
         run = context["run"]
-        index, families = self._artifact_index(context)
+        index, families = artifact_index if artifact_index is not None else self._artifact_index(context)
         samples = {s["id"]: s for s in context["samples"]}
         paths = []
         output = _scoped(run, "output")
@@ -879,6 +900,49 @@ class ResultsStore:
 
     def files(self, run_id) -> list[dict]:
         return self._file_descriptors(run_id)
+
+    def caller_count_tables(self, run_id, successful_steps, sample_ids):
+        """Resolve reusable native counts from one inventory and check recorded hashes."""
+        if not successful_steps:
+            return
+        context = self._context(run_id)
+        artifacts = self._artifact_index(context)
+
+        def eligible(info, name):
+            marker = info.get("marker")
+            return (marker in {"DNP", "SNP"} and info.get("module") == marker.lower() + "-call"
+                    and info.get("step_id") in successful_steps and info.get("sample_id") in sample_ids
+                    and (name.startswith("full_output_") or name == "SNPcall_output.txt"))
+
+        # A successful step can refer to a table that has since been deleted.
+        # Enforce only the file identities actually recorded in older runs.
+        for relative, info in artifacts[0].items():
+            if eligible(info, PurePosixPath(relative).name):
+                self.require_count_table(_scoped(context["run"], relative))
+        for entry in self._file_descriptors(run_id, context, artifact_index=artifacts):
+            if entry["canonical"] and eligible(entry, entry["name"]):
+                path = _scoped(context["run"], entry["relative_path"], file=True)
+                self.verify_count_table(path, entry.get("recorded_sha256"))
+                yield entry["marker"], entry["sample_id"], path
+
+    def require_count_table(self, path):
+        if not path.is_file():
+            raise ValueError(_translation((
+                f"La tabella dei conteggi {path.name} non è disponibile. Controlla i file dell’esperimento.",
+                f"The recorded count table {path.name} is unavailable. Check the experiment files."
+            ), self.language))
+
+    def verify_count_table(self, path, digest, size=None):
+        """Check the evidence actually recorded for an output or imported count table."""
+        changed = type(size) is int and path.stat().st_size != size
+        if not changed and digest is not None:
+            with path.open("rb") as stream:
+                changed = hashlib.file_digest(stream, "sha256").hexdigest() != digest
+        if changed:
+            raise ValueError(_translation((
+                f"La tabella dei conteggi {path.name} è cambiata dopo la verifica dell’esperimento.",
+                f"The count table {path.name} has changed since the experiment was verified."
+            ), self.language))
 
     def export_paths(self, run_id) -> list[tuple[Path, str]]:
         """Validate the in-scope files for one export using a single inventory."""

@@ -1,10 +1,12 @@
 """Readable artifacts preserve canonical scientific identity and values."""
 
 import csv
+import hashlib
 import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from nipat_scientific.errors import ValidationError
 from nipat_scientific.plan import validate_plan
@@ -169,12 +171,30 @@ class PresentationTests(unittest.TestCase):
                 path.write_text("synthetic", encoding="utf-8")
                 records[key] = {"path": path.relative_to(root).as_posix()}
             group = {"id": "group_0001", "samples": ["a", "b"], "plots": [records.pop("plot")], **records}
-            report = finish_plan_presentation({"presentation": {}},
-                                              {"status": "succeeded", "steps": [], "snp_summary": [group]}, root)
+            with patch("nipat_scientific.presentation.hashlib.file_digest", wraps=hashlib.file_digest) as digests:
+                report = finish_plan_presentation({"presentation": {}},
+                                                  {"status": "succeeded", "steps": [], "snp_summary": [group]}, root)
+            self.assertEqual([Path(call.args[0].name) for call in digests.call_args_list],
+                             [root / "presentation/index.html"])
             content = (root / report["index"]["path"]).read_text(encoding="utf-8")
             self.assertIn("2 campioni", content)
             self.assertIn("../snp_summary/group_0001/merged_genotypes.tsv", content)
             self.assertIn("non la sola copertura", content)
+
+    def test_plan_index_rejects_missing_or_outside_summary_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            (directory / "outside.tsv").touch()
+            for label, invalid in (("missing", "missing.tsv"), ("outside", "../outside.tsv")):
+                with self.subTest(label=label):
+                    root = directory / label
+                    root.mkdir()
+                    group = dict.fromkeys(("genotypes", "resources", "sample_labels"), {"path": invalid})
+                    group.update(id="comparison", samples=["a", "b"], plots=[])
+                    with self.assertRaisesRegex(ValidationError, "Esportazione assente"):
+                        finish_plan_presentation({"presentation": {}},
+                                                 {"status": "succeeded", "steps": [], "snp_summary": [group]}, root)
+                    self.assertFalse((root / "presentation/index.html").exists())
 
     def test_reordered_plan_inputs_keep_identity_not_position(self):
         plan = {"presentation": {"samples": {"a": "A.bam", "b": "B.bam"}, "pairs": {}}}

@@ -9,6 +9,7 @@ import json
 import io
 import hashlib
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -346,6 +347,35 @@ class GuiRuntimeFixture(GuiFixture):
 
 
 class GuiJobTests(GuiRuntimeFixture):
+    def test_input_replaced_during_startup_requires_a_new_review(self):
+        source = Path(self.samples[0]["path"])
+        replacement = source.with_suffix(".replacement")
+        replacement.write_bytes(b"X" * source.stat().st_size)
+        shutil.copystat(source, replacement)
+        original = source.stat()
+
+        def runner_factory(prepared, job):
+            # Initial submission checks succeeded, but the user's file changes
+            # before the runner records its own evidence and builds the command.
+            replacement.replace(source)
+            changed = source.stat()
+            self.assertEqual((changed.st_size, changed.st_mtime_ns),
+                             (original.st_size, original.st_mtime_ns))
+            runner = GuiRunner(prepared, job)
+            runner.dry_run = True
+            return runner
+
+        manager = JobManager(runner_factory=runner_factory)
+        service = self.service(jobs=manager)
+        preview = service.call("plan.preview", {"draft": self.draft()})
+        submitted = service.call("analysis.start", {"preview_id": preview["preview_id"]})
+        finished = manager.wait(submitted["id"], 5)
+        self.assertEqual(finished["status"], "failed", finished)
+        self.assertIn(source.name, finished["error"])
+        record = json.loads((self.layout.runs_dir / finished["run_id"] / "run.json").read_text(encoding="utf-8"))
+        self.assertEqual(record["status"], "failed")
+        self.assertEqual(record["commands"], [])
+
     def test_preparation_reports_unknown_runtime_progress_and_measured_input_bytes(self):
         prepared = prepare_analysis(self.draft(), self.layout)
         job = Job(prepared)
@@ -365,6 +395,50 @@ class GuiJobTests(GuiRuntimeFixture):
                          ("checking-inputs", 4, 16, "bytes"))
         self.assertGreaterEqual(progress["elapsed_seconds"], 0)
         self.assertFalse(job.done.is_set())
+
+    def test_activity_results_stay_bound_to_the_jobs_directory_after_archive_change(self):
+        manager = JobManager()
+        service = self.service(jobs=manager)
+        job = Job(prepare_analysis(self.draft(), self.layout))
+        manager._jobs[job.id] = job
+        with self.assertRaises(ValidationError):
+            service.call("jobs.result_id", {"job_id": job.id})
+
+        def seed(path, name):
+            path.mkdir(parents=True)
+            (path / "run.json").write_text(json.dumps({"schema_version": 1, "status": "succeeded",
+                                                       "workflow": "dnp-call"}), encoding="utf-8")
+            (path / "gui.json").write_text(json.dumps({"schema_version": 1, "name": name}), encoding="utf-8")
+        def switch_archive(destination):
+            before = service.call("preferences.get")
+            service.call("preferences.save", {"baseline": before, "preferences": {**before, "runs_dir": destination}})
+        def open_card():
+            result = service.call("jobs.result_id", {"job_id": job.id})
+            return service.call("runs.get", result)
+
+        job.run_dir = self.layout.runs_dir / "analysis-one"
+        seed(job.run_dir, "Original")
+        self.assertEqual(open_card()["id"], "analysis-one")
+        job.status = "succeeded"
+        job.finished_at = "2026-11-23T12:00:00Z"
+        job.done.set()
+        original_root = service.call("preferences.get")["runs_dir"]
+        alternate = self.root / "alternate"
+        copied = alternate / job.run_dir.name
+        seed(copied, "Copy")
+        switch_archive(str(alternate))
+        selected = open_card()
+        self.assertEqual(selected["name"], "Original")
+        self.assertTrue(selected["id"].startswith("imported-"))
+        self.assertEqual(open_card()["id"], selected["id"])
+        self.assertEqual({r["name"] for r in service.call("runs.list")["runs"]}, {"Original", "Copy"})
+        switch_archive(original_root)
+        self.assertEqual([r["name"] for r in service.call("runs.list")["runs"]], ["Original"])
+        switch_archive(str(alternate))
+        removed = service.call("jobs.remove", {"job_id": job.id})
+        self.assertEqual(removed["archive_id"], selected["id"])
+        self.assertEqual([r["name"] for r in service.call("runs.list")["runs"]], ["Copy"])
+        self.assertTrue(all((p / "run.json").is_file() for p in (job.run_dir, copied)))
 
     def test_activity_summary_and_on_demand_log_cursor(self):
         manager = JobManager()
@@ -784,6 +858,87 @@ with ticket.registration():
         self.assertFalse(any(s["id"] == "dnp_contamination" for s in plan["steps"]))
         self.assertEqual(manager.active(), {"active": False, "jobs": []})
 
+    def test_cancel_during_final_input_verification_is_recorded(self):
+        verifying = threading.Event()
+        release = threading.Event()
+        verify = DockerComposeRunner._verify_inputs
+
+        def pause_after_check(runner, phase):
+            verify(runner, phase)
+            if phase == "after_execution":
+                verifying.set()
+                self.assertTrue(release.wait(5))
+
+        def factory(prepared, job):
+            runner = GuiRunner(prepared, job)
+            runner.dry_run = True
+            return runner
+
+        manager = JobManager(runner_factory=factory, reconcile=lambda *_a, **_k: {"containers": []})
+        with patch.object(DockerComposeRunner, "_verify_inputs", pause_after_check):
+            job = manager.start(prepare_analysis(self.draft(), self.layout))
+            try:
+                self.assertTrue(verifying.wait(5))
+                self.assertEqual(manager.cancel(job["id"])["status"], "cancel_requested")
+            finally:
+                release.set()
+                result = manager.wait(job["id"], 5)
+        self.assertEqual(result["status"], "interrupted", result)
+        metadata = json.loads((self.layout.runs_dir / result["run_id"] / "run.json").read_text(encoding="utf-8"))
+        self.assertEqual(metadata["status"], "interrupted")
+
+    def test_final_result_closes_cancellation_before_saving_and_keeps_job_active(self):
+        from nipat.execution.tracking import RunRecord
+        save = RunRecord.save
+        for expected in ("succeeded", "failed"):
+            with self.subTest(expected=expected):
+                saving = threading.Event()
+                release = threading.Event()
+
+                def pause_before_final_save(record):
+                    if record.data["finished_at"] and not saving.is_set():
+                        saving.set()
+                        self.assertTrue(release.wait(5))
+                    save(record)
+
+                class LocalRunner(GuiRunner):
+                    def _prepare_runtime(self):
+                        if expected == "failed":
+                            raise RuntimeExecutionError("runtime unavailable")
+
+                    def _record_resource_snapshot(self):
+                        pass
+
+                    def _describe_bundled_engine(self):
+                        self._image_id = "sha256:" + "1" * 64
+
+                    def _run_command(self, command, *, working_dir=None):
+                        output = self.last_run_dir / "output" / "workflow"
+                        output.mkdir()
+                        steps = self._record.data["parameters"]["plan"]["steps"]
+                        state = {"schema_version": 1, "interface": "workflow-plan-execution-v2",
+                                 "status": "succeeded",
+                                 "steps": [{**step, "status": "succeeded"} for step in steps]}
+                        (output / "workflow-state.json").write_text(json.dumps(state), encoding="utf-8")
+
+                manager = JobManager(runner_factory=LocalRunner)
+                with patch.object(RunRecord, "save", pause_before_final_save):
+                    job = manager.start(prepare_analysis(self.draft(), self.layout))
+                    try:
+                        self.assertTrue(saving.wait(5))
+                        self.assertEqual(manager.get(job["id"])["status"], "finalizing")
+                        self.assertTrue(manager.active()["active"])
+                        requested = manager.cancel(job["id"])
+                        self.assertEqual(requested["status"], "finalizing")
+                        self.assertFalse(requested["cancel_requested"])
+                    finally:
+                        release.set()
+                        result = manager.wait(job["id"], 5)
+                self.assertEqual(result["status"], expected, result)
+                metadata = self.layout.runs_dir / result["run_id"] / "run.json"
+                self.assertEqual(json.loads(metadata.read_text(encoding="utf-8"))["status"], expected)
+                self.assertFalse(manager.active()["active"])
+
     def test_cancel_before_a_container_exists_records_interruption(self):
         entered = threading.Event()
         class SlowRunner(GuiRunner):
@@ -960,3 +1115,95 @@ class GuiPrepareTests(GuiRuntimeFixture):
         self.assertEqual(draft["families"], {"cpi": [], "cpin": []})
         prepared = prepare_analysis(draft, self.layout)
         self.assertEqual([step["workflow"] for step in prepared.preview["steps"]], ["contamination"])
+
+        table = Path(draft["samples"][0]["path"])
+        original = table.read_text(encoding="utf-8")
+        changed = original.replace("50\t50", "49\t51")
+        self.assertNotEqual(changed, original)
+        table.write_text(changed, encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "tabella dei conteggi"):
+            self.service().run_prepare(previous["run_id"], "contamination")
+
+    def test_followup_checks_archived_counts_in_one_inventory_and_accepts_older_unhashed_records(self):
+        directory = self.completed_caller()
+        service = self.service()
+        store = service._results()
+        with patch.object(store, "_file_descriptors", wraps=store._file_descriptors) as scan:
+            draft = service.call("run.prepare", {"run_id": "previous", "module": "contamination"})
+        self.assertEqual(len(draft["samples"]), 4)
+        self.assertEqual(scan.call_count, 1)
+        target = Path(draft["samples"][0]["path"])
+        rows = target.read_text(encoding="utf-8")
+        changed = rows.replace("50\t50", "51\t49")
+        self.assertNotEqual(changed, rows)
+        target.write_text(changed, encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "tabella dei conteggi"):
+            service.call("run.prepare", {"run_id": "previous", "module": "contamination"})
+
+        target.unlink()
+        with self.assertRaisesRegex(ValueError, "non è disponibile"):
+            service.call("run.prepare", {"run_id": "previous", "module": "contamination"})
+        target.write_text(changed, encoding="utf-8")
+
+        recorded = directory / "work/scientific-validation.json"
+        validation = json.loads(recorded.read_text(encoding="utf-8"))
+        for entry in validation["artifacts"]["dnp-tables"]:
+            del entry["sha256"]
+        recorded.write_text(json.dumps(validation), encoding="utf-8")
+        old = service.call("run.prepare", {"run_id": "previous", "module": "contamination"})
+        self.assertEqual(old, draft)
+        preview = service.call("plan.preview", {"draft": old})
+        self.assertEqual([step["workflow"] for step in preview["steps"]], ["contamination"])
+
+        # Some legacy runs record only a subset of per-sample outputs.
+        legacy_entry = validation["artifacts"]["dnp-tables"].pop()
+        (directory / legacy_entry["path"]).unlink()
+        recorded.write_text(json.dumps(validation), encoding="utf-8")
+        partial_mapping = service.call("run.prepare", {"run_id": "previous", "module": "contamination"})
+        self.assertEqual({row["id"] for row in partial_mapping["samples"]},
+                         {row["id"] for row in old["samples"]} - {legacy_entry["sample"]})
+
+    def test_reuse_and_derived_plans_keep_requested_limits_even_without_gui_snapshot(self):
+        def factory(prepared, job):
+            runner = GuiRunner(prepared, job)
+            runner.dry_run = True
+            return runner
+
+        source = self.draft("tables", snp=["cpi"])
+        source["name"] = "X" * 150
+        source["execution"] = {"cpus": None, "memory_mb": None, "max_workers": 3, "dnp_block_loci": 40}
+        source["scientific_settings"] = {"cpi": {"min_fetal_reads": 6}}
+        manager = JobManager(runner_factory=factory)
+        prepared = prepare_analysis(source, self.layout)
+        job = manager.start(prepared)
+        original_run = manager.wait(job["id"], 5)
+        self.assertEqual(original_run["status"], "planned", original_run)
+        run_id = original_run["run_id"]
+        directory = self.layout.runs_dir / run_id
+        path = directory / "run.json"
+        metadata = json.loads(path.read_text(encoding="utf-8"))
+        requested = metadata["execution_options"]
+        metadata["execution_options"] = {**requested, "cpus": 1, "memory_mb": 1024}
+        metadata["concurrent_execution"] = {"requested_options": requested, "participants_at_admission": 4,
+                                            "assigned_cpus": 1, "assigned_memory_mib": 1024}
+        path.write_text(json.dumps(metadata), encoding="utf-8")
+        service = self.service()
+        service.ui_save({**service.ui_get(), "language": "en"})
+        for with_gui in (True, False):
+            with self.subTest(with_gui=with_gui):
+                if not with_gui:
+                    (directory / "gui.json").unlink()
+                self.assertEqual(service.call("runs.get", {"run_id": run_id})["execution"], metadata["execution_options"])
+                repeat = service.call("run.reuse", {"run_id": run_id})
+                self.assertTrue(repeat["name"].endswith(" · new analysis"))
+                self.assertLessEqual(len(repeat["name"]), 120)
+                rerun = service.call("plan.preview", {"draft": repeat})
+                self.assertEqual(rerun["execution"], requested)
+                self.assertEqual(rerun["steps"], prepared.preview["steps"])
+                followup = service.call("run.prepare", {"run_id": run_id, "module": "contamination"})
+                self.assertTrue(followup["name"].endswith(" · contamination"))
+                self.assertLessEqual(len(followup["name"]), 120)
+                followup["resources"]["SNP"]["contamination_panel"] = str(self.snp_panel)
+                next_preview = service.call("plan.preview", {"draft": followup})
+                self.assertEqual(next_preview["execution"], requested)
+                self.assertEqual([step["workflow"] for step in next_preview["steps"]], ["contamination"])

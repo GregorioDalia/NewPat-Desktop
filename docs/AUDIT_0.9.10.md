@@ -112,7 +112,23 @@ The scientific comparison used a Linux runtime with four available CPUs, 8,192 M
 
 Fifteen scientific tables and sample-label files per completed experiment matched the baseline byte for byte. An additional run recovered its original four CPUs and 8,192 MiB for the SNP summary after cancellation of the other experiment. When the host disappeared after the engine acknowledged a change and before the host published the new budget, the engine timed out without starting the next SNP step. SIGTERM at the same point also stopped the engine. These local runs cover scheduling and output equivalence. Timings on physical Windows and Apple Silicon systems require separate measurements.
 
-The final local application suite passed 1,789 tests, with 46 skips. The CI helper suite passed 404 tests, the native R suite passed 25 tests and the desktop frontend passed 637 assertions. The validation record identifies the exact source digests, fixtures, overlap measurements and comparisons for each scheduling scenario. [Desktop scheduling measurements](validation/0.9.10-desktop-scheduling.json)
+The local application suite for that revision passed 1,789 tests, with 46 skips. The CI helper suite passed 404 tests, the native R suite passed 25 tests and the desktop frontend passed 637 assertions. The validation record identifies the exact source digests, fixtures, overlap measurements and comparisons for each scheduling scenario. [Desktop scheduling measurements](validation/0.9.10-desktop-scheduling.json)
+
+## Cancellation, resource recovery and reopening results
+
+The follow-up started from `c1ae3ae`. Tests reproduced the following cases through the desktop service, scientific executor and resource scheduler.
+
+| Observed problem | Correction and verification |
+| --- | --- |
+| A replacement input could retain the reviewed file's size and modification time. | Compare file identity and change timestamps at submission and again when the prepared run is about to launch. A regression replaces a sample between the two checks and verifies that the job records a failure before issuing a scientific command. |
+| An accepted stop at the end of input verification could be lost. During final report writing, the activity card could still accept a stop after the core had decided the outcome. A signal during assembly of the scientific index could leave a completed step inside a workflow still marked as running. | The desktop serializes cancellation and the final status decision. The engine keeps its signal handlers through publication. Tests check the JSON status, HTML index, completed outputs and pre-existing errors for SIGINT and SIGTERM. |
+| A waiting experiment with explicit resource limits could leave part of the machine idle. A surviving workflow could keep a reduced quota indefinitely after another session exited with unconfirmed cleanup. | When all ready requests fit, use their recorded limits to size the next allocation. A surviving job can recover capacity after two spaced confirmations that the old container is idle. With 8 CPUs and 8,192 MiB, a local multiprocess test assigned 7 CPUs and 7,680 MiB to the original experiment and 1 CPU and 512 MiB to the capped one. |
+| Reopening a job after switching results folders could select an unrelated experiment with the same directory name. A results page could keep displaying a running state after a detail dialog closed. | Resolve session jobs using the recorded results directory. The rendered desktop test opened and removed the intended job while preserving both same-named folders. Frontend tests cover the final status arriving during an open dialog. |
+| A reconstructed rerun could inherit a temporary CPU allocation, and a follow-up could use changed counts or silently omit a sample whose recorded table had disappeared. | Restore the requested execution settings and bound the generated name to the desktop field length. Preparing a follow-up checks that each recorded count table exists, verifies its digest when available and inventories caller outputs once for all selected samples. Older runs with no recorded hash remain usable. |
+
+In a separate Linux run, three DNP+SNP experiments on four distinct synthetic BAMs received CPU in the same sampling interval. For each completed experiment, 15 scientific tables and sample-label files matched the baseline byte for byte. The SNP index also avoids rereading the contents of summary files that have already been hashed. In a 128 MiB fixture its HTML remained byte-identical.
+
+The final Linux verification passed 1,800 application tests with 46 skips, 404 CI helper tests and 25 tests with the packaged R runtime. The frontend suite passed 641 assertions. The desktop service and Chromium passed 84 interaction checks.
 
 ## Scope and how to verify
 

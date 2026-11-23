@@ -78,7 +78,7 @@ class GuiService:
             "plan.preview": self.plan_preview, "analysis.start": self.analysis_start,
             "jobs.list": self.jobs.list, "jobs.get": self.jobs.get, "jobs.logs": self.jobs.logs,
             "jobs.cancel": self.jobs.cancel, "jobs.active": self.jobs.active, "jobs.remove": self.job_remove,
-            "close_status": self.jobs.active, "run.reuse": self.run_reuse,
+            "jobs.result_id": self.job_result_id, "close_status": self.jobs.active, "run.reuse": self.run_reuse,
             "run.prepare": self.run_prepare, "runs.remove": self.run_remove,
             "run.igv": self.run_igv,
             "resources.get": self.resources_get, "resources.preview": self.resources_preview,
@@ -198,6 +198,20 @@ class GuiService:
             raise ValidationError("Il riepilogo non è più disponibile. Verificare di nuovo l’esperimento.")
         return self.jobs.start(prepared)
 
+    def _derived_name(self, base, module=None):
+        italian, english = {None: ("nuova analisi", "new analysis"), "contamination": ("contaminazione", "contamination"),
+                            "cpi": ("CPI prenatale", "Prenatal CPI"), "cpin": ("CPI postnatale", "Postnatal CPI")}[module]
+        suffix = " · " + (english if self.ui_get()["language"] == "en" else italian)
+        # Generated names must fit the same 120-character field as typed names.
+        return str(base)[:120 - len(suffix)].rstrip() + suffix
+
+    @staticmethod
+    def _requested_execution(metadata):
+        admission = metadata.get("concurrent_execution")
+        if isinstance(admission, dict) and isinstance(admission.get("requested_options"), dict):
+            return admission["requested_options"]
+        return metadata.get("execution_options", {})
+
     def run_reuse(self, run_id: str) -> dict:
         run = self._results().get_run(run_id)
         draft = run.get("draft")
@@ -206,7 +220,7 @@ class GuiService:
             draft = gui.get("draft")
         if isinstance(draft, dict):
             draft = deepcopy(draft)
-            draft["name"] = str(draft.get("name", run_id)) + " · nuova analisi"
+            draft["name"] = self._derived_name(draft.get("name", run_id))
             return draft
         metadata = self._results().metadata(run_id)
         if metadata.get("workflow") != "analysis":
@@ -231,18 +245,28 @@ class GuiService:
             self.jobs.discard(finished)
         return result
 
+    def job_result_id(self, job_id: str) -> dict:
+        job = self.jobs.get(job_id)
+        if not job["run_id"]:
+            raise ValidationError("I risultati dell’esperimento non sono ancora disponibili.")
+        path = Path(job["results_root"]) / job["run_id"]
+        return {"run_id": self._results().session_run_id(path)}
+
     def job_remove(self, job_id: str) -> dict:
         job = self.jobs.get(job_id)
         if not job["finished_at"]:
             raise ValidationError("Attendere la fine dell’esperimento prima di rimuovere la scheda.")
+        archive_id = None
         if job["run_id"]:
             # The session owns both paths. The archive preference may have changed
             # since this run finished, or a startup failure may predate run.json.
             path = Path(job["results_root"]) / job["run_id"]
             if (path / "run.json").is_file():
-                self._results().hide_path(path)
+                store = self._results()
+                archive_id = store.identifier_for_path(path)
+                store.hide_path(path)
         self.jobs.discard(job_id)
-        return {"removed": True, "run_id": job["run_id"], "outputs_preserved": True}
+        return {"removed": True, "run_id": job["run_id"], "archive_id": archive_id, "outputs_preserved": True}
 
     def run_igv(self, run_id: str, locus: str | None = None) -> dict:
         """Select recorded reference/BAM sources, preserving every original file."""
@@ -278,36 +302,36 @@ class GuiService:
         mapping = {row["sample_id"]: row.get("biological_id", row["sample_id"])
                    for row in parameters.get("sample_mapping", [])
                    if isinstance(row, dict) and isinstance(row.get("sample_id"), str)}
-        successful = {step["id"] for step in run.get("steps", []) if step.get("status") == "succeeded"}
+        successful = {step["id"] for step in run.get("steps", [])
+                      if step.get("status") == "succeeded" and step.get("module") in {"dnp-call", "snp-call"}}
         samples = {}
-        for file in store.files(run_id):
-            marker = file.get("marker")
-            if (marker not in {"DNP", "SNP"} or file.get("module") != marker.lower() + "-call"
-                    or not file.get("canonical") or file.get("step_id") not in successful
-                    or not (file["name"].startswith("full_output_") or file["name"] == "SNPcall_output.txt")):
-                continue
-            recorded_id = file.get("sample_id")
-            identifier = mapping.get(recorded_id)
+        for marker, recorded_id, path in store.caller_count_tables(run_id, successful, mapping):
+            identifier = mapping[recorded_id]
             if not identifier:
-                continue  # Never infer biological identity from output filenames.
+                continue
             key = (marker, identifier)
             if key in samples:
                 raise ValidationError("Più tabelle corrispondono allo stesso campione. Selezionare esplicitamente i file in un nuovo esperimento.")
-            samples[key] = {"id": identifier, "path": str(store.file_path(run_id, file["id"])),
-                            "kind": marker.lower() + "-table"}
+            samples[key] = {"id": identifier, "path": str(path), "kind": marker.lower() + "-table"}
         # A tables-only/mixed experiment may already contain original counts,
         # without any caller-owned output. These paths were recorded as inputs.
+        evidence = {Path(item["path"]): item for item in metadata.get("inputs", [])
+                    if isinstance(item, dict) and isinstance(item.get("path"), str)}
         for row in source.get("samples", []):
             if not isinstance(row, dict) or row.get("kind") not in {"dnp-table", "snp-table"}:
                 continue
             marker, identifier = row["kind"][:3].upper(), row.get("id")
             path = Path(row.get("path", "")).expanduser()
-            if not isinstance(identifier, str) or not path.is_absolute() or not path.is_file():
+            if not isinstance(identifier, str) or not path.is_absolute():
                 continue
+            store.require_count_table(path)
+            path = path.resolve()
             key = (marker, identifier)
-            if key in samples and Path(samples[key]["path"]).resolve() != path.resolve():
+            if key in samples and Path(samples[key]["path"]) != path:
                 raise ValidationError("Conteggi ambigui per un campione. Selezionare esplicitamente i file in un nuovo esperimento.")
-            samples[key] = {"id": identifier, "path": str(path.resolve()), "kind": row["kind"]}
+            recorded = evidence.get(path, {})
+            store.verify_count_table(path, recorded.get("sha256"), recorded.get("size_bytes"))
+            samples[key] = {"id": identifier, "path": str(path), "kind": row["kind"]}
         if not samples:
             raise ValidationError("Non sono disponibili conteggi completi associati ai campioni. Creare un nuovo esperimento da tabelle esistenti e selezionare i file; i calcoli precedenti non saranno ripetuti.")
         markers = {marker for marker, _identifier in samples}
@@ -340,17 +364,15 @@ class GuiService:
                     row = {"id": family["id"], **{role: family[role] for role in roles}}
                     if row not in families[module]:
                         families[module].append(row)
-        suffix = {"contamination": "contaminazione", "cpi": "CPI prenatale", "cpin": "CPI postnatale"}[module]
         settings = source.get("scientific_settings", parameters.get("scientific_settings_effective", {}))
-        return {"name": str(run.get("name") or run_id)[:130] + " · " + suffix,
+        return {"name": self._derived_name(run.get("name") or run_id, module),
                 "caller": "tables", "samples": list(samples.values()), "reference": None,
                 "branches": {marker: [module] if marker in markers else [] for marker in ("DNP", "SNP")},
                 "resources": resources, "families": families,
                 "scientific_settings": effective_config(settings),
-                "execution": source.get("execution", metadata.get("execution_options", {}))}
+                "execution": source.get("execution", self._requested_execution(metadata))}
 
-    @staticmethod
-    def _draft_from_legacy(metadata: dict) -> dict:
+    def _draft_from_legacy(self, metadata: dict) -> dict:
         p = metadata["parameters"]
         plan = p["plan"]
         mounts = {item["container_path"]: item["host_path"] for item in metadata["input_mounts"]}
@@ -358,11 +380,11 @@ class GuiService:
         samples = [{"id": mapping[s["id"]].get("biological_id", s["id"]),
                     "path": mapping[s["id"]]["original_path"], "kind": s["kind"]}
                    for s in plan["samples"]]
-        draft = {"name": str(metadata.get("run_name", "Esperimento")) + " · nuova analisi",
+        draft = {"name": self._derived_name(metadata.get("run_name", "NewPat")),
                  "caller": p["caller"], "samples": samples, "branches": p["analyses_by_marker"],
                  "resources": {"DNP": {}, "SNP": {}}, "families": {"cpi": [], "cpin": []},
                  "scientific_settings": p.get("scientific_settings_effective", {}),
-                 "execution": metadata.get("execution_options", {})}
+                 "execution": self._requested_execution(metadata)}
         for step in plan["steps"]:
             workflow, inputs, parameters = step["workflow"], step["inputs"], step["parameters"]
             marker = "DNP" if workflow == "dnp-call" else "SNP" if workflow == "snp-call" else parameters["marker_type"]

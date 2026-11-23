@@ -8,6 +8,7 @@ explicit identifier columns/headers. Numeric values and native files are intact.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import csv
 import hashlib
 import html
@@ -253,10 +254,14 @@ def _spreadsheet_label(value: str) -> str:
     return "'" + value if value.lstrip().startswith(("=", "+", "-", "@")) else value
 
 
-def _file_record(path: Path, root: Path, **metadata) -> dict:
+def _open_result(path: Path, root: Path):
     if path.is_symlink() or not path.is_file() or not path.resolve().is_relative_to(root.resolve()):
         raise PlanExecutionError("presentation.output", f"Esportazione assente o fuori destinazione: {path.name}")
-    with path.open("rb") as handle:
+    return path.open("rb")
+
+
+def _file_record(path: Path, root: Path, **metadata) -> dict:
+    with _open_result(path, root) as handle:
         digest = hashlib.file_digest(handle, "sha256").hexdigest()
     return {"path": path.relative_to(root).as_posix(), "sha256": digest, **metadata}
 
@@ -359,7 +364,8 @@ def _html_page(title: str, body: str) -> str:
             'border-bottom:1px solid #ddd}a{overflow-wrap:anywhere}</style>' + body + '</html>')
 
 
-def finish_plan_presentation(plan: dict, state: dict, root: Path) -> dict | None:
+def finish_plan_presentation(plan: dict, state: dict, root: Path, *,
+                             before_publish: Callable[[], None] | None = None) -> dict | None:
     if "presentation" not in plan:
         return None
     directory = root / "presentation"
@@ -380,8 +386,10 @@ def finish_plan_presentation(plan: dict, state: dict, root: Path) -> dict | None
                             ("Risorse per campione", group["resources"]),
                             ("Nomi dei campioni", group["sample_labels"]),
                             *[(Path(item["path"]).name, item) for item in group["plots"]]]:
-            _file_record(root / item["path"], root)
-            links.append(f'<li><a href="../{quote(item["path"], safe="/")}">{html.escape(label)}</a></li>')
+            # The SNP summary already recorded the digest. Check that the file
+            # can still be opened before linking it from the index.
+            with _open_result(root / item["path"], root):
+                links.append(f'<li><a href="../{quote(item["path"], safe="/")}">{html.escape(label)}</a></li>')
         summaries.append(f'<h3>{html.escape(group["id"])} — {len(group["samples"])} campioni</h3>'
                          f'<ul>{"".join(links)}</ul>')
     summary_html = ("<h2>Confronto SNPcall 2.0 tra campioni</h2>"
@@ -389,6 +397,8 @@ def finish_plan_presentation(plan: dict, state: dict, root: Path) -> dict | None
                     "gli identificativi interni; la tabella dei nomi consente di risalire ai campioni originali. "
                     "UpSet confronta i loci con genotipo assegnato, non la sola copertura.</p>" + "".join(summaries)
                     if summaries else "")
+    if before_publish is not None:
+        before_publish()
     index = directory / "index.html"
     index.write_text(_html_page("Workflow NewPat", "<h1>Risultati del workflow</h1>"
                      f'<p>Stato: {html.escape(state["status"])}</p><ul>{"".join(entries)}</ul>{summary_html}'), encoding="utf-8")

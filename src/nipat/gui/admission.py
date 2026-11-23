@@ -13,7 +13,7 @@ import threading
 import time
 import uuid
 
-from nipat.errors import ValidationError
+from nipat.errors import RuntimeExecutionError, ValidationError
 from nipat.preferences import settings_file_lock
 from nipat.resources import ResourceLockBusy, fixed_execution_budget, resource_file_lock
 
@@ -25,7 +25,19 @@ class Allocation:
     participants: int
 
 
-def _allocate(cpus, memory, requested, running, pending):
+def _share(available, lanes, pending, limits):
+    # When all waiting jobs fit, reserve only what a capped peer can use.
+    # Unknown (including older) peers retain their proportional share.
+    if lanes == pending:
+        for limit in sorted(limits):
+            if lanes == 1 or limit >= available // lanes:
+                break
+            available -= limit
+            lanes -= 1
+    return available // lanes
+
+
+def _allocate(cpus, memory, requested, running, pending, waiting=()):
     """Divide the uncommitted capacity only. CPU quotas use Docker's nanocpu unit."""
     participants = len(running) + pending
     if cpus is None or memory is None or memory < 128 or any(
@@ -50,8 +62,10 @@ def _allocate(cpus, memory, requested, running, pending):
     if free_cpu < max(1, cpu_floor) or free_mem < mem_floor:
         return None
     lanes = max(1, min(pending, free_cpu // 10**9, free_mem // mem_per_cpu))
-    cpu_quota = min(requested_cpu, free_cpu // lanes) / 10**9
-    memory_quota = min(requested.memory_mb or memory, free_mem // lanes)
+    cpu_caps = (round(row["requested_cpus"] * 10**9) for row in waiting if row.get("requested_cpus") is not None)
+    mem_caps = (row["requested_memory_mib"] for row in waiting if row.get("requested_memory_mib") is not None)
+    cpu_quota = min(requested_cpu, _share(free_cpu, lanes, pending, cpu_caps)) / 10**9
+    memory_quota = min(requested.memory_mb or memory, _share(free_mem, lanes, pending, mem_caps))
     return Allocation(cpu_quota, memory_quota, participants)
 
 
@@ -106,37 +120,65 @@ class DesktopAdmission:
             if not self.path.exists():
                 owner.unlink(missing_ok=True)
 
+    @staticmethod
+    def _has_owner(path):
+        try:
+            with resource_file_lock(path.with_suffix(".owner"), exclusive=True):
+                return False
+        except ResourceLockBusy:
+            return True
+
+    def _check_orphans(self, paths, now, runtime_idle, *, computing=False):
+        # Probe outside the registry lock; require two spaced idle observations
+        # so a crashed caller's in-flight Docker create can become visible.
+        if computing and paths:
+            # Shutdown joins the observer. Limit each pass to one runtime probe
+            # and rotate stale tickets even if the oldest container stays alive.
+            paths = (min(paths, key=lambda p: self._orphan_checks.get(p, (-math.inf, False))[0]),)
+        for path in paths:
+            checked, previously_idle = self._orphan_checks.get(path, (None, False))
+            if checked is not None and now - checked < 2:
+                continue
+            try:
+                idle = runtime_idle(path.stem)
+            except (OSError, RuntimeExecutionError):
+                self._orphan_checks[path] = (now, False)
+                if computing:
+                    continue  # Keep the orphan's charge and the current calculation's budget.
+                raise
+            self._orphan_checks[path] = (now, idle)
+            if previously_idle and idle:
+                with settings_file_lock(self.guard):
+                    self._remove(path)
+
     def try_admit(self, cpus, memory, options, runtime_idle, *, queued=0):
         orphans = []
         with settings_file_lock(self.guard):
-            running, pending, earlier = [], 0, False
+            running, waiting, earlier = [], [], False
             mine = json.loads(self.path.read_text(encoding="utf-8"))
             if mine["state"] == "running":
                 return Allocation(mine["cpus"], mine["memory_mib"], mine["participants"])
             if mine["state"] == "preparing":
-                mine = {"state": "ready", "since": time.monotonic_ns()}
+                mine = {"state": "ready", "since": time.monotonic_ns(),
+                        "requested_cpus": options.cpus, "requested_memory_mib": options.memory_mb}
                 self._write(self.path, mine)
             for path in self.directory.glob("*.json"):
-                row = mine if path == self.path else json.loads(path.read_text(encoding="utf-8"))
-                if path != self.path:
-                    try:
-                        with resource_file_lock(path.with_suffix(".owner"), exclusive=True):
-                            pass
-                    except ResourceLockBusy:
-                        pass
-                    else:
-                        if row["state"] != "running":
-                            self._remove(path)
-                            continue
-                        # A crashed desktop can leave a live Docker container.
-                        orphans.append(path)
+                if path == self.path:
+                    continue
+                row = json.loads(path.read_text(encoding="utf-8"))
+                if not self._has_owner(path):
+                    if row["state"] != "running":
+                        self._remove(path)
+                        continue
+                    orphans.append(path)
                 if row["state"] == "running":
                     running.append(row)
                 else:
-                    pending += 1
+                    waiting.append(row)
                     if row["state"] == "ready" and (row["since"], path) < (mine["since"], self.path):
                         earlier = True
-            allocation = None if earlier else _allocate(cpus, memory, options, running, pending + queued)
+            pending = 1 + len(waiting) + queued
+            allocation = None if earlier else _allocate(cpus, memory, options, running, pending, waiting)
             now = time.monotonic() if orphans else 0
             # Reconcile even a partial stale reservation: otherwise solitary
             # future jobs could each inherit the same permanently reduced quota.
@@ -148,50 +190,39 @@ class DesktopAdmission:
                                         "memory_mib": allocation.memory_mib,
                                         "participants": allocation.participants})
                 return allocation
-        # Never hold the registry lock during a runtime call. Require two
-        # observations, separated in time, to allow an in-flight Docker create.
-        for path in orphans:
-            checked, previously_idle = self._orphan_checks.get(path, (None, False))
-            if checked is not None and now - checked < 2:
-                continue
-            idle = runtime_idle(path.stem)
-            self._orphan_checks[path] = (now, idle)
-            if previously_idle and idle:
-                with settings_file_lock(self.guard):
-                    self._remove(path)
+        self._check_orphans(orphans, now, runtime_idle)
         return None
 
-    def boundary_allocation(self, cpus, memory, options, *, commit=False, queued=0):
+    def boundary_allocation(self, cpus, memory, options, *, commit=False, queued=0, runtime_idle=None):
         """Preview, or reserve after engine acknowledgement, the next step's quota."""
+        orphans = []
         with settings_file_lock(self.guard):
             mine = json.loads(self.path.read_text(encoding="utf-8"))
             if mine["state"] != "running":
                 raise ValidationError("Nessuna quota attiva per questo esperimento.")
             current = Allocation(mine["cpus"], mine["memory_mib"], mine["participants"])
-            running, pending = [], 1 + queued  # Include this run's next step.
+            running, waiting = [], []
             for path in self.directory.glob("*.json"):
                 if path != self.path:
                     row = json.loads(path.read_text(encoding="utf-8"))
                     if row["state"] == "running":
-                        # Includes orphans until Docker confirms they have stopped.
                         running.append(row)
+                        if runtime_idle is not None and not self._has_owner(path):
+                            orphans.append(path)
+                    elif self._has_owner(path):
+                        waiting.append(row)
                     else:
-                        # A desktop can exit before its pending job reaches Docker.
-                        try:
-                            with resource_file_lock(path.with_suffix(".owner"), exclusive=True):
-                                pass
-                        except ResourceLockBusy:
-                            pending += 1
-                        else:
-                            self._remove(path)
-            planned = _allocate(cpus, memory, options, running, pending)
+                        self._remove(path)
+            planned = _allocate(cpus, memory, options, running, 1 + len(waiting) + queued, waiting)
             if (planned is None or planned.cpus is None or current.cpus is None
                     or (planned.cpus, planned.memory_mib) == (current.cpus, current.memory_mib)):
-                return current if commit else None
-            if commit:
+                planned = current if commit else None
+            elif commit:
                 self._write(self.path, {"state": "running", "cpus": planned.cpus,
                                         "memory_mib": planned.memory_mib, "participants": planned.participants})
-            return planned
+        if orphans:
+            self._check_orphans(orphans, time.monotonic(), runtime_idle, computing=True)
+        return planned
 
 
 class DesktopStepScheduler:
@@ -199,12 +230,13 @@ class DesktopStepScheduler:
 
     interface = "step-budget-v1"
 
-    def __init__(self, admission, directory, snapshot, options, *, queued=lambda: 0):
+    def __init__(self, admission, directory, snapshot, options, *, queued=lambda: 0, runtime_idle=None):
         self.admission = admission
         self.directory = directory
         self.snapshot = snapshot
         self.options = options
         self.queued = queued
+        self.runtime_idle = runtime_idle
         capacity = fixed_execution_budget(snapshot)
         self.cpus = capacity["cpu_limit"]
         self.memory = capacity["memory_capacity_mib"]
@@ -235,7 +267,8 @@ class DesktopStepScheduler:
             if self._last_signature == signature and now - self._last_check < 2:
                 return
             self._last_signature, self._last_check = signature, now
-            proposal = self.admission.boundary_allocation(self.cpus, self.memory, self.options, queued=queued)
+            proposal = self.admission.boundary_allocation(self.cpus, self.memory, self.options, queued=queued,
+                                                        runtime_idle=self.runtime_idle)
             if proposal is not None:
                 self.token = uuid.uuid4().hex
                 self._publish("request.json", {"interface": self.interface, "token": self.token})

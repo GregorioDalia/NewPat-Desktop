@@ -418,7 +418,7 @@ function renderJobCard(job){
    ${waiting?'':`<div class="progress-track ${indeterminate?'indeterminate':''} ${state.motion?'':'paused'}" role="progressbar" aria-label="${esc(t('currentPhase'))}" aria-valuemin="0" aria-valuemax="100" ${p===null?'':`aria-valuenow="${p}"`}><span ${indeterminate?'':`style="width:${p??(job.status==='succeeded'?100:0)}%"`}></span></div>`}
    ${job.error?notice(humanError(job.error.message||job.error),job.status==='interrupted'?'warning':'error'):''}
    <section class="job-events" ${job.events?.length?'':'hidden'}><h3>${t('recentActivity')}</h3><ol data-event-revision="${job.event_revision??0}">${eventsMarkup(job)}</ol></section>
-   <div class="actions section-gap">${terminal(job)?button(t('removeFromList'),'remove-job',{id:job.id},'quiet small','close'):['finalizing','cancel_requested'].includes(job.status)?'':button(t('stopAnalysis'),'cancel-job',{id:job.id},'danger','stop')}${job.run_id?button(t('openResults'),'open-run',{id:job.run_id},'primary','arrow'):''}
+   <div class="actions section-gap">${terminal(job)?button(t('removeFromList'),'remove-job',{id:job.id},'quiet small','close'):['finalizing','cancel_requested'].includes(job.status)?'':button(t('stopAnalysis'),'cancel-job',{id:job.id},'danger','stop')}${job.run_id?button(t('openResults'),'open-run',{id:job.run_id,job:job.id},'primary','arrow'):''}
     <button class="button quiet small" data-action="job-log" data-id="${esc(job.id)}" aria-expanded="${!!log}" aria-controls="job-log-${esc(job.id)}">${t('technicalLog')}</button>
    </div><pre id="job-log-${esc(job.id)}" class="job-log" ${log?'':'hidden'}>${log?esc(logText(log)):''}</pre></div></section>`;
 }
@@ -817,12 +817,18 @@ async function action(name,data,element){
   const job=state.jobs.find(item=>item.id===data.id);
   const removed=await rpc('jobs.remove',{job_id:data.id});
   if(removed.run_id&&job?.results_root)forgetRunPages(removed.run_id,job.results_root);
+  if(removed.archive_id)forgetRunPages(removed.archive_id);
   visibleLogs.delete(data.id);closeModal();
   await Promise.all([loadRuns(),action('refresh-jobs',{})]);
   render();toast(t('removedFromList'));return;
  }
  if(name==='confirm-cancel-job'){await rpc('jobs.cancel',{job_id:data.id});closeModal();const jobs=await rpc('jobs.list',{include_logs:false});state.jobs=jobs.jobs||jobs;render();return}
- if(name==='open-run')return loadRun(data.id);
+ if(name==='open-run'){
+  if(!data.job)return loadRun(data.id);
+  const version=++runLoadVersion,result=await rpc('jobs.result_id',{job_id:data.job});
+  if(version===runLoadVersion)return loadRun(result.run_id);
+  return;
+ }
  if(name==='import-run'){const paths=await choosePath(null,'directory');if(paths.length){const result=await rpc('runs.import',{path:paths[0]});await loadRuns();const id=result.imported?.[0];if(id)return loadRun(id);await navigate('archive')}return}
  if(name==='run-tab'){state.runTab=data.tab;render();return}
  if(name==='result-module'){++entryLoadVersion;++tableLoadVersion;state.module=data.module||null;state.entry=0;state.tableSearch='';if(state.module&&state.module!=='files')await loadEntry();else render();return}
@@ -955,12 +961,12 @@ function bind(){
 }
 async function refreshOpenedRun(){
  const id=state.runId,version=runLoadVersion;
- if(state.view!=='archive'||!state.run||!id)return;
+ if(state.view!=='archive'||!state.run||!id||$('modal-root').innerHTML)return;
  const [run,overview,files]=await Promise.all([rpc('runs.get',{run_id:id}),rpc('runs.overview',{run_id:id}),rpc('runs.files',{run_id:id})]);
- if(version!==runLoadVersion||state.view!=='archive'||state.runId!==id||!state.run)return;
+ if(version!==runLoadVersion||state.view!=='archive'||state.runId!==id||!state.run||$('modal-root').innerHTML)return;
  const changed=JSON.stringify([run,overview,files.files||files])!==JSON.stringify([state.run,state.overview,state.files]);
  state.run=run;state.overview=overview;state.files=files.files||files;
- if(changed&&!$('modal-root').innerHTML){
+ if(changed){
   // Keep the selected tab, module, sample, search and page while updating live outputs.
   if(state.module&&state.module!=='files'){const entry=currentEntry();if(!state.tableFile&&entry)await loadEntry();else if(state.tableFile)await loadTable(state.tableOffset);else render()}else render();
  }

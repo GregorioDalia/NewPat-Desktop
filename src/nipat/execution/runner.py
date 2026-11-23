@@ -131,6 +131,10 @@ class DockerComposeRunner:
         )
         self._record.save()
 
+    def _finalize_status(self, record: RunRecord, status: str) -> None:
+        """Set the terminal status before saving run metadata and its report."""
+        record.data["status"] = status
+
     def _write_run_report(self, record: RunRecord) -> None:
         try:
             from nipat.run_report import write_run_report
@@ -665,16 +669,15 @@ class DockerComposeRunner:
                     record.save()
                     yield record
                     self._verify_inputs("after_execution")
+                    self._finalize_status(record, "planned" if self.dry_run else "succeeded")
                 except BaseException as exc:
                     with _finish_cleanup():
-                        record.data["status"] = (
-                            "interrupted" if isinstance(exc, (KeyboardInterrupt, SystemExit)) else "failed"
-                        )
+                        status = "interrupted" if isinstance(exc, (KeyboardInterrupt, SystemExit)) else "failed"
+                        self._finalize_status(record, status)
                         record.data["error"] = {"type": type(exc).__name__, "message": str(exc)}
                         self._write(f"{record.data['status']}: {type(exc).__name__}: {exc}\n")
                     raise
                 else:
-                    record.data["status"] = "planned" if self.dry_run else "succeeded"
                     self._write(f"{record.data['status']}: {workflow}\n")
                 finally:
                     with _finish_cleanup():

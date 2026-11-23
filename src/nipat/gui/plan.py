@@ -13,6 +13,7 @@ from typing import Any
 from nipat.errors import ValidationError
 from nipat.execution.analysis_plan import build_analysis_plan
 from nipat.execution.options import ExecutionOptions
+from nipat.execution.tracking import input_stat_snapshot
 from nipat.gui.igv import LocalIGV
 from nipat.paths import ProjectLayout
 from nipat.preferences import Preferences
@@ -66,20 +67,20 @@ class PreparedAnalysis:
     scientific_settings: dict
     execution: ExecutionOptions
     preview: dict
-    evidence: tuple[tuple[str, int, int], ...]
+    evidence: tuple[tuple[Path, dict[str, int]], ...]
     language: str = "it"
 
     def assert_inputs_unchanged(self) -> None:
-        for name, size, modified in self.evidence:
+        for path, expected in self.evidence:
             try:
-                stat = Path(name).stat()
+                current = input_stat_snapshot(path.stat())
             except OSError as exc:
-                filename = Path(name).name
+                filename = path.name
                 message = (f"Input unavailable. Check the file {filename}." if self.language == "en"
                            else f"Input non disponibile. Controlla il file {filename}.")
                 raise ValidationError(message) from exc
-            if stat.st_size != size or stat.st_mtime_ns != modified:
-                filename = Path(name).name
+            if current != expected:
+                filename = path.name
                 message = (f"The file {filename} has changed. Review it before retrying." if self.language == "en"
                            else f"Il file {filename} è cambiato. Controllalo prima di riprovare.")
                 raise ValidationError(message)
@@ -190,7 +191,7 @@ def prepare_analysis(draft: dict, layout: ProjectLayout,
     # Store the actual reviewed values, never preferences that can later change.
     normalized_draft = {**draft, "name": name, "scientific_settings": effective_config(settings),
                         "execution": execution.as_dict()}
-    evidence = tuple((str(path), path.stat().st_size, path.stat().st_mtime_ns) for path in files)
+    evidence = tuple((path, input_stat_snapshot(path.stat())) for path in files)
     preview = {"name": name, "caller": caller, "steps": deepcopy(plan["steps"]),
                "samples": mapping, "analyses_by_marker": analyses,
                "effective_settings": effective_config(settings), "execution": execution.as_dict(),

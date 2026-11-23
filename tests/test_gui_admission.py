@@ -3,16 +3,20 @@
 from collections import deque
 from contextlib import ExitStack
 from functools import partial
+import json
 from pathlib import Path
 import tempfile
 import threading
+import time
 from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 
+from nipat.errors import RuntimeExecutionError
 from nipat.execution.options import ExecutionOptions
-from nipat.gui.admission import DesktopAdmission
+from nipat.gui.admission import DesktopAdmission, DesktopStepScheduler
 from nipat.gui.jobs import JobManager
+from nipat.preferences import settings_file_lock
 
 
 class DesktopAdmissionTests(unittest.TestCase):
@@ -127,6 +131,86 @@ class DesktopAdmissionTests(unittest.TestCase):
                     admitted.append(i)
                     self.check_limits([registrations[j][0] for j in active])
                 self.assertEqual(admitted, [0, *range(2, count)])
+
+    def test_boundary_yields_only_capacity_a_waiting_profile_can_use(self):
+        with ExitStack() as stack:
+            first, _ = self.register(stack, 0)
+            self.admit(first)
+            limited, _ = self.register(stack, 1)
+            caps = ExecutionOptions(cpus=1, memory_mb=512)
+            self.assertIsNone(limited.try_admit(self.cpus, self.memory, caps, None))
+            share = first.boundary_allocation(self.cpus, self.memory, self.options)
+            self.assertEqual((share.cpus, share.memory_mib), (3, self.memory - 512))
+
+            # A ticket written by an older session carries no requested limits.
+            actual = json.loads(limited.path.read_text(encoding="utf-8"))
+            limited._write(limited.path, {"state": "ready", "since": actual["since"]})
+            legacy = first.boundary_allocation(self.cpus, self.memory, self.options)
+            self.assertEqual((legacy.cpus, legacy.memory_mib), (2, self.memory // 2))
+
+            limited._write(limited.path, actual)
+            first.boundary_allocation(self.cpus, self.memory, self.options, commit=True)
+            assigned = limited.try_admit(self.cpus, self.memory, caps, None)
+            self.assertEqual((assigned.cpus, assigned.memory_mib), (1, 512))
+            self.check_limits([first, limited])
+
+    def test_running_session_recovers_an_orphan_share_without_another_submission(self):
+        with ExitStack() as stack:
+            first, _ = self.register(stack, 0)
+            self.admit(first)
+            late, lease = self.register(stack, 1)
+            self.assertIsNone(self.admit(late))
+            share = first.boundary_allocation(self.cpus, self.memory, self.options, commit=True)
+            self.assertEqual(share.cpus, 2)
+            self.assertEqual(self.admit(late).cpus, 2)
+            late.unconfirmed_cleanup = True
+            lease.close()
+
+            probe = Mock(side_effect=[True, RuntimeExecutionError("busy"), False, True, True])
+            def idle(identifier):
+                with settings_file_lock(first.guard):  # Runtime calls leave the ledger unlocked.
+                    return probe(identifier)
+
+            control = self.home / "control"
+            control.mkdir()
+            scheduler = DesktopStepScheduler(first, control, {"runtime": {"effective": {
+                "cpus": self.cpus, "memory_mib": self.memory}}}, self.options, runtime_idle=idle)
+            with patch("nipat.gui.admission.time", wraps=time) as clock:
+                for attempt in range(5):
+                    clock.monotonic.return_value = 3 * attempt
+                    scheduler.poll()
+                    self.assertEqual(late.path.exists(), attempt < 4)
+                    self.assertFalse((control / "request.json").exists())
+                    self.assertEqual(self.admit(first).cpus, 2)
+                clock.monotonic.return_value = 15
+                scheduler.poll()
+                message = json.loads((control / "request.json").read_text(encoding="utf-8"))
+                first._write(control / "ack.json", message)
+                scheduler.poll()
+            self.assertEqual([x.args for x in probe.call_args_list], [(late.id,)] * 5)
+            restored = json.loads((control / "grant.json").read_text(encoding="utf-8"))["budget"]
+            self.assertEqual((restored["cpu_limit"], restored["memory_capacity_mib"]), (self.cpus, self.memory))
+
+    def test_boundary_checks_one_unconfirmed_session_per_poll(self):
+        limited = ExecutionOptions(cpus=1, memory_mb=512)
+        with ExitStack() as stack:
+            first, _ = self.register(stack, 0)
+            first.try_admit(self.cpus, self.memory, limited, None)
+            registrations = [self.register(stack, i) for i in (1, 2)]
+            for other, _ in registrations:
+                self.assertIsNotNone(other.try_admit(self.cpus, self.memory, limited, None))
+            for other, lease in registrations:
+                other.unconfirmed_cleanup = True
+                lease.close()
+            idle = Mock(return_value=False)
+            with patch("nipat.gui.admission.time", wraps=time) as clock:
+                for i in range(4):
+                    clock.monotonic.return_value = i * 3
+                    first.boundary_allocation(self.cpus, self.memory, limited, runtime_idle=idle)
+                    self.assertEqual(idle.call_count, i + 1)
+            identifiers = [c.args[0] for c in idle.call_args_list]
+            self.assertEqual(set(identifiers[:2]), {"job-001", "job-002"})
+            self.assertEqual(identifiers[:2], identifiers[2:])
 
     def prepared(self):
         return SimpleNamespace(

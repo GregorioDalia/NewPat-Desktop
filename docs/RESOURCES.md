@@ -25,6 +25,8 @@ NewPat records the startup CPU, memory and worker ceilings in `run.json` under `
 
 Desktop sessions of one user coordinate CPU and memory assignments on the same runtime. Jobs preparing together can share capacity from the start. A late arrival waits for a usable share of both resources. On a compatible engine, a desktop workflow can offer some of its allocation after a completed analysis step or group of independent SNP samples. The host revises its accounting only after the engine confirms that the previous workers have finished. The workflow can recover previously yielded capacity at a later boundary, up to its original ceilings. An engine without this capability retains its startup allocation. If capacity cannot be measured, one desktop experiment calculates at a time. [Desktop activity](GUI.md#set-up-an-experiment)
 
+When all ready experiments fit, a waiting experiment's explicit CPU and memory limits can leave more of the available capacity with its peers. After an unexpected desktop exit, other sessions retain the old reservation until the runtime confirms twice that the previous container has stopped. A surviving workflow can then recover capacity at a subsequent step.
+
 Each phase reserves 20% of its assigned memory and accounts separately for the coordinator's resident memory. The general worker estimate considers twice the coordinator's resident memory and any module-specific estimate. A phase with an unknown workload may run serially. A changed allocation guides scheduling of subsequent work. The operating system continues to enforce the container limits set at launch.
 
 DNPcall makes two separate decisions:

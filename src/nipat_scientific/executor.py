@@ -483,6 +483,14 @@ def execute_plan(document: object, *, run_dir: Path, script_paths: dict[str, Pat
                 state.setdefault("desktop_resource_grants", []).append({"next_phase": label, **grant})
                 _atomic_json(root / "workflow-state.json", state)
 
+    def record_cancellation():
+        state.update(status="cancelled", exit_code=cancellation.exit_code,
+                     error={"code": "execution.cancelled", "message": "Workflow execution was cancelled."})
+
+    def before_publish():
+        if state["status"] == "succeeded" and cancellation.signum is not None:
+            record_cancellation()
+
     try:
         for signum in (signal.SIGINT, signal.SIGTERM):
             previous[signum] = signal.getsignal(signum)
@@ -526,8 +534,7 @@ def execute_plan(document: object, *, run_dir: Path, script_paths: dict[str, Pat
                     raise KeyboardInterrupt
         state.update(status="succeeded", exit_code=0)
     except KeyboardInterrupt:
-        state.update(status="cancelled", exit_code=cancellation.exit_code,
-                     error={"code": "execution.cancelled", "message": "Workflow execution was cancelled."})
+        record_cancellation()
         if active is not None:
             active.update(status="cancelled", exit_code=state["exit_code"], error=state["error"], finished_utc=_utc())
     except (ValidationError, OSError, ValueError) as exc:
@@ -544,24 +551,30 @@ def execute_plan(document: object, *, run_dir: Path, script_paths: dict[str, Pat
         if active is not None:
             active.update(status="failed", exit_code=2, error=state["error"], finished_utc=_utc())
     finally:
-        if scheduler is not None:
-            scheduler.restore()
-        for signum, handler in previous.items():
-            signal.signal(signum, handler)
-        if state["status"] in {"failed", "cancelled"}:
-            for record in state["steps"]:
-                if record["status"] == "pending":
-                    record.update(status="blocked", finished_utc=_utc(),
-                                  error={"code": "execution.stopped", "message": "The plan stops after a failed or cancelled step."})
-        state["finished_utc"] = _utc()
-        if "presentation" in plan:
-            try:
-                with phase("plan-presentation"):
-                    state["presentation"] = finish_plan_presentation(plan, state, root)
-            except (OSError, ValueError, ValidationError) as exc:
-                state["presentation_error"] = str(exc)
-                if state["status"] == "succeeded":
-                    state.update(status="failed", exit_code=2,
-                                 error={"code": "presentation.output", "message": str(exc)})
-        _atomic_json(root / "workflow-state.json", state)
+        try:
+            if scheduler is not None:
+                scheduler.restore()
+            if state["status"] in {"failed", "cancelled"}:
+                for record in state["steps"]:
+                    if record["status"] == "pending":
+                        record.update(status="blocked", finished_utc=_utc(),
+                                      error={"code": "execution.stopped", "message": "The plan stops after a failed or cancelled step."})
+            if "presentation" in plan:
+                try:
+                    with phase("plan-presentation"):
+                        state["presentation"] = finish_plan_presentation(plan, state, root, before_publish=before_publish)
+                except (OSError, ValueError, ValidationError) as exc:
+                    state["presentation_error"] = str(exc)
+                    if state["status"] == "succeeded":
+                        state.update(status="failed", exit_code=2,
+                                     error={"code": "presentation.output", "message": str(exc)})
+            else:
+                before_publish()
+            # The HTML and JSON use the same final status. Keep signal handlers
+            # installed while publishing both so a late stop cannot split them.
+            state["finished_utc"] = _utc()
+            _atomic_json(root / "workflow-state.json", state)
+        finally:
+            for signum, handler in previous.items():
+                signal.signal(signum, handler)
     return state

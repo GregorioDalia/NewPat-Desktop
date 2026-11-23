@@ -33,7 +33,8 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _snapshot(stat) -> dict[str, int]:
+def input_stat_snapshot(stat) -> dict[str, int]:
+    """Record the file identity and change indicators from one stat call."""
     return {"size_bytes": stat.st_size, "mtime_ns": stat.st_mtime_ns,
             "ctime_ns": stat.st_ctime_ns, "device": stat.st_dev, "inode": stat.st_ino}
 
@@ -45,7 +46,7 @@ def file_evidence(
     path = path.resolve()
     stat = path.stat()
     evidence: dict[str, Any] = {
-        "path": str(path), **_snapshot(stat), "recorded_at": utc_now(),
+        "path": str(path), **input_stat_snapshot(stat), "recorded_at": utc_now(),
     }
     if mode not in {"auto", "full"}:
         raise ValidationError("Modalita di checksum degli input non valida.")
@@ -67,7 +68,7 @@ def file_evidence(
         evidence["hash_note"] = (
             "Not hashed: input exceeds 16 MiB; size/mtime are metadata, not content identity."
         )
-    if _snapshot(path.stat()) != _snapshot(stat):
+    if input_stat_snapshot(path.stat()) != input_stat_snapshot(stat):
         raise ValidationError(f"Input modificato durante la raccolta della provenienza: {path}")
     return evidence
 
@@ -78,7 +79,7 @@ def verify_input_evidence(
     """Re-read hashed inputs; metadata-only records cannot prove content identity."""
     path = Path(evidence["path"])
     try:
-        current = _snapshot(path.stat())
+        current = input_stat_snapshot(path.stat())
         if any(current[key] != evidence.get(key) for key in current):
             raise ValidationError(f"Input modificato dopo la preparazione: {path}")
         if evidence.get("sha256") is not None:

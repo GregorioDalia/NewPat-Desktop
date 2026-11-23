@@ -308,6 +308,44 @@ class WorkflowExecutionTests(unittest.TestCase):
         self.assertEqual(result, self.saved())
         self.assertEqual(handlers, {sig: signal.getsignal(sig) for sig in handlers})
 
+    def test_stop_during_plan_index_preserves_step_outcomes_and_finalizes_state(self):
+        from nipat_scientific.presentation import finish_plan_presentation
+
+        self.plan["presentation"] = {"samples": {"donor_a": "A.bam", "donor_b": "B.bam"}, "pairs": {}}
+        for sig, child_exit in ((signal.SIGTERM, 0), (signal.SIGINT, 0), (signal.SIGTERM, 12)):
+            with self.subTest(sig=sig, child_exit=child_exit):
+                self.run = self.root / f"final-{sig}-{child_exit}"
+                escaped = []
+                def outer_handler(signum, _frame):
+                    escaped.append(signum)
+                previous = signal.signal(sig, outer_handler)
+                def stop_during_index(*args, **kwargs):
+                    signal.raise_signal(sig)
+                    return finish_plan_presentation(*args, **kwargs)
+                try:
+                    # The fixture R command produces canonical outputs. Exercise
+                    # the real top-level index without requiring R to plot copies.
+                    with patch("nipat_scientific.executor.step_presentation", return_value=None), \
+                            patch("nipat_scientific.executor.finish_plan_presentation", new=stop_during_index):
+                        result = self.execute(self.fake_r if not child_exit else lambda *_: child_exit)
+                    self.assertIs(signal.getsignal(sig), outer_handler)
+                finally:
+                    signal.signal(sig, previous)
+                self.assertEqual(escaped, [])
+                status = "failed" if child_exit else "cancelled"
+                self.assertEqual((result["status"], result["exit_code"]), (status, child_exit or 128 + sig))
+                self.assertEqual(result, self.saved())
+                self.assertIsNotNone(result["finished_utc"])
+                self.assertEqual([row["status"] for row in result["steps"]],
+                                 ["failed", "blocked"] if child_exit else ["succeeded", "succeeded"])
+                index = self.run / result["presentation"]["index"]["path"]
+                self.assertIn(f"Stato: {status}", index.read_text(encoding="utf-8"))
+                if child_exit:
+                    self.assertEqual(result["error"]["code"], "execution.process")
+                else:
+                    table = result["steps"][0]["artifacts"]["dnp-tables"][0]
+                    self.assertEqual(hashlib.sha256((self.run / table["path"]).read_bytes()).hexdigest(), table["sha256"])
+
     def test_signal_cancellation_wins_over_child_zero_exit(self):
         def cancel(command, cwd, log_path):
             self.fake_r(command, cwd, log_path)

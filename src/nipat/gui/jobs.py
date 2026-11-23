@@ -192,8 +192,10 @@ class GuiRunner(DockerComposeRunner):
             if assigned["assigned_cpus"] is not None and assigned["assigned_memory_mib"] is not None:
                 directory = self._record.run_dir / "work" / "desktop-scheduling"
                 directory.mkdir()
-                self._step_scheduler = DesktopStepScheduler(self._admission, directory,
-                    data["resource_snapshot"], self.options, queued=self.job.queued_siblings)
+                self._step_scheduler = DesktopStepScheduler(
+                    self._admission, directory, data["resource_snapshot"], self.options,
+                    queued=self.job.queued_siblings, runtime_idle=self._project_idle,
+                )
                 assigned["step_scheduling"] = {"interface": DesktopStepScheduler.interface,
                                                "grants": "work/desktop-scheduling/grants.jsonl"}
         return result
@@ -238,6 +240,15 @@ class GuiRunner(DockerComposeRunner):
         self._preparation_progress("checking-inputs", completed, total)
         super()._hash_progress(path, completed, total)
 
+    def _finalize_status(self, record, status):
+        # The last input hash is still cancellable. Once a terminal result is
+        # chosen, reject later stop requests while its report is being written.
+        with self.job.lock:
+            if status in {"planned", "succeeded"}:
+                self._cancel_point()
+            super()._finalize_status(record, status)
+            self.job.status = "finalizing"
+
     @contextmanager
     def record_run(self, run_dir, *args, **kwargs):
         with self.job.lock:
@@ -252,6 +263,7 @@ class GuiRunner(DockerComposeRunner):
         registration = nullcontext() if self.dry_run else self._admission.registration()
         with registration, super().record_run(run_dir, *args, **kwargs) as record:
             self._cancel_point()
+            self.job.prepared.assert_inputs_unchanged()
             yield record
             self._cancel_point()
 
@@ -445,7 +457,7 @@ class JobManager:
                     self._mark_finished(job)
                 return job.snapshot()
         with job.lock:
-            if job.status in _TERMINAL:
+            if job.status == "finalizing" or job.status in _TERMINAL:
                 return job.snapshot()
             if job.cancel_event.is_set():
                 return job.snapshot()
