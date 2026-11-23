@@ -1,5 +1,7 @@
 # Shared by fast CI and installer builds. Every child exit code is checked.
 
+param([switch]$DesktopOnly)
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
@@ -17,6 +19,11 @@ Write-Host '::endgroup::'
 
 Write-Host '::group::Python unit and CI policy tests'
 Invoke-CheckedProcess 'python' @('-m', 'pip', 'install', '-r', '.github/quality-requirements.txt')
+if ($DesktopOnly) {
+    Invoke-CheckedProcess 'python' @('-m', 'pytest', 'tests', '-k', 'gui')
+    Write-Host '::endgroup::'
+    return
+}
 Invoke-CheckedProcess 'python' @('-m', 'pytest', 'tests')
 Invoke-CheckedProcess 'python' @('-m', 'unittest', 'discover', '-s', '.github/scripts', '-p', 'test_*.py', '-v')
 Write-Host '::endgroup::'

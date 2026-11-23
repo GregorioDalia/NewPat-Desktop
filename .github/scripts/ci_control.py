@@ -12,7 +12,7 @@ import urllib.request
 def check_ownership(event_name, event, repository, ref, sha, fetch_pulls, fetch_runs):
     """Only suppress a development push already covered by a matching open PR.
 
-    PRs test the GitHub merge checkout. Main and manual runs always run in full.
+    PRs test the GitHub merge checkout. Main and manual runs always own their checks.
     A failed API query duplicates work rather than silently losing coverage.
     """
     branch = ref.removeprefix("refs/heads/")
@@ -84,6 +84,18 @@ def gate_errors(results, *, event_name, ref):
     selected = outputs.get("run_checks")
     metadata = outputs.get("acceptance_only")
     docs = outputs.get("documentation_scope")
+    desktop = outputs.get("desktop_scope")
+    smoke = outputs.get("caller_smoke")
+    if desktop not in {"focused", "standard"} or smoke not in {"true", "false"}:
+        errors.append("unknown desktop or caller smoke selection")
+    if outputs.get("client") not in {"true", "false"}:
+        errors.append("unknown client selection")
+    if desktop == "focused" or smoke == "true":
+        if (outputs.get("scientific") != "false" or outputs.get("client") != "true"
+                or docs != "none" or metadata != "false"):
+            errors.append("inconsistent desktop or caller smoke selection")
+    if desktop == "focused" and any(outputs.get(layer) != "false" for layer in ("packaging", "runtime")):
+        errors.append("a mixed integration change requires standard desktop checks")
     if metadata not in {"true", "false"}:
         errors.append("unknown acceptance-only selection")
     if docs not in {"none", "guides", "image"}:
@@ -99,7 +111,9 @@ def gate_errors(results, *, event_name, ref):
         errors.append("unknown acceptance path selection")
     if (metadata == "true" and not records) or (docs != "none" and records):
         errors.append("inconsistent acceptance path selection")
-    if event_name == "workflow_dispatch" and (docs != "none" or metadata == "true"):
+    if event_name == "workflow_dispatch" and (
+            docs != "none" or metadata != "false" or desktop != "standard" or smoke != "false"
+            or any(outputs.get(layer) != "true" for layer in ("client", "scientific", "runtime", "packaging"))):
         errors.append("a manual verification must run the full checks")
     if selected == "false":
         duplicate = outputs.get("duplicate_pr", "")
@@ -108,7 +122,7 @@ def gate_errors(results, *, event_name, ref):
                 or int(duplicate) < 1):
             errors.append("only a matching development-branch push may delegate checks to a PR")
         expected = dict.fromkeys(("documentation", "linux-checks", "windows-checks", "macos-checks",
-                                  "scientific", "runtime", "packaging"), "skipped")
+                                  "scientific", "caller-smoke", "runtime", "packaging"), "skipped")
         expected["acceptance"] = "skipped"
     else:
         if selected != "true":
@@ -122,6 +136,7 @@ def gate_errors(results, *, event_name, ref):
             if (any(outputs.get(layer) != "false" for layer in ("client", "runtime", "packaging"))
                     or outputs.get("scientific") != ("true" if docs == "image" else "false")):
                 errors.append("documentation or acceptance selection conflicts with changed application layers")
+        expected["caller-smoke"] = "success" if smoke == "true" else "skipped"
         for layer in ("scientific", "runtime", "packaging"):
             selected_layer = outputs.get(layer)
             if selected_layer not in {"true", "false"}:

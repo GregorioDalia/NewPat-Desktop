@@ -3,12 +3,14 @@
 import copy
 import json
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
 import acceptance_ci as checker
 import automatic_release as automatic
+from ci_changes import changed_paths
 import publish_windows_release as publisher
 import qualification_evidence as qualification
 from nipat.repository import LEGACY_REPOSITORY, RENAMED_REPOSITORY
@@ -158,33 +160,83 @@ class AcceptanceEvidenceTests(unittest.TestCase):
 class AutomaticPublicationTests(unittest.TestCase):
     def setUp(self):
         self.revision = "b" * 40
-        self.run = {"id": 123, "head_sha": self.revision, "head_branch": "main", "event": "push",
+        self.base = "a" * 40
+        self.run = {"id": 123, "run_attempt": 2, "head_sha": self.revision, "head_branch": "main", "event": "push",
                     "path": ".github/workflows/ci.yml", "status": "completed", "conclusion": "success",
                     "repository": {"full_name": publisher.REPO, "id": int(publisher.REPOSITORY_ID)}, "head_repository": {"full_name": publisher.REPO, "id": int(publisher.REPOSITORY_ID)}}
-        self.jobs = [{"name": "acceptance", "conclusion": "success"}, {"name": "required", "conclusion": "success"}]
+        self.marker = {"name": f"Verified acceptance-only push from {self.base}", "conclusion": "success"}
+        self.jobs = [{"name": "acceptance", "conclusion": "success", "steps": [self.marker]},
+                     {"name": "required", "conclusion": "success"}]
 
     def paths(self, run=None, jobs=None, paths=None):
-        fetch = Mock(side_effect=[run or self.run, {"jobs": jobs if jobs is not None else self.jobs}])
-        with patch.object(publisher, "command", return_value="a" * 40), \
-                patch.object(automatic, "changed_paths", return_value=paths if paths is not None else [RECORD_PATH]):
-            return automatic.accepted_paths({"workflow_run": {"id": 123}}, self.revision, fetch=fetch)
+        responses = {"actions/runs/123/attempts/2": run or self.run,
+                     "actions/runs/123/attempts/2/jobs?per_page=100": {"jobs": self.jobs if jobs is None else jobs}}
+        event = {"workflow_run": {"id": 123, "run_attempt": 2}}
+        if paths is None:
+            return automatic.accepted_paths(event, self.revision, fetch=responses.__getitem__)
+        with patch.object(automatic, "changed_paths", return_value=paths) as diff:
+            result = automatic.accepted_paths(event, self.revision, fetch=responses.__getitem__)
+            diff.assert_called_once_with(self.base, self.revision)
+            return result
 
     def test_completed_main_ci_selects_acceptance_only(self):
-        self.assertEqual(self.paths(), [RECORD_PATH])
-        self.assertEqual(self.paths(paths=[RECORD_PATH, "src/nipat/cli.py"]), [])
-        self.assertEqual(self.paths(paths=[]), [])
+        self.assertEqual(self.paths(paths=[RECORD_PATH]), [RECORD_PATH])
+        for paths in ([RECORD_PATH, "src/nipat/cli.py"], []):
+            with self.subTest(paths=paths), self.assertRaisesRegex(ValueError, "push range"):
+                self.paths(paths=paths)
+
+    def test_rebase_push_compares_all_commits_with_the_ci_base(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            repository = Path(temporary)
+            def git(*args):
+                return subprocess.check_output(["git", *args], cwd=repository, text=True).strip()
+            git("init", "-q")
+            git("config", "user.email", "ci@example.invalid")
+            git("config", "user.name", "CI test")
+            git("commit", "-qm", "base", "--allow-empty")
+            original = git("rev-parse", "HEAD")
+            (repository / "application.py").write_text("changed\n")
+            git("add", ".")
+            git("commit", "-qm", "application changes")
+            records_base = git("rev-parse", "HEAD")
+            second_path = ".github/release-acceptance/v0.8.61.json"
+            for path in (RECORD_PATH, second_path):
+                target = repository / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text("{}")
+                git("add", path)
+                git("commit", "-qm", path)
+            self.revision = self.run["head_sha"] = git("rev-parse", "HEAD")
+            with patch.object(automatic, "changed_paths",
+                              side_effect=lambda base, head: changed_paths(base, head, repository=repository)):
+                self.marker["name"] = f"Verified acceptance-only push from {original}"
+                with self.assertRaisesRegex(ValueError, "push range"):
+                    self.paths()
+                self.marker["name"] = f"Verified acceptance-only push from {records_base}"
+                self.assertEqual(self.paths(), [RECORD_PATH, second_path])
 
     def test_fork_pr_failed_wrong_workflow_or_different_commit_cannot_publish(self):
-        for field, value in (("id", 124), ("head_sha", "c" * 40), ("head_branch", "feature"),
+        for field, value in (("id", 124), ("run_attempt", 1), ("head_sha", "c" * 40), ("head_branch", "feature"),
                              ("event", "pull_request"), ("path", ".github/workflows/other.yml"),
                              ("conclusion", "failure"), ("status", "in_progress"),
                              ("head_repository", {"full_name": "fork/nipat"})):
             with self.subTest(field=field), self.assertRaises(ValueError):
                 self.paths(run=dict(self.run, **{field: value}))
 
-    def test_skipped_or_missing_acceptance_cannot_publish(self):
-        for jobs in (self.jobs[1:], [{"name": "acceptance", "conclusion": "skipped"}, self.jobs[1]]):
-            with self.assertRaises(ValueError):
+    def test_mixed_ordinary_and_legacy_runs_have_no_publication_proof(self):
+        for jobs in (self.jobs[1:], [{"name": "acceptance", "conclusion": "skipped"}, self.jobs[1]],
+                     [dict(self.jobs[0], steps=[]), self.jobs[1]],
+                     [dict(self.jobs[0], steps=[dict(self.marker, conclusion="skipped")]), self.jobs[1]]):
+            with self.subTest(jobs=jobs):
+                self.assertEqual(self.paths(jobs=jobs), [])
+
+    def test_required_job_and_unique_proof_are_mandatory(self):
+        for jobs in (self.jobs[:1], [self.jobs[0], dict(self.jobs[1], conclusion="skipped")],
+                     self.jobs + self.jobs[:1], [dict(self.jobs[0], steps=[self.marker] * 2), self.jobs[1]],
+                     [dict(self.jobs[0], steps=[dict(self.marker, conclusion="cancelled")]), self.jobs[1]],
+                     [dict(self.jobs[0], steps=[dict(self.marker, name="Verified acceptance-only push from invalid")]),
+                      self.jobs[1]]):
+            with self.subTest(jobs=jobs), self.assertRaises(ValueError):
                 self.paths(jobs=jobs)
 
     def test_automatic_arguments_are_bound_to_the_reviewed_record(self):
@@ -349,7 +401,11 @@ class AutomaticPublicationTests(unittest.TestCase):
         self.assertIn("  push:\n    branches: [main]", ci)
         self.assertIn("  pull_request:", ci)
         self.assertIn("  workflow_dispatch:", ci)
-        self.assertIn("packaging, acceptance]", ci)
+        self.assertRegex(ci.split("\n  required:\n", 1)[1], r"needs: \[[^\n]*\bacceptance\b")
+        marker = ci.split("run: python .github/scripts/acceptance_ci.py\n", 1)[1].split("\n  documentation:", 1)[0]
+        self.assertIn("Verified acceptance-only push from ${{ github.event.before }}", marker)
+        self.assertIn("github.event_name == 'push' && github.ref == 'refs/heads/main'", marker)
+        self.assertIn("needs.changes.outputs.acceptance_only == 'true'", marker)
         automatic_workflow = (ROOT / ".github/workflows/publish-accepted-release.yml").read_text()
         self.assertIn("    branches: [main]", automatic_workflow)
         self.assertIn("github.event.workflow_run.event == 'push'", automatic_workflow)

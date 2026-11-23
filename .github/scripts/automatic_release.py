@@ -17,23 +17,40 @@ from scientific_reuse import fetch_json
 def accepted_paths(event, revision, *, fetch=fetch_json):
     trigger = event.get("workflow_run") or {}
     run_id = trigger.get("id")
-    publisher.require(type(run_id) is int and run_id > 0, "Missing completed CI run")
-    run = fetch(f"actions/runs/{run_id}")
-    publisher.require(run.get("id") == run_id and run.get("head_sha") == revision
+    attempt = trigger.get("run_attempt")
+    publisher.require(type(run_id) is int and run_id > 0 and type(attempt) is int and attempt > 0,
+                      "Missing completed CI run or attempt")
+    endpoint = f"actions/runs/{run_id}/attempts/{attempt}"
+    run = fetch(endpoint)
+    publisher.require(run.get("id") == run_id and run.get("run_attempt") == attempt and run.get("head_sha") == revision
                       and run.get("head_branch") == "main" and run.get("event") == "push"
                       and run.get("path") == ".github/workflows/ci.yml"
                       and (run.get("status"), run.get("conclusion")) == ("completed", "success")
                       and all(publisher.official_run_repository(run.get(field)) for field in ("repository", "head_repository")),
                       "Automatic publication requires this repository's successful main push CI")
-    parent = publisher.command("git", "rev-parse", f"{revision}^1")
-    paths = changed_paths(parent, revision)
-    if not acceptance_only(paths):
+    jobs = fetch(f"{endpoint}/jobs?per_page=100")["jobs"]
+    gates = [job for job in jobs if job.get("name") == "required"]
+    publisher.require(len(gates) == 1 and gates[0].get("conclusion") == "success",
+                      "Automatic publication requires successful required verification")
+    checks = [job for job in jobs if job.get("name") == "acceptance"]
+    publisher.require(len(checks) <= 1, "Ambiguous acceptance verification")
+    if not checks or checks[0].get("conclusion") == "skipped":
         return []
-    jobs = fetch(f"actions/runs/{run_id}/jobs?per_page=100")["jobs"]
-    for name in ("acceptance", "required"):
-        matches = [job for job in jobs if job.get("name") == name]
-        publisher.require(len(matches) == 1 and matches[0].get("conclusion") == "success",
-                          f"Automatic publication requires successful {name} verification")
+    publisher.require(checks[0].get("conclusion") == "success",
+                      "Automatic publication requires successful acceptance verification")
+    # A rebase merge can add multiple commits. GitHub binds this step's name to
+    # event.before for the entire push that CI classified and verified.
+    prefix = "Verified acceptance-only push from "
+    markers = [step for step in checks[0].get("steps", []) if step.get("name", "").startswith(prefix)]
+    if not markers or (len(markers) == 1 and markers[0].get("conclusion") == "skipped"):
+        return []  # Ordinary changes and older CI runs carry no publication proof.
+    publisher.require(len(markers) == 1 and markers[0].get("conclusion") == "success",
+                      "Incomplete acceptance-only push verification")
+    base = markers[0]["name"].removeprefix(prefix)
+    publisher.require(re.fullmatch(r"[0-9a-f]{40}", base) and base != "0" * 40,
+                      "Invalid acceptance-only push base")
+    paths = changed_paths(base, revision)
+    publisher.require(acceptance_only(paths), "Verified push range must contain only acceptance records")
     return paths
 
 

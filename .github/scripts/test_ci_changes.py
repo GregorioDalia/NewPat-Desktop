@@ -231,6 +231,44 @@ class ScientificSelection(unittest.TestCase):
     def test_manual_request_runs_scientific_checks_without_changes(self):
         self.assertTrue(changes.scientific_decision(self.base, self.base, force=True, repository=self.root)[0])
 
+    def test_reviewed_desktop_inputs_cannot_expand_the_shortcut_to_other_gui_or_science(self):
+        def selection(*paths, force=False):
+            decision, _ = changes.select_layers(paths, force=force)
+            return decision["scientific"], *changes.desktop_checks(paths, decision)
+
+        for path in changes.PRESENTATION_FILES:
+            self.assertEqual(selection(path), (False, "focused", False), path)
+        for path in changes.CALLER_INTEGRATION_FILES:
+            self.assertEqual(selection(path, "src/nipat/gui/web/style.css", "docs/GUI.md"),
+                             (False, "focused", True), path)
+        presentation = "src/nipat/gui/web/i18n.js"
+        reference = "src/nipat/gui/references.py"
+        self.assertEqual(selection(reference, "installer/windows/setup.iss"), (False, "standard", True))
+        for path in ("src/nipat/gui/plan.py", "src/nipat/gui/new_capability.py",
+                     "src/nipat/gui/jobs.py", "src/nipat/gui/admission.py",
+                     "src/nipat_scientific/desktop_scheduling.py", "src/nipat_scientific/settings_data.json",
+                     "src/nipat_scientific/dnp.py", "src/nipat/resources.py", "config/defaults.toml",
+                     "installer/runtime/Dockerfile", "engine/main.py", ".github/workflows/ci.yml",
+                     "new-area/something", *changes.SMOKE_HARNESS):
+            self.assertEqual(selection(reference, presentation, path), (True, "standard", False), path)
+        self.assertEqual(selection(reference, force=True), (True, "standard", False))
+
+    def test_pr_and_main_classify_the_entire_comparison_including_earlier_commits(self):
+        self.write("src/nipat/gui/references.py", "new reference import")
+        self.commit()
+        self.write("src/nipat/gui/web/style.css", "new color")
+        values = self.selection()
+        self.assertEqual((values["desktop_scope"], values["caller_smoke"]), ("focused", "true"))
+        self.write("docs/GUI.md", "guide")
+        values = self.selection(event="push")
+        self.assertEqual((values["desktop_scope"], values["caller_smoke"]), ("focused", "true"))
+        self.write("src/nipat/gui/plan.py", "changed parameters")
+        self.commit()
+        self.write("src/nipat/gui/web/style.css", "another color")
+        values = self.selection()
+        self.assertEqual((values["scientific"], values["desktop_scope"], values["caller_smoke"]),
+                         ("true", "standard", "false"))
+
     def test_catalog_and_plan_changes_require_real_engine_checks(self):
         for name in (
             "src/nipat_scientific/catalog_data/dnp-call.json",

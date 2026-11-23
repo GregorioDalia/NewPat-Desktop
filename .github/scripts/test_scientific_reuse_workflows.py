@@ -45,10 +45,15 @@ class ScientificReuseWorkflows(unittest.TestCase):
         self.assertIn("id: scientific_reuse", step)
         self.assertIn("if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.ref_protected", step)
         self.assertIn("GH_TOKEN: ${{ github.token }}", step)
-        self.assertIn('scientific_reuse.py restore', step)
-        self.assertLess(self.producer.index("Build scientific runtime"), self.producer.index(name))
+        self.assertIn('scientific_reuse.py restore --promote-image', step)
         self.assertLess(self.producer.index("Prepare scientific presentation tools"), self.producer.index(name))
-        self.assertTrue(all(self.producer.index(name) < self.producer.index(check) for check in CHECKS))
+        for build_step in ("Set up Buildx", "Build scientific runtime using the dependency cache"):
+            self.assertLess(self.producer.index(name), self.producer.index(build_step))
+            self.assertIn("if: " + FALLBACK, steps(self.producer)[build_step])
+        notices_name = "Verify distribution notices in the built image"
+        self.assertLess(self.producer.index("Build scientific runtime"), self.producer.index(notices_name))
+        self.assert_blocking(steps(self.producer)[notices_name])
+        self.assertTrue(all(self.producer.index(notices_name) < self.producer.index(check) for check in CHECKS))
         self.assertIn("build/scientific-reuse/reuse.json", steps(self.producer)["Retain scientific diagnostics"])
 
     def test_producer_seals_and_uploads_only_after_all_seven_checks_succeed(self):
@@ -84,29 +89,55 @@ class ScientificReuseWorkflows(unittest.TestCase):
         self.assertIn("if: always()", diagnostics)
         self.assertIn("name: nipat-ci-scientific-logs", diagnostics)
 
-    def test_restore_checks_the_built_image_before_any_reusable_gate(self):
+    def test_image_is_saved_by_id_and_its_exact_archive_is_sealed_before_upload(self):
+        producer = steps(self.producer)
+        export_name = "Export qualified scientific Docker image"
+        seal_name = "Seal successful scientific qualification for exact-image reuse"
+        upload_name = "Retain qualified scientific Docker image"
+        export, seal, upload = producer[export_name], producer[seal_name], producer[upload_name]
+        self.assertEqual(re.findall(r"(?m)^        if: (.+)$", export), re.findall(r"(?m)^        if: (.+)$", seal))
+        self.assertTrue(all(self.producer.index(check) < self.producer.index(export_name) for check in CHECKS))
+        self.assertLess(self.producer.index(export_name), self.producer.index(seal_name))
+        self.assertLess(self.producer.index(seal_name), self.producer.index(upload_name))
+        self.assertIn("id: scientific_image_export", export)
+        self.assertIn("docker image inspect --format '{{.Id}}'", export)
+        self.assertIn('docker image save --output "$RUNNER_TEMP/scientific-runtime.tar.partial" "$image_id"', export)
+        self.assertIn('mv "$RUNNER_TEMP/scientific-runtime.tar.partial" "$RUNNER_TEMP/scientific-runtime.tar"', export)
+        self.assertIn('--runtime-archive "$RUNNER_TEMP/scientific-runtime.tar"', seal)
+        self.assertIn("if: steps.scientific_qualification.outcome == 'success' && steps.scientific_image_export.outcome == 'success'", upload)
+        self.assertIn("actions/upload-artifact@", upload)
+        self.assertIn("name: nipat-scientific-image-${{ github.run_attempt }}-"
+                      "${{ steps.scientific_qualification.outputs.source_tree }}", upload)
+        self.assertIn("path: ${{ runner.temp }}/scientific-runtime.tar", upload)
+        self.assertIn("retention-days: 3", upload)
+        for optional in (export, upload):
+            self.assertIn("continue-on-error: true", optional)
+
+    def test_installer_promotes_the_exact_image_before_the_fallback_build(self):
         runtime = steps(self.runtime)
         build_name = "Build scientific runtime using the dependency cache"
         restore_name = "Restore verified CI qualification for the exact source and image"
         build, restore = runtime[build_name], runtime[restore_name]
-        self.assert_blocking(build)
+        self.assertEqual(re.findall(r"(?m)^        if: (.+)$", build), [FALLBACK])
+        self.assertNotIn("continue-on-error:", build)
         self.assertIn("file: docker/scientific-runtime/Dockerfile", build)
         self.assertIn("load: true", build)
-        self.assertLess(self.runtime.index(build_name), self.runtime.index(restore_name))
+        self.assertLess(self.runtime.index(restore_name), self.runtime.index(build_name))
         self.assert_blocking(restore)
         self.assertIn("id: scientific_reuse", restore)
         self.assertIn("GH_TOKEN: ${{ github.token }}", restore)
         self.assertIn("scientific_reuse.py restore", restore)
+        self.assertIn("--promote-image", restore)
         self.assertIn('--image "$NIPAT_RUNTIME_IMAGE" --output-dir build/scientific-reuse', restore)
         self.assertIn('--runner-temp "$RUNNER_TEMP" --output "$GITHUB_OUTPUT"', restore)
         for name in CHECKS:
             self.assertLess(self.runtime.index(restore_name), self.runtime.index(name))
 
-    def test_only_explicit_verified_reuse_can_skip_exactly_the_seven_gates(self):
+    def test_only_verified_reuse_can_skip_the_build_and_seven_gates(self):
         runtime = steps(self.runtime)
         conditional = {name for name, step in runtime.items()
                        if "steps.scientific_reuse.outputs.reused" in step}
-        self.assertEqual(conditional, set(CHECKS))
+        self.assertEqual(conditional, set(CHECKS) | {"Build scientific runtime using the dependency cache"})
         for name, commands in CHECKS.items():
             with self.subTest(check=name):
                 step = runtime[name]

@@ -111,7 +111,7 @@ def producer_finished(receipt, *, fetch=science.fetch_json, clock=time.monotonic
                     return False
             science.validate_run(run)
             return True
-    except (OSError, ValueError, KeyError, TypeError, AttributeError, RuntimeError) as error:
+    except science.LOOKUP_ERRORS as error:
         # Keep API messages and authentication details out of public logs.
         print(f"Optional wait unavailable ({type(error).__name__}). Running installer checks.", flush=True)
     return False

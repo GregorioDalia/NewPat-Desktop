@@ -5,7 +5,7 @@ A release publishes the packages produced by a reviewed GitHub Actions installer
 ## 1. Build the candidate
 
 1. Check that `pyproject.toml`, the client version and release notes identify the intended version. Use `docs/RELEASE_VERSION.md` with the actual version in the filename.
-2. Run **Installers (review build)** on the reviewed commit of `main`, `release/VERSION` or a corresponding `release/VERSION-…` branch. Building from integrated `main` makes commit ancestry straightforward. For an already built release branch, use a merge that preserves the built commit as an ancestor of `main`. A squash or rebase may require a new build even with identical file contents.
+2. Run **Installers (review build)** with the default full build (`windows_zip_only` unchecked) on the reviewed commit of `main`, `release/VERSION` or a corresponding `release/VERSION-…` branch. Building from integrated `main` makes commit ancestry straightforward. For an already built release branch, use a merge that preserves the built commit as an ancestor of `main`. A squash or rebase may require a new build even with identical file contents.
 3. Record the full source SHA, installer build run ID, workflow attempt and resulting digests. Require the successful `installer-required` check and all required platform packages. A pull request's CI artifacts cannot substitute for this installer build.
 
 The builder checks the client, qualifies the scientific image, exports the common archive and packages files allowed by `distribution-files.txt`. It may reuse successful scientific evidence from the exact Git tree and immutable image. Without verified matching evidence it runs the scientific checks itself. [CI evidence reuse](../docs/CI_CD.md#scientific-evidence-reuse)
@@ -18,6 +18,10 @@ The builder checks the client, qualifies the scientific image, exports the commo
 | `nipat-macos-setup-arm64`, `nipat-macos-setup-x86_64` | Native PKG and package report for each macOS architecture. |
 | `nipat-scientific-check-logs` | Scientific reports and the executed/reused provenance in `reuse.json`. |
 | `nipat-installer-set-evidence` | `installer-set-check.json`, which identifies the four installers together. |
+
+### Local Windows ZIP review
+
+To test a candidate on a Windows PC, enable `windows_zip_only` when dispatching the installer workflow on its reviewed revision. Download `newpat-windows-review-zip`, extract the complete ZIP inside it and run `1_INSTALL.cmd`. The release publisher requires the full four-platform build and its scientific and installer evidence.
 
 ### Platform evidence
 
@@ -54,7 +58,7 @@ Use `reviewed-operative-changes-with-versioned-scientific-models-v1` for the sch
 
 ## 3. Publish the accepted build
 
-**Automatic route.** After integrating the source, merge an acceptance-only pull request to `main`. The Linux acceptance CI verifies the record and build evidence. A successful push run with `acceptance` and `required` can trigger **Publish accepted release** for the recorded build/channel. Merging an accepted record can publish the build. Use the manual workflow for a mixed change or a deliberately separated draft review.
+**Automatic route.** After integrating the source, merge an acceptance-only pull request to `main`. The Linux acceptance CI verifies the record and build evidence. A successful push run with `acceptance`, `required` and a verified acceptance-only change across the full push can trigger **Publish accepted release** for the recorded build/channel. Merging an accepted record can publish the build. Use the manual workflow for a mixed change or a deliberately separated draft review.
 
 **Manual route.** Dispatch **Prepare or publish verified release** from `main`. After authorizing the release, select one of the following:
 

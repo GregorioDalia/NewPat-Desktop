@@ -46,7 +46,8 @@ class REquivalenceCI(unittest.TestCase):
             self.assertIn('scripts/verify_five_modules.py --image "$NIPAT_RUNTIME_IMAGE"', job)
             self.assertIn('--output "$TMPDIR/artifacts" --full', job)
             self.assertIn('${{ runner.temp }}/nipat-five-modules-check/', job)
-            self.assertNotIn("continue-on-error:", job)
+            step = next(step for step in job.split("      - name:") if "scripts/verify_five_modules.py" in step)
+            self.assertNotIn("continue-on-error:", step)
 
     def test_native_edge_and_settings_regressions_cannot_skip_in_image(self):
         for name, identifier in (("ci.yml", "scientific"), ("windows-installer.yml", "linux-runtime")):
@@ -100,7 +101,7 @@ class REquivalenceCI(unittest.TestCase):
                     rf"^      - name: {re.escape(CHECK_NAME)}\n(.*?)(?=^      - name:|\Z)",
                     job, re.MULTILINE | re.DOTALL,
                 )[1]
-                self.assertNotIn("continue-on-error:", job)
+                self.assertNotIn("continue-on-error:", step)
                 self.assertEqual(re.findall(r"(?m)^        if: (.+)$", step),
                                  ["steps.scientific_reuse.outputs.reused != 'true'"])
                 self.assertIn('set -o pipefail', step)

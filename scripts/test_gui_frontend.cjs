@@ -384,5 +384,40 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
   const cards=app.renderRun();
   check((cards.match(/class="outcome-preview"/g)||[]).length===3&&cards.includes('Family &lt;1&gt;')&&cards.includes('Family 3')&&!cards.includes('Family 4')&&cards.includes(it?'Altri risultati nella scheda di analisi':'More results in the analysis tab'),'Module cards show named subjects and link to additional entries '+lang);
  }
+ // Verify the plan that crosses the RPC boundary when the user starts a family analysis.
+ const pair = {id: 'pair', mother: 'M', father: 'F'};
+ const trio = {id: 'trio', mother: 'M', father: 'F', child: 'C'};
+ const resources = marker => ({
+  panel: marker+'.tsv', popfreq: marker+'-freq.tsv', contamination_panel: marker+'-contamination.tsv',
+  cpi_cutoffs: [{label: 'cutoff', path: marker+'-cutoff.tsv'}], cpin_panel: marker+'-post.tsv'
+ });
+ for (const caller of ['both', 'snp']) {
+  await app.action('navigate', {view: 'new'});
+  Object.assign(app.state.draft, {
+   name: 'Families', caller, samples: ['M','F','C'].map(id=>({id, kind:'bam', path:'/bam/'+id+'.bam'})),
+   reference: '/ref/family.fa', reference_id: 'registered-fasta',
+   families: {cpi:[pair], cpin:[trio]}, branches: {DNP:['cpi'], SNP:['cpin','contamination']},
+   resources: {DNP:resources('DNP'), SNP:resources('SNP')}
+  });
+  handlers['plan.preview'] = params => ({...originalPreview(params), preview_id:'families-'+caller});
+  const offset = requests.length;
+  await app.action('start-analysis', {});
+  const familyCalls = requests.slice(offset).filter(r=>['plan.preview','analysis.start'].includes(r.method));
+  assert.deepEqual(familyCalls.map(r=>r.method), ['plan.preview', 'analysis.start']);
+  assert.deepEqual(familyCalls[1].params, {preview_id:'families-'+caller});
+  const sent = familyCalls[0].params.draft;
+  const dnpIncluded = caller === 'both';
+  assert.deepEqual(sent.families, {cpi:dnpIncluded?[pair]:[], cpin:[trio]});
+  assert.deepEqual(sent.branches, {DNP:dnpIncluded?['cpi']:[], SNP:['cpin','contamination']});
+  assert.deepEqual(sent.resources.DNP, dnpIncluded ? {
+   panel:'DNP.tsv', popfreq:'DNP-freq.tsv', cpi_cutoffs:[{label:'cutoff', path:'DNP-cutoff.tsv'}]
+  } : {});
+  assert.deepEqual(sent.resources.SNP, {
+   panel:'SNP.tsv', popfreq:'SNP-freq.tsv', contamination_panel:'SNP-contamination.tsv', cpin_panel:'SNP-post.tsv'
+  });
+  check(sent.reference === '/ref/family.fa' && sent.reference_id === 'registered-fasta',
+        'Family analysis submits its registered FASTA and selected resources for '+caller);
+ }
+ handlers['plan.preview'] = originalPreview;
  console.log(JSON.stringify({status:'passed',assertions:checks.length,rpcCalls:requests.length,scope:'Frontend state/RPC/markup; native rendering tested separately'}));
 })().catch(error=>{console.error(error);process.exitCode=1});

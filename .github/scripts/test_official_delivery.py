@@ -114,7 +114,7 @@ class OfficialDeliveryTests(unittest.TestCase):
         self.assertNotRegex(windows_header, r"(?m)^    if:")
         required = jobs["installer-required"]
         self.assertIn("needs: [windows-installer, linux-installer, macos-installer]", required)
-        self.assertRegex(required, r"(?m)^    if: always\(\)$")
+        self.assertRegex(required, r"(?m)^    if: always\(\) && !inputs\.windows_zip_only$")
         script = re.search(r"python - <<'PY'\n(.*?)^          PY$", required,
                            flags=re.MULTILINE | re.DOTALL)[1]
         code = compile(textwrap.dedent(script), "installer-required gate", "exec")
@@ -128,6 +128,42 @@ class OfficialDeliveryTests(unittest.TestCase):
                 with mock.patch.dict(os.environ, {"CHECK_RESULTS": json.dumps(results)}), \
                         self.assertRaises(SystemExit):
                     exec(code, {})
+
+    def test_windows_zip_review_reuses_the_offline_package_and_executes_it_before_upload(self):
+        workflow = (Path(__file__).resolve().parents[1] / "workflows/windows-installer.yml").read_text()
+        self.assertRegex(workflow, r"windows_zip_only:\n(?: +[^\n]*\n)*?        default: false\n        type: boolean")
+        self.assertIn("  release-source:\n    if: ${{ !inputs.windows_zip_only }}", workflow)
+        self.assertIn("  installer-required:\n    if: always() && !inputs.windows_zip_only", workflow)
+        runtime, native = workflow.split("\n  windows-zip-runtime:\n", 1)[1].split("\n  windows-zip-review:\n")
+        self.assertIn("    if: inputs.windows_zip_only\n", runtime)
+        self.assertIn("if: inputs.qualify_macos_runtime", runtime)
+        for step in ("*review-source", "*scientific-build", "*rootfs-build", "*export-and-stage"):
+            self.assertIn(step, runtime)
+        self.assertIn("include-hidden-files: true", runtime)
+        self.assertIn("needs: windows-zip-runtime", native)
+        self.assertIn("runs-on: windows-", native)
+        self.assertLess(native.index("*review-inventory"), native.index("*review-zip"))
+        self.assertLess(native.index("*review-zip"), native.index("name: newpat-windows-review-zip"))
+        self.assertIn("installer/windows/zip_package.py build", workflow)
+        self.assertIn("installer/windows/test-zip-package.ps1", workflow)
+        for forbidden in ("nipat-installer-set-evidence", "nipat-windows-setup", "continue-on-error:", "if: always()"):
+            self.assertNotIn(forbidden, runtime + native)
+
+    def test_successful_windows_zip_review_cannot_satisfy_release_acceptance(self):
+        import acceptance_ci
+
+        version = "0.9.10"
+        repo = {"full_name": publisher.REPO, "id": int(publisher.REPOSITORY_ID)}
+        record = {"build_run_id": 12, "source_commit": "a" * 40, "version": version}
+        run = {"id": 12, "head_sha": record["source_commit"], "status": "completed",
+               "conclusion": "success", "event": "workflow_dispatch",
+               "path": ".github/workflows/windows-installer.yml", "repository": repo, "head_repository": repo}
+        jobs = [{"name": name, "conclusion": "skipped"} for name in publisher.required_build_jobs(version)]
+        jobs.extend({"name": name, "conclusion": "success"} for name in ("windows-zip-runtime", "windows-zip-review"))
+        with self.assertRaisesRegex(ValueError, "Missing successful build job"):
+            acceptance_ci.validate_build(record, run, jobs)
+        with self.assertRaisesRegex(ValueError, "Missing or ambiguous build evidence artifact"):
+            acceptance_ci.evidence_artifact({"artifacts": [{"name": "newpat-windows-review-zip"}]}, record)
 
     def test_publisher_required_jobs_match_actual_workflow_display_names(self):
         workflow = (Path(__file__).resolve().parents[1] / "workflows/windows-installer.yml").read_text()
