@@ -8,9 +8,9 @@ Use the [desktop guide](GUI.md) for interactive experiments. The command line ex
 
 | Platform | How to start |
 | --- | --- |
-| Windows x64 | Start **NewPat** from the Start menu for the desktop. Use `newpat.cmd` in the installed application directory for commands. [Windows guide](INSTALLATORE_WINDOWS.md) |
-| macOS 14 or later | Open **NewPat** in Applications. For commands use `"/Applications/NewPat.app/Contents/Resources/NewPat.command"`. Select the installer for your Mac's processor. [macOS guide](INSTALLATORE_MACOS.md) |
-| Ubuntu 24.04 x86_64 | Run `newpat` for the desktop, `newpat wizard` for the text menu, or `newpat --help` for commands. [Ubuntu guide](INSTALLATORE_LINUX.md) |
+| Windows x64 | Start **NewPat** from the Start menu for the desktop. Use `newpat.cmd` in the installed application directory for commands. [Windows guide](WINDOWS_INSTALLER.md) |
+| macOS 14 or later | Open **NewPat** in Applications. For commands use `"/Applications/NewPat.app/Contents/Resources/NewPat.command"`. Select the installer for your Mac's processor. [macOS guide](MACOS_INSTALLER.md) |
+| Ubuntu 24.04 x86_64 | Run `newpat` for the desktop, `newpat wizard` for the text menu, or `newpat --help` for commands. [Ubuntu guide](LINUX_INSTALLER.md) |
 
 For a Windows setup installation, open PowerShell and set the launcher variable once for the examples in this guide:
 
@@ -82,15 +82,15 @@ With the default prefixes, `--pairs A1:A1` selects `MotherA1.txt` and `FatherA1.
 & $newpat cpi --input-dir ".\pairs" --pairs "A1:A1" --popfreq ".\population.tsv"
 ```
 
-### Postnatal CPIN
+### Postnatal CPI
 
-Supply the mother, alleged father and child tables, trio assignments and population frequencies. Use three distinct samples per trio, the same coordinate scheme as the frequency table, and both REF and ALT alleles in an optional CPIN filter panel. With the default prefixes, `--trios A:A:A` selects `MotherA.txt`, `FatherA.txt` and `ChildA.txt`. Separate multiple trios with commas. `cpin.site_selection` accepts `other_allele`, `all` and `both`.
+Supply the mother, alleged father and child tables, trio assignments and population frequencies. Use three distinct samples per trio, the same coordinate scheme as the frequency table, and both REF and ALT alleles in an optional postnatal CPI filter panel. With the default prefixes, `--trios A:A:A` selects `MotherA.txt`, `FatherA.txt` and `ChildA.txt`. Separate multiple trios with commas. `cpin.site_selection` accepts `other_allele`, `all` and `both`.
 
 ```powershell
 & $newpat cpin --input-dir ".\trios" --trios "A:A:A" --popfreq ".\population.tsv"
 ```
 
-See [input validation](INPUT_VALIDATION.md) for file checks and warnings, and the [scientific catalog](CATALOGO_SCIENTIFICO.md) for formulas, thresholds and settings.
+See [input validation](INPUT_VALIDATION.md) for file checks and warnings, and the [scientific catalog](SCIENTIFIC_CATALOG.md) for formulas, thresholds and settings.
 
 ## Inspect and set scientific parameters
 
@@ -107,7 +107,7 @@ See [input validation](INPUT_VALIDATION.md) for file checks and warnings, and th
 
 ## Build a workflow
 
-With `workflow analyze`, choose the callers and the downstream analyses for each marker type. DNPcall and SNPcall produce independent count tables. Contamination, CPI and CPIN read the selected caller's tables directly. Each branch uses its own panel and population frequencies.
+With `workflow analyze`, choose the callers and the downstream analyses for each marker type. DNPcall and SNPcall produce independent count tables. Contamination, prenatal and postnatal CPI read the selected caller's tables directly. Each branch uses its own panel and population frequencies.
 
 In this example the same two BAMs feed both callers. The DNP counts go to prenatal CPI and the SNP counts go to Contamination. Family roles refer to the IDs declared by `--sample`.
 
@@ -119,7 +119,7 @@ In this example the same two BAMs feed both callers. The DNP counts go to prenat
   --pair Family1 Plasma Father --dnp-popfreq ".\dnp-frequencies.tsv"
 ```
 
-Use `--pair ID MATERNAL_CFDNA FATHER` for CPI and `--trio ID MOTHER FATHER CHILD` for CPIN. Assign the roles explicitly for each family. If both branches use a pair or trio, its sample IDs must be present in both. The shared `--analyses` option sets the downstream analyses for all selected branches; `--dnp-analyses` and `--snp-analyses` select individual branches. Each CPI or CPIN branch needs its corresponding frequencies.
+Use `--pair ID MATERNAL_CFDNA FATHER` for prenatal CPI and `--trio ID MOTHER FATHER CHILD` for postnatal CPI. Assign the roles explicitly for each family. If both branches use a pair or trio, its sample IDs must be present in both. The shared `--analyses` option sets the downstream analyses for all selected branches; `--dnp-analyses` and `--snp-analyses` select individual branches. Each prenatal or postnatal CPI branch needs its corresponding frequencies.
 
 **Presets.** `workflow dnp-contamination`, `workflow dnp-cpi` and `workflow dnp-contamination-cpi` use the DNP counts for their downstream stages. An optional `--snp-panel` adds SNP calling on the same BAMs. `workflow snp-batch` accepts multiple BAMs (or a BAM list) or multiple existing pileups. Use `workflow analyze` for explicit sample IDs and branch-specific choices.
 
@@ -142,4 +142,4 @@ Launch `wizard` from your platform's command line for the guided text menu. The 
 
 Before starting, review the input files, settings and destination. The performance diagnostics option adds measurements for that run. Ctrl+C requests a stop and keeps the available logs. For a partially prepared Windows installation, open the setup log at `.runtime\installer\setup.log` under the application folder. For a failed run, open its HTML report and execution log; workflow steps also have their own status and command logs. Use `doctor --runtime` to check the engine and `self-test` to run the bundled numerical examples.
 
-[Reading results](ESECUZIONI.md) · [Resource settings](RISORSE.md) · [Performance diagnostics](PERFORMANCE.md) · [Reporting a validation case](VALIDAZIONE.md)
+[Reading results](RUNS.md) · [Resource settings](RESOURCES.md) · [Performance diagnostics](PERFORMANCE.md) · [Reporting a validation case](VALIDATION.md)

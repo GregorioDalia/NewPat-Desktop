@@ -62,7 +62,7 @@ class ExperimentalIdentityTests(unittest.TestCase):
         clauses = " ".join(match["condition"].split()).split(" && ")
         self.assertCountEqual(clauses, [
             "github.event_name == 'workflow_dispatch'", "inputs.qualify_macos_runtime == true",
-            "github.repository == 'GregorioDalia/nipat-desktop'",
+            "github.repository_id == '1307623649'",
             "((github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/0.8.')) || startsWith(github.ref, 'refs/heads/release/0.9.'))",
         ])
 
@@ -102,7 +102,7 @@ class DownloadIntegrityTests(unittest.TestCase):
         self.environment = {}
         for prefix, digest in (("WINDOWS", "a"), ("ARM64", "b"), ("INTEL", "c")):
             self.environment[prefix + "_SHA256"] = digest * 64
-            self.environment[prefix + "_URL"] = "https://github.com/GregorioDalia/nipat-desktop/actions/runs/123/artifacts/456"
+            self.environment[prefix + "_URL"] = f"https://github.com/{downloads.build_repository()}/actions/runs/123/artifacts/456"
 
     def test_all_three_direct_uploads_must_match_verified_bytes(self):
         self.assertEqual(len(downloads.download_rows(self.record, self.environment)), 3)

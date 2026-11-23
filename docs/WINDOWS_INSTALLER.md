@@ -11,9 +11,9 @@ Allow space for the application, downloaded archives, imported WSL filesystem, s
 ## Guided setup
 
 1. Double-click `NewPat-Setup.exe` from your regular account. The setup requests elevation for missing Windows prerequisites when needed.
-2. Select the application, WSL environment, cache, data and results directories. An empty application directory starts a new installation. A recognized installation offers update and repair. If Windows needs a reboot, restart and sign back in with the same account. The guided installer normally registers a one-time resume command there. If setup does not resume automatically, open **NewPat - completa preparazione** in the Start menu. This is the installed shortcut's name, including on an English-language system.
+2. Select the application, WSL environment, cache, data and results directories. An empty application directory starts a new installation. A recognized installation offers update and repair. If Windows needs a reboot, restart and sign back in with the same account. The guided installer normally registers a one-time resume command there. If setup does not resume automatically, open **NewPat - Resume Setup** in the Start menu. Releases through 0.9.9 label that shortcut **NewPat - completa preparazione**.
 3. Wait for archive verification, runtime preparation, diagnostics and self-tests. The completion message is **NewPat: ready**.
-4. Launch NewPat from setup, the Start menu or the optional desktop shortcut. The Start menu also has a shortcut that opens the application folder. To check the prepared system, run the [installed application test](COLLAUDO_INSTALLAZIONE.md).
+4. Launch NewPat from setup, the Start menu or the optional desktop shortcut. The Start menu also has a shortcut that opens the application folder. To check the prepared system, run the [installed application test](WINDOWS_INSTALLATION_TEST.md).
 
 The setup includes its own Python bootstrap and downloads a verified application payload from GitHub. Future compatible payloads can reuse the saved installer. A newer bootstrap may be required if the installer contract changes. For a new network installation use the installer supplied on the release page.
 
@@ -43,9 +43,9 @@ If the event names a temporary setup executable, include both that filename and 
 
 ## Complete ZIP installation
 
-1. Download `NewPat-0.9.9-Windows-completo.zip` from the release and compare its SHA-256 with `SHA256SUMS`. PowerShell can calculate the hash with `Get-FileHash -Algorithm SHA256 -LiteralPath .\NewPat-0.9.9-Windows-completo.zip`.
+1. Download `NewPat-<version>-Windows-complete.zip` from the release and compare its SHA-256 with `SHA256SUMS`. In PowerShell, use `Get-FileHash -Algorithm SHA256 -LiteralPath` followed by the actual download path.
 2. Extract the entire archive into its final location on a local fixed disk. Close the compressed-folder view and open the extracted files.
-3. Run `1_INSTALLA.cmd` as your regular user. Wait for **NewPat: ready**, including any required restart.
+3. Run `1_INSTALL.cmd` as your regular user. Wait for **NewPat: ready**, including any required restart.
 4. If Windows asks for a reboot, restart, sign back in and open `NIPAT\NewPat.lnk` **inside the extracted folder** to resume ZIP preparation. Once ready, the same shortcut opens the application. A normal first installation from the ZIP also opens NewPat when preparation succeeds.
 
 Keep the extracted `NIPAT` directory. It contains the active installation, data and results. The ZIP installs no Start menu shortcut. Python and scientific archives are included, but missing Windows prerequisites may still require a connection. Copying the folder to a different PC does not transfer its registered WSL environment.
@@ -57,7 +57,19 @@ Keep the extracted `NIPAT` directory. It contains the active installation, data 
 | Data, results and menu preferences | `data`, `runs`, `preferences.json` |
 | Launcher and preparation log | `NewPat.lnk`, `versions\<version>-<commit>\.runtime\installer\setup.log` |
 
-If Windows blocks the downloaded command file, first verify the original release ZIP checksum. For a verified archive, Windows may offer **Properties → Unblock → Apply** on the ZIP. Extract it into a fresh directory after applying the change. The bundled `LEGGIMI.txt` describes the checksum and extraction procedure for that package. Removing the internet-origin mark does not sign the files or override Code Integrity policy.
+If Windows blocks the downloaded command file, first verify the original release ZIP checksum. For a verified archive, Windows may offer **Properties → Unblock → Apply** on the ZIP. Extract it into a fresh directory after applying the change. The bundled `README.txt` describes the checksum and extraction procedure for that package. Removing the internet-origin mark does not sign the files or override Code Integrity policy.
+
+**Moving from 0.9.9.** The published 0.9.9 ZIP uses `1_INSTALLA.cmd`, `2_AVVIA.cmd` and `LEGGIMI.txt`. Its updater expects those exact archive members. The first move to the English layout requires the new ZIP. Close NewPat, extract that ZIP into a fresh temporary directory and open PowerShell there. Set the existing installation path to the directory that contains your `installation.json`, `data` and `runs`, then run:
+
+```powershell
+$existingRoot = (Read-Host 'Full path to your existing NIPAT installation folder').Trim('"')
+if (-not (Test-Path -LiteralPath (Join-Path $existingRoot 'installation.json') -PathType Leaf)) {
+    throw 'Select the existing ZIP installation folder that contains installation.json.'
+}
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\app\installer\windows\install-zip.ps1 -BundleDirectory . -InstallRoot "$existingRoot" -OpenWhenReady
+```
+
+The installer checks ownership, uses the same data and runs directories and activates the new version after preparation succeeds. Launch subsequent sessions with `NewPat.lnk`. The command launchers are `2_LAUNCH.cmd` and `1_RESUME_SETUP.cmd`. For a guided EXE installation from 0.9.9, run the new `NewPat-Setup.exe` once. Choose the recognized installation when prompted.
 
 ZIP updates retain the selected root, verify the download and activate the new version after successful preparation. Existing data from another root or installation channel remain where they were. Before removing a ZIP installation, preserve its data/results and identify its WSL distribution from the active backend. The ZIP has no Inno uninstaller.
 
@@ -75,7 +87,7 @@ ZIP updates retain the selected root, verify the download and activate the new v
 
 The [installation profile](../installer/windows/install-profile.json) defines the channel (`desktop`), application identity and ownership checks. The five roots for the application, WSL, cache, data and results must be absolute, distinct, writable and non-nested on local fixed disks. Setup rejects reparse points, unsuitable system locations and conflicts with another installation. Use an empty or recognized application directory. For another nonempty directory, setup can offer an empty `NIPAT-Desktop` child after confirmation. Existing data and results may remain in the data directories.
 
-Shortcuts invoke `2_AVVIA.cmd`; `newpat.cmd` and the compatibility alias `nipat.cmd` invoke the terminal client. `scripts/windows/run.ps1` checks the ready state, installed manifest and selected runtime. The installed launcher uses its own backend settings. Preferences supply defaults to interactive use. For direct commands use `--data-dir` and `--runs-dir` before the subcommand.
+Shortcuts invoke `2_LAUNCH.cmd`; `newpat.cmd` and the compatibility alias `nipat.cmd` invoke the terminal client. `scripts/windows/run.ps1` checks the ready state, installed manifest and selected runtime. The installed launcher uses its own backend settings. Preferences supply defaults to interactive use. For direct commands use `--data-dir` and `--runs-dir` before the subcommand.
 
 ## Updates, repair and diagnostics
 
@@ -85,7 +97,7 @@ The setup verifies hashes of both the scientific image archive and WSL filesyste
 
 A matching owned WSL distribution and location can be reused. Changing the filesystem or location creates a separate distribution and retains the earlier environment. The roots selected for data/results become defaults and existing files stay in place. When an owned registration was removed manually, setup can reimport only if the prior destination is empty. It refuses an unrelated registration with the same name.
 
-Setup verifies the candidate with `doctor --runtime` and `self-test`, activates the backend and writes `ready` last. For the guided installation use **NewPat - completa preparazione** after correcting a setup failure. For the complete ZIP, use its local `NIPAT\NewPat.lnk`. Retain these files for diagnosis:
+Setup verifies the candidate with `doctor --runtime` and `self-test`, activates the backend and writes `ready` last. For the guided installation use **NewPat - Resume Setup** after correcting a setup failure. For the complete ZIP, use its local `NIPAT\NewPat.lnk`. Retain these files for diagnosis:
 
 | Evidence | Location |
 | --- | --- |
@@ -128,7 +140,7 @@ The uninstaller removes managed application files, shortcuts and automatic setup
 
 ## Resources
 
-Resource settings distinguish physical memory, WSL's allocation and the container limit. Changes to the account's `.wslconfig` can affect all its WSL2 distributions. NewPat shows the proposed change, keeps a backup and requests confirmation. Restarting WSL is a separate action. Increasing the container limit alone cannot increase WSL memory. [Resource guide](RISORSE.md)
+Resource settings distinguish physical memory, WSL's allocation and the container limit. Changes to the account's `.wslconfig` can affect all its WSL2 distributions. NewPat shows the proposed change, keeps a backup and requests confirmation. Restarting WSL is a separate action. Increasing the container limit alone cannot increase WSL memory. [Resource guide](RESOURCES.md)
 
 ## Development and verification
 
@@ -142,13 +154,13 @@ $env:NIPAT_WSL_DISTRO = $nipatBackend.wsl_distro
 $env:NIPAT_RUNTIME_IMAGE = $nipatBackend.runtime_image
 & '.\1_SETUP.cmd'
 if ($LASTEXITCODE -ne 0) { throw 'Client preparation failed.' }
-& '.\2_AVVIA.cmd'
+& '.\2_LAUNCH.cmd'
 ```
 
 The source setup prepares the client with an explicit distribution and immutable `sha256:` image ID. It does not build the image or create a WSL filesystem. For independent development use a dedicated WSL distribution with `nipat-engine`, Docker Engine, Compose and the matching verified archive.
 
-The [installer build](../.github/workflows/windows-installer.yml) packages the allowlisted source and binds the bootstrap, payloads and hashes in `installer-build.json`. Internal artifact names can retain the NIPAT identifier. The [acceptance protocol](ACCETTAZIONE_INSTALLATORI.md), [CI guide](CI_CD.md) and [validation record](VALIDAZIONE.md) describe what was tested. The bootstrap version and launcher version are recorded separately. Running the guided setup refreshes recognized shortcuts.
+The [installer build](../.github/workflows/windows-installer.yml) packages the allowlisted source and binds the bootstrap, payloads and hashes in `installer-build.json`. Internal artifact names can retain the NIPAT identifier. The [acceptance protocol](INSTALLER_ACCEPTANCE.md), [CI guide](CI_CD.md) and [validation record](VALIDATION.md) describe what was tested. The bootstrap version and launcher version are recorded separately. Running the guided setup refreshes recognized shortcuts.
 
 <a id="riparazione-dellautotest-cpin-della-0850"></a>
 
-For an installation still on NIPAT 0.8.50, see the [historical CPIN self-test repair on GitHub](https://github.com/GregorioDalia/nipat-desktop/blob/main/docs/COLLAUDO_INSTALLAZIONE_0850.md#correzione-locale-dellautotest-cpin).
+For an installation still on NIPAT 0.8.50, see the [historical CPIN self-test repair on GitHub](https://github.com/GregorioDalia/nipat-desktop/blob/main/docs/WINDOWS_INSTALLATION_TEST_0.8.50.md#correzione-locale-dellautotest-cpin).

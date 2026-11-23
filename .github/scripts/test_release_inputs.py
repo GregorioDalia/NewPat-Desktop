@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 SPEC = importlib.util.spec_from_file_location("release_inputs", Path(__file__).with_name("release_inputs.py"))
 release = importlib.util.module_from_spec(SPEC)
@@ -100,6 +100,12 @@ class ReleaseInputTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             release.RestrictedRedirect().redirect_request(None, None, 302, "", {}, "https://evil.test/file")
 
+    def test_fork_with_same_name_cannot_supply_build_inputs(self):
+        with patch.object(release, "fetch_json", return_value={"id": 9, "full_name": release.REPOSITORY}) as fetch:
+            with self.assertRaisesRegex(ValueError, "official repository identity"):
+                release.official_release("latest")
+        fetch.assert_called_once_with(release.REPOSITORY_INFO_URL)
+
     def test_pinned_072_upgrade_input_records_source_and_exact_github_digest(self):
         tag = "v0.7.2"
         source = "5bc05e00c7e231f7f3d501ace91131dae3bd1458"
@@ -119,17 +125,19 @@ class ReleaseInputTests(unittest.TestCase):
             return path
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            with patch.object(release, "fetch_json", return_value=metadata) as fetch, \
+            identity = {"id": int(release.REPOSITORY_ID), "full_name": release.REPOSITORY}
+            with patch.object(release, "fetch_json", side_effect=[identity, metadata]) as fetch, \
                     patch.object(release, "checked_download", side_effect=download):
                 paths = release.release_inputs(tag, ["deb"], root)
-            fetch.assert_called_once_with(f"https://api.github.com/repos/{release.REPOSITORY}/releases/tags/v0.7.2")
+            self.assertEqual(fetch.call_args_list, [call(release.REPOSITORY_INFO_URL),
+                call(f"https://api.github.com/repos/{release.REPOSITORY}/releases/tags/v0.7.2", repository=release.REPOSITORY)])
             self.assertEqual(paths["deb"].name, deb_name)
             self.assertEqual(calls[-1][1:], (deb_hash, 603740352))
             provenance = json.loads((root / "release-inputs.json").read_text())
             self.assertEqual(provenance["source_commit"], source)
             self.assertEqual(provenance["files"]["deb"]["sha256"], deb_hash)
             records[-1]["name"] = "nipat-desktop_0.7.1_amd64.deb"
-            with patch.object(release, "fetch_json", return_value=metadata), \
+            with patch.object(release, "fetch_json", side_effect=[identity, metadata]), \
                     patch.object(release, "checked_download", side_effect=download), \
                     self.assertRaisesRegex(ValueError, "matching the requested"):
                 release.release_inputs(tag, ["deb"], root)

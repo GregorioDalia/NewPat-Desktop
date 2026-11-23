@@ -156,9 +156,13 @@ exit 1
     [IO.Directory]::Move(($assets + '-removed'), $assets)
     Assert-Test ((Read-NipatZipPointer $root).version -ceq '0.8.99') 'first ready installation activated'
     Assert-Test ((Get-NipatZipRoot (Read-NipatZipPointer $root).app_dir) -ceq $root) 'local root persisted in installed marker'
-    foreach ($launcher in @('2_AVVIA.cmd', '1_COMPLETA_PREPARAZIONE.cmd', 'NewPat.lnk')) {
+    foreach ($launcher in @('2_LAUNCH.cmd', '1_RESUME_SETUP.cmd', 'NewPat.lnk')) {
         Assert-Test (Test-Path -LiteralPath (Join-Path $root $launcher)) ("local launcher created: $launcher")
     }
+    $oldLauncher = Join-Path $root '2_AVVIA.cmd'
+    $oldResume = Join-Path $root '1_COMPLETA_PREPARAZIONE.cmd'
+    Copy-Item -LiteralPath (Join-Path $root '2_LAUNCH.cmd') -Destination $oldLauncher
+    [IO.File]::WriteAllText($oldResume, 'echo custom action')
     $appShortcut = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path $root 'NewPat.lnk'))
     Assert-Test ($appShortcut.TargetPath -ieq $powershell) 'normal shortcut uses the system PowerShell interpreter'
     Assert-Test ($appShortcut.Arguments.Contains('-WindowStyle Hidden') -and $appShortcut.Arguments.EndsWith('-Mode auto')) 'normal shortcut hides the bridge and selects automatic setup/launch'
@@ -188,13 +192,15 @@ exit 1
     & $powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $app 'installer/windows/install-zip.ps1') -BundleDirectory $bundle -InstallRoot $root
     Assert-Test ($LASTEXITCODE -eq 1) 'failed upgrade reported as failure'
     Assert-Test ((Read-NipatZipPointer $root).version -ceq '0.8.99') 'failed upgrade retains previous active version'
-    Assert-Test ((Get-Content -LiteralPath (Join-Path $root '2_AVVIA.cmd') -Raw).Contains('0.8.99-' + ('a' * 40))) 'failed upgrade launcher retains previous worker'
+    Assert-Test ((Get-Content -LiteralPath (Join-Path $root '2_LAUNCH.cmd') -Raw).Contains('0.8.99-' + ('a' * 40))) 'failed upgrade launcher retains previous worker'
     Assert-Test (-not (Test-Path -LiteralPath (Join-Path $bundle 'NIPAT'))) 'update extraction does not create another installation'
     $pending = Read-NipatZipPointer $root 'pending.json'
     $env:NIPAT_ZIP_FIXTURE_PHASE = 'ready'
     & $powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $pending.app_dir 'installer/windows/install-zip.ps1') -Resume
     Assert-Test ($LASTEXITCODE -eq 0 -and (Read-NipatZipPointer $root).version -ceq '0.9.0') 'successful upgrade activates the new app directory'
-    Assert-Test ((Get-Content -LiteralPath (Join-Path $root '2_AVVIA.cmd') -Raw).Contains('0.9.0-' + ('b' * 40))) 'successful upgrade refreshes local launcher'
+    Assert-Test (-not (Test-Path -LiteralPath $oldLauncher)) 'owned Italian entry point removed'
+    Assert-Test ([IO.File]::ReadAllText($oldResume) -ceq 'echo custom action') 'custom command preserved'
+    Assert-Test ((Get-Content -LiteralPath (Join-Path $root '2_LAUNCH.cmd') -Raw).Contains('0.9.0-' + ('b' * 40))) 'successful upgrade refreshes local launcher'
     $appShortcut = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path $root 'NewPat.lnk'))
     Assert-Test ($appShortcut.Arguments.Contains('0.9.0-' + ('b' * 40))) 'app shortcut follows the activated version'
     Assert-Test ([IO.File]::ReadAllText((Join-Path $root 'data\preserve.txt')) -ceq 'research data') 'update retains research data'

@@ -63,8 +63,8 @@ class ResultsTests(unittest.TestCase):
         ui = FakeTerminal(["2", "0"])
         show_results(ui, self.run)
         text = "\n".join(ui.lines)
-        self.assertIn("CPIN: Completata", text)
-        self.assertIn("CPIN trio_family (SNP)", text)
+        self.assertIn("CPI postnatale: Completata", text)
+        self.assertIn("CPI postnatale trio_family (SNP)", text)
         self.assertIn("Figlio (child): child.tsv", text)
         self.metadata["parameters"]["expected_steps"][0]["id"] = "../../outside"
         with self.assertRaises(ValueError):
@@ -339,7 +339,7 @@ class ResultsTests(unittest.TestCase):
                 show_results(ui, self.run, open_path=opener)
                 self.assertIn("Esecuzione completata", ui.lines)
                 self.assertIn("  DNPcall: Completata", ui.lines)
-                self.assertIn("  CPI: Completata", ui.lines)
+                self.assertIn("  CPI prenatale: Completata", ui.lines)
                 self.assertEqual("  Contamination: Completata" in ui.lines, full)
                 self.assertIn("Coppie CPI registrate: 1", ui.lines)
                 self.assertIn("  Coppia FamilyA", ui.lines)
@@ -364,7 +364,7 @@ class ResultsTests(unittest.TestCase):
                 if missing:
                     self.assertTrue(any("Stato dei passaggi non consultabile" in line for line in ui.lines))
                 else:
-                    self.assertIn("  CPI: Non riuscita", ui.lines)
+                    self.assertIn("  CPI prenatale: Non riuscita", ui.lines)
 
     def test_cpi_pair_mapping_is_bounded_and_never_opened_as_a_path(self):
         self.prepare_cpi_workflow()
@@ -387,7 +387,7 @@ class ResultsTests(unittest.TestCase):
         self.save_metadata()
         ui = FakeTerminal(["2", "0"])
         show_results(ui, self.run)
-        self.assertIn("  CPI: Completata", ui.lines)
+        self.assertIn("  CPI prenatale: Completata", ui.lines)
         self.assertIn("Associazioni delle coppie CPI non consultabili in run.json.", ui.lines)
 
     def prepare_snp_workflow(self, *, batch=False, mode="bam", count=2):

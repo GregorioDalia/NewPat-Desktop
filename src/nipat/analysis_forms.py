@@ -23,7 +23,7 @@ _FAMILY_FIELDS = {"pairs": "cpi", "trios": "cpin"}
 class CpinForm(WorkflowForm):
     @property
     def title(self):
-        return "CPIN / CPI postnatale"
+        return "CPI postnatale"
 
     def fields(self):
         return [Field("input_dir", "Cartella tabelle madre, padre e figlio", "directory"),
@@ -67,7 +67,7 @@ class AnalysisForm(WorkflowForm):
     """Select callers, any consumer subset, explicit roles and typed resources."""
     @property
     def title(self):
-        return "Workflow / SNP e DNP verso Contamination, CPI e CPIN"
+        return "Workflow / SNP e DNP verso Contamination, CPI prenatale e CPI postnatale"
 
     def _marker_selection(self):
         marker = "snp" if self.values.get("source") == "pileup" else self.values.get("marker", "both")
@@ -134,11 +134,11 @@ class AnalysisForm(WorkflowForm):
             no_analysis,
             ("1", "Contamination", "Tutti i campioni selezionati"),
             ("2", "CPI prenatale", "Coppie cfDNA materno / padre"),
-            ("3", "CPIN postnatale", "Trii madre / padre / figlio"),
-            ("4", "Contamination e CPI", "Entrambe"),
-            ("5", "Contamination e CPIN", "Entrambe"),
-            ("6", "CPI e CPIN", "Entrambe, con ruoli espliciti distinti"),
-            ("7", "Contamination, CPI e CPIN", "Tutte le analisi"),
+            ("3", "CPI postnatale", "Trii madre / padre / figlio"),
+            ("4", "Contamination e CPI prenatale", "Entrambe"),
+            ("5", "Contamination e CPI postnatale", "Entrambe"),
+            ("6", "CPI prenatale e CPI postnatale", "Entrambe, con ruoli espliciti distinti"),
+            ("7", "Contamination, CPI prenatale e CPI postnatale", "Tutte le analisi"),
             ("8", "Analisi diverse per SNP e DNP", "Personalizza separatamente ogni ramo"))))
         if v.get("analyses") == "8":
             choices = fields[-1].options[:-1]
@@ -162,20 +162,20 @@ class AnalysisForm(WorkflowForm):
                                     lambda path: read_snp_positions(path, for_bed=v.get("source") == "bam")))
         analyses = set().union(*branches.values())
         if "cpi" in analyses:
-            fields.append(Field("pairs", "Coppie CPI: ID, cfDNA materno, padre", "families"))
+            fields.append(Field("pairs", "Coppie CPI prenatale: ID, cfDNA materno, padre", "families"))
         if "cpin" in analyses:
-            fields.append(Field("trios", "Trii CPIN: ID, madre, padre, figlio", "families"))
+            fields.append(Field("trios", "Trii CPI postnatale: ID, madre, padre, figlio", "families"))
         for marker, selected_analyses in branches.items():
             prefix = marker.lower()
             if "cpi" in selected_analyses or "cpin" in selected_analyses:
-                fields.append(Field(f"{prefix}_popfreq", f"Frequenze {marker} per CPI/CPIN", "file", check=check_popfreq))
+                fields.append(Field(f"{prefix}_popfreq", f"Frequenze {marker} per CPI prenatale o postnatale", "file", check=check_popfreq))
             if "contamination" in selected_analyses:
                 fields.append(Field(f"{prefix}_contamination_panel", f"Pannello Contamination {marker}", "file",
                                     required=v.get("source") == "tables", check=check_count_panel))
             if "cpi" in selected_analyses:
                 fields.append(Field(f"{prefix}_cpi_cutoffs", f"Cutoff CPI {marker} (Invio = ALL)", "cutoffs", required=False))
             if "cpin" in selected_analyses:
-                fields.append(Field(f"{prefix}_cpin_panel", f"Pannello CPIN {marker} con REF/ALT (facoltativo)", "file",
+                fields.append(Field(f"{prefix}_cpin_panel", f"Pannello CPI postnatale {marker} con REF/ALT (facoltativo)", "file",
                                     required=False, check=check_count_panel))
         return fields + [Field("run_name", "Nome nuova esecuzione (vuoto = automatico)", "run", required=False)]
 
@@ -187,7 +187,7 @@ class AnalysisForm(WorkflowForm):
         if field.key == "samples" or field.key.endswith("tables") or field.key == "pileups":
             self.ui.message("Per ogni file assegnare un ID univoco e poi scegliere il percorso. Gli ID saranno usati per dichiarare i ruoli familiari. Nei due rami usare gli stessi ID per gli stessi campioni biologici.")
         elif field.key in {"pairs", "trios"}:
-            self.ui.message("Usare gli ID dei campioni elencati, senza percorsi. I ruoli non vengono dedotti dai nomi dei file. Il cfDNA materno del CPI prenatale e il campione madre del CPIN possono essere campioni diversi.")
+            self.ui.message("Usare gli ID dei campioni elencati, senza percorsi. I ruoli non vengono dedotti dai nomi dei file. Il cfDNA materno del CPI prenatale e il campione madre del CPI postnatale possono essere campioni diversi.")
         elif field.key.endswith("cpin_panel"):
             self.ui.message("Pannello facoltativo con coordinate e alleli REF/ALT; Invio include tutti i siti disponibili.")
         elif field.key.endswith("contamination_panel") and not field.required:
@@ -289,7 +289,7 @@ class AnalysisForm(WorkflowForm):
         for key in dict.fromkeys(self._sample_fields().values()):
             for identifier, path in self.values.get(key, []):
                 self.ui.message(f"  {identifier}: {Path(path).name}")
-        self.ui.message("SNP e DNP vengono analizzati separatamente. Contamination non filtra gli input CPI o CPIN.", kind="muted")
+        self.ui.message("SNP e DNP vengono analizzati separatamente. Contamination non filtra gli input CPI prenatale o postnatale.", kind="muted")
 
     def arguments(self):
         selection = {"source", "marker", "analyses", "dnp_analyses", "snp_analyses"}

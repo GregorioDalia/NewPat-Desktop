@@ -8,7 +8,7 @@ Use the flags to select English or Italian. The information button beside the IG
 
 ## DNP execution
 
-For a single indexed BAM with bounded depth, NewPat can assign two samtools processes to different chromosomes when the CPU limit and the estimated memory cost permit. The acquisition decision uses the resources assigned to the run. The subsequent R calculation chooses its own worker pool. [Resource settings](RISORSE.md)
+For a single indexed BAM with bounded depth, NewPat can assign two samtools processes to different chromosomes when the CPU limit and the estimated memory cost permit. The acquisition decision uses the resources assigned to the run. The subsequent R calculation chooses its own worker pool. [Resource settings](RESOURCES.md)
 
 In a Windows/WSL benchmark on the installed 0.9.7 engine, the test harness assigned one or two samtools processes to a 3.43 GiB BAM with 22 target chromosomes. Each run had four CPUs, 3,905 MiB of memory and the same 106 blocks for four R workers. The following times apply to that machine and sample.
 
@@ -23,4 +23,4 @@ In a Windows/WSL benchmark on the installed 0.9.7 engine, the test harness assig
 
 ## Downloads
 
-Choose the guided setup or complete ZIP for Windows x64, the Apple Silicon or Intel package for macOS 14 or later, or the Debian package for Ubuntu 24.04 LTS x86_64. Published assets include checksums. [Downloads](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.9.8) · [Installation guides](DISTRIBUZIONE.md)
+Choose the guided setup or complete ZIP for Windows x64, the Apple Silicon or Intel package for macOS 14 or later, or the Debian package for Ubuntu 24.04 LTS x86_64. Published assets include checksums. [Downloads](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.9.8) · [Installation guides](DISTRIBUTION.md)

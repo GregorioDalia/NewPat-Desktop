@@ -89,6 +89,20 @@ def test_real_cross_process_analysis_lock_prevents_false_interruption(recorded, 
     check.reconcile.assert_not_called()
 
 
+def test_removing_old_interrupted_card_during_another_run_preserves_its_files(recorded, tmp_path):
+    run, metadata, layout = recorded
+    metadata["status"] = "interrupted"
+    write(run / "run.json", metadata)
+    original = (run / "run.json").read_bytes()
+    check = observer(recorded, guard=lambda: _resource_lock(tmp_path, "native", exclusive=True))
+    service = GuiService(layout, preferences_store=PreferencesStore(tmp_path / "prefs.json"), run_observer=check)
+    with _resource_lock(tmp_path, "native", exclusive=False):
+        assert service.run_remove(run.name)["outputs_preserved"]
+    assert service.call("runs.list")["total"] == 0
+    assert (run / "run.json").read_bytes() == original
+    check.reconcile.assert_not_called()
+
+
 def test_active_job_stays_protected_through_final_report_persistence(recorded):
     run, metadata, layout = recorded
     metadata["status"] = "succeeded"

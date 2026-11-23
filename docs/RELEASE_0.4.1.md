@@ -1,6 +1,6 @@
 # NIPAT CLI 0.4.1 — simpler installation and startup
 
-This Windows 11 x64 prerelease simplified Docker Desktop installation and launch. One installer and one icon handle preparation, startup and retry. Scientific algorithms were unchanged and domain validation remained open. Current instructions are in the [README](../README.md) and [user guide](GUIDA_UTILIZZO.md).
+This Windows 11 x64 prerelease simplified Docker Desktop installation and launch. One installer and one icon handle preparation, startup and retry. Scientific algorithms were unchanged and domain validation remained open. Current instructions are in the [README](../README.md) and [user guide](USER_GUIDE.md).
 
 | Package | Procedure |
 | --- | --- |

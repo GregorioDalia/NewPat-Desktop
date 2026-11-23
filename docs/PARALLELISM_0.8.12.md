@@ -36,7 +36,7 @@ Automatic mode takes the minimum allowed by independent work, CPU affinity, cont
 
 The release used the remaining memory under effective container limits, kept 20% in reserve and budgeted at least **2 GiB per worker**. For DNPcall, the estimated cost in MiB was `max(2048, 512 + 48 × largest planned block in MiB)`, rounded up. An indivisible block larger than the requested target contributes its actual planned size. Unknown memory selects serial execution.
 
-These planning estimates cannot guarantee a memory bound. Expanded observations, joins, copies and R objects can consume more. The scheduler retains one worker even if the dataset cannot fit. `--memory-mb` caps container memory and can stop the container if set too low. WSL and Lima memory allocations are configured separately. See [Resources and memory](RISORSE.md).
+These planning estimates cannot guarantee a memory bound. Expanded observations, joins, copies and R objects can consume more. The scheduler retains one worker even if the dataset cannot fit. `--memory-mb` caps container memory and can stop the container if set too low. WSL and Lima memory allocations are configured separately. See [Resources and memory](RESOURCES.md).
 
 ## Menu and preferences
 
@@ -71,7 +71,7 @@ To open the menu with a temporary cap:
 .\nipat.cmd --execution-mode auto --max-workers 2 wizard
 ```
 
-On Linux use `nipat` and POSIX paths. On macOS use `"/Applications/NIPAT Desktop.app/Contents/Resources/NIPAT.command"` with the same arguments. The global options may also precede `workflow`. See the [CLI guide](GUIDA_UTILIZZO.md#comandi-diretti).
+On Linux use `nipat` and POSIX paths. On macOS use `"/Applications/NIPAT Desktop.app/Contents/Resources/NIPAT.command"` with the same arguments. The global options may also precede `workflow`. See the [CLI guide](USER_GUIDE.md#comandi-diretti).
 
 ## Inspecting actual worker activity
 

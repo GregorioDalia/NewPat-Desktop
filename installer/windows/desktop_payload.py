@@ -27,7 +27,7 @@ def filename(version):
 
 def expected_files(manifest, inventory_bytes):
     expected = zip_support.expected_files(manifest, inventory_bytes)
-    for name in zip_support.ROOT_FILES:
+    for name in zip_support.root_files(manifest["version"]):
         expected.pop(name)
     return expected
 

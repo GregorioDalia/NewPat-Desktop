@@ -36,7 +36,7 @@ python .github/scripts/release_acceptance.py \
   --output /path/to/acceptance-for-review.json
 ```
 
-Review the platform evidence, baseline source comparison, qualified scientific reports, installer and common archive identities. Complete `.github/release-acceptance/vVERSION.json`, replacing VERSION with the actual release. Use the [installer acceptance protocol](../docs/ACCETTAZIONE_INSTALLATORI.md) for the fields, desktop scenarios and limits of each claim. The reviewer records `accepted-for-research` and the `pre-1.0-research` scope only after reviewing the evidence. Keep deferred tests and pending domain validation visible. Historical evidence belongs to its original build.
+Review the platform evidence, baseline source comparison, qualified scientific reports, installer and common archive identities. Complete `.github/release-acceptance/vVERSION.json`, replacing VERSION with the actual release. Use the [installer acceptance protocol](../docs/INSTALLER_ACCEPTANCE.md) for the fields, desktop scenarios and limits of each claim. The reviewer records `accepted-for-research` and the `pre-1.0-research` scope only after reviewing the evidence. Keep deferred tests and pending domain validation visible. Historical evidence belongs to its original build.
 
 The `publication_channel` is explicit. Use `stable` for an authorized numeric `MAJOR.MINOR.PATCH` release intended as GitHub **Latest**. Use `testing` for a prerelease. This choice determines discovery by clients; the scientific validation scope is described separately.
 
@@ -72,12 +72,14 @@ The published release includes the four platform installers, Windows installatio
 
 | Update feed | Consumers |
 | --- | --- |
-| `update-manifest-windows-bootstrap.json` | Windows guided setup using its retained bootstrap and verified release payload |
-| `update-manifest-windows-zip.json` | Windows complete ZIP installations |
+| `update-manifest-windows-bootstrap-v2.json` | Windows guided setup from 0.9.10, using bootstrap 1.2.0 and its verified release payload |
+| `update-manifest-windows-zip-v2.json` | Windows complete ZIP installations from 0.9.10 |
 | `update-manifest.json` | Compatible legacy Windows clients and Ubuntu |
 | `update-manifest-macos.json` | Apple Silicon and Intel packages |
 
 Clients check the release, version, source commit, channel, platform, size and SHA-256. On macOS the user closes NewPat and opens the verified PKG. Check availability of the published assets and update feeds, and verify stable releases resolve through GitHub **Latest**.
+
+Releases through 0.9.9 use `update-manifest-windows-bootstrap.json` and `update-manifest-windows-zip.json`. The first upgrade across the Windows launcher layout change requires the new installer for the same installation method. The v2 feeds are published exclusively for the English package layout.
 
 ## Maintenance
 

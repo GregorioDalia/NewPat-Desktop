@@ -23,7 +23,7 @@ The following records describe the first 0.8.14 candidate, based on 0.8.13. Each
 | DNP pileup preparation by chromosome | 0.8.13 | Retained the existing overall budget. |
 | DNP block reads from the global index | 0.8.10, subsequently extended for parallel execution | Combined reads for byte-contiguous rows. |
 
-The [R scheduling reference](PARALLELISMO_0.8.12.md) and [pileup acquisition reference](PILEUP_0.8.13.md) describe the applicable execution paths. Contamination works by sample and, where appropriate, by row block. SNPcall keeps QNAME groups intact. CPI can distribute work across pairs, panels/cutoffs or threshold intervals. These levels are alternatives and do not create nested pools.
+The [R scheduling reference](PARALLELISM_0.8.12.md) and [pileup acquisition reference](PILEUP_0.8.13.md) describe the applicable execution paths. Contamination works by sample and, where appropriate, by row block. SNPcall keeps QNAME groups intact. CPI can distribute work across pairs, panels/cutoffs or threshold intervals. These levels are alternatives and do not create nested pools.
 
 ## Serial mode and the overall process limit
 

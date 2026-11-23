@@ -164,7 +164,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Frozen fixture compilation failed.' }
     $setup = Join-Path $output 'NIPAT-Setup.exe'
     $frozenHash = (Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash.ToLowerInvariant()
-    foreach ($version in @('0.8.99', '0.9.0')) {
+    foreach ($version in @('0.9.10', '0.9.11')) {
         [IO.File]::WriteAllText((Join-Path $app 'fixture-version.txt'), $version)
         Write-FixtureManifest $version
         Write-FixtureInventory
@@ -177,7 +177,7 @@ try {
         $arguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/SP-', '/NORESTART', "/DIR=`"$installed`"", "/LOG=`"$log`"",
             "/NIPATPACKAGE=`"$payload`"", "/NIPATVERSION=$version", ('/NIPATSOURCE=' + ('0' * 40)),
             "/NIPATSHA256=$payloadHash", "/NIPATSIZE=$payloadSize")
-        if ($version -eq '0.9.0') {
+        if ($version -eq '0.9.11') {
             $arguments += '/NIPATUPDATE=1'
             $env:NIPAT_FIXTURE_BOOTSTRAP_REBOOT = '1'
             try {
@@ -226,7 +226,7 @@ try {
     }
     $history = Join-Path $env:LOCALAPPDATA 'NIPAT-Desktop\installations\backups'
     $oldVersions = @(Get-ChildItem -LiteralPath $history -Filter 'fixture-version.txt' -Recurse -File |
-        Where-Object { [IO.File]::ReadAllText($_.FullName) -ceq '0.8.99' })
+        Where-Object { [IO.File]::ReadAllText($_.FullName) -ceq '0.9.10' })
     if ($oldVersions.Count -lt 1) { throw 'Upgrade did not retain the previous managed file in the repair backup.' }
     $checks.upgrade_backup = $true
     $unknown = Join-Path $installed 'user-note.txt'

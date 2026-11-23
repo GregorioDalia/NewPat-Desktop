@@ -143,8 +143,15 @@ class InstallerAssetTests(unittest.TestCase):
             self.assertEqual(entry["sha256"], assets.bundle.sha256_file(path))
             self.assertEqual(entry["size"], path.stat().st_size)
             self.assertEqual(entry["url"],
-                             "https://github.com/GregorioDalia/nipat-desktop/releases/"
+                             f"https://github.com/{assets.RELEASE_REPOSITORY}/releases/"
                              f"download/v0.6.0/{path.name}")
+
+    def test_archives_can_be_reverified_before_or_after_the_repository_rename(self):
+        for repository in assets.repository.OFFICIAL_REPOSITORIES:
+            manifest = copy.deepcopy(self.manifest)
+            for entry in manifest["assets"].values():
+                entry["url"] = f"https://github.com/{repository}/releases/download/v0.6.0/{entry['file']}"
+            assets.verify_runtime_assets(manifest, self.rootfs.parent)
 
     def test_manifest_rejects_foreign_or_ambiguous_installation_profile(self):
         mutations = {

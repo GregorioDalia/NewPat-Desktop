@@ -16,10 +16,10 @@
 .github/workflows/windows-installer.yml
 .gitignore
 1_SETUP.cmd
-2_AVVIA.cmd
+2_LAUNCH.cmd
 LICENSE
 README.md
-SUNTO.md
+OVERVIEW.md
 THIRD_PARTY_NOTICES.md
 assets/branding/README.md
 assets/branding/build_assets.py
@@ -34,20 +34,20 @@ distribution-files.txt
 docker/scientific-runtime/Dockerfile
 docker/scientific-runtime/r-packages.tsv
 docker/scientific-runtime/verify-packages.R
-docs/ACCETTAZIONE_INSTALLATORI.md
+docs/INSTALLER_ACCEPTANCE.md
 docs/ARCHITECTURE.md
 docs/CI_CD.md
-docs/CATALOGO_SCIENTIFICO.md
-docs/DISTRIBUZIONE.md
-docs/ESECUZIONI.md
-docs/GUIDA_UTILIZZO.md
-docs/INSTALLATORE_LINUX.md
-docs/INSTALLATORE_WINDOWS.md
+docs/SCIENTIFIC_CATALOG.md
+docs/DISTRIBUTION.md
+docs/RUNS.md
+docs/USER_GUIDE.md
+docs/LINUX_INSTALLER.md
+docs/WINDOWS_INSTALLER.md
 docs/RELEASE_0.5.0a1.md
 docs/RELEASE_0.6.0.md
 docs/ROADMAP.md
 docs/OPTIMIZATION_0.8.9.md
-docs/VALIDAZIONE.md
+docs/VALIDATION.md
 docs/WORKFLOW_CONTRACT.md
 engine/README.md
 engine/main.py
@@ -264,6 +264,7 @@ installer/runtime/component.py
 installer/windows/maintenance.ps1
 installer/windows/test-maintenance.ps1
 scripts/benchmark_workflows.py
+scripts/benchmark_macos_dnp.py
 scripts/verify_linux_upgrade.py
 src/nipat/execution/options.py
 src/nipat/execution/recovery.py
@@ -298,7 +299,7 @@ tests/test_installation_client.py
 .github/scripts/test_experimental_ci.py
 .github/scripts/verify_experimental_installers.py
 .github/scripts/verify_experimental_source.py
-docs/INSTALLATORE_MACOS.md
+docs/MACOS_INSTALLER.md
 docs/RELEASE_0.8.0a1.md
 installer/macos/NIPAT.command
 installer/macos/dependencies.json
@@ -311,6 +312,7 @@ scripts/build_macos_installer.py
 scripts/verify_macos_package.py
 scripts/verify_macos_runtime.py
 src/nipat/distribution.py
+src/nipat/repository.py
 src/nipat/macos_runtime.py
 tests/test_experimental_distribution.py
 tests/test_lima_transport.py
@@ -347,7 +349,7 @@ installer/macos/licenses/python-build-standalone/provenance.json
 docs/RELEASE_0.8.2.md
 docs/RELEASE_0.8.5.md
 docs/RELEASE_0.8.9.md
-docs/RISORSE.md
+docs/RESOURCES.md
 scripts/verify_presentation.py
 src/nipat/execution/diagnostics.py
 src/nipat/resource_ui.py
@@ -383,7 +385,7 @@ src/nipat/execution/progress.py
 tests/test_execution_progress.py
 
 # Shared scientific process budget and 0.8.12 controls.
-docs/PARALLELISMO_0.8.12.md
+docs/PARALLELISM_0.8.12.md
 src/nipat_scientific/parallel.R
 src/nipat_scientific/parallel.py
 tests/test_parallel_client.py
@@ -458,7 +460,7 @@ scripts/acceptance/bundle-manifest.json
 scripts/windows/test-installed.ps1
 docs/RELEASE_0.8.60.md
 docs/AUDIT_0.8.60.md
-docs/COLLAUDO_INSTALLAZIONE.md
+docs/WINDOWS_INSTALLATION_TEST.md
 
 # Release-specific notes.
 docs/RELEASE_0.8.70.md

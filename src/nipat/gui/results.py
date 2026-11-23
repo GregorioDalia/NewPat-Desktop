@@ -30,7 +30,7 @@ MODULE_LABELS = {
     "snp-call": ("Genotipi SNP", "SNP genotypes"),
     "contamination": ("Contaminazione", "Contamination"),
     "cpi": ("CPI prenatale", "Prenatal CPI"),
-    "cpin": ("CPIN postnatale", "Postnatal CPIN"),
+    "cpin": ("CPI postnatale", "Postnatal CPI"),
 }
 FIELDS = {
     "chr": ("Cromosoma", "Chromosome"), "pos": ("Posizione", "Position"),
@@ -277,7 +277,7 @@ def _file_label_it(name):
     if name in {"output_AllGenotypes.txt", "SNPcall_AllGenotypes.txt", "merged_genotypes.tsv"}:
         return "Matrice dei genotipi"
     fixed = {"contamination_summary.txt": "Riepilogo della contaminazione", "Summary_FetalFraction_CPI.csv": "Frazione fetale e CPI",
-             "Summary_Postnatal_CPI.txt": "Riepilogo CPIN", "scientific-settings.json": "Impostazioni scientifiche",
+             "Summary_Postnatal_CPI.txt": "Riepilogo CPI postnatale", "scientific-settings.json": "Impostazioni scientifiche",
              "resources.tsv": "Tempo e memoria", "Unassigned_genotypes.pdf": "Genotipi non assegnati",
              "All_CPIplots.pdf": "Tutti i grafici di paternità", "run.json": "Provenienza dell’esperimento",
              "execution.log": "Registro dell’esecuzione", "gui.json": "Configurazione dell’interfaccia",
@@ -306,7 +306,7 @@ def _file_label(name, language="it"):
     english = {
         "Conteggi e genotipi": "Counts and genotypes", "Matrice dei genotipi": "Genotype matrix",
         "Riepilogo della contaminazione": "Contamination summary", "Frazione fetale e CPI": "Fetal fraction and CPI",
-        "Riepilogo CPIN": "CPIN summary", "Impostazioni scientifiche": "Scientific settings",
+        "Riepilogo CPI postnatale": "Postnatal CPI summary", "Impostazioni scientifiche": "Scientific settings",
         "Tempo e memoria": "Time and memory", "Genotipi non assegnati": "Unassigned genotypes",
         "Tutti i grafici di paternità": "All paternity plots", "Provenienza dell’esperimento": "Experiment provenance",
         "Registro dell’esecuzione": "Execution log", "Configurazione dell’interfaccia": "Interface configuration",
@@ -384,12 +384,15 @@ class ResultsStore:
 
     def remove_run(self, run_id):
         """Hide only the archive entry. The service checks activity first."""
+        self.hide_path(self._run(run_id))
+        return {"removed": True, "run_id": run_id, "outputs_preserved": True}
+
+    def hide_path(self, path: Path):
+        """Record a verified archive or session job path without changing its files."""
         with self._lock:
-            path = self._run(run_id)
             value = self._registry()
             value["hidden"] = sorted(set(value["hidden"]) | {str(path)})
             self._write_registry(value)
-        return {"removed": True, "run_id": run_id, "outputs_preserved": True}
 
     def register_run(self, path: Path | str) -> dict:
         """Register a user-selected run/archive in place; copy no input/output data.
@@ -508,14 +511,13 @@ class ResultsStore:
         workflow = metadata.get("workflow")
         if workflow in WORKFLOW_STEPS:
             try:
-                declared = workflow_steps(metadata)
+                declared = workflow_steps(metadata, include_markers=True)
                 state = read_workflow_state(run, workflow, metadata)
                 observed = {step["id"]: step for step in state["steps"]}
                 documents.append((state, "output/workflow/", None))
-                plan_steps = {step["id"]: step for step in parameters.get("plan", {}).get("steps", [])}
                 for step in declared:
-                    actual, specification = observed[step["id"]], plan_steps.get(step["id"], {})
-                    marker = specification.get("parameters", {}).get("marker_type")
+                    actual = observed[step["id"]]
+                    marker = step.get("marker")
                     if step["workflow"] in {"dnp-call", "snp-call"}:
                         marker = "DNP" if step["workflow"] == "dnp-call" else "SNP"
                     if marker not in {"DNP", "SNP"}:
@@ -676,8 +678,11 @@ class ResultsStore:
                     settings.append({"step_id": step["id"], "module": step["module"], "marker": step["marker"], "document": _json(path)})
             except (OSError, ValueError) as exc:
                 record["warnings"].append({"code": "archive.settings", "message": str(exc)})
+        execution = context["gui"].get("execution", context["metadata"].get("execution_options"))
+        if context["metadata"].get("concurrent_execution"):
+            execution = context["metadata"]["execution_options"]
         record.update(steps=context["steps"], families=families, settings=settings,
-                      draft=context["gui"].get("draft"), execution=context["gui"].get("execution", context["metadata"].get("execution_options")),
+                      draft=context["gui"].get("draft"), execution=execution,
                       configuration_source="gui" if context["gui"].get("draft") else "run",
                       recorded_parameters=context["parameters"], error=context["metadata"].get("error"))
         return record
@@ -821,8 +826,8 @@ class ResultsStore:
         if (descriptor["kind"] != "table" or not descriptor["canonical"] or
                 module not in {"cpi", "cpin"} or
                 not (descriptor["name"].endswith("_curve.tsv") or "_panel_" in descriptor["name"])):
-            raise ValueError(_translation(("Il risultato selezionato non è una curva CPI o CPIN.",
-                                           "The selected result is not a CPI or CPIN curve."), self.language))
+            raise ValueError(_translation(("Il risultato selezionato non è una curva CPI prenatale o postnatale.",
+                                           "The selected result is not a prenatal or postnatal CPI curve."), self.language))
         too_large = _translation((
             "La curva supera il limite del grafico interattivo. Consulta la tabella completa o il PDF originale.",
             "The curve exceeds the interactive chart limit. Open the full table or original PDF."), self.language)
@@ -976,5 +981,5 @@ class ResultsStore:
                 "interpretation": {k: _translation(text, self.language) for k, text in {
                     "missing": ("NA indica un valore non disponibile; non equivale a zero.", "NA indicates an unavailable value; it is not zero."),
                     "read_observations": ("Somma delle osservazioni dei siti, non conteggio di letture uniche.", "Sum of observations across sites, not a count of unique reads."),
-                    "curve_intervals": ("Gli estremi degli intervalli della curva CPIN sono inclusi.", "CPIN curve interval endpoints are inclusive."),
+                    "curve_intervals": ("Gli estremi degli intervalli della curva del CPI postnatale sono inclusi.", "Postnatal CPI curve interval endpoints are inclusive."),
                     "technical_status": ("Il completamento dell’esecuzione non è una validazione clinica.", "Successful execution is not clinical validation.")}.items()}}

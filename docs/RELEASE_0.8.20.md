@@ -14,7 +14,7 @@ This release revised Windows packaging and installer tests and strengthened scie
 
 The release lacked a recognized NIPAT Authenticode signature. Removing temporary compilation reduced device-generated components. Smart App Control acceptance remained unverified and requires separate evidence on Windows 11 with the protection enabled. The signing status of each inspected file remains visible.
 
-Reusing 0.8.14 for two builds had prevented the updater from distinguishing them. The available evidence did not connect that version number to the Windows block. The higher 0.8.20 number is visible to both earlier builds. Published packages remain immutable. The [Windows security guide](INSTALLATORE_WINDOWS.md#windows-security-and-browser-messages) explains how to identify the blocked component.
+Reusing 0.8.14 for two builds had prevented the updater from distinguishing them. The available evidence did not connect that version number to the Windows block. The higher 0.8.20 number is visible to both earlier builds. Published packages remain immutable. The [Windows security guide](WINDOWS_INSTALLER.md#windows-security-and-browser-messages) explains how to identify the blocked component.
 
 ## Installation and scope
 

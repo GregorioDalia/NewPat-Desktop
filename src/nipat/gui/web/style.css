@@ -48,3 +48,15 @@
 .check-spinner{display:inline-block;width:1em;height:1em;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:check-turn 1s linear infinite}
 @keyframes check-turn{to{transform:rotate(360deg)}}.check-spinner.paused{animation:none}
 @media(prefers-reduced-motion:reduce){.check-spinner{animation:none}}
+
+.parameter-meta{display:flex;flex-wrap:wrap;gap:.5rem 1.5rem;margin:10px 0 0;font-size:13px}
+.parameter-meta div{min-width:0}
+.parameter-meta dt{color:var(--muted)}
+.parameter-meta dd{margin:0;font-weight:600;overflow-wrap:anywhere}
+
+.page-location{display:flex;align-items:center;gap:9px;min-width:0}
+#page-back[hidden]{display:none}
+@media(max-width:720px){#breadcrumb{display:none}.page-location:has(#page-back[hidden]) #breadcrumb{display:inline}}
+
+.postnatal-index{padding:16px 18px;margin:16px 0;background:var(--soft);border-left:3px solid var(--accent);border-radius:var(--radius)}
+.postnatal-index strong{display:block;font-size:1.5rem;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}

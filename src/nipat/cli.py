@@ -138,7 +138,7 @@ def build_parser() -> argparse.ArgumentParser:
         "workflow", help="esegue automaticamente analisi scientifiche collegate",
     )
     workflow_presets = workflow.add_subparsers(dest="preset", required=True)
-    analyze = workflow_presets.add_parser("analyze", help="SNP/DNP verso qualunque combinazione di Contamination, CPI e CPIN")
+    analyze = workflow_presets.add_parser("analyze", help="SNP/DNP verso qualunque combinazione di Contamination, CPI prenatale e CPI postnatale")
     analyze.add_argument("--caller", choices=("dnp", "snp", "both", "tables"), required=True)
     analyze.add_argument("--analyses", default="", help="moduli separati da virgole: contamination,cpi,cpin; vuoto per solo calling")
     for option, description in (("sample", "campione BAM"), ("pileup", "pileup SNP"),
@@ -147,17 +147,17 @@ def build_parser() -> argparse.ArgumentParser:
     analyze.add_argument("--pair", nargs=3, action="append", metavar=("ID", "CFDNA_ID", "FATHER_ID"),
                          help="CPI prenatale: riferimenti agli ID campione; ripetibile")
     analyze.add_argument("--trio", nargs=4, action="append", metavar=("ID", "MOTHER_ID", "FATHER_ID", "CHILD_ID"),
-                         help="CPIN postnatale: riferimenti agli ID campione; ripetibile")
+                         help="CPI postnatale: riferimenti agli ID campione; ripetibile")
     analyze.add_argument("--reference", type=_path, help="FASTA indicizzato per input BAM")
     for marker in ("dnp", "snp"):
         analyze.add_argument(f"--{marker}-analyses", help="sovrascrive --analyses solo per questo ramo; stringa vuota per solo calling")
         analyze.add_argument(f"--{marker}-panel", type=_path, help=f"pannello di calling {marker.upper()}")
-        analyze.add_argument(f"--{marker}-popfreq", type=_path, help=f"frequenze {marker.upper()} per CPI e CPIN")
+        analyze.add_argument(f"--{marker}-popfreq", type=_path, help=f"frequenze {marker.upper()} per CPI prenatale e CPI postnatale")
         analyze.add_argument(f"--{marker}-contamination-panel", type=_path,
                              help="coordinate da analizzare; se omesso usa il pannello di calling")
         analyze.add_argument(f"--{marker}-cpi-cutoff", nargs=2, action="append", metavar=("LABEL", "PATH"),
                              help="cutoff CPI etichettato; ripetibile; se omesso usa ALL")
-        analyze.add_argument(f"--{marker}-cpin-panel", type=_path, help="pannello CPIN con coordinate e alleli REF/ALT; se omesso usa tutti i siti")
+        analyze.add_argument(f"--{marker}-cpin-panel", type=_path, help="pannello CPI postnatale con coordinate e alleli REF/ALT; se omesso usa tutti i siti")
     analyze.add_argument("--run-name")
     dnp_contamination = workflow_presets.add_parser(
         "dnp-contamination",

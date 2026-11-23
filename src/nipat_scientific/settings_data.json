@@ -612,7 +612,7 @@
         },
         "maternal_selection": {
           "value": "homozygous mother only",
-          "description": "Entrambe le selezioni CPIN richiedono madre omozigote."
+          "description": "Entrambe le selezioni CPI postnatale richiedono madre omozigote."
         },
         "curve_threshold_semantics": {
           "value": "obligatory paternal allele support after initial child genotype support filter",

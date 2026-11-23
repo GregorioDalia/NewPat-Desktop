@@ -24,4 +24,4 @@ It verifies:
 - Equality of scientific tables in serial, automatic and two-worker execution.
 - Invalid inputs rejected for the expected reason, and integrity of inputs, installation, preferences and test fixtures.
 
-The suite creates its own inputs, runs and reports. A missing prerequisite, interrupted case or unrelated runtime failure cannot count as a pass. The report records the fixture provenance separately from the installed version. For execution speed on representative inputs, use the [performance guide](PERFORMANCE.md). For domain assessment, see the [validation record](VALIDAZIONE.md).
+The suite creates its own inputs, runs and reports. A missing prerequisite, interrupted case or unrelated runtime failure cannot count as a pass. The report records the fixture provenance separately from the installed version. For execution speed on representative inputs, use the [performance guide](PERFORMANCE.md). For domain assessment, see the [validation record](VALIDATION.md).

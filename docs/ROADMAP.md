@@ -12,4 +12,4 @@ NewPat development centers on the reproducibility of research results and the op
 
 Scientific reference implementations, analytical test cases and domain review serve different purposes. Record which comparison you performed and the evidence it supports. For an issue, include the software version, platform, expected behavior, observed behavior and the smallest input that reproduces it. The package acceptance process records which checks ran on an installer and which observations came from a physical device.
 
-[Scientific components](../scientific/README.md) · [Technical and domain validation](VALIDAZIONE.md) · [Performance measurements](PERFORMANCE.md) · [Installer acceptance](ACCETTAZIONE_INSTALLATORI.md)
+[Scientific components](../scientific/README.md) · [Technical and domain validation](VALIDATION.md) · [Performance measurements](PERFORMANCE.md) · [Installer acceptance](INSTALLER_ACCEPTANCE.md)

@@ -68,7 +68,7 @@ class DesktopApplication:
         store = self.service._results()
         run_id = params["run_id"]
         files = store.files(run_id)
-        name = PRODUCT_NAME + "_" + re.sub(r"[^\w.-]+", "_", run_id) + "_risultati.zip"
+        name = PRODUCT_NAME + "_" + re.sub(r"[^\w.-]+", "_", run_id) + "_results.zip"
         destination = self.host.save_file("Salva i risultati dell’esperimento", name,
                                           [{"name": "Archivio ZIP", "extensions": ["zip"]}])
         if not destination:
@@ -112,7 +112,7 @@ class DesktopApplication:
             run_dir = self.service._results()._run(params["run_id"])
         destination = self.host.save_file(
             "Salva la diagnostica · log e informazioni sull’ambiente",
-            f"{PRODUCT_NAME}-diagnostica-{datetime.now():%Y%m%d-%H%M%S}.zip",
+            f"{PRODUCT_NAME}-diagnostics-{datetime.now():%Y%m%d-%H%M%S}.zip",
             [{"name": "Archivio ZIP", "extensions": ["zip"]}],
         )
         if not destination:

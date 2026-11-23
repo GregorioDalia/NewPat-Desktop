@@ -11,13 +11,23 @@ import hashlib
 import json
 from pathlib import Path, PurePosixPath
 import re
+import sys
 import stat
 import zipfile
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
+from nipat.branding import windows_complete_filename, windows_package_generation
+
 MAX_BYTES = 2**31 - 1
 MAX_EXPANDED = 3 * 1024**3
-ROOT_FILES = {"1_INSTALLA.cmd": "installer/windows/zip-install.cmd",
-              "LEGGIMI.txt": "installer/windows/zip-readme.txt"}
+
+
+def root_files(version):
+    if windows_package_generation(version) == 1:
+        return {"1_INSTALLA.cmd": "installer/windows/zip-install.cmd",
+                "LEGGIMI.txt": "installer/windows/zip-readme.txt"}
+    return {"1_INSTALL.cmd": "installer/windows/zip-install.cmd",
+            "README.txt": "installer/windows/zip-readme.txt"}
 
 
 def digest(stream):
@@ -35,7 +45,7 @@ def file_digest(path):
 def filename(version):
     if not re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", version):
         raise ValueError("Versione ZIP non valida")
-    return f"NIPAT-{version}-Windows-completo.zip"
+    return windows_complete_filename(version)
 
 
 def safe_name(name):
@@ -61,7 +71,7 @@ def expected_files(manifest, inventory_bytes):
             raise ValueError("Inventario ZIP duplicato o non valido")
         expected[name] = entry["sha256"]
     expected["app/.distribution/application-files.json"] = hashlib.sha256(inventory_bytes).hexdigest()
-    for name, source in ROOT_FILES.items():
+    for name, source in root_files(manifest["version"]).items():
         expected[name] = manifest["source_sha256"][source]
     for asset in manifest["assets"].values():
         expected["assets/" + str(safe_name(asset["file"]))] = asset["sha256"]
@@ -123,7 +133,7 @@ def build(stage, assets, output):
     manifest = json.loads((app / ".distribution/installer-manifest.json").read_bytes())
     inventory = (app / ".distribution/application-files.json").read_bytes()
     paths = {"app/" + p.relative_to(app).as_posix(): p for p in app.rglob("*") if p.is_file()}
-    paths.update({name: app / source for name, source in ROOT_FILES.items()})
+    paths.update({name: app / source for name, source in root_files(manifest["version"]).items()})
     paths.update({"assets/" + a["file"]: Path(assets) / a["file"] for a in manifest["assets"].values()})
     expected = expected_files(manifest, inventory)
     if set(paths) != set(expected) or any(p.is_symlink() for p in app.rglob("*")):

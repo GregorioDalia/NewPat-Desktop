@@ -36,7 +36,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Controllo runtime WSL non superato. Consultare .runtime\setup.log.' }
     & $python -m nipat self-test
     if ($LASTEXITCODE -ne 0) { throw 'Autotest non superati. Consultare .runtime\setup.log e la cartella risultati.' }
-    Write-Host "Client pronto. Aprire 2_AVVIA.cmd per scegliere un'analisi."
+    Write-Host "Client pronto. Aprire 2_LAUNCH.cmd per scegliere un'analisi."
     $result = 0
 } catch {
     Write-Host ("ERRORE: " + $_.Exception.Message) -ForegroundColor Red

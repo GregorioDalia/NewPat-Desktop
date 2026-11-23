@@ -29,7 +29,7 @@ newpat self-test
 newpat wizard
 ```
 
-Help and version work without Docker. A `--dry-run` prepares the run description without testing runtime availability. `doctor --runtime` checks engine contracts. `self-test` checks the distributed examples. See the [user guide](GUIDA_UTILIZZO.md) for inputs and workflows.
+Help and version work without Docker. A `--dry-run` prepares the run description without testing runtime availability. `doctor --runtime` checks engine contracts. `self-test` checks the distributed examples. See the [user guide](USER_GUIDE.md) for inputs and workflows.
 
 | Item | Default location |
 | --- | --- |
@@ -72,4 +72,4 @@ Removal deletes the application and shortcut. Data, results, state, preferences,
 | Scientific image has been removed | Launch NewPat again to restore it from the included archive. |
 | An update stops midway | Keep APT output and the update handoff state under `${XDG_CACHE_HOME:-$HOME/.cache}/nipat-desktop/updates/handoff-*/state.json`. Check the ordinary setup log for subsequent runtime errors. |
 
-Package checks cover APT installation, non-root execution, reinstall/removal and an upgrade from the baseline package. A separate dependency check starts without Docker packages and verifies APT resolution. The [acceptance protocol](ACCETTAZIONE_INSTALLATORI.md), [CI guide](CI_CD.md) and [validation record](VALIDAZIONE.md) distinguish automated checks from testing on a physical Ubuntu desktop.
+Package checks cover APT installation, non-root execution, reinstall/removal and an upgrade from the baseline package. A separate dependency check starts without Docker packages and verifies APT resolution. The [acceptance protocol](INSTALLER_ACCEPTANCE.md), [CI guide](CI_CD.md) and [validation record](VALIDATION.md) distinguish automated checks from testing on a physical Ubuntu desktop.

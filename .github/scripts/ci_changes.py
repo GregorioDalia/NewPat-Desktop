@@ -11,7 +11,7 @@ LAYERS = ("client", "scientific", "runtime", "packaging")
 ACCEPTANCE_PATH = re.compile(r"\.github/release-acceptance/v[0-9]+\.[0-9]+\.[0-9]+(?:(?:a|b|rc)[0-9]+)?\.json")
 IMAGE_NOTICES = {"LICENSE", "THIRD_PARTY_NOTICES.md"}
 DOCUMENTATION = {
-    "README.md", "SUNTO.md", ".github/RELEASE.md", "assets/branding/README.md", "engine/README.md",
+    "README.md", "OVERVIEW.md", ".github/RELEASE.md", "assets/branding/README.md", "engine/README.md",
     "scientific/README.md", "scientific/vendor/DNPcall/README.md", "tests/r_optimization/README.md",
     "installer/windows/testing-readme.txt", "installer/windows/zip-readme.txt",
     *(f"scientific/vendor/NEWPAT/{module}/README.md" for module in (

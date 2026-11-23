@@ -23,8 +23,7 @@ def accepted_paths(event, revision, *, fetch=fetch_json):
                       and run.get("head_branch") == "main" and run.get("event") == "push"
                       and run.get("path") == ".github/workflows/ci.yml"
                       and (run.get("status"), run.get("conclusion")) == ("completed", "success")
-                      and (run.get("repository") or {}).get("full_name") == publisher.REPO
-                      and (run.get("head_repository") or {}).get("full_name") == publisher.REPO,
+                      and all(publisher.official_run_repository(run.get(field)) for field in ("repository", "head_repository")),
                       "Automatic publication requires this repository's successful main push CI")
     parent = publisher.command("git", "rev-parse", f"{revision}^1")
     paths = changed_paths(parent, revision)
@@ -72,9 +71,9 @@ def publication_arguments(record, existing):
         version = record["version"]
         expected = {
             "NIPAT-Setup.exe": "windows_installer_sha256",
-            f"NIPAT-{version}-Windows-completo.zip": "windows_zip_sha256",
+            publisher.windows_complete_filename(version): "windows_zip_sha256",
             f"NIPAT-{version}-Windows-payload.zip": "windows_payload_sha256",
-            f"NIPAT-{version}-Testing-installazione.zip": "windows_testing_sha256",
+            publisher.windows_testing_filename(version): "windows_testing_sha256",
             f"nipat-desktop_{version}_amd64.deb": "linux_installer_sha256",
             f"NIPAT-{version}-macos-arm64.pkg": "macos_arm64_installer_sha256",
             f"NIPAT-{version}-macos-x86_64.pkg": "macos_x86_64_installer_sha256",
@@ -110,28 +109,37 @@ def publication_arguments(record, existing):
             publisher.require("windows_payload_sha256" in record,
                               "Acceptance is missing the desktop payload digest")
             by_name = {asset["name"]: asset for asset in assets}
+            if publisher.windows_package_generation(version) == 2:
+                publisher.require(not ({publisher.WINDOWS_BOOTSTRAP_UPDATE_MANIFEST,
+                                        publisher.WINDOWS_ZIP_UPDATE_MANIFEST} & by_name.keys()),
+                                  "An incompatible legacy Windows feed is present")
             for filename, platform, feed in (
                 (f"NIPAT-{version}-Windows-payload.zip", "windows-bootstrap-x86_64",
-                 publisher.WINDOWS_BOOTSTRAP_UPDATE_MANIFEST),
-                (f"NIPAT-{version}-Windows-completo.zip", "windows-zip-x86_64",
-                 publisher.WINDOWS_ZIP_UPDATE_MANIFEST),
+                 publisher.windows_feed_filename("bootstrap", version)),
+                (publisher.windows_complete_filename(version), "windows-zip-x86_64",
+                 publisher.windows_feed_filename("zip", version)),
             ):
                 asset = by_name.get(filename, {})
                 size = asset.get("size")
                 publisher.require(type(size) is int and 0 < size < publisher.MAX_ASSET_BYTES,
                                   "Existing payload has invalid size metadata")
-                entry = {"platform": platform, "name": filename, "size": size,
-                         "sha256": digests[filename].removeprefix("sha256:"),
-                         "url": f"https://github.com/{publisher.REPO}/releases/download/v{version}/{filename}"}
-                document = {
-                    "schema_version": 1, "product": "nipat-desktop", "version": version,
-                    "release_tag": "v" + version, "channel": channel,
-                    "source_commit": record["source_commit"], "minimum_updater_version": 1,
-                    "assets": [entry],
-                    "release_notes_url": f"https://github.com/{publisher.REPO}/releases/tag/v{version}",
-                }
-                raw = (json.dumps(document, indent=2) + "\n").encode("utf-8")
-                publisher.require(digests.get(feed) == "sha256:" + hashlib.sha256(raw).hexdigest(),
+                # A retry after the repository is renamed still verifies the exact
+                # bytes of the original feed, including its then-canonical URLs.
+                approved_digests = set()
+                for repository in publisher.OFFICIAL_REPOSITORIES:
+                    entry = {"platform": platform, "name": filename, "size": size,
+                             "sha256": digests[filename].removeprefix("sha256:"),
+                             "url": f"https://github.com/{repository}/releases/download/v{version}/{filename}"}
+                    document = {
+                        "schema_version": 1, "product": "nipat-desktop", "version": version,
+                        "release_tag": "v" + version, "channel": channel,
+                        "source_commit": record["source_commit"], "minimum_updater_version": publisher.windows_package_generation(version),
+                        "assets": [entry],
+                        "release_notes_url": f"https://github.com/{repository}/releases/tag/v{version}",
+                    }
+                    raw = (json.dumps(document, indent=2) + "\n").encode("utf-8")
+                    approved_digests.add("sha256:" + hashlib.sha256(raw).hexdigest())
+                publisher.require(digests.get(feed) in approved_digests,
                                   "Existing Windows update feed differs from the accepted payload")
         return None
     args = ["--operation", "prepare-and-publish", "--run-id", str(record["build_run_id"]),
@@ -143,7 +151,7 @@ def publication_arguments(record, existing):
 
 
 def main():
-    publisher.require(os.environ.get("GITHUB_REPOSITORY") == publisher.REPO
+    publisher.require(publisher.official_actions_context() and os.environ.get("GITHUB_REPOSITORY") == publisher.REPO
                       and os.environ.get("GITHUB_EVENT_NAME") == "workflow_run"
                       and os.environ.get("GITHUB_REF") == "refs/heads/main",
                       "Automatic publication must run on the owned main branch")

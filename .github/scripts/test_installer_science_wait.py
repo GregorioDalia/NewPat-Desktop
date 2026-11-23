@@ -10,7 +10,7 @@ import installer_science_wait as wait
 class InstallerWaitTests(unittest.TestCase):
     def setUp(self):
         self.source = {"commit": "1" * 40, "tree": "2" * 40}
-        self.repo = {"full_name": wait.science.REPOSITORY, "id": 111}
+        self.repo = {"full_name": wait.science.REPOSITORY, "id": int(wait.science.REPOSITORY_ID)}
         self.run = {"path": wait.CI_PATH, "id": 123, "run_attempt": 2, "head_sha": self.source["commit"],
                     "event": "push", "repository": self.repo, "head_repository": self.repo,
                     "status": "in_progress", "conclusion": None, "pull_requests": []}

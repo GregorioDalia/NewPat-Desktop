@@ -9,7 +9,7 @@ newpat parameters snp-call --section preparation --lang en
 newpat parameters --json
 ```
 
-In a source checkout use `python -m nipat`. The packaged Windows wrapper and macOS command launcher accept the same arguments. JSON includes both languages. The `--lang` and `--section` options control text display. [Platform launchers](GUIDA_UTILIZZO.md)
+In a source checkout use `python -m nipat`. The packaged Windows wrapper and macOS command launcher accept the same arguments. JSON includes both languages. The `--lang` and `--section` options control text display. [Platform launchers](USER_GUIDE.md)
 
 ## Reading an entry
 
@@ -23,7 +23,7 @@ A **direct** mapping passes the native meaning through. An **adapted** mapping p
 
 For an actual run, consult its `run.json` and `work/effective-scientific-settings.json`. The catalog distinguishes R defaults from client defaults. Imported pileups may have been produced with unknown acquisition settings. CPI panels called *cutoffs* select coordinates by membership. Their names do not impose numerical thresholds on samples.
 
-`newpat settings` lists configurable parameters, ranges, model constants and cross-parameter constraints. Global options `--scientific-config PATH` and `--set module.parameter=value` apply validated overrides. [User guide](GUIDA_UTILIZZO.md)
+`newpat settings` lists configurable parameters, ranges, model constants and cross-parameter constraints. Global options `--scientific-config PATH` and `--set module.parameter=value` apply validated overrides. [User guide](USER_GUIDE.md)
 
 Global scheduling options precede the analysis command. `--execution-mode auto` lets the run's resource budget and work determine concurrency. `--execution-mode serial` runs one compute process at a time. `--max-workers` caps the automatic pool. Nested pools remain serial. DNP accepts `--parallel` for CLI compatibility. The global policy controls the actual number of workers.
 

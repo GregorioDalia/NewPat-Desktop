@@ -14,10 +14,10 @@ These records refer to identified releases, revisions and tests. Files retain th
 ## Audits, tests and decisions
 
 - Technical audits for [0.8.80](../AUDIT_0.8.80.md), [0.8.70](../AUDIT_0.8.70.md), [0.8.60](../AUDIT_0.8.60.md), [0.8.50](../AUDIT_0.8.50.md) and [0.8.20](../AUDIT_0.8.20.md).
-- [0.8.50 development](../DEVELOPMENT_0.8.50.md) and [0.8.50 installed-package acceptance](../COLLAUDO_INSTALLAZIONE_0850.md).
-- Performance studies for [0.8.14](../OPTIMIZATIONS_0.8.14.md), [0.8.13 pileups](../PILEUP_0.8.13.md), [0.8.12 parallel execution](../PARALLELISMO_0.8.12.md), the [0.8.10 prototype](../PROTOTYPE_0.8.10.md) and [0.8.9 optimizations](../OPTIMIZATION_0.8.9.md).
+- [0.8.50 development](../DEVELOPMENT_0.8.50.md) and [0.8.50 installed-package acceptance](../WINDOWS_INSTALLATION_TEST_0.8.50.md).
+- Performance studies for [0.8.14](../OPTIMIZATIONS_0.8.14.md), [0.8.13 pileups](../PILEUP_0.8.13.md), [0.8.12 parallel execution](../PARALLELISM_0.8.12.md), the [0.8.10 prototype](../PROTOTYPE_0.8.10.md) and [0.8.9 optimizations](../OPTIMIZATION_0.8.9.md).
 - Machine-readable evidence for [0.8.50](../validation/0.8.50-development.json), [0.8.14 microbenchmarks](../validation/0.8.14-microbenchmarks.json), [observed 0.8.14 benchmarks](../validation/0.8.14-observed-benchmarks.json), and rootless testing of [0.8.14](../validation/0.8.14-rootless.json), [0.8.13](../validation/0.8.13-rootless.json) and [0.8.12](../validation/0.8.12-rootless.json).
-- [Acceptance records and reports](../../.github/release-acceptance), [early decisions](DECISIONS.md) and the [0.5 development plan](PIANO_0.5.md).
+- [Acceptance records and reports](../../.github/release-acceptance), [early decisions](DECISIONS.md) and the [0.5 development plan](PLAN_0.5.md).
 
 <a id="profilo-storico-della-build-degli-installatori"></a>
 

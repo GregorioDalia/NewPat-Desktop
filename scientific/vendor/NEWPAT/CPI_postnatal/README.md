@@ -1,6 +1,6 @@
 # Postnatal CPI
 
-NewPat calculates the postnatal Combined Paternity Index (CPIN in the application) from mother, putative-father and child count tables and population frequencies. SNP and DNP are analyzed separately. NewPat supplies the R runtime, validates the role mapping and reuses samples shared across trios. [Upstream module and examples](https://github.com/lpistacchia/NEWPAT/tree/9c2a8be60afcb944153710da6a61cd0559e2b4cf/CPI_postnatal) · [License](../LICENSE)
+NewPat calculates the postnatal Combined Paternity Index (CPI) from mother, putative-father and child count tables and population frequencies. SNP and DNP are analyzed separately. NewPat supplies the R runtime, validates the role mapping and reuses samples shared across trios. [Upstream module and examples](https://github.com/lpistacchia/NEWPAT/tree/9c2a8be60afcb944153710da6a61cd0559e2b4cf/CPI_postnatal) · [License](../LICENSE)
 
 ## Run the local examples
 
@@ -11,7 +11,7 @@ newpat cpin --input-dir tests/fixtures/cpin/DNP --trios M1:F1:C1 --popfreq tests
 newpat cpin --input-dir tests/fixtures/cpin/SNP --trios M1:F1:C1 --popfreq tests/fixtures/cpin/SNP/population.txt --panel tests/fixtures/cpin/SNP/markers.tsv
 ```
 
-With the CLI's default prefixes, `M1:F1:C1` selects `MotherM1.txt`, `FatherF1.txt` and `ChildC1.txt`, in that order. Use `--mother-prefix`, `--father-prefix` and `--child-prefix` for other naming schemes. Supply comma-separated trios for a batch. Each trio requires three distinct physical files. The engine rejects duplicate trios and ambiguous filenames. The optional panel contains coordinates and REF/ALT alleles. Omitting it allows all otherwise eligible loci with population frequencies. [User guide](../../../../docs/GUIDA_UTILIZZO.md) · [Engine contract](../../../../engine/README.md#cpin)
+With the CLI's default prefixes, `M1:F1:C1` selects `MotherM1.txt`, `FatherF1.txt` and `ChildC1.txt`, in that order. Use `--mother-prefix`, `--father-prefix` and `--child-prefix` for other naming schemes. Supply comma-separated trios for a batch. Each trio requires three distinct physical files. The engine rejects duplicate trios and ambiguous filenames. The optional panel contains coordinates and REF/ALT alleles. Omitting it allows all otherwise eligible loci with population frequencies. [User guide](../../../../docs/USER_GUIDE.md) · [Engine contract](../../../../engine/README.md#postnatal-cpi)
 
 ## Model and settings
 

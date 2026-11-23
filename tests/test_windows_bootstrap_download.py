@@ -1,6 +1,7 @@
 """Exercise the frozen setup contract independently of changing application code."""
 import hashlib
 import importlib.util
+import io
 import json
 from pathlib import Path
 import stat
@@ -20,8 +21,8 @@ def sha(value):
     return hashlib.sha256(value).hexdigest()
 
 
-def package(tmp_path, *, version="0.8.99", corrupt_member=False, extra=None):
-    members = {"app/2_AVVIA.cmd": b"@echo fixture", "assets/rootfs.tar.gz": b"rootfs",
+def package(tmp_path, *, version="0.9.10", corrupt_member=False, extra=None):
+    members = {"app/2_LAUNCH.cmd": b"@echo fixture", "assets/rootfs.tar.gz": b"rootfs",
                "assets/scientific.tar.gz": b"scientific"}
     manifest = {"schema_version": 1, "version": version, "source_commit": "a" * 40,
                 "installation_profile": {"channel": "desktop"}, "assets": {
@@ -33,7 +34,7 @@ def package(tmp_path, *, version="0.8.99", corrupt_member=False, extra=None):
                            for name, value in members.items() if name.startswith("app/")]}
     members["app/.distribution/application-files.json"] = json.dumps(inventory).encode()
     if corrupt_member:
-        members["app/2_AVVIA.cmd"] += b"changed"
+        members["app/2_LAUNCH.cmd"] += b"changed"
     if extra:
         members.update(extra)
     target = tmp_path / "payload.zip"
@@ -48,18 +49,23 @@ def package(tmp_path, *, version="0.8.99", corrupt_member=False, extra=None):
 
 
 def feed():
-    name = "NIPAT-0.8.99-Windows-payload.zip"
-    return {"schema_version": 1, "product": "nipat-desktop", "version": "0.8.99",
-            "source_commit": "a" * 40, "release_tag": "v0.8.99", "channel": "stable",
-            "minimum_updater_version": 1,
-            "release_notes_url": bootstrap.REPOSITORY + "/releases/tag/v0.8.99",
+    name = "NIPAT-0.9.10-Windows-payload.zip"
+    return {"schema_version": 1, "product": "nipat-desktop", "version": "0.9.10",
+            "source_commit": "a" * 40, "release_tag": "v0.9.10", "channel": "stable",
+            "minimum_updater_version": 2,
+            "release_notes_url": bootstrap.REPOSITORY + "/releases/tag/v0.9.10",
             "assets": [{"platform": "windows-bootstrap-x86_64", "name": name,
                         "size": 123, "sha256": "b" * 64,
-                        "url": bootstrap.REPOSITORY + "/releases/download/v0.8.99/" + name}]}
+                        "url": bootstrap.REPOSITORY + "/releases/download/v0.9.10/" + name}]}
+
+
+def test_new_setup_refuses_payloads_from_legacy_layout():
+    with pytest.raises(ValueError, match="compatibile"):
+        bootstrap._target("0.9.9", "a" * 40, "b" * 64, 100)
 
 
 def test_freeze_can_install_new_compatible_application_versions(tmp_path):
-    for version in ("0.8.99", "0.9.0", "1.2.3"):
+    for version in ("0.9.10", "0.9.11", "1.2.3"):
         base = tmp_path / version
         base.mkdir()
         archive, target = package(base, version=version)
@@ -67,7 +73,7 @@ def test_freeze_can_install_new_compatible_application_versions(tmp_path):
         destination = base / "NIPAT con spazi è"
         manifest = bootstrap.extract_payload(archive, destination, target)
         assert manifest["version"] == version
-        assert (destination / "app/2_AVVIA.cmd").read_bytes() == b"@echo fixture"
+        assert (destination / "app/2_LAUNCH.cmd").read_bytes() == b"@echo fixture"
         assert (destination / "runtime-cache" / (sha(b"rootfs") + "-rootfs.tar.gz")).read_bytes() == b"rootfs"
         assert (destination / "runtime-cache" / (sha(b"scientific") + "-scientific.tar.gz")).read_bytes() == b"scientific"
 
@@ -84,7 +90,7 @@ def test_wrong_target_never_extracts(tmp_path, alter):
 
 
 @pytest.mark.parametrize("extra", ["../outside.txt", "app/../outside.txt", "app/a:b", "app/CON.txt",
-                                  "app/2_avvia.CMD", "unlisted.txt"])
+                                  "app/2_launch.CMD", "unlisted.txt"])
 def test_unsafe_or_unlisted_archive_members_never_extract(tmp_path, extra):
     archive, target = package(tmp_path, extra={extra: b"unexpected"})
     destination = tmp_path / "app"
@@ -120,12 +126,12 @@ def test_existing_destination_and_symlinks_rejected_without_data_loss(tmp_path):
 
 def test_official_feed_and_origin_are_bound():
     valid = feed()
-    assert bootstrap.validate_feed(valid)["version"] == "0.8.99"
-    valid["assets"][0]["url"] = "https://github.com/another/repo/releases/download/v0.8.99/payload.zip"
+    assert bootstrap.validate_feed(valid)["version"] == "0.9.10"
+    valid["assets"][0]["url"] = "https://github.com/another/repo/releases/download/v0.9.10/payload.zip"
     with pytest.raises(ValueError, match="ufficiale"):
         bootstrap.validate_feed(valid)
     valid = feed()
-    valid["minimum_updater_version"] = 2
+    valid["minimum_updater_version"] = 1
     with pytest.raises(ValueError, match="supportato"):
         bootstrap.validate_feed(valid)
 
@@ -135,6 +141,41 @@ def test_official_feed_and_origin_are_bound():
                                  "https://github.com:444/a"])
 def test_unapproved_download_locations_rejected(url):
     assert not bootstrap._approved_url(url)
+
+
+@pytest.mark.parametrize("active", bootstrap.OFFICIAL_REPOSITORIES)
+@pytest.mark.parametrize("recorded", bootstrap.OFFICIAL_REPOSITORIES)
+def test_manual_setup_downloads_from_current_verified_repository(monkeypatch, active, recorded):
+    from nipat.repository import REPOSITORY_ID, OFFICIAL_REPOSITORIES
+    assert bootstrap.REPOSITORY_ID == int(REPOSITORY_ID)
+    assert bootstrap.OFFICIAL_REPOSITORIES == OFFICIAL_REPOSITORIES
+    manifest = json.loads(json.dumps(feed()).replace(bootstrap.REPOSITORY, "https://github.com/" + recorded))
+    metadata = {"id": int(REPOSITORY_ID), "full_name": active}
+    expected = "https://github.com/" + active
+    urls = []
+
+    def get(url):
+        urls.append(url)
+        response = metadata if url == bootstrap.REPOSITORY_API else manifest
+        return io.BytesIO(json.dumps(response).encode())
+
+    monkeypatch.setattr(bootstrap, "_open", get)
+    target = bootstrap.current_target()
+    assert urls == [bootstrap.REPOSITORY_API, expected + "/releases/latest/download/" + bootstrap.FEED_NAME]
+    assert target["url"] == expected + "/releases/download/v0.9.10/NIPAT-0.9.10-Windows-payload.zip"
+
+
+@pytest.mark.parametrize(("repo_id", "name"), [
+    (1, "GregorioDalia/nipat-desktop"), (1307623649, "other/NewPat-Desktop"),
+    (1307623649, "GregorioDalia/another-project"),
+])
+def test_manual_setup_rejects_different_repository_before_fetching_feed(monkeypatch, repo_id, name):
+    def get(url):
+        assert url == bootstrap.REPOSITORY_API
+        return io.BytesIO(json.dumps({"id": repo_id, "full_name": name}).encode())
+    monkeypatch.setattr(bootstrap, "_open", get)
+    with pytest.raises(ValueError, match="repository"):
+        bootstrap.current_target()
 
 
 def test_duplicate_json_keys_rejected():
@@ -151,12 +192,12 @@ def test_explicit_update_does_not_resolve_latest(tmp_path, monkeypatch):
                              "--error-file", str(tmp_path / "error.txt"),
                              "--report-file", str(tmp_path / "report.ini")])
     assert result == 0
-    assert "version=0.8.99" in (tmp_path / "report.ini").read_text(encoding="utf-16")
+    assert "version=0.9.10" in (tmp_path / "report.ini").read_text(encoding="utf-16")
 
 
 def test_partial_update_identity_fails_before_network_or_mutation(tmp_path, monkeypatch):
     monkeypatch.setattr(bootstrap, "current_target", lambda: pytest.fail("Partial identity queried latest"))
-    assert bootstrap.main(["--version", "0.8.99", "--destination", str(tmp_path / "extracted"),
+    assert bootstrap.main(["--version", "0.9.10", "--destination", str(tmp_path / "extracted"),
                            "--error-file", str(tmp_path / "error.txt"),
                            "--report-file", str(tmp_path / "report.ini")]) == 1
     assert not (tmp_path / "extracted").exists()
@@ -166,13 +207,13 @@ def test_downgrade_and_reused_version_rejected(tmp_path):
     metadata = tmp_path / ".distribution"
     metadata.mkdir()
     manifest = metadata / "installer-manifest.json"
-    manifest.write_text(json.dumps({"version": "0.9.0", "source_commit": "a" * 40}))
+    manifest.write_text(json.dumps({"version": "0.9.11", "source_commit": "a" * 40}))
     with pytest.raises(ValueError, match="recente"):
-        bootstrap.check_installed(tmp_path, "0.8.99", "b" * 40)
+        bootstrap.check_installed(tmp_path, "0.9.10", "b" * 40)
     with pytest.raises(ValueError, match="differenti"):
-        bootstrap.check_installed(tmp_path, "0.9.0", "b" * 40)
-    bootstrap.check_installed(tmp_path, "0.9.0", "a" * 40)
-    bootstrap.check_installed(tmp_path, "0.9.1", "b" * 40)
+        bootstrap.check_installed(tmp_path, "0.9.11", "b" * 40)
+    bootstrap.check_installed(tmp_path, "0.9.11", "a" * 40)
+    bootstrap.check_installed(tmp_path, "0.9.12", "b" * 40)
 
 
 @pytest.mark.skipif(__import__("os").name != "nt", reason="Windows file sharing contract")
@@ -197,7 +238,7 @@ def test_extracted_payload_mutation_is_rejected_before_installation(tmp_path):
     destination = tmp_path / "staged"
     bootstrap.extract_payload(archive, destination, target)
     bootstrap.extract_payload(archive, destination, target, check_only=True)
-    changed = destination / "app/2_AVVIA.cmd"
+    changed = destination / "app/2_LAUNCH.cmd"
     changed.write_bytes(b"@echo changed")
     with pytest.raises(ValueError, match="modificato"):
         bootstrap.extract_payload(archive, destination, target, check_only=True)

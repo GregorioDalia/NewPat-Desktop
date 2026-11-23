@@ -344,12 +344,103 @@ class GuiJobTests(GuiRuntimeFixture):
             job = manager.start(prepared)
             self.assertTrue(reporting.wait(5))
             self.assertTrue(manager.active()["active"])
+            second = manager.start(prepared)
+            self.assertNotEqual(job["id"], second["id"])
             with self.assertRaises(ValidationError):
-                manager.start(prepared)
+                self.service(jobs=manager).call("jobs.remove", {"job_id": job["id"]})
         finally:
             release.set()
         self.assertEqual(manager.wait(job["id"], 5)["status"], "failed")
+        self.assertEqual(manager.wait(second["id"], 5)["status"], "failed")
         self.assertFalse(manager.active()["active"])
+
+    def test_simultaneous_runs_cancel_and_remove_only_selected_experiment(self):
+        release = threading.Event()
+        both_running = threading.Barrier(3)
+        class PausedRunner(GuiRunner):
+            def _prepare_runtime(self):
+                both_running.wait(timeout=5)
+                while not release.wait(.02):
+                    self._cancel_point()
+                self._cancel_point()
+                raise RuntimeExecutionError("end of second fixture")
+        manager = JobManager(runner_factory=PausedRunner, reconcile=lambda *_a, **_k: {"containers": []})
+        service = self.service(jobs=manager)
+        def launch():
+            preview = service.call("plan.preview", {"draft": self.draft()})
+            return service.call("analysis.start", {"preview_id": preview["preview_id"]})["id"]
+        first, second = launch(), launch()
+        try:
+            both_running.wait(timeout=5)
+            self.assertEqual({row["id"] for row in manager.active()["jobs"]}, {first, second})
+            service.call("jobs.cancel", {"job_id": first})
+            cancelled = manager.wait(first, 5)
+            self.assertEqual(cancelled["status"], "interrupted")
+            original = self.layout.runs_dir / cancelled["run_id"] / "run.json"
+            evidence = original.read_bytes()
+            with self.assertRaises(ValidationError):
+                service.call("jobs.remove", {"job_id": second})
+            self.assertTrue(service.call("jobs.remove", {"job_id": first})["outputs_preserved"])
+            self.assertEqual([row["id"] for row in manager.list()], [second])
+            active = manager.active()["jobs"]
+            self.assertEqual([row["id"] for row in active], [second])
+            self.assertFalse(active[0]["cancel_requested"])
+            self.assertNotEqual(active[0]["run_id"], cancelled["run_id"])
+            self.assertEqual([row["id"] for row in service.call("runs.list")["runs"]], [active[0]["run_id"]])
+            self.assertEqual(original.read_bytes(), evidence)
+        finally:
+            release.set()
+        other = manager.wait(second, 5)
+        self.assertEqual(other["status"], "failed")
+        self.assertTrue(service.call("runs.remove", {"run_id": other["run_id"]})["outputs_preserved"])
+        self.assertEqual(manager.list(), [])
+        self.assertEqual(service.call("runs.list")["total"], 0)
+
+    def test_overlap_container_limits_use_guest_share_without_raising_explicit_limits(self):
+        from nipat.execution.options import ExecutionOptions
+        prepared = prepare_analysis(self.draft(), self.layout)
+        for count, requested, expected in [
+            (1, ExecutionOptions(), (None, None)),
+            (2, ExecutionOptions(), (2, 2048)),
+            (2, ExecutionOptions(cpus=1, memory_mb=1024), (1, 1024)),
+        ]:
+            with self.subTest(count=count, options=requested):
+                job = Job(replace(prepared, execution=requested), count)
+                runner = GuiRunner(job.prepared, job)
+                runner._record = Mock(data={})
+                snapshot = {"runtime": {"effective": {"cpus": 4, "memory_mib": 4096}}}
+                with patch("nipat.resources.ResourceManager.snapshot", return_value=snapshot):
+                    runner._record_resource_snapshot()
+                self.assertEqual((runner.options.cpus, runner.options.memory_mb), expected)
+                if count > 1:
+                    self.assertEqual(runner.options.compose_limits()["mem_limit"], expected[1] * 1024**2)
+                    self.assertEqual(runner._record.data["concurrent_execution"]["requested_options"], requested.as_dict())
+                else:
+                    self.assertNotIn("concurrent_execution", runner._record.data)
+
+    def test_runtime_startup_wait_can_be_cancelled_independently(self):
+        from concurrent.futures import ThreadPoolExecutor
+        prepared = prepare_analysis(self.draft(), self.layout)
+        first, second = [GuiRunner(prepared, Job(prepared)) for _ in range(2)]
+        for runner in (first, second):
+            runner._transport = Mock(backend="lima")
+        self.assertNotEqual(first._base_command()[-1], second._base_command()[-1])
+        entered, release = threading.Event(), threading.Event()
+        def ensure(runner):
+            self.assertIs(runner, first)
+            entered.set()
+            self.assertTrue(release.wait(5))
+        with ThreadPoolExecutor(2) as threads, patch.object(DockerComposeRunner, "_ensure_backend", ensure):
+            starting = threads.submit(first._ensure_backend)
+            try:
+                self.assertTrue(entered.wait(2))
+                waiting = threads.submit(second._ensure_backend)
+                second.job.cancel_event.set()
+                with self.assertRaises(KeyboardInterrupt):
+                    waiting.result(timeout=2)
+            finally:
+                release.set()
+            starting.result(timeout=2)
 
     def test_native_capture_log_contract_handles_success_and_runtime_failure(self):
         prepared = prepare_analysis(self.draft(), self.layout)

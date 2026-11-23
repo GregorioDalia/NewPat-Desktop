@@ -66,14 +66,14 @@ class ScientificReuseTests(unittest.TestCase):
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(data)
         self.bundle = self.root / "sealed"
-        with self.runtime(), patch.dict(os.environ, {"GITHUB_REPOSITORY": reuse.REPOSITORY,
+        with self.runtime(), patch.dict(os.environ, {"GITHUB_REPOSITORY": reuse.REPOSITORY, "GITHUB_REPOSITORY_ID": reuse.REPOSITORY_ID,
                 "GITHUB_EVENT_NAME": "push", "GITHUB_SHA": HEAD, "GITHUB_RUN_ID": "123", "GITHUB_RUN_ATTEMPT": "1"}), \
                 patch.object(reuse, "tool_version", return_value="poppler 24.02"):
             self.record = reuse.seal("scientific:test", self.bundle, self.producer_temp)
         self.run = {"id": 123, "run_attempt": 1, "event": "push", "head_sha": HEAD,
                     "path": ".github/workflows/ci.yml", "status": "completed", "conclusion": "success",
-                    "repository": {"id": 9, "full_name": reuse.REPOSITORY},
-                    "head_repository": {"id": 9, "full_name": reuse.REPOSITORY}, "pull_requests": []}
+                    "repository": {"id": int(reuse.REPOSITORY_ID), "full_name": reuse.REPOSITORY},
+                    "head_repository": {"id": int(reuse.REPOSITORY_ID), "full_name": reuse.REPOSITORY}, "pull_requests": []}
         self.job = {"id": 88, "name": "scientific", "run_id": 123, "run_attempt": 1, "head_sha": HEAD,
                     "status": "completed", "conclusion": "success", "started_at": "2026-11-13T10:00:00Z",
                     "completed_at": "2026-11-13T10:20:00Z", "steps": [
@@ -81,7 +81,7 @@ class ScientificReuseTests(unittest.TestCase):
         self.commit = {"sha": HEAD, "tree": {"sha": TREE}, "parents": []}
         self.artifact = {"id": 44, "name": f"nipat-scientific-qualification-1-{TREE}", "expired": False,
                          "created_at": "2026-11-13T10:19:00Z", "workflow_run": {"id": 123,
-                         "head_sha": HEAD, "repository_id": 9, "head_repository_id": 9}}
+                         "head_sha": HEAD, "repository_id": int(reuse.REPOSITORY_ID), "head_repository_id": int(reuse.REPOSITORY_ID)}}
         self.remote = self.root / "github-artifact.zip"
         self.write_remote()
 
@@ -92,7 +92,7 @@ class ScientificReuseTests(unittest.TestCase):
         stack.enter_context(patch.object(reuse.platform, "python_version", return_value="3.12.10"))
         stack.enter_context(patch.object(reuse.platform, "system", return_value="Linux"))
         stack.enter_context(patch.object(reuse.platform, "machine", return_value="x86_64"))
-        stack.enter_context(patch.dict(os.environ, {"GITHUB_REPOSITORY": reuse.REPOSITORY,
+        stack.enter_context(patch.dict(os.environ, {"GITHUB_REPOSITORY": reuse.REPOSITORY, "GITHUB_REPOSITORY_ID": reuse.REPOSITORY_ID,
             "GITHUB_RUN_ID": "456", "GITHUB_RUN_ATTEMPT": "1", "GITHUB_EVENT_NAME": "workflow_dispatch",
             "GITHUB_WORKFLOW_REF": reuse.REPOSITORY + "/.github/workflows/windows-installer.yml@refs/heads/main"}))
         return stack

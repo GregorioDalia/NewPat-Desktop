@@ -16,4 +16,4 @@ The Ubuntu updater launches its update component separately from package verific
 
 ## Verification
 
-Download the Windows `NIPAT-Setup.exe`, Ubuntu 24.04 DEB or macOS PKG for the host architecture. See the [installation guides](README.md#install-newpat), [Windows five-module test](COLLAUDO_INSTALLAZIONE.md) and [validation procedure](VALIDAZIONE.md). Build reports and `desktop-acceptance.json` identify tests on the distributed packages. Historical results, deferred desktop tests and domain validation have separate records.
+Download the Windows `NIPAT-Setup.exe`, Ubuntu 24.04 DEB or macOS PKG for the host architecture. See the [installation guides](README.md#install-newpat), [Windows five-module test](WINDOWS_INSTALLATION_TEST.md) and [validation procedure](VALIDATION.md). Build reports and `desktop-acceptance.json` identify tests on the distributed packages. Historical results, deferred desktop tests and domain validation have separate records.

@@ -12,8 +12,8 @@ The Windows development benchmark used one BAM of about 3.5 GB, the same 22 chro
 
 ## Installation and upgrades
 
-- **Windows x64.** Run `NewPat-Setup.exe` for guided installation. To prepare the application inside an extracted directory, use `NewPat-0.9.7-Windows-completo.zip`. [Windows guide](INSTALLATORE_WINDOWS.md)
-- **macOS 14 or later.** Choose the `arm64` package for Apple Silicon, including M1 and M3, or `x86_64` for Intel. [macOS guide](INSTALLATORE_MACOS.md)
-- **Ubuntu 24.04 x86_64.** Install `newpat-desktop_0.9.7_amd64.deb`. [Ubuntu guide](INSTALLATORE_LINUX.md)
+- **Windows x64.** Run `NewPat-Setup.exe` for guided installation. To prepare the application inside an extracted directory, use `NewPat-0.9.7-Windows-completo.zip`. [Windows guide](WINDOWS_INSTALLER.md)
+- **macOS 14 or later.** Choose the `arm64` package for Apple Silicon, including M1 and M3, or `x86_64` for Intel. [macOS guide](MACOS_INSTALLER.md)
+- **Ubuntu 24.04 x86_64.** Install `newpat-desktop_0.9.7_amd64.deb`. [Ubuntu guide](LINUX_INSTALLER.md)
 
 Users with a separate Windows 0.9.5 Testing installation can install the stable version with the setup program. Packages and checksums are on the [release page](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.9.7).

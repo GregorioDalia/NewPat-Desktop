@@ -11,6 +11,7 @@ import acceptance_ci as checker
 import automatic_release as automatic
 import publish_windows_release as publisher
 import qualification_evidence as qualification
+from nipat.repository import LEGACY_REPOSITORY, RENAMED_REPOSITORY
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -28,7 +29,7 @@ class AcceptanceBuildTests(unittest.TestCase):
             "id": self.record["build_run_id"], "head_sha": self.record["source_commit"],
             "status": "completed", "conclusion": "success", "event": "workflow_dispatch",
             "path": ".github/workflows/windows-installer.yml",
-            "repository": {"full_name": publisher.REPO}, "head_repository": {"full_name": publisher.REPO},
+            "repository": {"full_name": publisher.REPO, "id": int(publisher.REPOSITORY_ID)}, "head_repository": {"full_name": publisher.REPO, "id": int(publisher.REPOSITORY_ID)},
         }
         self.jobs = [{"name": name, "conclusion": "success"}
                      for name in publisher.required_build_jobs(self.record["version"])]
@@ -159,7 +160,7 @@ class AutomaticPublicationTests(unittest.TestCase):
         self.revision = "b" * 40
         self.run = {"id": 123, "head_sha": self.revision, "head_branch": "main", "event": "push",
                     "path": ".github/workflows/ci.yml", "status": "completed", "conclusion": "success",
-                    "repository": {"full_name": publisher.REPO}, "head_repository": {"full_name": publisher.REPO}}
+                    "repository": {"full_name": publisher.REPO, "id": int(publisher.REPOSITORY_ID)}, "head_repository": {"full_name": publisher.REPO, "id": int(publisher.REPOSITORY_ID)}}
         self.jobs = [{"name": "acceptance", "conclusion": "success"}, {"name": "required", "conclusion": "success"}]
 
     def paths(self, run=None, jobs=None, paths=None):
@@ -312,12 +313,14 @@ class AutomaticPublicationTests(unittest.TestCase):
                 "release_tag": "v" + version, "channel": channel, "source_commit": record["source_commit"],
                 "minimum_updater_version": 1, "assets": [{"platform": platform, "name": filename,
                 "size": 100, "sha256": record[names[filename]],
-                "url": f"https://github.com/{publisher.REPO}/releases/download/v{version}/{filename}"}],
-                "release_notes_url": f"https://github.com/{publisher.REPO}/releases/tag/v{version}"}
+                "url": f"https://github.com/{LEGACY_REPOSITORY}/releases/download/v{version}/{filename}"}],
+                "release_notes_url": f"https://github.com/{LEGACY_REPOSITORY}/releases/tag/v{version}"}
             digest = automatic.hashlib.sha256((json.dumps(document, indent=2) + "\n").encode()).hexdigest()
             existing["assets"].append({"name": feed, "state": "uploaded", "digest": "sha256:" + digest})
         with patch.object(publisher, "check_tag"):
             self.assertIsNone(automatic.publication_arguments(record, existing))
+            with patch.object(publisher, "REPO", RENAMED_REPOSITORY):
+                self.assertIsNone(automatic.publication_arguments(record, existing))
             required = [f"NIPAT-{version}-Windows-payload.zip", publisher.WINDOWS_BOOTSTRAP_UPDATE_MANIFEST]
             if publisher.uses_newpat_brand(version):
                 required.extend(name for name in names if name.startswith(("NewPat-", "newpat-desktop_")))

@@ -19,7 +19,7 @@ function Assert-PlainPath([string]$Path) {
     }
 }
 
-function Get-VerifiedAsset($Record, [string]$Directory, [string]$BaseUrl) {
+function Get-VerifiedAsset($Record, [string]$Directory, [string]$ReleasePath) {
     if ($Record.file -notmatch '\A[A-Za-z0-9][A-Za-z0-9._-]+\z' -or
         $Record.sha256 -notmatch '\A[a-f0-9]{64}\z' -or [long]$Record.size -le 0) {
         throw 'Identita del download non valida.'
@@ -30,6 +30,8 @@ function Get-VerifiedAsset($Record, [string]$Directory, [string]$BaseUrl) {
         Write-Host ('Download: ' + $Record.file)
         $temporary = $target + '.download-' + [Guid]::NewGuid().ToString('N')
         try {
+            . (Join-Path $PSScriptRoot 'install-profile.ps1')
+            $baseUrl = (Get-NipatOnlineRepository) + $ReleasePath
             $client = New-Object Net.WebClient
             $client.Headers.Add('User-Agent', 'NIPAT-Testing-Installer')
             try { $client.DownloadFile(($BaseUrl + $Record.file), $temporary) }
@@ -168,7 +170,7 @@ try {
         throw 'Questo avvio e riservato alle versioni sperimentali NewPat 0.9.'
     }
     $version = $metadata.version
-    $baseUrl = 'https://github.com/GregorioDalia/nipat-desktop/releases/download/v' + $version + '/'
+    $releasePath = '/releases/download/v' + $version + '/'
     $defaultDestination = -not $Destination
     if ($defaultDestination) { $Destination = Join-Path $env:LOCALAPPDATA ('NIPAT-Testing\' + $version) }
     $destination = [IO.Path]::GetFullPath($Destination)
@@ -177,8 +179,8 @@ try {
     Write-Host ('NewPat ' + $version + ' - VERSIONE SPERIMENTALE')
     if ($UseSetup) {
         Write-Host 'Questa modalita aggiorna l installazione desktop esistente con la versione sperimentale.'
-        $payload = Get-VerifiedAsset $metadata.payload $destination $baseUrl
-        $setup = Get-VerifiedAsset $metadata.setup $destination $baseUrl
+        $payload = Get-VerifiedAsset $metadata.payload $destination $releasePath
+        $setup = Get-VerifiedAsset $metadata.setup $destination $releasePath
         $arguments = @(
             ('/NIPATPACKAGE="' + $payload + '"'), ('/NIPATVERSION=' + $version),
             ('/NIPATSOURCE=' + $metadata.source_commit), ('/NIPATSHA256=' + $metadata.payload.sha256),
@@ -212,7 +214,7 @@ try {
         & $powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $resumeProject 'installer\windows\install-zip.ps1') -Resume
         $code = $LASTEXITCODE
     } else {
-        $archive = Get-VerifiedAsset $metadata.complete_zip $destination $baseUrl
+        $archive = Get-VerifiedAsset $metadata.complete_zip $destination $releasePath
         if (-not (Test-Path -LiteralPath $bundle)) {
             # Extraction is atomic: interrupted extraction does not leave a
             # partial bundle that prevents running the same entrypoint again.

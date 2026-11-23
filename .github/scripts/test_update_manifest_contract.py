@@ -7,10 +7,12 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 PROJECT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT / "src"))
-from nipat.updates import API, WEB, UpdateClient
+from nipat.repository import LEGACY_REPOSITORY, RENAMED_REPOSITORY, REPOSITORY_ID, REPOSITORY_INFO_URL
+from nipat.updates import UpdateClient
 
 SPEC = importlib.util.spec_from_file_location("update_publisher", Path(__file__).with_name("publish_windows_release.py"))
 publisher = importlib.util.module_from_spec(SPEC)
@@ -42,7 +44,15 @@ class PublishedUpdateContract(unittest.TestCase):
     def test_online_setup_payload_is_discoverable_on_a_separate_feed(self):
         self.check_published_pair("stable", version="0.8.99")
 
-    def check_published_pair(self, channel, version="0.6.1"):
+    def test_english_zip_and_bootstrap_feeds_exclude_previous_launcher_contract(self):
+        self.check_published_pair("stable", version="0.9.11")
+
+    def test_current_name_on_renamed_repository_with_historical_and_current_feeds(self):
+        for publisher_name in (LEGACY_REPOSITORY, RENAMED_REPOSITORY):
+            with self.subTest(published=publisher_name), patch.object(publisher, "REPO", publisher_name):
+                self.check_published_pair("stable", version="0.9.11", canonical=RENAMED_REPOSITORY)
+
+    def check_published_pair(self, channel, version="0.6.1", canonical=None):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
             commit = "c" * 40
@@ -56,34 +66,44 @@ class PublishedUpdateContract(unittest.TestCase):
                 packages += [(f"macos_{arch}", f"NIPAT-{version}-macos-{arch}.pkg") for arch in ("arm64", "x86_64")]
                 platforms += [(f"darwin-{arch}", f"macos_{arch}") for arch in ("arm64", "x86_64")]
                 feeds.append("update-manifest-macos.json")
+            english = version == "0.9.11"
             if publisher.requires_windows_zip(version):
-                packages.append(("windows_zip", f"NIPAT-{version}-Windows-completo.zip"))
+                suffix = "Windows-complete.zip" if english else "Windows-completo.zip"
+                packages.append(("windows_zip", f"NIPAT-{version}-{suffix}"))
                 platforms.append(("windows-zip-x86_64", "windows_zip"))
-                feeds.append("update-manifest-windows-zip.json")
+                feeds.append("update-manifest-windows-zip-v2.json" if english else "update-manifest-windows-zip.json")
             if publisher.requires_windows_bootstrap(version):
                 packages.append(("windows_payload", f"NIPAT-{version}-Windows-payload.zip"))
                 platforms.append(("windows-bootstrap-x86_64", "windows_payload"))
-                feeds.append("update-manifest-windows-bootstrap.json")
+                feeds.append("update-manifest-windows-bootstrap-v2.json" if english else "update-manifest-windows-bootstrap.json")
             for system, name in packages:
                 path = root / name
                 path.write_bytes(b"fixture bytes for verified " + system.encode())
                 pair[system] = {"file": name, "sha256": publisher.sha256(path)}
             document = publisher.write_update_manifest(root, manifest, pair, channel)
-            release_url = f"{WEB}/releases/tag/{tag}"
-            payloads = {}
+            if english:
+                self.assertFalse((root / "update-manifest-windows-bootstrap.json").exists())
+                self.assertFalse((root / "update-manifest-windows-zip.json").exists())
+                for method in ("zip", "bootstrap"):
+                    self.assertEqual(json.loads((root / f"update-manifest-windows-{method}-v2.json").read_text())["minimum_updater_version"], 2)
+            canonical = canonical or publisher.REPO
+            api = f"https://api.github.com/repos/{canonical}"
+            web = f"https://github.com/{canonical}"
+            release_url = f"{web}/releases/tag/{tag}"
+            payloads = {REPOSITORY_INFO_URL: json.dumps({"id": int(REPOSITORY_ID), "full_name": canonical}).encode()}
             assets = []
             self.assertEqual({entry["platform"] for entry in document["assets"]}, {"windows-x86_64", "linux-x86_64"})
             for name in [*feeds, *(name for _, name in packages)]:
                 content = (root / name).read_bytes()
-                url = f"{WEB}/releases/download/{tag}/{name}"
+                url = f"{web}/releases/download/{tag}/{name}"
                 payloads[url] = content
                 assets.append({"name": name, "state": "uploaded", "size": len(content),
                                "browser_download_url": url,
                                "digest": "sha256:" + hashlib.sha256(content).hexdigest()})
             release = {"tag_name": tag, "draft": False, "prerelease": channel == "testing",
                        "published_at": "2026-10-25T12:00:00Z", "html_url": release_url, "assets": assets}
-            payloads[f"{API}/releases?per_page=100&page=1"] = json.dumps([release]).encode()
-            payloads[f"{API}/git/ref/tags/{tag}"] = json.dumps({
+            payloads[f"{api}/releases?per_page=100&page=1"] = json.dumps([release]).encode()
+            payloads[f"{api}/git/ref/tags/{tag}"] = json.dumps({
                 "ref": "refs/tags/" + tag, "object": {"type": "commit", "sha": commit},
             }).encode()
             requests = []
@@ -94,13 +114,15 @@ class PublishedUpdateContract(unittest.TestCase):
 
             client = UpdateClient(opener=open_fixture)
             for platform, system in platforms:
-                check = client.check("0.6.0", "testing", platform)
+                if english and platform in ("windows-zip-x86_64", "windows-bootstrap-x86_64"):
+                    self.assertIsNone(client.check("0.9.9", "stable", platform).offer)
+                check = client.check("0.9.10" if english else "0.6.0", "testing", platform)
                 self.assertEqual(check.status, "available", check.message)
                 self.assertEqual(check.offer.source_commit, commit)
                 self.assertEqual(check.offer.asset.sha256, pair[system]["sha256"])
                 package = client.download(check.offer, root / "cache" / platform / version)
                 self.assertEqual(package.read_bytes(), (root / pair[system]["file"]).read_bytes())
-                self.assertEqual(check.offer.release_notes_url, document["release_notes_url"])
+                self.assertEqual(check.offer.release_notes_url, release_url)
             stable = client.check("0.6.0", "stable", "windows-x86_64")
             if channel == "stable":
                 self.assertEqual(stable.status, "available", stable.message)
@@ -108,7 +130,7 @@ class PublishedUpdateContract(unittest.TestCase):
             else:
                 self.assertIsNone(stable.offer)
             self.assertIsNone(client.check(version, "testing", "windows-x86_64").offer)
-            self.assertTrue(all(url.startswith((API + "/", WEB + "/releases/")) for url in requests))
+            self.assertTrue(all(url == REPOSITORY_INFO_URL or url.startswith((api + "/", web + "/releases/")) for url in requests))
 
 
 if __name__ == "__main__":

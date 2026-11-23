@@ -33,8 +33,8 @@ MAIN_MENU = [
     ("2", "SNPcall", "SNP da BAM o pileup esistente"),
     ("3", "Contamination", "Stima da tabelle compatibili"),
     ("4", "CPI prenatale", "Frazione fetale e indice di paternita'"),
-    ("N", "CPIN / CPI postnatale", "Trii madre, padre e figlio da SNP o DNP"),
-    ("W", "Workflow automatici", "SNP/DNP verso Contamination, CPI e CPIN"),
+    ("N", "CPI postnatale", "Trii madre, padre e figlio da SNP o DNP"),
+    ("W", "Workflow automatici", "SNP/DNP verso Contamination, CPI prenatale e CPI postnatale"),
     ("5", "Configura", "Cartelle e parametri predefiniti"),
     ("6", "Ultima esecuzione", "Risultati e log della sessione"),
     ("7", "Guida e informazioni", "Cosa fa NewPat e come utilizzarlo"),
@@ -56,14 +56,14 @@ def _select_workflow(ui: Terminal) -> str | None:
     )
     ui.message(
         "Il workflow completo collega DNPcall e/o SNPcall a qualsiasi combinazione di Contamination, "
-        "CPI prenatale e CPIN postnatale; accetta anche tabelle esistenti. SNP e DNP restano distinti.", kind="muted",
+        "CPI prenatale e CPI postnatale; accetta anche tabelle esistenti. SNP e DNP restano distinti.", kind="muted",
     )
     while True:
         selected = ui.menu("Workflow automatici", [
             ("5", "Workflow completo: tutti i cinque moduli", "Scegli calling, analisi successive e ruoli familiari"),
             ("1", "DNPcall -> Contamination", "Conteggi DNP e stima della contaminazione"),
             ("2", "DNPcall -> CPI", "Coppie cfDNA materno / campione paterno"),
-            ("3", "DNPcall -> Contamination e CPI", "Entrambe le analisi sulle tabelle DNPcall"),
+            ("3", "DNPcall -> Contamination e CPI prenatale", "Entrambe le analisi sulle tabelle DNPcall"),
             ("4", "SNPcall su piu' campioni", "BAM o pileup; risultati separati per campione"),
             ("0", "Torna al menu", ""),
         ], default="0").strip().casefold()
@@ -108,9 +108,9 @@ def _help(ui: Terminal, layout: ProjectLayout, runner=None, *, dry_run: bool = F
             "DNPcall: uno o piu' BAM, un FASTA indicizzato e un pannello DNP; produce conteggi, genotipi, riepiloghi e grafici.",
             "SNPcall: un BAM con FASTA oppure un pileup con QNAME, e una lista SNP; produce una tabella di conteggi allelici.",
             "Contamination: tabelle SNP o DNP e coordinate dello stesso tipo; produce stime per sito e un riepilogo per campione.",
-            "CPIN / CPI postnatale: trii madre, padre e figlio, conteggi SNP o DNP e frequenze di popolazione; produce indici di paternita' e risultati per sito.",
-            "CPI: tabelle cfDNA materno e presunto padre, coppie e frequenze di popolazione; produce stime di frazione fetale, CPI e grafici.",
-            "Workflow automatici: W -> 5 collega DNPcall e/o SNPcall a Contamination, CPI prenatale e CPIN postnatale, anche partendo da tabelle esistenti. Una sola conferma avvia il piano selezionato.",
+            "CPI postnatale: trii madre, padre e figlio, conteggi SNP o DNP e frequenze di popolazione; produce indici di paternita' e risultati per sito.",
+            "CPI prenatale: tabelle cfDNA materno e presunto padre, coppie e frequenze di popolazione; produce stime di frazione fetale, CPI e grafici.",
+            "Workflow automatici: W -> 5 collega DNPcall e/o SNPcall a Contamination, CPI prenatale e CPI postnatale, anche partendo da tabelle esistenti. Una sola conferma avvia il piano selezionato.",
             "Le altre voci del menu W offrono sequenze DNP predefinite e SNPcall su piu' BAM o pileup. Ogni campione mantiene risultati separati.",
             "I pannelli e i riferimenti devono essere coerenti con i campioni. La verifica degli input non sostituisce la valutazione scientifica dei risultati.",
         )),
@@ -127,12 +127,12 @@ def _help(ui: Terminal, layout: ProjectLayout, runner=None, *, dry_run: bool = F
             "Ogni esecuzione ha una cartella distinta: output contiene i risultati, work i file intermedi.",
             "run.json registra gli input, i parametri e lo stato; execution.log conserva i dettagli del processo.",
             "Ultima esecuzione riapre i risultati e i log della sessione. Le esecuzioni precedenti rimangono nelle rispettive cartelle.",
-            "La voce W, Workflow automatici, permette di scegliere calling SNP e/o DNP e analisi successive: Contamination, CPI prenatale e CPIN postnatale. Controllare input e riepilogo e confermare una sola volta.",
+            "La voce W, Workflow automatici, permette di scegliere calling SNP e/o DNP e analisi successive: Contamination, CPI prenatale e CPI postnatale. Controllare input e riepilogo e confermare una sola volta.",
             "Le tabelle passano automaticamente alla seconda fase. Se un caller fallisce o non produce le tabelle attese, le analisi successive non vengono avviate; ogni errore arresta il piano.",
             "Per i workflow CPI, indicare un ID per ogni coppia e assegnare esplicitamente i campioni del cfDNA materno e del presunto padre. Uno stesso campione puo' essere riutilizzato in piu' coppie nello stesso ruolo.",
             "NewPat prepara automaticamente i nomi e i prefissi dei file CPI. I ruoli derivano dalle coppie dichiarate, senza deduzioni dal nome dei BAM; il riepilogo mostra ID, file e ruoli.",
-            "Contamination, CPI e CPIN possono usare conteggi DNPcall o SNPcall, in rami distinti. La stima di contaminazione non filtra gli input delle analisi di paternita'.",
-            "Il workflow completo (W -> 5) offre tutte le combinazioni di calling e analisi successive, incluse tabelle importate. Dichiarare separatamente i ruoli delle coppie CPI e dei trii CPIN.",
+            "Contamination, CPI prenatale e CPI postnatale possono usare conteggi DNPcall o SNPcall, in rami distinti. La stima di contaminazione non filtra gli input delle analisi di paternita'.",
+            "Il workflow completo (W -> 5) offre tutte le combinazioni di calling e analisi successive, incluse tabelle importate. Dichiarare separatamente i ruoli delle coppie CPI prenatali e dei trii CPI postnatale.",
             "Un errore o un'interruzione arresta l'intero piano, comprese le analisi SNP indipendenti non ancora avviate. I risultati e i log gia' prodotti vengono conservati.",
             "Nel workflow automatico, output/workflow/workflow-state.json registra lo stato delle fasi; output/workflow/steps contiene una cartella per ciascuna fase, con work, output e log.",
             "Le tabelle individuali DNPcall si chiamano full_output_*.txt e si trovano nella sottocartella output/individual_outputs della fase DNPcall.",
@@ -146,7 +146,7 @@ def _help(ui: Terminal, layout: ProjectLayout, runner=None, *, dry_run: bool = F
             "Verifica ambiente controlla gli strumenti senza analizzare campioni. E' separata dalla guida e non attesta la validita' scientifica di un risultato.",
             update_help,
             "Per i comandi diretti: NIPAT.exe --help su Windows; il launcher NewPat.command incluso nell'app su macOS; newpat --help su Linux.",
-            f"Guida completa: {layout.project_dir / 'docs' / 'GUIDA_UTILIZZO.md'}",
+            f"Guida completa: {layout.project_dir / 'docs' / 'USER_GUIDE.md'}",
         )),
     }
     while True:

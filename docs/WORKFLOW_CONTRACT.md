@@ -4,9 +4,9 @@ A plan identifies samples, analysis steps and their input and output relationshi
 
 `validate-plan --plan FILE` checks the structure and dependencies and returns JSON. It works without the sample files and starts no R or samtools process. File content, reference compatibility and output checks belong to execution.
 
-`execute-plan --plan FILE --run-dir DIR` runs plans containing DNPcall, SNPcall, Contamination, prenatal CPI and postnatal CPIN. Both callers produce typed count tables accepted by all three downstream modules. Each SNPcall step processes one BAM or pileup. Multiple steps can share a panel. Use `execute` to run a single module.
+`execute-plan --plan FILE --run-dir DIR` runs plans containing DNPcall, SNPcall, Contamination, prenatal CPI and postnatal CPI. Both callers produce typed count tables accepted by all three downstream modules. Each SNPcall step processes one BAM or pileup. Multiple steps can share a panel. Use `execute` to run a single module.
 
-The desktop command `workflow analyze` and menu **W → 5** build DNP branches, SNP branches, or both, starting from alignments or existing tables. Each branch can select its own subset of Contamination, CPI and CPIN. The client generates the JSON from the confirmed menu selections or CLI arguments.
+The desktop command `workflow analyze` and menu **W → 5** build DNP branches, SNP branches, or both, starting from alignments or existing tables. Each branch can select its own subset of Contamination, prenatal and postnatal CPI. The client generates the JSON from the confirmed menu selections or CLI arguments.
 
 Before each R invocation, the engine performs the [input content checks](INPUT_VALIDATION.md) used by single-module analyses. Each step keeps its normalized panels and `work/input-validation.json`. The engine verifies outputs before passing them to dependent steps. Numerical warnings appear in `artifacts.quality_warnings`. They preserve the original R tables and flag results that need scientific interpretation.
 
@@ -44,19 +44,19 @@ In `bam` mode, SNPcall requires a sample of kind `bam` and a FASTA reference. In
 
 ## Typed references and family roles
 
-Contamination, CPI and CPIN accept the following table references.
+Contamination, prenatal and postnatal CPI accept the following table references.
 
 - `{"sample": "table_a"}` selects a registered `dnp-table` or `snp-table` sample.
 - `{"step": "dnp", "output": "dnp-tables", "sample": "sample_a"}` selects the individual table produced by that DNPcall step for the sample.
 - `{"step": "snp_a", "output": "snp-tables", "sample": "sample_a"}` selects the table produced by that SNPcall step for the sample.
 
-A reference to a producing step creates a dependency. SNPcall produces `snp-tables` and DNPcall produces `dnp-tables`. A Contamination summary, a CPI/CPIN result or a guessed path to a future output cannot serve as a count-table reference.
+A reference to a producing step creates a dependency. SNPcall produces `snp-tables` and DNPcall produces `dnp-tables`. A Contamination summary, a prenatal/postnatal CPI result or a guessed path to a future output cannot serve as a count-table reference.
 
 Each CPI pair contains `id`, `mother` and `father`. The `mother` reference identifies the **maternal cfDNA table** and `father` the **paternal sample table**. The plan declares these roles explicitly. One sample cannot occupy both roles in a CPI step, even if two different caller steps process it. Multiple pairs may share a sample in the same role. Duplicate pairs are invalid. The validator checks the declared relationships. The person preparing the plan verifies which biological material each sample contains.
 
-Each CPIN trio contains an `id` and three table references of the same marker type, `mother`, `father` and `child`. Their sample IDs must be distinct. Multiple trios may share a sample in the same role. Duplicate trios and contradictory roles are invalid. The maternal role in postnatal CPIN identifies the mother's sample. Prenatal CPI specifically expects maternal cfDNA.
+Each postnatal CPI trio contains an `id` and three table references of the same marker type, `mother`, `father` and `child`. Their sample IDs must be distinct. Multiple trios may share a sample in the same role. Duplicate trios and contradictory roles are invalid. The maternal role in postnatal CPI identifies the mother's sample. Prenatal CPI specifically expects maternal cfDNA.
 
-Single-module native requests combine local IDs with filename prefixes. For example, `A:A:A` is valid for CPIN with prefixes `Mother`, `Father` and `Child` when it selects three distinct files and samples. Plans use global references and require no such naming convention.
+Single-module native requests combine local IDs with filename prefixes. For example, `A:A:A` is valid for postnatal CPI with prefixes `Mother`, `Father` and `Child` when it selects three distinct files and samples. Plans use global references and require no such naming convention.
 
 | `cutoff_mode` | Required `cutoffs` value |
 | --- | --- |
@@ -140,7 +140,7 @@ The canonical sample registry is sorted by ID. Among steps whose dependencies ar
 
 Validating `report["plan"]` again produces the same report. The entire report cannot serve as a request because `execution_order` is derived from the references. The validator rejects cycles and references to missing steps, samples or output types.
 
-The execution owns the `work` and `output` directories. The plan identifies samples by ID. For CPI and CPIN, the executor translates explicit pairs and trios into native filenames and records how the declared families, role-specific inputs and native outputs correspond. Users can keep the original filenames.
+The execution owns the `work` and `output` directories. The plan identifies samples by ID. For prenatal and postnatal CPI, the executor translates explicit pairs and trios into native filenames and records how the declared families, role-specific inputs and native outputs correspond. Users can keep the original filenames.
 
 ## Plan execution
 
@@ -170,7 +170,7 @@ The normalized panel columns are `chr`, `pos`, `ref` and `alt`. The three-column
 
 Each step writes the scientific table to `output/SNPcall_output.txt`. On completion, `artifacts.snp-tables` associates the sample ID with its relative output path and SHA-256 digest. `artifacts.preparation` lists generated files by type (`regions-bed` or `pileup`), path and SHA-256. For an imported pileup this list is empty.
 
-The SNPcall 2.0 table includes `N_REF`, `N_ALT` and `N_Other` counts, genotype log-likelihoods `GL0`, `GL1` and `GL2`, the `GT` genotype and indel statistics. CPI, Contamination and CPIN consume the SNP coordinates and model directly.
+The SNPcall 2.0 table includes `N_REF`, `N_ALT` and `N_Other` counts, genotype log-likelihoods `GL0`, `GL1` and `GL2`, the `GT` genotype and indel statistics. Prenatal CPI, Contamination and postnatal CPI consume the SNP coordinates and model directly.
 
 For distinct samples that share the same panel, reference and mode, finalization creates `snp_summary/group_0001` and subsequent groups. They contain merged genotypes, per-sample resources, labels and plots of missing genotypes and sample intersections. Repeated analysis of one sample does not create an additional individual. The individual tables and checksums remain available. The UpSet plot counts a genotype as assigned when it differs from `NA`.
 
@@ -190,9 +190,11 @@ R keeps its native pair IDs in the CSV and PDFs. The step state maps each declar
 
 The script writes `Summary_FetalFraction_CPI.csv`, one PDF per pair and `All_CPIplots.pdf` in `plots`, and curves for each pair and panel in `curves`. The curves use intervals of equivalent thresholds. There is no per-site CPI table. The executor checks the summary columns, expected pair and cutoff combinations, and presence and PDF headers of required plots. An incomplete CSV, duplicate rows or missing plots prevent completion. These structural checks do not determine the biological plausibility of a value.
 
-### CPIN preparation and trio identity
+<a id="cpin-preparation-and-trio-identity"></a>
 
-CPIN accepts SNP or DNP tables, matching population frequencies and explicit trios. `inputs.markers` is `null` for all sites or points to a panel with coordinates **and REF/ALT alleles**. A coordinate list alone lacks the alleles required for this input.
+### Postnatal CPI preparation and trio identity
+
+Postnatal CPI accepts SNP or DNP tables, matching population frequencies and explicit trios. `inputs.markers` is `null` for all sites or points to a panel with coordinates **and REF/ALT alleles**. A coordinate list alone lacks the alleles required for this input.
 
 `scientific_settings.site_selection` accepts `other_allele`, `all` or `both`. Other settings include minimum child read counts, error constants and genotype thresholds. The engine prepares shared tables once. `trio_mapping` links the plan ID, the three roles and the native trio identifier.
 
@@ -253,7 +255,7 @@ The Python API raises `PlanValidationError`, a subclass of `ValidationError`, wi
 | `plan.output_sample` | Specified step does not produce the requested sample |
 | `plan.cycle` | Cyclic dependency, including a step referring to itself |
 | `plan.parameter` | Invalid parameter or value inconsistent with the mode |
-| `plan.roles` | Inconsistent CPI or CPIN role assignment |
+| `plan.roles` | Inconsistent prenatal or postnatal CPI role assignment |
 | `plan.marker_type` | Inconsistent declared marker type or mixed table types in one consumer |
 | `plan.cutoff_mode` | Inconsistent cutoff mode or number of panels |
 | `plan.cutoff_label` | Invalid cutoff label |
@@ -262,6 +264,6 @@ A structurally valid plan can still refer to missing files, malformed tables, an
 
 ## Sample presentation
 
-`presentation` contains exactly `samples` and `pairs`. The first maps every sample ID to its original name without path components. The second maps zero or more CPI pair IDs or CPIN trio IDs in the plan to readable labels. Validation rejects empty names, control characters, unknown IDs and incomplete sample mappings.
+`presentation` contains exactly `samples` and `pairs`. The first maps every sample ID to its original name without path components. The second maps zero or more CPI pair IDs or postnatal CPI trio IDs in the plan to readable labels. Validation rejects empty names, control characters, unknown IDs and incomplete sample mappings.
 
 Each step writes its exports to `output/presentation`. The workflow-wide index is in `presentation` under the run root. Canonical outputs, dependencies and checksums remain distinct from presentation copies. See the [engine presentation contract](../engine/README.md#readable-labels).

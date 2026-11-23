@@ -38,7 +38,7 @@ BUNDLED_WORKFLOW_INTERFACES = {
     "cpin": "cpin-v1",
 }
 BUNDLED_WORKFLOW_LABELS = {
-    "contamination": "Contamination", "dnp-call": "DNPcall", "snp-call": "SNPcall", "cpi": "CPI",
+    "contamination": "Contamination", "dnp-call": "DNPcall", "snp-call": "SNPcall", "cpi": "CPI prenatale",
     "cpin": "CPI postnatale",
     "workflow-plan-all": "Workflow con cinque moduli",
     "workflow-plan": "Workflow automatico",
@@ -975,6 +975,6 @@ class DockerComposeRunner:
             try:
                 self._prepare_runtime()
                 self._describe_bundled_engine()
-                self._write("Contratti scientifici verificati: DNPcall, SNPcall, Contamination, CPI, CPIN.\n")
+                self._write("Contratti scientifici verificati: DNPcall, SNPcall, Contamination, CPI prenatale, CPI postnatale.\n")
             finally:
                 self._image_id = None

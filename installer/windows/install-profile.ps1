@@ -2,6 +2,20 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+function Get-NipatOfficialRepositories {
+    return 'GregorioDalia/nipat-desktop', 'GregorioDalia/NewPat-Desktop'
+}
+
+function Get-NipatOnlineRepository {
+    $identity = Invoke-RestMethod -Method Get -Uri 'https://api.github.com/repositories/1307623649' `
+        -Headers @{'User-Agent' = 'NewPat-Installer'} -TimeoutSec 30 -MaximumRedirection 0
+    if ((($identity.id -isnot [int]) -and ($identity.id -isnot [long])) -or
+        $identity.id -ne 1307623649 -or (Get-NipatOfficialRepositories) -cnotcontains $identity.full_name) {
+        throw 'Identita del repository GitHub non valida.'
+    }
+    return ('https://github.com/' + $identity.full_name)
+}
+
 function Assert-NipatInstallationProfile($Profile) {
     $expected = [ordered]@{
         schema_version = 1; channel = 'desktop'; display_name = 'NewPat'

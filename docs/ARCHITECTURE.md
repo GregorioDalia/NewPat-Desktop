@@ -24,11 +24,25 @@ NewPat runs on the user's computer. The Python client owns the desktop interface
 
 The client and engine each ship their own copy of the preparation library. Python adapters validate counts, frequencies, loci and alleles, prepare the file formats required by R and check the resulting artifacts. Normalizations write working copies. Cases that require scientific interpretation generate traceable warnings. The scientific equations reside in the R programs.
 
+## Adding a downstream scientific module
+
+NewPat already passes a caller’s count tables to independently selected analyses and accepts imported SNP or DNP count tables. Each supported module has an explicit versioned interface. A new R file alone does not register an analysis in the engine or desktop.
+
+| Integration step | Where to change NewPat | What to establish |
+| --- | --- | --- |
+| Record the reference | `scientific/vendor/`, `scientific/SHA256SUMS`, `tests/reference_r/` | Pin the supplied script and dependency versions. Obtain a small shareable input, the exact invocation and expected native results for each supported mode. |
+| Prepare and validate inputs | `src/nipat_scientific/plan.py`, a module adapter alongside `contamination.py`, and `settings_data.json` | Declare accepted table types, extra resources, sample roles and editable parameters from the actual script. Reuse typed references and existing validators where their semantics match. |
+| Execute and verify | `engine/main.py`, `src/nipat_scientific/executor.py`, `outputs.py`, `catalog.py` and `catalog_data/`, `docker/scientific-runtime/` | Register the script and interface. Bind the selected tables to a step, collect its documented outputs, check their contents and include required R packages in the image. |
+| Expose the analysis | `src/nipat/execution/analysis_plan.py`, `runner.py`, `cli.py`, `analysis_forms.py`, and `src/nipat/gui/` | Add the explicit branch selection, forms, labels, summary and original file access. The client checks the module interface against the installed engine. |
+| Qualify the integrated path | `tests/fixtures/`, `scripts/verify_five_modules.py` and `scripts/verify_five_module_workflow.py` are examples | Compare native R output and integrated output for supported inputs, empty/uninformative cases and invalid inputs. Check sample identities and compare the archived results after reopening the desktop. |
+
+For example, the postnatal CPI adapter accepts explicit trios while Contamination works per sample. The sixth module’s inputs, roles, result type and expected values must come from its reference script and examples before those choices can be implemented.
+
 ## Workflow execution
 
 The client builds a request, confirms the inputs and starts one container. The engine determines step order, prepares the files and binds downstream inputs to specific upstream outputs. The container requires neither the GUI nor the host CLI. Its contract uses paths assigned by Linux mounts.
 
-`execute` runs one module. `execute-plan` runs an explicit dependency graph. The client command `workflow analyze` supports DNPcall and SNPcall, independently selected downstream analyses, imported SNP pileups and imported count tables. DNP and SNP branches can share BAMs and each can feed Contamination, prenatal CPI and postnatal CPIN with marker-compatible panels and frequencies. A SNPcall batch creates one step per sample. In BAM mode samtools prepares the pileup before R.
+`execute` runs one module. `execute-plan` runs an explicit dependency graph. The client command `workflow analyze` supports DNPcall and SNPcall, independently selected downstream analyses, imported SNP pileups and imported count tables. DNP and SNP branches can share BAMs and each can feed Contamination, prenatal CPI and postnatal CPI with marker-compatible panels and frequencies. A SNPcall batch creates one step per sample. In BAM mode samtools prepares the pileup before R.
 
 Independent SNP calls can share one bounded pool in mixed plans. Serial mode runs one compute task at a time and nested pools remain serial. Other steps follow plan order and dependencies. Failure stops further scheduling and blocks pending steps. A new run is required to repeat the plan. Interaction, language, preferences, runtime launch, installation and updates belong to the client and platform packages. Protocol identifiers are language-independent. [Workflow contract](WORKFLOW_CONTRACT.md) · [Engine reference](../engine/README.md)
 
@@ -52,7 +66,7 @@ Environment probes mount no user data. During analysis, `work/engine-compose.jso
 
 `--data-dir` and `--runs-dir` select independent roots. Relative CLI paths are resolved against the working directory. Paths inside BAM lists are relative to the list. On Windows, the WSL transport accepts local fixed disks. UNC paths, network drives and removable devices are unsupported. The client translates paths separately from scientific arguments and builds argument lists directly. CLI and menu prevent a results directory from overlapping managed runtime or cache destinations.
 
-DNPcall receives ordered aliases such as `sample_0001.bam`. The run record in `run.json` maps them to original files. Standalone Contamination, CPI and CPIN preserve individual names in prepared copies and reject collisions, including case-only differences. In plans, Contamination uses aliases such as `table_0001`. CPI and CPIN use stable aliases for selected tables. State records link each table to its sample and producer step, and each native R result to its declared pair or trio. A branch calls each sample once and reuses the counts across families and downstream steps. Prenatal CPI takes maternal cfDNA and father. CPIN takes mother, father and child. The maternal samples used in the two analyses can differ.
+DNPcall receives ordered aliases such as `sample_0001.bam`. The run record in `run.json` maps them to original files. Standalone Contamination, prenatal and postnatal CPI preserve individual names in prepared copies and reject collisions, including case-only differences. In plans, Contamination uses aliases such as `table_0001`. Prenatal and postnatal CPI use stable aliases for selected tables. State records link each table to its sample and producer step, and each native R result to its declared pair or trio. A branch calls each sample once and reuses the counts across families and downstream steps. Prenatal CPI takes maternal cfDNA and father. Postnatal CPI takes mother, father and child. The maternal samples used in the two analyses can differ.
 
 ## Preferences and provenance
 
@@ -62,9 +76,9 @@ The guided menu stores data/results roots, reference and workflow defaults, chec
 
 Each run has its own directory. `run.json` records parameters, inputs, path mappings, state, commands and image identity. `runtime.engine` identifies the verified R files and preparation code in the image separately from the client code. `execution.log` records client and engine messages. In plans, `output/workflow/workflow-state.json` records each step and its artifacts, with scientific messages in `steps/<id>/command.log`.
 
-SNPcall from BAM retains BED and pileup. Both SNP input modes retain the normalized panel. DNPcall retains the panel, BAM list, acquisition and block metrics. Its temporary BED and pileup are removed after completion. Contamination, CPI and CPIN retain prepared tables, normalized panels and required frequencies. Display copies use original sample names and link back to canonical results. Scientific values and sample associations are preserved.
+SNPcall from BAM retains BED and pileup. Both SNP input modes retain the normalized panel. DNPcall retains the panel, BAM list, acquisition and block metrics. Its temporary BED and pileup are removed after completion. Contamination, prenatal and postnatal CPI retain prepared tables, normalized panels and required frequencies. Display copies use original sample names and link back to canonical results. Scientific values and sample associations are preserved.
 
-Cancelling requests termination of the active process and removal of its container. Partial results remain available for investigation. A dry run records the request, inputs and planned command. Image availability and scientific results require an actual execution. Full provenance hashes all inputs before and after the run. Automatic mode hashes small files and records metadata for large ones. Reconciliation compares an incomplete record to observed container identity. Explicit stop requires an identity match and produces a separate report. [Runs and results](ESECUZIONI.md)
+Cancelling requests termination of the active process and removal of its container. Partial results remain available for investigation. A dry run records the request, inputs and planned command. Image availability and scientific results require an actual execution. Full provenance hashes all inputs before and after the run. Automatic mode hashes small files and records metadata for large ones. Reconciliation compares an incomplete record to observed container identity. Explicit stop requires an identity match and produces a separate report. [Runs and results](RUNS.md)
 
 ## Installation, updates and maintenance
 
@@ -74,11 +88,11 @@ The Windows desktop installer manages separate local roots for the program, WSL,
 
 WSL ownership depends on the registered distribution and destination. A missing owned distribution can be recreated in an empty destination while preserving the previous receipt. Changing its filesystem or location provisions a separate environment. Selecting new data or results roots leaves existing files where they are. WSL image provenance includes the Linux base, resolved package versions and engine. Builders may reuse an archive whose descriptor, content and checksum match the required component.
 
-The launcher activates configuration after diagnostics and self-test succeed. Maintenance acquires an exclusive lock after the client exits and rechecks inventories, owned distributions, cache archives and backup records before changing anything. Selective backups support recovery of individual items. [Windows installer](INSTALLATORE_WINDOWS.md)
+The launcher activates configuration after diagnostics and self-test succeed. Maintenance acquires an exclusive lock after the client exits and rechecks inventories, owned distributions, cache archives and backup records before changing anything. Selective backups support recovery of individual items. [Windows installer](WINDOWS_INSTALLER.md)
 
-The macOS packages install `/Applications/NewPat.app` with host-native portable Python and Lima, plus the AMD64 scientific archive. The user workspace is `~/Library/Application Support/NIPAT-Desktop` and `LIMA_HOME` is `~/.nipat/lima`. First launch provisions the dedicated guest and verifies the bundled archive. Provisioning may use the network. Analysis runs offline in an isolated container. The bundle includes a separate terminal launcher for CLI use. [macOS installer](INSTALLATORE_MACOS.md)
+The macOS packages install `/Applications/NewPat.app` with host-native portable Python and Lima, plus the AMD64 scientific archive. The user workspace is `~/Library/Application Support/NIPAT-Desktop` and `LIMA_HOME` is `~/.nipat/lima`. First launch provisions the dedicated guest and verifies the bundled archive. Provisioning may use the network. Analysis runs offline in an isolated container. The bundle includes a separate terminal launcher for CLI use. [macOS installer](MACOS_INSTALLER.md)
 
-The Ubuntu package includes the scientific archive and uses the host's Docker daemon directly. APT installs missing dependencies. Granting daemon access is an administrative decision. [Linux installer](INSTALLATORE_LINUX.md)
+The Ubuntu package includes the scientific archive and uses the host's Docker daemon directly. APT installs missing dependencies. Granting daemon access is an administrative decision. [Linux installer](LINUX_INSTALLER.md)
 
 ## Resource controls and diagnostics
 

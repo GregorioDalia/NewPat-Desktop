@@ -1,6 +1,6 @@
 # NIPAT Desktop 0.7.1
 
-This research release offered four scientific analyses, automatic workflows and a settings catalog via a guided text menu or CLI. Its scientific core remained the R algorithms. There was no graphical interface or claim of clinical or general scientific validation. The [release list](https://github.com/GregorioDalia/nipat-desktop/releases) identifies installers and evidence. The [user guide](GUIDA_UTILIZZO.md) describes inputs, parameters and results. Use the [validation sheet](VALIDAZIONE.md) to record outcomes and difficulties.
+This research release offered four scientific analyses, automatic workflows and a settings catalog via a guided text menu or CLI. Its scientific core remained the R algorithms. There was no graphical interface or claim of clinical or general scientific validation. The [release list](https://github.com/GregorioDalia/nipat-desktop/releases) identifies installers and evidence. The [user guide](USER_GUIDE.md) describes inputs, parameters and results. Use the [validation sheet](VALIDATION.md) to record outcomes and difficulties.
 
 ## Installation
 
@@ -11,7 +11,7 @@ This research release offered four scientific analyses, automatic workflows and 
 
 Both packages embed the same archive with R, samtools, dependencies, scripts and workflow handling. Windows includes portable Python. Enabling WSL2 can require permission, internet access and a restart. On Ubuntu APT resolves dependencies, but granting Docker access requires separate administrative action. Run NIPAT without root privileges.
 
-Setup upgrades the existing **NIPAT Desktop** app, preserving data, results and preferences. Existing results retain the producing version. See the [Windows](INSTALLATORE_WINDOWS.md) and [Ubuntu](INSTALLATORE_LINUX.md) guides. The Windows package lacks a NIPAT Authenticode signature. Record any download or execution block on the affected device.
+Setup upgrades the existing **NIPAT Desktop** app, preserving data, results and preferences. Existing results retain the producing version. See the [Windows](WINDOWS_INSTALLER.md) and [Ubuntu](LINUX_INSTALLER.md) guides. The Windows package lacks a NIPAT Authenticode signature. Record any download or execution block on the affected device.
 
 ## Analyses and workflows
 
@@ -37,11 +37,11 @@ The menu separates single analyses, automatic workflows and tools. Arrow-key nav
 
 Use `:annulla` and Enter in text fields or Ctrl+C, including during computation, to return to the main menu. NIPAT attempts to stop the container and reports unconfirmed stops. Partial logs and outputs remain accessible from **Ultima esecuzione** (Last run). Unsaved preference edits are discarded. **0 — Esci** exits the session.
 
-The [scientific catalog](CATALOGO_SCIENTIFICO.md), accessible from Help or `nipat parameters`, distinguishes public R options, internal rules and input preparation in Italian and English. The [roadmap](ROADMAP.md) covered full interface and guide translation.
+The [scientific catalog](SCIENTIFIC_CATALOG.md), accessible from Help or `nipat parameters`, distinguishes public R options, internal rules and input preparation in Italian and English. The [roadmap](ROADMAP.md) covered full interface and guide translation.
 
 ## Evidence and scope
 
-Publication binds exact installers to a source commit, Actions build, checksums, acceptance record and automatic evidence under the [research distribution protocol](ACCETTAZIONE_INSTALLATORI.md). Checks cover Windows and Linux clients, real R and samtools numerical regressions, composed and separate analyses, sample identity, parameter propagation, cancellation and preservation of results. Builds exercise the staged Windows client with portable Python and the installed Ubuntu package. [CI/CD](CI_CD.md) details the coverage.
+Publication binds exact installers to a source commit, Actions build, checksums, acceptance record and automatic evidence under the [research distribution protocol](INSTALLER_ACCEPTANCE.md). Checks cover Windows and Linux clients, real R and samtools numerical regressions, composed and separate analyses, sample identity, parameter propagation, cancellation and preservation of results. Builds exercise the staged Windows client with portable Python and the installed Ubuntu package. [CI/CD](CI_CD.md) details the coverage.
 
 The historical Windows observation used 0.7.0a1, commit `1b601081a4aff9efe1806c921fd7ac963feea7b7`, with WSL2 and a real BAM. DNPcall → Contamination reproduced the standalone counts and genotypes for 11 DNP sites. Contamination retained 10 sites with mean and standard deviation both zero. This is evidence for the observed case. It cannot establish biological absence of contamination or general validity.
 

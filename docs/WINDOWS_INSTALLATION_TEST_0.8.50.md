@@ -1,6 +1,6 @@
 # Historical verification of NIPAT Desktop 0.8.50 on Windows
 
-These instructions apply to the **0.8.50 installer at commit `b54ef493ba7f0539a8786b97874fe946b2d26393`**. For an installed NewPat release use the [current Windows test](COLLAUDO_INSTALLAZIONE.md).
+These instructions apply to the **0.8.50 installer at commit `b54ef493ba7f0539a8786b97874fe946b2d26393`**. For an installed NewPat release use the [current Windows test](WINDOWS_INSTALLATION_TEST.md).
 
 The historical suite uses the installed Python, WSL distribution, scientific image and public CLI. Each case creates a new result directory. The harness is separate from the application. The report records both commit identities, fixture hashes and the runtime image as resolved on the device.
 

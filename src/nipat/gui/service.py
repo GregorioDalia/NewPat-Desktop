@@ -77,7 +77,7 @@ class GuiService:
             "ui.get": self.ui_get, "ui.save": self.ui_save,
             "plan.preview": self.plan_preview, "analysis.start": self.analysis_start,
             "jobs.list": self.jobs.list, "jobs.get": self.jobs.get, "jobs.logs": self.jobs.logs,
-            "jobs.cancel": self.jobs.cancel, "jobs.active": self.jobs.active,
+            "jobs.cancel": self.jobs.cancel, "jobs.active": self.jobs.active, "jobs.remove": self.job_remove,
             "close_status": self.jobs.active, "run.reuse": self.run_reuse,
             "run.prepare": self.run_prepare, "runs.remove": self.run_remove,
             "run.igv": self.run_igv,
@@ -214,12 +214,28 @@ class GuiService:
     def run_remove(self, run_id: str) -> dict:
         store = self._results()
         path, metadata = store._metadata(run_id)
-        observation = self.run_observer.inspect(path, metadata)
-        if not observation.get("can_remove"):
+        finished = self.jobs.finished_for(path)
+        if finished is None and not self.run_observer.inspect(path, metadata).get("can_remove"):
             english = self.ui_get()["language"] == "en"
             raise ValidationError("This experiment may still be active. Wait until its status can be verified before removing it from the list."
                                   if english else "L’esperimento potrebbe essere ancora attivo. Attendi che il suo stato sia verificabile prima di rimuoverlo dalla lista.")
-        return store.remove_run(run_id)
+        result = store.remove_run(run_id)
+        if finished is not None:
+            self.jobs.discard(finished)
+        return result
+
+    def job_remove(self, job_id: str) -> dict:
+        job = self.jobs.get(job_id)
+        if not job["finished_at"]:
+            raise ValidationError("Attendere la fine dell’esperimento prima di rimuovere la scheda.")
+        if job["run_id"]:
+            # The session owns both paths. The archive preference may have changed
+            # since this run finished, or a startup failure may predate run.json.
+            path = Path(job["results_root"]) / job["run_id"]
+            if (path / "run.json").is_file():
+                self._results().hide_path(path)
+        self.jobs.discard(job_id)
+        return {"removed": True, "run_id": job["run_id"], "outputs_preserved": True}
 
     def run_igv(self, run_id: str, locus: str | None = None) -> dict:
         """Select recorded reference/BAM sources, preserving every original file."""
@@ -253,7 +269,7 @@ class GuiService:
         Missing family roles/population resources stay empty for user selection.
         """
         if module not in {"contamination", "cpi", "cpin"}:
-            raise ValidationError("Scegliere contaminazione, CPI prenatale o CPIN postnatale.")
+            raise ValidationError("Scegliere contaminazione, CPI prenatale o CPI postnatale.")
         store = self._results()
         run, metadata = store.get_run(run_id), store.metadata(run_id)
         parameters = metadata.get("parameters", {})
@@ -329,7 +345,7 @@ class GuiService:
                     row = {"id": family["id"], **{role: family[role] for role in roles}}
                     if row not in families[module]:
                         families[module].append(row)
-        suffix = {"contamination": "contaminazione", "cpi": "CPI", "cpin": "CPIN"}[module]
+        suffix = {"contamination": "contaminazione", "cpi": "CPI prenatale", "cpin": "CPI postnatale"}[module]
         settings = source.get("scientific_settings", parameters.get("scientific_settings_effective", {}))
         return {"name": str(run.get("name") or run_id)[:130] + " · " + suffix,
                 "caller": "tables", "samples": list(samples.values()), "reference": None,

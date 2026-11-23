@@ -19,6 +19,10 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
  check(app.state.boot.version==='0.9.0','Bootstrap uses actual version');check(element('main').innerHTML.includes('Famiglia α &lt;test&gt;'),'Archive name HTML escaped');check(app.state.draft.samples.length===0,'No embedded demonstration samples');
  for(const view of ['home','new','activity','archive','catalog','settings','environment','igv']){await app.navigate(view);check(element('main').innerHTML.length>300,'Render '+view)}
  const expectedCounts=Object.values(settings.workflows).reduce((a,w)=>a+Object.keys(w.parameters).length,0);app.state.catalogModule='all';app.state.catalogType='parameters';await app.navigate('catalog');check((element('main').innerHTML.match(/class="parameter-row"/g)||[]).length===expectedCounts,'Every scientific parameter is accessible');check(!element('main').innerHTML.includes('<h3>other_fraction_max'),'No implementation key as parameter heading');app.state.catalogType='constants';app.render();check((element('main').innerHTML.match(/class="parameter-row"/g)||[]).length===52,'Every model constant is accessible');check(element('main').innerHTML.includes('<mfrac>')&&!element('main').innerHTML.includes('<mo><</mo>'),'Formulae rendered as valid escaped MathML fragments');
+ check(element('main').innerHTML.includes('Vincolo sui dati di ingresso')&&element('main').innerHTML.includes('zero è escluso'),'Population frequency domain identifies the table constraint and its reason');
+ check(app.constantValue('cpi','population_frequencies',{}).includes('<mn>0</mn><mo>&lt;</mo><mi>p</mi><mo>≤</mo><mn>1</mn>'),'CPI domain excludes zero and includes one');
+ check(app.choiceLabel('both')==='Entrambe le selezioni di siti'&&app.choiceLabel('other_allele')==='Siti con figlio eterozigote','Postnatal selection describes sites independently of caller markers');
+ check(app.range({minimum:0,maximum:1,exclusive_minimum:true})==='> 0 · ≤ 1','Parameter bounds distinguish exclusive and inclusive limits');
  await app.navigate('new');app.onValue({dataset:{draft:'name'},type:'text',value:'My experiment'});dialogPaths=['/samples/Ion Sample.bam'];await app.action('add-samples',{});check(app.state.draft.samples[0].id==='Ion_Sample','Sample IDs derived safely');app.onValue({dataset:{draft:'caller'},type:'radio',value:'snp'});check(app.selectedModules().join(',')==='snp-call','Only requested SNP caller selected');app.onValue({dataset:{branch:'SNP|contamination'},type:'checkbox',checked:true});check(app.selectedModules().join(',')==='snp-call,contamination','Independent downstream analysis selection');app.onValue({dataset:{branch:'SNP|contamination'},type:'checkbox',checked:false});check(!app.selectedModules().includes('contamination'),'Unselected analysis removed');
  await app.action('step',{index:'3'});await app.action('validate-plan',{});const previewRequest=requests.find(r=>r.method==='plan.preview');check(previewRequest.params.draft.caller==='snp'&&previewRequest.params.draft.branches.SNP.length===0,'Preview passes exact independent plan');app.onValue({dataset:{parameter:'snp-call|max_depth|draft'},type:'number',value:'123'});check(!app.state.preview,'Changing a parameter invalidates reviewed plan');const previewOnStart=handlers['plan.preview'];
  handlers['plan.preview']=()=>Promise.reject(new Error('Missing panel.tsv'));
@@ -29,9 +33,26 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
  check(app.renderNew().includes('aria-busy="true"')&&app.renderNew().includes('check-spinner'),'Single-click start immediately shows its pending check');
  await app.action('start-analysis',{});passPreflight();await launch;handlers['plan.preview']=previewOnStart;
  check(requests.slice(beforeStart).map(r=>r.method).filter(m=>m==='plan.preview'||m==='analysis.start').join(',')==='plan.preview,analysis.start','Repeated clicks share one validated launch');
- check(app.state.view==='activity'&&requests.some(r=>r.method==='analysis.start'&&r.params.preview_id==='preview-1'),'Execution requires reviewed preview token');check(app.jobProgress(jobs[0])===50,'Observed phase progress, no fabricated overall completion');await app.action('confirm-cancel-job',{id:'job-1'});check(jobs[0].status==='interrupted','Cancel reaches actual job service');
+ check(app.state.view==='activity'&&requests.some(r=>r.method==='analysis.start'&&r.params.preview_id==='preview-1'),'Execution requires reviewed preview token');check(app.jobProgress(jobs[0])===50,'Observed phase progress, no fabricated overall completion');
+ check(app.renderNew().includes('le analisi condivideranno CPU'),'Second launch warns about CPU, memory and disk contention');
+ await app.action('confirm-cancel-job',{id:'job-1'});check(jobs[0].status==='interrupted','Cancel reaches actual job service');
+ check(app.renderActivity().includes('Terminati in questa sessione')&&app.renderActivity().includes('data-action="remove-job"')&&!app.renderActivity().includes('data-action="cancel-job"'),'Interrupted card is dismissible in finished activity');
  await app.loadRun('run-1');check(element('main').innerHTML.includes('Analisi non eseguita'),'Unexecuted modules explicitly identified');await app.action('result-module',{module:'snp-call|SNP'});check(element('main').innerHTML.includes('Non disponibile')&&element('main').innerHTML.includes('0'),'NA and zero remain distinct');check(app.metricValue({value:'0.025',scale:100,unit:'%'})==='2,5 %','Percent conversion occurs once');check(app.metricValue({value:'0.0353553390593274',scale:100,unit:'punti %'}).includes('punti %'),'SD carries percentage-point unit');check(app.metricValue({value:null,scale:100})==='Non disponibile','Missing metric not coerced to zero');
- await app.action('result-module',{module:'cpi|DNP'});check(element('main').innerHTML.includes('log₁₀(CPI) alla frazione fetale mediana')&&element('main').innerHTML.includes('0,602'),'Prenatal CPI field remains logarithmic');await app.action('result-module',{module:'cpin|DNP'});check((element('main').innerHTML.match(/class="curve-line"/g)||[]).length===3,'CPIN curve has original three inclusive intervals');check(element('main').innerHTML.includes('Genotipo paterno non assegnato'),'Site exclusion reasons human-readable');
+ await app.action('result-module',{module:'cpi|DNP'});check(element('main').innerHTML.includes('log₁₀(CPI) alla frazione fetale mediana')&&element('main').innerHTML.includes('0,602'),'Prenatal CPI field remains logarithmic');await app.action('result-module',{module:'cpin|DNP'});check(element('main').innerHTML.includes('<strong>0.00046474155109453</strong>')&&!element('main').innerHTML.includes('class="interactive-curve"'),'Postnatal CPI presents the unrounded scalar as the primary result');
+ check(!requests.some(r=>r.method==='runs.curve'&&r.params.file_id==='curve'),'Postnatal CPI can be read without loading curves');
+ const indexMetric=overview.modules.find(item=>item.module==='cpin').entries[0].metrics[0];
+ for(const value of ['NA','0','Inf']){
+  const previous=indexMetric.value;
+  indexMetric.value=value;
+  const shown=value==='NA'?'Non disponibile':value;
+  check(app.renderRun().includes('<strong>'+shown+'</strong>'),'Postnatal primary index preserves '+value+' independently of the curve');
+  indexMetric.value=previous;
+ }
+
+ await app.action('postnatal-curves',{});
+ check((element('main').innerHTML.match(/class="curve-line"/g)||[]).length===3,'Optional postnatal curve has original three inclusive intervals');
+ await app.action('postnatal-curves',{});
+ check(!element('main').innerHTML.includes('class="interactive-curve"'),'Returning to the numeric result hides the curve');check(element('main').innerHTML.includes('Genotipo paterno non assegnato'),'Site exclusion reasons human-readable');
  app.state.tableSearch='father_unassigned';await app.loadTable(0);check(app.state.table.matched===1&&app.state.table.row_numbers[0]===1,'Search pagination preserves original row identity');await app.action('row-details',{file:'sites',row:'1'});check(element('modal-root').innerHTML.includes('Genotipo paterno non assegnato'),'Row details use original row offset');await app.action('open-file',{id:'plot'});check(element('modal-root').innerHTML.includes('<iframe class="pdf-preview"'),'PDF stays inside app dialog');await app.action('export-file',{id:'plot'});check(requests.at(-1).method==='files.export','Export handled by native scoped service');await app.action('export-run',{});check(requests.at(-1).method==='runs.export','Complete original output export available');
  handlers['igv.about']=()=>({opened:true});
  await app.navigate('igv');
@@ -41,6 +62,7 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
  handlers['igv.about']=()=>({opened:false});
  await assert.rejects(app.action('igv-about',{}),/browser predefinito/);
  await app.changeLanguage('en');check(env.NipatI18n.language==='en'&&requests.some(r=>r.method==='ui.save'&&r.params.preferences.language==='en'),'Language choice persisted');await app.navigate('new');check(element('main').innerHTML.includes('Add samples')&&!element('main').innerHTML.includes('Aggiungi campioni'),'Main workflow translated to English');
+ check(app.choiceLabel('both')==='Both site selections'&&env.NipatI18n.t('frequencyDomain').includes('zero is excluded'),'English scientific labels carry the same meaning');
  app.onValue({dataset:{field:'source'},type:'select-one',value:'tables'});check(app.state.draft.caller==='tables'&&app.state.draft.samples.length===0,'Tables path excludes raw input calling');app.state.sampleKind='dnp-table';dialogPaths=['/counts/A.txt'];await app.action('add-samples',{});app.onValue({dataset:{branch:'DNP|cpin'},type:'checkbox',checked:true});check(app.selectedModules().join(',')==='cpin','Tables-only CPIN does not run DNP or SNP');
  await app.navigate('settings');await app.action('save-preferences',{});check(requests.some(r=>r.method==='preferences.save'&&r.params.baseline),'Preferences save uses concurrency baseline');await app.navigate('environment');app.state.runtimeMemory=4096;app.state.runtimeCpus=2;await app.action('preview-resources',{});check(!requests.some(r=>r.method==='resources.apply'),'Resource preview makes no mutation');await app.action('apply-resources',{});check(requests.at(-2).method==='resources.apply'&&requests.at(-2).params.confirmed,'Resources apply only confirmed preview');await app.action('check-updates',{});await app.action('download-update',{});await app.action('confirm-install-update',{});check(requests.at(-1).method==='app.close','Successful install handoff requests native close');
  await app.navigate('igv');app.state.igv.reference={fasta:'/ref.fa',index:'/ref.fa.fai'};app.state.igv.tracks=[{name:'Sample',path:'/a.bam',index:'/a.bam.bai'}];await app.action('igv-load',{});check(env.viewer&&requests.some(r=>r.method==='igv.prepare'&&r.params.reference.fasta==='/ref.fa'),'IGV registers real local source paths');app.state.igv.locus='chr1:100-200';await app.action('igv-search',{});check(env.locus==='chr1:100-200','Locus search reaches embedded IGV');app.state.igv.reference.fasta='/unapplied.fa';await app.action('igv-save',{});check(!JSON.stringify(requests.at(-1).params).includes('/token/'),'Saved IGV session contains no ephemeral capability URL');check(requests.at(-1).params.session.reference.fasta==='/ref.fa','IGV session saves the displayed sources, not unapplied form edits');
@@ -124,6 +146,34 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
   check(app.state.draft.scientific_settings['snp-call'].max_depth===250&&app.state.draft.execution.max_workers===2,'New experiment retains saved defaults, not last run or unsaved overrides after '+status);
  }
  app.state.preferences=savedPreferences;app.state.baseline=savedBaseline;await app.action('navigate',{view:'new'});
+ // Named profiles contain scientific and execution settings, and never the experiment inputs.
+ const personalDepth=app.state.draft.scientific_settings['snp-call'].max_depth;
+ const profileName='Profilo <A>';
+ app.state.preferences.runs_dir='/unsaved';
+ app.state.draft.samples=[{id:'P',kind:'bam',path:'/private/P.bam'}];
+ app.state.draft.scientific_settings['snp-call'].max_depth=117;
+ app.state.draft.execution.performance_diagnostics=true;
+ await app.action('new-profile',{});element('profile-name').value=profileName;
+ await app.action('save-profile',{});
+ let profile=app.state.baseline.parameter_profiles[profileName];
+ check(profile.scientific_settings['snp-call'].max_depth===117&&!('performance_diagnostics' in profile.execution)&&!JSON.stringify(profile).includes('/private'),'Profile saves only scientific and execution settings');
+ check(app.state.preferences.runs_dir==='/unsaved'&&app.state.baseline.runs_dir!=='/unsaved','Saving a profile preserves unrelated unsaved preferences without persisting them');
+ app.state.draft.scientific_settings['snp-call'].max_depth=200;
+ await app.action('apply-profile',{});
+ check(app.state.draft.scientific_settings['snp-call'].max_depth===117&&app.state.draft.execution.performance_diagnostics&&app.state.draft.samples[0].id==='P','Applying a profile preserves the current experiment and resets its parameters');
+ app.state.draft.scientific_settings['snp-call'].max_depth=201;
+ await app.action('new-profile',{});element('profile-name').value=profileName;
+ await app.action('save-profile',{});
+ check(element('modal-root').innerHTML.includes('confirm-save-profile')&&profile.scientific_settings['snp-call'].max_depth===117,'Saving an existing name requires confirmation before replacement');
+ await app.action('confirm-save-profile',{name:profileName});
+ app.onValue({dataset:{preference:'default_profile'},type:'select-one',value:profileName});
+ await app.action('save-preferences',{});await app.action('new-experiment',{});
+ check(app.state.draft.scientific_settings['snp-call'].max_depth===201&&!app.state.draft.execution.performance_diagnostics&&!app.state.draft.samples.length,'New experiment uses the designated profile without old samples');
+ check(app.normalizeDraft({scientific_settings:{}}).scientific_settings['snp-call'].max_depth===personalDepth,'Reopening a legacy draft does not apply a subsequently designated profile');
+ await app.action('remove-profile',{name:profileName});
+ check(element('modal-root').innerHTML.includes('confirm-remove-profile')&&element('modal-root').innerHTML.includes('&lt;A&gt;'),'Deletion confirmation escapes the profile name');
+ await app.action('confirm-remove-profile',{name:profileName});
+ check(!app.state.baseline.default_profile&&app.blankDraft().scientific_settings['snp-call'].max_depth===personalDepth&&app.state.draft.scientific_settings['snp-call'].max_depth===201,'Deleting the default profile restores personal defaults for future experiments only');
  const defer=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no});return{promise,resolve,reject}};
  const originalDialog=handlers['dialog.open'];
  for(const picker of ['samples','reference','resource.DNP.panel']){
@@ -211,6 +261,27 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
  handlers['runs.curve']=()=>Promise.reject(new Error('Curve exceeds the display limit; open original PDF.'));await app.action('result-module',{module:'cpi|DNP'});
  check(element('main').innerHTML.includes('Curve exceeds the display limit')&&element('main').innerHTML.includes('log₁₀(CPI) alla frazione fetale mediana')&&element('main').innerHTML.includes('0.6'),'Unavailable interactive curve shows its reason while the summary remains accessible');
  handlers['runs.curve']=originalCurves;overview.modules[1].entries[0].curve_file_ids=originalCpiCurveIds;
+ // Page navigation is independent of IGV's genomic region history.
+ await app.navigate('home');check(element('page-back').hidden,'Back control hidden at the workspace root');
+ await app.navigate('archive');await app.loadRun('run-1');
+ const snpGroup=overview.modules[0];app.state.overview={modules:[snpGroup]};app.render();
+ check((element('main').innerHTML.match(/class="module-card"/g)||[]).length===1&&element('main').innerHTML.includes('data-module="snp-call|SNP"'),'Only the executed SNP caller is a result card');
+ await app.action('result-module',{module:'snp-call|SNP'});app.state.tableSearch='0/1';await app.loadTable(0);
+ await app.changeLanguage('it');
+ check(app.state.module==='snp-call|SNP'&&app.state.tableSearch==='0/1'&&app.state.table.matched===1,'Changing language preserves the exact filtered SNP result');
+ await app.action('open-file',{id:'calling'});await app.action('row-details',{file:'calling',row:'1'});
+ check(element('modal-root').innerHTML.includes('data-action="back-to-table"'),'Site opened from original table has a route back to that table');
+ await app.action('back-to-table',{});check(app.state.modalTable.file.id==='calling'&&element('modal-root').innerHTML.includes('class="table result-table"'),'Original table remains open at the same page');
+ await app.action('run-igv',{locus:'chr1:100-100'});await app.action('page-back',{});
+ check(app.state.view==='archive'&&app.state.module==='snp-call|SNP'&&app.state.tableSearch==='0/1'&&app.state.table.matched===1&&app.state.modalTable.file.id==='calling','Back from IGV restores the selected SNP module, filtered sites and source table');
+ await app.action('close-modal',{});await app.action('page-back',{});check(app.state.run?.id==='run-1'&&app.state.module===null,'Back from module returns to this experiment overview');
+ await app.action('page-back',{});check(app.state.view==='archive'&&!app.state.run,'Back from overview returns to the archive list');
+ await app.action('page-back',{});check(app.state.view==='home','Back from archive returns to workspace');
+ await app.action('navigate',{view:'new'});const wizard=app.state.draft;wizard.name='Draft to keep';wizard.samples=[{id:'A',kind:'snp-pileup',path:'/reads.txt'}];wizard.caller='snp';await app.action('step',{index:2});
+ await app.navigate('settings');await app.action('edit-defaults',{});app.state.catalogSearch='deliberately unmatched';await app.action('page-back',{});await app.action('page-back',{});
+ check(app.renderNew().includes('data-parameter="snp-call|other_fraction_max|draft"'),'Catalog search leaves wizard parameters visible');
+ check(app.state.draft===wizard&&app.state.step===2&&!app.renderNew().includes('data-execution="dnp_block_mib|draft"'),'Returning to the wizard preserves its SNP draft and omits inapplicable DNP-only execution settings');
+ await app.action('page-back',{});check(app.state.step===1&&app.state.draft.name==='Draft to keep','Back within the wizard keeps sample inputs intact');
  for(const [key,pair] of Object.entries(env.NipatI18n.strings))check(pair.length===2&&pair.every(x=>typeof x==='string'&&x.length),'Translation pair '+key);
  const listBeforeFailure=handlers['runs.list'];handlers['runs.list']=()=>{throw new Error('Archive unavailable')};await app.boot();check(!document.documentElement.dataset.nipatReady&&element('main').innerHTML.includes('Impossibile caricare'),'Failed initial archive load cannot report native app readiness');handlers['runs.list']=listBeforeFailure;await app.boot();check(document.documentElement.dataset.nipatReady==='true','Retry bootstrap restores readiness only after successful render');
  console.log(JSON.stringify({status:'passed',assertions:checks.length,rpcCalls:requests.length,scope:'Frontend state/RPC/markup; native rendering tested separately'}));

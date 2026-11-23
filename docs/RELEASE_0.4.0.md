@@ -1,6 +1,6 @@
 # NIPAT CLI 0.4.0 — prerelease for domain testing
 
-This release was prepared for researchers to compare results against expectations for their own data. Its status indicated readiness for testing. Domain validation remained open. For the current release see the [README](../README.md) and [user guide](GUIDA_UTILIZZO.md).
+This release was prepared for researchers to compare results against expectations for their own data. Its status indicated readiness for testing. Domain validation remained open. For the current release see the [README](../README.md) and [user guide](USER_GUIDE.md).
 
 ## Download and startup
 

@@ -133,7 +133,7 @@ def generated_files(manifest: dict, manifest_bytes: bytes) -> dict[str, tuple[by
         f"usr/bin/{LEGACY_COMMAND}": (launcher.encode(), 0o755),
         f"usr/share/applications/{PACKAGE}.desktop": (desktop.encode(), 0o644),
         f"usr/share/doc/{PACKAGE}/copyright": ((
-            "NewPat - https://github.com/GregorioDalia/nipat-desktop\n\n"
+            f"NewPat - https://github.com/{assets.RELEASE_REPOSITORY}\n\n"
             "Copyright remains with the respective authors and contributors.\n"
             "Original NIPAT material is licensed under the GNU General Public\n"
             "License version 3 or, at your option, any later version. Third-party\n"
@@ -151,7 +151,7 @@ def control_bytes(manifest: dict, installed_kib: int) -> bytes:
         "Section: science\nPriority: optional\nArchitecture: amd64\n"
         "Maintainer: NIPAT contributors\n"
         f"Installed-Size: {installed_kib}\nPre-Depends: util-linux\nDepends: {DEPENDENCIES}\n"
-        "Homepage: https://github.com/GregorioDalia/nipat-desktop\n"
+        f"Homepage: https://github.com/{assets.RELEASE_REPOSITORY}\n"
         "Description: NewPat scientific application for Ubuntu 24.04 LTS\n"
         " Includes the verified scientific image for local Docker Engine execution.\n"
         " Requires explicit user access to a compatible local Docker daemon.\n"

@@ -10,7 +10,7 @@ From the root of this repository, run the configured NewPat CLI with the [bundle
 newpat cpi --input-dir scientific/vendor/NEWPAT/CPI_from_cffDNA/examples/inputs/DNPcall_output --pairs A1:A1,A2:A2 --popfreq scientific/vendor/NEWPAT/CPI_from_cffDNA/examples/inputs/pop_allFreq.txt --panel scientific/vendor/NEWPAT/CPI_from_cffDNA/examples/inputs/DNPpanel.txt
 ```
 
-For a single pair, use `--pairs A1:A1`. Omit `--panel` to use eligible loci without a cutoff panel. To compare multiple selections, supply repeated `--cutoff LABEL PATH` options. The labels identify coordinate panels. [User guide](../../../../docs/GUIDA_UTILIZZO.md) · [Engine contract](../../../../engine/README.md#cpi)
+For a single pair, use `--pairs A1:A1`. Omit `--panel` to use eligible loci without a cutoff panel. To compare multiple selections, supply repeated `--cutoff LABEL PATH` options. The labels identify coordinate panels. [User guide](../../../../docs/USER_GUIDE.md) · [Engine contract](../../../../engine/README.md#prenatal-cpi)
 
 ## Inputs and settings
 

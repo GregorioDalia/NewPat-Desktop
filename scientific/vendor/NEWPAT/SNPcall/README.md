@@ -10,7 +10,7 @@ From the root of this repository, use the configured NewPat CLI and the included
 newpat snp-call --pileup scientific/vendor/NEWPAT/SNPcall/examples/pileup.txt --panel scientific/vendor/NEWPAT/SNPcall/examples/SNPlist.txt
 ```
 
-A new run contains the generated results. For your own BAM, select BAM, FASTA and panel in NewPat or use the CLI's `snp-call --bam` mode. For multiple samples use `workflow snp-batch`. The engine prepares three-base windows and a QNAME pileup with samtools. By default, SNP acquisition uses `-d 0` (unlimited depth). The R adapter receives one prepared sample. [User guide](../../../../docs/GUIDA_UTILIZZO.md) · [Scientific implementation](../../../README.md)
+A new run contains the generated results. For your own BAM, select BAM, FASTA and panel in NewPat or use the CLI's `snp-call --bam` mode. For multiple samples use `workflow snp-batch`. The engine prepares three-base windows and a QNAME pileup with samtools. By default, SNP acquisition uses `-d 0` (unlimited depth). The R adapter receives one prepared sample. [User guide](../../../../docs/USER_GUIDE.md) · [Scientific implementation](../../../README.md)
 
 ## Inputs and results
 

@@ -424,6 +424,13 @@ class FrozenInstallerFixtureTests(unittest.TestCase):
                 "bootstrap_marker", "display_version_matches_payload", "resume_archives_cached"), True),
         }
         VERIFY.verify_windows_installer_fixture(evidence, manifest)
+        current_manifest = dict(manifest, version="0.9.10")
+        with self.assertRaisesRegex(ValueError, "fixture is incomplete"):
+            VERIFY.verify_windows_installer_fixture(evidence, current_manifest)
+        current = copy.deepcopy(evidence)
+        for older, newer in (("0.8.99", "0.9.10"), ("0.9.0", "0.9.11")):
+            current["checks"]["installed_" + newer] = current["checks"].pop("installed_" + older)
+        VERIFY.verify_windows_installer_fixture(current, current_manifest)
         for key in evidence["checks"]:
             for value in (None, False, 1):
                 changed = copy.deepcopy(evidence)

@@ -35,9 +35,9 @@ function Request-NipatReboot {
     $automaticResume = Register-NipatResume $script:project
     Write-Host 'WSL richiede un riavvio di Windows. Salva il lavoro e riavvia quando preferisci.'
     if ($automaticResume) {
-        Write-Host ('La preparazione riprendera al prossimo accesso; puoi anche aprire ' + $profile.display_name + ' - completa preparazione dal menu Start.')
+        Write-Host ('La preparazione riprendera al prossimo accesso; puoi anche aprire ' + $profile.display_name + ' - Resume Setup dal menu Start.')
     } else {
-        Write-Host ('Per riprendere dopo il riavvio, aprire ' + $profile.display_name + ' - completa preparazione dal menu Start.')
+        Write-Host ('Per riprendere dopo il riavvio, aprire ' + $profile.display_name + ' - Resume Setup dal menu Start.')
     }
 }
 

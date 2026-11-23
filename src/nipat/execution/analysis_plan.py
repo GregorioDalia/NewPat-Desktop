@@ -93,11 +93,11 @@ def build_analysis_plan(*, layout, caller: str, analyses: list[str],
     if pairs and "cpi" not in planned_analyses:
         raise ValidationError("Le coppie richiedono l'analisi CPI prenatale.")
     if trios and "cpin" not in planned_analyses:
-        raise ValidationError("I trii richiedono l'analisi CPIN postnatale.")
+        raise ValidationError("I trii richiedono l'analisi CPI postnatale.")
     if "cpi" in planned_analyses and not pairs:
         raise ValidationError("CPI richiede coppie esplicite: ID, campione cfDNA materno, padre.")
     if "cpin" in planned_analyses and not trios:
-        raise ValidationError("CPIN richiede trii espliciti: ID, madre, padre, figlio.")
+        raise ValidationError("CPI postnatale richiede trii espliciti: ID, madre, padre, figlio.")
 
     mounts = InputMounts(layout)
     input_files, mapping, plan_samples, steps = [], [], [], []
@@ -205,7 +205,7 @@ def build_analysis_plan(*, layout, caller: str, analyses: list[str],
         popfreq_target = None
         if set(selected_analyses) & {"cpi", "cpin"}:
             if freq is None:
-                raise ValidationError(f"CPI/CPIN richiede --{prefix}-popfreq per il ramo {marker}.")
+                raise ValidationError(f"CPI prenatale o postnatale richiede --{prefix}-popfreq per il ramo {marker}.")
             popfreq_target = bind(freq, "Frequenze " + marker, f"{prefix}-population.tsv",
                                   lambda path: require_population_frequencies(path, marker))
         if "contamination" in selected_analyses:
@@ -234,8 +234,8 @@ def build_analysis_plan(*, layout, caller: str, analyses: list[str],
             def check_cpin_panel(path):
                 records = read_position_panel(path, marker)
                 if any(not record.reference or not record.alternative for record in records):
-                    raise ValidationError("Il pannello CPIN richiede anche gli alleli REF e ALT.")
-            target = (bind(marker_panel, "Pannello CPIN " + marker, f"{prefix}-cpin-panel.tsv",
+                    raise ValidationError("Il pannello CPI postnatale richiede anche gli alleli REF e ALT.")
+            target = (bind(marker_panel, "Pannello CPI postnatale " + marker, f"{prefix}-cpin-panel.tsv",
                            check_cpin_panel) if marker_panel is not None else None)
             steps.append({"id": f"{prefix}_cpin", "workflow": "cpin", "inputs": {
                 "trios": family(trios, FAMILY_ROLES["cpin"], marker),

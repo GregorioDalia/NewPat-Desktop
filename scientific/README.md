@@ -8,7 +8,7 @@ NewPat packages five R programs from [DNPcall](https://github.com/fravasini/DNPc
 | SNPcall | [SNPcall.R](vendor/NEWPAT/SNPcall/SNPcall.R) |
 | Contamination | [detect_contamination.R](vendor/NEWPAT/contamination/detect_contamination.R) |
 | Prenatal CPI | [cfDNA_CPI_estimator.R](vendor/NEWPAT/CPI_from_cffDNA/cfDNA_CPI_estimator.R) |
-| Postnatal CPIN | [Postnatal_CPI.R](vendor/NEWPAT/CPI_postnatal/Postnatal_CPI.R) |
+| Postnatal CPI | [Postnatal_CPI.R](vendor/NEWPAT/CPI_postnatal/Postnatal_CPI.R) |
 
 <a id="provenienza-e-identità"></a>
 
@@ -18,7 +18,7 @@ NewPat packages five R programs from [DNPcall](https://github.com/fravasini/DNPc
 | --- | --- |
 | DNPcall | NIPAT 0.8.5 commit `eafadf7002a9c7d7c1b9af9ccafc47d698a059e5`, frozen in `tests/reference_r/0.8.5`. |
 | SNPcall | [Upstream SNPcall 2.0](https://github.com/lpistacchia/NEWPAT/tree/ce59f4beeeec710b1b42d425cb87d7aad729f71d/SNPcall), Git blob `7a2e01e94c9e278af52aa861646fec3b16df8b1c`. Local reference `tests/reference_r/2.0/SNPcall.R` has SHA-256 `855a96c897d1bcb8ce30b725baecfa739d01be323252da07554a63aa66965da4`. |
-| Contamination, CPI and CPIN | [Upstream NEWPAT sources](https://github.com/lpistacchia/NEWPAT/tree/9c2a8be60afcb944153710da6a61cd0559e2b4cf), frozen in `tests/reference_r/NEWPAT_20261113`, plus independent analytical expectations. |
+| Contamination, prenatal and postnatal CPI | [Upstream NEWPAT sources](https://github.com/lpistacchia/NEWPAT/tree/9c2a8be60afcb944153710da6a61cd0559e2b4cf), frozen in `tests/reference_r/NEWPAT_20261113`, plus independent analytical expectations. |
 
 The [R package manifest](../docker/scientific-runtime/r-packages.tsv) pins dependencies for image construction. Each run records verified engine hashes separately from the client identity.
 
@@ -50,16 +50,16 @@ This module accepts SNP coordinates (`chr,pos`) or DNP coordinates (`chr,pos1,po
 
 Inputs are explicit maternal cfDNA–father pairs, compatible SNP/DNP population frequencies and optional panels. Shared samples are read once. The module computes curves over exact intervals. The default minimum fetal read count is 2 and the error constant depends on marker type. Missing ancillary metadata does not exclude sites with valid scientific fields. Outputs include fetal fraction, log CPI, curve data and paginated PDFs.
 
-## Postnatal CPIN
+## Postnatal CPI
 
-CPIN takes mother–father–child trios and SNP/DNP frequencies. Both `other_allele` and `all` require a homozygous mother. The setting `both` runs the two selections. Initial support is checked for each called allele in the child. The subsequent curve increases the support requirement for the obligate paternal allele. The upstream PI model uses configurable error constants. The module exports summaries, sites with exclusion reasons, curves and PDFs. It caches shared samples, schedules independent trios within the common budget and computes threshold intervals without rescanning every integer through maximum depth.
+Postnatal CPI takes mother–father–child trios and SNP/DNP frequencies. Both `other_allele` and `all` require a homozygous mother. The setting `both` runs the two selections. Initial support is checked for each called allele in the child. The subsequent curve increases the support requirement for the obligate paternal allele. The upstream PI model uses configurable error constants. The module exports summaries, sites with exclusion reasons, curves and PDFs. It caches shared samples, schedules independent trios within the common budget and computes threshold intervals without rescanning every integer through maximum depth.
 
 ## Configuration and verification
 
 `newpat settings` lists parameter defaults, limits and model constants. `--scientific-config PATH` and `--set module.parameter=value` apply validated overrides. Each step records effective settings and code references. A missing estimate (`NA`) remains distinct from zero.
 
-`scripts/verify_engine_package.py` exercises the installed image on synthetic inputs. Fixture descriptions include inputs, expectations and limitations for [DNPcall](../tests/fixtures/dnp_engine/README.md), [SNPcall](../tests/fixtures/snp_engine/README.md), [Contamination](../tests/fixtures/contamination/README.md), [CPI](../tests/fixtures/cpi/README.md), [CPI error constants](../tests/fixtures/cpi_engine/README.md), [CPIN](../tests/fixtures/cpin/README.md) and [independent model checks](../tests/fixtures/five_modules/README.md).
+`scripts/verify_engine_package.py` exercises the installed image on synthetic inputs. Fixture descriptions include inputs, expectations and limitations for [DNPcall](../tests/fixtures/dnp_engine/README.md), [SNPcall](../tests/fixtures/snp_engine/README.md), [Contamination](../tests/fixtures/contamination/README.md), [CPI](../tests/fixtures/cpi/README.md), [CPI error constants](../tests/fixtures/cpi_engine/README.md), [postnatal CPI](../tests/fixtures/cpin/README.md) and [independent model checks](../tests/fixtures/five_modules/README.md).
 
-`scripts/verify_r_equivalence.py` compares the two callers with their frozen references in the same runtime. `scripts/verify_five_modules.py` checks CPI, CPIN and Contamination against upstream and analytical expectations for both marker types. The checks include unrounded values, tables and plots. Changes to a scientific script require review of its provenance, manifest and relevant regressions. Package identity, fixture equivalence and expert assessment on independent data address separate questions.
+`scripts/verify_r_equivalence.py` compares the two callers with their frozen references in the same runtime. `scripts/verify_five_modules.py` checks CPI, postnatal CPI and Contamination against upstream and analytical expectations for both marker types. The checks include unrounded values, tables and plots. Changes to a scientific script require review of its provenance, manifest and relevant regressions. Package identity, fixture equivalence and expert assessment on independent data address separate questions.
 
-Upstream READMEs under `vendor/` describe their respective projects and may refer to resources shipped only upstream. Consult the [NewPat user guide](../docs/GUIDA_UTILIZZO.md) for installation and file locations. [Third-party notices and licenses](../THIRD_PARTY_NOTICES.md)
+Upstream READMEs under `vendor/` describe their respective projects and may refer to resources shipped only upstream. Consult the [NewPat user guide](../docs/USER_GUIDE.md) for installation and file locations. [Third-party notices and licenses](../THIRD_PARTY_NOTICES.md)

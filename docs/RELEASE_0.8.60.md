@@ -8,7 +8,7 @@ The CPIN verifier now locates its local helper under the installer’s embedded 
 
 Setup records the self-test's stdout, stderr and exit code. An unavailable prerequisite leaves a resumable state. Setup marks an installation ready only after verification.
 
-The bundled `scripts/windows/test-installed.ps1` exercises the five modules and composed workflows with three samples, explicit family roles, BAMs, pileups, tables and invalid inputs. It uses independent analytical expectations and compares serial, automatic and two-worker results. The suite runs with the installed Python and WSL runtime, checks version, commit and image, and writes HTML, JSON, logs and a ZIP to a fresh directory. It verifies that inputs, installation and preferences remain intact. See [installed-client verification](COLLAUDO_INSTALLAZIONE.md).
+The bundled `scripts/windows/test-installed.ps1` exercises the five modules and composed workflows with three samples, explicit family roles, BAMs, pileups, tables and invalid inputs. It uses independent analytical expectations and compares serial, automatic and two-worker results. The suite runs with the installed Python and WSL runtime, checks version, commit and image, and writes HTML, JSON, logs and a ZIP to a fresh directory. It verifies that inputs, installation and preferences remain intact. See [installed-client verification](WINDOWS_INSTALLATION_TEST.md).
 
 A previous Windows installation passed 70 checks in 10 minutes 57 seconds on **0.8.50 with the CPIN repair**. That result belongs to the repaired build.
 

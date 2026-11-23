@@ -83,8 +83,8 @@ def verify_windows(windows, assets, commit, read_source=None):
     for key, stem in (("rootfs", "nipat-wsl-rootfs"), ("scientific_image", "nipat-scientific-runtime")):
         asset = manifest["assets"][key]
         name = f"{stem}-{manifest['version']}-amd64.tar.gz"
-        require(asset["file"] == name and asset["url"] ==
-                f"https://github.com/GregorioDalia/nipat-desktop/releases/download/{manifest['release_tag']}/{name}",
+        require(asset["file"] == name and asset["url"] in
+                publisher.release_urls(f"/releases/download/{manifest['release_tag']}/{name}"),
                 "Runtime archive name/URL mismatch")
         archive = assets / name
         require(digest(archive) == asset["sha256"] and archive.stat().st_size == asset["size"]

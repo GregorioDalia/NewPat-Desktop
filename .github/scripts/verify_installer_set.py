@@ -6,10 +6,14 @@ import importlib.util
 import json
 from pathlib import Path
 import re
+import sys
 import tempfile
 
 
 PROJECT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PROJECT / "src"))
+from nipat.branding import windows_package_generation
+
 INSTALLATION_CHECKS = {
     "package_installation", "initial_setup", "immutable_runtime_binding",
     "all_four_workflows", "private_inputs_unchanged", "user_owned_results",
@@ -88,7 +92,9 @@ def verify_windows_installer_fixture(evidence, manifest):
                      "uninstaller elevation gate", "synthetic runtime bootstrap and payload"]
     if requires_windows_bootstrap(manifest["version"]):
         substitutions.append("host Python interpreter for fixture")
-        expected = dict.fromkeys(("installed_0.8.99", "installed_0.9.0", "upgrade_backup",
+        generations = (("installed_0.9.10", "installed_0.9.11") if windows_package_generation(manifest["version"]) == 2
+                       else ("installed_0.8.99", "installed_0.9.0"))
+        expected = dict.fromkeys((*generations, "upgrade_backup",
             "reboot_exit_code", "silent_removal_preserves_data", "frozen_setup_reused",
             "bootstrap_marker", "display_version_matches_payload", "resume_archives_cached"), True)
     else:
@@ -187,6 +193,11 @@ def verify_dependency_check(evidence, manifest, manifest_bytes, package_record):
             "A required Linux dependency check is missing or failed")
 
 
+def windows_script_entrypoint(manifest):
+    # Accepted releases through 0.9.9 shipped the original Italian launcher.
+    return "2_LAUNCH.cmd" if windows_package_generation(manifest["version"]) == 2 else "2_AVVIA.cmd"
+
+
 def verify_windows_client_check(evidence, manifest, manifest_bytes, *, installer_sha256,
                                 inventory_bytes, launcher_sha256=None, entrypoint_sha256=None):
     """Bind staged Windows client checks without claiming WSL or installed-desktop execution."""
@@ -247,7 +258,7 @@ def verify_windows_client_check(evidence, manifest, manifest_bytes, *, installer
                 "Windows payload still contains obsolete unsigned native helpers")
     require(set(hashes) == set(sources) | generated
             and all(hashes.get(path) == digest for path, digest in sources.items())
-            and (hashes.get("2_AVVIA.cmd") == entrypoint_sha256 if bootstrap
+            and (hashes.get(windows_script_entrypoint(manifest)) == entrypoint_sha256 if bootstrap
                  else hashes["NIPAT.exe"] == launcher_sha256)
             and hashes[".distribution/installer-manifest.json"] == expected["installer_manifest_sha256"]
             and hashes[f".distribution/{bundle.PYTHON_NAME}"] == bundle.PYTHON_SHA256,
@@ -309,7 +320,7 @@ def verify_set(windows, linux, assets, output, commit, project=PROJECT):
             client_check, manifest, manifest_bytes, installer_sha256=windows_record["sha256"],
             launcher_sha256=(None if requires_windows_bootstrap(manifest["version"])
                              else publisher.sha256(windows / "NIPAT.exe")),
-            entrypoint_sha256=(manifest["source_sha256"].get("2_AVVIA.cmd")
+            entrypoint_sha256=(manifest["source_sha256"].get(windows_script_entrypoint(manifest))
                                if requires_windows_bootstrap(manifest["version"]) else None),
             inventory_bytes=inventory_path.read_bytes(),
         )

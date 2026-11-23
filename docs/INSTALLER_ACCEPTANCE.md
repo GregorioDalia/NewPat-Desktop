@@ -75,4 +75,4 @@ python .github/scripts/release_acceptance.py \
   --output /path/to/candidate-acceptance.json
 ```
 
-Complete and review the record using evidence from the candidate. Once the source is integrated, submit `.github/release-acceptance/vVERSION.json` in a separate acceptance-only pull request. After merge, successful verification on `main` can trigger publication of that accepted build. Historical records retain their own schemas and scope. The [domain validation record](VALIDAZIONE.md) is separate from technical release acceptance.
+Complete and review the record using evidence from the candidate. Once the source is integrated, submit `.github/release-acceptance/vVERSION.json` in a separate acceptance-only pull request. After merge, successful verification on `main` can trigger publication of that accepted build. Historical records retain their own schemas and scope. The [domain validation record](VALIDATION.md) is separate from technical release acceptance.

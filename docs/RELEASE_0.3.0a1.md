@@ -1,6 +1,6 @@
 # NIPAT CLI 0.3.0a1 — domain testing on Windows
 
-These historical notes cover Windows 11 x64 with **working WSL2**. For the current version, see the [README](../README.md) and [user guide](GUIDA_UTILIZZO.md). The prerelease included CLI workflows for DNPcall, SNPcall, Contamination and CPI. A GUI was outside its scope.
+These historical notes cover Windows 11 x64 with **working WSL2**. For the current version, see the [README](../README.md) and [user guide](USER_GUIDE.md). The prerelease included CLI workflows for DNPcall, SNPcall, Contamination and CPI. A GUI was outside its scope.
 
 ## Startup
 
@@ -9,7 +9,7 @@ These historical notes cover Windows 11 x64 with **working WSL2**. For the curre
 3. Wait for download, configuration and self-tests to report **`NIPAT: ready`**.
 4. Open **NIPAT** from Start and select the analysis, inputs and results directory.
 
-Setup provides portable Python and a dedicated WSL environment containing Docker Engine, R, samtools and the required packages. It requires internet access the first time. Subsequent analyses run on the computer. Docker Desktop, Python and R do not require separate installation. See the [versioned user guide](https://github.com/GregorioDalia/nipat-desktop/blob/v0.3.0a1/docs/GUIDA_UTILIZZO.md) for workflows and inputs, [project overview](../SUNTO.md) for integration and [validation sheet](VALIDAZIONE.md) for recording outcomes.
+Setup provides portable Python and a dedicated WSL environment containing Docker Engine, R, samtools and the required packages. It requires internet access the first time. Subsequent analyses run on the computer. Docker Desktop, Python and R do not require separate installation. See the [versioned user guide](https://github.com/GregorioDalia/nipat-desktop/blob/v0.3.0a1/docs/GUIDA_UTILIZZO.md) for workflows and inputs, [project overview](../OVERVIEW.md) for integration and [validation sheet](VALIDATION.md) for recording outcomes.
 
 ## Checks and limitations
 

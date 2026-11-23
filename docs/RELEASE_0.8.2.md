@@ -10,12 +10,12 @@ Resource settings distinguish the host, VM and container. WSL2 and Lima changes 
 
 ## Installation and evidence
 
-The Windows installer, Ubuntu package and both Mac packages share the same commit and scientific archive. Choose the package for the host from [GitHub Releases](https://github.com/GregorioDalia/nipat-desktop/releases). Windows and Ubuntu retain the desktop installation identity. **NIPAT Desktop** on Mac uses a dedicated Lima environment. Experimental installations remain separate. The [distribution guide](DISTRIBUZIONE.md) covers platform-specific procedures. The packages lacked a recognized NIPAT signature and the Mac packages lacked Apple notarization.
+The Windows installer, Ubuntu package and both Mac packages share the same commit and scientific archive. Choose the package for the host from [GitHub Releases](https://github.com/GregorioDalia/nipat-desktop/releases). Windows and Ubuntu retain the desktop installation identity. **NIPAT Desktop** on Mac uses a dedicated Lima environment. Experimental installations remain separate. The [distribution guide](DISTRIBUTION.md) covers platform-specific procedures. The packages lacked a recognized NIPAT signature and the Mac packages lacked Apple notarization.
 
 Release records identify package hashes, the commit and executed checks. CI covers contracts, naming, resources, numerical regressions, installers and common archive provenance. Hosted Mac builds verify clients and packaging. Testing Lima and Rosetta requires an environment with virtualization support. The reports identify deferred desktop tests.
 
-- [User guide](GUIDA_UTILIZZO.md)
-- [Results and provenance](ESECUZIONI.md)
-- [Resources and memory](RISORSE.md)
+- [User guide](USER_GUIDE.md)
+- [Results and provenance](RUNS.md)
+- [Resources and memory](RESOURCES.md)
 - [CI and distribution](CI_CD.md)
-- [Validation record](VALIDAZIONE.md)
+- [Validation record](VALIDATION.md)

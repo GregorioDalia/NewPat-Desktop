@@ -28,9 +28,9 @@ Packages lacked a system-recognized NIPAT signature and the Mac application lack
 
 ## Further reading
 
-- [User guide](GUIDA_UTILIZZO.md)
-- [Distribution and requirements](DISTRIBUZIONE.md)
-- [Windows installer](INSTALLATORE_WINDOWS.md)
-- [macOS installer](INSTALLATORE_MACOS.md)
+- [User guide](USER_GUIDE.md)
+- [Distribution and requirements](DISTRIBUTION.md)
+- [Windows installer](WINDOWS_INSTALLER.md)
+- [macOS installer](MACOS_INSTALLER.md)
 - [CI/CD and verification](CI_CD.md)
-- [Validation record](VALIDAZIONE.md)
+- [Validation record](VALIDATION.md)

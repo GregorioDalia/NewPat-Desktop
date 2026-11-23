@@ -9,6 +9,7 @@ from datetime import datetime
 import hashlib
 import json
 import os
+import sys
 from pathlib import Path, PurePosixPath
 import platform
 import re
@@ -26,7 +27,10 @@ from qualification_evidence import ALLOWED, MAX_ENTRIES, MAX_FILE, MAX_TOTAL, sa
 import release_acceptance as acceptance
 
 
-REPOSITORY = "GregorioDalia/nipat-desktop"
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
+from nipat.repository import REPOSITORY_ID, build_repository, official_actions_context
+
+REPOSITORY = build_repository()
 API_ROOT = f"https://api.github.com/repos/{REPOSITORY}/"
 DESCRIPTOR = "scientific-qualification.json"
 ARCHIVE = "scientific-evidence.zip"
@@ -203,7 +207,7 @@ def verify_required(evidence, image):
 
 
 def producer_identity(source):
-    require(os.environ.get("GITHUB_REPOSITORY") == REPOSITORY, "Scientific producer must belong to this repository")
+    require(official_actions_context() and os.environ.get("GITHUB_REPOSITORY") == REPOSITORY, "Scientific producer must belong to this repository")
     event = os.environ.get("GITHUB_EVENT_NAME")
     require(event in {"push", "pull_request", "workflow_dispatch"}, "Unsupported scientific producer event")
     require(os.environ.get("GITHUB_SHA") == source["commit"], "Producer checkout differs from the event commit")
@@ -377,7 +381,7 @@ def validate_run(run):
             and (run.get("status"), run.get("conclusion")) == ("completed", "success"), "CI run is not an eligible successful producer")
     repository, head = run.get("repository", {}), run.get("head_repository", {})
     require(repository.get("full_name") == head.get("full_name") == REPOSITORY
-            and positive(repository.get("id")) and repository["id"] == head.get("id"), "CI producer belongs to a fork or another repository")
+            and repository.get("id") == head.get("id") == int(REPOSITORY_ID), "CI producer belongs to a fork or another repository")
 
 
 def validate_job(document, run):
@@ -518,7 +522,7 @@ def restore(image, output, runner_temp, *, fetch=fetch_json, download=download_a
                "consumer": consumer_identity()}
     try:
         consumer = receipt["consumer"]
-        require(consumer["repository"] == REPOSITORY and positive(consumer["run_id"]) and positive(consumer["attempt"])
+        require(official_actions_context() and consumer["repository"] == REPOSITORY and positive(consumer["run_id"]) and positive(consumer["attempt"])
                 and isinstance(consumer["workflow_ref"], str), "Unknown scientific consumer identity")
         main_push = consumer["event"] == "push"
         if main_push:

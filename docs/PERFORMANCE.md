@@ -16,7 +16,7 @@ newpat --performance-diagnostics dnp-call \
   --panel "/data/DNP_list.txt" --run-name dnp-profile-01
 ```
 
-The same global option works for a workflow. `newpat --performance-diagnostics wizard` proposes a diagnostic run in the guided menu, where the launch summary also offers ordinary execution. The engine must advertise `performance-diagnostics-v1`. [Packaged launchers](GUIDA_UTILIZZO.md)
+The same global option works for a workflow. `newpat --performance-diagnostics wizard` proposes a diagnostic run in the guided menu, where the launch summary also offers ordinary execution. The engine must advertise `performance-diagnostics-v1`. [Packaged launchers](USER_GUIDE.md)
 
 ## Comparing serial and automatic execution
 
@@ -26,7 +26,7 @@ The same global option works for a workflow. `newpat --performance-diagnostics w
 | Automatic | `--execution-mode auto` |
 | Automatic with up to two workers | `--execution-mode auto --max-workers 2` |
 
-The run records its capacity and worker ceiling at startup. Each phase selects its pool from the assigned budget, available tasks, CPU limits and workload estimate. A coordinator is accounted for separately. Nested work cannot multiply the worker limit. DNP first acquires a pileup, possibly processing independent target chromosomes concurrently, then builds a global index and computes blocks in R. Start with the same requested limits, normally **32 MiB of raw input** and **64 loci** per block. Record both requested and effective targets. Indivisible groups can exceed them. Raw pileup bytes and resident R memory measure different things. [Resource policy](RISORSE.md)
+The run records its capacity and worker ceiling at startup. Each phase selects its pool from the assigned budget, available tasks, CPU limits and workload estimate. A coordinator is accounted for separately. Nested work cannot multiply the worker limit. DNP first acquires a pileup, possibly processing independent target chromosomes concurrently, then builds a global index and computes blocks in R. Start with the same requested limits, normally **32 MiB of raw input** and **64 loci** per block. Record both requested and effective targets. Indivisible groups can exceed them. Raw pileup bytes and resident R memory measure different things. [Resource policy](RESOURCES.md)
 
 In the terminal menu, change parallelism and block size in the run summary. Save reusable defaults in the resources, performance and provenance preferences. On Windows, using the CLI launcher in `$nipat`:
 
@@ -82,7 +82,7 @@ For a plan, the four `work/` paths are relative to the producing step under `out
 1. Keep file contents, indices, panels, frequencies, sample order, family roles, settings and checksum policy fixed. Record application and image identity.
 2. Keep hardware, storage, power source, power profile, VM allocation and container limits fixed. Record competing load. Full hashing also reads every byte. Distinguish the first read from subsequent cached reads.
 3. Alternate conditions, using a new run name each time. Where practical, repeat at least three times. Report median, spread, test conditions and any failures.
-4. Verify sample identities and output agreement. Keep synthetic and real-data results separate. Fix the pairs/trios, panels, cutoffs and frequencies for CPI/CPIN.
+4. Verify sample identities and output agreement. Keep synthetic and real-data results separate. Fix the pairs/trios, panels, cutoffs and frequencies for CPI/postnatal CPI.
 5. Change one factor at a time. Separate DNP acquisition, indexing and block computation. For composite workflows record both overall and per-step time.
 
 The checkout includes a supervisor for DNPcall or DNPcall → Contamination. It accepts a list of distinct BAMs. This example uses a one-line list. Write each condition to a new directory. Omit `--performance-diagnostics` for a normal timed run.
@@ -94,11 +94,11 @@ python scripts/benchmark_workflows.py \
   --sample-counts 1 --repeats 3 --workflow dnp-call --performance-diagnostics
 ```
 
-`benchmark.json` retains inputs, times, resources and available summaries. The [installed synthetic suite](COLLAUDO_INSTALLAZIONE.md) checks known workloads. Use representative local inputs for performance estimates. [Run records](ESECUZIONI.md) · [Docker statistics](https://docs.docker.com/reference/cli/docker/container/stats/) · [Linux cgroup v2 counters](https://docs.kernel.org/admin-guide/cgroup-v2.html)
+`benchmark.json` retains inputs, times, resources and available summaries. The [installed synthetic suite](WINDOWS_INSTALLATION_TEST.md) checks known workloads. Use representative local inputs for performance estimates. [Run records](RUNS.md) · [Docker statistics](https://docs.docker.com/reference/cli/docker/container/stats/) · [Linux cgroup v2 counters](https://docs.kernel.org/admin-guide/cgroup-v2.html)
 
 <a id="collaudo-dei-cinque-moduli-nella-0850"></a>
 <a id="collaudo-del-parallelismo-0812"></a>
 <a id="collaudo-del-pileup-parallelo-0813"></a>
 <a id="collaudo-delle-ottimizzazioni-0814"></a>
 
-Additional qualification protocols cover [five-module equivalence](DEVELOPMENT_0.8.50.md), [parallel execution](PARALLELISMO_0.8.12.md), [pileup acquisition](PILEUP_0.8.13.md) and [real-input comparisons](OPTIMIZATIONS_0.8.14.md).
+Additional qualification protocols cover [five-module equivalence](DEVELOPMENT_0.8.50.md), [parallel execution](PARALLELISM_0.8.12.md), [pileup acquisition](PILEUP_0.8.13.md) and [real-input comparisons](OPTIMIZATIONS_0.8.14.md).

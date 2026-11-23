@@ -10,6 +10,6 @@ The package lacked a publisher signature. Windows Server builds verify the clien
 
 ## Installation and verification
 
-Run `NIPAT-Setup.exe` from the release using the existing installation directories. It can update files and resume incomplete 0.8.80 preparation while preserving data and results. Wait for the NIPAT Desktop ready message before the [five-module verification](COLLAUDO_INSTALLAZIONE.md).
+Run `NIPAT-Setup.exe` from the release using the existing installation directories. It can update files and resume incomplete 0.8.80 preparation while preserving data and results. Wait for the NIPAT Desktop ready message before the [five-module verification](WINDOWS_INSTALLATION_TEST.md).
 
 Ubuntu 24.04 DEBs and PKGs for Intel and Apple Silicon Macs are also available. See the [installation guides](README.md#install-newpat). The release's `desktop-acceptance.json` and accompanying reports identify the actual build, packages and checks, deferred desktop tests and domain validation. Historical device results belong to the versions tested.

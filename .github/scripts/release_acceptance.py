@@ -106,7 +106,7 @@ BASELINE_OBSERVATIONS = {
 }
 WORKFLOW_BASELINE_OBSERVATIONS = BASELINE_OBSERVATIONS | {"automatic_workflow_sample_analysis"}
 REVIEWABLE_CLIENT_PREFIXES = ("src/nipat/", "installer/windows/", "installer/linux/", "scripts/", "tests/")
-REVIEWABLE_CLIENT_FILES = {"pyproject.toml", "1_SETUP.cmd", "2_AVVIA.cmd", "nipat.cmd"}
+REVIEWABLE_CLIENT_FILES = {"pyproject.toml", "1_SETUP.cmd", "2_LAUNCH.cmd", "nipat.cmd"}
 NEWPAT_BRANDING_FILES = {
     "assets/branding/build_assets.py", "assets/branding/nipat-logo-dark.svg",
     "assets/branding/nipat-logo.svg", "assets/branding/nipat-symbol.svg", "newpat.cmd",

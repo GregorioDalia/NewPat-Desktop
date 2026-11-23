@@ -17,9 +17,9 @@ from scripts.distribution_support import sha256_file, source_files
 
 # Current user/developer guides with directly invocable CLI examples. Historical
 # release notes describe the interfaces of earlier releases.
-GUIDES = ("README.md", "docs/GUIDA_UTILIZZO.md", "docs/CATALOGO_SCIENTIFICO.md",
-          "docs/DISTRIBUZIONE.md", "docs/ESECUZIONI.md", "docs/INSTALLATORE_LINUX.md",
-          "docs/INSTALLATORE_WINDOWS.md", "docs/PERFORMANCE.md", "docs/RISORSE.md")
+GUIDES = ("README.md", "docs/USER_GUIDE.md", "docs/SCIENTIFIC_CATALOG.md",
+          "docs/DISTRIBUTION.md", "docs/RUNS.md", "docs/LINUX_INSTALLER.md",
+          "docs/WINDOWS_INSTALLER.md", "docs/PERFORMANCE.md", "docs/RESOURCES.md")
 LAUNCH = re.compile(r"^(?:newpat|python -m nipat|& \$newpat)(?:\s+|$)")
 
 
@@ -79,13 +79,14 @@ def check_package(root, work):
     # release workflow separately checks the full packages and runtime assets.
     root = root.resolve()
     included = {p.relative_to(root).as_posix(): p for p in source_files(root)}
-    needed = {"README.md", "LICENSE", "THIRD_PARTY_NOTICES.md", "docs/GUIDA_UTILIZZO.md",
+    needed = {"README.md", "LICENSE", "THIRD_PARTY_NOTICES.md", "docs/USER_GUIDE.md",
               "installer/windows/zip-readme.txt", "installer/windows/testing-readme.txt"}
     missing = needed - included.keys()
     if missing:
         raise ValueError(f"Missing required distribution texts: {sorted(missing)}")
+    version = "0.9.10"
     files = {name: path for name, path in included.items()
-             if path.suffix.lower() == ".md" or name in needed or name in zip_package.ROOT_FILES.values()}
+             if path.suffix.lower() == ".md" or name in needed or name in zip_package.root_files(version).values()}
     stage = work / "stage"
     app = stage / "app"
     for name, source in files.items():
@@ -95,7 +96,7 @@ def check_package(root, work):
     metadata = app / ".distribution"
     metadata.mkdir()
     # Fixed fixture identity is local to the packaging test, never release evidence.
-    manifest = {"version": "0.9.0", "source_commit": "a" * 40, "assets": {},
+    manifest = {"version": version, "source_commit": "a" * 40, "assets": {},
                 "source_sha256": {k: sha256_file(v) for k, v in files.items()}}
     manifest_path = metadata / "installer-manifest.json"
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
@@ -106,12 +107,12 @@ def check_package(root, work):
     output = work / "packages"
     complete = zip_package.build(stage, work, output)
     members = {"app/" + name: path for name, path in files.items()}
-    members["LEGGIMI.txt"] = root / "installer/windows/zip-readme.txt"
+    members["README.txt"] = root / "installer/windows/zip-readme.txt"
     check_members(output / complete["file"], members)
-    for name in ("NIPAT-Setup.exe", "NIPAT-0.9.0-Windows-payload.zip"):
+    for name in ("NIPAT-Setup.exe", f"NIPAT-{version}-Windows-payload.zip"):
         (output / name).write_bytes(b"package identity fixture")
     testing = testing_package.build(root / "installer/windows", output, manifest)
-    check_members(output / testing["file"], {"LEGGIMI.txt": root / "installer/windows/testing-readme.txt"})
+    check_members(output / testing["file"], {"README.txt": root / "installer/windows/testing-readme.txt"})
     return len(files)
 
 

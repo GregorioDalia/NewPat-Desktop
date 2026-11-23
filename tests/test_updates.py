@@ -9,8 +9,9 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request
 from unittest.mock import Mock, patch
 
+from nipat.repository import LEGACY_REPOSITORY, RENAMED_REPOSITORY, REPOSITORY_ID
 from nipat.updates import (
-    API, WEB, UpdateAsset, UpdateClient, UpdateError, UpdateOffer,
+    API, WEB, REPOSITORY_INFO_URL, UpdateAsset, UpdateClient, UpdateError, UpdateOffer,
     _SafeRedirectHandler, detect_platform, version_key, manifest_filename,
 )
 
@@ -33,6 +34,7 @@ class FakeNetwork:
     def __init__(self):
         self.routes = {}
         self.calls = []
+        self.add_json(REPOSITORY_INFO_URL, {"id": int(REPOSITORY_ID), "full_name": LEGACY_REPOSITORY})
 
     def add_json(self, url, data):
         self.routes[url] = json.dumps(data).encode()
@@ -71,8 +73,8 @@ def release_fixture(version="0.7.0", *, prerelease=False, platform="windows-x86_
     release = {"tag_name": tag, "draft": False, "prerelease": prerelease,
                "published_at": "2026-10-25T10:00:00Z", "html_url": manifest["release_notes_url"],
                "assets": [
-                   {"name": manifest_filename(platform), "state": "uploaded", "size": len(json.dumps(manifest).encode()),
-                    "browser_download_url": f"{WEB}/releases/download/{tag}/{manifest_filename(platform)}"},
+                   {"name": manifest_filename(platform, version), "state": "uploaded", "size": len(json.dumps(manifest).encode()),
+                    "browser_download_url": f"{WEB}/releases/download/{tag}/{manifest_filename(platform, version)}"},
                    {"name": name, "state": "uploaded", "size": len(payload), "browser_download_url": asset["url"]},
                ]}
     return release, manifest
@@ -97,6 +99,34 @@ class UpdateDiscoveryTests(unittest.TestCase):
 
     def check(self, channel="testing", current="0.6.0", platform="windows-x86_64"):
         return self.client.check(current, channel, platform)
+
+    def test_renamed_repository_can_serve_unchanged_historical_manifests(self):
+        for platform in ("windows-x86_64", "windows-zip-x86_64", "windows-bootstrap-x86_64",
+                         "linux-x86_64", "darwin-arm64", "darwin-x86_64"):
+            for historical in (True, False):
+                with self.subTest(platform=platform, historical=historical):
+                    release, manifest = release_fixture("0.9.9", platform=platform)
+                    self.network.add_json(REPOSITORY_INFO_URL, {"id": int(REPOSITORY_ID), "full_name": RENAMED_REPOSITORY})
+                    new_web = f"https://github.com/{RENAMED_REPOSITORY}"
+                    new_api = f"https://api.github.com/repos/{RENAMED_REPOSITORY}"
+                    release = json.loads(json.dumps(release).replace(WEB, new_web))
+                    if not historical:
+                        manifest = json.loads(json.dumps(manifest).replace(WEB, new_web))
+                    self.network.add_json(new_api + "/releases?per_page=100&page=1", [release])
+                    self.network.add_json(new_api + "/git/ref/tags/v0.9.9",
+                                          {"ref": "refs/tags/v0.9.9", "object": {"type": "commit", "sha": SOURCE}})
+                    self.network.add_json(release["assets"][0]["browser_download_url"], manifest)
+                    offer = self.check(channel="stable", current="0.9.8", platform=platform).offer
+                    self.assertIsNotNone(offer)
+                    self.assertEqual(offer.asset.url, release["assets"][1]["browser_download_url"])
+                    self.assertEqual(offer.release_notes_url, release["html_url"])
+
+    def test_rejects_same_name_with_wrong_repository_id_and_unexpected_name_with_right_id(self):
+        for repo_id, repository in [(1, LEGACY_REPOSITORY), (int(REPOSITORY_ID), "someone/NewPat-Desktop")]:
+            self.network.calls.clear()
+            self.network.add_json(REPOSITORY_INFO_URL, {"id": repo_id, "full_name": repository})
+            self.assertEqual(self.check().status, "invalid_metadata")
+            self.assertEqual([url for url, _ in self.network.calls], [REPOSITORY_INFO_URL])
 
     def test_gui_preview_never_consumes_an_automatic_update_feed(self):
         for version in ("0.9.0", "0.9.0rc1", "0.9.1", "0.9.1rc1"):
@@ -188,7 +218,7 @@ class UpdateDiscoveryTests(unittest.TestCase):
         result = self.check()
         self.assertEqual(result.status, "up_to_date")
         self.assertIsNone(result.offer)
-        self.assertEqual(len(self.network.calls), 1)
+        self.assertEqual(len(self.network.calls), 2)
 
     def test_draft_unpublished_and_unmanaged_releases_are_not_offered(self):
         draft, manifest = release_fixture("0.9.0")
@@ -226,7 +256,7 @@ class UpdateDiscoveryTests(unittest.TestCase):
                 self.install((release, manifest))
                 self.network.calls.clear()
                 self.assertEqual(self.check().status, "invalid_metadata")
-                self.assertEqual(len(self.network.calls), 1)
+                self.assertEqual(len(self.network.calls), 2)
 
     def test_invalid_newest_release_never_silently_falls_back_to_older_offer(self):
         newest, manifest = release_fixture("0.8.0")
@@ -286,7 +316,7 @@ class UpdateDiscoveryTests(unittest.TestCase):
 
     def test_required_newer_updater_has_explicit_result(self):
         release, manifest = release_fixture()
-        manifest["minimum_updater_version"] = 2
+        manifest["minimum_updater_version"] = 3
         self.install((release, manifest))
         self.assertEqual(self.check().status, "unsupported_updater")
 

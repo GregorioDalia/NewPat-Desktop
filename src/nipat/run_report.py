@@ -28,7 +28,7 @@ _PARAMETERS = {"reference": "Genoma di riferimento", "panel": "Pannello", "snp_p
                "popfreq": "Frequenze di popolazione", "err_const": "Costante di errore",
                "cutoff_mode": "Selezione dei siti CPI", "cutoffs": "Pannelli CPI",
                "mother_prefix": "Prefisso materno", "father_prefix": "Prefisso paterno", "child_prefix": "Prefisso del figlio",
-               "trios": "Trii CPIN", "caller": "Caller selezionato", "analyses": "Analisi successive richieste",
+               "trios": "Trii CPI postnatale", "caller": "Caller selezionato", "analyses": "Analisi successive richieste",
                "analyses_by_marker": "Analisi successive per ramo attivo",
                "scientific_settings_requested": "Parametri scientifici richiesti",
                "scientific_settings_effective": "Parametri scientifici del piano",
@@ -110,7 +110,7 @@ def _family_section(metadata: dict, samples: list[dict[str, str]]) -> str:
         return ""
     return ("<h2>Famiglie e ruoli dichiarati</h2>"
             "<p>Le associazioni sono quelle richieste nel piano. Il cfDNA materno del CPI prenatale "
-            "e il campione madre del CPIN postnatale sono riportati separatamente.</p>" +
+            "e il campione madre del CPI postnatale sono riportati separatamente.</p>" +
             _table(["Fase", "Marcatori", "Famiglia", "Ruolo", "Identificativo", "Nome originale"], rows))
 
 

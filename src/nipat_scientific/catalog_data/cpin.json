@@ -515,7 +515,7 @@
       },
       "evidence": {
         "path": "src/nipat_scientific/cpin.py",
-        "sha256": "a0a53975759336d9fa46e72a936624906fbb56f19ae2fc73f0a9d522313fc775",
+        "sha256": "69ff5394b6f390d81a2dea18d8bfc29c282165025f3d8c8b22d8ac67e1566470",
         "source_lines": [
           1,
           155
@@ -676,7 +676,7 @@
           },
           "maternal_selection": {
             "value": "homozygous mother only",
-            "description": "Entrambe le selezioni CPIN richiedono madre omozigote."
+            "description": "Entrambe le selezioni CPI postnatale richiedono madre omozigote."
           },
           "curve_threshold_semantics": {
             "value": "obligatory paternal allele support after initial child genotype support filter",
@@ -690,7 +690,7 @@
       },
       "evidence": {
         "path": "src/nipat_scientific/settings_data.json",
-        "sha256": "e1284fe3489dc55b19c13a806ca461cbfc712c6047fb2499d8c3ac2c86692123",
+        "sha256": "fe4892f4c0cb570495d43f6811e9c3d8fc0867aa919403aa9de1eae693e57a7e",
         "source_lines": [
           1,
           631
@@ -759,7 +759,7 @@
               110,
               131
             ],
-            "sha256": "77fd4dd63f28ed82aa47898d1cf3496281965e7415025a87961fd53fad4b9e7d"
+            "sha256": "f229833867d04f133f60fc2767a563d536721bf9c0ee8933ea66ecbb93f036dc"
           },
           {
             "path": "src/nipat/execution/runner.py",
@@ -767,7 +767,7 @@
               199,
               220
             ],
-            "sha256": "77fd4dd63f28ed82aa47898d1cf3496281965e7415025a87961fd53fad4b9e7d"
+            "sha256": "f229833867d04f133f60fc2767a563d536721bf9c0ee8933ea66ecbb93f036dc"
           }
         ]
       }

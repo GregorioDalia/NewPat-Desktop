@@ -1,6 +1,6 @@
 # NIPAT CLI 0.3.0a2 — guided input and Windows launch
 
-This development record applies to candidate `0.3.0a2`. Current instructions are in the [README](../README.md) and [user guide](GUIDA_UTILIZZO.md).
+This development record applies to candidate `0.3.0a2`. Current instructions are in the [README](../README.md) and [user guide](USER_GUIDE.md).
 
 ## Changes
 
@@ -35,4 +35,4 @@ The Windows acceptance plan still called for these checks on the final packages:
 
 The automated upgrade logic still required physical Windows installation, upgrade, resumption and preservation checks. Failed preparation blocks the updated app. Setup does not automatically roll back application files already replaced. Language selection remained future work. Independent domain validation and observations from other versions are separate.
 
-[User guide](GUIDA_UTILIZZO.md) · [Project overview](../SUNTO.md) · [Validation sheet](VALIDAZIONE.md)
+[User guide](USER_GUIDE.md) · [Project overview](../OVERVIEW.md) · [Validation sheet](VALIDATION.md)

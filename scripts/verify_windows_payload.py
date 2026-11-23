@@ -223,8 +223,8 @@ def exercise_client(app: Path, work: Path, manifest: dict) -> None:
             settings["effective"]["cpin"]["min_child_reads"], "Scientific settings override/default separation failed.")
     menu = invoke("wizard", ["--dry-run", "wizard"], "w\n0\n0\n")
     require(all(label in menu for label in ("Workflow automatici", "DNPcall -> Contamination",
-            "DNPcall -> CPI", "DNPcall -> Contamination e CPI", "SNPcall su piu' campioni",
-            "CPIN / CPI postnatale", "Workflow completo", "Analisi singole", "Configurazione e strumenti", "Ctrl+C")),
+            "DNPcall -> CPI", "DNPcall -> Contamination e CPI prenatale", "SNPcall su piu' campioni",
+            "CPI postnatale", "Workflow completo", "Analisi singole", "Configurazione e strumenti", "Ctrl+C")),
             "Packaged workflow menu is incomplete.")
     cancelled = invoke("wizard-cancellation", ["--dry-run", "wizard"],
                        "7\n6\n1\n:annulla\nW\n1\n1\n:annulla\n5\n1\n2\n:annulla\n0\n")
@@ -329,7 +329,7 @@ def main() -> None:
               "version": manifest["version"], "source_commit": manifest["source_commit"],
               "installer_manifest_sha256": digest(app / ".distribution/installer-manifest.json"),
               "application_inventory_sha256": digest(app / ".distribution/application-files.json"),
-              "entrypoint_sha256": digest(app / "2_AVVIA.cmd"), "installer_sha256": digest(args.installer),
+              "entrypoint_sha256": digest(app / "2_LAUNCH.cmd"), "installer_sha256": digest(args.installer),
               "python_version": "3.12.10", "scientific_execution": False, "wsl_execution": False,
               "checks": {name: True for name in CHECKS}}
     args.output.parent.mkdir(parents=True, exist_ok=True)

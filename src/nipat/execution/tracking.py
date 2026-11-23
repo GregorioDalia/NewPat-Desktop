@@ -167,7 +167,7 @@ def read_run_metadata(run_dir: Path, relative: str = "run.json", *,
     return metadata
 
 
-def workflow_steps(metadata: dict) -> list[dict]:
+def workflow_steps(metadata: dict, *, include_markers: bool = False) -> list[dict]:
     """Accept only preset-owned IDs and complete, ordered per-sample SNP mappings."""
     workflow = metadata["workflow"]
     expected = [{"id": step_id, "workflow": kind}
@@ -197,6 +197,11 @@ def workflow_steps(metadata: dict) -> list[dict]:
             source = sources[sample["id"]]
             if source.get("container_path") != sample["path"] or not isinstance(source.get("original_path"), str):
                 raise ValueError("Percorsi registrati non coerenti con il piano")
+        if include_markers:
+            for item, step in zip(expected, plan["steps"]):
+                # Normalization infers downstream marker types from typed table
+                # references, including archived plans without an explicit type.
+                item["marker"] = step["parameters"].get("marker_type")
         return expected
     has_snp = workflow == "snp-batch" or parameters.get("snp_panel") is not None
     if supplied is None and not has_snp:

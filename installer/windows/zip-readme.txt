@@ -2,9 +2,14 @@ NewPat for Windows — complete ZIP
 
 1. Download the complete Windows ZIP from the official NewPat release. Choose
    a permanent folder on a local fixed drive and extract the whole archive.
-2. As a regular Windows user, double-click 1_INSTALLA.cmd.
+2. As a regular Windows user, double-click 1_INSTALL.cmd.
 3. When preparation finishes, NewPat opens. Next time, open NIPAT\NewPat.lnk
    inside the extracted folder. This shortcut opens the app with its own icon.
+
+For an upgrade from 0.9.9, extract to a fresh directory and run the included
+install-zip.ps1 with -InstallRoot pointing to your existing NIPAT folder.
+See app\docs\WINDOWS_INSTALLER.md for the complete PowerShell command.
+Opening 1_INSTALL.cmd in an unrelated fresh folder creates a new installation.
 
 The complete ZIP includes Python 3.12.10, the WSL filesystem and the scientific
 runtime. Windows may need internet access, administrator approval or a restart
@@ -30,4 +35,4 @@ dialog and the message. For a prepared installation, keep the setup log.
 The Windows installation guide on GitHub explains the available installation
 methods and how to collect diagnostic information:
 
-https://github.com/GregorioDalia/nipat-desktop/blob/main/docs/INSTALLATORE_WINDOWS.md
+https://github.com/GregorioDalia/nipat-desktop/blob/main/docs/WINDOWS_INSTALLER.md

@@ -175,6 +175,6 @@ function Assert-NipatWslDevelopmentConfiguration {
         [string]::IsNullOrWhiteSpace($env:NIPAT_WSL_DISTRO) -or
         $env:NIPAT_WSL_DISTRO -cnotmatch '^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$' -or
         $env:NIPAT_RUNTIME_IMAGE -cnotmatch '^sha256:[a-f0-9]{64}$') {
-        throw 'Per installare NewPat usare NewPat-Setup.exe. La preparazione del sorgente richiede un runtime WSL configurato: NIPAT_BACKEND=wsl, NIPAT_WSL_DISTRO e NIPAT_RUNTIME_IMAGE con ID sha256 completo. Consultare docs/INSTALLATORE_WINDOWS.md.'
+        throw 'Per installare NewPat usare NewPat-Setup.exe. La preparazione del sorgente richiede un runtime WSL configurato: NIPAT_BACKEND=wsl, NIPAT_WSL_DISTRO e NIPAT_RUNTIME_IMAGE con ID sha256 completo. Consultare docs/WINDOWS_INSTALLER.md.'
     }
 }

@@ -464,11 +464,15 @@ def test_read_totals_preserve_integer_precision_and_missingness(archive):
     assert entry["metrics"][-1]["value"] is None
 
 
-def test_validated_workflow_preserves_snp_branch_without_callers(archive):
+@pytest.mark.parametrize("explicit_marker", [True, False])
+def test_validated_workflow_preserves_snp_branch_without_callers(archive, explicit_marker):
     from test_workflow_five_modules import plan_for
     from nipat_scientific.plan import validate_plan
     run = make_run(archive, "analysis")
     plan = validate_plan(plan_for("SNP", called=False))["plan"]
+    if not explicit_marker:
+        for step in plan["steps"]:
+            del step["parameters"]["marker_type"]
     steps = [{"id": step["id"], "workflow": step["workflow"]} for step in plan["steps"]]
     metadata = json.loads((run / "run.json").read_text(encoding="utf-8"))
     metadata["parameters"] = {"plan": plan, "expected_steps": steps,

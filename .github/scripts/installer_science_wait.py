@@ -22,7 +22,7 @@ def same_source_ci(run, commit):
             and run.get("status") in {"in_progress", "completed"}
             and run.get("conclusion") in {None, "success"}
             and repo.get("full_name") == head.get("full_name") == science.REPOSITORY
-            and science.positive(repo.get("id")) and repo["id"] == head.get("id")
+            and repo.get("id") == head.get("id") == int(science.REPOSITORY_ID)
             and science.positive(run.get("id")) and science.positive(run.get("run_attempt")))
 
 

@@ -22,4 +22,4 @@ Preparation uses Windows primitives and Python for process coordination, without
 
 The ZIP and EXE installations have separate locations and update mechanisms. This release provided no automatic migration or general backward-compatibility contract for earlier installations. Unrelated data and results are preserved.
 
-Published reports identify package hashes and completed CI checks. Scientific qualification, a physical Windows/WSL restart and Smart App Control tests on the target device are distinct from hosted installer checks. The setup lacked a NIPAT Authenticode signature. Consult the [Windows guide](INSTALLATORE_WINDOWS.md) for procedures, logs and checks.
+Published reports identify package hashes and completed CI checks. Scientific qualification, a physical Windows/WSL restart and Smart App Control tests on the target device are distinct from hosted installer checks. The setup lacked a NIPAT Authenticode signature. Consult the [Windows guide](WINDOWS_INSTALLER.md) for procedures, logs and checks.

@@ -5,11 +5,15 @@ Use NewPat to set up an experiment, follow its progress, read results and inspec
 ## Set up an experiment
 
 1. Choose **New experiment** and give the experiment a name. Select the starting material (BAM files, SNP pileups or existing count tables). For BAM inputs, supply the reference FASTA, the marker panel for each caller and a sample ID for each file.
-2. Select the analyses. Contamination, prenatal CPI and postnatal CPIN can each use a caller's count tables. For parentage analyses, identify each sample's role in its pair or trio and select population frequencies for the marker type.
+2. Select the analyses. Contamination, prenatal CPI and postnatal CPI can each use a caller's count tables. For parentage analyses, identify each sample's role in its pair or trio and select population frequencies for the marker type.
 3. Review the scientific parameters, sample list, execution settings and destination. Select **Record performance diagnostics** if you need timing and resource measurements. Choose **Start experiment** once. NewPat checks the configuration and runtime and starts the analysis when the checks pass. If a check fails, use the displayed message to correct the problem before trying again.
 4. Open **Activity** to see the current phase, the sample when available, and the elapsed time. Recent activity lists changes as they happen. Expand **Technical log** for detailed messages. The DNA animation shows activity while the engine prepares. When a phase has measurable progress, the percentage refers to that phase. Stopping an analysis can take time while its processes exit.
 
-**New experiment** starts with the defaults in Preferences. **Run again** opens a fresh draft with an existing run's input files and settings. Review those paths before starting it. See the [input and command reference](GUIDA_UTILIZZO.md) for panel formats and sample roles.
+**New experiment** starts with the defaults in Preferences. **Run again** opens a fresh draft with an existing run's input files and settings. Review those paths before starting it. See the [input and command reference](USER_GUIDE.md) for panel formats and sample roles.
+
+You can start another experiment while one is running. Each has its own progress, stop control and output directory. Overlapping jobs share CPU, memory and disk. An additional job caps its container at the measured guest CPU and memory divided by the number of ongoing desktop experiments at launch, respecting any lower limit you selected. A running container keeps its original limits, so the operating system may still experience memory pressure. With unknown capacity the additional job uses one worker. Finished and interrupted jobs move to **Finished this session**. **Remove from list** clears the card and its archive listing while preserving the files.
+
+In the **Parameters** step, save a named profile to reuse your scientific settings and execution limits. Select and apply a profile to change those values on the current draft. Sample files, reference, panels and family roles belong to the experiment. You can replace or remove a saved profile and choose a default for new experiments in **Preferences**.
 
 ## Find or reopen results
 
@@ -17,16 +21,22 @@ In **Experiments and results**, search by experiment name, status or marker type
 
 Use **Open existing results** to add an existing run folder to the archive. NewPat records its location. **Remove from list** hides the entry and leaves its files on disk. You can register that folder again.
 
-If NewPat closes during calculation, reopen the application and check the run status. **Needs verification** means NewPat cannot determine whether the underlying process is still active. Wait for confirmation before relaunching or removing the entry. Completed output from one step may be available while the overall experiment is still incomplete. The [run guide](ESECUZIONI.md) explains how to inspect the runtime.
+If NewPat closes during calculation, reopen the application and check the run status. **Needs verification** means NewPat cannot determine whether the underlying process is still active. Wait for confirmation before relaunching or removing the entry. Completed output from one step may be available while the overall experiment is still incomplete. The [run guide](RUNS.md) explains how to inspect the runtime.
 
-## Read CPI and CPIN plots
+## Read the postnatal CPI
+
+Choose a trio and site selection to see the numerical combined paternity index recorded in `Summary_Postnatal_CPI.txt`. The result preserves the precision of the stored value. An unavailable result is displayed when the summary records `NA`. With site selection set to **Both**, each trio has a separate row for each selection. Open **Show curves by read threshold** to inspect the supporting threshold analysis.
+
+<a id="read-cpi-and-cpin-plots"></a>
+
+## Read prenatal and postnatal CPI plots
 
 Hover over a point or click it to see the original table values. With the keyboard, press **Tab** to focus the plot, use the arrow keys to move through the points on the page, **Home** or **End** to reach its ends, and **Esc** to dismiss the details.
 
 | Result | Horizontal axis | Index series | Site counts |
 | --- | --- | --- | --- |
 | Prenatal CPI | `Iteration`, the minimum fetal read count | `log_CPI`, already on a base-10 logarithmic scale | `NotMismatch` and `Mismatch` |
-| Postnatal CPIN | Inclusive interval from `Min_child_reads` to `Through_min_child_reads` | `Log10_CPI`, already on a base-10 logarithmic scale | `N_sites`, `Matching_sites` and `Mismatching_sites` |
+| Postnatal CPI | Inclusive interval from `Min_child_reads` to `Through_min_child_reads` | `Log10_CPI`, already on a base-10 logarithmic scale | `N_sites`, `Matching_sites` and `Mismatching_sites` |
 
 The separate views give the index and counts their own panels. The combined view shows log CPI in black, matching sites in green and mismatching sites with a dashed orange line. Read the index on the left axis and counts on the right. Total postnatal site counts remain available in the separate view and point details.
 

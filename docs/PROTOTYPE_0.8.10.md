@@ -13,7 +13,7 @@ Select a successful [Installers (review build)](https://github.com/GregorioDalia
 | macOS Apple Silicon | `NIPAT-0.8.10-macos-arm64.pkg` |
 | macOS Intel | `NIPAT-0.8.10-macos-x86_64.pkg` |
 
-Actions artifacts are temporary. Retain the installer, commit, build and checksum. Multiple candidates can share the number `0.8.10`. A successful build does not exercise each target workstation. Installing manually upgrades a recognized **NIPAT Desktop** installation in place. Close active analyses and preserve reference runs. Platform requirements are in the [Windows](INSTALLATORE_WINDOWS.md), [Ubuntu](INSTALLATORE_LINUX.md) and [macOS](INSTALLATORE_MACOS.md) guides. Windows uses dedicated WSL2 and NIPAT-managed Docker Engine, macOS uses Lima, and Ubuntu uses local Docker Engine. R remains the scientific core.
+Actions artifacts are temporary. Retain the installer, commit, build and checksum. Multiple candidates can share the number `0.8.10`. A successful build does not exercise each target workstation. Installing manually upgrades a recognized **NIPAT Desktop** installation in place. Close active analyses and preserve reference runs. Platform requirements are in the [Windows](WINDOWS_INSTALLER.md), [Ubuntu](LINUX_INSTALLER.md) and [macOS](MACOS_INSTALLER.md) guides. Windows uses dedicated WSL2 and NIPAT-managed Docker Engine, macOS uses Lima, and Ubuntu uses local Docker Engine. R remains the scientific core.
 
 ## Changes
 

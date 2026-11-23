@@ -61,7 +61,7 @@ python scripts/verify_five_modules.py --output build/qualification --full
 python scripts/verify_five_modules.py --image IMAGE_ID --output build/qualification-image --full
 ```
 
-Local R or client tests exercise different layers from the distributed image, platform installers and desktop acceptance. Record the package, platform and evidence actually tested. The [validation worksheet](VALIDAZIONE.md) covers independent domain evaluation.
+Local R or client tests exercise different layers from the distributed image, platform installers and desktop acceptance. Record the package, platform and evidence actually tested. The [validation worksheet](VALIDATION.md) covers independent domain evaluation.
 
 ## Different analyses on the two branches
 

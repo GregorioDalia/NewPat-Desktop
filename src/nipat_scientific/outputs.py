@@ -119,7 +119,7 @@ def _collect_cpin_outputs(step: dict, request: dict, root: Path, output_dir: Pat
     columns = {"Trio", "Marker_type", "Analysis", "N_sites", "N_heterozygous_child_sites",
                "N_homozygous_child", "Matching_sites", "Mismatching_sites", "Log10_CPI", "CPI",
                "Error_constant", "Min_child_reads"}
-    rows = [row for _, row in table_rows(summary, columns, "CPIN summary")]
+    rows = [row for _, row in table_rows(summary, columns, "Postnatal CPI summary")]
     bindings = step.get("native_bindings")
     if bindings is None:
         _, bindings = _cpin_bindings(step)
@@ -134,15 +134,15 @@ def _collect_cpin_outputs(step: dict, request: dict, root: Path, output_dir: Pat
         _check_cpi_summary_settings(row, request, settings, summary, number)
         key = row["Trio"], row["Analysis"]
         if key in seen:
-            raise PlanExecutionError("execution.output", "Duplicate CPIN trio/analysis row.")
+            raise PlanExecutionError("execution.output", "Duplicate postnatal CPI trio/analysis row.")
         seen.add(key)
         values = {column: nonnegative_integer(row[column], summary, number, column) for column in counts}
         if values["Matching_sites"] + values["Mismatching_sites"] != values["N_sites"] or values["N_heterozygous_child_sites"] + values["N_homozygous_child"] != values["N_sites"]:
-            raise PlanExecutionError("execution.output", "CPIN site counts disagree.")
+            raise PlanExecutionError("execution.output", "Postnatal CPI site counts disagree.")
         warnings.extend(_numeric_warnings(row, {"Log10_CPI", "CPI", "Error_constant"}, summary, number,
                                          allow_missing=values["N_sites"] == 0))
     if seen != expected:
-        raise PlanExecutionError("execution.output", "CPIN results do not match requested trios and analyses.")
+        raise PlanExecutionError("execution.output", "Postnatal CPI results do not match requested trios and analyses.")
     trios = []
     for binding in bindings:
         name = binding["native_trio"]

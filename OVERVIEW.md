@@ -12,4 +12,4 @@ Start with the files you have and the result you need.
 
 In the desktop window, choose **New experiment**, add the samples and reference files, review the analysis settings and validate the configuration. You can connect the calling and downstream analyses in one workflow. For results, open **Experiments and results** or read `run-report.html` in the run folder. The integrated IGV viewer opens local alignments at a selected locus.
 
-[Installation](docs/DISTRIBUZIONE.md) · [Desktop guide](docs/GUI.md) · [Input formats and command-line examples](docs/GUIDA_UTILIZZO.md) · [Reading results](docs/ESECUZIONI.md)
+[Installation](docs/DISTRIBUTION.md) · [Desktop guide](docs/GUI.md) · [Input formats and command-line examples](docs/USER_GUIDE.md) · [Reading results](docs/RUNS.md)

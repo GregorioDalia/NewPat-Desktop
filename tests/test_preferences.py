@@ -72,6 +72,36 @@ class PreferencesTests(unittest.TestCase):
         self.assertFalse(self.store.load().check_updates_on_startup)
         self.assertEqual(self.store.load().update_channel, "stable")
 
+    def test_named_profiles_round_trip_and_merge_independent_changes(self):
+        self.write_document({"schema_version": 1, "scientific_settings": {"snp-call": {"max_depth": 200}}})
+        baseline = self.store.load()
+        self.assertFalse(baseline.default_profile)
+        profile = {"scientific_settings": {"snp-call": {"max_depth": 0}},
+                   "execution": {"max_workers": 3}}
+        self.store.save(replace(baseline, update_channel="testing"), baseline=baseline)
+        self.store.save(replace(baseline, default_profile="Prova",
+                                parameter_profiles={"Prova": profile}), baseline=baseline)
+        saved = PreferencesStore(self.store.path).load()
+        self.assertEqual(saved.update_channel, "testing")
+        self.assertEqual(saved.scientific_settings["snp-call"]["max_depth"], 200)
+        loaded = saved.parameter_profiles[saved.default_profile]
+        self.assertEqual(loaded["scientific_settings"]["snp-call"]["max_depth"], 0)
+        self.assertEqual(loaded["execution"]["max_workers"], 3)
+        self.assertNotIn("performance_diagnostics", loaded["execution"])
+
+    def test_invalid_profile_cannot_replace_a_valid_snapshot(self):
+        profile = {"scientific_settings": {}, "execution": {}}
+        saved = self.store.save(Preferences(parameter_profiles={"A": profile}, default_profile="A"))
+        for fields in ({"parameter_profiles": {" A ": profile}}, {"default_profile": "B"},
+                       {"parameter_profiles": {"A": {**profile, "samples": []}}},
+                       {"parameter_profiles": {"A": {**profile, "execution": {"cpus": -1}}}},
+                       {"parameter_profiles": {"A": {**profile, "execution": {"performance_diagnostics": True}}}},
+                       {"parameter_profiles": {"A": {**profile, "scientific_settings": {
+                           "cpin": {"log_cpi_lower": 7, "log_cpi_upper": 5}}}}}):
+            with self.subTest(fields=fields), self.assertRaises(ValidationError):
+                self.store.save(Preferences.from_dict({**saved.to_dict(), **fields}), baseline=saved)
+        self.assertEqual(self.store.load(), saved)
+
     def test_invalid_update_preferences_are_not_silently_enabled(self):
         for fields in ({"update_channel": "nightly"}, {"update_channel": None},
                        {"check_updates_on_startup": 1}, {"check_updates_on_startup": "false"}):

@@ -84,7 +84,7 @@ class WizardGuidanceTests(unittest.TestCase):
                 self.assertEqual(status, 0)
                 self.assertIn(expected, output)
                 self.assertIn("W -> 5 collega DNPcall e/o SNPcall", output)
-                self.assertIn("CPIN postnatale, anche partendo da tabelle esistenti", output)
+                self.assertIn("CPI postnatale, anche partendo da tabelle esistenti", output)
                 if version == "0.8.80":
                     self.assertNotIn("versione sperimentale", output)
                 else:

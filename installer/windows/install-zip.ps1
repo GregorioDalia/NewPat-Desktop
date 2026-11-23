@@ -14,7 +14,7 @@ try {
         if ($manifest.version -cne $pointer.version -or $manifest.source_commit -cne $pointer.source_commit) { throw 'Versione in attesa diversa dal pacchetto installato.' }
         $layout = Read-NipatInstallLayout $project
     } else {
-        if (-not $BundleDirectory) { throw 'Estrarre lo ZIP completo e avviare 1_INSTALLA.cmd.' }
+        if (-not $BundleDirectory) { throw 'Estrarre lo ZIP completo e avviare 1_INSTALL.cmd.' }
         $bundle = Resolve-NipatInstallPath $BundleDirectory
         Assert-NipatInstallPathWithoutLinks $bundle -Tree
         $source = Join-Path $bundle 'app'

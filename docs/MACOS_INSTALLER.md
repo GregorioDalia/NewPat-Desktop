@@ -56,11 +56,34 @@ newpat_cli="/Applications/NewPat.app/Contents/Resources/NewPat.command"
 
 Initial preparation checks the archive and engine contracts. Run `self-test` explicitly for the numerical examples. `--runtime status` can report `repair_required` for a mount mismatch. After fixing the cause, reopen the app or use `--runtime prepare`. Keep the full error, setup log, macOS version, architecture and package identity when reporting a problem. After analyses finish, `--runtime stop` stops the dedicated VM.
 
+## Compare worker settings on an Apple Silicon Mac
+
+The Apple Silicon installer uses a native ARM guest and runs the AMD64 scientific image through Rosetta. The starting Lima allocation is half the host RAM, capped at 8 GiB, and up to four CPUs, keeping one host CPU free when possible. An existing VM retains its own allocation. Check the actual values with the installed launcher:
+
+```sh
+"/Applications/NewPat.app/Contents/Resources/NewPat.command" resources inspect
+```
+
+For a slow DNP run, the [Mac worker benchmark](../scripts/benchmark_macos_dnp.py) compares three settings on the same installed package: serial, automatic with a ceiling of two workers, and the ordinary automatic mode. Each run uses the same BAM list, reference, DNP panel and Lima allocation. The benchmark prepares the VM once before timing, records total command time, pileup, indexing, R processing and observed worker counts, and checks the individual scientific tables and the genotype matrix against serial execution.
+
+Save the script in Downloads. Prepare a text file with one BAM path per line in a fixed sample order. Start with one representative indexed BAM, the matching indexed reference and the same panel as the slow run. Keep the Mac connected to power, use the same storage and close other analyses. From Terminal, replace the input paths below with your own. Choose a new output directory for each invocation.
+
+```sh
+"/Applications/NewPat.app/Contents/Resources/python/bin/python3.12" -I \
+  "$HOME/Downloads/benchmark_macos_dnp.py" \
+  --bamlist "$HOME/NewPat-data/bams.txt" --reference "$HOME/NewPat-data/genome.fa" \
+  --panel "$HOME/NewPat-data/dnp-panel.txt" --output-dir "$HOME/NewPat-Mac-test"
+```
+
+One round runs the three conditions once. To decide on a reusable ceiling, repeat with the representative multi-BAM list and `--rounds 3` in a fresh output directory. The order rotates to reduce the effect of warmed file caches. `benchmark.json` reports each run and the median total time per setting. Compare the spread, actual samtools concurrency, phase times and scientific table agreement before choosing the setting. If automatic mode already uses one worker, inspect the acquisition reason and measured CPU/RAM first. Preserve the per-run logs if a run fails. Reports and logs remain local and can contain paths or sample names.
+
+A separate VM-allocation comparison can then change either the Lima CPU count or its memory while holding worker mode and inputs fixed. For an Apple Silicon image built natively for ARM64, separate R/package and samtools builds plus scientific equivalence checks would be needed. The DNP benchmark above measures the installed AMD64 image.
+
 ## Updates, resources and removal
 
 Use **Check for updates** or download a newer PKG for the same architecture. Close existing NewPat/NIPAT sessions before running Installer. The app bundle and account's data directory are separate.
 
-The resource settings show host, Lima VM and container allocations. Preview any change to Lima RAM or CPUs and confirm it. NewPat backs up the previous configuration. A necessary restart has its own confirmation and active analyses block maintenance. Increasing the container limit alone cannot increase Lima's assigned RAM. [Resource guide](RISORSE.md)
+The resource settings show host, Lima VM and container allocations. Preview any change to Lima RAM or CPUs and confirm it. NewPat backs up the previous configuration. A necessary restart has its own confirmation and active analyses block maintenance. Increasing the container limit alone cannot increase Lima's assigned RAM. [Resource guide](RESOURCES.md)
 
 Removing the app bundle leaves its VM and user files in place. To remove the owned VM as well, close all analyses and run the following **before** removing the application:
 
@@ -68,4 +91,4 @@ Removing the app bundle leaves its VM and user files in place. To remove the own
 "/Applications/NewPat.app/Contents/Resources/NewPat.command" --runtime remove-runtime
 ```
 
-A later preparation will recreate the runtime. Data and results stay in the user directory. Native PKG checks and mount-migration simulations cover packaging and recovery logic. Results for an actual Lima VM, Finder interactions, Gatekeeper or Rosetta belong to the tested device and architecture. See the [validation record](VALIDAZIONE.md), [user guide](GUIDA_UTILIZZO.md) and [release notes](https://github.com/GregorioDalia/nipat-desktop/releases).
+A later preparation will recreate the runtime. Data and results stay in the user directory. Native PKG checks and mount-migration simulations cover packaging and recovery logic. Results for an actual Lima VM, Finder interactions, Gatekeeper or Rosetta belong to the tested device and architecture. See the [validation record](VALIDATION.md), [user guide](USER_GUIDE.md) and [release notes](https://github.com/GregorioDalia/nipat-desktop/releases).

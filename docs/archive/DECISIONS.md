@@ -137,7 +137,7 @@
 - Retain `v0.2.0a2` and its evidence. Do not transfer its successful Docker
   Desktop tests to the new WSL installation claim.
 - Use “Guida per l’utilizzo” and generic domain validation terminology in
-  public documentation; rename the guide to `docs/GUIDA_UTILIZZO.md`.
+  public documentation; rename the guide to `docs/USER_GUIDE.md`.
 
 ## Input portability and complete CLI modes (0.2.0a2)
 

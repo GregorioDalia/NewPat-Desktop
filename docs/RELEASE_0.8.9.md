@@ -23,7 +23,7 @@ Choose a package from the [0.8.9 release](https://github.com/GregorioDalia/nipat
 | macOS 14 or later, Intel | [NIPAT-0.8.9-macos-x86_64.pkg](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.8.9/NIPAT-0.8.9-macos-x86_64.pkg) |
 | Ubuntu 24.04 LTS x86_64 | [nipat-desktop_0.8.9_amd64.deb](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.8.9/nipat-desktop_0.8.9_amd64.deb) |
 
-Users of 0.8.5 can choose **9 — Check for updates** or download the package. Finish active analyses before updating. Previous results and their metadata remain available. Windows uses WSL2 with managed Docker Engine, macOS uses Lima with Rosetta on Apple Silicon, and Ubuntu uses local Docker Engine. Docker Desktop is optional. Packages lacked a recognized NIPAT signature and Mac notarization. See the [Windows](INSTALLATORE_WINDOWS.md), [macOS](INSTALLATORE_MACOS.md) and [Ubuntu](INSTALLATORE_LINUX.md) guides for installation and removal.
+Users of 0.8.5 can choose **9 — Check for updates** or download the package. Finish active analyses before updating. Previous results and their metadata remain available. Windows uses WSL2 with managed Docker Engine, macOS uses Lima with Rosetta on Apple Silicon, and Ubuntu uses local Docker Engine. Docker Desktop is optional. Packages lacked a recognized NIPAT signature and Mac notarization. See the [Windows](WINDOWS_INSTALLER.md), [macOS](MACOS_INSTALLER.md) and [Ubuntu](LINUX_INSTALLER.md) guides for installation and removal.
 
 ## Qualification and versioning
 

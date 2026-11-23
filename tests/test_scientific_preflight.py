@@ -104,9 +104,14 @@ class ScientificPreflightTests(unittest.TestCase):
         warnings = require_population_frequencies(self.table)
         self.assertEqual({w["code"] for w in warnings}, {"input.frequency_sum"})
         self.assertEqual(self.table.read_bytes(), original)
-        self.table.write_text(original.decode().replace("0,25", "0"))
-        with self.assertRaises(ValidationError):
-            require_population_frequencies(self.table)
+        for ref, alt in (("0", "1"), ("1", "0")):
+            with self.subTest(ref=ref, alt=alt):
+                self.table.write_text(original.decode().replace("0,25\t0,5", f"{ref}\t{alt}"))
+                with self.assertRaises(ValidationError):
+                    require_population_frequencies(self.table)
+        self.table.write_text(original.decode().replace("0,25", "1"))
+        self.assertEqual([warning["code"] for warning in require_population_frequencies(self.table)],
+                         ["input.frequency_sum"])
 
     def test_invalid_text_header_and_rows_raise_shared_validation_error(self):
         cases = [b"\xff\xfeinvalid", b"chr\tpos1\tpos2\tN_REF\tN_ALT\tN_Other\tN_REF\n",

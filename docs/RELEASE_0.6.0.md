@@ -33,4 +33,4 @@ The self-contained image includes the R scripts, samtools, dependencies and work
 
 Self-tests cover the supplied cases. Publication combines automated checks with documented manual installation and operation evidence, identifying desktop scenarios still pending. Reusing observations from a previous build requires comparing operative source files and cannot establish that the new EXE was manually tested. The release retains evidence and limitations. Domain evaluation with appropriate inputs and reference results was planned for 0.7.
 
-[User guide](GUIDA_UTILIZZO.md) · [Distribution requirements](DISTRIBUZIONE.md) · [Results and logs](ESECUZIONI.md) · [Installer acceptance](ACCETTAZIONE_INSTALLATORI.md) · [Technical and domain validation](VALIDAZIONE.md) · [GPL-3.0-or-later](../LICENSE) · [Third-party notices](../THIRD_PARTY_NOTICES.md)
+[User guide](USER_GUIDE.md) · [Distribution requirements](DISTRIBUTION.md) · [Results and logs](RUNS.md) · [Installer acceptance](INSTALLER_ACCEPTANCE.md) · [Technical and domain validation](VALIDATION.md) · [GPL-3.0-or-later](../LICENSE) · [Third-party notices](../THIRD_PARTY_NOTICES.md)

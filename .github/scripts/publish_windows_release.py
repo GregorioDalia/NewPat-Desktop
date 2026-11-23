@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import re
+import sys
 import shutil
 import stat
 import subprocess
@@ -17,13 +18,19 @@ from urllib.parse import urljoin
 import zipfile
 
 PROJECT = Path(__file__).resolve().parents[2]
-REPO = "GregorioDalia/nipat-desktop"
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
+from nipat.branding import (windows_complete_filename, windows_feed_filename, windows_package_generation,
+                            windows_testing_filename)
+
+from nipat.repository import OFFICIAL_REPOSITORIES, REPOSITORY_ID, build_repository, official_actions_context, release_urls
+
+REPO = build_repository()
 MANIFEST = "installer-manifest.json"
 UPDATE_MANIFEST = "update-manifest.json"
 MACOS_UPDATE_MANIFEST = "update-manifest-macos.json"
 WINDOWS_ZIP_UPDATE_MANIFEST = "update-manifest-windows-zip.json"
 WINDOWS_BOOTSTRAP_UPDATE_MANIFEST = "update-manifest-windows-bootstrap.json"
-BOOTSTRAP_VERSION = "1.1.0"
+BOOTSTRAP_VERSION = "1.2.0"
 BOOTSTRAP_SOURCES = (
     "installer/windows/NIPAT.iss", "installer/windows/bootstrap-profile.iss",
     "installer/windows/bootstrap_download.py", "LICENSE", "assets/branding/nipat-icon.ico",
@@ -212,6 +219,11 @@ def committed_version(commit, read_source=source_bytes):
     return version
 
 
+def official_run_repository(value):
+    return (isinstance(value, dict) and value.get("full_name") in OFFICIAL_REPOSITORIES
+            and value.get("id") == int(REPOSITORY_ID))
+
+
 def validate_run(run, commit, run_id):
     require(run.get("id") == run_id, "Unexpected build run ID")
     require(run.get("head_sha") == commit, "Build commit differs from requested commit")
@@ -219,8 +231,7 @@ def validate_run(run, commit, run_id):
             "Build has not completed successfully")
     require(run.get("event") in ("push", "workflow_dispatch"), "PR builds cannot be published")
     require(run.get("path") == ".github/workflows/windows-installer.yml", "Unexpected build workflow")
-    require(run.get("repository", {}).get("full_name") == REPO
-            and run.get("head_repository", {}).get("full_name") == REPO,
+    require(all(official_run_repository(run.get(field)) for field in ("repository", "head_repository")),
             "Build must originate in this repository")
 
 
@@ -477,7 +488,7 @@ def write_update_manifest(output, manifest, verified_pair, channel):
         expected.update({f"macos_{arch}": (f"darwin-{arch}", f"NIPAT-{version}-macos-{arch}.pkg")
                          for arch in ("arm64", "x86_64")})
     if requires_windows_zip(version):
-        expected["windows_zip"] = ("windows-zip-x86_64", f"NIPAT-{version}-Windows-completo.zip")
+        expected["windows_zip"] = ("windows-zip-x86_64", windows_complete_filename(version))
     entries = []
     for system, (platform, filename) in expected.items():
         require(isinstance(verified_pair.get(system), dict), f"Missing verified installer: {system}")
@@ -503,12 +514,12 @@ def write_update_manifest(output, manifest, verified_pair, channel):
         mac_update = dict(update, assets=[entry for entry in entries if entry["platform"].startswith("darwin-")])
         (output / MACOS_UPDATE_MANIFEST).write_text(json.dumps(mac_update, indent=2) + "\n", encoding="utf-8")
     if requires_windows_zip(version):
-        zip_update = dict(update, assets=[entry for entry in entries if entry["platform"] == "windows-zip-x86_64"])
-        (output / WINDOWS_ZIP_UPDATE_MANIFEST).write_text(json.dumps(zip_update, indent=2) + "\n", encoding="utf-8")
+        zip_update = dict(update, minimum_updater_version=windows_package_generation(version), assets=[entry for entry in entries if entry["platform"] == "windows-zip-x86_64"])
+        (output / windows_feed_filename("zip", version)).write_text(json.dumps(zip_update, indent=2) + "\n", encoding="utf-8")
     if requires_windows_bootstrap(version):
-        bootstrap_update = dict(update, assets=[entry for entry in entries
+        bootstrap_update = dict(update, minimum_updater_version=windows_package_generation(version), assets=[entry for entry in entries
                                                if entry["platform"] == "windows-bootstrap-x86_64"])
-        (output / WINDOWS_BOOTSTRAP_UPDATE_MANIFEST).write_text(
+        (output / windows_feed_filename("bootstrap", version)).write_text(
             json.dumps(bootstrap_update, indent=2) + "\n", encoding="utf-8")
     return update
 
@@ -530,7 +541,7 @@ def verify_installer_build(setup, manifest, manifest_bytes, commit):
         inputs[f".distribution/{PYTHON_NAME}"] = PYTHON_SHA256
         expected = {
             "schema_version": 2, "distribution": "online-bootstrap",
-            "bootstrap_version": BOOTSTRAP_VERSION,
+            "bootstrap_version": BOOTSTRAP_VERSION if windows_package_generation(manifest["version"]) == 2 else "1.1.0",
             "version": manifest["version"], "source_commit": commit,
             "file": "NIPAT-Setup.exe", "sha256": sha256(installer), "size": installer.stat().st_size,
             "installer_manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
@@ -689,8 +700,8 @@ def prepare_assets(setup, runtime, output, commit, read_source=source_bytes, des
     for key, stem in (("rootfs", "nipat-wsl-rootfs"), ("scientific_image", "nipat-scientific-runtime")):
         asset = manifest["assets"][key]
         name = f"{stem}-{version}-amd64.tar.gz"
-        require(asset["file"] == name and asset["url"] ==
-                f"https://github.com/{REPO}/releases/download/{tag}/{name}", "Asset name/URL mismatch")
+        require(asset["file"] == name and asset["url"] in
+                release_urls(f"/releases/download/{tag}/{name}"), "Asset name/URL mismatch")
         path = runtime / name
         require(path.is_file() and not path.is_symlink() and 0 < path.stat().st_size < MAX_ASSET_BYTES,
                 f"Invalid runtime asset: {name}")
@@ -853,7 +864,7 @@ def main(argv=None):
             "Full preparation SHA is required")
     require(args.operation != "publish" or (args.draft_release_id and args.preparation_commit),
             "Publishing requires the exact prepared draft ID and preparation commit")
-    require(os.environ.get("GITHUB_REPOSITORY") == REPO
+    require(official_actions_context() and os.environ.get("GITHUB_REPOSITORY") == REPO
             and os.environ.get("GITHUB_REF") == "refs/heads/main"
             and os.environ.get("GITHUB_EVENT_NAME") in {"workflow_dispatch", "workflow_run"},
             "Publication must run through an authorized workflow on this repository's main branch")
@@ -974,8 +985,9 @@ def main(argv=None):
                       "Le prove effettivamente effettuate e quelle ancora da svolgere sono distinte "
                       "nel record di accettazione.\n")
         if requires_windows_zip(version):
-            notes += (f"\nMetodo aggiuntivo Windows: **NIPAT-{version}-Windows-completo.zip**. "
-                      "Estrarre completamente e avviare **1_INSTALLA.cmd** con doppio clic. "
+            entrypoint = "1_INSTALL.cmd" if windows_package_generation(version) == 2 else "1_INSTALLA.cmd"
+            notes += (f"\nMetodo aggiuntivo Windows: **{windows_complete_filename(version)}**. "
+                      f"Estrarre completamente e avviare **{entrypoint}** con doppio clic. "
                       "Include Python, filesystem WSL e motore scientifico; Windows puo' richiedere Internet "
                       "per i propri prerequisiti WSL. " +
                       ("L'installazione viene creata nella sottocartella **NIPAT** della cartella estratta; "

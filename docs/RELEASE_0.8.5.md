@@ -19,7 +19,7 @@ Choose the package for the operating system from the [0.8.5 release](https://git
 | macOS 14 or later, Intel | [NIPAT-0.8.5-macos-x86_64.pkg](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.8.5/NIPAT-0.8.5-macos-x86_64.pkg) |
 | Ubuntu 24.04 LTS x86_64 | [nipat-desktop_0.8.5_amd64.deb](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.8.5/nipat-desktop_0.8.5_amd64.deb) |
 
-The installer updates an existing **NIPAT Desktop** installation. See the [Windows](INSTALLATORE_WINDOWS.md), [macOS](INSTALLATORE_MACOS.md) or [Ubuntu](INSTALLATORE_LINUX.md) guide for installation, updates and removal. Packages lacked a recognized NIPAT signature and the Mac application lacked notarization.
+The installer updates an existing **NIPAT Desktop** installation. See the [Windows](WINDOWS_INSTALLER.md), [macOS](MACOS_INSTALLER.md) or [Ubuntu](LINUX_INSTALLER.md) guide for installation, updates and removal. Packages lacked a recognized NIPAT signature and the Mac application lacked notarization.
 
 ## First measurement
 

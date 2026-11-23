@@ -3,7 +3,12 @@
 import argparse
 import json
 import os
+import sys
 from pathlib import Path
+import re
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
+from nipat.repository import build_repository
 
 
 def download_rows(evidence, environment):
@@ -15,7 +20,7 @@ def download_rows(evidence, environment):
         if environment.get(f"{key}_SHA256") != package["sha256"]:
             raise ValueError(f"Direct {key} download differs from the verified installer")
         url = environment.get(f"{key}_URL", "")
-        if not url.startswith("https://github.com/GregorioDalia/nipat-desktop/actions/runs/"):
+        if not re.fullmatch(rf"https://github\.com/{re.escape(build_repository())}/actions/runs/[1-9][0-9]*/artifacts/[1-9][0-9]*", url):
             raise ValueError("Expected a download from this repository's review run")
         rows.append(f"- [{package['file']}]({url}) — SHA-256 `{package['sha256']}`")
     return rows

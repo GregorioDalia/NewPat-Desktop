@@ -87,7 +87,7 @@ class ScientificSelection(unittest.TestCase):
         self.assertEqual(values["acceptance_only"], "false")
 
     def test_mixed_documents_and_code_keep_native_and_applicable_integration(self):
-        self.write("docs/GUIDA_UTILIZZO.md", "guide")
+        self.write("docs/USER_GUIDE.md", "guide")
         self.write("engine/main.py", "updated")
         values = self.selection()
         self.assertEqual(values["documentation_scope"], "none")
@@ -103,7 +103,7 @@ class ScientificSelection(unittest.TestCase):
 
     def test_mixed_records_still_verify_acceptance_without_delegating_native_checks(self):
         record = ".github/release-acceptance/v0.9.7.json"
-        self.write("docs/GUIDA_UTILIZZO.md", "guide")
+        self.write("docs/USER_GUIDE.md", "guide")
         self.write(record, "{}")
         values = self.selection()
         self.assertEqual(values["documentation_scope"], "none")
@@ -211,7 +211,7 @@ class ScientificSelection(unittest.TestCase):
                      "distribution-files.txt"):
             with self.subTest(path=path):
                 self.assertIn("packaging", changes.layers_for_path(path))
-        self.assertEqual(changes.layers_for_path("docs/GUIDA_UTILIZZO.md"), set())
+        self.assertEqual(changes.layers_for_path("docs/USER_GUIDE.md"), set())
 
     def test_unknown_comparison_and_deleted_runtime_cover_every_required_layer(self):
         decision, _ = changes.layer_decision("", self.base, repository=self.root)

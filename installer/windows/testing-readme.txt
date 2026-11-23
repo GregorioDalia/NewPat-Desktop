@@ -1,7 +1,7 @@
 NewPat for Windows — testing package
 
 1. Extract the entire testing ZIP to a folder.
-2. As a regular Windows user, double-click INSTALLA-NewPat-TESTING.cmd.
+2. As a regular Windows user, double-click INSTALL-NewPat-Testing.cmd.
 3. Wait for preparation to finish. NewPat opens automatically.
 
 For subsequent sessions open NewPat Testing on the desktop or in the Start
@@ -24,7 +24,7 @@ the entry for that exact filename in SHA256SUMS on the official release page.
 Record the file named in the dialog and its message if the block persists.
 The Windows guide describes installation and diagnostics:
 
-https://github.com/GregorioDalia/nipat-desktop/blob/main/docs/INSTALLATORE_WINDOWS.md
+https://github.com/GregorioDalia/nipat-desktop/blob/main/docs/WINDOWS_INSTALLER.md
 
 Maintainers can explicitly target the existing desktop installation with the
 -UseSetup option of install-testing.ps1. This installs the verified testing

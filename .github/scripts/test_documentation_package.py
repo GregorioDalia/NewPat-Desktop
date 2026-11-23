@@ -44,9 +44,9 @@ newpat fictional-command
             readme.write_bytes(b"expected\r\n")
             package = Path(tmp) / "windows.zip"
             with ZipFile(package, "w") as archive:
-                archive.writestr("LEGGIMI.txt", b"expected\n")
-            with self.assertRaisesRegex(ValueError, "LEGGIMI.txt"):
-                docs.check_members(package, {"LEGGIMI.txt": readme})
+                archive.writestr("README.txt", b"expected\n")
+            with self.assertRaisesRegex(ValueError, "README.txt"):
+                docs.check_members(package, {"README.txt": readme})
 
     def test_a_required_text_present_on_disk_but_not_in_manifest_fails(self):
         with tempfile.TemporaryDirectory() as tmp:

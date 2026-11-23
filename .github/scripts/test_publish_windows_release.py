@@ -17,6 +17,8 @@ SPEC = importlib.util.spec_from_file_location("publisher", Path(__file__).with_n
 publisher = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(publisher)
 COMMIT = "a" * 40
+OFFICIAL_CONTEXT = {"GITHUB_REPOSITORY": publisher.REPO, "GITHUB_REPOSITORY_ID": publisher.REPOSITORY_ID}
+OFFICIAL_REPO = {"full_name": publisher.REPO, "id": int(publisher.REPOSITORY_ID)}
 
 
 class ReleaseGuards(unittest.TestCase):
@@ -108,7 +110,7 @@ class ReleaseGuards(unittest.TestCase):
         inputs = {name: self.manifest["source_sha256"][name] for name in publisher.BOOTSTRAP_SOURCES}
         inputs[f".distribution/{publisher.PYTHON_NAME}"] = publisher.PYTHON_SHA256
         record = {
-            "schema_version": 2, "distribution": "online-bootstrap", "bootstrap_version": publisher.BOOTSTRAP_VERSION,
+            "schema_version": 2, "distribution": "online-bootstrap", "bootstrap_version": "1.1.0",
             "version": "0.8.99", "source_commit": COMMIT, "file": "NIPAT-Setup.exe",
             "sha256": publisher.sha256(self.setup / "NIPAT-Setup.exe"),
             "size": (self.setup / "NIPAT-Setup.exe").stat().st_size,
@@ -583,14 +585,14 @@ class ReleaseGuards(unittest.TestCase):
         parts = self.joint_fixture()
         run = {"id": 123, "head_sha": COMMIT, "head_branch": "main", "status": "completed",
                "conclusion": "success", "event": "workflow_dispatch",
-               "path": ".github/workflows/windows-installer.yml", "repository": {"full_name": publisher.REPO},
-               "head_repository": {"full_name": publisher.REPO}}
+               "path": ".github/workflows/windows-installer.yml", "repository": OFFICIAL_REPO,
+               "head_repository": OFFICIAL_REPO}
         required = ("windows-checks", "linux-runtime", "windows-installer", "linux-installer", "installer-required")
         for missing in ("linux-installer", "installer-required"):
             jobs = {"jobs": [{"name": name, "conclusion": "success"} for name in required if name != missing]}
             with self.subTest(missing=missing), \
                     patch("sys.argv", ["publisher", "--run-id", "123", "--source-commit", COMMIT]), \
-                    patch.dict(os.environ, {"GITHUB_REPOSITORY": publisher.REPO, "GITHUB_REF": "refs/heads/main",
+                    patch.dict(os.environ, {**OFFICIAL_CONTEXT, "GITHUB_REF": "refs/heads/main",
                                             "GITHUB_EVENT_NAME": "workflow_dispatch"}), \
                     patch.object(publisher.subprocess, "run"), \
                     patch.object(publisher, "committed_version", return_value="0.6.0"), \
@@ -607,8 +609,8 @@ class ReleaseGuards(unittest.TestCase):
         parts = self.joint_fixture()
         run = {"id": 123, "head_sha": COMMIT, "head_branch": "feature/0.6-validation", "status": "completed",
                "conclusion": "success", "event": "workflow_dispatch",
-               "path": ".github/workflows/windows-installer.yml", "repository": {"full_name": publisher.REPO},
-               "head_repository": {"full_name": publisher.REPO}}
+               "path": ".github/workflows/windows-installer.yml", "repository": OFFICIAL_REPO,
+               "head_repository": OFFICIAL_REPO}
         jobs = {"jobs": [{"name": name, "conclusion": "success"} for name in (
             "windows-checks", "linux-runtime", "windows-installer", "linux-installer", "installer-required")]}
         def command(*args):
@@ -620,7 +622,7 @@ class ReleaseGuards(unittest.TestCase):
             (folder / publisher.MANIFEST).write_text(json.dumps(self.manifest))
             return ""
         with patch("sys.argv", ["publisher", "--run-id", "123", "--source-commit", COMMIT]), \
-                patch.dict(os.environ, {"GITHUB_REPOSITORY": publisher.REPO, "GITHUB_REF": "refs/heads/main",
+                patch.dict(os.environ, {**OFFICIAL_CONTEXT, "GITHUB_REF": "refs/heads/main",
                                         "GITHUB_EVENT_NAME": "workflow_dispatch"}), \
                 patch.object(publisher.subprocess, "run"), \
                 patch.object(publisher, "committed_version", return_value="0.6.0"), \
@@ -639,9 +641,11 @@ class ReleaseGuards(unittest.TestCase):
 
     def test_publication_requires_authorized_main_workflow_before_any_api_or_command(self):
         for operation in ("prepare", "prepare-and-publish"):
-            for settings in ({}, {"GITHUB_REPOSITORY": publisher.REPO, "GITHUB_REF": "refs/heads/feature/test",
+            for settings in ({}, {"GITHUB_REPOSITORY": publisher.REPO, "GITHUB_REPOSITORY_ID": "4",
+                                  "GITHUB_REF": "refs/heads/main", "GITHUB_EVENT_NAME": "workflow_dispatch"},
+                             {**OFFICIAL_CONTEXT, "GITHUB_REF": "refs/heads/feature/test",
                                   "GITHUB_EVENT_NAME": "workflow_dispatch"},
-                             {"GITHUB_REPOSITORY": publisher.REPO, "GITHUB_REF": "refs/heads/main",
+                             {**OFFICIAL_CONTEXT, "GITHUB_REF": "refs/heads/main",
                               "GITHUB_EVENT_NAME": "push"}):
                 with self.subTest(operation=operation, settings=settings), patch.dict(os.environ, settings, clear=True), \
                         patch("sys.argv", ["publisher", "--operation", operation, "--run-id", "123", "--source-commit", COMMIT]), \
@@ -895,7 +899,7 @@ class ReleaseGuards(unittest.TestCase):
 
     def test_desktop_publication_stops_before_api_without_committed_acceptance(self):
         with patch("sys.argv", ["publisher", "--run-id", "123", "--source-commit", COMMIT]), \
-                patch.dict(os.environ, {"GITHUB_REPOSITORY": publisher.REPO, "GITHUB_REF": "refs/heads/main",
+                patch.dict(os.environ, {**OFFICIAL_CONTEXT, "GITHUB_REF": "refs/heads/main",
                                         "GITHUB_EVENT_NAME": "workflow_dispatch"}), \
                 patch.object(publisher.subprocess, "run"), \
                 patch.object(publisher, "committed_version", return_value="0.6.0") as version, \
@@ -1086,10 +1090,11 @@ class ReleaseGuards(unittest.TestCase):
 
     def test_build_must_be_successful_same_source_and_not_from_a_fork(self):
         run = {"id": 123, "head_sha": COMMIT, "status": "completed", "conclusion": "success", "event": "push",
-               "path": ".github/workflows/windows-installer.yml", "repository": {"full_name": publisher.REPO},
-               "head_repository": {"full_name": publisher.REPO}}
+               "path": ".github/workflows/windows-installer.yml", "repository": OFFICIAL_REPO,
+               "head_repository": OFFICIAL_REPO}
         publisher.validate_run(run, COMMIT, 123)
         for key, value in (("head_sha", "b" * 40), ("conclusion", "failure"), ("event", "pull_request"),
+                           ("head_repository", {"full_name": publisher.REPO, "id": 1}),
                            ("head_repository", {"full_name": "someone/fork"})):
             altered = copy.deepcopy(run)
             altered[key] = value
@@ -1304,7 +1309,7 @@ class ReleaseGuards(unittest.TestCase):
         version = self.manifest["version"]
         run = {"id": 123, "head_sha": COMMIT, "status": "completed", "conclusion": "success",
                "event": "workflow_dispatch", "path": ".github/workflows/windows-installer.yml",
-               "repository": {"full_name": publisher.REPO}, "head_repository": {"full_name": publisher.REPO},
+               "repository": OFFICIAL_REPO, "head_repository": OFFICIAL_REPO,
                "html_url": f"https://github.com/{publisher.REPO}/actions/runs/123"}
 
         def command(*args):
@@ -1376,7 +1381,7 @@ class ReleaseGuards(unittest.TestCase):
         with ExitStack() as stack:
             stack.enter_context(patch("sys.argv", ["publisher", "--operation", "prepare-and-publish", "--run-id", "123",
                 "--source-commit", COMMIT, "--channel", "stable"]))
-            stack.enter_context(patch.dict(os.environ, {"GITHUB_REPOSITORY": publisher.REPO,
+            stack.enter_context(patch.dict(os.environ, {**OFFICIAL_CONTEXT,
                 "GITHUB_REF": "refs/heads/main", "GITHUB_EVENT_NAME": "workflow_dispatch"}, clear=True))
             stack.enter_context(patch.object(publisher.subprocess, "run"))
             stack.enter_context(patch.object(publisher, "committed_version", return_value=version))
@@ -1430,7 +1435,7 @@ class ReleaseGuards(unittest.TestCase):
     def test_single_pass_cannot_reuse_a_different_preparation_commit(self):
         with patch("sys.argv", ["publisher", "--operation", "prepare-and-publish", "--run-id", "123",
                 "--source-commit", COMMIT, "--preparation-commit", "c" * 40]), \
-                patch.dict(os.environ, {"GITHUB_REPOSITORY": publisher.REPO, "GITHUB_REF": "refs/heads/main",
+                patch.dict(os.environ, {**OFFICIAL_CONTEXT, "GITHUB_REF": "refs/heads/main",
                                        "GITHUB_EVENT_NAME": "workflow_dispatch"}, clear=True), \
                 patch.object(publisher, "command", return_value="b" * 40) as command, \
                 patch.object(publisher, "api") as api:
@@ -1472,7 +1477,7 @@ class ReleaseGuards(unittest.TestCase):
                     patch("sys.argv", ["publisher", "--operation", "publish", "--run-id", "123",
                                        "--source-commit", COMMIT, "--draft-release-id", "42",
                                        "--preparation-commit", "c" * 40]), \
-                    patch.dict(os.environ, {"GITHUB_REPOSITORY": publisher.REPO, "GITHUB_REF": "refs/heads/main",
+                    patch.dict(os.environ, {**OFFICIAL_CONTEXT, "GITHUB_REF": "refs/heads/main",
                                             "GITHUB_EVENT_NAME": "workflow_dispatch"}), \
                     patch.object(publisher.subprocess, "run"), \
                     patch.object(publisher, "committed_version", return_value="0.6.0"), \
@@ -1584,10 +1589,10 @@ class ResearchSourceGuards(unittest.TestCase):
     def test_notes_are_pinned_to_preparation_for_research_and_built_source_for_full_acceptance(self):
         for schema, expected in ((1, COMMIT), (2, "b" * 40), (3, "b" * 40)):
             with self.subTest(schema=schema), patch.object(publisher, "source_bytes",
-                    return_value=b"# Release\n\n[Guide](GUIDA_UTILIZZO.md)\n") as read:
+                    return_value=b"# Release\n\n[Guide](USER_GUIDE.md)\n") as read:
                 notes = publisher.release_notes(COMMIT, "b" * 40, "0.6.0", {"schema_version": schema})
             read.assert_called_once_with(expected, "docs/RELEASE_0.6.0.md")
-            self.assertIn(f"/blob/{expected}/docs/GUIDA_UTILIZZO.md", notes)
+            self.assertIn(f"/blob/{expected}/docs/USER_GUIDE.md", notes)
 
 
 if __name__ == "__main__":

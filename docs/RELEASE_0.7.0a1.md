@@ -30,11 +30,11 @@ Both packages embed the same scientific archive, including R, samtools, dependen
 
 For a review build, open the successful [Installers (review build) workflow](https://github.com/GregorioDalia/nipat-desktop/actions/workflows/windows-installer.yml) on the selected commit and check `installer-required`. Its summary provides directly executable **NIPAT-Setup.exe** and installable **nipat-desktop_0.7.0~a1_amd64.deb** downloads. Ordinary installation needs only the platform installer. Keep the manifest, checksums and build ID as evidence. The **nipat-windows-setup** and **nipat-linux-setup** artifacts contain identical package copies and supporting evidence. Separate runtime archives are unnecessary.
 
-In-app update checks see only approved published releases with manifests. See the [Windows](INSTALLATORE_WINDOWS.md) and [Ubuntu](INSTALLATORE_LINUX.md) guides. This candidate shares the 0.6 **NIPAT Desktop** identity and upgrades an existing installation in place. Close NIPAT sessions, check the paths offered by setup and choose a new results directory for testing. Data, results and preferences persist. Keeping files does not roll back the application binary.
+In-app update checks see only approved published releases with manifests. See the [Windows](WINDOWS_INSTALLER.md) and [Ubuntu](LINUX_INSTALLER.md) guides. This candidate shares the 0.6 **NIPAT Desktop** identity and upgrades an existing installation in place. Close NIPAT sessions, check the paths offered by setup and choose a new results directory for testing. Data, results and preferences persist. Keeping files does not roll back the application binary.
 
 ## First package test
 
-Record the downloaded version, source commit, checksum, operating system, initial WSL or Docker state and findings in the [validation sheet](VALIDAZIONE.md).
+Record the downloaded version, source commit, checksum, operating system, initial WSL or Docker state and findings in the [validation sheet](VALIDATION.md).
 
 1. Install and prepare the environment. Wait for `NIPAT: ready` on Windows. On Ubuntu run NIPAT from the user account and wait for preparation, diagnostics and self-tests.
 2. Open **NIPAT Desktop**, verify its version and select a dedicated results directory under **Configura**.
@@ -50,7 +50,7 @@ This list specifies intended tests. CPI evaluation requires suitable maternal an
 
 Each run saves `run.json`, `execution.log` and the submitted plan. In `output/workflow`, `workflow-state.json` records overall and per-step state. `steps/dnp`, `steps/contamination`, `steps/cpi`, `steps/snp_0001`, `steps/snp_0002` and subsequent directories retain selected steps' own results and logs.
 
-Records identify inputs, parameters, engine, samples, pairs and outputs. BAM-based SNPcall retains its BED, pileup and samtools preparation log. Pileup input reuses those files. A failed run preserves existing evidence and is not reused. See [execution records](ESECUZIONI.md).
+Records identify inputs, parameters, engine, samples, pairs and outputs. BAM-based SNPcall retains its BED, pileup and samtools preparation log. Pileup input reuses those files. A failed run preserves existing evidence and is not reused. See [execution records](RUNS.md).
 
 ## Verification scope
 

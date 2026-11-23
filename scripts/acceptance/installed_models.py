@@ -388,7 +388,7 @@ def build_cases(fixtures: Path, generated: Path) -> list[dict]:
     for workflow, variant, expected in (
         ("contamination", "negative-count", r"N_REF.*intero non negativo"),
         ("cpi", "zero-frequency", r"Ref_f\.pop.*finita tra 0 e 1"),
-        ("cpin", "duplicate-trio", r"Terna CPIN duplicata\."),
+        ("cpin", "duplicate-trio", r"Terna (?:CPI postnatale|CPIN) duplicata\."),
     ):
         identity = f"models-invalid-{workflow}-{variant}"
         inputs = generated / identity

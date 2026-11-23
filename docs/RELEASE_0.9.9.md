@@ -6,7 +6,7 @@ Joint DNP pileup can use up to five samtools processes on different target chrom
 
 SNPcall can split acquisition for an indexed, coordinate-sorted BAM across target chromosomes. It merges the parts in BAM header order before passing the pileup to R. The R caller can distribute genotype likelihoods for independent loci when a sample has enough work. Workflows with several SNP samples can also process independent samples concurrently when the memory estimate fits the configured budget.
 
-Contamination can process independent input tables concurrently. Prenatal and postnatal CPI continue to process independent pairs and trios. The execution settings apply across these operations. Choose serial mode for a reference run or set a worker ceiling when sharing the machine. [Resource settings](RISORSE.md) · [Measuring performance](PERFORMANCE.md)
+Contamination can process independent input tables concurrently. Prenatal and postnatal CPI continue to process independent pairs and trios. The execution settings apply across these operations. Choose serial mode for a reference run or set a worker ceiling when sharing the machine. [Resource settings](RESOURCES.md) · [Measuring performance](PERFORMANCE.md)
 
 ## Verification
 

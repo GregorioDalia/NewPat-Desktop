@@ -32,7 +32,7 @@ The regional path uses [samtools 1.21](https://www.htslib.org/doc/1.21/samtools-
 
 ## Budget and settings
 
-The [0.8.12 options](PARALLELISMO_0.8.12.md) continue to apply.
+The [0.8.12 options](PARALLELISM_0.8.12.md) continue to apply.
 
 | Setting | Initial value | Effect in 0.8.13 |
 | --- | --- | --- |

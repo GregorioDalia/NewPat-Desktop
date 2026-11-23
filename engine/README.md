@@ -2,7 +2,7 @@
 
 The NewPat image installs the engine in `/opt/nipat/engine`, the R scripts in `/opt/nipat/scientific` and the preparation library in `/opt/nipat/lib/nipat_scientific`. The engine runs independently of the working directory, client source tree and desktop installation directory. Its Python code uses the standard library. The image supplies R, samtools and their dependencies.
 
-This document describes the engine interface inside the container. The [desktop CLI and guided menu](../docs/GUIDA_UTILIZZO.md) prepare requests and mounts and record run metadata for ordinary use.
+This document describes the engine interface inside the container. The [desktop CLI and guided menu](../docs/USER_GUIDE.md) prepare requests and mounts and record run metadata for ordinary use.
 
 ## Commands and identity
 
@@ -48,11 +48,11 @@ Verification rejects missing modules and paths outside the bundle. The preparati
 
 `execute` validates the inputs and results and handles signals during scientific execution. Verification and startup errors return exit code 2. For SNPcall from BAM, the engine also forwards signals to samtools and only starts R after successful preparation. The image supplies the dependencies before the engine runs.
 
-`catalog` exposes the bilingual scientific catalog and checks its correspondence with the R sources in the image. `validate-plan` reads JSON and returns the canonical plan and dependency order without reading sample files, creating outputs or invoking R or samtools. See the [workflow plan contract](../docs/WORKFLOW_CONTRACT.md) and [scientific catalog](../docs/CATALOGO_SCIENTIFICO.md).
+`catalog` exposes the bilingual scientific catalog and checks its correspondence with the R sources in the image. `validate-plan` reads JSON and returns the canonical plan and dependency order without reading sample files, creating outputs or invoking R or samtools. See the [workflow plan contract](../docs/WORKFLOW_CONTRACT.md) and [scientific catalog](../docs/SCIENTIFIC_CATALOG.md).
 
 `execute-plan` validates and executes a plan in a new destination. It prints the outcome and the path to `workflow-state.json`. With `--json`, it writes the full JSON report to stdout and progress messages to stderr. The exit code reflects the plan outcome in either mode.
 
-The engine supports DNPcall, SNPcall, Contamination, prenatal CPI and postnatal CPIN. Both callers produce typed count tables that feed any of the three downstream modules. A downstream step uses either SNP or DNP tables. CPI selects explicit pairs and CPIN explicit trios. Dependencies determine step order. Ready independent SNP steps share a bounded process budget, including in mixed plans. The policy admits one outer sample when memory demand is unknown. Nested sample workers use serial R pools. Users can request serial execution.
+The engine supports DNPcall, SNPcall, Contamination, prenatal CPI and postnatal CPI. Both callers produce typed count tables that feed any of the three downstream modules. A downstream step uses either SNP or DNP tables. Prenatal CPI selects explicit pairs and postnatal CPI explicit trios. Dependencies determine step order. Ready independent SNP steps share a bounded process budget, including in mixed plans. The policy admits one outer sample when memory demand is unknown. Nested sample workers use serial R pools. Users can request serial execution.
 
 Each step keeps its request, prepared files, results and log. The engine maintains the overall state in `workflow-state.json`, coordinates the sequence, and forwards interruptions to the scientific process group. Errors and interruptions prevent later steps from starting. A retry uses a new destination.
 
@@ -134,7 +134,9 @@ Existing staging files, a nonempty output directory or existing `mpileup.txt` an
 
 DNPcall passes its effective process budget to the pileup acquisition helper. If the helper fails, R stops the analysis. `work/dnp-pileup.json` records the strategy and processes. The engine checks the required result tables before recording success. See the [DNPcall acquisition paths](../scientific/README.md#dnpcall).
 
-## CPI
+<a id="cpi"></a>
+
+## Prenatal CPI
 
 ```json
 {
@@ -172,13 +174,15 @@ Labels cannot contain commas, equals signs or control characters. Internal cutof
 
 Pair labels and PDFs use `Mother<id>-Father<id>_DNPs` regardless of the input prefixes. Ambiguous sample names and pair output collisions, including case-only collisions, cause an error before staging. The request, prepared tables and panels remain in `work`. The engine writes `Summary_FetalFraction_CPI.csv` in `output`, one PDF per pair and `All_CPIplots.pdf` in `output/plots`, and iteration tables for each pair and cutoff in `output/curves`.
 
-## CPIN
+<a id="cpin"></a>
+
+## Postnatal CPI
 
 An `execute cpin` request uses `schema_version: 1`, `workflow: "cpin"`, a `samples` list with `path` and `name`, the `trios` selection, the three role prefixes, `popfreq`, `work_dir` and `out_dir`. Optional `markers` selects a panel with coordinates and REF/ALT alleles.
 
 `trios` is a comma-separated list of `mother:father:child` triples. Each role selects a distinct table through its prefix and identifier. Tables, the marker panel and population frequencies must use the same marker type, SNP or DNP. `scientific_settings` supplies validated overrides including `min_child_reads`, `site_selection` and mismatch constants.
 
-Outputs include `Summary_Postnatal_CPI.txt`, curves by trio and selection, per-site results, individual PDFs and `All_CPIplots.pdf`. See [CPIN preparation and trio identity](../docs/WORKFLOW_CONTRACT.md#cpin-preparation-and-trio-identity) for the workflow-plan equivalent.
+Outputs include `Summary_Postnatal_CPI.txt`, curves by trio and selection, per-site results, individual PDFs and `All_CPIplots.pdf`. See [Postnatal CPI preparation and trio identity](../docs/WORKFLOW_CONTRACT.md#postnatal-cpi-preparation-and-trio-identity) for the workflow-plan equivalent.
 
 ## Readable labels
 
@@ -188,4 +192,4 @@ The engine runs the scientific scripts identified by the manifest and creates re
 
 When names coincide, the engine adds a distinguishing identifier. Export filenames follow filesystem restrictions and may be shortened. The mapping retains the complete original name. CSV/TSV labels that spreadsheet software might interpret as formulas are protected as text. Scientific values are preserved.
 
-The [user guide](../docs/GUIDA_UTILIZZO.md) covers scientific configuration and desktop workflows. The engine validates overrides before staging and records effective parameters for every step.
+The [user guide](../docs/USER_GUIDE.md) covers scientific configuration and desktop workflows. The engine validates overrides before staging and records effective parameters for every step.

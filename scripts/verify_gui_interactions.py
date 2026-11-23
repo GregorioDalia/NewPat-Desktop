@@ -344,6 +344,14 @@ def run_verification(report_path, executable):
                     job.status = "interrupted"
                     job.finished_at = datetime.now(timezone.utc).isoformat()
                     job.done.set()
+                page.wait_for_selector('[data-job-status="interrupted"]')
+                check(page.locator('[data-job-card] .dna-rung').count() == 0 and
+                      page.locator('[data-action="cancel-job"]').count() == 0,
+                      "Interrupted jobs leave the active experiment controls")
+                page.locator('[data-action="remove-job"]').click()
+                page.locator('[data-action="confirm-remove-job"]').click()
+                page.wait_for_selector('[data-job-card]', state="detached")
+                check(not service.jobs.list(), "Dismissing a finished session card also clears its job record")
 
                 # Observe the real returned instance; delegate unchanged to the bundled renderer.
                 # IGV 3.8.9 does not export a browser-inventory function.
@@ -413,6 +421,12 @@ def run_verification(report_path, executable):
                     page.locator('[data-action="navigate"][data-view="archive"]').click()
                     page.locator(f'[data-action="open-run"][data-id="{module}-curve-ui-fixture"]').click()
                     page.locator(f'[role="tab"][data-action="result-module"][data-module="{module}|DNP"]').click()
+                    if module == "cpin":
+                        check(page.locator('.postnatal-index strong').inner_text() == "0.00046474155109453",
+                              "Postnatal CPI initially displays the recorded numerical index")
+                        check(page.locator('.interactive-curve').count() == 0,
+                              "Postnatal threshold plots are optional")
+                        page.locator('[data-action="postnatal-curves"]').click()
                     page.wait_for_selector('.interactive-curve .curve-point')
                     curve_id = probe.evaluate("NipatApp.state.curves[0].file.id")
                     curve_selector = f'.results-body [data-action="curve-mode"][data-id="{curve_id}"]'
@@ -470,6 +484,17 @@ def run_verification(report_path, executable):
                 page.locator('[data-action="navigate"][data-view="archive"]').click()
                 page.locator('[data-action="open-run"][data-id="archived-ui-fixture"]').click()
                 page.wait_for_selector('[data-action="reuse-run"]')
+                page.locator('[role="tab"][data-module="dnp-call|DNP"]').click()
+                page.locator('.page-heading [data-action="run-igv"]').click()
+                probe.wait("NipatApp.state.view==='igv'&&NipatApp.state.igv.loaded")
+                page.locator('#page-back').click()
+                probe.wait("NipatApp.state.view==='archive'&&NipatApp.state.module==='dnp-call|DNP'")
+                check(page.locator('#result-marker').input_value() == "dnp-call|DNP",
+                      "Page Back from IGV restores the original experiment and marker module")
+                page.locator('#page-back').click()
+                probe.wait("NipatApp.state.run?.id==='archived-ui-fixture'&&!NipatApp.state.module")
+                check(page.locator('.module-card h3').all_text_contents() == ["Conteggi e genotipi DNP"],
+                      "Back from a module shows only the recorded caller in the result cards")
                 page.locator('[data-action="reuse-run"]').first.click()
                 probe.wait("NipatApp.state.view==='new'")
                 reused = probe.evaluate("NipatApp.state.draft")

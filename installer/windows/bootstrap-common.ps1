@@ -27,8 +27,10 @@ function Read-NipatInstallerManifest([string] $Path) {
             (($asset.size -isnot [int]) -and ($asset.size -isnot [long])) -or $asset.size -le 0) {
             throw "Metadati dell'asset $name non validi."
         }
-        $expectedUrl = 'https://github.com/GregorioDalia/nipat-desktop/releases/download/' + $manifest.release_tag + '/' + $asset.file
-        if ($asset.url -cne $expectedUrl) {
+        $expectedUrls = @(Get-NipatOfficialRepositories | ForEach-Object {
+            'https://github.com/' + $_ + '/releases/download/' + $manifest.release_tag + '/' + $asset.file
+        })
+        if ($expectedUrls -cnotcontains $asset.url) {
             throw "URL dell'asset $name non autorizzato: atteso il repository e il tag della release NewPat."
         }
     }
@@ -88,7 +90,9 @@ function Get-NipatAsset($Asset, [string] $CacheDirectory, [string] $AssetDirecto
     $temporary = $cache + '.download-' + [Guid]::NewGuid().ToString('N')
     try {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        Invoke-WebRequest -UseBasicParsing -Uri $Asset.url -OutFile $temporary -TimeoutSec 3600
+        $releasePath = $Asset.url.Substring($Asset.url.IndexOf('/releases/download/'))
+        $downloadUrl = (Get-NipatOnlineRepository) + $releasePath
+        Invoke-WebRequest -UseBasicParsing -Uri $downloadUrl -OutFile $temporary -TimeoutSec 3600
         if (-not (Test-NipatAsset $temporary $Asset)) {
             throw "Dimensione o SHA-256 non corrispondenti per $($Asset.file). Nessun contenuto scaricato viene eseguito."
         }
@@ -371,12 +375,12 @@ function Assert-NipatRuntimeBinding($Manifest, $State, $Configuration) {
     $profile = Get-NipatInstallationProfile
     foreach ($name in @('resolved_runtime_image', 'runtime_archive_sha256', 'wsl_distro', 'rootfs_sha256')) {
         if ($null -eq $State.PSObject.Properties[$name]) {
-            throw ('Verifica del runtime da aggiornare: aprire ' + $profile.display_name + ' - completa preparazione dal menu Start.')
+            throw ('Verifica del runtime da aggiornare: aprire ' + $profile.display_name + ' - Resume Setup dal menu Start.')
         }
     }
     foreach ($name in @('source_runtime_image', 'runtime_archive_sha256', 'wsl_distro', 'rootfs_sha256')) {
         if ($null -eq $Configuration.PSObject.Properties[$name]) {
-            throw ('Configurazione del runtime da aggiornare: aprire ' + $profile.display_name + ' - completa preparazione dal menu Start.')
+            throw ('Configurazione del runtime da aggiornare: aprire ' + $profile.display_name + ' - Resume Setup dal menu Start.')
         }
     }
     $runtimeDirectory = ''
@@ -402,7 +406,7 @@ function Assert-NipatRuntimeBinding($Manifest, $State, $Configuration) {
         $Configuration.release_tag -cne $Manifest.release_tag -or
         $State.runtime_archive_sha256 -cne $Manifest.assets.scientific_image.sha256 -or
         $Configuration.runtime_archive_sha256 -cne $Manifest.assets.scientific_image.sha256) {
-        throw ('Il runtime configurato non corrisponde a questa release: aprire ' + $profile.display_name + ' - completa preparazione dal menu Start.')
+        throw ('Il runtime configurato non corrisponde a questa release: aprire ' + $profile.display_name + ' - Resume Setup dal menu Start.')
     }
 }
 
@@ -433,7 +437,7 @@ function Register-NipatResume([string] $Project) {
     $bootstrap = Join-Path $Project 'installer\windows\bootstrap.ps1'
     $command = '"' + $powershell + '" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "' + $bootstrap + '" -Resume'
     if ($command.Length -gt 260) {
-        Write-Host ('Dopo il riavvio aprire ' + (Get-NipatInstallationProfile).display_name + ' - completa preparazione dal menu Start (percorso troppo lungo per RunOnce).')
+        Write-Host ('Dopo il riavvio aprire ' + (Get-NipatInstallationProfile).display_name + ' - Resume Setup dal menu Start (percorso troppo lungo per RunOnce).')
         return $false
     }
     $key = Open-NipatResumeRegistry -Create

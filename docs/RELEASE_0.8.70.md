@@ -15,4 +15,4 @@ Windows setup and the acceptance test obtain their version from the build. Updat
 
 DNPcall indexes pileups with explicit types and detects duplicate BAMs in one pass. SNP batches persist state at transitions. The [technical audit](AUDIT_0.8.70.md) gives the 0.8.60 Windows real-input baseline for end-to-end measurement, reviewed cases and outstanding priorities. GitHub can start scientific tests earlier and queues publications authorized by an acceptance record.
 
-The [Windows verification suite](COLLAUDO_INSTALLAZIONE.md) exercises the five modules with synthetic data and stores reports locally. For representative inputs, follow the [scientific and technical validation procedure](VALIDAZIONE.md).
+The [Windows verification suite](WINDOWS_INSTALLATION_TEST.md) exercises the five modules with synthetic data and stores reports locally. For representative inputs, follow the [scientific and technical validation procedure](VALIDATION.md).

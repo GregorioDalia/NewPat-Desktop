@@ -1,6 +1,6 @@
 # NIPAT 0.5.0a1 — validation preview
 
-This prerelease ran DNPcall, SNPcall, Contamination and CPI through a guided text menu and reproducible commands. It supported technical and domain evaluation. It included no graphical interface or general scientific validation claim. For current instructions see the [README](../README.md) and [user guide](GUIDA_UTILIZZO.md).
+This prerelease ran DNPcall, SNPcall, Contamination and CPI through a guided text menu and reproducible commands. It supported technical and domain evaluation. It included no graphical interface or general scientific validation claim. For current instructions see the [README](../README.md) and [user guide](USER_GUIDE.md).
 
 ## Installers
 

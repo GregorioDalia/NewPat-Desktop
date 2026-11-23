@@ -408,8 +408,8 @@ jobs:
           Copy-Item 'build/windows-installer/app/.distribution/application-files.json' 'build/output/application-files.json'
           python installer/windows/zip_package.py build --stage build/windows-installer --assets build/assets --output build/output
           if ($LASTEXITCODE -ne 0) { throw 'Complete Windows ZIP build failed.' }
-          $manifest = Get-Content -LiteralPath 'build/assets/installer-manifest.json' -Raw -Encoding UTF8 | ConvertFrom-Json
-          & installer/windows/test-zip-package.ps1 -Package (Join-Path 'build/output' ('NIPAT-' + $manifest.version + '-Windows-completo.zip')) `
+          $zipBuild = Get-Content -LiteralPath 'build/output/windows-zip-build.json' -Raw -Encoding UTF8 | ConvertFrom-Json
+          & installer/windows/test-zip-package.ps1 -Package (Join-Path 'build/output' $zipBuild.file) `
             -ManifestPath 'build/assets/installer-manifest.json' -OutputPath 'build/output/windows-zip-check.json'
           if ($LASTEXITCODE -ne 0) { throw 'Complete Windows ZIP packaged checks failed.' }
       - name: Bind the testing entrypoint to the exact release downloads
@@ -759,7 +759,7 @@ jobs:
     # physical/dedicated machines. PRs/forks never execute on these runners.
     if: >-
       github.event_name == 'workflow_dispatch' && inputs.qualify_macos_runtime == true &&
-      github.repository == 'GregorioDalia/nipat-desktop' &&
+      github.repository_id == '1307623649' &&
       ((github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/0.8.')) || startsWith(github.ref, 'refs/heads/release/0.9.'))
     # installer-required depends on release-source, which verifies that the branch
     # exactly matches the package version and the Desktop installation profile.

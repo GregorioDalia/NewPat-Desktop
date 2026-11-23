@@ -13,11 +13,11 @@ Analyses run on your computer. NewPat packages R and samtools with the scientifi
 
 | System | Package | Installation guide |
 | --- | --- | --- |
-| Windows 11 x64 or Windows 10 22H2 x64 (build 19045) | [Windows setup](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.9/NewPat-Setup.exe) | [Windows](docs/INSTALLATORE_WINDOWS.md) |
-| Windows x64, installation in an extracted folder | [Complete ZIP](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.9/NewPat-0.9.9-Windows-completo.zip) | [Windows](docs/INSTALLATORE_WINDOWS.md) |
-| macOS 14 or later, Apple Silicon | [Apple Silicon package](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.9/NewPat-0.9.9-macos-arm64.pkg) | [macOS](docs/INSTALLATORE_MACOS.md) |
-| macOS 14 or later, Intel | [Intel package](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.9/NewPat-0.9.9-macos-x86_64.pkg) | [macOS](docs/INSTALLATORE_MACOS.md) |
-| Ubuntu 24.04 LTS x86_64 | [Debian package](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.9/newpat-desktop_0.9.9_amd64.deb) | [Ubuntu](docs/INSTALLATORE_LINUX.md) |
+| Windows 11 x64 or Windows 10 22H2 x64 (build 19045) | [Windows setup](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.9/NewPat-Setup.exe) | [Windows](docs/WINDOWS_INSTALLER.md) |
+| Windows x64, installation in an extracted folder | [Complete ZIP](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.9/NewPat-0.9.9-Windows-completo.zip) | [Windows](docs/WINDOWS_INSTALLER.md) |
+| macOS 14 or later, Apple Silicon | [Apple Silicon package](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.9/NewPat-0.9.9-macos-arm64.pkg) | [macOS](docs/MACOS_INSTALLER.md) |
+| macOS 14 or later, Intel | [Intel package](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.9/NewPat-0.9.9-macos-x86_64.pkg) | [macOS](docs/MACOS_INSTALLER.md) |
+| Ubuntu 24.04 LTS x86_64 | [Debian package](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.9/newpat-desktop_0.9.9_amd64.deb) | [Ubuntu](docs/LINUX_INSTALLER.md) |
 
 Windows uses WSL2, macOS uses Lima, and Ubuntu uses a local Docker Engine. The download page includes the package checksums. [NewPat 0.9.9 downloads](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.9.9)
 
@@ -29,7 +29,7 @@ Windows uses WSL2, macOS uses Lima, and Ubuntu uses a local Docker Engine. The d
 | **SNPcall** | A single nucleotide polymorphism (SNP) panel, plus a BAM with an indexed FASTA or a pileup with base qualities and read names | Allele counts, genotype likelihoods, genotypes, indel statistics and plots |
 | **Contamination** | SNP or DNP count tables and a matching coordinate panel | Per-site contamination estimates and a summary per sample |
 | **Prenatal CPI** | Count tables for maternal cell-free DNA and the alleged father, sample pairings, and population allele frequencies | Fetal fraction estimates, combined paternity index (CPI), tables and plots |
-| **Postnatal CPIN** | Mother, alleged father and child count tables, sample trios, and population allele frequencies | Site-level paternity indices, combined paternity index, tables and plots |
+| **Postnatal CPI** | Mother, alleged father and child count tables, sample trios, and population allele frequencies | Site-level paternity indices, combined paternity index, tables and plots |
 
 Run a module on its own or build a workflow. DNPcall and SNPcall can share BAM inputs and feed separate analyses. Each branch uses its own panels and population frequencies. For parentage analyses, assign samples to family roles explicitly.
 
@@ -47,7 +47,7 @@ For the same analysis from PowerShell, open the installed application folder and
   --reference "C:\Data\genome.fa" --panel "C:\Data\dnp-panel.txt"
 ```
 
-[Desktop guide](docs/GUI.md) · [Input formats and CLI examples](docs/GUIDA_UTILIZZO.md) · [Reading run results](docs/ESECUZIONI.md) · [Documentation](https://github.com/GregorioDalia/nipat-desktop/blob/main/docs/README.md)
+[Desktop guide](docs/GUI.md) · [Input formats and CLI examples](docs/USER_GUIDE.md) · [Reading run results](docs/RUNS.md) · [Documentation](https://github.com/GregorioDalia/nipat-desktop/blob/main/docs/README.md)
 
 ## Scientific methods
 

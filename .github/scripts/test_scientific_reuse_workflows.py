@@ -64,7 +64,7 @@ class ScientificReuseWorkflows(unittest.TestCase):
                 self.assertLess(self.producer.index(name), self.producer.index(seal_name))
         for name in (seal_name, upload_name):
             self.assertEqual(re.findall(r"(?m)^        if: (.+)$", producer[name]), [
-                FALLBACK + " && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)"])
+                FALLBACK + " && github.repository_id == '1307623649' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)"])
             self.assertNotIn("continue-on-error:", producer[name])
 
         self.assertIn("id: scientific_qualification", producer[seal_name])

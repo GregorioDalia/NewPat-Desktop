@@ -46,7 +46,7 @@ concurrency:
 
 jobs:
   release:
-    if: github.repository == 'GregorioDalia/nipat-desktop' && github.ref == 'refs/heads/main'
+    if: github.repository_id == '1307623649' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
