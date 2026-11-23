@@ -498,13 +498,16 @@ def execute_plan(document: object, *, run_dir: Path, script_paths: dict[str, Pat
             raise KeyboardInterrupt
         from nipat_scientific.snp_summary import finalize_snp_summaries
         with phase("snp-summary"):
-            state["snp_summary"] = finalize_snp_summaries(
-                plan, state, root,
-                run_process if run_process is not None else
-                lambda command, cwd, log: _run_process(command, cwd, log, cancellation),
-            )
-        if cancellation.signum is not None:
-            raise KeyboardInterrupt
+            try:
+                state["snp_summary"] = finalize_snp_summaries(
+                    plan, state, root,
+                    run_process if run_process is not None else
+                    lambda command, cwd, log: _run_process(command, cwd, log, cancellation),
+                )
+            finally:
+                # A plotter stopped by SIGTERM reports a nonzero exit too.
+                if cancellation.signum is not None:
+                    raise KeyboardInterrupt
         state.update(status="succeeded", exit_code=0)
     except KeyboardInterrupt:
         state.update(status="cancelled", exit_code=cancellation.exit_code,

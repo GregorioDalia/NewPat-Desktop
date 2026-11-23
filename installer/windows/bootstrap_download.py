@@ -137,8 +137,10 @@ def download(target, destination):
     digest = hashlib.sha256()
     count = 0
     previous_progress = -1
+    created = False
     try:
         with _open(target["url"]) as source, Path(destination).open("xb") as output:
+            created = True
             while chunk := source.read(1024 * 1024):
                 count += len(chunk)
                 if count > target["size"]:
@@ -152,7 +154,8 @@ def download(target, destination):
         if count != target["size"] or digest.hexdigest() != target["sha256"]:
             raise ValueError("Download incompleto o SHA-256 diverso dalla release")
     except BaseException:
-        Path(destination).unlink(missing_ok=True)
+        if created:
+            Path(destination).unlink(missing_ok=True)
         raise
 
 

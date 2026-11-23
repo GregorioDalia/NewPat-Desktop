@@ -959,10 +959,10 @@
       "evidence": {
         "path": "src/nipat_scientific/dnp_pileup.py",
         "source_lines": [
-          357,
-          397
+          361,
+          405
         ],
-        "sha256": "49662c2995e192495501439db2e8dba734ee199a4e8d29f395747ac658df5de7",
+        "sha256": "b6190aafece4ddd3079a1fd75f4f2d51e43e41e91d7f3f52168b30035845bfaa",
         "dependencies": [
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
@@ -970,15 +970,15 @@
               38,
               38
             ],
-            "sha256": "49662c2995e192495501439db2e8dba734ee199a4e8d29f395747ac658df5de7"
+            "sha256": "b6190aafece4ddd3079a1fd75f4f2d51e43e41e91d7f3f52168b30035845bfaa"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
             "source_lines": [
               278,
-              354
+              358
             ],
-            "sha256": "49662c2995e192495501439db2e8dba734ee199a4e8d29f395747ac658df5de7"
+            "sha256": "b6190aafece4ddd3079a1fd75f4f2d51e43e41e91d7f3f52168b30035845bfaa"
           },
           {
             "path": "docker/scientific-runtime/Dockerfile",
@@ -1075,9 +1075,9 @@
         "path": "src/nipat_scientific/presentation.py",
         "source_lines": [
           1,
-          386
+          395
         ],
-        "sha256": "fb01b23f6183c3478ab97d869dfafcb11692428be63453e378f9a7742bb78c0a",
+        "sha256": "5afa9ceed063ad972c52431ccaf87dfbc44f415e36a5357510098e20cc1361bf",
         "dependencies": [
           {
             "path": "src/nipat_scientific/presentation.R",
@@ -1124,23 +1124,23 @@
           232,
           275
         ],
-        "sha256": "49662c2995e192495501439db2e8dba734ee199a4e8d29f395747ac658df5de7",
+        "sha256": "b6190aafece4ddd3079a1fd75f4f2d51e43e41e91d7f3f52168b30035845bfaa",
         "dependencies": [
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
             "source_lines": [
-              357,
-              397
+              361,
+              405
             ],
-            "sha256": "49662c2995e192495501439db2e8dba734ee199a4e8d29f395747ac658df5de7"
+            "sha256": "b6190aafece4ddd3079a1fd75f4f2d51e43e41e91d7f3f52168b30035845bfaa"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
             "source_lines": [
               278,
-              354
+              358
             ],
-            "sha256": "49662c2995e192495501439db2e8dba734ee199a4e8d29f395747ac658df5de7"
+            "sha256": "b6190aafece4ddd3079a1fd75f4f2d51e43e41e91d7f3f52168b30035845bfaa"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
@@ -1148,7 +1148,7 @@
               171,
               197
             ],
-            "sha256": "49662c2995e192495501439db2e8dba734ee199a4e8d29f395747ac658df5de7"
+            "sha256": "b6190aafece4ddd3079a1fd75f4f2d51e43e41e91d7f3f52168b30035845bfaa"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
@@ -1156,7 +1156,7 @@
               77,
               93
             ],
-            "sha256": "49662c2995e192495501439db2e8dba734ee199a4e8d29f395747ac658df5de7"
+            "sha256": "b6190aafece4ddd3079a1fd75f4f2d51e43e41e91d7f3f52168b30035845bfaa"
           },
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
@@ -1169,10 +1169,10 @@
           {
             "path": "src/nipat_scientific/dnp_blocks.R",
             "source_lines": [
-              411,
-              461
+              420,
+              470
             ],
-            "sha256": "7ce2b0bf616ce8b27c1d35dd6440671e001d555372444c1ee14e51e9bcfc3c23"
+            "sha256": "395c790759cd5590370ba492765e009b6c902b78f5f457b4a08c683a3af8e71c"
           }
         ]
       }
@@ -1219,9 +1219,9 @@
         "path": "src/nipat_scientific/dnp_blocks.R",
         "source_lines": [
           1,
-          406
+          415
         ],
-        "sha256": "7ce2b0bf616ce8b27c1d35dd6440671e001d555372444c1ee14e51e9bcfc3c23",
+        "sha256": "395c790759cd5590370ba492765e009b6c902b78f5f457b4a08c683a3af8e71c",
         "dependencies": [
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
@@ -1276,18 +1276,18 @@
           {
             "path": "src/nipat/execution/runner.py",
             "source_lines": [
-              173,
-              225
+              174,
+              226
             ],
-            "sha256": "f229833867d04f133f60fc2767a563d536721bf9c0ee8933ea66ecbb93f036dc"
+            "sha256": "44734daf06156292e0bf24bfdb2af9c97129cd0d73017b720a318fcc2f3ec754"
           },
           {
             "path": "src/nipat/execution/runner.py",
             "source_lines": [
-              852,
-              915
+              859,
+              922
             ],
-            "sha256": "f229833867d04f133f60fc2767a563d536721bf9c0ee8933ea66ecbb93f036dc"
+            "sha256": "44734daf06156292e0bf24bfdb2af9c97129cd0d73017b720a318fcc2f3ec754"
           }
         ]
       }
@@ -1325,18 +1325,18 @@
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
             "source_lines": [
-              357,
-              397
+              361,
+              405
             ],
-            "sha256": "49662c2995e192495501439db2e8dba734ee199a4e8d29f395747ac658df5de7"
+            "sha256": "b6190aafece4ddd3079a1fd75f4f2d51e43e41e91d7f3f52168b30035845bfaa"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
             "source_lines": [
               278,
-              354
+              358
             ],
-            "sha256": "49662c2995e192495501439db2e8dba734ee199a4e8d29f395747ac658df5de7"
+            "sha256": "b6190aafece4ddd3079a1fd75f4f2d51e43e41e91d7f3f52168b30035845bfaa"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
@@ -1344,23 +1344,23 @@
               208,
               229
             ],
-            "sha256": "49662c2995e192495501439db2e8dba734ee199a4e8d29f395747ac658df5de7"
+            "sha256": "b6190aafece4ddd3079a1fd75f4f2d51e43e41e91d7f3f52168b30035845bfaa"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
             "source_lines": [
-              400,
-              537
+              408,
+              545
             ],
-            "sha256": "49662c2995e192495501439db2e8dba734ee199a4e8d29f395747ac658df5de7"
+            "sha256": "b6190aafece4ddd3079a1fd75f4f2d51e43e41e91d7f3f52168b30035845bfaa"
           },
           {
             "path": "src/nipat_scientific/dnp_blocks.R",
             "source_lines": [
-              317,
-              406
+              326,
+              415
             ],
-            "sha256": "7ce2b0bf616ce8b27c1d35dd6440671e001d555372444c1ee14e51e9bcfc3c23"
+            "sha256": "395c790759cd5590370ba492765e009b6c902b78f5f457b4a08c683a3af8e71c"
           },
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
@@ -1490,10 +1490,10 @@
           {
             "path": "src/nipat/execution/runner.py",
             "source_lines": [
-              203,
-              220
+              204,
+              221
             ],
-            "sha256": "f229833867d04f133f60fc2767a563d536721bf9c0ee8933ea66ecbb93f036dc"
+            "sha256": "44734daf06156292e0bf24bfdb2af9c97129cd0d73017b720a318fcc2f3ec754"
           },
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
@@ -1509,15 +1509,15 @@
               171,
               197
             ],
-            "sha256": "49662c2995e192495501439db2e8dba734ee199a4e8d29f395747ac658df5de7"
+            "sha256": "b6190aafece4ddd3079a1fd75f4f2d51e43e41e91d7f3f52168b30035845bfaa"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
             "source_lines": [
               278,
-              354
+              358
             ],
-            "sha256": "49662c2995e192495501439db2e8dba734ee199a4e8d29f395747ac658df5de7"
+            "sha256": "b6190aafece4ddd3079a1fd75f4f2d51e43e41e91d7f3f52168b30035845bfaa"
           },
           {
             "path": "src/nipat_scientific/parallel.py",
@@ -1530,18 +1530,18 @@
           {
             "path": "engine/main.py",
             "source_lines": [
-              455,
-              462
+              461,
+              468
             ],
-            "sha256": "c6167dec986a47910de8e4d2177d1cbda57e7ae41dd0717bb295097f7ef2afa8"
+            "sha256": "aac739dd7b36a435e99272535a5ad4a54ca46182d9edcf0e3f3e9426f90a75cd"
           },
           {
             "path": "src/nipat_scientific/dnp_blocks.R",
             "source_lines": [
-              314,
-              385
+              323,
+              394
             ],
-            "sha256": "7ce2b0bf616ce8b27c1d35dd6440671e001d555372444c1ee14e51e9bcfc3c23"
+            "sha256": "395c790759cd5590370ba492765e009b6c902b78f5f457b4a08c683a3af8e71c"
           },
           {
             "path": "src/nipat/resources.py",
@@ -1554,26 +1554,26 @@
           {
             "path": "src/nipat/execution/runner.py",
             "source_lines": [
-              110,
-              131
+              111,
+              132
             ],
-            "sha256": "f229833867d04f133f60fc2767a563d536721bf9c0ee8933ea66ecbb93f036dc"
+            "sha256": "44734daf06156292e0bf24bfdb2af9c97129cd0d73017b720a318fcc2f3ec754"
           },
           {
             "path": "src/nipat/execution/runner.py",
             "source_lines": [
-              199,
-              220
+              200,
+              221
             ],
-            "sha256": "f229833867d04f133f60fc2767a563d536721bf9c0ee8933ea66ecbb93f036dc"
+            "sha256": "44734daf06156292e0bf24bfdb2af9c97129cd0d73017b720a318fcc2f3ec754"
           },
           {
             "path": "src/nipat_scientific/dnp_blocks.R",
             "source_lines": [
-              411,
-              461
+              420,
+              470
             ],
-            "sha256": "7ce2b0bf616ce8b27c1d35dd6440671e001d555372444c1ee14e51e9bcfc3c23"
+            "sha256": "395c790759cd5590370ba492765e009b6c902b78f5f457b4a08c683a3af8e71c"
           }
         ]
       }

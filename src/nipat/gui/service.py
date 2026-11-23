@@ -213,6 +213,8 @@ class GuiService:
 
     def run_remove(self, run_id: str) -> dict:
         store = self._results()
+        if store.forget_missing_import(run_id):
+            return {"removed": True, "run_id": run_id, "outputs_preserved": True}
         path, metadata = store._metadata(run_id)
         finished = self.jobs.finished_for(path)
         if finished is None and not self.run_observer.inspect(path, metadata).get("can_remove"):
@@ -239,20 +241,8 @@ class GuiService:
 
     def run_igv(self, run_id: str, locus: str | None = None) -> dict:
         """Select recorded reference/BAM sources, preserving every original file."""
-        store = self._results()
-        run = store.get_run(run_id)
-        draft = run.get("draft")
-        if not isinstance(draft, dict):
-            metadata = store.metadata(run_id)
-            try:
-                draft = self._draft_from_legacy(metadata) if metadata.get("workflow") == "analysis" else {}
-            except (KeyError, TypeError, ValueError):
-                draft = {}
+        reference, tracks = self._results().igv_sources(run_id)
         english = self.ui_get()["language"] == "en"
-        reference = draft.get("reference")
-        tracks = [{"name": sample.get("id") or Path(sample["path"]).name, "path": sample["path"]}
-                  for sample in draft.get("samples", [])
-                  if isinstance(sample, dict) and sample.get("kind") == "bam" and sample.get("path")]
         if not isinstance(reference, str) or not reference or not tracks:
             raise ValidationError("This experiment has no recorded FASTA reference and BAM inputs. Select the files in IGV."
                                   if english else "Questo esperimento non contiene i collegamenti a un riferimento FASTA e a file BAM. Seleziona i file nella pagina IGV.")

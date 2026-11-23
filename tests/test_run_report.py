@@ -19,6 +19,23 @@ class RunReportTests(unittest.TestCase):
                 **base, "pid": pid, "task_index": index, "event": event, "observed_at_unix": when,
             }) for event, when in (("task-start", start), ("task-end", finish))) + "\n")
 
+    def test_report_write_error_allows_retry_without_removing_scientific_files(self):
+        self.save()
+        from nipat.run_report import _write_exclusive
+
+        def fail_page(path, content):
+            if path.name == "run-report.html":
+                raise OSError("simulated write failure")
+            _write_exclusive(path, content)
+
+        with mock.patch("nipat.run_report._write_exclusive", side_effect=fail_page):
+            with self.assertRaisesRegex(OSError, "simulated write failure"):
+                write_run_report(self.root)
+        self.assertFalse((self.root / "sample-map.tsv").exists())
+        self.assertTrue((self.root / "run.json").is_file())
+        report = write_run_report(self.root)
+        self.assertTrue(all((self.root / name).is_file() for name in report["files"]))
+
     def test_effective_scientific_parameters_and_model_constants_are_readable(self):
         work = self.root / "output/workflow/steps/snp_cpin/work"
         work.mkdir(parents=True)
@@ -48,6 +65,22 @@ class RunReportTests(unittest.TestCase):
         self.assertIn("dnp-blocks</pre></td><td><pre>3</pre></td><td><pre>2", page)
         self.assertIn("non misurano il numero di core", page)
         self.assertNotIn("Diagnostica delle prestazioni", page)
+
+    def test_snp_only_and_imported_tables_omit_dnp_block_tuning(self):
+        self.metadata["execution_options"] = {"execution_mode": "auto", "max_workers": 3,
+                                             "dnp_block_mib": 32, "dnp_block_loci": 64}
+        for workflow, caller in (("snp-call", None), ("snp-batch", None), ("analysis", "snp"),
+                                 ("analysis", "tables")):
+            with self.subTest(workflow=workflow, caller=caller):
+                self.metadata["workflow"] = workflow
+                self.metadata["parameters"]["caller"] = caller
+                self.save()
+                report = write_run_report(self.root)
+                page = (self.root / report["summary"]).read_text(encoding="utf-8")
+                self.assertIn("Massimo di processi di calcolo", page)
+                self.assertNotIn("blocchi DNP", page)
+                for name in report["files"]:
+                    (self.root / name).unlink()
 
     def test_compound_run_reports_acquisition_and_r_separately(self):
         self.metadata["execution_options"] = {"execution_mode": "serial", "max_workers": 4,

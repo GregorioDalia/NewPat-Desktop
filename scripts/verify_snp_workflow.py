@@ -276,14 +276,15 @@ def check_snp_execution_policy(run: Path, state: dict, *, options: ExecutionOpti
               or budget.get("memory_per_worker_mib") is not None):
             raise ValueError("Unreadable SNP inputs require workload-not-observed admission.")
         parallel_samples = budget["workers"] > 1
-        outer_execution = verify_parallel_execution(directory, mode="auto", cap=options.max_workers,
-                                                      require_parallel=parallel_samples)
         if parallel_samples:
             started = [event["task_index"] for event in events if event["event"] == "task-start"]
             if sorted(started) != list(range(1, count + 1)):
                 raise ValueError("SNP sample workers did not execute every requested sample exactly once.")
         elif (len(events) != 1 or any(directory.glob("state-*.json")) or any(directory.glob("job-*.json"))):
             raise ValueError("Single-worker SNP admission launched outer workers.")
+        outer_execution = verify_parallel_execution(directory, mode="auto", cap=options.max_workers,
+                                                   require_parallel=parallel_samples,
+                                                   admission_only=not parallel_samples)
     inner = {}
     if require_inner:
         steps = [step for step in state["steps"] if step["workflow"] == "snp-call"]

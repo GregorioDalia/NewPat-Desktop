@@ -9,7 +9,8 @@ main <- function() {
   environment <- new.env(parent = globalenv())
   sys.source(file.path(root, "src/nipat_scientific/parallel.R"), environment)
   sys.source(file.path(root, "src/nipat_scientific/dnp_blocks.R"), environment)
-  variables <- c("NIPAT_EXECUTION_MODE", "NIPAT_PARALLEL_CHILD", "NIPAT_PARALLEL_LOG_DIR")
+  variables <- c("NIPAT_EXECUTION_MODE", "NIPAT_PARALLEL_CHILD", "NIPAT_PARALLEL_LOG_DIR",
+                 "NIPAT_DNP_SMALL_ARM_GUEST", "NIPAT_MAX_WORKERS")
   previous <- Sys.getenv(variables, unset = NA_character_)
   on.exit(for (name in names(previous)) {
     if (is.na(previous[[name]])) Sys.unsetenv(name) else
@@ -93,6 +94,7 @@ main <- function() {
   # blocks. With more samples than processes, identity must survive queue reuse.
   cases <- list(
     list(samples = 2L, blocks = 4L, workers = 3L),
+    list(samples = 2L, blocks = 4L, workers = 4L, small_arm = TRUE),
     list(samples = 3L, blocks = 4L, workers = 2L, reverse_callbacks = TRUE),
     list(samples = 5L, blocks = 2L, workers = 4L),
     list(samples = 3L, blocks = 1L, workers = 4L, compatibility = TRUE),
@@ -108,8 +110,10 @@ main <- function() {
     trace <- file.path(case_dir, "events")
     Sys.setenv(NIPAT_PARALLEL_LOG_DIR = trace,
                NIPAT_EXECUTION_MODE = if (isTRUE(case$serial)) "serial" else "auto")
+    Sys.setenv(NIPAT_DNP_SMALL_ARM_GUEST = if (isTRUE(case$small_arm)) "1" else "0")
     controlled_workers <- case$workers
     expected_workers <- if (isTRUE(case$serial)) 1L else min(case$workers, case$samples * case$blocks)
+    if (isTRUE(case$small_arm)) expected_workers <- 2L
     loci <- if (isTRUE(case$compatibility)) 4L else case$blocks
     path <- file.path(case_dir, "samples.pileup")
     writeLines(make_lines(case$samples, loci), path)
@@ -162,7 +166,7 @@ main <- function() {
     }
     check(own_connections(index$path) == 0L)
     actual <- environment$nipat_dnp_process_samples(index, plan, labels, refs, computations,
-                                                    progress, workers = case$workers, columns = selections)
+                                                    progress, columns = selections)
     check(own_connections(index$path) == 0L)
     check(actual$workers == expected_workers)
     check(actual$task_count == case$samples * case$blocks)

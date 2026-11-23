@@ -30,4 +30,4 @@ Choose the guide for your operating system. The installer prepares the desktop a
 
 [Architecture](ARCHITECTURE.md) · [Workflow contract](WORKFLOW_CONTRACT.md) · [Engine interface](../engine/README.md) · [Scientific components](../scientific/README.md) · [Validation](VALIDATION.md) · [Verification priorities](ROADMAP.md)
 
-[CI and packaging](CI_CD.md) · [Installer acceptance](INSTALLER_ACCEPTANCE.md) · [Publication procedure](../.github/RELEASE.md)
+[0.9.10 candidate code audit](AUDIT_0.9.10.md) · [CI and packaging](CI_CD.md) · [Installer acceptance](INSTALLER_ACCEPTANCE.md) · [Publication procedure](../.github/RELEASE.md)

@@ -74,6 +74,21 @@ class GuiFixture(unittest.TestCase):
 
 
 class GuiPlanTests(GuiFixture):
+    def test_cli_experiment_offers_igv_for_recorded_bams_only(self):
+        from nipat.execution.workflows import Workflows
+
+        bam = Path(self.samples[0]["path"])
+        runner = DockerComposeRunner(self.layout, dry_run=True)
+        run = Workflows(self.layout, runner).analyze(
+            caller="snp", analyses=[], samples=[("Plasma", bam)], reference=self.reference,
+            snp_panel=self.snp_panel, dnp_tables=[("Other", Path(self.tables["DNP"][0]["path"]))],
+            dnp_analyses=["contamination"], dnp_contamination_panel=self.dnp_panel, run_name="cli-igv")
+        service = self.service()
+        self.assertTrue(service.call("runs.get", {"run_id": run.name})["has_igv_inputs"])
+        self.assertEqual(service.call("run.igv", {"run_id": run.name}), {
+            "reference": {"fasta": str(self.reference), "index": ""},
+            "tracks": [{"name": "Plasma", "path": str(bam)}], "locus": "all"})
+
     def test_independent_callers_and_asymmetric_downstream_branches(self):
         for caller, expected in (("dnp", ["dnp-call"]), ("snp", ["snp-call"] * 4),
                                  ("both", ["dnp-call"] + ["snp-call"] * 4)):
@@ -485,6 +500,7 @@ class GuiJobTests(GuiRuntimeFixture):
         job = manager.start(prepared)
         result = manager.wait(job["id"], 10)
         self.assertEqual(result["status"], "planned", result)
+        self.assertRegex(result["run_id"], r"^analysis-\d{8}-\d{6}-[a-f0-9]{8}$")
         directory = self.layout.runs_dir / result["run_id"]
         metadata = json.loads((directory / "run.json").read_text(encoding="utf-8"))
         gui = json.loads((directory / "gui.json").read_text(encoding="utf-8"))

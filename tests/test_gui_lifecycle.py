@@ -259,3 +259,61 @@ def test_fresh_startup_record_is_not_probed_or_declared_abandoned(recorded):
     assert result["status"] == "unknown" and result["status_reason"] == "checking"
     assert not check._pending
     check.reconcile.assert_not_called()
+
+
+def test_missing_import_can_be_dismissed_without_touching_moved_data(recorded, tmp_path):
+    _, metadata, layout = recorded
+    original = tmp_path / "external" / "run"
+    write(original / "run.json", metadata)
+    service = GuiService(layout, preferences_store=PreferencesStore(tmp_path / "prefs.json"), run_observer=observer(recorded))
+    identifier = service.call("runs.import", {"path": str(original)})["imported"][0]
+    moved = tmp_path / "moved"
+    original.rename(moved)
+    rows = service.call("runs.list")["runs"]
+    assert next(row for row in rows if row["id"] == identifier)["can_remove"]
+    assert service.call("runs.remove", {"run_id": identifier})["outputs_preserved"]
+    assert identifier not in {row["id"] for row in service.call("runs.list")["runs"]}
+    assert json.loads((moved / "run.json").read_bytes()) == metadata
+
+
+def test_two_desktop_windows_keep_both_dismissed_cards(recorded, tmp_path, monkeypatch):
+    _, metadata, layout = recorded
+    registry = tmp_path / "prefs/gui-imports.json"
+    left, right = (ResultsStore(layout.runs_dir, registry_path=registry) for _ in range(2))
+    a, b = layout.runs_dir / "A", layout.runs_dir / "B"
+    write(a / "run.json", metadata)
+    write(b / "run.json", metadata)
+    writing, second_started = threading.Event(), threading.Event()
+    write_registry = left._write_registry
+    def delayed_first_write(value):
+        writing.set()
+        assert second_started.wait(2)
+        time.sleep(0.1)
+        write_registry(value)
+    monkeypatch.setattr(left, "_write_registry", delayed_first_write)
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(left.remove_run, "A")
+        assert writing.wait(2)
+        second = pool.submit(right.remove_run, "B")
+        second_started.set()
+        assert first.result(timeout=3)["removed"] and second.result(timeout=3)["removed"]
+    assert set(left._registry()["hidden"]) == {str(a), str(b)}
+
+
+def test_linked_registry_is_rejected_before_reading_or_writing(recorded, tmp_path):
+    _, _, layout = recorded
+    target = tmp_path / "settings.json"
+    original = '{"schema_version":1,"imports":{},"hidden":[]}'
+    target.write_text(original, encoding="utf-8")
+    registry = tmp_path / "gui-imports.json"
+    try:
+        registry.symlink_to(target)
+    except OSError:
+        pytest.skip("Creating a file symlink is unavailable on this host")
+    store = ResultsStore(layout.runs_dir, registry_path=registry)
+    with pytest.raises(ValueError):
+        store.list_runs()
+    with pytest.raises(ValueError):
+        store.hide_path(layout.runs_dir / "run")
+    assert target.read_text(encoding="utf-8") == original

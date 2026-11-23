@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import platform
 import re
 import shutil
 import signal
@@ -225,6 +226,12 @@ class DockerComposeRunner:
         if self._transport.backend == "lima":
             # The experimental macOS clients share the validated AMD64 engine.
             service["platform"] = "linux/amd64"
+            snapshot = self._record.data.get("resource_snapshot", {})
+            host_mib = snapshot.get("host", {}).get("memory_mib")
+            guest_mib = snapshot.get("runtime", {}).get("effective", {}).get("memory_mib")
+            if (platform.machine() == "arm64" and type(host_mib) is int and 0 < host_mib <= 8192
+                    and type(guest_mib) is int and 0 < guest_mib <= 4096):
+                service["environment"]["NIPAT_DNP_SMALL_ARM_GUEST"] = "1"
         service.update(self.options.compose_limits())
         destination = run_dir / "work" / "engine-compose.json"
         with destination.open("x", encoding="utf-8", newline="\n") as handle:
@@ -480,7 +487,7 @@ class DockerComposeRunner:
         command = self._transport.ensure_command()
         if command is not None:
             # The helper bounds both its startup lock and the daemon readiness wait.
-            self._capture_process(command, timeout=240)
+            self._capture_process(command, timeout=420 if self._transport.backend == "lima" else 240)
         self._backend_ready = True
 
     def _capture_process(

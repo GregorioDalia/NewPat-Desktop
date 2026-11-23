@@ -108,6 +108,8 @@ def check_dnp(run, fixtures, samples=("A", "B", "A")):
             number(gl[1], -(int(wanted["N_REF"]) + int(wanted["N_ALT"])) * math.log(2), "DNP GL1", tolerance=.00051)
             require(all(math.isfinite(value) for value in gl) and ("0/0", "0/1", "1/1")[gl.index(max(gl))] == wanted["GT"],
                     "DNP: likelihood o genotipo incoerenti")
+            require(all(summary[key][field] == wanted[field] for field in ("REF", "ALT")),
+                    f"DNP {key}: alleli aggregati diversi dalla ricetta")
             require(summary[key][f"GT_{identity}"] == wanted["GT"], "DNP: genotipo aggregato diverso")
         for suffix in ("N_genotypes", "Ref_read_count", "Alt_read_count", "Other_read_count"):
             pdf(output / "plots" / identity / f"{identity}_{suffix}.pdf")
@@ -177,16 +179,22 @@ def check_snp_plan(parent, expected, count, *, additional=()):
         require(not groups, "SNP singolo: riepilogo multi-campione inatteso")
         return {"snp_samples": 1, "steps": len(plan["steps"])}
     require(len(groups) == 1 and set(groups[0]["samples"]) == set(ids), "SNP: riepilogo campioni incompleto")
-    summary = table(root / groups[0]["genotypes"]["path"])
+    summary_path = root / groups[0]["genotypes"]["path"]
+    summary = table(summary_path)
     oracle = table(expected)
     require(len(summary) == len(oracle), "SNP: riepilogo genotipi con loci mancanti")
     expected_by_locus = {(row["chr"], row["pos"]): row for row in oracle}
     require({(row["chr"], row["pos"]) for row in summary} == set(expected_by_locus), "SNP: coordinate aggregate diverse")
     for row in summary:
+        wanted = expected_by_locus[(row["chr"], row["pos"])]
+        require(all(row.get(field) == wanted[field] for field in ("REF", "ALT")), "SNP: alleli aggregati diversi")
         for identity in ids:
-            require(row[f"GT_{identity}"] == expected_by_locus[(row["chr"], row["pos"])]["GT"], "SNP: genotipo aggregato diverso")
-    for artifact in groups[0]["plots"]:
-        pdf(root / artifact["path"])
+            require(row[f"GT_{identity}"] == wanted["GT"], "SNP: genotipo aggregato diverso")
+    plots = [root / item["path"] for item in groups[0]["plots"]]
+    expected_plots = {summary_path.parent / name for name in ("Unassigned_genotypes.pdf", "SNPs_covered_UpSet_plot.pdf")}
+    require(len(plots) == len(expected_plots) and set(plots) == expected_plots, "SNP: grafici del riepilogo mancanti o inattesi")
+    for path in plots:
+        pdf(path)
     return {"snp_samples": count, "steps": len(plan["steps"])}
 
 

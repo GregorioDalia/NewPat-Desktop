@@ -1,6 +1,7 @@
 """Desktop GUI entrypoint and narrowly scoped native file operations."""
 from __future__ import annotations
 
+from contextlib import contextmanager
 import json
 import logging
 import os
@@ -8,6 +9,7 @@ from pathlib import Path
 import re
 import shutil
 import sys
+import tempfile
 import webbrowser
 import zipfile
 
@@ -17,6 +19,18 @@ from nipat.errors import ValidationError
 from .host import native_host
 from .server import DesktopServer
 from .service import GuiService
+
+
+@contextmanager
+def _export_destination(destination: Path):
+    """Expose only a complete export, including when replacing an existing file."""
+    with tempfile.NamedTemporaryFile(dir=destination.parent, delete=False) as out:
+        temporary = Path(out.name)
+    try:
+        yield temporary
+        os.replace(temporary, destination)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 class DesktopApplication:
@@ -53,43 +67,36 @@ class DesktopApplication:
                                     attachment=path.suffix.lower() not in safe)
 
     def export_file(self, params):
-        path = self._result_file(params)
+        store = self.service._results()
+        run = store._run(params["run_id"])
+        path = store.file_path(params["run_id"], params["file_id"])
         destination = self.host.save_file("Salva il file originale", path.name, None)
         if not destination:
             return {"cancelled": True}
         destination = Path(destination).expanduser().resolve()
-        if destination == path.resolve():
-            raise ValidationError("Scegli una destinazione diversa dal file originale.")
+        if destination.is_relative_to(run):
+            raise ValidationError("Salva la copia fuori dalla cartella dell’esperimento originale.")
         # The native Save dialog requests overwrite confirmation.
-        shutil.copyfile(path, destination)
+        with _export_destination(destination) as temporary:
+            shutil.copyfile(path, temporary)
         return {"path": str(destination), "name": destination.name}
 
     def export_run(self, params):
         store = self.service._results()
         run_id = params["run_id"]
-        files = store.files(run_id)
         name = PRODUCT_NAME + "_" + re.sub(r"[^\w.-]+", "_", run_id) + "_results.zip"
         destination = self.host.save_file("Salva i risultati dell’esperimento", name,
                                           [{"name": "Archivio ZIP", "extensions": ["zip"]}])
         if not destination:
             return {"cancelled": True}
         destination = Path(destination).expanduser().resolve()
-        paths = [(store.file_path(run_id, f["id"]), f["relative_path"]) for f in files]
-        if any(destination == p.resolve() for p, _ in paths):
-            raise ValidationError("Non sovrascrivere un file dell’esperimento originale.")
-        # Publish the archive only after every scoped original has been copied.
-        import tempfile
-        temporary = None
-        try:
-            with tempfile.NamedTemporaryFile(dir=destination.parent, suffix=".zip", delete=False) as out:
-                temporary = Path(out.name)
+        if destination.is_relative_to(store._run(run_id)):
+            raise ValidationError("Salva l’archivio fuori dalla cartella dell’esperimento originale.")
+        paths = store.export_paths(run_id)
+        with _export_destination(destination) as temporary:
             with zipfile.ZipFile(temporary, "w", compression=zipfile.ZIP_DEFLATED, allowZip64=True) as archive:
                 for path, relative in paths:
                     archive.write(path, relative)
-            os.replace(temporary, destination)
-        finally:
-            if temporary is not None:
-                temporary.unlink(missing_ok=True)
         return {"path": str(destination), "files": len(paths)}
 
     def open_run_directory(self, params):
@@ -164,11 +171,12 @@ class DesktopApplication:
         encoded = json.dumps(session, ensure_ascii=False, allow_nan=False, indent=2)
         if self.server.token in encoded or re.search(r'https?://', encoded, flags=re.I):
             raise ValidationError("La sessione deve contenere percorsi locali, non URL temporanei.")
-        destination = self.host.save_file("Salva la sessione IGV", f"{PRODUCT_NAME}_IGV_sessione.json",
+        destination = self.host.save_file("Salva la sessione IGV", f"{PRODUCT_NAME}_IGV_session.json",
                                           [{"name": "Sessione JSON", "extensions": ["json"]}])
         if not destination:
             return {"cancelled": True}
-        Path(destination).write_text(encoded + "\n", encoding="utf-8")
+        with _export_destination(Path(destination)) as temporary:
+            temporary.write_text(encoded + "\n", encoding="utf-8")
         return {"path": str(destination)}
 
     def call(self, method, params):

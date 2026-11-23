@@ -319,6 +319,18 @@ class WorkflowExecutionTests(unittest.TestCase):
         self.assertEqual([s["status"] for s in result["steps"]], ["cancelled", "blocked"])
         self.assertEqual(len(self.calls), 1)
 
+    def test_interrupted_summary_is_cancelled_even_when_the_plotter_returns_a_failure(self):
+        def cancel_plotter(*_args):
+            signal.raise_signal(signal.SIGTERM)
+            raise PlanExecutionError("execution.process", "SNP summary rendering failed (exit 143)")
+
+        with patch("nipat_scientific.snp_summary.finalize_snp_summaries", side_effect=cancel_plotter):
+            result = self.execute()
+        self.assertEqual(result["status"], "cancelled")
+        self.assertEqual(result["exit_code"], 128 + signal.SIGTERM)
+        self.assertTrue(all(step["status"] == "succeeded" for step in result["steps"]))
+        self.assertEqual(self.saved(), result)
+
     def test_unsupported_directory_fsync_does_not_break_host_backed_runs(self):
         actual_fsync = os.fsync
         unsupported = []

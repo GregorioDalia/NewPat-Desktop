@@ -308,6 +308,33 @@ class REquivalenceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Serial scientific execution used"):
             verification.verify_parallel_execution(directory, mode="serial", cap=None, require_parallel=False)
 
+    def test_repeated_label_cannot_use_another_invocations_worker_budget(self):
+        directory = self.parallel_events(children=False, overlap=False)
+        for path in directory.glob("worker-*.jsonl"):
+            original = [json.loads(line) for line in path.read_text().splitlines()]
+            repeated = [{**event, "observed_at_unix": event["observed_at_unix"] + 10}
+                        for event in original]
+            for event in original:
+                if event["event"] != "plan":
+                    event["workers"] = 1
+            for event in repeated:
+                if event["event"] == "plan":
+                    event["workers"] = 1
+            # Each budget and task index occurs the expected number of times
+            # overall. The two invocations have exchanged their event budgets.
+            path.write_text("".join(json.dumps(event) + "\n" for event in original + repeated))
+        with self.assertRaisesRegex(ValueError, "no matching resource plan"):
+            verification.verify_parallel_execution(directory, mode="auto", cap=None, require_parallel=False)
+
+    def test_serial_qualification_requires_a_result_for_each_declared_task(self):
+        directory = self.parallel_events(workers=1, mode="serial", children=False, overlap=False)
+        worker = directory / "worker-100.jsonl"
+        lines = worker.read_text().splitlines(keepends=True)
+        # Dropping an entire start/end pair used to keep the evidence balanced.
+        worker.write_text("".join(lines[:-2]))
+        with self.assertRaisesRegex(ValueError, "missing completed tasks"):
+            verification.verify_parallel_execution(directory, mode="serial", cap=None, require_parallel=False)
+
     def test_serial_qualification_passes_parent_execution(self):
         directory = self.parallel_events(workers=1, mode="serial", children=False, overlap=False)
         result = verification.verify_parallel_execution(directory, mode="serial", cap=None, require_parallel=False)

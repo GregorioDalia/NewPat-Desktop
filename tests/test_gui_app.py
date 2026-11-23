@@ -35,13 +35,16 @@ class FakeHost:
 def app(tmp_path):
     host = FakeHost()
     class Store:
+        def _run(self, run_id):
+            return tmp_path / "run"
         def file_path(self, run_id, file_id):
             if (run_id, file_id) != ("run", "file"):
                 raise ValueError("Unknown file")
-            return tmp_path / "original.tsv"
-        def files(self, run_id):
-            return [{"id": "file", "relative_path": "output/original.tsv"}]
+            return tmp_path / "run" / "original.tsv"
+        def export_paths(self, run_id):
+            return [(self.file_path(run_id, "file"), "output/original.tsv")]
     service = SimpleNamespace(_results=lambda: Store(), call=lambda *_: {"active": False, "jobs": []})
+    (tmp_path / "run").mkdir()
     app = DesktopApplication(host=host, service=service)
     yield app
     app.server.close()
@@ -92,7 +95,7 @@ def test_igv_invalid_reference_and_remote_paths(app, tmp_path):
 
 
 def test_download_copy_and_zip_preserve_originals(app, tmp_path):
-    source = tmp_path / "original.tsv"
+    source = tmp_path / "run" / "original.tsv"
     original = b"value\tNA\r\nzero\t0\r\n"
     source.write_bytes(original)
     app.host.destination = str(tmp_path / "copy.tsv")
@@ -108,8 +111,33 @@ def test_download_copy_and_zip_preserve_originals(app, tmp_path):
     assert source.read_bytes() == original
 
 
+def test_export_preserves_sibling_results_and_existing_copy_on_failure(app, tmp_path, monkeypatch):
+    run = tmp_path / "run"
+    (run / "original.tsv").write_bytes(b"result")
+    sibling = run / "run.json"
+    sibling.write_bytes(b'{"status": "succeeded"}')
+    app.host.destination = sibling
+    with pytest.raises(ValidationError):
+        app.export_file({"run_id": "run", "file_id": "file"})
+    with pytest.raises(ValidationError):
+        app.export_run({"run_id": "run"})
+    assert sibling.read_bytes() == b'{"status": "succeeded"}'
+
+    destination = tmp_path / "previous.tsv"
+    destination.write_bytes(b"previous")
+    app.host.destination = destination
+    def incomplete_copy(_source, temporary):
+        temporary.write_bytes(b"partial")
+        raise OSError("disk full")
+    monkeypatch.setattr("nipat.gui.app.shutil.copyfile", incomplete_copy)
+    with pytest.raises(OSError):
+        app.export_file({"run_id": "run", "file_id": "file"})
+    assert destination.read_bytes() == b"previous"
+    assert set(tmp_path.iterdir()) == {run, destination}
+
+
 def test_cancel_dialogs_and_active_close(app, tmp_path):
-    (tmp_path / "original.tsv").write_text("a\tb\n")
+    (tmp_path / "run" / "original.tsv").write_text("a\tb\n")
     assert app.export_file({"run_id": "run", "file_id": "file"}) == {"cancelled": True}
     assert app.dialog({}) == {"paths": []}
     assert app.on_close() is True
@@ -119,10 +147,13 @@ def test_cancel_dialogs_and_active_close(app, tmp_path):
     assert app.host.closed
 
 
-def test_sessions_export_durable_paths_not_capabilities(app, tmp_path):
+def test_sessions_export_durable_paths_not_capabilities(app, tmp_path, monkeypatch):
     app.host.destination = str(tmp_path / "session.json")
     with pytest.raises(ValidationError, match="temporanei"):
         app.save_igv_session({"session": {"url": app.server.url}})
     session = {"reference": {"fasta": str(tmp_path / "reference.fa")}, "tracks": [], "locus": "chr1"}
+    dialog = Mock(return_value=app.host.destination)
+    monkeypatch.setattr(app.host, "save_file", dialog)
     app.save_igv_session({"session": session})
+    assert dialog.call_args.args[1] == "NewPat_IGV_session.json"
     assert json.loads(Path(app.host.destination).read_text(encoding="utf-8")) == session

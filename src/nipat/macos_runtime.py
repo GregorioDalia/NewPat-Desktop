@@ -574,7 +574,9 @@ class LimaRuntime:
     def ensure(self) -> dict:
         manifest = read_manifest(self.project)
         self._host_check(manifest)
-        with self.lock():
+        # Another experiment may be starting the same guest. Wait for its boot
+        # window before running this experiment's own ownership/image checks.
+        with self.lock(timeout=180):
             self._assert_owned()
             state = self._state(manifest)
             self._run(self.host_prefix() + ["start", "--tty=false", INSTANCE], timeout=180)

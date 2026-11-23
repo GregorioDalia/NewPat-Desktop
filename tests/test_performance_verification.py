@@ -79,6 +79,17 @@ class PerformanceVerificationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "consistent evidence"):
             verification.check_engine_evidence(self.root)
 
+    def test_nonfinite_phase_duration_cannot_pass_as_measured(self):
+        directory = self.engine()
+        path = directory / "phases.jsonl"
+        phases = [json.loads(line) for line in path.read_text().splitlines()]
+        for value in (float("nan"), float("inf")):
+            with self.subTest(value=value):
+                phases[0]["duration_seconds"] = value
+                path.write_text("".join(json.dumps(row) + "\n" for row in phases), encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "measured interval"):
+                    verification.check_engine_evidence(self.root)
+
     def test_short_run_may_have_no_external_sample_but_must_say_unavailable(self):
         self.external(status="unavailable")
         self.assertEqual(verification.check_external_evidence(self.root)["sample_count"], 0)
@@ -97,6 +108,20 @@ class PerformanceVerificationTests(unittest.TestCase):
         self.external(samples=[{"cpu_percent": 10, "memory_cache_adjusted_bytes": 4096}], status="partial")
         self.assertEqual(verification.check_external_evidence(self.root, require_samples=True)["status"],
                          "partial")
+
+    def test_null_or_invalid_external_metrics_cannot_pass_as_observed(self):
+        for cpu, memory in ((None, None), (float("nan"), 4), (-1, 4), (True, 4), (2, -1), (2, "4")):
+            with self.subTest(cpu=cpu, memory=memory):
+                self.external(samples=[{"cpu_percent": cpu, "memory_cache_adjusted_bytes": memory}])
+                with self.assertRaisesRegex(ValueError, "observations"):
+                    verification.check_external_evidence(self.root)
+
+    def test_available_samples_require_a_final_status_consistent_with_observation(self):
+        for status in ("unavailable", "unknown"):
+            with self.subTest(status=status):
+                self.external(samples=[{"cpu_percent": 0, "memory_cache_adjusted_bytes": 10}], status=status)
+                with self.assertRaisesRegex(ValueError, "status"):
+                    verification.check_external_evidence(self.root)
 
 
 if __name__ == "__main__":

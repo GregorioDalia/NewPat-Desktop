@@ -152,6 +152,7 @@ class _Window:
         self.closed = False
         self.error = None
         self.tasks = queue.Queue()
+        self.tasks_lock = threading.Lock()
         self.thread_id = threading.get_ident()
         self.pool = c.allocate("NSAutoreleasePool")
         self.app = c.send(c.cls("NSApplication"), "sharedApplication")
@@ -195,9 +196,16 @@ class _Window:
             raise NativeHostError("La finestra desktop è stata chiusa.")
         if threading.get_ident() == self.thread_id:
             return function()
+        return self._queue_task(function).result()
+
+    def _queue_task(self, function):
         future = concurrent.futures.Future()
-        self.tasks.put((future, function))
-        return future.result()
+        with self.tasks_lock:
+            if self.closed:
+                future.set_exception(NativeHostError("La finestra desktop è stata chiusa."))
+            else:
+                self.tasks.put((future, function))
+        return future
 
     def fail(self, exc):
         self.error = exc
@@ -207,8 +215,7 @@ class _Window:
             if threading.get_ident() == self.thread_id:
                 self.cocoa.send(self.window, "close", None)
             else:
-                future = concurrent.futures.Future()
-                self.tasks.put((future, lambda: self.cocoa.send(self.window, "close", None)))
+                self._queue_task(lambda: self.cocoa.send(self.window, "close", None))
 
     def _tick(self, _timer):
         while True:
@@ -233,16 +240,21 @@ class _Window:
     def _should_close(self, _window):
         return bool(self.error or not self.on_close or self.on_close() is not False)
 
-    def _will_close(self, _notification):
-        if self.closed:
-            return
-        self.closed = True
+    def _close_tasks(self):
+        with self.tasks_lock:
+            if self.closed:
+                return False
+            self.closed = True
         while True:
             try:
                 future, _ = self.tasks.get_nowait()
                 future.set_exception(NativeHostError("La finestra desktop è stata chiusa."))
             except queue.Empty:
-                break
+                return True
+
+    def _will_close(self, _notification):
+        if not self._close_tasks():
+            return
         c = self.cocoa
         c.send(self.app, "stop:", None, (PTR,), None)
         # stop: called from a timer or WebKit completion does not wake run's
@@ -457,7 +469,7 @@ class _Window:
                 raise NativeHostError(str(self.error)) from self.error
             return 0
         finally:
-            self.closed = True
+            self._close_tasks()
             if self.timer:
                 c.send(self.timer, "invalidate", None)
                 c.send(self.timer, "release", None)

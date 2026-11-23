@@ -16,6 +16,12 @@ const env={console,document,Intl,URL,AbortController,location:{href:'http://127.
 const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(condition,label)=>{assert(condition,label);checks.push(label)};
 (async()=>{
  await tick();await tick();const app=env.NipatApp;
+ const recent=app.state.runs;
+ for(const entries of [recent,[]]){
+  app.state.runs=entries;app.render();
+  check((element('main').innerHTML.match(/data-view="new"/g)||[]).length===1,'Populated and empty overview have one primary creation action');
+ }
+ app.state.runs=recent;app.render();
  check(app.state.boot.version==='0.9.0','Bootstrap uses actual version');check(element('main').innerHTML.includes('Famiglia α &lt;test&gt;'),'Archive name HTML escaped');check(app.state.draft.samples.length===0,'No embedded demonstration samples');
  for(const view of ['home','new','activity','archive','catalog','settings','environment','igv']){await app.navigate(view);check(element('main').innerHTML.length>300,'Render '+view)}
  const expectedCounts=Object.values(settings.workflows).reduce((a,w)=>a+Object.keys(w.parameters).length,0);app.state.catalogModule='all';app.state.catalogType='parameters';await app.navigate('catalog');check((element('main').innerHTML.match(/class="parameter-row"/g)||[]).length===expectedCounts,'Every scientific parameter is accessible');check(!element('main').innerHTML.includes('<h3>other_fraction_max'),'No implementation key as parameter heading');app.state.catalogType='constants';app.render();check((element('main').innerHTML.match(/class="parameter-row"/g)||[]).length===52,'Every model constant is accessible');check(element('main').innerHTML.includes('<mfrac>')&&!element('main').innerHTML.includes('<mo><</mo>'),'Formulae rendered as valid escaped MathML fragments');
@@ -38,21 +44,7 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
  await app.action('confirm-cancel-job',{id:'job-1'});check(jobs[0].status==='interrupted','Cancel reaches actual job service');
  check(app.renderActivity().includes('Terminati in questa sessione')&&app.renderActivity().includes('data-action="remove-job"')&&!app.renderActivity().includes('data-action="cancel-job"'),'Interrupted card is dismissible in finished activity');
  await app.loadRun('run-1');check(element('main').innerHTML.includes('Analisi non eseguita'),'Unexecuted modules explicitly identified');await app.action('result-module',{module:'snp-call|SNP'});check(element('main').innerHTML.includes('Non disponibile')&&element('main').innerHTML.includes('0'),'NA and zero remain distinct');check(app.metricValue({value:'0.025',scale:100,unit:'%'})==='2,5 %','Percent conversion occurs once');check(app.metricValue({value:'0.0353553390593274',scale:100,unit:'punti %'}).includes('punti %'),'SD carries percentage-point unit');check(app.metricValue({value:null,scale:100})==='Non disponibile','Missing metric not coerced to zero');
- await app.action('result-module',{module:'cpi|DNP'});check(element('main').innerHTML.includes('log₁₀(CPI) alla frazione fetale mediana')&&element('main').innerHTML.includes('0,602'),'Prenatal CPI field remains logarithmic');await app.action('result-module',{module:'cpin|DNP'});check(element('main').innerHTML.includes('<strong>0.00046474155109453</strong>')&&!element('main').innerHTML.includes('class="interactive-curve"'),'Postnatal CPI presents the unrounded scalar as the primary result');
- check(!requests.some(r=>r.method==='runs.curve'&&r.params.file_id==='curve'),'Postnatal CPI can be read without loading curves');
- const indexMetric=overview.modules.find(item=>item.module==='cpin').entries[0].metrics[0];
- for(const value of ['NA','0','Inf']){
-  const previous=indexMetric.value;
-  indexMetric.value=value;
-  const shown=value==='NA'?'Non disponibile':value;
-  check(app.renderRun().includes('<strong>'+shown+'</strong>'),'Postnatal primary index preserves '+value+' independently of the curve');
-  indexMetric.value=previous;
- }
-
- await app.action('postnatal-curves',{});
- check((element('main').innerHTML.match(/class="curve-line"/g)||[]).length===3,'Optional postnatal curve has original three inclusive intervals');
- await app.action('postnatal-curves',{});
- check(!element('main').innerHTML.includes('class="interactive-curve"'),'Returning to the numeric result hides the curve');check(element('main').innerHTML.includes('Genotipo paterno non assegnato'),'Site exclusion reasons human-readable');
+ await app.action('result-module',{module:'cpi|DNP'});check(element('main').innerHTML.includes('log₁₀(CPI) alla frazione fetale mediana')&&element('main').innerHTML.includes('0,602'),'Prenatal CPI field remains logarithmic');await app.action('result-module',{module:'cpin|DNP'});check((element('main').innerHTML.match(/class="curve-line"/g)||[]).length===3,'Postnatal CPI curve has original three inclusive intervals');check(element('main').innerHTML.includes('Genotipo paterno non assegnato'),'Site exclusion reasons human-readable');
  app.state.tableSearch='father_unassigned';await app.loadTable(0);check(app.state.table.matched===1&&app.state.table.row_numbers[0]===1,'Search pagination preserves original row identity');await app.action('row-details',{file:'sites',row:'1'});check(element('modal-root').innerHTML.includes('Genotipo paterno non assegnato'),'Row details use original row offset');await app.action('open-file',{id:'plot'});check(element('modal-root').innerHTML.includes('<iframe class="pdf-preview"'),'PDF stays inside app dialog');await app.action('export-file',{id:'plot'});check(requests.at(-1).method==='files.export','Export handled by native scoped service');await app.action('export-run',{});check(requests.at(-1).method==='runs.export','Complete original output export available');
  handlers['igv.about']=()=>({opened:true});
  await app.navigate('igv');

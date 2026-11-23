@@ -106,10 +106,15 @@ BASELINE_OBSERVATIONS = {
 }
 WORKFLOW_BASELINE_OBSERVATIONS = BASELINE_OBSERVATIONS | {"automatic_workflow_sample_analysis"}
 REVIEWABLE_CLIENT_PREFIXES = ("src/nipat/", "installer/windows/", "installer/linux/", "scripts/", "tests/")
-REVIEWABLE_CLIENT_FILES = {"pyproject.toml", "1_SETUP.cmd", "2_LAUNCH.cmd", "nipat.cmd"}
+REVIEWABLE_CLIENT_FILES = {"pyproject.toml", "1_SETUP.cmd", "nipat.cmd"}
 NEWPAT_BRANDING_FILES = {
     "assets/branding/build_assets.py", "assets/branding/nipat-logo-dark.svg",
     "assets/branding/nipat-logo.svg", "assets/branding/nipat-symbol.svg", "newpat.cmd",
+}
+INTRECCIO_BRANDING_FILES = {
+    "assets/branding/newpat-app-icon.svg", "assets/branding/newpat-app-icon-small.svg",
+    "assets/branding/nipat-icon.ico", "assets/branding/nipat-icon.png",
+    "assets/branding/newpat-icon-small.png",
 }
 REVIEWABLE_OPERATIVE_PREFIXES = (
     "src/", "engine/", "installer/", "scripts/", "tests/", "docker/", "config/",
@@ -273,12 +278,20 @@ def verify_multibam_variants(case):
                     "Multi-BAM deterministic repeat is missing")
 
 
-def reviewable_path(path, *, reliability=False, multiplatform=False, revised_r=False, version=None):
-    # The 0.9.5 rename reviews only these distributed branding inputs. Their
-    # exact before/after hashes remain mandatory; other assets stay protected.
-    if revised_r and path in NEWPAT_BRANDING_FILES:
+def reviewable_path(path, *, reliability=False, multiplatform=False, revised_r=False, version=None,
+                    removed=False):
+    if path in {"2_AVVIA.cmd", "2_LAUNCH.cmd"}:
+        match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:(?:a|b|rc)\d+)?", version or "")
+        english_launcher = match and tuple(map(int, match.groups())) >= (0, 9, 10)
+        if path == "2_AVVIA.cmd":
+            return not english_launcher or removed
+        return bool(english_launcher)
+    # Permit only the listed artwork from its introduction; exact before/after
+    # hashes still belong to the reviewed source delta.
+    if revised_r and path in NEWPAT_BRANDING_FILES | INTRECCIO_BRANDING_FILES:
         match = re.fullmatch(r"([0-9]+)\.([0-9]+)\.([0-9]+)(?:(?:a|b|rc)[0-9]+)?", version or "")
-        if match and tuple(map(int, match.groups())) >= (0, 9, 5):
+        minimum = (0, 9, 10) if path in INTRECCIO_BRANDING_FILES else (0, 9, 5)
+        if match and tuple(map(int, match.groups())) >= minimum:
             return True
     # This known development report is distributed as readable provenance. It
     # does not qualify the image; schema 7 still requires fresh installed-image
@@ -570,7 +583,7 @@ def validate_research(record, version, commit, run_id, installer_set=None):
                     and "\\" not in path and not any(character.isspace() for character in path)
                     and PurePosixPath(path).suffix.casefold() != ".md"
                     and reviewable_path(path, reliability=reliability, multiplatform=multiplatform,
-                                        revised_r=revised_r, version=version),
+                                        revised_r=revised_r, version=version, removed=item["after_sha256"] is None),
                     ("Only known scientific scripts and explicit operative sources can be reviewed" if revised_r
                      else "Only operative source changes outside protected vendored R can be reviewed" if multiplatform
                      else "Only explicit non-R operative source changes can be reviewed" if reliability
@@ -1244,7 +1257,7 @@ def verify_baseline(record, read_source):
                 unchanged += 1
                 continue
             require(reviewable_path(path, reliability=reliability, multiplatform=multiplatform,
-                                    revised_r=revised_r, version=record["version"]),
+                                    revised_r=revised_r, version=record["version"], removed=new is None),
                     f"Protected scientific or runtime source differs: {path}")
             changes.append({"path": path,
                             "before_sha256": hashlib.sha256(old).hexdigest() if old is not None else None,

@@ -267,8 +267,13 @@ def check_automatic_plan(run_directory: Path, fixture: Path, manifest: dict,
             and all(int(row["informative_sites" if modern else "informative_DNPs"]) == 2 and float(row["mean_contamination"]) == 0
                     and float(row["sd_contamination"]) == 0 for row in rows),
             "Installed Contamination differs from the two homozygous loci per sample.")
-    for artifact in contamination["contamination-tables"]:
-        rows = read_table(checked_artifact(root, artifact))
+    tables = contamination["contamination-tables"]
+    require(len(tables) == 2 and {item.get("sample") for item in tables} == {"sample_0001", "sample_0002"},
+            "Installed Contamination tables must identify both expected samples.")
+    paths = [checked_artifact(root, item).resolve() for item in tables]
+    require(len(set(paths)) == len(paths), "Installed Contamination table paths must be distinct.")
+    for path in paths:
+        rows = read_table(path)
         require(len(rows) == 2 and {int(row["pos1"]) for row in rows} == {50, 230}
                 and all(float(row["contamination"]) == 0 for row in rows),
                 "Installed per-site contamination differs from its oracle.")

@@ -254,3 +254,18 @@ def test_new_unlisted_staging_file_is_rejected_before_installation(tmp_path):
     with pytest.raises(ValueError, match="modificato"):
         bootstrap.extract_payload(archive, destination, target, check_only=True)
     assert extra.read_text(encoding="utf-8") == "unreviewed fixture"
+
+
+def test_download_keeps_existing_file_and_removes_only_its_own_partial(tmp_path, monkeypatch):
+    target = {"url": "https://github.com/unused", "version": "0.9.10",
+              "size": 5, "sha256": sha(b"valid")}
+    destination = tmp_path / "download.zip"
+    monkeypatch.setattr(bootstrap, "_open", lambda url: io.BytesIO(b"wrong"))
+    destination.write_bytes(b"previous download")
+    with pytest.raises(FileExistsError):
+        bootstrap.download(target, destination)
+    assert destination.read_bytes() == b"previous download"
+    destination.unlink()
+    with pytest.raises(ValueError, match="SHA-256"):
+        bootstrap.download(target, destination)
+    assert not destination.exists()

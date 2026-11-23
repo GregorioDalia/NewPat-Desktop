@@ -35,6 +35,7 @@ class LinuxInstallerTests(unittest.TestCase):
             "LICENSE": "License fixture\n",
             "THIRD_PARTY_NOTICES.md": "Third-party notices fixture\n",
             "installer/linux/launch.py": 'print("launcher fixture")\n',
+            linux.SMALL_ICON_SOURCE: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"/>\n',
             linux.ICON_SOURCE: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"/>\n',
             "installer/windows/install-profile.json": json.dumps(linux.assets.EXPECTED_INSTALLATION_PROFILE),
         }
@@ -211,7 +212,10 @@ class LinuxInstallerTests(unittest.TestCase):
         self.assertEqual((extracted / "usr/bin/newpat").read_bytes(),
                          (extracted / "usr/bin/nipat").read_bytes())
         self.assertIn("Exec=/usr/bin/newpat --desktop\nTryExec=/usr/bin/newpat\n", desktop)
-        self.assertIn(f"Icon=/{linux.APP_PATH.as_posix()}/{linux.ICON_SOURCE}\n", desktop)
+        self.assertIn(f"Icon={linux.PACKAGE}\n", desktop)
+        for size, source in linux.THEME_ICONS.items():
+            themed = extracted / f"usr/share/icons/hicolor/{size}/apps/{linux.PACKAGE}.svg"
+            self.assertEqual(themed.read_bytes(), (self.project / source).read_bytes())
         self.assertEqual((app / linux.ICON_SOURCE).read_bytes(), (self.project / linux.ICON_SOURCE).read_bytes())
         dependencies = subprocess.check_output(["dpkg-deb", "-f", str(package), "Depends"], text=True).strip()
         self.assertEqual(dependencies, linux.DEPENDENCIES)

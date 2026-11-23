@@ -23,10 +23,6 @@ Use **Open existing results** to add an existing run folder to the archive. NewP
 
 If NewPat closes during calculation, reopen the application and check the run status. **Needs verification** means NewPat cannot determine whether the underlying process is still active. Wait for confirmation before relaunching or removing the entry. Completed output from one step may be available while the overall experiment is still incomplete. The [run guide](RUNS.md) explains how to inspect the runtime.
 
-## Read the postnatal CPI
-
-Choose a trio and site selection to see the numerical combined paternity index recorded in `Summary_Postnatal_CPI.txt`. The result preserves the precision of the stored value. An unavailable result is displayed when the summary records `NA`. With site selection set to **Both**, each trio has a separate row for each selection. Open **Show curves by read threshold** to inspect the supporting threshold analysis.
-
 <a id="read-cpi-and-cpin-plots"></a>
 
 ## Read prenatal and postnatal CPI plots

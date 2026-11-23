@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import shutil
@@ -51,6 +52,10 @@ def rows(path: Path) -> list[dict]:
     return values
 
 
+def finite_nonnegative(value: object) -> bool:
+    return type(value) in (int, float) and 0 <= value < math.inf
+
+
 def check_engine_evidence(run: Path) -> dict:
     directory = run / "performance/engine"
     summary = document(directory / "summary.json")
@@ -76,9 +81,7 @@ def check_engine_evidence(run: Path) -> dict:
     if not {"preparation", "r-execution", "output-validation", "presentation-finalization"} <= completed:
         raise ValueError("Engine phase evidence is incomplete")
     for phase in phases:
-        if phase.get("event") == "end" and (
-            type(phase.get("duration_seconds")) not in (int, float) or phase["duration_seconds"] < 0
-        ):
+        if phase.get("event") == "end" and not finite_nonnegative(phase.get("duration_seconds")):
             raise ValueError("Engine phase duration is not a non-negative measured interval")
     return {"samples": len(samples), "phases": sorted(completed),
             "cgroup_versions": sorted({sample["cgroup"].get("version") for sample in samples}),
@@ -95,7 +98,11 @@ def check_external_evidence(run: Path, *, require_samples: bool = False) -> dict
     if summary.get("status") == "collecting":
         raise ValueError("External observer was not finalized before cleanup")
     if samples:
-        if not any("memory_cache_adjusted_bytes" in sample and "cpu_percent" in sample for sample in samples):
+        if summary.get("status") not in {"completed", "partial"}:
+            raise ValueError("External observer status is inconsistent with retained samples")
+        if not any(type(sample.get("memory_cache_adjusted_bytes")) is int
+                   and sample["memory_cache_adjusted_bytes"] >= 0
+                   and finite_nonnegative(sample.get("cpu_percent")) for sample in samples):
             raise ValueError("External samples lack Docker CPU and memory observations")
         if len(summary.get("container_id", "")) != 64:
             raise ValueError("External observer did not record its immutable container identity")

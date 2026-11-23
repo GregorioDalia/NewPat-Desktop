@@ -339,55 +339,60 @@ def _merge_preferences(baseline: Any, requested: Any, current: Any, path: str = 
     )
 
 
+@contextmanager
+def settings_file_lock(settings_path: Path):
+    """Serialize read/modify/write across processes sharing a local settings file."""
+    # Keep this sidecar after release: unlinking a live lock would allow another
+    # process to lock a different inode while an existing waiter uses the old one.
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    path = settings_path.with_name(settings_path.name + ".lock")
+    if path.is_symlink():
+        raise ValidationError("Il file di coordinamento delle impostazioni non puo' essere un collegamento.")
+    with path.open("a+b") as stream:
+        if os.name == "nt":
+            import msvcrt
+            if stream.seek(0, os.SEEK_END) == 0:
+                stream.write(b"\0")
+                stream.flush()
+            def acquire():
+                stream.seek(0)
+                msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
+            def release():
+                stream.seek(0)
+                msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+            def acquire():
+                fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            def release():
+                fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
+        deadline = time.monotonic() + 5
+        while True:
+            try:
+                acquire()
+                break
+            except OSError as exc:
+                if exc.errno not in {errno.EACCES, errno.EAGAIN, errno.EDEADLK}:
+                    raise
+                if time.monotonic() >= deadline:
+                    raise ValidationError(
+                        "Un'altra sessione sta salvando le impostazioni. Riprovare fra poco."
+                    ) from exc
+                time.sleep(0.05)
+        try:
+            yield
+        finally:
+            release()
+
+
 class PreferencesStore:
     """Serialize updates and merge edits against the snapshot reviewed by the user."""
 
     def __init__(self, path: Path | None = None):
         self.path = Path(path).expanduser().absolute() if path is not None else preferences_path()
 
-    @contextmanager
     def _lock(self):
-        # Keep this sidecar after release: unlinking a live lock would allow another
-        # process to lock a different inode while an existing waiter uses the old one.
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        path = self.path.with_name(self.path.name + ".lock")
-        if path.is_symlink():
-            raise ValidationError("Il file di coordinamento delle impostazioni non puo' essere un collegamento.")
-        with path.open("a+b") as stream:
-            if os.name == "nt":
-                import msvcrt
-                if stream.seek(0, os.SEEK_END) == 0:
-                    stream.write(b"\0")
-                    stream.flush()
-                def acquire():
-                    stream.seek(0)
-                    msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
-                def release():
-                    stream.seek(0)
-                    msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
-            else:
-                import fcntl
-                def acquire():
-                    fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-                def release():
-                    fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
-            deadline = time.monotonic() + 5
-            while True:
-                try:
-                    acquire()
-                    break
-                except OSError as exc:
-                    if exc.errno not in {errno.EACCES, errno.EAGAIN, errno.EDEADLK}:
-                        raise
-                    if time.monotonic() >= deadline:
-                        raise ValidationError(
-                            "Un'altra sessione sta salvando le impostazioni. Riprovare fra poco."
-                        ) from exc
-                    time.sleep(0.05)
-            try:
-                yield
-            finally:
-                release()
+        return settings_file_lock(self.path)
 
     def load(self) -> Preferences:
         try:

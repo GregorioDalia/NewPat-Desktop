@@ -43,6 +43,35 @@ class ParallelRuntimeTests(unittest.TestCase):
             self.assertEqual(service["mem_limit"], 6000 * 1024**2)
             self.assertTrue(all(environment[name] == "1" for name in THREAD_LIMITS))
 
+    def test_small_arm_guest_profile_uses_actual_lima_host_and_guest_memory(self):
+        cases = [
+            ("lima", "arm64", 8192, 3905, True),
+            ("lima", "arm64", 8192, 4096, True),
+            ("lima", "arm64", 16384, 3905, False),
+            ("lima", "arm64", 8192, 5000, False),
+            ("lima", "arm64", 8192, None, False),
+            ("lima", "x86_64", 8192, 3905, False),
+            ("wsl", "arm64", 8192, 3905, False),
+        ]
+        for backend, arch, host, guest, expected in cases:
+            with self.subTest(backend=backend, arch=arch, host=host, guest=guest), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp).resolve()
+                run = root / "runs" / "one"
+                (run / "work").mkdir(parents=True)
+                layout = ProjectLayout(root, root, root / "data", root / "runs", root / "compose.yaml")
+                transport = DockerTransport()
+                transport.backend = backend
+                runner = DockerComposeRunner(layout, transport=transport)
+                runner._record = Mock(run_dir=run, data={"resource_snapshot": {
+                    "host": {"memory_mib": host}, "runtime": {"effective": {"memory_mib": guest}},
+                }})
+                with patch("nipat.execution.runner.platform.machine", return_value=arch):
+                    runner._write_engine_compose("sha256:" + "a" * 64)
+                compose = json.loads((run / "work/engine-compose.json").read_text())
+                env = compose["services"]["scientific"]["environment"]
+                self.assertEqual(env.get("NIPAT_DNP_SMALL_ARM_GUEST") == "1", expected)
+                self.assertNotIn("NIPAT_MAX_WORKERS", env)
+
     def test_old_runtime_is_rejected_instead_of_silently_ignoring_parallel_settings(self):
         for change in ("capability", "module", "workflow", "serial"):
             with self.subTest(change=change):

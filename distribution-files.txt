@@ -23,6 +23,9 @@ OVERVIEW.md
 THIRD_PARTY_NOTICES.md
 assets/branding/README.md
 assets/branding/build_assets.py
+assets/branding/newpat-app-icon-small.svg
+assets/branding/newpat-app-icon.svg
+assets/branding/newpat-icon-small.png
 assets/branding/nipat-icon.ico
 assets/branding/nipat-icon.png
 assets/branding/nipat-logo-dark.svg
@@ -468,6 +471,7 @@ docs/RELEASE_0.8.80.md
 docs/RELEASE_0.8.81.md
 docs/RELEASE_0.8.90.md
 docs/AUDIT_0.8.80.md
+docs/AUDIT_0.9.10.md
 
 # Complete additional Windows ZIP distribution (0.8.95).
 installer/windows/zip_package.py
@@ -525,6 +529,7 @@ src/nipat/gui/web/app.js
 src/nipat/gui/web/i18n.js
 src/nipat/gui/web/igv-view.js
 src/nipat/gui/web/index.html
+src/nipat/gui/web/newpat-wordmark.svg
 src/nipat/gui/web/style.css
 src/nipat/gui/web/vendor/README.md
 src/nipat/gui/web/vendor/igv.LICENSE.txt
@@ -580,6 +585,7 @@ docs/RELEASE_0.9.5.md
 docs/RELEASE_0.9.7.md
 docs/RELEASE_0.9.8.md
 docs/RELEASE_0.9.9.md
+docs/RELEASE_0.9.10.md
 src/nipat/gui/diagnostics.py
 tests/test_gui_diagnostics.py
 tests/test_newpat_branding.py

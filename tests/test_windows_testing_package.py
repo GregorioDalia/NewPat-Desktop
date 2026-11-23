@@ -2,6 +2,7 @@
 import importlib.util
 import json
 from pathlib import Path
+import re
 import tempfile
 import unittest
 import zipfile
@@ -33,6 +34,8 @@ class TestingPackageTests(unittest.TestCase):
             metadata = json.loads(archive.read("testing-release.json"))
             self.assertEqual(metadata["complete_zip"]["file"], "NIPAT-0.9.10-Windows-complete.zip")
         self.assertEqual(PACKAGE.filename("0.9.9"), "NIPAT-0.9.9-Testing-installazione.zip")
+        self.assertEqual(set(PACKAGE.sources("0.9.5")),
+                         {"INSTALLA-NewPat-TESTING.cmd", "LEGGIMI.txt", "install-testing.ps1"})
 
     def test_exact_downloads_and_reviewed_entrypoints_are_bound(self):
         record = PACKAGE.build(SOURCE, self.output, self.manifest)
@@ -40,7 +43,8 @@ class TestingPackageTests(unittest.TestCase):
         self.assertEqual(PACKAGE.verify(archive, SOURCE, self.output, self.manifest), record)
         with zipfile.ZipFile(archive) as bundle:
             self.assertEqual(set(bundle.namelist()), {"README.txt", "INSTALL-NewPat-Testing.cmd",
-                                                      "install-testing.ps1", "install-profile.ps1", "testing-release.json"})
+                                                      "install-testing.ps1", "install-profile.ps1",
+                                                      "install-layout.ps1", "testing-release.json"})
             data = json.loads(bundle.read("testing-release.json"))
             self.assertEqual(data["channel"], "testing")
             self.assertEqual(data["source_commit"], self.manifest["source_commit"])
@@ -48,6 +52,14 @@ class TestingPackageTests(unittest.TestCase):
                 path = self.output / data[role]["file"]
                 self.assertEqual(data[role]["sha256"], PACKAGE.digest(path))
                 self.assertEqual(data[role]["size"], path.stat().st_size)
+
+    def test_download_entrypoint_contains_its_powershell_dependencies(self):
+        record = PACKAGE.build(SOURCE, self.output, self.manifest)
+        with zipfile.ZipFile(self.output / record["file"]) as bundle:
+            for name in (path for path in bundle.namelist() if path.endswith(".ps1")):
+                source = bundle.read(name).decode("utf-8-sig")
+                for dependency in re.findall(r"(?m)^\s*\. \(Join-Path \$PSScriptRoot '([^']+)'\)", source):
+                    self.assertIn(dependency, bundle.namelist(), f"{name} loads {dependency}")
 
     def test_replaced_payload_or_source_commit_invalidates_entrypoint(self):
         record = PACKAGE.build(SOURCE, self.output, self.manifest)

@@ -643,6 +643,42 @@ class NewPatBrandingAcceptanceTests(unittest.TestCase):
                 self.assertFalse(acceptance.reviewable_path(path, reliability=True, multiplatform=True,
                                                            revised_r=True, version="0.9.5"))
 
+    def test_intreccio_artwork_review_starts_with_0910(self):
+        distributed = set((Path(__file__).resolve().parents[2] / "distribution-files.txt").read_text().splitlines())
+        self.assertTrue(acceptance.INTRECCIO_BRANDING_FILES <= distributed)
+        for path in acceptance.INTRECCIO_BRANDING_FILES:
+            for version, allowed in (("0.9.9", False), ("0.9.10", True)):
+                with self.subTest(path=path, version=version):
+                    self.assertEqual(acceptance.reviewable_path(path, revised_r=True, version=version), allowed)
+        self.assertFalse(acceptance.reviewable_path("assets/branding/unrelated.png", revised_r=True, version="0.9.10"))
+
+    def test_english_launcher_transition_accepts_removal_and_preserves_historical_reviews(self):
+        historical = json.loads((Path(__file__).resolve().parents[1] / "release-acceptance/v0.9.9.json").read_bytes())
+        acceptance.validate(historical, "0.9.9", historical["source_commit"], historical["build_run_id"])
+        record = dict(historical, version="0.9.10")
+        old, new = "2_AVVIA.cmd", "2_LAUNCH.cmd"
+        launcher = b"@echo off\n"
+        before = dict.fromkeys(acceptance.REQUIRED_OPERATIVE_PATHS, b"same")
+        before[old] = launcher
+        after = dict(before)
+        after[new] = after.pop(old)
+        sources = {record["source_commit"]: after, record["observed_baseline"]["source_commit"]: before}
+        for files in sources.values():
+            files["distribution-files.txt"] = ResearchAcceptanceTests.allowlist(files)
+        def read(commit, path):
+            return sources[commit][path]
+        digest = hashlib.sha256(launcher).hexdigest()
+        changes = [{"path": old, "before_sha256": digest, "after_sha256": None},
+                   {"path": new, "before_sha256": None, "after_sha256": digest}]
+        record["reviewed_source_changes"] = changes
+        self.assertEqual(acceptance.verify_baseline(record, read)["reviewed_source_changes"], changes)
+        for before_hash in (None, "d" * 64):
+            with self.subTest(before_hash=before_hash), self.assertRaises(ValueError):
+                acceptance.validate(dict(record, reviewed_source_changes=[
+                    {"path": old, "before_sha256": before_hash, "after_sha256": digest}
+                ]), record["version"], record["source_commit"], record["build_run_id"])
+        self.assertFalse(acceptance.reviewable_path(new, reliability=True, revised_r=True, version="0.9.9"))
+
     def test_newpat_branding_still_requires_complete_exact_delta_review(self):
         fixture = MultiplatformResearchAcceptanceTests()
         fixture.setUp()

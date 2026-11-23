@@ -169,6 +169,21 @@ class EnginePackageTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, "preparazione"):
             helper.check_bundled_run(run, layout)
 
+    def test_rejected_snp_inputs_must_not_reach_the_bundled_r_caller(self):
+        with patch.object(sys, "path", [str(PROJECT_ROOT / "scripts"), *sys.path]):
+            import verify_engine_package as verifier
+        output = self.root / "output"
+        output.mkdir()
+        verifier.check_snp_rejected_before_r("samtools failed", output)
+        source = (self.root / "scientific" / engine.SCRIPT_PATHS["snp-call"]).read_text(encoding="utf-8")
+        marker = ">> SNPcall 2.0 started"
+        self.assertIn(f'cat("{marker}\\n")', source)
+        with self.assertRaisesRegex(ValueError, "reached R"):
+            verifier.check_snp_rejected_before_r(f"engine\n{marker}\nerror", output)
+        (output / "partial.tsv").touch()
+        with self.assertRaisesRegex(ValueError, "output"):
+            verifier.check_snp_rejected_before_r("samtools failed", output)
+
     def test_snp_plan_accepts_anonymous_scratch_without_relaxing_input_isolation(self):
         from nipat.paths import ProjectLayout
 

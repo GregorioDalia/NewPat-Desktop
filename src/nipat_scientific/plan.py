@@ -96,7 +96,7 @@ def _table_reference(value: object, samples: dict, step_ids: set[str],
     producer = _identifier(value["step"], f"{consumer} producer")
     if producer not in step_ids:
         _fail("plan.step_missing", f"{consumer}: unknown producer {producer}.")
-    if value["output"] not in {"dnp-tables", "snp-tables"}:
+    if value["output"] not in ("dnp-tables", "snp-tables"):
         _fail("plan.output_kind", f"{consumer}: only dnp-tables and snp-tables are compatible with this input.")
     sample = _identifier(value["sample"], f"{consumer} output sample")
     dependencies[consumer].add(producer)
@@ -201,6 +201,8 @@ def validate_plan(document: object) -> dict:
         marker_type = parameters.pop("marker_type", None)
         if marker_type is not None and (not isinstance(marker_type, str) or marker_type not in {"SNP", "DNP"}):
             _fail("plan.marker_type", f"{identifier}: marker_type must be SNP or DNP.")
+        if marker_type is not None and workflow in {"snp-call", "dnp-call"} and workflow != f"{marker_type.lower()}-call":
+            _fail("plan.marker_type", f"{identifier}: declared marker type differs from the caller.")
         if scientific_settings is not None:
             from nipat_scientific.settings import normalize_settings
             try:

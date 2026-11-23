@@ -311,7 +311,7 @@ class JobManager:
                                                 job.prepared.scientific_settings)
             stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
             run_dir = workflows.analyze(caller=job.prepared.draft["caller"], analyses=[],
-                                        run_name=f"analisi-{stamp}-{job.id[:8]}",
+                                        run_name=f"analysis-{stamp}-{job.id[:8]}",
                                         **deepcopy(job.prepared.inputs))
             with job.lock:
                 job.run_dir = Path(run_dir)

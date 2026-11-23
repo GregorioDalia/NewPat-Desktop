@@ -300,10 +300,16 @@ def run_validated_request(request: dict, script: Path, native_arguments: list[st
                 progress_state["outcome"] = "failed"
         if code or cancellation.signum is not None:
             return cancellation.exit_code if cancellation.signum is not None else code
-        with phase("output-validation", workflow=request["workflow"]):
+        with phase("output-validation", workflow=request["workflow"]) as validation_state:
             artifacts = validate_standalone_outputs(request)
-        with phase("presentation-finalization", workflow=request["workflow"]):
+            if cancellation.signum is not None:
+                validation_state["outcome"] = "cancelled"
+                return cancellation.exit_code
+        with phase("presentation-finalization", workflow=request["workflow"]) as presentation_state:
             presentation = finish_presentation(request, Path(request["out_dir"]).parent)
+            if cancellation.signum is not None:
+                presentation_state["outcome"] = "cancelled"
+                return cancellation.exit_code
         if presentation is not None:
             artifacts["presentation"] = presentation
         report = Path(request["work_dir"]) / "scientific-validation.json"

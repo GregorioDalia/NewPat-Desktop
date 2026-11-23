@@ -155,6 +155,21 @@ class FiveModuleClientTests(unittest.TestCase):
         self.assertTrue({"pairs", "trios", "dnp_popfreq", "snp_popfreq", "dnp_cpin_panel", "snp_cpi_cutoffs"} <= keys)
         self.assertTrue({"dnp_cpi_cutoffs", "snp_cpin_panel", "dnp_contamination_panel"}.isdisjoint(keys))
 
+    def test_editing_review_collects_new_fields_exposed_by_nested_choices(self):
+        # Start with caller-only BAMs. Enabling per-marker analyses reveals two
+        # switches; enabling SNP Contamination then reveals its optional panel.
+        form = AnalysisForm("1", Mock(), self.layout, 0.001)
+        form.values.update(source="bam", marker="both", analyses="0", samples=self.bams,
+                           reference=self.reference, dnp_panel=self.dnp_panel,
+                           snp_panel=self.snp_panel, run_name="reviewed")
+        form.ui.menu.side_effect = ["8", "0", "1"]
+        form.ui.prompt.return_value = ""
+        index = next(i for i, field in enumerate(form.fields()) if field.key == "analyses")
+        form.collect(index, single=True)
+        self.assertEqual(form.arguments()["snp_analyses"], ["contamination"])
+        self.assertTrue(all(field.key in form.values for field in form.fields()))
+        self.assertIsNone(form.values["snp_contamination_panel"])
+
     def test_guided_table_workflow_only_passes_active_fields_and_samples(self):
         ui = Mock()
         form = AnalysisForm("1", ui, self.layout, 0.001)

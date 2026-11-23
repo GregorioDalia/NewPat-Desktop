@@ -7,7 +7,7 @@ helper <- file.path(root, "src/nipat_scientific/parallel.R")
 
 main <- function() {
   variables <- c("NIPAT_EXECUTION_MODE", "NIPAT_MAX_WORKERS", "NIPAT_CPU_LIMIT",
-                 "NIPAT_MEMORY_LIMIT_MIB", "NIPAT_DNP_BLOCK_BYTES",
+                 "NIPAT_MEMORY_LIMIT_MIB", "NIPAT_DNP_BLOCK_BYTES", "NIPAT_DNP_SMALL_ARM_GUEST",
                  "NIPAT_PARALLEL_CHILD", "NIPAT_PARALLEL_LOG_DIR", "NIPAT_FIXED_RESOURCE_BUDGET")
   previous <- Sys.getenv(variables, unset = NA_character_)
   on.exit(for (name in names(previous)) {
@@ -131,6 +131,15 @@ main <- function() {
   target <- fixed$nipat_dnp_target_bytes(32 * MiB)
   check(target > 0 && target < 32 * MiB)
   check(fixed$nipat_dnp_target_bytes(1 * MiB) == 1 * MiB)
+  Sys.setenv(NIPAT_DNP_SMALL_ARM_GUEST = "1")
+  check(fixed$nipat_dnp_r_workers() == 2L)
+  check(fixed$nipat_dnp_target_bytes(32 * MiB) > target)
+  check(fixed$nipat_parallel_budget(8, memory_mib = 512, workers = fixed$nipat_dnp_r_workers())$workers == 2L)
+  check(fixed$nipat_parallel_budget(8, memory_mib = 512)$workers == 4L)
+  Sys.setenv(NIPAT_MAX_WORKERS = "3")
+  check(is.null(fixed$nipat_dnp_r_workers()))
+  check(fixed$nipat_parallel_budget(8, memory_mib = 512, workers = fixed$nipat_dnp_r_workers())$workers == 3L)
+  Sys.unsetenv(c("NIPAT_DNP_SMALL_ARM_GUEST", "NIPAT_MAX_WORKERS"))
   Sys.setenv(NIPAT_EXECUTION_MODE = "serial")
   check(fixed$nipat_dnp_target_bytes(32 * MiB) == 32 * MiB)
   Sys.unsetenv("NIPAT_EXECUTION_MODE")

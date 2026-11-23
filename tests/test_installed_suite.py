@@ -81,6 +81,25 @@ class InstalledSuiteTests(unittest.TestCase):
         self.assertEqual(Path(command[command.index("-File") + 1]),
                          self.app.resolve() / "scripts/windows/run.ps1")
 
+    def test_integrity_observes_the_selected_zip_installations_preferences(self):
+        installation = self.root / "local-zip"
+        project = installation / "versions" / ("0.9.10-" + "a" * 40)
+        self.write(installation / "installation.json",
+                   {"schema_version": 1, "product": "nipat-desktop", "installation_method": "zip"})
+        self.write(project / ".runtime" / "zip-install.json",
+                   {"schema_version": 1, "installation_method": "zip", "root": str(installation)})
+        preferences = installation / "preferences.json"
+        self.write(preferences, {"profile": "before"})
+        with patch.object(suite.sys, "platform", "win32"), patch.dict(
+            os.environ, {"NIPAT_PROJECT_DIR": str(project), "LOCALAPPDATA": str(self.root),
+                         "NIPAT_SETTINGS_FILE": ""}
+        ):
+            self.driver.snapshot_installation()
+        self.assertIn(str(preferences), self.driver.identity_before)
+        self.write(preferences, {"profile": "after"})
+        self.driver.integrity()
+        self.assertEqual(self.driver.report["checks"][-1]["status"], "FAIL")
+
     def test_installed_release_identity_is_explicit_and_mismatches_fail_before_science(self):
         version, commit = "0.8.60", "c" * 40
         driver = suite.Suite(self.app, self.root / "new-release", commit,

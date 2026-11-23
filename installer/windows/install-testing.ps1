@@ -128,7 +128,8 @@ function Assert-TestingRoot([string]$Root) {
     }
 }
 
-function Get-TestingInstallRoot([string]$DownloadDirectory, [bool]$DefaultDestination) {
+function Get-TestingInstallRoot([string]$DownloadDirectory, [bool]$DefaultDestination,
+        [string]$ExpectedVersion = '', [string]$ExpectedSource = '') {
     if ($DefaultDestination) {
         $base = Join-Path $env:LOCALAPPDATA 'NIPAT-Testing'
         $root = Join-Path $base 'NIPAT'
@@ -142,6 +143,25 @@ function Get-TestingInstallRoot([string]$DownloadDirectory, [bool]$DefaultDestin
         if (-not (Test-Path -LiteralPath $root) -and (Test-Path -LiteralPath $legacy)) { $root = $legacy }
     }
     Assert-TestingRoot $root
+    $testingMarker = Join-Path $root 'testing.json'
+    if (Test-Path -LiteralPath $testingMarker) {
+        Assert-PlainPath $testingMarker
+        $testing = Get-Content -LiteralPath $testingMarker -Raw -Encoding UTF8 | ConvertFrom-Json
+        if (@($testing.PSObject.Properties).Count -ne 2 -or $testing.schema_version -ne 1 -or $testing.channel -cne 'testing') {
+            throw 'Identita Testing della destinazione non valida.'
+        }
+    } else {
+        foreach ($name in @('current.json', 'pending.json')) {
+            $path = Join-Path $root $name
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { continue }
+            $pointer = Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json
+            # The original 0.9.0 Testing installer used this unmarked layout.
+            # A newer first installation can stop before its marker is written.
+            if (($root -ieq $legacy -and $pointer.version -ceq '0.9.0') -or
+                ($ExpectedVersion -and $pointer.version -ceq $ExpectedVersion -and $pointer.source_commit -ceq $ExpectedSource)) { continue }
+            throw 'La destinazione contiene una installazione ZIP diversa. Scegliere una cartella separata per NewPat Testing.'
+        }
+    }
     return $root
 }
 
@@ -189,7 +209,7 @@ try {
         $process = Start-Process -FilePath $setup -ArgumentList $arguments -Wait -PassThru
         exit $process.ExitCode
     }
-    $root = Get-TestingInstallRoot $destination $defaultDestination
+    $root = Get-TestingInstallRoot $destination $defaultDestination $version $metadata.source_commit
     $currentPath = Join-Path $root 'current.json'
     $pendingPath = Join-Path $root 'pending.json'
     if ((Test-Path -LiteralPath $currentPath) -and -not (Test-Path -LiteralPath $pendingPath)) {
@@ -207,7 +227,7 @@ try {
         $pending = Get-Content -LiteralPath $pendingPath -Raw -Encoding UTF8 | ConvertFrom-Json
         if ($pending.version -ceq $version -and $pending.source_commit -ceq $metadata.source_commit) { $resumeProject = $pending.app_dir }
     }
-    $bundle = Join-Path $destination 'pacchetto'
+    $bundle = Join-Path $destination 'bundle'
     $powershell = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
     if ($resumeProject) {
         Write-Host 'Ripresa automatica della preparazione gia iniziata...'

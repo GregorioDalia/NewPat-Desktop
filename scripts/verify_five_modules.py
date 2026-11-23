@@ -326,15 +326,19 @@ def check_worker_limits(path, cap):
         events.extend(json.loads(line) for line in item.read_text().splitlines() if line.strip())
     plans = [event for event in events if event["event"] == "plan"]
     require(plans, "Candidate did not record its parallel budget")
-    budget_fields = ("coordinator_pid", "label", "workers", "tasks", "mode", "cpu_limit", "memory_worker_limit")
-    declared = {tuple(plan[key] for key in budget_fields) for plan in plans}
+    budget_fields = ("workers", "tasks", "mode", "cpu_limit", "memory_worker_limit")
     for plan in plans:
         require(type(plan["workers"]) is int and type(plan["tasks"]) is int
                 and plan["tasks"] >= 0 and plan["workers"] >= 1
                 and (cap is None or plan["workers"] <= cap),
                 "Worker budget exceeded the requested limit")
-        require(plan["workers"] <= min(math.ceil(plan["cpu_limit"]), plan["memory_worker_limit"], max(1, plan["tasks"])),
+        cpu, memory = plan.get("cpu_limit"), plan.get("memory_worker_limit")
+        require(type(cpu) in (int, float) and 0 < cpu < math.inf
+                and type(memory) in (int, float) and 1 <= memory < math.inf,
+                "Missing or invalid CPU/memory limits in worker plan")
+        require(plan["workers"] <= min(math.ceil(cpu), memory, max(1, plan["tasks"])),
                 "Worker budget exceeded available CPU/memory/tasks")
+    current_budgets = {}
     pending, completed, children = {}, set(), set()
     generations, expected = {}, set()
     peak = 0
@@ -345,16 +349,16 @@ def check_worker_limits(path, cap):
             # Task indices are unique within that invocation, not process-wide.
             generation = generations.get(plan_key, 0) + 1
             generations[plan_key] = generation
+            current_budgets[plan_key] = tuple(event[field] for field in budget_fields)
             expected.update((generation, *plan_key, index)
                             for index in range(1, event["tasks"] + 1))
             continue
         if event["event"] not in {"task-start", "task-end"}:
             continue
-        require(tuple(event[key] for key in budget_fields) in declared,
+        require(tuple(event[field] for field in budget_fields) == current_budgets.get(plan_key),
                 "Scientific task has no matching resource plan")
         require(type(event["task_index"]) is int and 1 <= event["task_index"] <= event["tasks"],
                 "Scientific task index is outside its resource plan")
-        require(plan_key in generations, "Scientific task occurred before its resource plan")
         key = (generations[plan_key], *plan_key, event["task_index"])
         if event["event"] == "task-start":
             require(key not in pending and key not in completed, "Duplicated scientific task start")

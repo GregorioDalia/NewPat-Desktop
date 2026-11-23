@@ -150,6 +150,23 @@ class StandaloneProgressTests(unittest.TestCase):
         self.assertIn("NIPAT scientific engine:", self.errors.getvalue())
         self.assertEqual(self.events(), [])
 
+    def test_cancellation_during_output_validation_cannot_report_success(self):
+        import signal
+        request = {"workflow": "snp-call", "work_dir": str(self.root), "out_dir": str(self.root / "output")}
+
+        def cancel_after_r(*_args):
+            signal.raise_signal(signal.SIGTERM)
+            return {}
+
+        with patch("nipat_scientific.presentation.prepare_presentation", return_value=[]), \
+                patch("nipat_scientific.executor._run_process", return_value=0), \
+                patch("nipat_scientific.outputs.validate_standalone_outputs", side_effect=cancel_after_r), \
+                patch("nipat_scientific.presentation.finish_presentation") as finish:
+            result = self.engine.run_validated_request(request, Path("snp.R"), [])
+        self.assertEqual(result, 128 + signal.SIGTERM)
+        finish.assert_not_called()
+        self.assertFalse((self.root / "scientific-validation.json").exists())
+
     def test_r_nonzero_and_cancellation_events_match_real_exit_outcome(self):
         import signal
         request = {"workflow": "snp-call", "work_dir": str(self.root), "out_dir": str(self.root / "output")}

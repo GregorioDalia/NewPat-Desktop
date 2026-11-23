@@ -73,13 +73,21 @@ nipat_dnp_index <- function(path, empty_samples = NULL) {
        elapsed_seconds = unname(proc.time()[["elapsed"]] - started))
 }
 
+# On the measured 8 GiB Apple Silicon host / 4 GiB guest, two R workers
+# outperformed four at high depth. Acquisition has its own memory model.
+nipat_dnp_r_workers <- function() {
+  if (identical(Sys.getenv("NIPAT_DNP_SMALL_ARM_GUEST"), "1") &&
+      !nzchar(Sys.getenv("NIPAT_MAX_WORKERS"))) 2L else NULL
+}
+
 nipat_dnp_target_bytes <- function(requested, tasks = .Machine$integer.max) {
   if (identical(Sys.getenv("NIPAT_EXECUTION_MODE", "auto"), "serial") ||
       !exists("nipat_parallel_budget", mode = "function")) return(requested)
   # Keep useful work in each fork: an additional parallel lane can justify
   # smaller blocks, but never size every block for the machine's CPU ceiling.
   # Half the requested grain bounds the fragmentation incurred for parallelism.
-  budget <- nipat_parallel_budget(tasks, memory_mib = nipat_dnp_estimate_mib(requested / 2))
+  budget <- nipat_parallel_budget(tasks, memory_mib = nipat_dnp_estimate_mib(requested / 2),
+                                  workers = nipat_dnp_r_workers())
   remaining <- budget$memory_budget_mib - budget$coordinator_rss_mib
   if (!length(remaining) || !is.finite(remaining)) return(requested)
   full_block <- nipat_dnp_estimate_mib(requested)
@@ -89,7 +97,8 @@ nipat_dnp_target_bytes <- function(requested, tasks = .Machine$integer.max) {
     # of the available memory. Coarsening those jobs left usable cores idle.
     # A short job can still use the coarser plan when it has too few tasks
     # at the requested size to keep the finer-grained pool busy.
-    fine <- nipat_parallel_budget(.Machine$integer.max, memory_mib = nipat_dnp_estimate_mib(1))
+    fine <- nipat_parallel_budget(.Machine$integer.max, memory_mib = nipat_dnp_estimate_mib(1),
+                                  workers = nipat_dnp_r_workers())
     if (tasks >= fine$workers) {
       workers <- fine$workers
       remaining <- fine$memory_budget_mib - fine$coordinator_rss_mib
@@ -290,7 +299,7 @@ nipat_dnp_run_block <- function(index, block, labels, ref_alt, compute, columns 
 
 nipat_dnp_process_blocks <- function(index, plan, labels, ref_alt, compute,
                                      progress = function(...) invisible(NULL),
-                                     workers = NULL) {
+                                     workers = nipat_dnp_r_workers()) {
   started <- proc.time()[["elapsed"]]
   run_block <- function(number) {
     nipat_dnp_run_block(index, plan$blocks[[number]], labels, ref_alt, compute)
@@ -316,7 +325,7 @@ nipat_dnp_process_blocks <- function(index, plan, labels, ref_alt, compute,
 # including when the sample count is smaller or larger than the shared budget.
 nipat_dnp_process_samples <- function(index, plan, labels, ref_alt, computations,
                                       progress = function(...) invisible(NULL),
-                                      workers = NULL, columns = NULL) {
+                                      workers = nipat_dnp_r_workers(), columns = NULL) {
   started <- proc.time()[["elapsed"]]
   sample_count <- length(computations)
   block_count <- length(plan$blocks)

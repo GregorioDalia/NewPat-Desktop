@@ -32,7 +32,9 @@ LEGACY_COMMAND = "nipat"
 APP_PATH = Path("opt") / PACKAGE
 LAUNCH_SOURCE = "installer/linux/launch.py"
 ACTIVITY_DIRECTORY = "/var/lib/nipat-desktop"
-ICON_SOURCE = "assets/branding/nipat-symbol.svg"
+ICON_SOURCE = "assets/branding/newpat-app-icon.svg"
+SMALL_ICON_SOURCE = "assets/branding/newpat-app-icon-small.svg"
+THEME_ICONS = {"scalable": ICON_SOURCE, "16x16": SMALL_ICON_SOURCE, "24x24": SMALL_ICON_SOURCE}
 BUILD_RECORD = "linux-installer-build.json"
 DEPENDENCIES = (
     "python3.12 (>= 3.12), python3.12 (<< 3.13), "
@@ -83,7 +85,7 @@ def verified_inputs(project: Path, manifest_path: Path, *, require_clean: bool =
     hashes = {path.relative_to(project).as_posix(): bundle.sha256_file(path) for path in files}
     if hashes != manifest.get("source_sha256"):
         raise ValueError("I sorgenti non corrispondono al manifest compilato in CI.")
-    if not {LAUNCH_SOURCE, ICON_SOURCE, "LICENSE", "THIRD_PARTY_NOTICES.md"}.issubset(hashes):
+    if not {LAUNCH_SOURCE, *THEME_ICONS.values(), "LICENSE", "THIRD_PARTY_NOTICES.md"}.issubset(hashes):
         raise ValueError("Il manifest dei sorgenti deve includere il launcher Linux, l'icona e le licenze.")
     entry = manifest["assets"]["scientific_image"]
     archive = manifest_path.parent / entry["file"]
@@ -100,7 +102,7 @@ def write_file(path: Path, contents: str | bytes, *, executable: bool = False) -
     path.chmod(0o755 if executable else 0o644)
 
 
-def generated_files(manifest: dict, manifest_bytes: bytes) -> dict[str, tuple[bytes, int]]:
+def generated_files(project: Path, manifest: dict, manifest_bytes: bytes) -> dict[str, tuple[bytes, int]]:
     """Return the small generated payloads, including their required file modes."""
     release = {
         "schema_version": 1,
@@ -124,9 +126,16 @@ def generated_files(manifest: dict, manifest_bytes: bytes) -> dict[str, tuple[by
         "[Desktop Entry]\nType=Application\nName=NewPat\n"
         "Comment=Local scientific analysis with the NewPat desktop interface\n"
         f"Exec=/usr/bin/{COMMAND} --desktop\nTryExec=/usr/bin/{COMMAND}\n"
-        f"Terminal=false\nIcon=/{APP_PATH.as_posix()}/{ICON_SOURCE}\nCategories=Science;Biology;\n"
+        f"Terminal=false\nIcon={PACKAGE}\nCategories=Science;Biology;\n"
     )
+    artwork = {}
+    for size, source in THEME_ICONS.items():
+        contents = (project / source).read_bytes()
+        if hashlib.sha256(contents).hexdigest() != manifest["source_sha256"][source]:
+            raise ValueError(f"Icon source differs from its manifest: {source}")
+        artwork[f"usr/share/icons/hicolor/{size}/apps/{PACKAGE}.svg"] = (contents, 0o644)
     return {
+        **artwork,
         f"{APP_PATH.as_posix()}/.distribution/{assets.MANIFEST_NAME}": (manifest_bytes, 0o644),
         f"{APP_PATH.as_posix()}/release.json": ((json.dumps(release, indent=2) + "\n").encode(), 0o644),
         f"usr/bin/{COMMAND}": (launcher.encode(), 0o755),
@@ -212,7 +221,7 @@ def stage_package(project: Path, stage: Path, manifest: dict, manifest_bytes: by
         target.chmod(0o644)
         if bundle.sha256_file(target) != manifest["source_sha256"][relative.as_posix()]:
             raise ValueError(f"Sorgente cambiato durante la preparazione: {relative}")
-    for name, (contents, mode) in generated_files(manifest, manifest_bytes).items():
+    for name, (contents, mode) in generated_files(project, manifest, manifest_bytes).items():
         write_file(stage / name, contents, executable=mode == 0o755)
     target_archive = app / ".distribution" / archive.name
     shutil.copyfile(archive, target_archive)
@@ -289,7 +298,7 @@ def verify_package(package: Path, manifest_path: Path, project: Path) -> dict:
             source.stat().st_size, 0o644,
         ) for source in sources
     }
-    for path, (contents, mode) in generated_files(manifest, manifest_bytes).items():
+    for path, (contents, mode) in generated_files(project, manifest, manifest_bytes).items():
         if path in expected:
             raise ValueError("Un sorgente approvato collide con un file generato.")
         expected[path] = (hashlib.sha256(contents).hexdigest(), len(contents), mode)

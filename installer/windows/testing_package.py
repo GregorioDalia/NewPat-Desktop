@@ -15,11 +15,11 @@ from nipat.branding import windows_complete_filename, windows_package_generation
 
 def sources(version):
     if windows_package_generation(version) == 1:
-        launcher, readme = "INSTALLA-NewPat-TESTING.cmd", "LEGGIMI.txt"
-    else:
-        launcher, readme = "INSTALL-NewPat-Testing.cmd", "README.txt"
-    return {launcher: "testing-install.cmd", "install-testing.ps1": "install-testing.ps1",
-            readme: "testing-readme.txt", "install-profile.ps1": "install-profile.ps1"}
+        return {"INSTALLA-NewPat-TESTING.cmd": "testing-install.cmd", "LEGGIMI.txt": "testing-readme.txt",
+                "install-testing.ps1": "install-testing.ps1"}
+    return {"INSTALL-NewPat-Testing.cmd": "testing-install.cmd", "README.txt": "testing-readme.txt",
+            "install-testing.ps1": "install-testing.ps1", "install-profile.ps1": "install-profile.ps1",
+            "install-layout.ps1": "install-layout.ps1"}
 
 
 def digest(path):

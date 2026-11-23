@@ -174,6 +174,7 @@ class WorkflowPlanTests(unittest.TestCase):
         for reference, code in (
             ({"step": "missing", "output": "dnp-tables", "sample": "mother_a"}, "plan.step_missing"),
             ({"step": "snp", "output": "dnp-tables", "sample": "mother_a"}, "plan.output_kind"),
+            ({"step": "dnp", "output": [], "sample": "mother_a"}, "plan.output_kind"),
             ({"step": "dnp", "output": "summary", "sample": "mother_a"}, "plan.output_kind"),
             ({"step": "dnp", "output": "dnp-tables", "sample": "missing"}, "plan.output_sample"),
             ({"sample": "mother_a"}, "plan.sample_kind"),
@@ -182,6 +183,15 @@ class WorkflowPlanTests(unittest.TestCase):
                 plan = example_plan()
                 plan["steps"][2]["inputs"]["samples"] = [reference]
                 self.assert_invalid(plan, code)
+
+    def test_caller_marker_must_match_its_output(self):
+        for index, expected, opposite in ((1, "DNP", "SNP"), (3, "SNP", "DNP")):
+            with self.subTest(marker=expected):
+                plan = example_plan()
+                plan["steps"][index]["parameters"]["marker_type"] = expected
+                validate_plan(plan)
+                plan["steps"][index]["parameters"]["marker_type"] = opposite
+                self.assert_invalid(plan, "plan.marker_type")
 
     def test_dependency_cycles_and_self_references_are_rejected(self):
         plan = example_plan()

@@ -302,10 +302,21 @@ def run_verification(report_path, executable):
                 page.goto(app.server.url)
                 probe.wait("document.documentElement.dataset.nipatReady==='true'")
                 check(page.locator("#version").inner_text().startswith(__version__), "Displayed application version matches source")
+                check(page.locator('.brand img[alt="NewPat"]').evaluate("el => el.complete && el.naturalWidth === 406"),
+                      "Desktop displays the packaged Intreccio vector wordmark")
+                check(page.locator('main [data-view="new"]').count() == 1,
+                      "Home has one create-experiment action above the recent experiments")
+                home = report_path.parent / "home.png"
+                page.screenshot(path=str(home), full_page=True)
+                evidence["screenshots"].append(home.name)
                 verify_language_controls(page, probe, service, check)
                 page.locator('[data-action="navigate"][data-view="activity"]').click()
                 page.wait_for_selector('[data-job-card] .dna-rung')
                 check(page.locator('.dna-rung').count() == 10, "Recognizable DNA helix contains ten rungs")
+                check(page.locator('.job-progress .helix').evaluate("el => el.offsetWidth === 40 && el.offsetHeight === 44"),
+                      "The running experiment has a compact 40 by 44 pixel helix")
+                check(page.locator('.job-header .badge.in-progress svg[aria-hidden="true"]').count() == 1,
+                      "Running status includes a distinct icon and readable status label")
                 probe.evaluate("window.__qaDna=document.querySelector('.dna-loader');window.__qaAnimation=window.__qaDna.querySelector('.dna-rung').getAnimations()[0]")
                 progress = probe.evaluate("() => {const node=document.querySelector('.progress-track span');return {inline:node.style.width,width:node.getBoundingClientRect().width}}")
                 check(not progress["inline"] and progress["width"] > 0, "Unknown progress band is visible without zero-width override")
@@ -421,12 +432,6 @@ def run_verification(report_path, executable):
                     page.locator('[data-action="navigate"][data-view="archive"]').click()
                     page.locator(f'[data-action="open-run"][data-id="{module}-curve-ui-fixture"]').click()
                     page.locator(f'[role="tab"][data-action="result-module"][data-module="{module}|DNP"]').click()
-                    if module == "cpin":
-                        check(page.locator('.postnatal-index strong').inner_text() == "0.00046474155109453",
-                              "Postnatal CPI initially displays the recorded numerical index")
-                        check(page.locator('.interactive-curve').count() == 0,
-                              "Postnatal threshold plots are optional")
-                        page.locator('[data-action="postnatal-curves"]').click()
                     page.wait_for_selector('.interactive-curve .curve-point')
                     curve_id = probe.evaluate("NipatApp.state.curves[0].file.id")
                     curve_selector = f'.results-body [data-action="curve-mode"][data-id="{curve_id}"]'

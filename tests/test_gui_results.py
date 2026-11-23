@@ -375,7 +375,10 @@ def test_export_roundtrip_preserves_scientific_identity_details_and_warnings(arc
     application = DesktopApplication.__new__(DesktopApplication)
     application.host = SimpleNamespace(save_file=lambda *_: destination)
     application.service = SimpleNamespace(_results=lambda: store)
-    application.export_run({"run_id": "example"})
+    from unittest.mock import patch
+    with patch.object(store, "_file_descriptors", wraps=store._file_descriptors) as inventory:
+        application.export_run({"run_id": "example"})
+        assert inventory.call_count == 1
     restored_root = tmp_path / "restored"
     restored = restored_root / "example"
     with zipfile.ZipFile(destination) as exported:

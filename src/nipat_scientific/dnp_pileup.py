@@ -12,7 +12,7 @@ The unbudgeted API retains the 0.8.12 acquisition path for regression comparison
 from __future__ import annotations
 
 import argparse
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 import json
 import math
 import os
@@ -275,7 +275,7 @@ def _chromosomes(bams, samples, bed, reference, staging, samtools, cancellation,
     return selected, "indexed-chromosomes"
 
 
-def _parallel_chromosomes(contigs, command, staging, output, cancellation, document, metadata, *, monitor=None, inputs=()):
+def _parallel_chromosomes(contigs, command, staging, output, cancellation, document, metadata, *, monitor=None, inputs=(), stream_serial=False):
     """Bound actual samtools processes, then concatenate complete chromosomes."""
     workers = document["parallel"]["workers"]
     active = {}
@@ -287,8 +287,12 @@ def _parallel_chromosomes(contigs, command, staging, output, cancellation, docum
             while next_index < len(contigs) and len(active) < workers:
                 cancellation.check()
                 index, contig = next_index, contigs[next_index]
-                path = staging / f"chromosome-{index:06d}.pileup"
-                paths.append(path)
+                # With one worker each child already follows dictionary order.
+                # Its output can go straight into the caller's unpublished file.
+                path = None
+                if not stream_serial or workers != 1:
+                    path = staging / f"chromosome-{index:06d}.pileup"
+                    paths.append(path)
                 record = {"stage": "mpileup-chromosome", "task_index": index + 1,
                           "contig": contig, "pid": None, "started_at_unix": time.time(),
                           "finished_at_unix": None, "elapsed_seconds": None,
@@ -296,7 +300,7 @@ def _parallel_chromosomes(contigs, command, staging, output, cancellation, docum
                 document["processes"].append(record)
                 started = time.monotonic()
                 try:
-                    with path.open("xb") as handle:
+                    with (path.open("xb") if path is not None else nullcontext(output)) as handle:
                         process = subprocess.Popen([*command, "-r", contig, *inputs],
                                                    stdin=subprocess.DEVNULL, stdout=handle)
                 except BaseException:
@@ -392,7 +396,11 @@ def _budgeted_acquisition(bams, samples, bed, reference, staging, output, cancel
     with progress.phase("dnp-indexed-pileup" if contigs else "dnp-pileup",
                         workflow="dnp-call", sample_ids=sample_ids):
         if contigs:
-            _parallel_chromosomes(contigs, command, staging, output, cancellation, document, metadata)
+            stream_serial = os.environ.get("NIPAT_DNP_SMALL_ARM_GUEST") == "1" and parallel["workers"] == 1
+            if stream_serial:
+                parallel["output_strategy"] = "direct-dictionary-order"
+            _parallel_chromosomes(contigs, command, staging, output, cancellation, document,
+                                  metadata, stream_serial=stream_serial)
         else:
             _tracked_execute(command, output, cancellation, document, {"stage": "mpileup"})
 

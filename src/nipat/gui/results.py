@@ -23,6 +23,7 @@ from typing import Iterator
 from nipat.execution.tracking import (
     WORKFLOW_STEPS, read_run_metadata, read_run_status, read_workflow_state, workflow_steps,
 )
+from nipat.preferences import settings_file_lock
 from nipat.run_report import original_basename, sample_rows
 
 MODULE_LABELS = {
@@ -328,7 +329,7 @@ class ResultsStore:
                  status_observer=None):
         self.root = Path(results_root).expanduser().resolve()
         self.language = "en" if language == "en" else "it"
-        self.registry_path = Path(registry_path).resolve() if registry_path else self.root / "gui-imports.json"
+        self.registry_path = Path(registry_path).expanduser().absolute() if registry_path else self.root / "gui-imports.json"
         self._stats_cache: dict[tuple, dict] = {}
         self.status_observer = status_observer
         self._lock = threading.RLock()
@@ -389,10 +390,23 @@ class ResultsStore:
 
     def hide_path(self, path: Path):
         """Record a verified archive or session job path without changing its files."""
-        with self._lock:
+        with settings_file_lock(self.registry_path):
             value = self._registry()
             value["hidden"] = sorted(set(value["hidden"]) | {str(path)})
             self._write_registry(value)
+
+    def forget_missing_import(self, run_id):
+        """Allow dismissal of a registered location after its data was moved."""
+        if not isinstance(run_id, str) or not run_id.startswith("imported-"):
+            return False
+        with settings_file_lock(self.registry_path):
+            registry = self._registry()
+            registered = registry["imports"].get(run_id)
+            if registered is None or (Path(registered) / "run.json").is_file():
+                return False
+            del registry["imports"][run_id]
+            self._write_registry(registry)
+            return True
 
     def register_run(self, path: Path | str) -> dict:
         """Register a user-selected run/archive in place; copy no input/output data.
@@ -400,18 +414,11 @@ class ResultsStore:
         The host must call this only for an explicitly selected native directory.
         Registration grants read access solely to run-owned files discovered here.
         """
-        with self._lock:
-            return self._register_run(path)
-
-    def _register_run(self, path: Path | str) -> dict:
         selected = Path(path).expanduser()
         if _is_link(selected) or not selected.is_dir():
             raise ValueError("Seleziona una cartella di esperimenti esistente, non un collegamento.")
         selected = selected.resolve()
-        registry = self._registry()
-        records = registry["imports"]
-        hidden = set(registry["hidden"])
-        imported = []
+        imported = {}
         for directory, directories, files in os.walk(selected, followlinks=False):
             current = Path(directory)
             directories[:] = [name for name in sorted(directories) if not _is_link(current / name)
@@ -425,14 +432,18 @@ class ResultsStore:
                 identifier = current.relative_to(self.root).as_posix()
             else:
                 identifier = "imported-" + hashlib.sha256(str(current).encode("utf-8")).hexdigest()[:32]
-                records[identifier] = str(current)
-            imported.append(identifier)
-            hidden.discard(str(current))
+            imported[identifier] = str(current)
         if not imported:
             raise ValueError("La cartella non contiene esperimenti NewPat con run.json.")
-        registry.update(imports=records, hidden=sorted(hidden))
-        self._write_registry(registry)
-        return {"imported": imported, "count": len(imported)}
+        # Other application windows may import or dismiss cards sharing this
+        # registry. Hold the sidecar lock only for the read/merge/write.
+        with settings_file_lock(self.registry_path):
+            registry = self._registry()
+            registry["imports"].update({key: value for key, value in imported.items()
+                                        if not Path(value).is_relative_to(self.root)})
+            registry["hidden"] = sorted(set(registry["hidden"]) - set(imported.values()))
+            self._write_registry(registry)
+        return {"imported": list(imported), "count": len(imported)}
 
     @staticmethod
     def _page(offset, limit):
@@ -481,7 +492,9 @@ class ResultsStore:
             try:
                 item = self._run_record(identifier)
             except (OSError, ValueError, KeyError, TypeError) as exc:
-                item = {"id": identifier, "name": "Esperimento importato non disponibile", "status": "unreadable",
+                item = {"id": identifier, "name": _translation(("Esperimento importato non disponibile",
+                        "Imported experiment unavailable"), self.language), "status": "unreadable",
+                        "can_remove": not (Path(imported_path) / "run.json").is_file(),
                         "workflow": None, "started_at": None, "finished_at": None, "version": None,
                         "samples": [], "modules": [], "markers": [], "warning": str(exc)}
             searchable = " ".join([item["name"], *(s["label"] for s in item["samples"]), *(s["id"] for s in item["samples"])])
@@ -570,6 +583,44 @@ class ResultsStore:
         return {"run": run, "metadata": metadata, "parameters": parameters, "samples": samples, "gui": gui,
                 "steps": steps, "documents": documents, "warnings": warnings, "observation": observation}
 
+    @staticmethod
+    def _igv_sources(context):
+        def records(rows):
+            return (row for row in rows if isinstance(row, dict)) if isinstance(rows, list) else ()
+
+        draft = context["gui"].get("draft")
+        if isinstance(draft, dict):
+            reference, samples = draft.get("reference"), draft.get("samples")
+        else:
+            parameters = context["parameters"]
+            plan = parameters.get("plan")
+            if not isinstance(plan, dict):
+                return None, []
+            mounts = {row["container_path"]: row["host_path"]
+                      for row in records(context["metadata"].get("input_mounts"))
+                      if isinstance(row.get("container_path"), str) and isinstance(row.get("host_path"), str)}
+            references = set()
+            for step in records(plan.get("steps")):
+                inputs = step.get("inputs")
+                if step.get("workflow") in ("dnp-call", "snp-call") and isinstance(inputs, dict):
+                    path = inputs.get("reference")
+                    if isinstance(path, str) and path in mounts:
+                        references.add(mounts[path])
+            reference = next(iter(references)) if len(references) == 1 else None
+            bams = {row["id"] for row in records(plan.get("samples"))
+                    if row.get("kind") == "bam" and isinstance(row.get("id"), str)}
+            samples = [{"id": row.get("biological_id") or row["sample_id"],
+                        "path": row.get("original_path"), "kind": "bam"}
+                       for row in records(parameters.get("sample_mapping"))
+                       if isinstance(row.get("sample_id"), str) and row["sample_id"] in bams]
+        tracks = [{"name": row.get("id") or Path(row["path"]).name, "path": row["path"]}
+                  for row in records(samples) if row.get("kind") == "bam"
+                  and isinstance(row.get("path"), str) and row["path"]]
+        return reference if isinstance(reference, str) else None, tracks
+
+    def igv_sources(self, run_id):
+        return self._igv_sources(self._context(run_id))
+
     def _run_record(self, run_id, context=None):
         ctx = context or self._context(run_id)
         md, gui = ctx["metadata"], ctx["gui"]
@@ -585,10 +636,8 @@ class ResultsStore:
             "external_active": ("Il runtime segnala un’esecuzione ancora attiva, avviata fuori da questa sessione.", "The runtime reports an active run started outside this session."),
         }
         state["status_note"] = _translation(notes[state["status_reason"]], self.language) if state.get("status_reason") in notes else None
-        draft = gui.get("draft") or {}
-        has_igv_inputs = bool(isinstance(draft, dict) and draft.get("reference") and any(
-            isinstance(sample, dict) and sample.get("kind") == "bam" and sample.get("path")
-            for sample in draft.get("samples", [])))
+        reference, tracks = self._igv_sources(ctx)
+        has_igv_inputs = bool(reference and tracks)
         return {"id": run_id, "name": name, "workflow": md.get("workflow"), **state,
                 "has_igv_inputs": has_igv_inputs, "started_at": md.get("started_at"),
                 "finished_at": md.get("finished_at"), "version": md.get("source", {}).get("nipat_version"),
@@ -757,6 +806,12 @@ class ResultsStore:
 
     def files(self, run_id) -> list[dict]:
         return self._file_descriptors(run_id)
+
+    def export_paths(self, run_id) -> list[tuple[Path, str]]:
+        """Validate the in-scope files for one export using a single inventory."""
+        context = self._context(run_id)
+        return [(_scoped(context["run"], item["relative_path"], file=True), item["relative_path"])
+                for item in self._file_descriptors(run_id, context)]
 
     def _file(self, run_id, file_id):
         if not isinstance(file_id, str) or not re.fullmatch(r"[a-f0-9]{32}", file_id):

@@ -97,6 +97,8 @@ class PresentationTests(unittest.TestCase):
             report = finish_presentation(request, root)
             self.assertEqual(report["status"], "complete")
             index = (root / report["index"]["path"]).read_text(encoding="utf-8")
+            self.assertIn("<title>Risultati NewPat</title>", index)
+            self.assertIn("<h1>SNPcall</h1>", index)
             self.assertIn("&lt;script&gt;", index)
             self.assertNotIn("<script>", index)
             self.assertEqual(native.read_bytes(), before)
@@ -104,6 +106,18 @@ class PresentationTests(unittest.TestCase):
             with readable.open(encoding="utf-8", newline="") as handle:
                 rows = list(csv.reader(handle, delimiter="\t"))
             self.assertEqual(rows, [["Sample", "pos", "N_REF"], ["<script>alert(1)<.pileup", "1", "010"]])
+
+    def test_bad_late_row_discards_only_the_export_created_by_this_copy(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source, target = Path(tmp) / "source.tsv", Path(tmp) / "readable.tsv"
+            source.write_text("chr\tpos\n1\t123\n2\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValidationError, "Tabella non rettangolare"):
+                _copy_table(source, target, {}, sample="A")
+            self.assertFalse(target.exists())
+            target.write_text("previous result", encoding="utf-8")
+            with self.assertRaises(FileExistsError):
+                _copy_table(source, target, {}, sample="A")
+            self.assertEqual(target.read_text(encoding="utf-8"), "previous result")
 
     def test_resources_relabel_sample_without_changing_measurements(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -171,7 +185,7 @@ class PresentationTests(unittest.TestCase):
         bindings = [{"native_selection": "m001:f001", "pair": "family", "mother": {"sample": "b"}, "father": {"sample": "a"}}]
         cpi = step_presentation(plan, {"workflow": "cpi"}, {}, bindings)
         self.assertEqual(cpi["samples"], {"Motherm001": "B.bam", "Fatherf001": "A.bam"})
-        self.assertEqual(cpi["pairs"]["m001:f001"], "family — Madre: B.bam | Padre: A.bam")
+        self.assertEqual(cpi["pairs"]["m001:f001"], "family — Mother: B.bam | Father: A.bam")
 
     def test_plan_preserves_complete_presentation_and_rejects_unknown_identity(self):
         plan = {"schema_version": 1, "samples": [{"id": "sample_a", "kind": "bam", "path": "/inputs/a.bam"}],

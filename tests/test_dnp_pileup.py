@@ -40,6 +40,8 @@ elif stage == 'mpileup':
     if os.environ.get('MPILEUP_SLEEP'):
         time.sleep(60)
     contig = args[args.index('-r') + 1] if '-r' in args else None
+    if os.environ.get('MPILEUP_EMPTY'):
+        raise SystemExit(0)
     if contig == os.environ.get('MPILEUP_FAIL_CONTIG', ''):
         raise SystemExit(19)
     if contig == 'chr2' and os.environ.get('MPILEUP_RELEASE_FILE'):
@@ -279,6 +281,35 @@ class DnpPileupTests(unittest.TestCase):
         self.assertLessEqual(tasks[0]['finished_at_unix'], tasks[1]['started_at_unix'])
         self.assertEqual(self.output.read_bytes(), b'chr2:reads-0\nchr1:reads-0\n')
 
+    def test_small_arm_guest_streams_identical_ordered_or_empty_pileup_only_with_one_worker(self):
+        self.samples([True, True])
+        self.bed.write_text('chr1\t0\t10\nchr2\t0\t10\n')
+        for empty in ('', '1'):
+            outputs = []
+            for small_guest, workers in (('', 1), ('1', 1), ('1', 2)):
+                with self.subTest(empty=empty, small_guest=small_guest, workers=workers), patch.dict(
+                        os.environ, MPILEUP_EMPTY=empty, NIPAT_DNP_SMALL_ARM_GUEST=small_guest):
+                    result = self.generate({'mode': 'auto', 'workers': workers})
+                    direct = result['parallel'].get('output_strategy') == 'direct-dictionary-order'
+                    self.assertEqual(direct, bool(small_guest) and workers == 1)
+                    outputs.append(self.output.read_bytes())
+                    self.output.unlink()
+                    self.metadata.unlink()
+            expected = b'' if empty else b'chr2:reads-0|reads-1\nchr1:reads-0|reads-1\n'
+            self.assertEqual(outputs, [expected] * 3)
+
+    def test_streamed_failure_on_second_contig_discards_first_contig(self):
+        self.samples([True])
+        self.bed.write_text('chr2\t0\t10\nchr1\t0\t10\n')
+        with patch.dict(os.environ, MPILEUP_FAIL_CONTIG='chr1', NIPAT_DNP_SMALL_ARM_GUEST='1'):
+            with self.assertRaises(dnp_pileup.PileupError):
+                self.generate({'mode': 'auto', 'workers': 1})
+        result = json.loads(self.metadata.read_text())
+        self.assertEqual(result['status'], 'failed')
+        self.assertEqual([row['outcome'] for row in result['processes'] if 'contig' in row],
+                         ['succeeded', 'failed'])
+        self.assert_no_intermediates()
+
     def test_mixed_indices_preserve_index_validation_with_sequential_staging(self):
         self.samples([True, False])
         result = self.generate({'mode': 'auto', 'workers': 4})
@@ -375,12 +406,19 @@ class DnpPileupTests(unittest.TestCase):
             with self.assertRaises(ProcessLookupError):
                 os.kill(item['pid'], 0)
 
+    def test_streamed_cancellation_discards_output_and_reaps_child(self):
+        with patch.dict(os.environ, NIPAT_DNP_SMALL_ARM_GUEST='1'):
+            self.check_chromosome_cancellation(1)
+
     def test_parallel_cancellation_reaps_all_children_and_records_partial_evidence(self):
+        self.check_chromosome_cancellation(2)
+
+    def check_chromosome_cancellation(self, workers):
         self.samples([True])
         self.bed.write_text('chr1\t0\t10\nchr2\t0\t10\n')
         os.environ['MPILEUP_SLEEP'] = '1'
         budget = self.root / 'budget.json'
-        budget.write_text(json.dumps({'mode': 'auto', 'workers': 2}))
+        budget.write_text(json.dumps({'mode': 'auto', 'workers': workers}))
         arguments = [sys.executable, str(Path(dnp_pileup.__file__)), '--bamlist', str(self.bamlist),
                      '--bed', str(self.bed), '--reference', str(self.reference), '--output', str(self.output),
                      '--scratch-dir', str(self.scratch), '--metadata', str(self.metadata), '--budget', str(budget)]
@@ -388,7 +426,7 @@ class DnpPileupTests(unittest.TestCase):
         try:
             deadline = time.monotonic() + 5
             while time.monotonic() < deadline:
-                if self.log.exists() and sum(item['stage'] == 'mpileup' for item in self.commands()) == 2:
+                if self.log.exists() and sum(item['stage'] == 'mpileup' for item in self.commands()) == workers:
                     break
                 time.sleep(0.02)
             else:
@@ -398,7 +436,7 @@ class DnpPileupTests(unittest.TestCase):
             self.assertEqual(process.returncode, 143, stderr.decode())
             result = json.loads(self.metadata.read_text())
             self.assertEqual(result['status'], 'cancelled')
-            self.assertEqual(result['parallel']['observed_max_processes'], 2)
+            self.assertEqual(result['parallel']['observed_max_processes'], workers)
             tasks = [item for item in result['processes'] if item['stage'] == 'mpileup-chromosome']
             self.assertTrue(all(item['outcome'] == 'cancelled' for item in tasks))
             self.assert_no_intermediates()

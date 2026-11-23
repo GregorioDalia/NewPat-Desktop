@@ -139,6 +139,25 @@ try {
     Assert-Test ($retry.Targets.Count -eq 0 -and $retry.CacheFiles.Count -eq 0 -and $script:RemovalCalls.Count -eq 1) 'completed cleanup is idempotent'
 
     Reset-RemovalFixture
+    $guided = New-RemovalFixture 'guided installation' -LocationBound
+    $zipOne = New-RemovalFixture 'first ZIP installation' -LocationBound
+    $zipTwo = New-RemovalFixture 'second ZIP installation' -LocationBound
+    foreach ($zip in @($zipOne, $zipTwo)) {
+        $root = Split-Path -Parent $zip.Layout.app_dir
+        $zip.Layout.app_dir = Join-Path (Join-Path $root 'versions') ('0.9.10-' + ('a' * 40))
+        [IO.Directory]::CreateDirectory($zip.Layout.app_dir) | Out-Null
+    }
+    $plan = Get-NipatRuntimeRemovalPlan $zipOne.Layout.app_dir -InspectOnly
+    Assert-Test ($plan.Targets.Count -eq 1 -and $plan.Targets[0].Distro -ceq $zipOne.Distro -and
+        $plan.CacheFiles.Count -eq 1 -and $plan.CacheFiles[0].Path -ieq $zipOne.CacheFile) 'ZIP maintenance only considers its own installation'
+    Invoke-NipatRuntimeRemoval (Get-NipatRuntimeRemovalPlan $guided.Layout.app_dir)
+    Assert-Test ($script:RemovalCalls.Count -eq 1 -and $script:RemovalCalls[0] -ceq $guided.Distro -and
+        (Test-Path -LiteralPath $zipOne.Receipt) -and (Test-Path -LiteralPath $zipTwo.Receipt) -and
+        (Test-Path -LiteralPath $zipOne.CacheFile) -and (Test-Path -LiteralPath $zipTwo.CacheFile)) 'guided uninstall preserves both ZIP runtimes and archives'
+    $zipTwo.Layout.cache_dir = $zipOne.Layout.cache_dir
+    Assert-Rejected { Get-NipatRuntimeRemovalPlan $zipOne.Layout.app_dir } 'a cache shared by two installations is protected'
+
+    Reset-RemovalFixture
     $fixture = New-RemovalFixture 'legacy runtime success'
     Assert-Test ($fixture.Distro -cmatch '^NIPAT-Desktop-[a-f0-9]{40}$') 'legacy Desktop runtime names retain the original 40-character hash'
     Invoke-NipatRuntimeRemoval (Get-NipatRuntimeRemovalPlan $fixture.Layout.app_dir)

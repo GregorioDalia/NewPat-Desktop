@@ -348,6 +348,11 @@ def build_snp_bam_fixture(identifier: str, root: Path) -> Path:
     return inputs
 
 
+def check_snp_rejected_before_r(diagnostics: str, output: Path) -> None:
+    if ">> SNPcall 2.0 started" in diagnostics or any(output.iterdir()):
+        raise ValueError("Rejected SNP input reached R or created scientific output.")
+
+
 def check_snp_workflow(identifier: str, root: Path) -> tuple[Path, Path]:
     examples = PROJECT / "scientific/vendor/NEWPAT/SNPcall/examples"
     example_inputs = root / "snp-inputs"
@@ -396,8 +401,7 @@ def check_snp_workflow(identifier: str, root: Path) -> tuple[Path, Path]:
         write_request(rejected, pileup_request)
         diagnostic = run_image(identifier, ["execute", "snp-call", "--request", "/results/work/request.json"],
                                inputs=lowercase, results=rejected, expected_returncode=2)
-        if "snpscall started" in diagnostic or any((rejected / "output").iterdir()):
-            raise ValueError("Invalid SNP semantics reached R.")
+        check_snp_rejected_before_r(diagnostic, rejected / "output")
     print("PASS: real R lowercase/uppercase SNP equivalence, original preservation and semantic rejection.", flush=True)
 
     inputs = build_snp_bam_fixture(identifier, root)
@@ -444,8 +448,7 @@ def check_snp_workflow(identifier: str, root: Path) -> tuple[Path, Path]:
     )
     if "samtools" not in diagnostics.lower() and "mpileup" not in diagnostics.lower():
         raise ValueError(f"Expected a samtools failure, got: {diagnostics}")
-    if "snpscall started" in diagnostics or any((rejected_bam / "output").iterdir()):
-        raise ValueError("R ran after failed samtools preparation.")
+    check_snp_rejected_before_r(diagnostics, rejected_bam / "output")
     print("PASS: SNPcall rejects invalid pileup before preparation and propagates samtools failure without R.",
           flush=True)
     return inputs, expected

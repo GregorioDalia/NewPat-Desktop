@@ -280,9 +280,6 @@ class Suite:
             ".runtime/installer/state.json", ".runtime/backend.json", ".runtime/install-layout.json",
             "scripts/verify_cpin_update.py", "scripts/windows/run.ps1", "scripts/windows/common.ps1",
             "release.json")]
-        self.identity_paths.append(Path(os.environ["LOCALAPPDATA"]) / "NIPAT-Desktop/preferences.json")
-        self.identity_before = snapshot(self.identity_paths)
-        self.report["installation_file_sha256"] = self.identity_before
         self.report["host"] = {"platform": sys.platform, "python": sys.version,
                                "processor_count": os.cpu_count()}
         self.report["harness_sha256"] = {name: digest(HARNESS / name) for name in
@@ -293,6 +290,13 @@ class Suite:
                                 NIPAT_DATA_DIR=str(self.inputs), NIPAT_RUNS_DIR=str(self.runs),
                                 NIPAT_WORKSPACE_DIR=str(self.session))
         return self.report["installation"]
+
+    def snapshot_installation(self):
+        # Resolve the path using the installed client's own channel and environment.
+        from nipat.preferences import preferences_path
+        self.identity_paths.append(preferences_path())
+        self.identity_before = snapshot(self.identity_paths)
+        self.report["installation_file_sha256"] = self.identity_before
 
     def samtools(self, arguments):
         self.preparation_number += 1
@@ -465,6 +469,7 @@ class Suite:
             os.environ.clear()
             os.environ.update(self.environment)
             lease.enter_context(activity_session(project_dir=self.app))
+            self.snapshot_installation()
             self.transport = DockerTransport.from_environment()
             self.check("ambiente-scientifico", lambda: self.probe("doctor", ["doctor", "--runtime"]), fatal=True)
             self.check("parametri-scientifici", lambda: self.probe("settings", ["settings", "--json"]), fatal=True)

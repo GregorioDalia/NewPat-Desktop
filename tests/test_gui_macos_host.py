@@ -2,6 +2,7 @@ import ctypes as C
 from concurrent.futures import Future
 import queue
 import sys
+import threading
 
 import pytest
 
@@ -58,6 +59,7 @@ def test_close_from_async_callback_wakes_event_loop_and_rejects_queued_calls():
     window = host._Window.__new__(host._Window)
     window.closed, window.app, window.cocoa = False, 101, Cocoa()
     window.tasks = queue.Queue()
+    window.tasks_lock = threading.Lock()
     pending = Future()
     window.tasks.put((pending, lambda: pytest.fail("A queued operation ran during close")))
     window._will_close(None)
@@ -73,3 +75,36 @@ def test_close_from_async_callback_wakes_event_loop_and_rejects_queued_calls():
     assert len(calls) == 3
     with pytest.raises(host.NativeHostError, match="chiusa"):
         window.invoke(lambda: None)
+
+def test_closing_during_rpc_submission_unblocks_the_worker():
+    submitting = threading.Event()
+    allow_submission = threading.Event()
+
+    class PausedQueue(queue.Queue):
+        def put(self, item):
+            submitting.set()
+            assert allow_submission.wait(2)
+            super().put(item)
+
+    window = host._Window.__new__(host._Window)
+    window.closed, window.thread_id = False, threading.get_ident()
+    window.tasks_lock, window.tasks = threading.Lock(), PausedQueue()
+    result = Future()
+
+    def submit():
+        try:
+            result.set_result(window.invoke(lambda: pytest.fail("Unexpected UI callback")))
+        except Exception as error:
+            result.set_exception(error)
+
+    worker = threading.Thread(target=submit, daemon=True)
+    worker.start()
+    assert submitting.wait(2)
+    close = threading.Thread(target=window._close_tasks, daemon=True)
+    close.start()
+    allow_submission.set()
+    with pytest.raises(host.NativeHostError, match="chiusa"):
+        result.result(timeout=2)
+    close.join(timeout=2)
+    worker.join(timeout=2)
+    assert not close.is_alive() and not worker.is_alive() and window.tasks.empty()
