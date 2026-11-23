@@ -217,6 +217,10 @@ class DockerComposeRunner:
             service["environment"]["NIPAT_FIXED_RESOURCE_BUDGET"] = json.dumps(
                 budget, ensure_ascii=True, allow_nan=False, separators=(",", ":"),
             )
+        scheduling = self._record.data.get("concurrent_execution", {}).get("step_scheduling")
+        if scheduling and scheduling.get("interface") == "step-budget-v1":
+            service["environment"]["NIPAT_DESKTOP_SCHEDULER"] = str(
+                self.layout.container_path(run_dir / "work" / "desktop-scheduling")).replace("$", "$$")
         if self.options.max_workers is not None:
             service["environment"]["NIPAT_MAX_WORKERS"] = str(self.options.max_workers)
         if self.options.cpus is not None:
@@ -373,6 +377,8 @@ class DockerComposeRunner:
             )
             if valid:
                 files = preparation["file_sha256"]
+                if description.get("desktop_scheduling") == "step-budget-v1":
+                    required_preparation.add("lib/nipat_scientific/desktop_scheduling.py")
                 valid = required_preparation.issubset(files) and all(
                     (path == "engine/main.py" or relative_path(path, "lib/nipat_scientific/"))
                     and has_digest(value) for path, value in files.items()

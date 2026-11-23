@@ -21,9 +21,11 @@ When changing VM settings in the text wizard, Enter keeps the current value, inc
 
 ## Run budget and workers
 
-NewPat records the effective allocation in `run.json` under `resource_budget` when the run starts. CPU and memory limits come from the available hardware, runtime and container. The memory planner reserves 20% of the capacity and accounts for the coordinator's resident memory when sizing its worker pool. The global worker ceiling stays fixed for the run. The scientific engine also reads CPU quotas, memory limits and process limits for its own Linux cgroup and its ancestors. Desktop experiments on the same runtime reserve CPU and memory before calculation. A job may wait until both are available. [Desktop activity](GUI.md#set-up-an-experiment) Other applications can still affect elapsed time and memory pressure.
+NewPat records the startup CPU, memory and worker ceilings in `run.json` under `resource_budget`. These ceilings reflect the measured runtime, the configured limits and the user’s request. On Linux, the engine also checks CPU quotas, memory limits and process limits in the process's own cgroup and its visible ancestors.
 
-Each phase checks its expected workload against that run budget. The general estimate considers twice the loaded coordinator's resident memory and any module-specific estimate. Some phases stay serial when their workload cannot be estimated. The worker count is a planning decision; the operating system enforces the configured container limits.
+Desktop sessions of one user coordinate CPU and memory assignments on the same runtime. Jobs preparing together can share capacity from the start. A late arrival waits for a usable share of both resources. On a compatible engine, a desktop workflow can offer some of its allocation after a completed analysis step or group of independent SNP samples. The host revises its accounting only after the engine confirms that the previous workers have finished. The workflow can recover previously yielded capacity at a later boundary, up to its original ceilings. An engine without this capability retains its startup allocation. If capacity cannot be measured, one desktop experiment calculates at a time. [Desktop activity](GUI.md#set-up-an-experiment)
+
+Each phase reserves 20% of its assigned memory and accounts separately for the coordinator's resident memory. The general worker estimate considers twice the coordinator's resident memory and any module-specific estimate. A phase with an unknown workload may run serially. A changed allocation guides scheduling of subsequent work. The operating system continues to enforce the container limits set at launch.
 
 DNPcall makes two separate decisions:
 

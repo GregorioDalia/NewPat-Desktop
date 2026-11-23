@@ -61,6 +61,7 @@ def _merge_genotypes(merged: dict, source: Path, sample: str) -> None:
 def finalize_snp_summaries(
     plan: dict, state: dict, root: Path,
     run_process: Callable[[list[str], Path, Path], int],
+    *, before_group: Callable[[], None] | None = None,
 ) -> list[dict]:
     """Merge distinct samples only when panel, reference, input mode and scientific parameters agree.
 
@@ -91,6 +92,8 @@ def finalize_snp_summaries(
     summaries = []
     labels = _unique_labels(plan.get("presentation", {}).get("samples", {}))
     for number, group in enumerate(groups, 1):
+        if before_group is not None:
+            before_group()
         directory = summary_root / f"group_{number:04d}"
         directory.mkdir()
         merged = {}

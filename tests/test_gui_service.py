@@ -4,6 +4,7 @@ from __future__ import annotations
 from contextlib import ExitStack
 from copy import deepcopy
 from dataclasses import replace
+import errno
 import json
 import io
 import hashlib
@@ -319,18 +320,6 @@ class GuiServiceTests(GuiFixture):
         self.assertEqual(results, [{"id": "first"}])
         jobs.start.assert_called_once()
 
-    def test_half_capacity_uses_effective_runtime_and_honors_lower_configuration(self):
-        manager = Mock()
-        service = self.service(resource_factory=lambda _: manager)
-        snapshot = {"host": {"cpus": 32, "memory_mib": 32768}, "runtime": {
-            "configured": {"cpus": 4, "memory_mib": 8192},
-            "effective": {"cpus": 8, "memory_mib": 3905}}}
-        manager.snapshot.return_value = snapshot
-        self.assertEqual(service.resources_get()["half_capacity_limits"], {"cpus": 2, "memory_mb": 1952})
-        for effective in ({}, {"cpus": 1, "memory_mib": 8192}, {"cpus": 4, "memory_mib": 255}):
-            snapshot["runtime"]["effective"] = effective
-            self.assertIsNone(service.resources_get()["half_capacity_limits"])
-
     def test_resource_apply_uses_server_held_preview_and_preserves_confirmation(self):
         change = Mock()
         change.as_dict.return_value = {"before": {}, "after": {"cpus": 2, "memory_mib": 1024}}
@@ -531,6 +520,70 @@ class GuiJobTests(GuiRuntimeFixture):
                 self.assertEqual(budget["cpu_limit"], instance.options.cpus)
                 self.assertEqual(budget["memory_capacity_mib"], instance.options.memory_mb)
                 self.assertEqual(instance.options.compose_limits()["mem_limit"], instance.options.memory_mb * 2**20)
+
+    def test_desktop_step_grant_requires_matching_ack_and_never_resizes_compose(self):
+        from nipat.execution.options import ExecutionOptions
+        prepared = prepare_analysis(self.draft(), self.layout)
+        runner = GuiRunner(prepared, Job(prepared))
+        run_dir = self.layout.new_run_dir("analysis", "step-grants")
+        runner._record = Mock(data={}, run_dir=run_dir)
+        runner._bundled_workflow = "workflow-plan-all"
+        snapshot = {"runtime": {"effective": {"cpus": 4, "memory_mib": 3905}}}
+        contender = DesktopAdmission(runner._transport.metadata, "late", home=self.root)
+        with runner._admission.registration(), patch("nipat.resources.ResourceManager.snapshot", return_value=snapshot):
+            runner._record_resource_snapshot()
+            with patch.object(DockerComposeRunner, "_describe_bundled_engine", return_value={}):
+                runner._describe_bundled_engine()
+            self.assertIsNone(runner._step_scheduler)
+            with patch.object(DockerComposeRunner, "_describe_bundled_engine",
+                              return_value={"desktop_scheduling": "step-budget-v1"}):
+                runner._describe_bundled_engine()
+            scheduler = runner._step_scheduler
+            runner._write_engine_compose("sha256:" + "0" * 64)
+            compose_path = run_dir / "work/engine-compose.json"
+            before = compose_path.read_bytes()
+            service = json.loads(before)["services"]["scientific"]
+            self.assertEqual(service["environment"]["NIPAT_DESKTOP_SCHEDULER"],
+                             str(self.layout.container_path(scheduler.directory)))
+            self.assertNotIn("mem_limit", service)
+            scheduler.poll()
+            self.assertFalse((scheduler.directory / "request.json").exists())
+            with contender.registration():
+                self.assertIsNone(contender.try_admit(4, 3905, ExecutionOptions(), Mock()))
+                scheduler.poll()
+                request = json.loads((scheduler.directory / "request.json").read_text())
+                runner._admission._write(scheduler.directory / "ack.json", {**request, "token": "f" * 32})
+                scheduler.poll()
+                self.assertFalse((scheduler.directory / "grant.json").exists())
+                self.assertIsNone(contender.try_admit(4, 3905, ExecutionOptions(), Mock()))
+                runner._admission._write(scheduler.directory / "ack.json", request)
+                replace_file = Path.replace
+                attempts = []
+                def transient_sharing_violation(path, target):
+                    if target.name == "grant.json":
+                        attempts.append(target)
+                        if len(attempts) == 1:
+                            raise PermissionError(errno.EACCES, "Sharing violation")
+                    return replace_file(path, target)
+                with patch.object(Path, "replace", transient_sharing_violation):
+                    scheduler.poll()
+                self.assertEqual(len(attempts), 2)
+                grant = json.loads((scheduler.directory / "grant.json").read_text())
+                self.assertEqual(grant["token"], request["token"])
+                self.assertEqual((grant["budget"]["cpu_limit"], grant["budget"]["memory_capacity_mib"]),
+                                 (2, 1952))
+                admitted = contender.try_admit(4, 3905, ExecutionOptions(), Mock())
+                self.assertEqual((admitted.cpus, admitted.memory_mib), (2, 1953))
+            scheduler.poll()
+            resume = json.loads((scheduler.directory / "request.json").read_text())
+            self.assertNotEqual(request["token"], resume["token"])
+            scheduler.poll()  # Delayed acknowledgement for the initial request.
+            self.assertEqual(json.loads((scheduler.directory / "grant.json").read_text()), grant)
+            runner._admission._write(scheduler.directory / "ack.json", resume)
+            scheduler.poll()
+            journal = [json.loads(row) for row in (scheduler.directory / "grants.jsonl").read_text().splitlines()]
+            self.assertEqual([row["budget"]["memory_capacity_mib"] for row in journal], [1952, 3905])
+            self.assertEqual(compose_path.read_bytes(), before)
 
     def test_default_run_keeps_full_capacity_and_later_run_waits_or_cancels(self):
         prepared = prepare_analysis(self.draft(), self.layout)

@@ -214,6 +214,7 @@ tests/test_cpi_engine.py
 tests/test_distribution.py
 tests/test_dnp_engine.py
 tests/test_dnp_workflow.py
+tests/test_desktop_scheduling.py
 tests/test_engine_package.py
 tests/test_input_modes.py
 tests/test_input_mounts.py
@@ -250,6 +251,7 @@ installer/windows/test-update-handoff.ps1
 tests/test_activity.py
 tests/test_update_handoff.py
 src/nipat_scientific/executor.py
+src/nipat_scientific/desktop_scheduling.py
 scripts/verify_workflow_execution.py
 tests/test_workflow_execution.py
 tests/test_workflow_client.py
@@ -472,6 +474,7 @@ docs/RELEASE_0.8.81.md
 docs/RELEASE_0.8.90.md
 docs/AUDIT_0.8.80.md
 docs/AUDIT_0.9.10.md
+docs/validation/0.9.10-desktop-scheduling.json
 
 # Complete additional Windows ZIP distribution (0.8.95).
 installer/windows/zip_package.py
@@ -555,6 +558,7 @@ src/nipat/gui/web/vendor/licenses/vanilla-picker-2.12.1-LICENSE.md.txt
 src/nipat/gui/web/vendor/licenses/vanilla-picker-2.12.3-LICENSE.md.txt
 src/nipat/gui/web/vendor/manifest.json
 src/nipat/gui/windows_host.py
+tests/test_gui_admission.py
 tests/test_gui_app.py
 tests/test_gui_distribution.py
 tests/test_gui_igv.py

@@ -26,7 +26,7 @@ The same global option works for a workflow. `newpat --performance-diagnostics w
 | Automatic | `--execution-mode auto` |
 | Automatic with up to two workers | `--execution-mode auto --max-workers 2` |
 
-The run records its capacity and worker ceiling at startup. Each phase selects its pool from the assigned budget, available tasks, CPU limits and workload estimate. A coordinator is accounted for separately. Nested work cannot multiply the worker limit. DNP first acquires a pileup, possibly processing independent target chromosomes concurrently, then builds a global index and computes blocks in R. Start with the same requested limits, normally **32 MiB of raw input** and **64 loci** per block. Record both requested and effective targets. Indivisible groups can exceed them. Raw pileup bytes and resident R memory measure different things. [Resource policy](RESOURCES.md)
+The run records its initial capacity and worker ceiling at startup. In a desktop workflow sharing a runtime, the budget for a later step can change when an earlier step or independent SNP batch has finished. SNP summaries also check for a new budget before each eligible summary group. Each phase selects its pool from its current assignment, available tasks, CPU limits and workload estimate. A coordinator is accounted for separately. Nested work cannot multiply the worker limit. DNP first acquires a pileup, possibly processing independent target chromosomes concurrently, then builds a global index and computes blocks in R. Start with the same requested limits, normally **32 MiB of raw input** and **64 loci** per block. Record both requested and effective targets. Indivisible groups can exceed them. Raw pileup bytes and resident R memory measure different things. [Resource policy](RESOURCES.md)
 
 In the terminal menu, change parallelism and block size in the run summary. Save reusable defaults in the resources, performance and provenance preferences. On Windows, using the CLI launcher in `$nipat`:
 
@@ -62,6 +62,9 @@ Use the same memory source across runs. Periodic samples can miss short peaks. A
 | --- | --- |
 | `run-report.html` | Human-readable overview and links to measurements. |
 | `run.json` → `resource_budget` | Capacity, reserve, policy and startup worker ceiling. |
+| `run.json` → `concurrent_execution` | Initial desktop CPU and memory assignment, number of participating experiments, and whether the calculation waited for resources. |
+| `work/desktop-scheduling/grants.jsonl` | Host decisions at completed step boundaries, when a desktop budget changes. This path is relative to the top-level run directory. |
+| `output/workflow/workflow-state.json` → `desktop_resource_grants` | Grants applied by the engine, with the next step or group, CPU, memory and worker ceiling. |
 | `performance/summary.json` | External Docker observer summary. |
 | `performance/container-samples.jsonl` | Container resource samples. |
 | `performance/engine/summary.json` | Availability and summary of engine measurements. |
@@ -72,7 +75,7 @@ Use the same memory source across runs. Periodic samples can miss short peaks. A
 | `work/dnp-pileup.json` | Acquisition strategy, elapsed time and observed processes. |
 | `work/dnp-blocks.json` | Acquisition, indexing and R block execution metrics. |
 
-For a plan, the four `work/` paths are relative to the producing step under `output/workflow/steps/<id>/`. Sum task times to describe work performed. Use phase or wall duration to describe time experienced by the user. Short runs, interruptions and file-size caps can leave partial measurements. Inspect collector status alongside analysis state. Reports may include original sample names and paths.
+The scientific worker and DNP files in `work/` are relative to `output/workflow/steps/<id>/` for a plan. Compare the initial assignment with any grants applied before the step when interpreting different worker counts across runs. Sum task times to describe work performed. Use phase or wall duration to describe time experienced by the user. Short runs, interruptions and file-size caps can leave partial measurements. Inspect collector status alongside analysis state. Reports may include original sample names and paths.
 
 <a id="protocollo-per-un-bam-grande"></a>
 <a id="protocollo-per-input-reali"></a>

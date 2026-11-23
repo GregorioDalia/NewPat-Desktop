@@ -2,7 +2,7 @@
 
 ## Experiments and results
 
-The activity screen can track concurrent experiments. Each has its own output directory, progress and stop control. Desktop experiments reserve CPU and memory from a shared budget. Activity shows when an experiment is waiting for capacity. An interrupted experiment can be removed from the activity and history views while keeping its files.
+Activity tracks concurrent experiments and shows their progress, output directory and stop control. You can queue several experiments. A desktop session prepares up to two at once, and calculations share the CPU and memory available on the same runtime. If another experiment arrives during a multi-step workflow, a compatible engine can share capacity at the next completed step or group of independent SNP samples. Activity shows when a job is waiting. You can cancel a waiting job or remove an interrupted experiment from activity and history while keeping its files.
 
 Preferences can store named analysis profiles and select a default for new experiments. Sample names, input files and family roles are selected for each experiment. The results view identifies the caller as SNP or DNP and returns to the source table after closing details or IGV. The interface uses the names **Prenatal CPI** and **Postnatal CPI**.
 

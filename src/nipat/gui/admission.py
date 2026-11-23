@@ -1,18 +1,21 @@
-"""Coordinate fixed scientific-container quotas across desktop sessions on one runtime."""
+"""Coordinate desktop CPU and memory grants across sessions on one runtime."""
 from __future__ import annotations
 
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+import errno
 import hashlib
 import json
 import math
 import os
 from pathlib import Path
+import threading
 import time
+import uuid
 
 from nipat.errors import ValidationError
 from nipat.preferences import settings_file_lock
-from nipat.resources import ResourceLockBusy, resource_file_lock
+from nipat.resources import ResourceLockBusy, fixed_execution_budget, resource_file_lock
 
 
 @dataclass(frozen=True)
@@ -103,7 +106,7 @@ class DesktopAdmission:
             if not self.path.exists():
                 owner.unlink(missing_ok=True)
 
-    def try_admit(self, cpus, memory, options, runtime_idle):
+    def try_admit(self, cpus, memory, options, runtime_idle, *, queued=0):
         orphans = []
         with settings_file_lock(self.guard):
             running, pending, earlier = [], 0, False
@@ -133,7 +136,7 @@ class DesktopAdmission:
                     pending += 1
                     if row["state"] == "ready" and (row["since"], path) < (mine["since"], self.path):
                         earlier = True
-            allocation = None if earlier else _allocate(cpus, memory, options, running, pending)
+            allocation = None if earlier else _allocate(cpus, memory, options, running, pending + queued)
             now = time.monotonic() if orphans else 0
             # Reconcile even a partial stale reservation: otherwise solitary
             # future jobs could each inherit the same permanently reduced quota.
@@ -157,3 +160,121 @@ class DesktopAdmission:
                 with settings_file_lock(self.guard):
                     self._remove(path)
         return None
+
+    def boundary_allocation(self, cpus, memory, options, *, commit=False, queued=0):
+        """Preview, or reserve after engine acknowledgement, the next step's quota."""
+        with settings_file_lock(self.guard):
+            mine = json.loads(self.path.read_text(encoding="utf-8"))
+            if mine["state"] != "running":
+                raise ValidationError("Nessuna quota attiva per questo esperimento.")
+            current = Allocation(mine["cpus"], mine["memory_mib"], mine["participants"])
+            running, pending = [], 1 + queued  # Include this run's next step.
+            for path in self.directory.glob("*.json"):
+                if path != self.path:
+                    row = json.loads(path.read_text(encoding="utf-8"))
+                    if row["state"] == "running":
+                        # Includes orphans until Docker confirms they have stopped.
+                        running.append(row)
+                    else:
+                        # A desktop can exit before its pending job reaches Docker.
+                        try:
+                            with resource_file_lock(path.with_suffix(".owner"), exclusive=True):
+                                pass
+                        except ResourceLockBusy:
+                            pending += 1
+                        else:
+                            self._remove(path)
+            planned = _allocate(cpus, memory, options, running, pending)
+            if (planned is None or planned.cpus is None or current.cpus is None
+                    or (planned.cpus, planned.memory_mib) == (current.cpus, current.memory_mib)):
+                return current if commit else None
+            if commit:
+                self._write(self.path, {"state": "running", "cpus": planned.cpus,
+                                        "memory_mib": planned.memory_mib, "participants": planned.participants})
+            return planned
+
+
+class DesktopStepScheduler:
+    """Exchange resource budgets only while the engine is between scientific groups."""
+
+    interface = "step-budget-v1"
+
+    def __init__(self, admission, directory, snapshot, options, *, queued=lambda: 0):
+        self.admission = admission
+        self.directory = directory
+        self.snapshot = snapshot
+        self.options = options
+        self.queued = queued
+        capacity = fixed_execution_budget(snapshot)
+        self.cpus = capacity["cpu_limit"]
+        self.memory = capacity["memory_capacity_mib"]
+        self.token = None
+        self._last_signature = None
+        self._last_check = 0.0
+
+    def _publish(self, name, message):
+        # A bind mount may briefly deny a replacement while the previous
+        # message is open on the other side of the Windows or macOS VM.
+        for delay in (0.025, 0.05, 0.1, 0.2, 0.4, None):
+            try:
+                self.admission._write(self.directory / name, message)
+                return
+            except OSError as exc:
+                busy = exc.errno in {errno.EACCES, errno.EPERM, errno.EBUSY} or getattr(exc, "winerror", 0) in {32, 33}
+                if delay is None or not busy:
+                    raise
+                time.sleep(delay)
+
+    def poll(self):
+        if self.token is None:
+            # Atomic ticket replacements change this directory's timestamp. A
+            # periodic full check also covers coarser Windows timestamp updates.
+            queued = self.queued()
+            signature = (self.admission.directory.stat().st_mtime_ns, queued)
+            now = time.monotonic()
+            if self._last_signature == signature and now - self._last_check < 2:
+                return
+            self._last_signature, self._last_check = signature, now
+            proposal = self.admission.boundary_allocation(self.cpus, self.memory, self.options, queued=queued)
+            if proposal is not None:
+                self.token = uuid.uuid4().hex
+                self._publish("request.json", {"interface": self.interface, "token": self.token})
+            return
+        try:
+            ack = json.loads((self.directory / "ack.json").read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return
+        if not isinstance(ack, dict) or ack.get("token") != self.token or ack.get("interface") != self.interface:
+            return
+        # The acknowledgement promises that no scientific children are running.
+        # Re-evaluate under the same lock as new entrants before issuing a grant.
+        assigned = self.admission.boundary_allocation(self.cpus, self.memory, self.options,
+                                                      commit=True, queued=self.queued())
+        effective = replace(self.options, cpus=assigned.cpus, memory_mb=assigned.memory_mib)
+        budget = fixed_execution_budget(self.snapshot, effective)
+        budget["basis"] = "assigned-capacity-at-step-boundary"
+        grant = {"interface": self.interface, "token": self.token, "budget": budget}
+        with (self.directory / "grants.jsonl").open("a", encoding="utf-8") as journal:
+            journal.write(json.dumps(grant, allow_nan=False) + "\n")
+        self._publish("grant.json", grant)
+        self.token = None
+
+    @contextmanager
+    def observing(self, on_error):
+        stopped = threading.Event()
+        def observe():
+            try:
+                while not stopped.is_set():
+                    self.poll()
+                    stopped.wait(0.15)
+            except Exception as exc:
+                # An unacknowledged engine retains its previous quota. Once it
+                # has acknowledged it will fail safely on its bounded timeout.
+                on_error(exc)
+        watcher = threading.Thread(target=observe, name="newpat-step-budget", daemon=True)
+        watcher.start()
+        try:
+            yield
+        finally:
+            stopped.set()
+            watcher.join()

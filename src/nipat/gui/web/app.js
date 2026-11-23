@@ -336,7 +336,7 @@ function choiceLabel(v){return {all:t('allCompatible'),other_allele:t('heterozyg
 function displayValue(v){if(typeof v==='boolean')return t(v?'yes':'no');if(Array.isArray(v))return v.join(', ');if(typeof v==='object')return JSON.stringify(v);return String(v??'')}
 function parameterRows(module,scope='draft',readonly=false,all=false){const w=state.settings[module],values=scope==='defaults'?(state.preferences.scientific_settings?.[module]||{}):state.draft.scientific_settings[module];const entries=Object.entries(w.parameters||{}).filter(([key,def])=>parameterVisible(module,key,all)&&(state.view!=='catalog'||[L.field(key),L.description(key,def),t(phase(key))].join(' ').toLowerCase().includes(state.catalogSearch.toLowerCase())));const groups=[...new Set(entries.map(([k])=>phase(k)))];return groups.map(group=>`<section class="parameter-group"><h3>${t(group)}</h3>${entries.filter(([k])=>phase(k)===group).map(([key,def])=>{const value=values?.[key]??def.default;const attrs=`data-parameter="${module}|${key}|${scope}"`;return `<div class="parameter-row"><div><h3>${esc(L.field(key))}</h3><p>${esc(L.description(key,def))}</p><dl class="parameter-meta">${[[t('defaultValue'),key==='excluded_flags'?archivedFlagNames(def.default):def.choices?choiceLabel(def.default):displayValue(def.default)],[t('allowed'),range(def)],[t('unit'),parameterUnit(def.unit)]].filter(([,v])=>v!==null&&v!==undefined&&v!=='').map(([k,v])=>`<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl></div><div class="parameter-value">${readonly?`<b>${esc(key==='excluded_flags'?archivedFlagNames(value):def.choices?choiceLabel(value):displayValue(value))}</b>`:def.type==='boolean'?`<label class="check-row"><input type="checkbox" ${attrs} ${value?'checked':''}><span>${t('enabled')}</span></label>`:def.choices?`<select class="input" ${attrs} aria-label="${esc(L.field(key))}">${def.choices.map(v=>`<option value="${esc(v)}" ${v===value?'selected':''}>${esc(choiceLabel(v))}</option>`).join('')}</select>`:`<input class="input" type="number" ${attrs} value="${esc(value)}" ${def.minimum!==undefined?`min="${def.minimum}"`:''} ${def.maximum!==undefined?`max="${def.maximum}"`:''} step="${def.type==='integer'?'1':'any'}" aria-label="${esc(L.field(key))}">`}${!readonly?button(t('reset'),'reset-param',{module,key,scope},'quiet small'):''}</div></div>${key==='excluded_flags'&&!readonly?flagsEditor(module,value,scope):''}`}).join('')}</section>`).join('')}
 function flagsEditor(module,value,scope){const flags=[[4,'Non allineate','Unmapped'],[8,'Compagno non allineato','Unmapped mate'],[256,'Allineamenti secondari','Secondary alignments'],[512,'Controllo qualità non superato','Failed quality control'],[1024,'Duplicati','Duplicates'],[2048,'Allineamenti supplementari','Supplementary alignments']];return `<details class="disclosure"><summary>${L.field('excluded_flags')}</summary><div class="details-body flags">${flags.map(([bit,it,en])=>`<label><input type="checkbox" data-flag="${module}|${bit}|${scope}" ${(Number(value)&bit)?'checked':''}>${esc(L.language==='en'?en:it)}</label>`).join('')}</div></details>`}
-function executionFields(execution,scope='draft'){return `<p class="help">${t('executionHelp')}</p>${scope==='draft'?button(t('shareCapacity'),'share-capacity',{},'quiet small'):''}<div class="execution-grid section-gap">${select(t('mode'),scope+'-execution-mode',[['auto',t('automatic')],['serial',t('serial')]],execution.execution_mode||'auto',`data-execution="execution_mode|${scope}"`)}${[['max_workers','maxWorkers',1,1024],['cpus','cpuLimit',.1,1024],['memory_mb','memoryLimit',128,1048576],['pids_limit','processLimit',16,1048576],['dnp_block_mib','blockSize',1,4096],['dnp_block_loci','blockLoci',1,1000000]].filter(([key])=>scope!=='draft'||!key.startsWith('dnp_block_')||callerRuns('DNP')).map(([k,label,min,max])=>input(t(label),scope+'-'+k,execution[k]??'',`type="number" min="${min}" max="${max}" step="${k==='cpus'?'any':'1'}" data-execution="${k}|${scope}" placeholder="${t('automatic')}"`)).join('')}${select(t('hashes'),scope+'-input-hashes',[['auto',t('automatic')],['full',t('fullHashes')]],execution.input_hashes||'auto',`data-execution="input_hashes|${scope}"`)}</div>${scope==='draft'?`<label class="check-row section-gap"><input type="checkbox" data-execution="performance_diagnostics|${scope}" ${execution.performance_diagnostics?'checked':''}><span>${t('diagnostics')}</span></label>`:''}`}
+function executionFields(execution,scope='draft'){return `<p class="help">${t('executionHelp')}</p><div class="execution-grid section-gap">${select(t('mode'),scope+'-execution-mode',[['auto',t('automatic')],['serial',t('serial')]],execution.execution_mode||'auto',`data-execution="execution_mode|${scope}"`)}${[['max_workers','maxWorkers',1,1024],['cpus','cpuLimit',.1,1024],['memory_mb','memoryLimit',128,1048576],['pids_limit','processLimit',16,1048576],['dnp_block_mib','blockSize',1,4096],['dnp_block_loci','blockLoci',1,1000000]].filter(([key])=>scope!=='draft'||!key.startsWith('dnp_block_')||callerRuns('DNP')).map(([k,label,min,max])=>input(t(label),scope+'-'+k,execution[k]??'',`type="number" min="${min}" max="${max}" step="${k==='cpus'?'any':'1'}" data-execution="${k}|${scope}" placeholder="${t('automatic')}"`)).join('')}${select(t('hashes'),scope+'-input-hashes',[['auto',t('automatic')],['full',t('fullHashes')]],execution.input_hashes||'auto',`data-execution="input_hashes|${scope}"`)}</div>${scope==='draft'?`<label class="check-row section-gap"><input type="checkbox" data-execution="performance_diagnostics|${scope}" ${execution.performance_diagnostics?'checked':''}><span>${t('diagnostics')}</span></label>`:''}`}
 function profileOptions(preferences){
  const names=Object.keys(preferences?.parameter_profiles||{}).sort((a,b)=>a.localeCompare(b,L.language));
  return [['',t('personalDefaults')],...names.map(name=>[name,name])];
@@ -351,6 +351,15 @@ function renderNew(){const d=state.draft;return heading(t('new'),t('newCopy'))+`
 function renderArchive(){if(state.run)return renderRun();return heading(t('archive'),t('archiveCopy'),button(t('openFolder'),'import-run',{},'','archive')+button(t('new'),'navigate',{view:'new'},'primary','plus'))+`<section class="panel"><div class="panel-body"><div class="toolbar"><input class="input stretch" id="archive-search" placeholder="${t('archiveSearch')}" aria-label="${t('search')}" value="${esc(state.archiveSearch)}" data-search="archive">${select(t('status'),'archive-status',[['all',t('all')],['succeeded',t('succeeded')],['failed',t('failed')],['running',t('running')],['interrupted',t('interrupted')],['unknown',t('unknown')]],state.archiveStatus,'data-field="archiveStatus"')}${select(t('markers'),'archive-marker',[['all',t('all')],['DNP','DNP'],['SNP','SNP']],state.archiveMarker,'data-field="archiveMarker"')}</div></div>${filteredRuns().length?archiveRows():empty(t(state.runs.length?'noFilteredRuns':'noRuns'),state.runs.length?'':t('noRunsCopy'))}</section>`}
 function jobProgress(job){const p=job.progress;if(p&&Number.isFinite(p.completed)&&Number.isFinite(p.total)&&p.total>0)return Math.max(0,Math.min(100,p.completed/p.total*100));if(typeof p==='number')return Math.max(0,Math.min(100,p));if(p&&typeof p==='object'){const value=p.percent??p.percentage??p.overall_percent;if(Number.isFinite(Number(value)))return Math.max(0,Math.min(100,Number(value)))}return null}
 function terminal(job){return ['succeeded','completed','failed','cancelled','canceled','interrupted','planned'].includes(job.status)}
+function jobDisplayStatus(job){
+ if(job.status==='running'&&job.progress?.phase==='waiting-for-resources')return 'queued';
+ return job.status;
+}
+function activityIndicator(jobs){
+ const active=jobs.filter(job=>!terminal(job));
+ const waiting=active.filter(job=>jobDisplayStatus(job)==='queued').length;
+ return [[active.length-waiting,'running'],[waiting,'queued']].filter(([n])=>n).map(([n,key])=>n+' · '+t(key)).join(' / ');
+}
 function progressLabel(p, withSamples=true){if(!p)return '';const phases={'waiting-for-resources':['In attesa di CPU e memoria disponibili','Waiting for available CPU and memory'],'preparing-runtime':['Avvio dell’ambiente di calcolo','Starting the computation environment'],'verifying-engine':['Verifica del motore di analisi','Checking the analysis engine'],'checking-inputs':['Verifica degli input','Checking inputs'],'preparation':['Preparazione degli input','Preparing inputs'],'plan-preflight':['Verifica del piano','Checking plan'],'presentation-preparation':['Preparazione dei risultati','Preparing results'],'r-execution':['Calcolo R','R computation'],'output-validation':['Controllo dei risultati','Checking outputs'],'presentation-finalization':['Esportazione dei risultati','Exporting results'],'plan-presentation':['Riepilogo delle analisi','Analysis summary'],'pileup':['Preparazione del pileup','Preparing pileup'],'pileup-index':['Indicizzazione del pileup','Indexing pileup'],'pileup-reading':['Lettura del pileup','Reading pileup'],'dnp-processing':['Calcolo DNP','DNP computation'],'plots':['Creazione dei grafici','Creating plots'],'dnp-indexed-selection':['Selezione delle letture','Selecting reads'],'dnp-indexed-pileup':['Pileup dalle regioni indicizzate','Pileup from indexed regions'],'dnp-pileup':['Preparazione pileup DNP','Preparing DNP pileup']};const phase=phases[p.phase]?.[L.language==='en'?1:0]||p.phase||t('progressUnknown');return [p.workflow?moduleName(p.workflow):'',phase,...(withSamples?p.sample_ids||[]:[])].filter(Boolean).join(' · ')}
 function elapsedTime(job){
  const started=Date.parse(job.created_at||job.started_at||''),finished=job.finished_at?Date.parse(job.finished_at):Date.now();
@@ -360,6 +369,7 @@ function elapsedTime(job){
 }
 function progressText(job){const p=jobProgress(job);return p===null?t('progressUnknown'):format(p,1)+' % · '+t('currentPhase')}
 function phaseTitle(job){
+ if(job.status==='queued'&&!job.progress?.phase)return t('waitingToPrepare');
  const label=progressLabel(job.progress,false);
  return label||job.message||(terminal(job)?t(job.status):t('preparingAnalysis'));
 }
@@ -398,13 +408,14 @@ async function refreshJobLog(job){
 }
 function dnaLoader(){return `<div class="dna-loader helix ${state.motion?'':'paused'}" aria-hidden="true">${Array.from({length:10},(_,i)=>`<span class="dna-rung" style="--rung:${i}"></span>`).join('')}</div>`}
 function renderJobCard(job){
+  const status=jobDisplayStatus(job),waiting=status==='queued';
   const p=jobProgress(job),indeterminate=p===null&&!terminal(job);
   const log=visibleLogs.get(job.id);
-  return `<section class="panel section-gap" data-job-card="${esc(job.id)}" data-job-status="${esc(job.status)}" data-job-run="${esc(job.run_id||'')}"><div class="progress-card">
-   <div class="job-header"><h2>${esc(job.name||job.run_name||job.id)}</h2>${badge(job.status)}</div>
+  return `<section class="panel section-gap" data-job-card="${esc(job.id)}" data-job-status="${esc(status)}" data-job-run="${esc(job.run_id||'')}"><div class="progress-card">
+   <div class="job-header"><h2>${esc(job.name||job.run_name||job.id)}</h2>${badge(status)}</div>
    <dl class="job-facts"><div><dt>${t(terminal(job)?'lastPhase':'activityPhase')}</dt><dd data-job-phase>${esc(phaseTitle(job))}</dd></div><div><dt>${t('samples')}</dt><dd data-job-sample>${esc(sampleLabel(job))}</dd></div></dl>
-   ${!terminal(job)?`<div class="job-progress">${dnaLoader()}<div><span data-job-progress-text>${progressText(job)}</span><p class="help" data-job-elapsed>${esc(elapsedTime(job))}</p></div></div>`:`<p class="help" data-job-elapsed>${esc(elapsedTime(job))}</p>`}
-   <div class="progress-track ${indeterminate?'indeterminate':''} ${state.motion?'':'paused'}" role="progressbar" aria-label="${esc(t('currentPhase'))}" aria-valuemin="0" aria-valuemax="100" ${p===null?'':`aria-valuenow="${p}"`}><span ${indeterminate?'':`style="width:${p??(job.status==='succeeded'?100:0)}%"`}></span></div>
+   ${!waiting&&!terminal(job)?`<div class="job-progress">${dnaLoader()}<div><span data-job-progress-text>${progressText(job)}</span><p class="help" data-job-elapsed>${esc(elapsedTime(job))}</p></div></div>`:`<p class="help" data-job-elapsed>${esc(elapsedTime(job))}</p>`}
+   ${waiting?'':`<div class="progress-track ${indeterminate?'indeterminate':''} ${state.motion?'':'paused'}" role="progressbar" aria-label="${esc(t('currentPhase'))}" aria-valuemin="0" aria-valuemax="100" ${p===null?'':`aria-valuenow="${p}"`}><span ${indeterminate?'':`style="width:${p??(job.status==='succeeded'?100:0)}%"`}></span></div>`}
    ${job.error?notice(humanError(job.error.message||job.error),job.status==='interrupted'?'warning':'error'):''}
    <section class="job-events" ${job.events?.length?'':'hidden'}><h3>${t('recentActivity')}</h3><ol data-event-revision="${job.event_revision??0}">${eventsMarkup(job)}</ol></section>
    <div class="actions section-gap">${terminal(job)?button(t('removeFromList'),'remove-job',{id:job.id},'quiet small','close'):['finalizing','cancel_requested'].includes(job.status)?'':button(t('stopAnalysis'),'cancel-job',{id:job.id},'danger','stop')}${job.run_id?button(t('openResults'),'open-run',{id:job.run_id},'primary','arrow'):''}
@@ -412,16 +423,19 @@ function renderJobCard(job){
    </div><pre id="job-log-${esc(job.id)}" class="job-log" ${log?'':'hidden'}>${log?esc(logText(log)):''}</pre></div></section>`;
 }
 function renderActivity(){
- const active=state.jobs.filter(job=>!terminal(job)),finished=state.jobs.filter(terminal);
+ const active=state.jobs.filter(job=>!terminal(job)&&jobDisplayStatus(job)!=='queued');
+ const waiting=state.jobs.filter(job=>jobDisplayStatus(job)==='queued'),finished=state.jobs.filter(terminal);
  const actions=button(t('reload'),'refresh-jobs',{},'','activity')+button(t('new'),'navigate',{view:'new'},'primary','plus');
- return heading(t('activity'),t('jobHelp'),actions)+(active.length?`<section><h2>${t('activeExperiments')}</h2>${active.map(renderJobCard).join('')}</section>`:empty(t('noJobs')))
+ return heading(t('activity'),t('jobHelp'),actions)+(active.length?`<section><h2>${t('activeExperiments')}</h2>${active.map(renderJobCard).join('')}</section>`:'')
+  +(waiting.length?`<section class="section-gap"><h2>${t('waitingExperiments')}</h2>${waiting.map(renderJobCard).join('')}</section>`:'')
+  +(!active.length&&!waiting.length&&!finished.length?empty(t('noJobs')):'')
   +(finished.length?`<section class="section-gap"><h2>${t('finishedJobs')}</h2>${finished.map(renderJobCard).join('')}</section>`:'');
 }
 function updateActivity(){
  // Update the existing cards so DNA and indeterminate animations are not restarted by polling.
  const cards=[...document.querySelectorAll('[data-job-card]')];
  const byId=new Map(state.jobs.map(job=>[job.id,job]));
- if(cards.length!==byId.size||cards.some(card=>{const job=byId.get(card.dataset.jobCard);return !job||card.dataset.jobStatus!==job.status||card.dataset.jobRun!==(job.run_id||'')}))return false;
+ if(cards.length!==byId.size||cards.some(card=>{const job=byId.get(card.dataset.jobCard);return !job||card.dataset.jobStatus!==jobDisplayStatus(job)||card.dataset.jobRun!==(job.run_id||'')}))return false;
  cards.forEach(card=>{
   const job=byId.get(card.dataset.jobCard),p=jobProgress(job),unknown=p===null&&!terminal(job);
   card.querySelector('[data-job-phase]').textContent=phaseTitle(job);
@@ -433,7 +447,9 @@ function updateActivity(){
   }
   const label=card.querySelector('[data-job-progress-text]');if(label)label.textContent=progressText(job);
   card.querySelector('[data-job-elapsed]').textContent=elapsedTime(job);
-  const track=card.querySelector('.progress-track'),bar=track.querySelector('span');
+  const track=card.querySelector('.progress-track');
+  if(!track)return;
+  const bar=track.querySelector('span');
   track.classList.toggle('indeterminate',unknown);track.classList.toggle('paused',!state.motion);
   if(p===null)track.removeAttribute('aria-valuenow');else track.setAttribute('aria-valuenow',String(p));
   if(unknown)bar.style.removeProperty('width');else bar.style.width=(p??(job.status==='succeeded'?100:0))+'%';
@@ -680,7 +696,7 @@ function renderIGV(){
  const header=`<div class="page-heading"><div><div class="igv-title"><h1>${esc(t('igv'))}</h1><button type="button" class="button igv-info" data-action="igv-about" title="${infoLabel}" aria-label="${infoLabel}">${icon('info')}</button></div><p>${esc(t('igvHelp'))}</p></div></div>`;
  return header+`<details class="panel igv-sources" ${v.loaded?'':'open'}><summary>${t('igvFiles')}${v.loaded?` · ${esc(basename(loaded?.reference?.fasta))} · ${loaded?.tracks?.length||0} ${t('tracks').toLowerCase()}`:''}</summary><div class="panel-body"><h2>${t('igvReferenceStep')}</h2><p class="help section-gap">${t('igvReferenceHelp')}</p>${renderReferencePicker('igv')}<div class="section-title"><h2>${t('igvTracksStep')}</h2>${button(t('addTrack'),'igv-add-track',{},'small','plus')}</div><p class="help">${t('igvTrackHelp')}</p>${v.tracks.map((track,i)=>`<div class="igv-track">${input(t('name'),'track-name-'+i,track.name,`data-track-name="${i}"`)}${fileField(t('alignment'),`igv-track.${i}.path`,track.path,'alignment')}${fileField(t(trackIndexFilter(track.path)==='crai'?'cramIndex':trackIndexFilter(track.path)==='tabix'?'annotationIndex':'alignmentIndex'),`igv-track.${i}.index`,track.index,trackIndexFilter(track.path))}${button(t('removeTrack'),'igv-remove-track',{index:i},'quiet small','close')}</div>`).join('')}<div class="actions section-gap">${button(t(v.loaded?'reloadGenome':'loadGenome'),'igv-load',{},'primary','igv')}<span class="help">${t('igvMissing')}</span></div></div></details>${dirty?notice(t('igvUnapplied'),'warning'):''}<section id="igv-navigation" class="panel igv-navigation section-gap" aria-label="${t('igvNavigation')}">${renderIgvNavigation()}</section><div id="igv-container" class="igv-container section-gap">${empty(t('igvNotLoaded'))}</div>`;
 }
-function render(){if(!state.boot)return;curveViews.clear();const existingIgv=state.view==='igv'&&state.igv.loaded?$('igv-container'):null;renderGeneration++;$('navigation').innerHTML=nav.map((key,i)=>`${i===5?'<div class="nav-divider"></div>':''}<button class="nav-button ${state.view===key?'active':''}" data-action="navigate" data-view="${key}" ${state.view===key?'aria-current="page"':''}>${icon(key)}<span>${t(key)}</span></button>`).join('');$('breadcrumb').textContent='NewPat / '+t(state.view);$('page-back').hidden=state.view==='home';$('version').textContent=state.boot.version;$('language-'+L.language).checked=true;document.querySelectorAll('[data-text]').forEach(el=>el.textContent=t(el.dataset.text));const active=state.jobs.filter(j=>!terminal(j));$('job-indicator').textContent=active.length?active.length+' · '+t('running'):'';$('main').innerHTML=({home:renderHome,new:renderNew,archive:renderArchive,activity:renderActivity,catalog:renderCatalog,settings:renderPreferences,environment:renderEnvironment,igv:renderIGV}[state.view]||renderHome)();if(existingIgv){$('igv-container').replaceWith(existingIgv);window.NipatIGV?.resize?.()}}
+function render(){if(!state.boot)return;curveViews.clear();const existingIgv=state.view==='igv'&&state.igv.loaded?$('igv-container'):null;renderGeneration++;$('navigation').innerHTML=nav.map((key,i)=>`${i===5?'<div class="nav-divider"></div>':''}<button class="nav-button ${state.view===key?'active':''}" data-action="navigate" data-view="${key}" ${state.view===key?'aria-current="page"':''}>${icon(key)}<span>${t(key)}</span></button>`).join('');$('breadcrumb').textContent='NewPat / '+t(state.view);$('page-back').hidden=state.view==='home';$('version').textContent=state.boot.version;$('language-'+L.language).checked=true;document.querySelectorAll('[data-text]').forEach(el=>el.textContent=t(el.dataset.text));$('job-indicator').textContent=activityIndicator(state.jobs);$('main').innerHTML=({home:renderHome,new:renderNew,archive:renderArchive,activity:renderActivity,catalog:renderCatalog,settings:renderPreferences,environment:renderEnvironment,igv:renderIGV}[state.view]||renderHome)();if(existingIgv){$('igv-container').replaceWith(existingIgv);window.NipatIGV?.resize?.()}}
 function refreshPreservingInput(id){const inputElement=$(id),start=inputElement?.selectionStart,value=inputElement?.value;render();const next=$(id);if(next){next.focus();if(typeof start==='number'&&next.setSelectionRange)next.setSelectionRange(start,start)}}
 function humanError(error){let message=String(error?.message||error||t('operationError'));message=message.replace(/(Ref_f\.pop|Alt_f\.pop) deve essere finita tra 0 e 1\./g,(_,column)=>column+' '+t('frequencyError'));message=message.replace(/--(dnp|snp)-(contamination-panel|cpi-cutoffs|cpin-panel|popfreq|panel)/g,(_,marker,kind)=>({panel:t('panel'),popfreq:t('population'),'contamination-panel':t('contaminationPanel'),'cpi-cutoffs':t('cpiPanels'),'cpin-panel':t('cpinPanel')}[kind]+' '+marker.toUpperCase()));for(const key of Object.keys(L.fields).sort((a,b)=>b.length-a.length))message=message.replaceAll(key,L.field(key));message=message.replace(/\b(dnp-call|snp-call|contamination|cpin|cpi)\b/g,module=>moduleName(module));return message}
 function showError(error){const message=humanError(error);if(state.view==='new'){state.error=message;render()}else toast(message)}
@@ -856,21 +872,6 @@ async function action(name,data,element){
  }
  if(name==='confirm-remove-profile')return persistProfile(data.name,true);
  if(name==='save-preferences')return savePreferences();
- if(name==='share-capacity'){
-  const draft=state.draft, revision=draftRevision;
-  const {half_capacity_limits:limits}=await rpc('resources.get');
-  if(draft!==state.draft||revision!==draftRevision||state.view!=='new')return;
-  if(!limits){toast(t('shareCapacityUnavailable'));return}
-  for(const key of ['cpus','memory_mb']){
-   const current=draft.execution[key];
-   draft.execution[key]=current>0?Math.min(current,limits[key]):limits[key];
-   const field=$('draft-'+key);
-   if(field)field.value=draft.execution[key];
-  }
-  invalidate();
-  toast(draft.execution.cpus+' vCPU · '+draft.execution.memory_mb+' MiB');
-  return;
- }
  if(name==='load-resources'){state.environment=await rpc('resources.get');render();return}
  if(name==='check-environment'){state.environmentCheck=await rpc('environment.check',{check_runtime:true});state.environment=await rpc('resources.get');render();return}
  if(name==='preview-resources'){state.resourcePreview=await rpc('resources.preview',{memory_mib:Number(state.runtimeMemory??state.environment.runtime.configured.memory_mib),cpus:Number(state.runtimeCpus??state.environment.runtime.configured.cpus)});const r=state.resourcePreview;modal(t('resourceConfirm'),`<dl class="review-list"><dt>RAM · MiB</dt><dd>${format(r.before?.memory_mib,0)} → ${format(r.after.memory_mib,0)}</dd><dt>CPU</dt><dd>${format(r.before?.cpus,0)} → ${format(r.after.cpus,0)}</dd></dl>${(r.warnings||[]).map(w=>notice(w,'warning')).join('')}${r.affected_running?.length?`${notice(t('resourceRestart'),'warning')}<p class="section-gap">${esc(r.affected_running.join(', '))}</p><label class="check-row"><input type="checkbox" id="confirm-resource-restart"><span>${L.language==='it'?'Confermo il riavvio degli ambienti indicati':'I confirm restarting the listed environments'}</span></label>`:''}`,button(t('cancel'),'close-modal')+button(t('applyResources'),'apply-resources',{},'primary'));return}
@@ -970,7 +971,7 @@ async function poll(){
   const jobs=await rpc('jobs.list',{include_logs:false});
   const archiveKeys=rows=>JSON.stringify(rows.map(job=>[job.id,job.run_id,job.status]));
   const before=archiveKeys(state.jobs);state.jobs=jobs.jobs||jobs;
-  const active=state.jobs.filter(j=>!terminal(j));$('job-indicator').textContent=active.length?active.length+' · '+t('running'):'';
+  $('job-indicator').textContent=activityIndicator(state.jobs);
   if(state.view==='activity'&&!$('modal-root').innerHTML&&!updateActivity()){
    render();
   }
@@ -982,7 +983,7 @@ async function poll(){
    const previous=state.runs;await loadRuns();
    if((state.view==='home'||state.view==='archive'&&!state.run)&&JSON.stringify(previous)!==JSON.stringify(state.runs))render();
   }
-  if(state.view==='archive'&&state.run&&(!terminal(state.run)||active.some(j=>j.run_id===state.runId)))await refreshOpenedRun();
+  if(state.view==='archive'&&state.run&&(!terminal(state.run)||state.jobs.some(j=>!terminal(j)&&j.run_id===state.runId)))await refreshOpenedRun();
  }catch{/* A transient poll error must not replace work in progress. */}
  finally{pollTimer=setTimeout(poll,state.jobs.some(j=>!terminal(j))||[...referenceDownloads.values()].some(activeTransfer)?1500:5000)}
 }

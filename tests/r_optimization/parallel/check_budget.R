@@ -174,6 +174,13 @@ main <- function() {
     "/sys/fs/cgroup/memory.max" = 8192 * MiB,
     "/sys/fs/cgroup/memory.current" = 8000 * MiB))
   before <- fixed$nipat_parallel_budget(20, memory_mib = 1024)
+  check(before$resource_basis == "assigned-capacity-at-run-start")
+  revised_document <- fixed_document
+  revised_document$basis <- "assigned-capacity-at-step-boundary"
+  Sys.setenv(NIPAT_FIXED_RESOURCE_BUDGET = jsonlite::toJSON(revised_document, auto_unbox = TRUE))
+  next_phase <- fresh(list("/proc/meminfo" = "MemTotal: 16777216 kB"))
+  check(next_phase$nipat_parallel_budget(20)$resource_basis == revised_document$basis)
+  Sys.setenv(NIPAT_FIXED_RESOURCE_BUDGET = jsonlite::toJSON(fixed_document, auto_unbox = TRUE))
   check(before$memory_capacity_mib == 4096)
   check(before$worker_ceiling == 4L)
   check(before$workers == 2L)

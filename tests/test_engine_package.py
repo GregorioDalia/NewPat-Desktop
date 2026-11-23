@@ -96,6 +96,7 @@ class EnginePackageTests(unittest.TestCase):
         self.assertIn("lib/nipat_scientific/catalog.py", hashes)
         self.assertIn("lib/nipat_scientific/plan.py", hashes)
         self.assertIn("lib/nipat_scientific/executor.py", hashes)
+        self.assertIn("lib/nipat_scientific/desktop_scheduling.py", hashes)
         for workflow in engine.SCRIPT_PATHS:
             self.assertIn(f"lib/nipat_scientific/catalog_data/{workflow}.json", hashes)
         for relative, digest in hashes.items():

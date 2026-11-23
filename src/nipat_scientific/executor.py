@@ -461,6 +461,9 @@ def execute_plan(document: object, *, run_dir: Path, script_paths: dict[str, Pat
             "script_sha256": _sha256(scripts[step["workflow"]]),
         } for step in plan["steps"]],
     }
+    from nipat_scientific.desktop_scheduling import DesktopStepBudget
+    control = os.environ.get("NIPAT_DESKTOP_SCHEDULER")
+    scheduler = DesktopStepBudget(control, _atomic_json) if control else None
     cancellation = _Cancellation()
     previous = {}
     outputs = {}
@@ -473,6 +476,13 @@ def execute_plan(document: object, *, run_dir: Path, script_paths: dict[str, Pat
         raise PlanExecutionError("execution.destination", "The run directory was already claimed.") from exc
     _atomic_json(root / "plan.json", plan)
     _atomic_json(root / "workflow-state.json", state)
+    def step_boundary(label):
+        if scheduler is not None:
+            grant = scheduler.boundary(cancellation)
+            if grant is not None:
+                state.setdefault("desktop_resource_grants", []).append({"next_phase": label, **grant})
+                _atomic_json(root / "workflow-state.json", state)
+
     try:
         for signum in (signal.SIGINT, signal.SIGTERM):
             previous[signum] = signal.getsignal(signum)
@@ -480,7 +490,10 @@ def execute_plan(document: object, *, run_dir: Path, script_paths: dict[str, Pat
         from nipat_scientific.snp_parallel import execute_independent_snp_steps
         parallel_attempted = False
         for step, record in zip(plan["steps"], state["steps"], strict=True):
+            if record["status"] == "succeeded":
+                continue
             if step["workflow"] == "snp-call" and not parallel_attempted and run_process is None:
+                step_boundary("snp-batch")
                 parallel_attempted = True
                 execute_independent_snp_steps(plan, state, root, scripts, cancellation, atomic_json=_atomic_json)
                 for finished in state["steps"]:
@@ -489,6 +502,7 @@ def execute_plan(document: object, *, run_dir: Path, script_paths: dict[str, Pat
                             outputs[(finished["id"], artifact["sample"])] = root / artifact["path"]
             if record["status"] == "succeeded":
                 continue
+            step_boundary(step["id"])
             active = record
             _execute_step(plan, step, record, root, scripts, samples, outputs,
                           cancellation, run_process,
@@ -497,12 +511,14 @@ def execute_plan(document: object, *, run_dir: Path, script_paths: dict[str, Pat
         if cancellation.signum is not None:
             raise KeyboardInterrupt
         from nipat_scientific.snp_summary import finalize_snp_summaries
+        summary_options = {"before_group": lambda: step_boundary("snp-summary")} if scheduler is not None else {}
         with phase("snp-summary"):
             try:
                 state["snp_summary"] = finalize_snp_summaries(
                     plan, state, root,
                     run_process if run_process is not None else
                     lambda command, cwd, log: _run_process(command, cwd, log, cancellation),
+                    **summary_options,
                 )
             finally:
                 # A plotter stopped by SIGTERM reports a nonzero exit too.
@@ -528,6 +544,8 @@ def execute_plan(document: object, *, run_dir: Path, script_paths: dict[str, Pat
         if active is not None:
             active.update(status="failed", exit_code=2, error=state["error"], finished_utc=_utc())
     finally:
+        if scheduler is not None:
+            scheduler.restore()
         for signum, handler in previous.items():
             signal.signal(signum, handler)
         if state["status"] in {"failed", "cancelled"}:

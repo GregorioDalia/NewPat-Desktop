@@ -171,7 +171,7 @@ nipat_parallel_capacity <- function() {
       memory <- min(memory, fixed_memory, na.rm = TRUE)
     }
     reserve <- value$memory_reserve_fraction
-    source <- "assigned-capacity-at-run-start"
+    source <- if (identical(value$basis, "assigned-capacity-at-step-boundary")) value$basis else "assigned-capacity-at-run-start"
     source_version <- value$source_version
   }
   if (!is.finite(memory) || memory <= 0) {

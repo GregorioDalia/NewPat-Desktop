@@ -78,6 +78,16 @@ class BundledRunnerTests(unittest.TestCase):
             with self.subTest(mutation=mutation), self.assertRaises(RuntimeExecutionError):
                 DockerComposeRunner._validate_engine_description(description)
 
+    def test_optional_desktop_step_budget_requires_its_hashed_module(self):
+        description = engine_metadata()
+        validate = DockerComposeRunner._validate_engine_description
+        self.assertEqual(validate(description), description)
+        description["desktop_scheduling"] = "step-budget-v1"
+        with self.assertRaises(RuntimeExecutionError):
+            validate(description)
+        description["preparation"]["file_sha256"]["lib/nipat_scientific/desktop_scheduling.py"] = "f" * 64
+        self.assertEqual(validate(description), description)
+
     def test_image_missing_original_name_presentation_is_rejected(self):
         for source in ("presentation.py", "presentation.R"):
             with self.subTest(source=source):

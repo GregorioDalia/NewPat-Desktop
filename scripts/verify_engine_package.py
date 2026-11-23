@@ -170,6 +170,8 @@ def check_metadata(identifier: str) -> dict:
         raise ValueError("The engine lacks the complete CPI interface.")
     if description.get("workflow_interfaces", {}).get("cpin") != "cpin-v1":
         raise ValueError("The engine lacks the complete CPIN interface.")
+    if description.get("desktop_scheduling") != "step-budget-v1":
+        raise ValueError("The image lacks the desktop step-budget interface.")
     if description.get("plan_execution") != {
         "interface": "workflow-plan-execution-v2", "schema_version": 1,
         "workflows": ["dnp-call", "snp-call", "contamination", "cpi", "cpin"], "scheduling": "dependency-order-with-bounded-independent-snp", "resume": False,
@@ -191,7 +193,7 @@ def check_metadata(identifier: str) -> dict:
     source_files = {"engine/main.py": PROJECT / "engine/main.py"}
     for name in (
         "__init__.py", "errors.py", "panels.py", "files.py", "contamination.py", "snp.py", "snp_summary.py", "snp_parallel.py",
-        "dnp.py", "cpi.py", "cpin.py", "settings.py", "settings.R", "settings_data.json", "catalog.py", "plan.py", "executor.py", "outputs.py", "presentation.py", "presentation.R", "plots.R", "performance.py",
+        "dnp.py", "cpi.py", "cpin.py", "settings.py", "settings.R", "settings_data.json", "catalog.py", "plan.py", "executor.py", "desktop_scheduling.py", "outputs.py", "presentation.py", "presentation.R", "plots.R", "performance.py",
         "scratch.py", "dnp_pileup.py", "dnp_blocks.R", "progress.py", "progress.R", "parallel.py", "parallel.R", "catalog_data/dnp-call.json",
         "catalog_data/snp-call.json", "catalog_data/contamination.json", "catalog_data/cpi.json", "catalog_data/cpin.json",
     ):

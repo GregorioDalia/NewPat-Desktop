@@ -94,7 +94,25 @@ Additional checks exercised the following cases.
 - Three pending desktop requests on a four-CPU, 3,905 MiB runtime received 1,301, 1,302 and 1,302 MiB of container capacity. Crash, stop, failed cleanup and waiting-job tests check that a later run cannot claim an active container's reservation. The desktop registry covers sessions of one user on the same runtime. CLI runs and other applications can consume resources outside it.
 - In a mixed SNP workflow an unindexed sample ran alone and the two smaller samples overlapped. With all tables verified, the workflow took 21.48 seconds before and 18.67 seconds after. In a separate 32-sample, 3,000-locus summary test, peak traced Python allocations fell from 20,269 to 7,497 KiB. At renderer entry the live allocations fell from 16,564 to 196 KiB. The merged TSV was byte-identical. These numbers cover Python allocations only.
 
-The final local application suite passed 1,776 tests and skipped 46 platform- or dependency-specific checks. The CI helper suite passed 404 tests. The native R qualification inside the released scientific userspace passed all 25 tests with the candidate sources. Desktop frontend checks exercised 636 assertions. A rendered resource-form check at widths of 800 and 1,024 pixels verified that the half-capacity action fills the memory limit, retains a lower CPU limit and fits within the viewport.
+The local application suite for that revision passed 1,776 tests and skipped 46 platform- or dependency-specific checks. The CI helper suite passed 404 tests, all 25 native R checks passed inside the released scientific userspace, and desktop frontend checks exercised 636 assertions.
+
+## Submitting additional experiments during calculation
+
+The desktop now accepts new submissions while other experiments are running. A pending submission takes no worker thread until input preparation starts. A completed preparation releases its slot as soon as calculation is admitted. Each calculation can then use the resources allocated to it. The desktop and compatible engine exchange a new CPU and memory budget only after all workers from the preceding step or group of SNP samples have finished. A single indivisible step can occupy its original allocation until completion. The host accounts for the sum of allocations. The operating system retains each container's original limits.
+
+Regression tests cover bursts and staggered submissions of 3, 5 and 13 jobs with default settings. Another test submits 104 requests, cancels one in the queue and verifies completion of the remaining 103. Waiting cards identify input preparation or CPU and memory availability. Checks in English and Italian at 800 and 1,024 pixels exercised the Activity view with two running and six waiting, including cancellation of an individual queued job.
+
+The scientific comparison used a Linux runtime with four available CPUs, 8,192 MiB of declared capacity and four distinct synthetic BAM files per experiment. Each experiment ran one joint DNP step followed by four SNP samples. The baseline was commit `f5b837e`.
+
+| Staggered experiments | Observed execution |
+| --- | --- |
+| 1 | The experiment retained the full allocation, with four concurrent SNP samples and no budget exchange. |
+| 2 | After the first DNP step, each experiment had 2 CPUs and 4,096 MiB. Each processed two SNP samples concurrently. |
+| 3 | After the first DNP step, the engine assigned approximately 1.33 CPUs per experiment and 2,730, 2,731 and 2,731 MiB. Each experiment processed one SNP sample at a time. Sampled process CPU counters advanced for all three within the same interval. |
+
+Fifteen scientific tables and sample-label files per completed experiment matched the baseline byte for byte. An additional run recovered its original four CPUs and 8,192 MiB for the SNP summary after cancellation of the other experiment. When the host disappeared after the engine acknowledged a change and before the host published the new budget, the engine timed out without starting the next SNP step. SIGTERM at the same point also stopped the engine. These local runs cover scheduling and output equivalence. Timings on physical Windows and Apple Silicon systems require separate measurements.
+
+The final local application suite passed 1,789 tests, with 46 skips. The CI helper suite passed 404 tests, the native R suite passed 25 tests and the desktop frontend passed 637 assertions. The validation record identifies the exact source digests, fixtures, overlap measurements and comparisons for each scheduling scenario. [Desktop scheduling measurements](validation/0.9.10-desktop-scheduling.json)
 
 ## Scope and how to verify
 

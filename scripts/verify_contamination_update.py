@@ -132,6 +132,8 @@ def check_bundled_run(run_dir: Path, layout: ProjectLayout, *, workflow: str = "
         *(f"lib/nipat_scientific/catalog_data/{name}.json" for name in (
         "dnp-call", "snp-call", "contamination", "cpi", "cpin",
     ))}
+    if engine.get("desktop_scheduling") == "step-budget-v1":
+        required.add("lib/nipat_scientific/desktop_scheduling.py")
     if set(hashes) != required or any(not re.fullmatch(r"[0-9a-f]{64}", digest) for digest in hashes.values()):
         raise ValidationError("Hash del codice di preparazione incompleti o non validi.")
     commands = record["commands"]

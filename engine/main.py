@@ -28,7 +28,7 @@ SCRIPT_PATHS = {
 }
 PREPARATION_FILES = (
     "__init__.py", "errors.py", "panels.py", "files.py", "contamination.py", "snp.py", "dnp.py", "cpi.py",
-    "catalog.py", "plan.py", "executor.py", "outputs.py", "presentation.py", "presentation.R", "performance.py",
+    "catalog.py", "plan.py", "executor.py", "desktop_scheduling.py", "outputs.py", "presentation.py", "presentation.R", "performance.py",
     "scratch.py", "dnp_pileup.py", "dnp_blocks.R", "progress.py", "progress.R",
     "parallel.py", "parallel.R", "plots.R", "snp_summary.py", "snp_parallel.py", "cpin.py", "settings.py", "settings.R", "settings_data.json",
 )
@@ -134,6 +134,7 @@ def verify_bundle(bundle_root: Path) -> dict:
         },
         "workflows": workflows,
         "workflow_interfaces": WORKFLOW_INTERFACES.copy(),
+        "desktop_scheduling": "step-budget-v1",
         "scientific_validation": {
             "interface": "scientific-validation-v1",
             "input_workflows": list(SCRIPT_PATHS),
