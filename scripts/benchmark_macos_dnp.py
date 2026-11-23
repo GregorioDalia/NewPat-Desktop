@@ -58,6 +58,9 @@ def compare(args):
     output = args.output_dir.expanduser().resolve()
     output.mkdir(parents=True, exist_ok=False)
     log_path = output / "benchmark.json"
+    conditions = list(CONDITIONS)
+    if args.include_four:
+        conditions.append(("four", ["--execution-mode", "auto", "--max-workers", "4"]))
     cases = []
     report = {"package_version": manifest["version"], "source_commit": manifest["source_commit"],
               "macOS": platform.mac_ver()[0], "image": manifest["runtime_image"], "cases": cases}
@@ -66,8 +69,8 @@ def compare(args):
         subprocess.run([launcher, "--runtime", "prepare"], check=True, stdin=subprocess.DEVNULL)
         baseline = None
         for number in range(args.rounds):
-            start = number % len(CONDITIONS)
-            for label, options in CONDITIONS[start:] + CONDITIONS[:start]:
+            start = number % len(conditions)
+            for label, options in conditions[start:] + conditions[:start]:
                 name = f"{label}-{number + 1}"
                 run = output / "runs" / name
                 print(name, flush=True)
@@ -110,7 +113,7 @@ def compare(args):
                 log_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
         report["median_wall_seconds"] = {
             label: statistics.median(case["wall_seconds"] for case in cases if case["condition"] == label)
-            for label, _ in CONDITIONS
+            for label, _ in conditions
         }
         print(json.dumps(report["median_wall_seconds"], indent=2))
     except (OSError, KeyError, ValueError, subprocess.CalledProcessError, KeyboardInterrupt) as exc:
@@ -131,6 +134,8 @@ def main():
     for arg in ("bamlist", "reference", "panel", "output-dir"):
         parser.add_argument("--" + arg, type=Path, required=True)
     parser.add_argument("--rounds", type=int, choices=(1, 2, 3), default=1)
+    parser.add_argument("--include-four", action="store_true",
+                        help="Also test a ceiling of four workers and record the concurrency actually observed.")
     try:
         compare(parser.parse_args())
     except (OSError, KeyError, ValueError, subprocess.CalledProcessError) as exc:

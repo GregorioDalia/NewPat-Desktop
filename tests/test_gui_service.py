@@ -1,6 +1,7 @@
 """Desktop adapters preserve caller selection, validated plans and recorded outcomes."""
 from __future__ import annotations
 
+from contextlib import ExitStack
 from copy import deepcopy
 from dataclasses import replace
 import json
@@ -8,6 +9,7 @@ import io
 import hashlib
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -18,6 +20,7 @@ from nipat.errors import RuntimeExecutionError, ValidationError
 from nipat.execution.progress import ProgressSnapshot
 from nipat.execution.runner import DockerComposeRunner
 from nipat.execution.transport import DockerTransport
+from nipat.gui.admission import DesktopAdmission
 from nipat.gui.jobs import GuiRunner, Job, JobManager
 from nipat.gui.plan import prepare_analysis
 from nipat.gui.service import GuiService
@@ -30,6 +33,8 @@ class GuiFixture(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name).resolve()
+        self.enterContext(patch("nipat.gui.jobs.DesktopAdmission",
+                          side_effect=lambda runtime, ident: DesktopAdmission(runtime, ident, home=self.root)))
         project = self.root / "project"
         project.mkdir()
         (project / "compose.yaml").write_text("services: {}\n")
@@ -314,6 +319,18 @@ class GuiServiceTests(GuiFixture):
         self.assertEqual(results, [{"id": "first"}])
         jobs.start.assert_called_once()
 
+    def test_half_capacity_uses_effective_runtime_and_honors_lower_configuration(self):
+        manager = Mock()
+        service = self.service(resource_factory=lambda _: manager)
+        snapshot = {"host": {"cpus": 32, "memory_mib": 32768}, "runtime": {
+            "configured": {"cpus": 4, "memory_mib": 8192},
+            "effective": {"cpus": 8, "memory_mib": 3905}}}
+        manager.snapshot.return_value = snapshot
+        self.assertEqual(service.resources_get()["half_capacity_limits"], {"cpus": 2, "memory_mb": 1952})
+        for effective in ({}, {"cpus": 1, "memory_mib": 8192}, {"cpus": 4, "memory_mib": 255}):
+            snapshot["runtime"]["effective"] = effective
+            self.assertIsNone(service.resources_get()["half_capacity_limits"])
+
     def test_resource_apply_uses_server_held_preview_and_preserves_confirmation(self):
         change = Mock()
         change.as_dict.return_value = {"before": {}, "after": {"cpus": 2, "memory_mib": 1024}}
@@ -485,27 +502,150 @@ class GuiJobTests(GuiRuntimeFixture):
         self.assertEqual(manager.list(), [])
         self.assertEqual(service.call("runs.list")["total"], 0)
 
-    def test_overlap_container_limits_use_guest_share_without_raising_explicit_limits(self):
+    def test_jobs_preparing_together_share_only_the_remaining_guest_quota(self):
         from nipat.execution.options import ExecutionOptions
         prepared = prepare_analysis(self.draft(), self.layout)
-        for count, requested, expected in [
-            (1, ExecutionOptions(), (None, None)),
-            (2, ExecutionOptions(), (2, 2048)),
-            (2, ExecutionOptions(cpus=1, memory_mb=1024), (1, 1024)),
-        ]:
-            with self.subTest(count=count, options=requested):
-                job = Job(replace(prepared, execution=requested), count)
-                runner = GuiRunner(job.prepared, job)
-                runner._record = Mock(data={})
-                snapshot = {"runtime": {"effective": {"cpus": 4, "memory_mib": 4096}}}
-                with patch("nipat.resources.ResourceManager.snapshot", return_value=snapshot):
-                    runner._record_resource_snapshot()
-                self.assertEqual((runner.options.cpus, runner.options.memory_mb), expected)
-                if count > 1:
-                    self.assertEqual(runner.options.compose_limits()["mem_limit"], expected[1] * 1024**2)
-                    self.assertEqual(runner._record.data["concurrent_execution"]["requested_options"], requested.as_dict())
-                else:
-                    self.assertNotIn("concurrent_execution", runner._record.data)
+        def runner(options):
+            job = Job(replace(prepared, execution=options))
+            instance = GuiRunner(job.prepared, job)
+            instance._record = Mock(data={})
+            return instance
+        first, second, third = (runner(options) for options in (
+            ExecutionOptions(), ExecutionOptions(cpus=0.75, memory_mb=900), ExecutionOptions()))
+        def snapshot(**_):
+            return {"runtime": {"effective": {"cpus": 4, "memory_mib": 3905}}}
+        with ExitStack() as context:
+            context.enter_context(patch("nipat.resources.ResourceManager.snapshot", side_effect=snapshot))
+            for instance in (first, second):
+                context.enter_context(instance._admission.registration())
+                # Both jobs are registered while inputs are being prepared.
+            first._record_resource_snapshot()
+            second._record_resource_snapshot()
+            context.enter_context(third._admission.registration())
+            third._record_resource_snapshot()
+            self.assertEqual((first.options.cpus, first.options.memory_mb), (2, 1952))
+            self.assertEqual((second.options.cpus, second.options.memory_mb), (0.75, 900))
+            self.assertEqual((third.options.cpus, third.options.memory_mb), (1.25, 1053))
+            for instance in (first, second, third):
+                budget = instance._record.data["resource_budget"]
+                self.assertEqual(budget["cpu_limit"], instance.options.cpus)
+                self.assertEqual(budget["memory_capacity_mib"], instance.options.memory_mb)
+                self.assertEqual(instance.options.compose_limits()["mem_limit"], instance.options.memory_mb * 2**20)
+
+    def test_default_run_keeps_full_capacity_and_later_run_waits_or_cancels(self):
+        prepared = prepare_analysis(self.draft(), self.layout)
+        def make():
+            instance = GuiRunner(prepared, Job(prepared))
+            instance._record = Mock(data={})
+            return instance
+        def snapshot(**_):
+            return {"runtime": {"effective": {"cpus": 4, "memory_mib": 3905}}}
+        first, second, third = make(), make(), make()
+        with ExitStack() as context:
+            context.enter_context(patch("nipat.resources.ResourceManager.snapshot", side_effect=snapshot))
+            with first._admission.registration():
+                first._record_resource_snapshot()
+                self.assertIsNone(first.options.memory_mb)
+                self.assertIsNone(first.options.cpus)
+                self.assertEqual(first._record.data["resource_budget"]["memory_budget_mib"], 3124)
+                context.enter_context(second._admission.registration())
+                with third._admission.registration():
+                    waiting = threading.Event()
+                    original = third._preparation_progress
+                    def notify(phase):
+                        original(phase)
+                        waiting.set()
+                    third._preparation_progress = notify
+                    outcome = []
+                    def wait_for_capacity():
+                        try:
+                            third._record_resource_snapshot()
+                        except KeyboardInterrupt:
+                            outcome.append("cancelled")
+                    worker = threading.Thread(target=wait_for_capacity)
+                    worker.start()
+                    try:
+                        self.assertTrue(waiting.wait(3))
+                        self.assertEqual(third.job.snapshot()["progress"]["phase"], "waiting-for-resources")
+                    finally:
+                        third.job.cancel_event.set()
+                        worker.join(3)
+                    self.assertEqual(outcome, ["cancelled"])
+            # The second job was registered before the first completed. Its
+            # budget must depend on current admissions at computation start.
+            second._record_resource_snapshot()
+            self.assertEqual(second._record.data["resource_budget"]["memory_budget_mib"], 3124)
+            self.assertIsNone(second.options.memory_mb)
+
+    def test_crashed_session_releases_only_after_runtime_confirms_its_project_is_idle(self):
+        from nipat.execution.options import ExecutionOptions
+        runtime = {"backend": "native"}
+        # Leave a real cross-process registration behind, without running its
+        # Python cleanup. The OS must release both Windows and POSIX owner locks.
+        source = """
+import os, sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+from nipat.execution.options import ExecutionOptions
+from nipat.gui.admission import DesktopAdmission
+ticket = DesktopAdmission({"backend": "native"}, "orphan", home=Path(sys.argv[2]))
+with ticket.registration():
+    assert ticket.try_admit(4, 3905, ExecutionOptions(), lambda job: True) is not None
+    print("running", flush=True)
+    sys.stdin.readline()
+    os._exit(0)
+"""
+        waiting = DesktopAdmission(runtime, "waiting", home=self.root)
+        idle = Mock(side_effect=[False, True, True])
+        with subprocess.Popen([sys.executable, "-c", source, str(Path(__file__).resolve().parents[1] / "src"),
+                               str(self.root)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True) as child:
+            try:
+                self.assertEqual(child.stdout.readline().strip(), "running")
+                with waiting.registration(), patch("nipat.gui.admission.time", wraps=time) as clock:
+                    clock.monotonic.side_effect = [1, 4, 7]
+                    clock.monotonic_ns.side_effect = time.monotonic_ns
+                    self.assertIsNone(waiting.try_admit(4, 3905, ExecutionOptions(), idle))
+                    idle.assert_not_called()
+                    child.communicate("\n", timeout=10)
+                    self.assertEqual(child.returncode, 0)
+                    for _ in range(3):
+                        self.assertIsNone(waiting.try_admit(4, 3905, ExecutionOptions(), idle))
+                    allocation = waiting.try_admit(4, 3905, ExecutionOptions(), idle)
+                    self.assertEqual((allocation.cpus, allocation.memory_mib), (4, 3905))
+            finally:
+                if child.poll() is None:
+                    child.kill()
+        self.assertEqual([call.args for call in idle.call_args_list], [("orphan",)] * 3)
+
+    def test_uncertain_partial_cleanup_does_not_permanently_reduce_future_runs(self):
+        from nipat.execution.options import ExecutionOptions
+        first, next_job = [DesktopAdmission({"backend": "native"}, name, home=self.root)
+                           for name in ("first", "next")]
+        with first.registration():
+            first.try_admit(4, 4096, ExecutionOptions(cpus=1, memory_mb=1024), Mock())
+            first.unconfirmed_cleanup = True
+        idle = Mock(return_value=True)
+        with next_job.registration(), patch("nipat.gui.admission.time", wraps=time) as clock:
+            clock.monotonic.side_effect = [1, 4]
+            clock.monotonic_ns.side_effect = time.monotonic_ns
+            self.assertIsNone(next_job.try_admit(4, 4096, ExecutionOptions(), idle))
+            self.assertIsNone(next_job.try_admit(4, 4096, ExecutionOptions(), idle))
+            allocation = next_job.try_admit(4, 4096, ExecutionOptions(), idle)
+            self.assertEqual((allocation.cpus, allocation.memory_mib), (4, 4096))
+
+    def test_missing_capacity_serializes_calculations_and_errors_return_the_quota(self):
+        from nipat.execution.options import ExecutionOptions
+        first, second = [DesktopAdmission({"backend": "native"}, name, home=self.root)
+                         for name in ("first", "second")]
+        options = ExecutionOptions()
+        for memory in (None, 127):
+            with self.subTest(memory=memory), second.registration():
+                with self.assertRaisesRegex(ValueError, "calculation"), first.registration():
+                    allocated = first.try_admit(4, memory, options, Mock())
+                    self.assertEqual((allocated.cpus, allocated.memory_mib, allocated.participants), (None, None, 1))
+                    self.assertIsNone(second.try_admit(4, 4096, options, Mock()))
+                    raise ValueError("calculation")
+                self.assertEqual(second.try_admit(4, 4096, options, Mock()).memory_mib, 4096)
 
     def test_runtime_startup_wait_can_be_cancelled_independently(self):
         from concurrent.futures import ThreadPoolExecutor

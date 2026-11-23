@@ -33,6 +33,16 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
  const reference=(build,label)=>({id:build+'-'+label,build,label,fasta:'/ref/'+label+'.fa',index:'/ref/'+label+'.fa.fai',index_sha256:'a'.repeat(64),naming:'chr',available:true});
  const hg19=reference('grch37','hg19'),hg38=reference('grch38','hg38'),b37=reference('grch37','b37');
  await app.navigate('new');app.state.draft.samples=[{kind:'bam',id:'test',path:'/samples/test.bam'}];
+ const getResources=handlers['resources.get'];
+ app.state.draft.execution.cpus=1;
+ handlers['resources.get']=()=>({half_capacity_limits:{cpus:2,memory_mb:1952}});
+ await app.action('share-capacity',{});
+ check(app.state.draft.execution.cpus===1&&app.state.draft.execution.memory_mb===1952,'Sharing capacity fills measured limits and preserves a lower CPU ceiling');
+ handlers['resources.get']=()=>({half_capacity_limits:null});
+ await app.action('share-capacity',{});
+ check(app.state.draft.execution.memory_mb===1952,'Unknown capacity preserves the experiment settings');
+ app.state.draft.execution.cpus=null;app.state.draft.execution.memory_mb=null;
+ handlers['resources.get']=getResources;
  check(app.renderNew().includes('GRCh37 / hg19')&&app.renderNew().includes('GRCh38 / hg38'),'New experiments offer both assemblies on a fresh install');
  await pickBuild('new','grch37');
  check(!app.state.draft.reference&&app.renderNew().includes('Scarica da UCSC hg19')&&!requests.some(r=>r.method==='references.download'),'Choosing an unavailable assembly offers a local FASTA or explicit download');
@@ -73,7 +83,7 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
  await app.action('start-analysis',{});passPreflight();await launch;handlers['plan.preview']=previewOnStart;
  check(requests.slice(beforeStart).map(r=>r.method).filter(m=>m==='plan.preview'||m==='analysis.start').join(',')==='plan.preview,analysis.start','Repeated clicks share one validated launch');
  check(app.state.view==='activity'&&requests.some(r=>r.method==='analysis.start'&&r.params.preview_id==='preview-1'),'Execution requires reviewed preview token');check(app.jobProgress(jobs[0])===50,'Observed phase progress, no fabricated overall completion');
- check(app.renderNew().includes('le analisi condivideranno CPU'),'Second launch warns about CPU, memory and disk contention');
+ check(app.renderNew().includes('condividono CPU, memoria e disco')&&app.renderNew().includes('Il calcolo attende'),'Second launch explains shared resources and waiting');
  await app.action('confirm-cancel-job',{id:'job-1'});check(jobs[0].status==='interrupted','Cancel reaches actual job service');
  check(app.renderActivity().includes('Terminati in questa sessione')&&app.renderActivity().includes('data-action="remove-job"')&&!app.renderActivity().includes('data-action="cancel-job"'),'Interrupted card is dismissible in finished activity');
  await app.loadRun('run-1');check(element('main').innerHTML.includes('Analisi non eseguita'),'Unexecuted modules explicitly identified');await app.action('result-module',{module:'snp-call|SNP'});check(element('main').innerHTML.includes('Non disponibile')&&element('main').innerHTML.includes('0'),'NA and zero remain distinct');check(app.metricValue({value:'0.025',scale:100,unit:'%'})==='2,5 %','Percent conversion occurs once');check(app.metricValue({value:'0.0353553390593274',scale:100,unit:'punti %'}).includes('punti %'),'SD carries percentage-point unit');check(app.metricValue({value:null,scale:100})==='Non disponibile','Missing metric not coerced to zero');

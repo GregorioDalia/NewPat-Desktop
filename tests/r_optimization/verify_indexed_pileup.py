@@ -292,7 +292,7 @@ def audit(project: Path, root: Path, samtools: str) -> dict:
                    expected_contigs=contigs, require_overlap=True)
     compare_budget("chromosomes-multiple", [paths["sparse"], paths["dense"]], 4,
                    expected_contigs=contigs, require_overlap=True)
-    with patch.dict(os.environ, NIPAT_DNP_SMALL_ARM_GUEST="1"):
+    with patch.dict(os.environ, NIPAT_DNP_OPTIMIZED_IO="1"):
         details = compare_budget("clustered-bounded-region", [paths["dense"], paths["sparse"]],
                                  1, expected_contigs=contigs)
     regions = [row["region"] for row in details["processes"] if "region" in row]

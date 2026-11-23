@@ -155,13 +155,22 @@ def _backend() -> str:
     return value
 
 
+class ResourceLockBusy(RuntimeExecutionError):
+    """Another local process or thread holds an incompatible resource lock."""
+
+
 @contextmanager
 def _resource_lock(home: Path, backend: str, *, exclusive: bool):
     directory = home / ".nipat"
     if directory.is_symlink():
         raise ValidationError("La cartella di coordinamento delle risorse non può essere un collegamento.")
     directory.mkdir(parents=True, exist_ok=True)
-    path = directory / f"resources-{backend}.lock"
+    with resource_file_lock(directory / f"resources-{backend}.lock", exclusive=exclusive):
+        yield
+
+
+@contextmanager
+def resource_file_lock(path: Path, *, exclusive: bool):
     if path.is_symlink():
         raise ValidationError("File di coordinamento delle risorse non valido.")
     with path.open("a+b") as stream:
@@ -184,7 +193,9 @@ def _resource_lock(home: Path, backend: str, *, exclusive: bool):
             kernel.UnlockFileEx.restype = wintypes.BOOL
             handle, overlap = msvcrt.get_osfhandle(stream.fileno()), Overlapped()
             if not kernel.LockFileEx(handle, 1 | (2 if exclusive else 0), 0, 1, 0, ctypes.byref(overlap)):
-                raise RuntimeExecutionError("Un'analisi o una modifica delle risorse è in corso. Riprovare al termine.")
+                if ctypes.get_last_error() != 33:  # ERROR_LOCK_VIOLATION
+                    raise ctypes.WinError(ctypes.get_last_error())
+                raise ResourceLockBusy("Un'analisi o una modifica delle risorse è in corso. Riprovare al termine.")
             try:
                 yield
             finally:
@@ -194,7 +205,7 @@ def _resource_lock(home: Path, backend: str, *, exclusive: bool):
             try:
                 fcntl.flock(stream.fileno(), (fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH) | fcntl.LOCK_NB)
             except BlockingIOError as exc:
-                raise RuntimeExecutionError("Un'analisi o una modifica delle risorse è in corso. Riprovare al termine.") from exc
+                raise ResourceLockBusy("Un'analisi o una modifica delle risorse è in corso. Riprovare al termine.") from exc
             try:
                 yield
             finally:

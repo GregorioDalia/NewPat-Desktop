@@ -10,6 +10,7 @@ import argparse
 from datetime import datetime, timezone
 import gzip
 import json
+import math
 import os
 from pathlib import Path
 import signal
@@ -192,14 +193,12 @@ def _query_budget(steps, samples, directory, cancellation):
             # Normal execution retains the detailed scientific/input error.
             size, evidence = None, {"basis": "sample-size-unavailable"}
         estimates[step["id"]] = {**evidence, "memory_mib": (size + _MIB - 1) // _MIB if size else None}
-        if size is None:
-            break  # The batch cannot acquire extra slots, so skip later probes.
     if cancellation.signum is not None:
         raise KeyboardInterrupt
-    (directory / "sample-estimates.json").write_text(json.dumps(estimates, indent=2), encoding="utf-8")
-    sizes = [item["memory_mib"] for item in estimates.values()]
-    # One fixed budget protects even the worst pair/order and mixed inputs.
-    memory = str(max(sizes)) if all(sizes) else "unknown"
+    sizes = [item["memory_mib"] for item in estimates.values() if item["memory_mib"] is not None]
+    # R sets the CPU ceiling and the minimum charge for a loaded worker.
+    # An outer pool is possible only when two workloads have been estimated.
+    memory = str(min(sizes)) if len(sizes) >= 2 else "unknown"
     tasks = len(steps)
     expression = ('a <- commandArgs(TRUE); source(a[[1]]); observed <- a[[3]] != "unknown"; '
                   'm <- if (observed) as.numeric(a[[3]]) else NULL; '
@@ -220,7 +219,35 @@ def _query_budget(steps, samples, directory, cancellation):
             or not 1 <= budget["workers"] <= tasks or budget.get("tasks") != tasks
             or (memory == "unknown" and budget["workers"] != 1)):
         raise PlanExecutionError("execution.parallel_budget", "The R process budget is inconsistent with the batch.")
-    return budget
+    costs = {}
+    if budget["workers"] > 1:
+        capacity, rss, floor = (budget.get(key) for key in
+                                ("memory_budget_mib", "coordinator_rss_mib", "memory_per_worker_mib"))
+        if any(type(value) not in (int, float) or not math.isfinite(value) or value <= 0
+               for value in (capacity, rss, floor)):
+            raise PlanExecutionError("execution.parallel_budget", "The R process budget lacks a usable memory limit.")
+        remaining = max(0, math.floor(capacity - rss))
+        charges = sorted(max(math.ceil(floor), size) for size in sizes)
+        used = slots = 0
+        for charge in charges:
+            if used + charge > remaining or slots == budget["workers"]:
+                break
+            used += charge
+            slots += 1
+        if slots < budget["workers"]:
+            budget["reason"] = "workload-memory-budget"
+        budget.update(workers=max(1, slots), sample_budget_mib=remaining)
+        for identifier, item in estimates.items():
+            size = item["memory_mib"]
+            charge = max(math.ceil(floor), size) if size is not None else None
+            # A sample that cannot share with even the smallest runs alone and
+            # retains the ordinary inner R/samtools budget.
+            costs[identifier] = charge if charge is not None and charge + charges[0] <= remaining else None
+            item["charge_mib"] = charge
+            item["exclusive"] = costs[identifier] is None
+    (directory / "sample-estimates.json").write_text(json.dumps(estimates, indent=2), encoding="utf-8")
+    target.write_text(json.dumps(budget, indent=2), encoding="utf-8")
+    return budget, costs
 
 
 def _kill_group(process, signum):
@@ -295,20 +322,21 @@ def execute_independent_snp_steps(plan, state, root, scripts, cancellation, *, a
     directory = root / "parallel" / "snp"
     directory.mkdir(parents=True)
     samples = {sample["id"]: sample["path"] for sample in plan["samples"]}
-    budget = _query_budget(steps, samples, directory, cancellation)
+    budget, costs = _query_budget(steps, samples, directory, cancellation)
     state["snp_parallel"] = {"interface": "nipat-parallel-v1", **budget,
                              "diagnostics": "parallel/snp"}
     _event(directory, "plan", budget, os.getpid())
     atomic_json(root / "workflow-state.json", state)
     if budget["workers"] == 1:
         return False
-    environment = {**os.environ, **THREAD_LIMITS, "NIPAT_PARALLEL_CHILD": "1", "NIPAT_MAX_WORKERS": "1"}
+    environment = {**os.environ, **THREAD_LIMITS}
     module_root = str(Path(__file__).resolve().parent.parent)
     environment["PYTHONPATH"] = module_root + (os.pathsep + environment["PYTHONPATH"] if environment.get("PYTHONPATH") else "")
+    shared_environment = {**environment, "NIPAT_PARALLEL_CHILD": "1", "NIPAT_MAX_WORKERS": "1"}
+    pending = {step["id"]: index for index, step in enumerate(steps, 1)}
     active = {}
-    next_index = 0
     try:
-        while next_index < len(steps) or active:
+        while pending or active:
             if cancellation.signum is not None:
                 raise KeyboardInterrupt
             changed = False
@@ -336,21 +364,33 @@ def execute_independent_snp_steps(plan, state, root, scripts, cancellation, *, a
                     state["exit_code"] = record.get("exit_code") or 2
                     atomic_json(root / "workflow-state.json", state)
                     raise PlanExecutionError("execution.process", f"{identifier}: isolated SNP worker failed; see parallel/snp/worker-{identifier}.log.")
-            while next_index < len(steps) and len(active) < budget["workers"]:
+            if active and not changed:
+                time.sleep(0.05)
+                continue
+            available = budget["sample_budget_mib"] - sum(
+                costs[identifier] or budget["sample_budget_mib"] for identifier in active)
+            # Preserve plan indices. A later small sample may occupy unused
+            # capacity while an earlier, larger one waits for its reservation.
+            for identifier, index in list(pending.items()):
                 if cancellation.signum is not None:
                     raise KeyboardInterrupt
-                step = steps[next_index]
-                record = records[step["id"]]
-                identifier = step["id"]
+                if len(active) >= budget["workers"] or available <= 0:
+                    break
+                charge = costs[identifier]
+                if (charge is None and active) or (charge is not None and charge > available):
+                    continue
+                record = records[identifier]
                 job = directory / f"job-{identifier}.json"
                 record_path = directory / f"state-{identifier}.json"
                 atomic_json(job, {"schema_version": 1, "root": str(root), "step_id": identifier,
                                   "record": record, "scripts": {key: str(value) for key, value in scripts.items()},
-                                  "budget": budget, "coordinator_pid": os.getpid(), "task_index": next_index + 1})
+                                  "budget": budget, "coordinator_pid": os.getpid(), "task_index": index,
+                                  "exclusive": charge is None})
                 log = (directory / f"worker-{identifier}.log").open("xb")
                 try:
                     process = subprocess.Popen([sys.executable, "-m", "nipat_scientific.snp_parallel", "--worker", str(job)],
-                                               cwd=root, env=environment, stdin=subprocess.DEVNULL,
+                                               cwd=root, env=environment if charge is None else shared_environment,
+                                               stdin=subprocess.DEVNULL,
                                                stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
                 except BaseException:
                     log.close()
@@ -358,7 +398,8 @@ def execute_independent_snp_steps(plan, state, root, scripts, cancellation, *, a
                 active[identifier] = (process, record, record_path, log)
                 record.update(status="running", started_utc=_utc())
                 changed = True
-                next_index += 1
+                del pending[identifier]
+                available -= charge if charge is not None else budget["sample_budget_mib"]
             if changed:
                 atomic_json(root / "workflow-state.json", state)
             if active:
@@ -417,7 +458,9 @@ def _worker(job_path):
     cancellation = _Cancellation()
     for signum in (signal.SIGTERM, signal.SIGINT):
         signal.signal(signum, cancellation.receive)
-    os.environ.update({**THREAD_LIMITS, "NIPAT_PARALLEL_CHILD": "1", "NIPAT_MAX_WORKERS": "1"})
+    os.environ.update(THREAD_LIMITS)
+    if not job["exclusive"]:
+        os.environ.update(NIPAT_PARALLEL_CHILD="1", NIPAT_MAX_WORKERS="1")
     _event(job_path.parent, "task-start", job["budget"], job["coordinator_pid"], job["task_index"])
     try:
         _execute_step(plan, step, record, root, {key: Path(value) for key, value in job["scripts"].items()},

@@ -891,21 +891,23 @@
         "capacity_basis": "assigned-capacity-at-run-start",
         "capacity_memory_fraction": 0.8,
         "concurrency_policy": "fixed-pool-per-phase-within-run-ceiling",
-        "likelihood_tasks": "Contiguous blocks of complete loci, sized by locus and REF/ALT read counts and admitted by the shared pool. Every locus retains its input read order."
+        "likelihood_tasks": "Contiguous blocks of complete loci, sized by locus and REF/ALT read counts and admitted by the shared pool. Every locus retains its input read order.",
+        "cgroup_limits": "CPU quota, memory limit and PID headroom across visible process and ancestor cgroups (v1/v2)",
+        "desktop_concurrent_runs": "Fixed per-run quotas from uncommitted runtime capacity across desktop sessions of one user; wait if an additional run cannot fit."
       },
       "applies_to": "snp-call",
       "origin": "NewPat scientific engine and client",
       "description": {
-        "it": "Il tetto dei processi è fissato all’avvio dalle capacità assegnate a hardware, ambiente e container e dal massimo richiesto; non segue la memoria libera istantanea. Ogni fase fissa il proprio pool entro quel tetto, con riserva proporzionale del 20%, memoria residente del coordinatore conteggiata separatamente e stima del carico. Non esiste un minimo universale di 2 GiB per worker: la stima usa il maggiore fra il doppio della RSS del coordinatore caricato e il modello del modulo, quando disponibile. La stima non è una prenotazione di memoria né una garanzia contro OOM. Capacità o carico non misurabili mantengono la fase seriale. I pool annidati restano seriali, i thread interni sono limitati e i risultati mantengono l’ordine delle attività. Passaggi SNP indipendenti possono usare un pool di campioni dimensionato sul campione più costoso. Durante il calcolo di un singolo campione, acquisizione per cromosomi e aggregazione R possono usare le CPU e la memoria disponibili.",
-        "en": "The run-wide process ceiling is fixed at startup from assigned hardware, environment and container capacities and the requested maximum; it does not track transient free memory. Each phase fixes its pool within that ceiling, reserving 20% proportionally, accounting separately for coordinator RSS and estimating its workload. There is no universal 2GiB floor per worker: the estimate is the larger of twice the loaded coordinator RSS and a module workload estimate when available. This is neither a memory reservation nor an OOM guarantee. Unknown capacity or workload keeps the phase serial. Nested pools stay serial, internal threads are limited and results retain task order. Independent SNP steps may use a sample pool sized for the largest sample estimate. During processing of a single sample, chromosome acquisition and R aggregation can use the available CPU and memory."
+        "it": "Il tetto dei processi è fissato all’avvio dalle capacità assegnate a hardware, ambiente e container e dal massimo richiesto; non segue la memoria libera istantanea. Ogni fase fissa il proprio pool entro quel tetto, con riserva proporzionale del 20%, memoria residente del coordinatore conteggiata separatamente e stima del carico. Non esiste un minimo universale di 2 GiB per worker: la stima usa il maggiore fra il doppio della RSS del coordinatore caricato e il modello del modulo, quando disponibile. La stima non è una prenotazione di memoria né una garanzia contro OOM. Capacità o carico non misurabili mantengono la fase seriale. I pool annidati restano seriali, i thread interni sono limitati e i risultati mantengono l’ordine delle attività. I passaggi SNP indipendenti condividono il pool quando la somma delle loro stime di memoria rientra nel budget. Un campione con costo sconosciuto o memoria insufficiente per la condivisione viene elaborato da solo. Durante il calcolo di un singolo campione, acquisizione per cromosomi e aggregazione R possono usare le CPU e la memoria disponibili. Su Linux il motore legge i cgroup del processo e le radici dei mount, inclusi i controller v1 combinati, e applica i limiti visibili più restrittivi del processo e dei suoi antenati. Se non riesce ad associare un controller montato al processo, usa un solo worker. Se mancano i dati dei mount, controlla i percorsi standard dei controller. Le sessioni desktop dello stesso utente tengono conto di CPU e memoria già assegnate agli esperimenti sullo stesso runtime. Un nuovo esperimento attende se il calcolo richiede più risorse di quelle ancora disponibili. Se la capacità è sconosciuta, viene eseguito un calcolo desktop alla volta.",
+        "en": "The run-wide process ceiling is fixed at startup from assigned hardware, environment and container capacities and the requested maximum; it does not track transient free memory. Each phase fixes its pool within that ceiling, reserving 20% proportionally, accounting separately for coordinator RSS and estimating its workload. There is no universal 2GiB floor per worker: the estimate is the larger of twice the loaded coordinator RSS and a module workload estimate when available. This is neither a memory reservation nor an OOM guarantee. Unknown capacity or workload keeps the phase serial. Nested pools stay serial, internal threads are limited and results retain task order. Independent SNP steps share the sample pool when their individual memory estimates fit together. A sample with unknown cost or insufficient room to share runs alone. During processing of a single sample, chromosome acquisition and R aggregation can use the available CPU and memory. On Linux the engine reads the process’s cgroup memberships and mount roots, including combined v1 controllers, and applies the strictest visible quotas from the process and its ancestors. An unmappable mounted controller restricts the pool to one worker. If mount metadata is unavailable, the engine checks the standard controller paths. Desktop sessions of the same user account for CPU and memory already assigned to experiments on the same runtime. A new experiment waits for capacity if its calculation cannot fit. With unknown capacity, one desktop calculation runs at a time."
       },
       "evidence": {
         "path": "src/nipat_scientific/parallel.R",
         "source_lines": [
           1,
-          267
+          322
         ],
-        "sha256": "4902b20a9d29a82777274777c8a365ef7d1da48974392292e514cf682d87cf9b",
+        "sha256": "ab2a6298ddfe171a26d3a6dd3b2731bbd2d3fa6c174c2ca1b526d2752f5853ea",
         "dependencies": [
           {
             "path": "scientific/vendor/NEWPAT/SNPcall/SNPcall.R",
@@ -929,7 +931,7 @@
               204,
               221
             ],
-            "sha256": "44734daf06156292e0bf24bfdb2af9c97129cd0d73017b720a318fcc2f3ec754"
+            "sha256": "fc1305f32e8682df9acc855d4db8e764246fb81988fbc9448295ed0f2392bc4d"
           },
           {
             "path": "src/nipat_scientific/parallel.py",
@@ -961,7 +963,7 @@
               100,
               148
             ],
-            "sha256": "a49528bb9e20ed8b48ca3d12ed90642931535c9e60cd694a97221c155d628751"
+            "sha256": "17510f7684bc2f629d7dfec5f4a75584b4b8e73099a95a54adb6c5c275673f4a"
           },
           {
             "path": "src/nipat/execution/runner.py",
@@ -969,7 +971,7 @@
               111,
               132
             ],
-            "sha256": "44734daf06156292e0bf24bfdb2af9c97129cd0d73017b720a318fcc2f3ec754"
+            "sha256": "fc1305f32e8682df9acc855d4db8e764246fb81988fbc9448295ed0f2392bc4d"
           },
           {
             "path": "src/nipat/execution/runner.py",
@@ -977,15 +979,15 @@
               200,
               221
             ],
-            "sha256": "44734daf06156292e0bf24bfdb2af9c97129cd0d73017b720a318fcc2f3ec754"
+            "sha256": "fc1305f32e8682df9acc855d4db8e764246fb81988fbc9448295ed0f2392bc4d"
           },
           {
             "path": "src/nipat_scientific/snp_parallel.py",
             "source_lines": [
-              44,
-              224
+              45,
+              251
             ],
-            "sha256": "7b04bad8872aede7d35d74ad206c377bdae82a5f4228169325e6052bbae5ba97"
+            "sha256": "8f8affdd5314d9e1fa4153bdfe511790ffbe9d8efd5da97ea64ac2aff8484d99"
           },
           {
             "path": "scientific/vendor/NEWPAT/SNPcall/SNPcall.R",
@@ -994,6 +996,22 @@
               439
             ],
             "sha256": "19d377f5f360fe00a4fd72f9b6b0501fbdbd754311c5169338d77720b08e1981"
+          },
+          {
+            "path": "src/nipat/gui/jobs.py",
+            "source_lines": [
+              180,
+              212
+            ],
+            "sha256": "69a72671f74eb6da7d837ef13c3e71f06f0d95aec297d509f785620ea2a62fe5"
+          },
+          {
+            "path": "src/nipat/gui/admission.py",
+            "source_lines": [
+              1,
+              159
+            ],
+            "sha256": "9656ff2dfedfa12e311b58c07cfe2711a642475e381f0aa5ca6a50aa29874e9b"
           }
         ]
       }
@@ -1005,31 +1023,35 @@
       "value": {
         "eligibility": "at least two independent, ready SNP steps, including mixed caller/consumer plans; POSIX, auto mode and effective workers > 1",
         "budget_authority": "shared R CPU/memory/process budget",
-        "worker_internal_parallelism": 1,
+        "worker_internal_parallelism": {
+          "concurrent_sample": 1,
+          "exclusive_sample": "ordinary inner R/samtools budget"
+        },
         "coordinator": "single writer of workflow-state.json",
         "failure": "stop active worker process groups and do not launch pending samples",
         "state_collection": "read only after worker exit; retry read/JSON failures up to 20 times, 50 ms between attempts",
         "group_cleanup": "Darwin EPERM is ignored only after worker exit; permission errors on live workers remain fatal",
-        "workload_estimate": "Largest sample estimate across ready SNP steps. Pileup bytes and panel sites, or BAM observations bounded by input size, configured depth or indexed per-window coverage and largest target chromosome. Evidence in parallel/snp/sample-estimates.json."
+        "workload_estimate": "Individual costs from pileup bytes and panel sites, or BAM observations bounded by input size, configured depth or indexed per-window coverage and largest target chromosome. Evidence in parallel/snp/sample-estimates.json.",
+        "admission": "Require two usable sample estimates; charge the greater of each estimate and the shared R minimum. Admit ready tasks within available memory and worker count, or run an unestimated/incompatible sample alone."
       },
       "description": {
-        "it": "Il coordinatore può eseguire insieme passaggi SNP pronti e indipendenti, anche quando il piano comprende analisi successive. Dimensiona il pool sulla stima del campione più costoso. Per un pileup usa la dimensione su disco e i siti del pannello. Per un BAM usa la lunghezza del cromosoma target maggiore e un limite alle osservazioni basato sui byte decompressi per input piccoli, sulla profondità configurata o sulla copertura misurata con samtools bedcov nelle finestre di tre basi. Il controllo indicizzato considera fino a 2.048 siti e ha cinque secondi di tempo complessivo per il lotto. Per usare la misura devono esserci meno di 1.024 letture in ogni finestra. Registra le stime in parallel/snp/sample-estimates.json. Ogni interprete worker possiede il proprio passaggio e gruppo di processi; samtools e R restano entro quel gruppo e i pool R interni sono seriali. Il coordinatore conserva identità e ordine nello stato, propaga errori e interruzioni e ferma il lavoro attivo prima di terminare. Con un solo campione o una stima insufficiente, il calcolo interno può utilizzare il budget disponibile. Lo stato del singolo worker viene letto dopo la sua uscita, con tentativi limitati per errori temporanei di lettura; gli errori persistenti conservano file e causa originale. Un errore di lettura durante la chiusura non sostituisce il guasto principale e non impedisce la finalizzazione degli altri campioni.",
-        "en": "The coordinator can process ready, independent SNP steps together, including in plans with downstream analyses. It sizes the pool using the largest sample estimate. For a pileup, this uses input bytes and panel size. For a BAM, it accounts for the largest target chromosome and an observation bound from decompressed bytes for small inputs, configured depth, or coverage measured with samtools bedcov across three-base windows. The indexed probe accepts up to 2,048 sites and has a five-second time budget across the batch. Every window must have fewer than 1,024 reads to use this measurement. It records estimates in parallel/snp/sample-estimates.json. Each worker interpreter owns one step and process group; samtools and R remain within that group and internal R pools are serial. The coordinator preserves identity and order in state, propagates errors and cancellation and stops active work before exiting. For one sample or insufficient sample estimates, internal computation can use the available budget. Individual worker state is read after exit, with bounded retries for transient read failures; persistent errors retain the filename and original cause. A cleanup read error does not replace the primary failure or prevent the remaining samples from being finalized."
+        "it": "Il coordinatore può eseguire insieme passaggi SNP pronti e indipendenti, anche quando il piano comprende analisi successive. Quando dispone di almeno due stime, assegna a ciascun campione il maggiore fra il costo stimato e il minimo stabilito dal budget R. Un campione può partire quando il suo costo si somma a quello dei campioni attivi entro il budget e un worker è disponibile. Un campione più piccolo può partire mentre uno più grande attende. Per un pileup usa la dimensione su disco e i siti del pannello. Per un BAM usa la lunghezza del cromosoma target maggiore e un limite alle osservazioni basato sui byte decompressi per input piccoli, sulla profondità configurata o sulla copertura misurata con samtools bedcov nelle finestre di tre basi. Il controllo indicizzato considera fino a 2.048 siti e ha cinque secondi di tempo complessivo per il lotto. Per usare la misura devono esserci meno di 1.024 letture in ogni finestra. Registra le stime in parallel/snp/sample-estimates.json. Ogni interprete worker possiede il proprio passaggio e gruppo di processi; samtools e R restano entro quel gruppo. I campioni contemporanei usano un worker di calcolo ciascuno. I campioni con costo sconosciuto o troppo grandi per la condivisione vengono elaborati da soli con il normale budget interno. Il coordinatore conserva identità e ordine nello stato, propaga errori e interruzioni e ferma il lavoro attivo prima di terminare. Con un solo campione o una stima insufficiente, il calcolo interno può utilizzare il budget disponibile. Lo stato del singolo worker viene letto dopo la sua uscita, con tentativi limitati per errori temporanei di lettura; gli errori persistenti conservano file e causa originale. Un errore di lettura durante la chiusura non sostituisce il guasto principale e non impedisce la finalizzazione degli altri campioni.",
+        "en": "The coordinator can process ready, independent SNP steps together, including in plans with downstream analyses. When at least two costs are available, it charges each sample the greater of its estimate and the minimum set by the R budget. A waiting sample can run when its cost fits together with active samples and a worker is available. The coordinator can admit a later, smaller sample while a larger one waits. For a pileup, this uses input bytes and panel size. For a BAM, it accounts for the largest target chromosome and an observation bound from decompressed bytes for small inputs, configured depth, or coverage measured with samtools bedcov across three-base windows. The indexed probe accepts up to 2,048 sites and has a five-second time budget across the batch. Every window must have fewer than 1,024 reads to use this measurement. It records estimates in parallel/snp/sample-estimates.json. Each worker interpreter owns one step and process group; samtools and R remain within that group. Concurrent samples use one computational worker each. Samples of unknown cost or too large to share run alone with the ordinary internal budget. The coordinator preserves identity and order in state, propagates errors and cancellation and stops active work before exiting. For one sample or insufficient sample estimates, internal computation can use the available budget. Individual worker state is read after exit, with bounded retries for transient read failures; persistent errors retain the filename and original cause. A cleanup read error does not replace the primary failure or prevent the remaining samples from being finalized."
       },
       "evidence": {
         "path": "src/nipat_scientific/snp_parallel.py",
-        "sha256": "7b04bad8872aede7d35d74ad206c377bdae82a5f4228169325e6052bbae5ba97",
+        "sha256": "8f8affdd5314d9e1fa4153bdfe511790ffbe9d8efd5da97ea64ac2aff8484d99",
         "source_lines": [
           1,
-          446
+          489
         ],
         "dependencies": [
           {
             "path": "src/nipat_scientific/parallel.R",
-            "sha256": "4902b20a9d29a82777274777c8a365ef7d1da48974392292e514cf682d87cf9b",
+            "sha256": "ab2a6298ddfe171a26d3a6dd3b2731bbd2d3fa6c174c2ca1b526d2752f5853ea",
             "source_lines": [
               1,
-              267
+              322
             ]
           },
           {
@@ -1094,18 +1116,19 @@
           "sample_labels.tsv",
           "Unassigned_genotypes.pdf",
           "SNPs_covered_UpSet_plot.pdf"
-        ]
+        ],
+        "merge": "Stream each sample table into one in-memory genotype matrix; release the matrix after writing the merged TSV and before R plotting."
       },
       "description": {
-        "it": "I riepiloghi riuniscono almeno due campioni distinti con pannello, riferimento e modalità compatibili. Analisi ripetute dello stesso campione non diventano individui aggiuntivi. La tabella unita conserva coordinate, alleli e GT; le risorse restano per campione e l'UpSet indica genotipi assegnati. Campioni con impostazioni scientifiche differenti sono riepilogati separatamente.",
-        "en": "Summaries merge at least two distinct samples with compatible panel, reference and mode. Repeated analyses of one sample do not become additional individuals. The merged table retains coordinates, alleles and GT; resources remain per sample and UpSet indicates assigned genotypes. Samples with different effective scientific settings are summarized separately."
+        "it": "I riepiloghi riuniscono almeno due campioni distinti con pannello, riferimento e modalità compatibili. Analisi ripetute dello stesso campione non diventano individui aggiuntivi. La tabella unita conserva coordinate, alleli e GT; le risorse restano per campione e l'UpSet indica genotipi assegnati. Campioni con impostazioni scientifiche differenti sono riepilogati separatamente. Le tabelle dei campioni sono lette riga per riga in un’unica matrice dei genotipi. Il primo campione determina l’ordine dei loci. Un locus duplicato, mancante o discordante produce un errore di validazione. Il coordinatore rilascia la matrice prima che R carichi la tabella unita per generare i grafici.",
+        "en": "Summaries merge at least two distinct samples with compatible panel, reference and mode. Repeated analyses of one sample do not become additional individuals. The merged table retains coordinates, alleles and GT; resources remain per sample and UpSet indicates assigned genotypes. Samples with different effective scientific settings are summarized separately. Each sample table is read row by row into a single genotype matrix. The first sample sets locus order. A duplicate, missing or inconsistent locus fails validation. The coordinator releases the matrix before R loads the merged table for plotting."
       },
       "evidence": {
         "path": "src/nipat_scientific/snp_summary.py",
-        "sha256": "1269920773e53f4e658fd95680d6929fdd8c32eac487b263be7a9f2901527945",
+        "sha256": "9fc4a597202a4f182762fa982eba1ccb1072b614146f98b42773d86f7962194d",
         "source_lines": [
           1,
-          142
+          158
         ],
         "dependencies": [
           {

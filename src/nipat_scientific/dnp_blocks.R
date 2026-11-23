@@ -73,11 +73,14 @@ nipat_dnp_index <- function(path, empty_samples = NULL) {
        elapsed_seconds = unname(proc.time()[["elapsed"]] - started))
 }
 
-# On the measured 8 GiB Apple Silicon host / 4 GiB guest, two R workers
-# outperformed four at high depth. Acquisition has its own memory model.
+# Two R workers outperformed four on translated AMD64 in a 3,905 MiB
+# guest. Apply that ceiling to similar run allocations, including tighter
+# container or cgroup limits. Acquisition has a separate workload model.
 nipat_dnp_r_workers <- function() {
-  if (identical(Sys.getenv("NIPAT_DNP_SMALL_ARM_GUEST"), "1") &&
-      !nzchar(Sys.getenv("NIPAT_MAX_WORKERS"))) 2L else NULL
+  if (!identical(Sys.getenv("NIPAT_DNP_LIMA_ARM64"), "1") ||
+      nzchar(Sys.getenv("NIPAT_MAX_WORKERS"))) return(NULL)
+  capacity <- nipat_parallel_capacity()$memory_capacity_mib
+  if (!is.null(capacity) && capacity <= 4096) 2L else NULL
 }
 
 nipat_dnp_target_bytes <- function(requested, tasks = .Machine$integer.max, share_samples = 1L) {
@@ -92,7 +95,10 @@ nipat_dnp_target_bytes <- function(requested, tasks = .Machine$integer.max, shar
   if (!length(remaining) || !is.finite(remaining)) return(requested)
   full_block <- nipat_dnp_estimate_mib(requested)
   workers <- min(budget$workers, max(1, ceiling(remaining / full_block)))
-  if (remaining < 2 * full_block) {
+  # The optimized reader can share a block across samples. Size its lanes for
+  # useful blocks (at least half the requested grain when it fits). Estimating
+  # lanes at one byte could split every locus into a separate read and fork.
+  if (remaining < 2 * full_block && !identical(Sys.getenv("NIPAT_DNP_OPTIMIZED_IO"), "1")) {
     # For substantial jobs on a small allocation, retain the 0.9.5 division
     # of the available memory. Coarsening those jobs left usable cores idle.
     # A short job can still use the coarser plan when it has too few tasks
@@ -107,9 +113,7 @@ nipat_dnp_target_bytes <- function(requested, tasks = .Machine$integer.max, shar
   }
   allocation <- floor(remaining / workers)
   # A single worker can still require smaller blocks to fit the fixed budget.
-  # If even the model's base footprint does not fit, the pool falls back to
-  # serial execution. Indivisible groups are checked at their actual size.
-  if (allocation <= 512) return(requested)
+  # At or below the base footprint, use one indivisible locus group per block.
   # Only reserve additional heap when the budget constrains the target and
   # there are enough sample/block pairs for workers to share projections.
   expansion <- 48
@@ -133,7 +137,7 @@ nipat_dnp_plan <- function(index, labels, ref_alt,
   if (!is.null(index$repeated_qname_rows) && index$repeated_qname_rows > 0L) {
     reasons <- c(reasons, "legacy-repeated-qname-within-position")
   }
-  share_samples <- if (!length(reasons) && identical(Sys.getenv("NIPAT_DNP_SMALL_ARM_GUEST"), "1"))
+  share_samples <- if (!length(reasons) && identical(Sys.getenv("NIPAT_DNP_OPTIMIZED_IO"), "1"))
     samples else 1L
   max_bytes <- nipat_dnp_target_bytes(requested_max_bytes, coarse_blocks * samples, share_samples)
   if (length(reasons)) {
@@ -309,8 +313,8 @@ nipat_dnp_read <- function(index, rows, connection, columns = NULL) {
     }, character(1), USE.NAMES = FALSE)
   }
   # Indivisible compatibility windows may exceed the ordinary 32 MiB grain.
-  # Keep their existing memory behavior on this constrained profile.
-  if (identical(Sys.getenv("NIPAT_DNP_SMALL_ARM_GUEST"), "1") &&
+  # Keep their existing parser and memory behavior.
+  if (identical(Sys.getenv("NIPAT_DNP_OPTIMIZED_IO"), "1") &&
       length(index$classes) > 7L && sum(index$lengths[rows]) <= 32 * 1024^2) {
     parsed <- nipat_dnp_parse_tabs(lines, length(rows), classes, column_names)
     if (!is.null(parsed)) return(parsed)
@@ -416,7 +420,7 @@ nipat_dnp_process_samples <- function(index, plan, labels, ref_alt, computations
   group_sizes <- rep(1L, block_count)
   memory_mib <- nipat_dnp_worker_memory_mib(plan)
   if (sample_count > 1L && !length(plan$compatibility_reasons) &&
-      identical(Sys.getenv("NIPAT_DNP_SMALL_ARM_GUEST"), "1") && !is.null(columns) &&
+      identical(Sys.getenv("NIPAT_DNP_OPTIMIZED_IO"), "1") && !is.null(columns) &&
       all(vapply(columns, function(ids) is.numeric(ids) && length(ids) > 0L &&
           all(is.finite(ids)) && all(ids == trunc(ids) & ids >= 1L & ids <= length(index$classes)) &&
           !anyDuplicated(ids), logical(1)))) {
@@ -598,9 +602,11 @@ nipat_dnp_acquisition_budget <- function(chromosomes, samples, settings, referen
   remaining <- max(0, plan$memory_budget_mib - plan$coordinator_rss_mib)
   if (samples == 1L) {
     available <- remaining / 4
-    # The 3,905 MiB profile can fit two GRCh37 workers in 40% of its remaining budget.
+    # Admit at most one extra pair using the padded reference-specific cost.
+    # Other backends retain their qualified GRCh37-sized envelope.
     pair <- 2 * estimate
-    if (plan$worker_ceiling >= 2L && estimate == 2 * measured_rss_mib && pair <= 0.4 * remaining) {
+    qualified <- identical(Sys.getenv("NIPAT_DNP_OPTIMIZED_IO"), "1") || estimate == 2 * measured_rss_mib
+    if (qualified && plan$worker_ceiling >= 2L && pair <= 0.4 * remaining) {
       available <- max(available, pair)
     }
     plan$workload_model <- "single-bam-bounded-depth-reference-and-rss"

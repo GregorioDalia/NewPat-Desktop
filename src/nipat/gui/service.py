@@ -24,7 +24,7 @@ from nipat.gui.jobs import JobManager
 from nipat.gui.plan import prepare_analysis
 from nipat.paths import ProjectLayout
 from nipat.preferences import Preferences, PreferencesStore
-from nipat.resources import ResourceManager
+from nipat.resources import ResourceManager, fixed_execution_budget
 from nipat.scientific_options import effective_config
 from nipat_scientific.catalog import load_catalog
 from nipat_scientific.settings import describe_settings
@@ -391,8 +391,14 @@ class GuiService:
 
     def resources_get(self) -> dict:
         preferences = self.preferences_store.load()
-        return self.resource_factory(self.layout).snapshot(
+        snapshot = self.resource_factory(self.layout).snapshot(
             container_options=ExecutionOptions(**preferences.execution))
+        capacity = fixed_execution_budget(snapshot)
+        cpu, memory = capacity["cpu_limit"], capacity["memory_capacity_mib"]
+        share = None
+        if cpu is not None and cpu >= 2 and memory is not None and memory >= 256:
+            share = {"cpus": min(1024, cpu / 2), "memory_mb": min(1_048_576, int(memory // 2))}
+        return {**snapshot, "half_capacity_limits": share}
 
     def resources_preview(self, memory_mib: int, cpus: int) -> dict:
         manager = self.resource_factory(self.layout)

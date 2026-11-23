@@ -7,7 +7,7 @@ helper <- file.path(root, "src/nipat_scientific/parallel.R")
 
 main <- function() {
   variables <- c("NIPAT_EXECUTION_MODE", "NIPAT_MAX_WORKERS", "NIPAT_CPU_LIMIT",
-                 "NIPAT_MEMORY_LIMIT_MIB", "NIPAT_DNP_BLOCK_BYTES", "NIPAT_DNP_SMALL_ARM_GUEST",
+                 "NIPAT_MEMORY_LIMIT_MIB", "NIPAT_DNP_BLOCK_BYTES", "NIPAT_DNP_LIMA_ARM64",
                  "NIPAT_PARALLEL_CHILD", "NIPAT_PARALLEL_LOG_DIR", "NIPAT_FIXED_RESOURCE_BUDGET")
   previous <- Sys.getenv(variables, unset = NA_character_)
   on.exit(for (name in names(previous)) {
@@ -95,6 +95,61 @@ main <- function() {
   check(v1$nipat_parallel_budget(20)$cpu_limit == 1L)
   check(v1$nipat_parallel_budget(20)$memory_capacity_mib == 6144)
   check(v1$nipat_parallel_budget(20)$memory_worker_limit == 24L)
+  # Host cgroup namespace, combined v1 cpu/cpuacct controller, subtree
+  # memory mount. A quota, memory limit and PID headroom each bind independently.
+  v1_mounts <- fresh(list(
+    "/proc/self/cgroup" = c("3:cpu,cpuacct:/docker/run", "2:memory:/docker/run",
+                            "1:pids:/docker/run"),
+    "/proc/self/mountinfo" = c(
+      "30 20 0:8 / /sys/fs/cgroup/cpu,cpuacct rw - cgroup cgroup rw,cpu,cpuacct",
+      "31 20 0:9 /docker /sys/fs/cgroup/memory rw - cgroup cgroup rw,memory",
+      "32 20 0:10 / /sys/fs/cgroup/pids rw - cgroup cgroup rw,pids"),
+    "/proc/meminfo" = "MemTotal: 16777216 kB",
+    "/sys/fs/cgroup/cpu,cpuacct/docker/cpu.cfs_quota_us" = "200000",
+    "/sys/fs/cgroup/cpu,cpuacct/docker/cpu.cfs_period_us" = "100000",
+    "/sys/fs/cgroup/cpu,cpuacct/docker/run/cpu.cfs_quota_us" = "-1",
+    "/sys/fs/cgroup/memory/memory.limit_in_bytes" = "9223372036854771712",
+    "/sys/fs/cgroup/memory/run/memory.limit_in_bytes" = 1024 * MiB,
+    "/sys/fs/cgroup/pids/docker/pids.max" = "34",
+    "/sys/fs/cgroup/pids/docker/pids.current" = "29"))
+  budget <- v1_mounts$nipat_parallel_budget(16)
+  check(budget$cpu_limit == 2L)
+  check(budget$memory_capacity_mib == 1024)
+  check(budget$workers == 1L)
+
+  # The v2 mount starts below the physical hierarchy root. An unrelated mount
+  # with a similar path prefix must never impose its limits on this process.
+  v2_mounts <- fresh(list(
+    "/proc/self/cgroup" = "0::/work area/job/run",
+    "/proc/self/mountinfo" = c(
+      "31 20 0:9 /work\\040area /cgroup\\040view rw - cgroup2 cgroup rw",
+      "32 20 0:9 /work /other rw - cgroup2 cgroup rw"),
+    "/proc/meminfo" = "MemTotal: 16777216 kB",
+    "/cgroup view/cpu.max" = "max 100000",
+    "/cgroup view/job/cpu.max" = "200000 100000",
+    "/cgroup view/job/memory.max" = 2048 * MiB,
+    "/cgroup view/job/run/memory.max" = 1024 * MiB,
+    "/other/cpu.max" = "100000 100000",
+    "/other/memory.max" = 128 * MiB))
+  budget <- v2_mounts$nipat_parallel_budget(16)
+  check(budget$cpu_limit == 2L)
+  check(budget$memory_capacity_mib == 1024)
+  check(budget$workers == 2L)
+  # A namespace can have its leaf mounted as the visible root. A different
+  # subtree (or a namespace-relative '..' path) cannot explain process limits.
+  private <- fresh(list(
+    "/proc/self/cgroup" = "0::/docker/ours",
+    "/proc/self/mountinfo" = "30 20 0:8 /docker/ours /sys/fs/cgroup rw - cgroup2 cgroup rw",
+    "/proc/meminfo" = "MemTotal: 16777216 kB",
+    "/sys/fs/cgroup/memory.max" = 2048 * MiB))
+  check(private$nipat_parallel_capacity()$memory_capacity_mib == 2048)
+  for (member in c("/../outside", "/docker/theirs")) {
+    unmapped <- fresh(list(
+      "/proc/self/cgroup" = paste0("0::", member),
+      "/proc/self/mountinfo" = "30 20 0:8 /docker/ours /sys/fs/cgroup rw - cgroup2 cgroup rw",
+      "/proc/meminfo" = "MemTotal: 16777216 kB"))
+    check(unmapped$nipat_parallel_budget(16)$workers == 1L)
+  }
   unknown <- fresh(list())
   check(unknown$nipat_parallel_budget(20)$workers == 1L)
   check(unknown$nipat_parallel_budget(20)$reason == "workload-memory-unavailable")
@@ -131,7 +186,22 @@ main <- function() {
   target <- fixed$nipat_dnp_target_bytes(32 * MiB)
   check(target > 0 && target < 32 * MiB)
   check(fixed$nipat_dnp_target_bytes(1 * MiB) == 1 * MiB)
-  Sys.setenv(NIPAT_DNP_SMALL_ARM_GUEST = "1")
+  tight <- new.env(parent = fixed)
+  sys.source(file.path(root, "src/nipat_scientific/dnp_blocks.R"), tight)
+  tight$nipat_parallel_budget <- function(...) list(memory_budget_mib = remaining + 100,
+    coordinator_rss_mib = 100, workers = 1L)
+  # A budget at the base footprint must not jump back to a full 32 MiB block.
+  for (remaining in c(400, 511, 512, 513, 514)) {
+    expected <- max(1, floor((remaining - 512) / 48 * MiB))
+    check(tight$nipat_dnp_target_bytes(32 * MiB) == expected)
+  }
+  Sys.setenv(NIPAT_DNP_LIMA_ARM64 = "1")
+  for (capacity in c(1952, 3905, 4096, 4097, 8192)) {
+    tight$nipat_parallel_capacity <- function() list(memory_capacity_mib = capacity)
+    check(identical(tight$nipat_dnp_r_workers(), if (capacity <= 4096) 2L else NULL))
+  }
+  tight$nipat_parallel_capacity <- function() list(memory_capacity_mib = NULL)
+  check(is.null(tight$nipat_dnp_r_workers()))
   check(fixed$nipat_dnp_r_workers() == 2L)
   check(fixed$nipat_dnp_target_bytes(32 * MiB) > target)
   check(fixed$nipat_parallel_budget(8, memory_mib = 512, workers = fixed$nipat_dnp_r_workers())$workers == 2L)
@@ -139,7 +209,7 @@ main <- function() {
   Sys.setenv(NIPAT_MAX_WORKERS = "3")
   check(is.null(fixed$nipat_dnp_r_workers()))
   check(fixed$nipat_parallel_budget(8, memory_mib = 512, workers = fixed$nipat_dnp_r_workers())$workers == 3L)
-  Sys.unsetenv(c("NIPAT_DNP_SMALL_ARM_GUEST", "NIPAT_MAX_WORKERS"))
+  Sys.unsetenv(c("NIPAT_DNP_LIMA_ARM64", "NIPAT_MAX_WORKERS"))
   Sys.setenv(NIPAT_EXECUTION_MODE = "serial")
   check(fixed$nipat_dnp_target_bytes(32 * MiB) == 32 * MiB)
   Sys.unsetenv("NIPAT_EXECUTION_MODE")

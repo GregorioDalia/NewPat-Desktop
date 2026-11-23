@@ -2,7 +2,7 @@
 
 ## Experiments and results
 
-The activity screen can track concurrent experiments. Each has its own output directory, progress and stop control. Starting another experiment shares processor time, memory and storage bandwidth. An interrupted experiment can be removed from the activity and history views while keeping its files.
+The activity screen can track concurrent experiments. Each has its own output directory, progress and stop control. Desktop experiments reserve CPU and memory from a shared budget. Activity shows when an experiment is waiting for capacity. An interrupted experiment can be removed from the activity and history views while keeping its files.
 
 Preferences can store named analysis profiles and select a default for new experiments. Sample names, input files and family roles are selected for each experiment. The results view identifies the caller as SNP or DNP and returns to the source table after closing details or IGV. The interface uses the names **Prenatal CPI** and **Postnatal CPI**.
 
@@ -18,11 +18,11 @@ BAM experiments and IGV share a local reference catalog. Choose GRCh37 / hg19 or
 
 The Intreccio wordmark and new palette appear throughout the desktop app. Native Windows and macOS icons use a version of the mark drawn for small sizes. Home provides a single control for starting an experiment and gives more space to the experiment list. Status labels pair text and icons with color.
 
-## DNP on low-memory Apple Silicon Macs
+## DNP and SNP resource use
 
-On Apple Silicon Macs with at most 8 GiB of physical memory and a Lima VM with at most 4 GiB available, automatic DNP block calculation uses up to two R workers when both memory sizes are known. An explicit worker ceiling takes precedence. Serial mode keeps one worker. With one worker reading chromosomes, the pileup writes directly to the aggregate file to avoid a full temporary copy. Windows keeps its existing single-experiment resource policy. [Comparing worker settings on Apple Silicon](MACOS_INSTALLER.md#compare-worker-settings-on-an-apple-silicon-mac)
+On Apple Silicon with the AMD64 engine, DNP block calculation automatically uses up to two R workers when the effective run allocation is at most 4 GiB. Larger allocations use the ordinary phase estimates. An explicit worker ceiling takes precedence. Serial mode keeps one worker. With one worker reading chromosomes, the pileup writes directly to the aggregate file to avoid a full temporary copy. Windows keeps its established single-BAM reader and worker sizing at the validated allocations. When memory falls below the estimated base cost of an R worker, all platforms reduce the block target to one indivisible locus group. [Comparing worker settings on Apple Silicon](MACOS_INSTALLER.md#compare-worker-settings-on-an-apple-silicon-mac)
 
-For DNP runs on this Mac profile, the reader can now decode a regular pileup block once for several samples within the available memory. Compact panels can also use a narrower indexed chromosome scan. With performance diagnostics enabled, an interrupted run retains a small record of completed work for troubleshooting.
+On Apple Silicon with Lima and on native x86-64 Linux, the reader can now decode a regular pileup block once for several samples within the available memory. Compact panels can also use a narrower indexed chromosome scan. With performance diagnostics enabled, an interrupted run retains a small record of completed work for troubleshooting. SNP batches can group independent samples that fit the available memory and process samples of unknown cost individually. The SNP summary releases its merge data before rendering.
 
 ## Windows upgrade from 0.9.9
 

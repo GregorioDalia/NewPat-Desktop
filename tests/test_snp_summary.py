@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import csv
+import shutil
 from pathlib import Path
 import tempfile
 import unittest
@@ -100,6 +101,28 @@ class SnpSummaryTests(unittest.TestCase):
         with self.assertRaisesRegex(PlanExecutionError, "different loci or alleles"):
             self.finalize()
         self.assertEqual(self.render_calls, [])
+
+    def test_reordered_rows_keep_the_first_panel_order_and_validate_every_field(self):
+        self.add_sample("a", "0/0")
+        second = self.add_sample("b", "0/1")
+        header, one, two = second.read_text().splitlines()
+        second.write_text("\n".join((header + "\tdepth", two + "\t5", one + "\t3", "")))
+        result = self.finalize()
+        table = rows(self.root / result[0]["genotypes"]["path"])
+        self.assertEqual([(row["chr"], row["GT_b"]) for row in table], [("chr2", "0/1"), ("chr1", "NA")])
+
+    def test_streaming_rejects_duplicate_missing_and_truncated_rows(self):
+        self.add_sample("a", "0/0")
+        table = self.add_sample("b", "0/1")
+        header, one, two = table.read_text().splitlines()
+        for lines, message in (((header, one, one), "duplicate"), ((header, two), "different loci"),
+                               ((header + "\tdepth", one + "\t1", two), "Malformed")):
+            with self.subTest(message=message):
+                table.write_text("\n".join(lines) + "\n")
+                with self.assertRaisesRegex(PlanExecutionError, message):
+                    self.finalize()
+                shutil.rmtree(self.root / "snp_summary")
+        self.assertFalse(self.render_calls)
 
     def test_malformed_resources_and_failed_renderer_fail_the_summary(self):
         first = self.add_sample("a", "0/0")

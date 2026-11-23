@@ -241,6 +241,39 @@ def _deep_sample(identifier: str, root: Path, *, run_container) -> tuple[Path, P
     return generated / "work/sample.bam", panel, expected
 
 
+def _exclusive_snp_samples(directory, budget, steps, events):
+    """Check actual intervals against individual reservations in a weighted batch."""
+    if "sample_budget_mib" not in budget:  # Admission evidence from earlier engines.
+        return set()
+    capacity = budget["sample_budget_mib"]
+    estimates = json.loads((directory / "sample-estimates.json").read_text(encoding="utf-8"))
+    charges = {}
+    exclusive = set()
+    for index, step in enumerate(steps, 1):
+        item = estimates[step["id"]]
+        if item["exclusive"]:
+            exclusive.add(step["id"])
+            charges[index] = capacity
+        else:
+            charge = item["charge_mib"]
+            if (type(charge) is not int or charge <= 0 or charge > capacity or
+                    charge < max(budget["memory_per_worker_mib"], item["memory_mib"])):
+                raise ValueError("Invalid memory charge for a parallel SNP sample.")
+            charges[index] = charge
+    boundaries = sorted((e["observed_at_unix"], 1 if e["event"] == "task-start" else -1, e["task_index"])
+                        for e in events if e["event"] in {"task-start", "task-end"})
+    used = 0
+    for _, change, index in boundaries:
+        if index not in charges:
+            raise ValueError("Unexpected SNP sample in memory admission evidence.")
+        used += change * charges[index]
+        if not 0 <= used <= capacity:
+            raise ValueError("Observed SNP samples exceeded their cumulative memory budget.")
+    if used:
+        raise ValueError("Unfinished SNP sample memory reservation.")
+    return exclusive
+
+
 def check_snp_execution_policy(run: Path, state: dict, *, options: ExecutionOptions,
                                count: int, require_inner: bool = True) -> dict:
     """Check the batch budget, the processes that used it and ownership of inner pools."""
@@ -248,6 +281,8 @@ def check_snp_execution_policy(run: Path, state: dict, *, options: ExecutionOpti
 
     directory = run / "parallel/snp"
     outer_execution = None
+    steps = [step for step in state["steps"] if step["workflow"] == "snp-call"]
+    exclusive = set()
     outer = state.get("snp_parallel")
     if options.execution_mode == "serial":
         if outer is not None or directory.exists():
@@ -265,17 +300,30 @@ def check_snp_execution_policy(run: Path, state: dict, *, options: ExecutionOpti
                 or type(budget.get("tasks")) is not int or budget["tasks"] != count
                 or type(budget.get("workers")) is not int or budget.get("mode") != "auto"):
             raise ValueError("Inconsistent SNP sample admission evidence.")
+        parallel_samples = budget["workers"] > 1
+        if parallel_samples:
+            exclusive = _exclusive_snp_samples(directory, budget, steps, events)
         if require_inner:
             estimate = budget.get("memory_per_worker_mib")
             if (budget.get("workload_model") != "max-loaded-coordinator-rss-x2-and-module-estimate"
                     or not isinstance(estimate, (int, float)) or not math.isfinite(estimate)
                     or estimate <= 0 or budget.get("reason") == "workload-not-observed"):
                 raise ValueError("Valid SNP inputs require a measured sample workload budget.")
-        elif (budget.get("reason") != "workload-not-observed" or budget["workers"] != 1
-              or budget.get("workload_model") != "not-observed"
-              or budget.get("memory_per_worker_mib") is not None):
+        elif parallel_samples:
+            # The failure fixture starts with an unreadable BAM. Its exclusive
+            # worker must preserve the error and stop admission of all siblings.
+            tasks = sorted((e for e in events if e["event"] != "plan"), key=lambda e: e["observed_at_unix"])
+            if (steps[0]["id"] not in exclusive or [e["event"] for e in tasks] != ["task-start", "task-end"]
+                    or any(e["task_index"] != 1 for e in tasks) or tasks[0]["pid"] != tasks[1]["pid"]
+                    or tasks[1]["outcome"] != "failed" or steps[0]["status"] != "failed"):
+                raise ValueError("Unreadable SNP input did not fail in an exclusive worker.")
+            return {"outer_admission": outer, "outer_execution": None, "loaded_r_execution": {}}
+        elif budget.get("reason") != "workload-not-observed":
+            estimates = json.loads((directory / "sample-estimates.json").read_text(encoding="utf-8"))
+            if estimates[steps[0]["id"]]["memory_mib"] is not None:
+                raise ValueError("Unreadable SNP input was assigned a measured memory cost.")
+        elif budget.get("workload_model") != "not-observed" or budget.get("memory_per_worker_mib") is not None:
             raise ValueError("Unreadable SNP inputs require workload-not-observed admission.")
-        parallel_samples = budget["workers"] > 1
         if parallel_samples:
             started = [event["task_index"] for event in events if event["event"] == "task-start"]
             if sorted(started) != list(range(1, count + 1)):
@@ -287,17 +335,18 @@ def check_snp_execution_policy(run: Path, state: dict, *, options: ExecutionOpti
                                                    admission_only=not parallel_samples)
     inner = {}
     if require_inner:
-        steps = [step for step in state["steps"] if step["workflow"] == "snp-call"]
         if len(steps) != count or any(step["status"] != "succeeded" for step in steps):
             raise ValueError("SNP qualification lost a completed sample.")
-        nested = bool(outer and outer["workers"] > 1)
         for step in steps:
+            nested = bool(outer and outer["workers"] > 1 and step["id"] not in exclusive)
             evidence = verify_parallel_execution(run / step["work_dir"] / "parallel",
                 mode=options.execution_mode, cap=1 if nested else options.max_workers,
                 require_parallel=False, require_overlap=False)
             if (evidence["maximum_planned_workers"] > 1
                     and len(evidence["observed_child_pids"]) < 2):
                 raise ValueError("A loaded parallel SNP plan did not execute child workers.")
+            if step["id"] in exclusive and all(plan.get("reason") == "shared-budget-child" for plan in evidence["plans"]):
+                raise ValueError("An exclusive SNP sample lost its ordinary inner resource budget.")
             if nested and (evidence["observed_child_pids"] or
                            any(plan.get("reason") != "shared-budget-child" for plan in evidence["plans"])):
                 raise ValueError("A parallel SNP sample did not respect the shared child budget.")

@@ -223,15 +223,16 @@ class DockerComposeRunner:
             service["environment"]["NIPAT_CPU_LIMIT"] = str(self.options.cpus)
         if self.options.memory_mb is not None:
             service["environment"]["NIPAT_MEMORY_LIMIT_MIB"] = str(self.options.memory_mb)
-        if self._transport.backend == "lima":
-            # The experimental macOS clients share the validated AMD64 engine.
+        backend = self._transport.backend
+        architecture = platform.machine().lower()
+        arm_lima = backend == "lima" and architecture == "arm64"
+        if backend == "lima":
             service["platform"] = "linux/amd64"
-            snapshot = self._record.data.get("resource_snapshot", {})
-            host_mib = snapshot.get("host", {}).get("memory_mib")
-            guest_mib = snapshot.get("runtime", {}).get("effective", {}).get("memory_mib")
-            if (platform.machine() == "arm64" and type(host_mib) is int and 0 < host_mib <= 8192
-                    and type(guest_mib) is int and 0 < guest_mib <= 4096):
-                service["environment"]["NIPAT_DNP_SMALL_ARM_GUEST"] = "1"
+        if arm_lima:
+            service["environment"]["NIPAT_DNP_LIMA_ARM64"] = "1"
+        if arm_lima or (backend == "native" and sys.platform == "linux" and architecture == "x86_64"):
+            # Qualified on Linux AMD64 with the same engine used under Rosetta.
+            service["environment"]["NIPAT_DNP_OPTIMIZED_IO"] = "1"
         service.update(self.options.compose_limits())
         destination = run_dir / "work" / "engine-compose.json"
         with destination.open("x", encoding="utf-8", newline="\n") as handle:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+from collections.abc import Iterable, Iterator
 import math
 from pathlib import Path
 from typing import Callable
@@ -16,22 +17,45 @@ from nipat_scientific.settings import normalize_settings
 RESOURCE_COLUMNS = ("sample", "seconds", "resident_MB_start", "resident_MB_end")
 
 
-def _read_table(path: Path, required: set[str]) -> tuple[list[str], list[dict]]:
+def _read_table(path: Path, required: set[str]) -> Iterator[dict]:
     with path.open(encoding="utf-8-sig", newline="") as handle:
         reader = csv.DictReader(handle, delimiter="\t", strict=True)
         columns = reader.fieldnames or []
-        rows = list(reader)
-    if (not required.issubset(columns) or len(columns) != len(set(columns))
-            or any(None in row or any(value is None for value in row.values()) for row in rows)):
-        raise PlanExecutionError("execution.output", f"Malformed SNP summary input: {path.name}")
-    return columns, rows
+        if not required.issubset(columns) or len(columns) != len(set(columns)):
+            raise PlanExecutionError("execution.output", f"Malformed SNP summary input: {path.name}")
+        for row in reader:
+            if None in row or any(value is None for value in row.values()):
+                raise PlanExecutionError("execution.output", f"Malformed SNP summary input: {path.name}")
+            yield row
 
 
-def _write_table(path: Path, columns: list[str] | tuple[str, ...], rows: list[dict]) -> None:
+def _write_table(path: Path, columns: list[str] | tuple[str, ...], rows: Iterable[dict]) -> None:
     with path.open("x", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=columns, delimiter="\t", lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
+
+
+def _merge_genotypes(merged: dict, source: Path, sample: str) -> None:
+    genotype_column = f"GT_{sample}"
+    first = not merged
+    seen = 0
+    for row in _read_table(source, {"chr", "pos", "REF", "ALT", "GT"}):
+        key = (row["chr"], row["pos"], row["REF"], row["ALT"])
+        if first:
+            dest = merged.setdefault(key, dict(zip(("chr", "pos", "REF", "ALT"), key)))
+        elif key in merged:
+            dest = merged[key]
+        else:
+            raise PlanExecutionError("execution.output", "SNP sample tables have different loci or alleles.")
+        if genotype_column in dest:
+            raise PlanExecutionError("execution.output", "SNP summary contains duplicate or missing loci.")
+        dest[genotype_column] = row["GT"]
+        seen += 1
+    if not seen:
+        raise PlanExecutionError("execution.output", "SNP summary contains duplicate or missing loci.")
+    if seen != len(merged):
+        raise PlanExecutionError("execution.output", "SNP sample tables have different loci or alleles.")
 
 
 def finalize_snp_summaries(
@@ -78,20 +102,10 @@ def finalize_snp_summaries(
                 raise PlanExecutionError("execution.output", "SNP summary sample identity does not match its step.")
             source = root / artifacts[0]["path"]
             _artifact(source, root, root / "steps" / step_id / "output")
-            _, rows = _read_table(source, {"chr", "pos", "REF", "ALT", "GT"})
-            keyed = {(row["chr"], row["pos"], row["REF"], row["ALT"]): row for row in rows}
-            if len(keyed) != len(rows) or not rows:
-                raise PlanExecutionError("execution.output", "SNP summary contains duplicate or missing loci.")
-            if not merged:
-                merged = {key: {name: row[name] for name in ("chr", "pos", "REF", "ALT")}
-                          for key, row in keyed.items()}
-            if set(keyed) != set(merged):
-                raise PlanExecutionError("execution.output", "SNP sample tables have different loci or alleles.")
-            for key, row in keyed.items():
-                merged[key][f"GT_{sample}"] = row["GT"]
+            _merge_genotypes(merged, source, sample)
             resource_path = source.parent / "summary" / "resources.tsv"
             _artifact(resource_path, root, source.parent)
-            _, sample_resources = _read_table(resource_path, set(RESOURCE_COLUMNS))
+            sample_resources = list(_read_table(resource_path, set(RESOURCE_COLUMNS)))
             if len(sample_resources) != 1 or sample_resources[0]["sample"] != "sample_0001":
                 raise PlanExecutionError("execution.output", "SNP resource row does not identify the native sample.")
             resource = {name: sample_resources[0][name] for name in RESOURCE_COLUMNS}
@@ -109,7 +123,9 @@ def finalize_snp_summaries(
             resources.append(resource)
         genotypes = directory / "merged_genotypes.tsv"
         _write_table(genotypes, ["chr", "pos", "REF", "ALT", *(f"GT_{sample}" for sample in group["samples"])],
-                     list(merged.values()))
+                     merged.values())
+        # The R plotter will load the whole TSV. Release the Python matrix first.
+        del merged
         resource_path = directory / "resources.tsv"
         _write_table(resource_path, RESOURCE_COLUMNS, resources)
         labels_path = directory / "sample_labels.tsv"

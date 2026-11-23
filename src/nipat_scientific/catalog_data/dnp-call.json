@@ -181,12 +181,12 @@
         "serial": 1,
         "automatic": "shared CPU/RAM/process/task budget",
         "parallel_function": "nipat_parallel_lapply",
-        "strategy": "one global pool for blocks and samples, with bounded groups of up to four samples per read on small Apple Silicon guests",
+        "strategy": "one global pool for blocks and samples; optimized I/O backends may read a block for up to four consecutive samples",
         "nested_worker_pools": false
       },
       "description": {
-        "it": "Un solo pool distribuisce i blocchi fra tutti i campioni e ne conserva l’ordine. Il limite dei processi dipende da CPU, memoria e numero di task. Sul profilo Apple Silicon con memoria limitata, un task può leggere un blocco per un massimo di quattro campioni consecutivi, se il modello di memoria ammette il gruppo. I campioni del gruppo vengono elaborati in sequenza. In modalità seriale il coordinatore esegue tutti i task.",
-        "en": "One pool schedules blocks across all samples and preserves sample and block order. The process limit follows CPU, memory and task count. On a qualifying small Apple Silicon guest, one task can read a block for up to four consecutive samples if the memory model admits the group. Samples in a group are calculated in sequence. In serial mode the coordinator performs every task."
+        "it": "Un solo pool distribuisce i blocchi fra tutti i campioni e ne conserva l’ordine. Il limite dei processi dipende da CPU, memoria e numero di task. Su Apple Silicon con Lima o su Linux nativo x86_64, un task può leggere un blocco per un massimo di quattro campioni consecutivi, se il modello di memoria ammette il gruppo. I campioni del gruppo vengono elaborati in sequenza. In modalità seriale il coordinatore esegue tutti i task.",
+        "en": "One pool schedules blocks across all samples and preserves sample and block order. The process limit follows CPU, memory and task count. On Apple Silicon with Lima or native x86_64 Linux, one task can read a block for up to four consecutive samples if the memory model admits the group. Samples in a group are calculated in sequence. In serial mode the coordinator performs every task."
       },
       "source_lines": [
         822,
@@ -259,12 +259,12 @@
         "output": "mpileup.txt in invocation scratch",
         "stderr_ignored": false,
         "nonzero_helper_status": "stop",
-        "region_option": "-r chromosome, or the single inclusive BED bounding interval on qualifying small Apple Silicon guests",
+        "region_option": "-r chromosome, or one inclusive BED bounding interval per chromosome on optimized I/O backends",
         "process_budget": "work/dnp-acquisition-budget.json from the shared R policy"
       },
       "description": {
-        "it": "R invoca l’helper Python con BED, FASTA e budget condiviso dei processi. Ogni task cromosomico indicizzato legge i BAM originali in ordine con -r. Sul profilo Apple Silicon con memoria limitata, un pannello sufficientemente compatto può restringere -r alle coordinate BED estreme del cromosoma. Il BED originale seleziona comunque le posizioni del pileup. Il percorso di ripiego prepara su disco le selezioni indicizzate e usa un unico mpileup per tutti gli input. L’output include QNAME. Le opzioni per inserzioni e delezioni conservano gli indicatori di lunghezza e omettono le sequenze associate. L’opzione per gli estremi rimuove i marcatori di inizio e fine lettura. Ogni esecuzione usa i valori effettivi di qualità, profondità, BAQ e filtri. Un errore dell’helper interrompe l’esecuzione.",
-        "en": "R calls the Python helper with the BED, FASTA and shared process budget. Each indexed chromosome task reads the original ordered BAMs with -r. On qualifying small Apple Silicon guests, a sufficiently compact panel can restrict -r to its outermost BED coordinates on that chromosome. The original BED still selects the pileup positions. The fallback stages indexed selections on disk and uses one mpileup for all inputs. The output includes QNAME. The insertion and deletion options retain length markers and omit the associated sequences. The end-marker option removes read-start and read-end markers. Each run uses its effective quality, depth, BAQ and filter settings. A failed helper stops the run."
+        "it": "R invoca l’helper Python con BED, FASTA e budget condiviso dei processi. Ogni task cromosomico indicizzato legge i BAM originali in ordine con -r. Su Apple Silicon con Lima o su Linux nativo x86_64, un pannello sufficientemente compatto può restringere -r alle coordinate BED estreme del cromosoma. Il BED originale seleziona comunque le posizioni del pileup. Il percorso di ripiego prepara su disco le selezioni indicizzate e usa un unico mpileup per tutti gli input. L’output include QNAME. Le opzioni per inserzioni e delezioni conservano gli indicatori di lunghezza e omettono le sequenze associate. L’opzione per gli estremi rimuove i marcatori di inizio e fine lettura. Ogni esecuzione usa i valori effettivi di qualità, profondità, BAQ e filtri. Un errore dell’helper interrompe l’esecuzione.",
+        "en": "R calls the Python helper with the BED, FASTA and shared process budget. Each indexed chromosome task reads the original ordered BAMs with -r. On Apple Silicon with Lima or native x86_64 Linux, a sufficiently compact panel can restrict -r to its outermost BED coordinates on that chromosome. The original BED still selects the pileup positions. The fallback stages indexed selections on disk and uses one mpileup for all inputs. The output includes QNAME. The insertion and deletion options retain length markers and omit the associated sequences. The end-marker option removes read-start and read-end markers. Each run uses its effective quality, depth, BAQ and filter settings. A failed helper stops the run."
       },
       "source_lines": [
         157,
@@ -962,7 +962,7 @@
           381,
           425
         ],
-        "sha256": "0e3eddc8ebd1f776762c994b0d8b91f9a0debce7665f9a0c757ea140fb1360f9",
+        "sha256": "c7fc375c91075e0295903abaa66ad0f3e09531291b593edb8e6e6e49eaff52a9",
         "dependencies": [
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
@@ -970,7 +970,7 @@
               38,
               38
             ],
-            "sha256": "0e3eddc8ebd1f776762c994b0d8b91f9a0debce7665f9a0c757ea140fb1360f9"
+            "sha256": "c7fc375c91075e0295903abaa66ad0f3e09531291b593edb8e6e6e49eaff52a9"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
@@ -978,7 +978,7 @@
               292,
               378
             ],
-            "sha256": "0e3eddc8ebd1f776762c994b0d8b91f9a0debce7665f9a0c757ea140fb1360f9"
+            "sha256": "c7fc375c91075e0295903abaa66ad0f3e09531291b593edb8e6e6e49eaff52a9"
           },
           {
             "path": "docker/scientific-runtime/Dockerfile",
@@ -1101,7 +1101,7 @@
         "partition": "one task per target chromosome, preserving the original BED mask",
         "partition_requirements": "all BAMs indexed, coordinate-sorted compatible @SQ dictionaries, unambiguous BED/region names",
         "selection": "samtools mpileup -r region -l original BED -b original BAM list",
-        "indexed_access_scope": "whole target chromosome by default; qualifying small Apple Silicon guests can use one bounding interval per target chromosome",
+        "indexed_access_scope": "whole target chromosome by default; optimized I/O backends may use one inclusive interval per target chromosome",
         "processes_per_task": 1,
         "sample_order": "original BAM-list order",
         "result_order": "BAM @SQ dictionary order, independent of task completion",
@@ -1110,20 +1110,20 @@
         "internal_unbudgeted_legacy": "0.8.12 view -u -M -L pipe/disk path retained for regression comparison",
         "dictionary_requirements": "identical ordered BAM @SQ dictionaries; panel targets present; shared BAM/FASTA contigs have equal lengths",
         "concurrent_samtools_cap": 5,
-        "concurrency_estimate": "For depth 1–8000 and supported filters, each chromosome process is charged BAM count × 2 × max(288, 48 + ceil(largest target length / 2^20)) MiB. After coordinator RSS, one BAM uses a 25% pool budget, with a 40% allowance for two 576 MiB workers. Joint multi-BAM runs use a 50% pool budget.",
-        "small_arm_region": {
+        "concurrency_estimate": "For depth 1–8000 and supported filters, each chromosome task costs BAM count × 2 × max(288, 48 + ceil(largest target length / 2^20)) MiB. After coordinator RSS, single-BAM tasks share 25% of the remaining budget. A pair can use up to 40% on optimized I/O backends, or at 576 MiB per task on other backends. Joint multi-BAM tasks share 50%.",
+        "compact_region": {
           "maximum_fraction_of_contig": 0.5,
           "minimum_bases_skipped": 1000000,
           "interval": "inclusive first-to-last target base on that contig",
           "multiple_ranges_per_chromosome": false
         },
-        "small_arm_single_worker_output": "direct concatenation in BAM dictionary order into the unpublished output file"
+        "single_worker_optimized_output": "direct concatenation in BAM dictionary order into the unpublished output file"
       },
       "applies_to": "dnp-call",
       "origin": "NewPat scientific engine",
       "description": {
-        "it": "Tutti i BAM devono avere gli stessi nomi, lunghezze e ordine delle sequenze. Ogni contig del pannello deve essere presente nei BAM e nel FASTA, con lunghezze concordi per tutti i contig condivisi. Con input indicizzati compatibili, ogni processo samtools legge l’elenco originale dei BAM per un cromosoma e applica il BED originale. Sul profilo Apple Silicon con memoria limitata, il task può usare l’intervallo dal primo all’ultimo sito del cromosoma quando copre al massimo metà del contig ed evita almeno 1.000.000 di basi. Gli spazi fra i siti interni vengono attraversati. L’ordine dei risultati segue il dizionario dei BAM. Con un solo worker ammesso su quel profilo, i dati sono scritti direttamente nel file di output provvisorio. Gli altri task indicizzati producono parti per cromosoma da assemblare. Il budget dei processi limita la concorrenza. Se la partizione non è disponibile, gli input indicizzati vengono selezionati su disco in sequenza. Un unico mpileup li legge insieme agli input originali senza indice nell’ordine dei campioni. Un indice corrotto provoca un errore. L’helper interno senza budget conserva la selezione indicizzata storica per i test differenziali.",
-        "en": "All BAMs must agree on sequence names, lengths and order. Each panel contig must be present in every BAM and the FASTA, with matching lengths for all shared contigs. With compatible indexed inputs, one samtools process reads the original BAM list for each target chromosome and applies the original BED. On the small Apple Silicon profile, the helper can restrict a chromosome task to the single interval from its first to last target base when this covers at most half the contig and skips at least 1,000,000 bases. Internal gaps are traversed. The reference dictionary determines output order. One admitted worker on that profile writes directly to the unpublished output. Other indexed tasks write chromosome pieces before assembly. The process budget bounds concurrent tasks. When partitioning is unavailable, indexed inputs are selected to disk in sequence, and one mpileup reads them with the original unindexed inputs in sample order. A corrupt index causes an error. The internal unbudgeted helper retains the historical indexed selection path for differential tests."
+        "it": "Tutti i BAM devono avere gli stessi nomi, lunghezze e ordine delle sequenze. Ogni contig del pannello deve essere presente nei BAM e nel FASTA, con lunghezze concordi per tutti i contig condivisi. Con input indicizzati compatibili, ogni processo samtools legge l’elenco originale dei BAM per un cromosoma e applica il BED originale. Su Apple Silicon con Lima o su Linux nativo x86_64, il task può usare l’intervallo dal primo all’ultimo sito del cromosoma quando copre al massimo metà del contig ed evita almeno 1.000.000 di basi. Gli spazi fra i siti interni vengono attraversati. L’ordine dei risultati segue il dizionario dei BAM. Con un solo worker ammesso su quel profilo, i dati sono scritti direttamente nel file di output provvisorio. Gli altri task indicizzati producono parti per cromosoma da assemblare. Il budget dei processi limita la concorrenza. Se la partizione non è disponibile, gli input indicizzati vengono selezionati su disco in sequenza. Un unico mpileup li legge insieme agli input originali senza indice nell’ordine dei campioni. Un indice corrotto provoca un errore. L’helper interno senza budget conserva la selezione indicizzata storica per i test differenziali. Il modello attribuisce a ciascun BAM il costo stimato del riferimento e del processo, incluso il margine. Con un BAM, due worker cromosomici possono usare fino al 40% della memoria di lavoro residua quando entrambe le stime vi rientrano. Sui backend con I/O ottimizzato il criterio vale per qualsiasi lunghezza del cromosoma bersaglio, sugli altri per la stima da 576 MiB. Con più BAM i worker cromosomici condividono metà della memoria di lavoro residua.",
+        "en": "All BAMs must agree on sequence names, lengths and order. Each panel contig must be present in every BAM and the FASTA, with matching lengths for all shared contigs. With compatible indexed inputs, one samtools process reads the original BAM list for each target chromosome and applies the original BED. On Apple Silicon with Lima or native x86_64 Linux, the helper can restrict a chromosome task to the single interval from its first to last target base when this covers at most half the contig and skips at least 1,000,000 bases. Internal gaps are traversed. The BAM sequence dictionary determines output order. One admitted worker on that profile writes directly to the unpublished output. Other indexed tasks write chromosome pieces before assembly. The process budget bounds concurrent tasks. When partitioning is unavailable, indexed inputs are selected to disk in sequence, and one mpileup reads them with the original unindexed inputs in sample order. A corrupt index causes an error. The internal unbudgeted helper retains the historical indexed selection path for differential tests. The model charges the padded reference and process estimate for each BAM. With one BAM, a pair of chromosome workers can use up to 40% of remaining work memory when both estimates fit. This applies to any target-reference length on optimized I/O backends and to the 576 MiB estimate on other backends. With several BAMs, chromosome workers share half of the remaining work memory."
       },
       "evidence": {
         "path": "src/nipat_scientific/dnp_pileup.py",
@@ -1131,7 +1131,7 @@
           232,
           289
         ],
-        "sha256": "0e3eddc8ebd1f776762c994b0d8b91f9a0debce7665f9a0c757ea140fb1360f9",
+        "sha256": "c7fc375c91075e0295903abaa66ad0f3e09531291b593edb8e6e6e49eaff52a9",
         "dependencies": [
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
@@ -1139,7 +1139,7 @@
               381,
               425
             ],
-            "sha256": "0e3eddc8ebd1f776762c994b0d8b91f9a0debce7665f9a0c757ea140fb1360f9"
+            "sha256": "c7fc375c91075e0295903abaa66ad0f3e09531291b593edb8e6e6e49eaff52a9"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
@@ -1147,7 +1147,7 @@
               292,
               378
             ],
-            "sha256": "0e3eddc8ebd1f776762c994b0d8b91f9a0debce7665f9a0c757ea140fb1360f9"
+            "sha256": "c7fc375c91075e0295903abaa66ad0f3e09531291b593edb8e6e6e49eaff52a9"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
@@ -1155,7 +1155,7 @@
               171,
               197
             ],
-            "sha256": "0e3eddc8ebd1f776762c994b0d8b91f9a0debce7665f9a0c757ea140fb1360f9"
+            "sha256": "c7fc375c91075e0295903abaa66ad0f3e09531291b593edb8e6e6e49eaff52a9"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
@@ -1163,7 +1163,7 @@
               77,
               93
             ],
-            "sha256": "0e3eddc8ebd1f776762c994b0d8b91f9a0debce7665f9a0c757ea140fb1360f9"
+            "sha256": "c7fc375c91075e0295903abaa66ad0f3e09531291b593edb8e6e6e49eaff52a9"
           },
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
@@ -1176,10 +1176,18 @@
           {
             "path": "src/nipat_scientific/dnp_blocks.R",
             "source_lines": [
-              573,
-              623
+              577,
+              629
             ],
-            "sha256": "1f280311cd665adc46b6d762395780a8290582907036e0a76a9c882011483a90"
+            "sha256": "aac8bf10d5283046aa2c71f7283eaa54cc2c15ab65bd9ef1e7c1a036a2a92266"
+          },
+          {
+            "path": "src/nipat/execution/runner.py",
+            "source_lines": [
+              226,
+              235
+            ],
+            "sha256": "fc1305f32e8682df9acc855d4db8e764246fb81988fbc9448295ed0f2392bc4d"
           }
         ]
       }
@@ -1215,31 +1223,33 @@
         "read_range_oversize": "a single indivisible row can exceed the target",
         "sample_columns": "parse common fields and selected sample columns using declared types and original names",
         "effective_byte_target": "Estimated tasks at the requested block size and fixed VM capacity guide the byte target. Admission uses the largest actual block and coordinator RSS.",
-        "small_arm_reader": {
+        "projected_reader": {
           "minimum_input_samples": 2,
           "maximum_block_bytes": 33554432,
           "accepted": "rectangular ASCII samtools rows with LF, nonempty fields and requested character or canonical nonnegative integer columns",
           "fallback": "existing R table reader"
         },
-        "small_arm_shared_block": {
+        "shared_block": {
           "maximum_samples_per_task": 4,
           "memory_expansion_for_block_planning": "56 instead of 48 when compatible samples can be grouped while feeding admitted workers; requested size remains the upper bound",
           "requirements": "memory per worker, sufficient independent tasks, supported projections, no compatibility reasons and within effective block size"
-        }
+        },
+        "minimum_byte_target": 1,
+        "optimized_block_sizing": "Estimate concurrent work from blocks of half the requested grain when they fit, with a smaller byte target if needed to fit the budget."
       },
       "applies_to": "dnp-call",
       "origin": "NewPat scientific engine",
       "description": {
-        "it": "Il primo passaggio registra tipi delle colonne, coordinate, offset e lunghezze delle righe. I blocchi conservano finestre complete, identificatori globali e gruppi con la stessa posizione effettiva. I valori predefiniti configurabili sono 64 loci e 32 MiB di input grezzo. I gruppi indivisibili possono superare i limiti. Coordinate non assegnabili o QNAME duplicati nella stessa riga richiedono un blocco di compatibilità per campione. Le finestre senza copertura conservano conteggi a zero e genotipo non assegnato. Un campione coperto senza verosimiglianze utilizzabili produce un errore. I risultati vengono ordinati sulle stringhe originali delle coordinate DNP. La pianificazione indicizza una volta le appartenenze ai loci e adatta i byte per blocco al lavoro e alla memoria. Il report registra il limite richiesto e quello effettivo. Le righe adiacenti vengono lette nell’ordine richiesto in intervalli fino a 8 MiB. Ripetizioni e ordine inverso sono conservati, le singole righe più grandi restano integre e letture incomplete o avvisi riattivano la lettura per riga. Sul profilo Apple Silicon con memoria limitata, i blocchi fino a 32 MiB provenienti da almeno due BAM nel formato tabulato ordinario di samtools con terminazione LF vengono letti direttamente con i tipi dichiarati. Il singolo BAM e gli altri formati usano il lettore tabellare generale di R. Quando ci sono abbastanza calcoli campione/blocco indipendenti per condividere le letture, il dimensionamento automatico usa un fattore di espansione di 56 invece di 48 per le colonne trattenute in memoria. La dimensione richiesta resta il limite superiore. Un worker può condividere una lettura fra un massimo di quattro campioni consecutivi se memoria e lavoro disponibile lo consentono. Legge le colonne del gruppo e passa a ogni campione i tre campi comuni e i suoi quattro campi. I blocchi di compatibilità e i gruppi sovradimensionati conservano le letture separate. Il pool ripristina l’ordine originale dei risultati.",
-        "en": "The first pass records column types, coordinates, byte offsets and row lengths. Blocks preserve entire windows, global locus IDs and groups sharing an effective position. Defaults are 64 loci and 32 MiB of raw input. Both are configurable. Indivisible groups can exceed the limits. Unmatched coordinates or duplicate QNAMEs within a row require a compatibility block per sample. Uncovered windows retain zero counts and unassigned genotypes. A covered sample with no usable likelihoods fails. Results are sorted by original DNP coordinate strings. The planner indexes locus membership once and adjusts the byte target to work and memory. The report records requested and effective targets. Adjacent rows are read in ranges up to 8 MiB in requested order. Repeated and reversed rows keep their order, larger individual rows remain intact, and short reads or warnings use the original per-row path. On the small Apple Silicon profile, ordinary LF-terminated tabular samtools data from two or more BAMs in blocks up to 32 MiB use the declared column types directly. A single BAM and other formats use the general R table reader. When sufficient independent sample/block work permits shared reads, automatic sizing uses an expansion factor of 56 instead of 48 for retained columns. The requested size remains the upper bound. A worker can share one block read across up to four consecutive samples if memory and available work permit. It reads their combined columns, then passes each sample its usual three common fields and four sample fields. Compatibility blocks and oversized groups keep separate reads. The shared pool restores original result order."
+        "it": "Il primo passaggio registra tipi delle colonne, coordinate, offset e lunghezze delle righe. I blocchi conservano finestre complete, identificatori globali e gruppi con la stessa posizione effettiva. I valori predefiniti configurabili sono 64 loci e 32 MiB di input grezzo. I gruppi indivisibili possono superare i limiti. Coordinate non assegnabili o QNAME duplicati nella stessa riga richiedono un blocco di compatibilità per campione. Le finestre senza copertura conservano conteggi a zero e genotipo non assegnato. Un campione coperto senza verosimiglianze utilizzabili produce un errore. I risultati vengono ordinati sulle stringhe originali delle coordinate DNP. La pianificazione indicizza una volta le appartenenze ai loci e adatta i byte per blocco al lavoro e alla memoria. Il report registra il limite richiesto e quello effettivo. Le righe adiacenti vengono lette nell’ordine richiesto in intervalli fino a 8 MiB. Ripetizioni e ordine inverso sono conservati, le singole righe più grandi restano integre e letture incomplete o avvisi riattivano la lettura per riga. Su Apple Silicon con Lima o su Linux nativo x86_64, i blocchi fino a 32 MiB provenienti da almeno due BAM nel formato tabulato ordinario di samtools con terminazione LF vengono letti direttamente con i tipi dichiarati. Il singolo BAM e gli altri formati usano il lettore tabellare generale di R. Quando ci sono abbastanza calcoli campione/blocco indipendenti per condividere le letture, il dimensionamento automatico usa un fattore di espansione di 56 invece di 48 per le colonne trattenute in memoria. La dimensione richiesta resta il limite superiore. Un worker può condividere una lettura fra un massimo di quattro campioni consecutivi se memoria e lavoro disponibile lo consentono. Legge le colonne del gruppo e passa a ogni campione i tre campi comuni e i suoi quattro campi. I blocchi di compatibilità e i gruppi sovradimensionati conservano le letture separate. Il pool ripristina l’ordine originale dei risultati. Sui backend con I/O ottimizzato, per stimare quanti blocchi elaborare insieme il pianificatore considera metà della dimensione richiesta, se la memoria lo consente. In questo modo evita di frammentare il lavoro in blocchi minuscoli solo per occupare altri core. Con una memoria di lavoro stimata per worker fino a 512 MiB, il limite automatico scende a un byte. Ogni gruppo indivisibile di loci resta intero e viene conteggiato in base alle sue dimensioni effettive.",
+        "en": "The first pass records column types, coordinates, byte offsets and row lengths. Blocks preserve entire windows, global locus IDs and groups sharing an effective position. Defaults are 64 loci and 32 MiB of raw input. Both are configurable. Indivisible groups can exceed the limits. Unmatched coordinates or duplicate QNAMEs within a row require a compatibility block per sample. Uncovered windows retain zero counts and unassigned genotypes. A covered sample with no usable likelihoods fails. Results are sorted by original DNP coordinate strings. The planner indexes locus membership once and adjusts the byte target to work and memory. The report records requested and effective targets. Adjacent rows are read in ranges up to 8 MiB in requested order. Repeated and reversed rows keep their order, larger individual rows remain intact, and short reads or warnings use the original per-row path. On Apple Silicon with Lima or native x86_64 Linux, ordinary LF-terminated tabular samtools data from two or more BAMs in blocks up to 32 MiB use the declared column types directly. A single BAM and other formats use the general R table reader. When sufficient independent sample/block work permits shared reads, automatic sizing uses an expansion factor of 56 instead of 48 for retained columns. The requested size remains the upper bound. A worker can share one block read across up to four consecutive samples if memory and available work permit. It reads their combined columns, then passes each sample its usual three common fields and four sample fields. Compatibility blocks and oversized groups keep separate reads. The shared pool restores original result order. On optimized I/O backends, automatic block sizing estimates useful concurrency from blocks of half the requested size when they fit. This avoids splitting work into tiny fragments just to occupy more CPU slots. At or below 512 MiB estimated work memory per worker, the automatic byte target falls to one byte. Each complete, indivisible locus group still occupies a block and is charged at its actual size."
       },
       "evidence": {
         "path": "src/nipat_scientific/dnp_blocks.R",
         "source_lines": [
           1,
-          568
+          572
         ],
-        "sha256": "1f280311cd665adc46b6d762395780a8290582907036e0a76a9c882011483a90",
+        "sha256": "aac8bf10d5283046aa2c71f7283eaa54cc2c15ab65bd9ef1e7c1a036a2a92266",
         "dependencies": [
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
@@ -1253,9 +1263,9 @@
             "path": "src/nipat_scientific/parallel.R",
             "source_lines": [
               1,
-              267
+              322
             ],
-            "sha256": "4902b20a9d29a82777274777c8a365ef7d1da48974392292e514cf682d87cf9b"
+            "sha256": "ab2a6298ddfe171a26d3a6dd3b2731bbd2d3fa6c174c2ca1b526d2752f5853ea"
           },
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
@@ -1264,6 +1274,14 @@
               850
             ],
             "sha256": "880b52f8644c60d5133341ec8212ba20c1eee14789121ca8634a081537c7e1e1"
+          },
+          {
+            "path": "src/nipat/execution/runner.py",
+            "source_lines": [
+              226,
+              235
+            ],
+            "sha256": "fc1305f32e8682df9acc855d4db8e764246fb81988fbc9448295ed0f2392bc4d"
           }
         ]
       }
@@ -1295,17 +1313,17 @@
             "path": "src/nipat/execution/runner.py",
             "source_lines": [
               174,
-              226
+              229
             ],
-            "sha256": "44734daf06156292e0bf24bfdb2af9c97129cd0d73017b720a318fcc2f3ec754"
+            "sha256": "fc1305f32e8682df9acc855d4db8e764246fb81988fbc9448295ed0f2392bc4d"
           },
           {
             "path": "src/nipat/execution/runner.py",
             "source_lines": [
-              859,
-              922
+              860,
+              923
             ],
-            "sha256": "44734daf06156292e0bf24bfdb2af9c97129cd0d73017b720a318fcc2f3ec754"
+            "sha256": "fc1305f32e8682df9acc855d4db8e764246fb81988fbc9448295ed0f2392bc4d"
           }
         ]
       }
@@ -1359,7 +1377,7 @@
               381,
               425
             ],
-            "sha256": "0e3eddc8ebd1f776762c994b0d8b91f9a0debce7665f9a0c757ea140fb1360f9"
+            "sha256": "c7fc375c91075e0295903abaa66ad0f3e09531291b593edb8e6e6e49eaff52a9"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
@@ -1367,7 +1385,7 @@
               292,
               378
             ],
-            "sha256": "0e3eddc8ebd1f776762c994b0d8b91f9a0debce7665f9a0c757ea140fb1360f9"
+            "sha256": "c7fc375c91075e0295903abaa66ad0f3e09531291b593edb8e6e6e49eaff52a9"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
@@ -1375,7 +1393,7 @@
               208,
               229
             ],
-            "sha256": "0e3eddc8ebd1f776762c994b0d8b91f9a0debce7665f9a0c757ea140fb1360f9"
+            "sha256": "c7fc375c91075e0295903abaa66ad0f3e09531291b593edb8e6e6e49eaff52a9"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
@@ -1383,15 +1401,15 @@
               428,
               565
             ],
-            "sha256": "0e3eddc8ebd1f776762c994b0d8b91f9a0debce7665f9a0c757ea140fb1360f9"
+            "sha256": "c7fc375c91075e0295903abaa66ad0f3e09531291b593edb8e6e6e49eaff52a9"
           },
           {
             "path": "src/nipat_scientific/dnp_blocks.R",
             "source_lines": [
-              335,
-              548
+              339,
+              552
             ],
-            "sha256": "1f280311cd665adc46b6d762395780a8290582907036e0a76a9c882011483a90"
+            "sha256": "aac8bf10d5283046aa2c71f7283eaa54cc2c15ab65bd9ef1e7c1a036a2a92266"
           },
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
@@ -1467,7 +1485,9 @@
           "NIPAT_MAX_WORKERS",
           "NIPAT_CPU_LIMIT",
           "NIPAT_MEMORY_LIMIT_MIB",
-          "NIPAT_FIXED_RESOURCE_BUDGET"
+          "NIPAT_FIXED_RESOURCE_BUDGET",
+          "NIPAT_DNP_LIMA_ARM64",
+          "NIPAT_DNP_OPTIMIZED_IO"
         ],
         "cli": [
           "--execution-mode",
@@ -1477,35 +1497,42 @@
         "nested_worker_pools": false,
         "result_order": "input task order",
         "memory_estimate": "max(2 * loaded coordinator RSS, module estimate); serial if workload is not observed",
-        "acquisition_phase": "up to five indexed chromosome tasks for supported inputs; one interval can bound a task on the small Apple Silicon profile",
+        "acquisition_phase": "up to five indexed chromosome tasks; qualified I/O backends can restrict each task to one compact interval",
         "stage_overlap": false,
         "accounting": "one samtools process per acquisition task; waiting coordinators excluded",
         "internal_library_threads": 1,
         "thread_limit_scope": "managed requests, workflow steps and native engine run",
-        "processing_tasks": "one pool for all blocks and samples, with memory-admitted consecutive sample groups on small Apple Silicon guests",
+        "processing_tasks": "one pool across all samples and blocks; qualified I/O backends can share one block read among memory-admitted consecutive samples",
         "resource_policy": "nipat-fixed-resources-v1",
         "capacity_basis": "assigned-capacity-at-run-start",
         "capacity_memory_fraction": 0.8,
         "concurrency_policy": "fixed-pool-per-phase-within-run-ceiling",
-        "small_apple_silicon_profile": {
-          "maximum_physical_mib": 8192,
-          "maximum_effective_guest_mib": 4096,
-          "automatic_r_worker_limit": 2
-        }
+        "cgroup_limits": "CPU quota, memory limit and PID headroom across visible process and ancestor cgroups (v1/v2)",
+        "desktop_concurrent_runs": "Fixed per-run quotas from uncommitted runtime capacity across desktop sessions of one user; wait if an additional run cannot fit.",
+        "translated_amd64_r_pool": {
+          "backend": "Lima on Apple Silicon, AMD64 engine",
+          "maximum_assigned_run_mib": 4096,
+          "automatic_r_worker_limit": 2,
+          "explicit_worker_limit_takes_precedence": true
+        },
+        "optimized_io_backends": [
+          "Lima on Apple Silicon, AMD64 engine",
+          "native Linux x86_64"
+        ]
       },
       "applies_to": "dnp-call",
       "origin": "NewPat scientific engine and client",
       "description": {
-        "it": "Il tetto dei processi è fissato all’avvio dalle capacità assegnate a hardware, ambiente e container e dal massimo richiesto; non segue la memoria libera istantanea. Ogni fase fissa il proprio pool entro quel tetto, con riserva proporzionale del 20%, memoria residente del coordinatore conteggiata separatamente e stima del carico. Non esiste un minimo universale di 2 GiB per worker: la stima usa il maggiore fra il doppio della RSS del coordinatore caricato e il modello del modulo, quando disponibile. La stima non è una prenotazione di memoria né una garanzia contro OOM. Capacità o carico non misurabili mantengono la fase seriale. I pool annidati restano seriali, i thread interni sono limitati e i risultati mantengono l’ordine delle attività. Con input indicizzati compatibili, profondità limitata e filtri supportati, l’acquisizione può usare fino a cinque processi samtools. Ciascuno legge tutti i BAM nell’ordine originale su un cromosoma. Il modello attribuisce a ciascun BAM l’intera stima di memoria per un input, inclusa la quota per la sequenza di riferimento. Con un solo BAM, il pool usa di norma un quarto del budget residuo dopo la memoria del coordinatore. Due processi da 576 MiB possono usare fino al 40%. Con più BAM il pool può usare metà del budget residuo. Il calcolo dei blocchi DNP usa la dimensione effettiva dei blocchi nel proprio modello; non sovrappone acquisizione e calcolo. Su Apple Silicon con memoria fisica nota fino a 8 GiB e guest Lima effettivo fino a 4 GiB, la gestione automatica limita il pool R a due worker, salvo un limite esplicito impostato dall’utente. Lo stesso profilo consente gruppi di campioni compatibili con il budget di memoria e regioni cromosomiche compatte. Un gruppo condivide un blocco già letto mentre i campioni vengono calcolati in sequenza.",
-        "en": "The run-wide process ceiling is fixed at startup from assigned hardware, environment and container capacities and the requested maximum; it does not track transient free memory. Each phase fixes its pool within that ceiling, reserving 20% proportionally, accounting separately for coordinator RSS and estimating its workload. There is no universal 2GiB floor per worker: the estimate is the larger of twice the loaded coordinator RSS and a module workload estimate when available. This is neither a memory reservation nor an OOM guarantee. Unknown capacity or workload keeps the phase serial. Nested pools stay serial, internal threads are limited and results retain task order. With compatible indexed inputs, bounded depth and supported filters, acquisition can use up to five samtools processes. Each process reads all BAMs in their original order on one chromosome. The model charges the full single-input memory estimate, including the reference allowance, for each BAM. For a single BAM the pool normally gets a quarter of the work budget remaining after coordinator memory. Two 576 MiB processes can use up to 40%. For multiple BAMs the pool can use half the remaining budget. DNP block processing uses actual block sizes in its workload model; acquisition and processing do not overlap. On Apple Silicon with known physical memory up to 8 GiB and an effective Lima guest up to 4 GiB, automatic R block scheduling caps the pool at two workers unless the user sets a worker limit. The same profile permits memory-admitted sample groups and compact chromosome intervals. Group processing shares one parsed block while each sample is computed in sequence."
+        "it": "Il tetto dei processi è fissato all’avvio dalle capacità assegnate a hardware, ambiente e container e dal massimo richiesto; non segue la memoria libera istantanea. Ogni fase fissa il proprio pool entro quel tetto, con riserva proporzionale del 20%, memoria residente del coordinatore conteggiata separatamente e stima del carico. Non esiste un minimo universale di 2 GiB per worker: la stima usa il maggiore fra il doppio della RSS del coordinatore caricato e il modello del modulo, quando disponibile. La stima non è una prenotazione di memoria né una garanzia contro OOM. Capacità o carico non misurabili mantengono la fase seriale. I pool annidati restano seriali, i thread interni sono limitati e i risultati mantengono l’ordine delle attività. Con input indicizzati compatibili, profondità limitata e filtri supportati, l’acquisizione può usare fino a cinque processi samtools. Ciascuno legge tutti i BAM nell’ordine originale su un cromosoma. Il modello attribuisce a ciascun BAM l’intera stima di memoria per un input, inclusa la quota per la sequenza di riferimento. Con un solo BAM, il pool usa di norma un quarto del budget residuo dopo la memoria del coordinatore. Due processi cromosomici possono usare fino al 40% se vi rientra la somma dei costi stimati. Sui backend con I/O ottimizzato si usa la stima calcolata sul riferimento in esame. Sugli altri backend questa possibilità resta limitata a 576 MiB per processo. Con più BAM il pool può usare metà del budget residuo. Il calcolo dei blocchi DNP usa la dimensione effettiva dei blocchi nel proprio modello; non sovrappone acquisizione e calcolo. Con il motore AMD64 su Lima su Apple Silicon, la gestione automatica limita il pool R dei blocchi a due worker quando la memoria effettiva dell’esecuzione, inclusi i limiti del container o del cgroup, è al massimo 4.096 MiB. Un limite esplicito dell’utente prevale entro il budget dell’esecuzione. Su questo backend e su Linux nativo x86_64, i gruppi di campioni ammessi in memoria e gli intervalli compatti sono disponibili a prescindere dalla RAM fisica. Un gruppo condivide un blocco già letto mentre i campioni vengono calcolati in sequenza. Su Linux il motore legge i cgroup del processo e le radici dei mount, inclusi i controller v1 combinati, e applica i limiti visibili più restrittivi del processo e dei suoi antenati. Se non riesce ad associare un controller montato al processo, usa un solo worker. Se mancano i dati dei mount, controlla i percorsi standard dei controller. Le sessioni desktop dello stesso utente tengono conto di CPU e memoria già assegnate agli esperimenti sullo stesso runtime. Un nuovo esperimento attende se il calcolo richiede più risorse di quelle ancora disponibili. Se la capacità è sconosciuta, viene eseguito un calcolo desktop alla volta.",
+        "en": "The run-wide process ceiling is fixed at startup from assigned hardware, environment and container capacities and the requested maximum; it does not track transient free memory. Each phase fixes its pool within that ceiling, reserving 20% proportionally, accounting separately for coordinator RSS and estimating its workload. There is no universal 2GiB floor per worker: the estimate is the larger of twice the loaded coordinator RSS and a module workload estimate when available. This is neither a memory reservation nor an OOM guarantee. Unknown capacity or workload keeps the phase serial. Nested pools stay serial, internal threads are limited and results retain task order. With compatible indexed inputs, bounded depth and supported filters, acquisition can use up to five samtools processes. Each process reads all BAMs in their original order on one chromosome. The model charges the full single-input memory estimate, including the reference allowance, for each BAM. For a single BAM the pool normally gets a quarter of the work budget remaining after coordinator memory. Two chromosome processes can share up to 40% if their combined estimated cost fits. On the optimized I/O backends this uses the target-reference-specific estimate. Other backends retain the two-process allowance at 576 MiB per process. For multiple BAMs the pool can use half the remaining budget. DNP block processing uses actual block sizes in its workload model; acquisition and processing do not overlap. With the AMD64 engine on Lima on Apple Silicon, automatic R scheduling caps the block pool at two workers when the run’s effective memory is at most 4,096 MiB, including container or cgroup limits. An explicit worker limit overrides this default within the run budget. On this backend and native x86_64 Linux, memory-admitted groups and compact intervals are available across allocations. Group processing shares one parsed block while each sample is computed in sequence. On Linux the engine reads the process’s cgroup memberships and mount roots, including combined v1 controllers, and applies the strictest visible quotas from the process and its ancestors. An unmappable mounted controller restricts the pool to one worker. If mount metadata is unavailable, the engine checks the standard controller paths. Desktop sessions of the same user account for CPU and memory already assigned to experiments on the same runtime. A new experiment waits for capacity if its calculation cannot fit. With unknown capacity, one desktop calculation runs at a time."
       },
       "evidence": {
         "path": "src/nipat_scientific/parallel.R",
         "source_lines": [
           1,
-          267
+          322
         ],
-        "sha256": "4902b20a9d29a82777274777c8a365ef7d1da48974392292e514cf682d87cf9b",
+        "sha256": "ab2a6298ddfe171a26d3a6dd3b2731bbd2d3fa6c174c2ca1b526d2752f5853ea",
         "dependencies": [
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
@@ -1529,7 +1556,7 @@
               204,
               221
             ],
-            "sha256": "44734daf06156292e0bf24bfdb2af9c97129cd0d73017b720a318fcc2f3ec754"
+            "sha256": "fc1305f32e8682df9acc855d4db8e764246fb81988fbc9448295ed0f2392bc4d"
           },
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
@@ -1545,7 +1572,7 @@
               171,
               197
             ],
-            "sha256": "0e3eddc8ebd1f776762c994b0d8b91f9a0debce7665f9a0c757ea140fb1360f9"
+            "sha256": "c7fc375c91075e0295903abaa66ad0f3e09531291b593edb8e6e6e49eaff52a9"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
@@ -1553,7 +1580,7 @@
               292,
               378
             ],
-            "sha256": "0e3eddc8ebd1f776762c994b0d8b91f9a0debce7665f9a0c757ea140fb1360f9"
+            "sha256": "c7fc375c91075e0295903abaa66ad0f3e09531291b593edb8e6e6e49eaff52a9"
           },
           {
             "path": "src/nipat_scientific/parallel.py",
@@ -1574,10 +1601,10 @@
           {
             "path": "src/nipat_scientific/dnp_blocks.R",
             "source_lines": [
-              399,
-              547
+              403,
+              551
             ],
-            "sha256": "1f280311cd665adc46b6d762395780a8290582907036e0a76a9c882011483a90"
+            "sha256": "aac8bf10d5283046aa2c71f7283eaa54cc2c15ab65bd9ef1e7c1a036a2a92266"
           },
           {
             "path": "src/nipat/resources.py",
@@ -1585,7 +1612,7 @@
               100,
               148
             ],
-            "sha256": "a49528bb9e20ed8b48ca3d12ed90642931535c9e60cd694a97221c155d628751"
+            "sha256": "17510f7684bc2f629d7dfec5f4a75584b4b8e73099a95a54adb6c5c275673f4a"
           },
           {
             "path": "src/nipat/execution/runner.py",
@@ -1593,7 +1620,7 @@
               111,
               132
             ],
-            "sha256": "44734daf06156292e0bf24bfdb2af9c97129cd0d73017b720a318fcc2f3ec754"
+            "sha256": "fc1305f32e8682df9acc855d4db8e764246fb81988fbc9448295ed0f2392bc4d"
           },
           {
             "path": "src/nipat/execution/runner.py",
@@ -1601,31 +1628,47 @@
               200,
               221
             ],
-            "sha256": "44734daf06156292e0bf24bfdb2af9c97129cd0d73017b720a318fcc2f3ec754"
+            "sha256": "fc1305f32e8682df9acc855d4db8e764246fb81988fbc9448295ed0f2392bc4d"
           },
           {
             "path": "src/nipat_scientific/dnp_blocks.R",
             "source_lines": [
-              573,
-              623
+              577,
+              629
             ],
-            "sha256": "1f280311cd665adc46b6d762395780a8290582907036e0a76a9c882011483a90"
+            "sha256": "aac8bf10d5283046aa2c71f7283eaa54cc2c15ab65bd9ef1e7c1a036a2a92266"
           },
           {
             "path": "src/nipat/execution/runner.py",
-            "sha256": "44734daf06156292e0bf24bfdb2af9c97129cd0d73017b720a318fcc2f3ec754",
+            "sha256": "fc1305f32e8682df9acc855d4db8e764246fb81988fbc9448295ed0f2392bc4d",
             "source_lines": [
               226,
-              234
+              235
             ]
           },
           {
             "path": "src/nipat_scientific/dnp_blocks.R",
-            "sha256": "1f280311cd665adc46b6d762395780a8290582907036e0a76a9c882011483a90",
+            "sha256": "aac8bf10d5283046aa2c71f7283eaa54cc2c15ab65bd9ef1e7c1a036a2a92266",
             "source_lines": [
-              78,
-              82
+              79,
+              85
             ]
+          },
+          {
+            "path": "src/nipat/gui/jobs.py",
+            "source_lines": [
+              180,
+              212
+            ],
+            "sha256": "69a72671f74eb6da7d837ef13c3e71f06f0d95aec297d509f785620ea2a62fe5"
+          },
+          {
+            "path": "src/nipat/gui/admission.py",
+            "source_lines": [
+              1,
+              159
+            ],
+            "sha256": "9656ff2dfedfa12e311b58c07cfe2711a642475e381f0aa5ca6a50aa29874e9b"
           }
         ]
       }

@@ -6,8 +6,8 @@ import pytest
 from scripts import benchmark_macos_dnp as benchmark
 
 
-@pytest.mark.parametrize("interrupt", [False, True])
-def test_benchmark_keeps_native_digests_and_available_diagnostics(tmp_path, monkeypatch, interrupt):
+@pytest.mark.parametrize(("interrupt", "include_four"), [(False, False), (False, True), (True, False)])
+def test_benchmark_keeps_native_digests_and_available_diagnostics(tmp_path, monkeypatch, interrupt, include_four):
     def write(path, value):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(value), encoding="utf-8")
@@ -34,6 +34,9 @@ def test_benchmark_keeps_native_digests_and_available_diagnostics(tmp_path, monk
         write(run / "run.json", {"status": "succeeded", "resource_snapshot": {}, "resource_budget": {}})
         write(run / "work/dnp-pileup.json", {"strategy": "test"})
         blocks = {"task_count": 2}
+        if run.name == "four-1":
+            assert command[command.index("--max-workers") + 1] == "4"
+            blocks["observed_workers"] = 3
         if run.name == "two-1":
             blocks.update(sample_block_count=4, block_read_count=2, block_logical_bytes_read=200,
                           block_read_seconds=0.1, block_compute_seconds=0.4)
@@ -47,7 +50,7 @@ def test_benchmark_keeps_native_digests_and_available_diagnostics(tmp_path, monk
         return SimpleNamespace(returncode=0)
 
     monkeypatch.setattr(benchmark.subprocess, "run", launch)
-    args = SimpleNamespace(app=app, output_dir=output, rounds=1, **inputs)
+    args = SimpleNamespace(app=app, output_dir=output, rounds=1, include_four=include_four, **inputs)
     if interrupt:
         with pytest.raises(ValueError, match="two-1 failed"):
             benchmark.compare(args)
@@ -59,7 +62,9 @@ def test_benchmark_keeps_native_digests_and_available_diagnostics(tmp_path, monk
     report = json.loads((output / "benchmark.json").read_text())
     assert report["serial_tables_sha256"] == {"samples": {"genotype-matrix": "a" * 64},
                                                "genotype_matrix": "b" * 64}
-    serial, two, auto = report["cases"]
+    serial, two, auto, *extra = report["cases"]
+    assert [(case["condition"], case["observed_r_workers"]) for case in extra] == (
+        [("four", 3)] if include_four else [])
     assert serial["block_work"] == auto["block_work"] == {"task_count": 2}
     assert two["block_work"]["block_read_count"] == 2 and two["block_work"]["sample_block_count"] == 4
     assert serial["sampled_cgroup_max_bytes"] is None and two["sampled_cgroup_max_bytes"] == 1024

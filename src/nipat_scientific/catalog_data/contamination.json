@@ -489,20 +489,22 @@
         "capacity_memory_fraction": 0.8,
         "memory_estimate": "max(2 * loaded coordinator RSS, module estimate); serial if workload is not observed",
         "concurrency_policy": "fixed-pool-per-phase-within-run-ceiling",
-        "sample_worker_estimate": "2 × coordinator RSS + 64 × largest plain TSV size"
+        "sample_worker_estimate": "2 × coordinator RSS + 64 × largest plain TSV size",
+        "cgroup_limits": "CPU quota, memory limit and PID headroom across visible process and ancestor cgroups (v1/v2)",
+        "desktop_concurrent_runs": "Fixed per-run quotas from uncommitted runtime capacity across desktop sessions of one user; wait if an additional run cannot fit."
       },
       "applies_to": "all",
       "origin": "NewPat scientific runtime",
       "description": {
-        "it": "Il tetto dei processi è fissato all’avvio dalle capacità assegnate a hardware, ambiente e container e dal massimo richiesto; non segue la memoria libera istantanea. Ogni fase fissa il proprio pool entro quel tetto, con riserva proporzionale del 20%, memoria residente del coordinatore conteggiata separatamente e stima del carico. Non esiste un minimo universale di 2 GiB per worker: la stima usa il maggiore fra il doppio della RSS del coordinatore caricato e il modello del modulo, quando disponibile. La stima non è una prenotazione di memoria né una garanzia contro OOM. Capacità o carico non misurabili mantengono la fase seriale. I pool annidati restano seriali, i thread interni sono limitati e i risultati mantengono l’ordine delle attività. Per almeno due tabelle TSV di testo, il pool di campioni stima la memoria di ciascun processo come il doppio della RSS del coordinatore più 64 volte la dimensione del file maggiore. Se la stima manca, i campioni procedono in sequenza. Il calcolo per blocchi di righe può usare il budget disponibile mentre si elabora un solo campione.",
-        "en": "The run-wide process ceiling is fixed at startup from assigned hardware, environment and container capacities and the requested maximum; it does not track transient free memory. Each phase fixes its pool within that ceiling, reserving 20% proportionally, accounting separately for coordinator RSS and estimating its workload. There is no universal 2GiB floor per worker: the estimate is the larger of twice the loaded coordinator RSS and a module workload estimate when available. This is neither a memory reservation nor an OOM guarantee. Unknown capacity or workload keeps the phase serial. Nested pools stay serial, internal threads are limited and results retain task order. For two or more plain TSV tables, the sample pool estimates each worker at twice coordinator RSS plus 64 times the largest input file size. If the estimate is unavailable, samples run sequentially. Row blocks may use the available budget while processing a single sample."
+        "it": "Il tetto dei processi è fissato all’avvio dalle capacità assegnate a hardware, ambiente e container e dal massimo richiesto; non segue la memoria libera istantanea. Ogni fase fissa il proprio pool entro quel tetto, con riserva proporzionale del 20%, memoria residente del coordinatore conteggiata separatamente e stima del carico. Non esiste un minimo universale di 2 GiB per worker: la stima usa il maggiore fra il doppio della RSS del coordinatore caricato e il modello del modulo, quando disponibile. La stima non è una prenotazione di memoria né una garanzia contro OOM. Capacità o carico non misurabili mantengono la fase seriale. I pool annidati restano seriali, i thread interni sono limitati e i risultati mantengono l’ordine delle attività. Per almeno due tabelle TSV di testo, il pool di campioni stima la memoria di ciascun processo come il doppio della RSS del coordinatore più 64 volte la dimensione del file maggiore. Se la stima manca, i campioni procedono in sequenza. Il calcolo per blocchi di righe può usare il budget disponibile mentre si elabora un solo campione. Su Linux il motore legge i cgroup del processo e le radici dei mount, inclusi i controller v1 combinati, e applica i limiti visibili più restrittivi del processo e dei suoi antenati. Se non riesce ad associare un controller montato al processo, usa un solo worker. Se mancano i dati dei mount, controlla i percorsi standard dei controller. Le sessioni desktop dello stesso utente tengono conto di CPU e memoria già assegnate agli esperimenti sullo stesso runtime. Un nuovo esperimento attende se il calcolo richiede più risorse di quelle ancora disponibili. Se la capacità è sconosciuta, viene eseguito un calcolo desktop alla volta.",
+        "en": "The run-wide process ceiling is fixed at startup from assigned hardware, environment and container capacities and the requested maximum; it does not track transient free memory. Each phase fixes its pool within that ceiling, reserving 20% proportionally, accounting separately for coordinator RSS and estimating its workload. There is no universal 2GiB floor per worker: the estimate is the larger of twice the loaded coordinator RSS and a module workload estimate when available. This is neither a memory reservation nor an OOM guarantee. Unknown capacity or workload keeps the phase serial. Nested pools stay serial, internal threads are limited and results retain task order. For two or more plain TSV tables, the sample pool estimates each worker at twice coordinator RSS plus 64 times the largest input file size. If the estimate is unavailable, samples run sequentially. Row blocks may use the available budget while processing a single sample. On Linux the engine reads the process’s cgroup memberships and mount roots, including combined v1 controllers, and applies the strictest visible quotas from the process and its ancestors. An unmappable mounted controller restricts the pool to one worker. If mount metadata is unavailable, the engine checks the standard controller paths. Desktop sessions of the same user account for CPU and memory already assigned to experiments on the same runtime. A new experiment waits for capacity if its calculation cannot fit. With unknown capacity, one desktop calculation runs at a time."
       },
       "evidence": {
         "path": "src/nipat_scientific/parallel.R",
-        "sha256": "4902b20a9d29a82777274777c8a365ef7d1da48974392292e514cf682d87cf9b",
+        "sha256": "ab2a6298ddfe171a26d3a6dd3b2731bbd2d3fa6c174c2ca1b526d2752f5853ea",
         "source_lines": [
           1,
-          267
+          322
         ],
         "dependencies": [
           {
@@ -519,7 +521,7 @@
               100,
               148
             ],
-            "sha256": "a49528bb9e20ed8b48ca3d12ed90642931535c9e60cd694a97221c155d628751"
+            "sha256": "17510f7684bc2f629d7dfec5f4a75584b4b8e73099a95a54adb6c5c275673f4a"
           },
           {
             "path": "src/nipat/execution/runner.py",
@@ -527,7 +529,7 @@
               111,
               132
             ],
-            "sha256": "44734daf06156292e0bf24bfdb2af9c97129cd0d73017b720a318fcc2f3ec754"
+            "sha256": "fc1305f32e8682df9acc855d4db8e764246fb81988fbc9448295ed0f2392bc4d"
           },
           {
             "path": "src/nipat/execution/runner.py",
@@ -535,7 +537,7 @@
               200,
               221
             ],
-            "sha256": "44734daf06156292e0bf24bfdb2af9c97129cd0d73017b720a318fcc2f3ec754"
+            "sha256": "fc1305f32e8682df9acc855d4db8e764246fb81988fbc9448295ed0f2392bc4d"
           },
           {
             "path": "scientific/vendor/NEWPAT/contamination/detect_contamination.R",
@@ -544,6 +546,22 @@
               311
             ],
             "sha256": "8ceb587e19bb2f0b8f08051a894cd1780254b7ffe0959b0e48755c96f4792f66"
+          },
+          {
+            "path": "src/nipat/gui/jobs.py",
+            "source_lines": [
+              180,
+              212
+            ],
+            "sha256": "69a72671f74eb6da7d837ef13c3e71f06f0d95aec297d509f785620ea2a62fe5"
+          },
+          {
+            "path": "src/nipat/gui/admission.py",
+            "source_lines": [
+              1,
+              159
+            ],
+            "sha256": "9656ff2dfedfa12e311b58c07cfe2711a642475e381f0aa5ca6a50aa29874e9b"
           }
         ]
       }

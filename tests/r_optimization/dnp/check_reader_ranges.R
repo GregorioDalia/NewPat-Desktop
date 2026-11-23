@@ -118,12 +118,12 @@ checks <- checks + 1L
 cat("DNP byte-range reader:", checks,
     "strict checks passed (order, repeats, gaps, EOL, large rows and NUL warnings/errors).\n")
 
-# Compare the small-ARM decoder and its fallback with the standard reader.
+# Compare the joint-pileup decoder and its fallback with the standard reader.
 # Count scanner calls to ensure ordinary pileups actually exercise the shortcut.
 check_arm_decoder <- function() {
-  flag <- "NIPAT_DNP_SMALL_ARM_GUEST"
+  flag <- "NIPAT_DNP_OPTIMIZED_IO"
   previous <- Sys.getenv(flag, unset = NA_character_)
-  on.exit(if (is.na(previous)) Sys.unsetenv(flag) else Sys.setenv(NIPAT_DNP_SMALL_ARM_GUEST = previous))
+  on.exit(if (is.na(previous)) Sys.unsetenv(flag) else Sys.setenv(NIPAT_DNP_OPTIMIZED_IO = previous))
   api <- new.env(parent = globalenv())
   sys.source(file.path(root, "src/nipat_scientific/dnp_blocks.R"), api)
   scans <- 0L
@@ -142,7 +142,7 @@ check_arm_decoder <- function() {
     Sys.unsetenv(flag)
     standard <- capture(reader, index, rows)
     scans <<- 0L
-    Sys.setenv(NIPAT_DNP_SMALL_ARM_GUEST = "1")
+    Sys.setenv(NIPAT_DNP_OPTIMIZED_IO = "1")
     arm <- capture(reader, index, rows)
     stopifnot(identical(arm, standard), scans == expected_scans)
     count <<- count + 1L
@@ -171,6 +171,6 @@ check_arm_decoder <- function() {
   compare(sub("\t2\t", "\tinvalid\t", text), 1:3, last)
   compare(text, 1:3, c(1L, 2L), expected_scans = 1L,
           classes = c("character", "numeric", rep("character", 9L)))
-  cat("DNP small-ARM tab decoder:", count, "differential checks passed.\n")
+  cat("DNP joint-pileup tab decoder:", count, "differential checks passed.\n")
 }
 check_arm_decoder()

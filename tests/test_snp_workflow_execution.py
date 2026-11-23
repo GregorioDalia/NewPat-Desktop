@@ -381,18 +381,18 @@ class SnpQualificationPolicyTests(unittest.TestCase):
         self.write_events(self.outer, self.budget, label="snp-samples", workers=workers,
                           coordinator=1, indices=indices)
 
-    def write_inner(self, step, *, serial=False, workers=1):
+    def write_inner(self, step, *, serial=False, workers=1, nested=True):
         directory = self.root / step["work_dir"] / "parallel"
         directory.mkdir(parents=True, exist_ok=True)
         budget = {"workers": workers, "tasks": 2, "mode": "serial" if serial else "auto",
-                  "reason": "requested-serial" if serial else "shared-budget-child",
+                  "reason": "requested-serial" if serial else ("shared-budget-child" if nested else "fixed-capacity-task-budget"),
                   "cpu_limit": 4, "memory_worker_limit": 4}
         self.write_events(directory, budget, label="snp-read-groups", workers=workers,
                           coordinator=10, indices=(1, 2))
 
     def check(self, mode="auto", *, require_inner=True):
         from nipat.execution.options import ExecutionOptions
-        return self.verifier.check_snp_execution_policy(self.root, self.state, count=2,
+        return self.verifier.check_snp_execution_policy(self.root, self.state, count=len(self.state["steps"]),
             options=ExecutionOptions(execution_mode=mode, max_workers=2), require_inner=require_inner)
 
     def test_parallel_samples_observed_without_nested_workers(self):
@@ -402,6 +402,55 @@ class SnpQualificationPolicyTests(unittest.TestCase):
         self.write_inner(self.state["steps"][0], workers=2)
         with self.assertRaisesRegex(ValueError, "budget"):
             self.check()
+
+    def test_weighted_evidence_rejects_overlapping_exclusive_or_over_budget_samples(self):
+        self.budget["sample_budget_mib"] = 2048
+        self.write_outer()
+        estimates = {"snp1": {"charge_mib": 1024, "memory_mib": 1024, "exclusive": False},
+                     "snp2": {"charge_mib": 1024, "memory_mib": 1024, "exclusive": False}}
+        path = self.outer / "sample-estimates.json"
+        path.write_text(json.dumps(estimates))
+        self.assertTrue(self.check()["outer_execution"]["simultaneous_child_workers"])
+        for patch in ({"exclusive": True, "charge_mib": None, "memory_mib": None},
+                      {"charge_mib": 1100}):
+            with self.subTest(patch=patch):
+                path.write_text(json.dumps({**estimates, "snp1": {**estimates["snp1"], **patch}}))
+                with self.assertRaisesRegex(ValueError, "cumulative"):
+                    self.check()
+
+    def add_weighted_third_sample(self):
+        self.budget.update(sample_budget_mib=2048, tasks=3)
+        step = {"id": "snp3", "workflow": "snp-call", "status": "succeeded", "work_dir": "steps/snp3/work"}
+        self.state["steps"].append(step)
+        self.write_inner(step)
+        shared = {"charge_mib": 1024, "memory_mib": 1024, "exclusive": False}
+        estimates = {"snp1": {"charge_mib": None, "memory_mib": None, "exclusive": True},
+                     "snp2": shared, "snp3": shared}
+        (self.outer / "sample-estimates.json").write_text(json.dumps(estimates))
+
+    def test_exclusive_sample_runs_inner_workers_before_small_samples_overlap(self):
+        self.add_weighted_third_sample()
+        self.write_outer(indices=(1, 2, 3))
+        path = self.outer / "worker-1.jsonl"
+        events = [json.loads(line) for line in path.read_text().splitlines()]
+        for event in events:
+            if event.get("task_index") in {2, 3}:
+                event["observed_at_unix"] += 7
+        path.write_text("".join(json.dumps(event) + "\n" for event in events))
+        with self.assertRaisesRegex(ValueError, "exclusive SNP sample"):
+            self.check()
+        self.write_inner(self.state["steps"][0], workers=2, nested=False)
+        evidence = self.check()
+        self.assertTrue(evidence["outer_execution"]["simultaneous_child_workers"])
+        self.assertTrue(evidence["loaded_r_execution"]["snp1"]["simultaneous_child_workers"])
+
+    def test_unreadable_exclusive_sample_preserves_failure_without_starting_siblings(self):
+        self.add_weighted_third_sample()
+        self.write_outer(indices=(1,))
+        path = self.outer / "worker-1.jsonl"
+        path.write_text(path.read_text().replace('"succeeded"', '"failed"'))
+        self.state["steps"][0]["status"] = "failed"
+        self.check(require_inner=False)
 
     def test_mismatched_tasks_and_unobserved_batch_cannot_pass(self):
         self.write_outer(indices=(1, 3))

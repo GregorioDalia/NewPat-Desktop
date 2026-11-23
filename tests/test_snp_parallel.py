@@ -33,7 +33,8 @@ if args[0] == "-e":
     slots = max(1, capacity // estimate) if estimate else 1
     cap = int(os.environ.get("NIPAT_MAX_WORKERS") or tasks)
     print(json.dumps({"mode":"auto", "max_workers":cap, "workers":min(tasks,cap,slots),
-                      "tasks":tasks,"reason":"controlled-test-budget"}))
+                      "tasks":tasks, "memory_budget_mib":capacity+60, "coordinator_rss_mib":60,
+                      "memory_per_worker_mib":estimate, "reason":"controlled-test-budget"}))
     raise SystemExit(0)
 if pathlib.Path(args[0]).name == "contamination.R":
     selected, output = pathlib.Path(args[2]), pathlib.Path(args[3])
@@ -138,7 +139,7 @@ class SnpParallelTests(unittest.TestCase):
                 worker_state = json.loads((run / "parallel/snp" / f"state-{record['id']}.json").read_text())
                 self.assertEqual(record, worker_state)
 
-    def test_worst_sample_memory_reduces_the_whole_pool_even_with_spare_cpu(self):
+    def test_mixed_costs_limit_the_active_sum_and_keep_small_samples_parallel(self):
         run = self.root / "low-memory"
         # The fake R budget enforces the passed MiB, a CPU cap of 3 would
         # otherwise admit three samples. Changing input size affects admission.
@@ -147,11 +148,68 @@ class SnpParallelTests(unittest.TestCase):
             stream.write("chr1\t10\tA\t1\t.\tI\t" + "x" * (2 * 1024 * 1024) + "\n")
         state = self.execute(run, NIPAT_MAX_WORKERS="3", SNP_FIXTURE_MEMORY_MIB="3200")
         self.assertEqual(state["status"], "succeeded", state)
-        self.assertEqual(state["snp_parallel"]["workers"], 1)
-        estimates = json.loads((run / "parallel/snp/sample-estimates.json").read_text())
+        self.assertEqual(state["snp_parallel"]["workers"], 2)
+        directory = run / "parallel/snp"
+        estimates = json.loads((directory / "sample-estimates.json").read_text())
         self.assertGreater(estimates["snp2"]["memory_mib"], 1600)
         self.assertLess(estimates["snp0"]["memory_mib"], 1000)
-        self.assertFalse(list((run / "parallel/snp").glob("job-*.json")))
+        active = self.active_sets(directory)
+        self.assertIn({1, 2}, active)
+        for tasks in active:
+            self.assertLessEqual(sum(estimates[f"snp{i-1}"]["charge_mib"] for i in tasks), 3200)
+
+    @staticmethod
+    def active_sets(directory):
+        events = [json.loads(line) for path in directory.glob("worker-*.jsonl")
+                  for line in path.read_text().splitlines()]
+        intervals = sorted((event["observed_at_unix"], event["event"] == "task-start", event["task_index"])
+                           for event in events if event["event"] in {"task-start", "task-end"})
+        active = set()
+        observed = []
+        for _, started, index in intervals:
+            if started:
+                active.add(index)
+            else:
+                active.remove(index)
+            if active:
+                observed.append(active.copy())
+        return observed
+
+    def test_later_small_jobs_fill_capacity_without_overlapping_two_heavy_jobs(self):
+        sizes = [1400, 1400, 400, 400, 400]
+        for index in (3, 4):
+            self.plan["steps"].append({**self.plan["steps"][2], "id": f"snp{index}"})
+        def estimate(step, source, directory, probe):
+            return sizes[int(step["id"][-1])] * 1024**2, {"basis": "fixture"}
+        run = self.root / "weighted"
+        with patch("nipat_scientific.snp_parallel._sample_estimate", side_effect=estimate):
+            state = self.execute(run, NIPAT_MAX_WORKERS="4", SNP_FIXTURE_MEMORY_MIB="1900")
+        self.assertEqual(state["status"], "succeeded", state)
+        self.assertEqual(state["snp_parallel"]["workers"], 3)
+        observed = self.active_sets(run / "parallel/snp")
+        self.assertTrue(any(1 in jobs and any(i > 2 for i in jobs) for jobs in observed))
+        self.assertTrue(all(sum(sizes[i - 1] for i in jobs) <= 1900 for jobs in observed))
+        self.assertEqual([step["id"] for step in state["steps"]], [f"snp{i}" for i in range(len(sizes))])
+
+    def test_unknown_first_preserves_inner_budget_and_runs_apart_from_two_small_samples(self):
+        run = self.root / "heterogeneous"
+        def estimate(step, source, directory, probe):
+            size = None if step["id"] == "snp0" else 800 * 1024**2
+            return size, {"basis": "fixture"}
+        with patch("nipat_scientific.snp_parallel._sample_estimate", side_effect=estimate):
+            state = self.execute(run, NIPAT_MAX_WORKERS="3", SNP_FIXTURE_MEMORY_MIB="2200")
+        self.assertEqual(state["status"], "succeeded", state)
+        self.assertEqual(state["snp_parallel"]["workers"], 2)
+        directory = run / "parallel/snp"
+        observed = self.active_sets(directory)
+        self.assertIn({1}, observed)
+        self.assertIn({2, 3}, observed)
+        self.assertTrue(all(1 not in tasks or len(tasks) == 1 for tasks in observed))
+        self.assertEqual([s["id"] for s in state["steps"]], ["snp0", "snp1", "snp2"])
+        for index, record in enumerate(state["steps"]):
+            env = json.loads((run / record["work_dir"] / "observed-environment.json").read_text())
+            self.assertEqual(env["NIPAT_PARALLEL_CHILD"], "" if index == 0 else "1")
+            self.assertEqual(env["NIPAT_MAX_WORKERS"], "3" if index == 0 else "1")
 
     def test_bam_estimate_uses_decompressed_records_or_bounded_depth_then_real_panel_count(self):
         reference = self.root / "reference.fa"
@@ -232,7 +290,7 @@ class SnpParallelTests(unittest.TestCase):
 
                 with patch.dict(os.environ, self.environment), patch(
                         "nipat_scientific.executor._run_process", side_effect=run):
-                    result = _query_budget(steps, source, directory, _Cancellation())
+                    result, _ = _query_budget(steps, source, directory, _Cancellation())
                 self.assertEqual(result["workers"], 1)
                 estimates = json.loads((directory / "sample-estimates.json").read_text())
                 self.assertIsNone(estimates["snp0"]["memory_mib"])
@@ -285,15 +343,15 @@ class SnpParallelTests(unittest.TestCase):
         self.assertTrue(ext.exists())
         self.assert_descendants_stopped(self.root)
 
-    def test_unknown_input_stops_subsequent_probes_and_requests_only_one_worker(self):
+    def test_all_unknown_inputs_are_recorded_and_request_only_one_worker(self):
         directory = self.root / "admission"
         directory.mkdir()
         paths = {item["id"]: item["path"] for item in self.plan["samples"]}
         with patch.dict(os.environ, self.environment), patch(
                 "nipat_scientific.snp_parallel._sample_estimate", return_value=(None, {"basis": "unknown"})
         ) as estimate:
-            budget = _query_budget(self.plan["steps"], paths, directory, _Cancellation())
-        self.assertEqual(estimate.call_count, 1)
+            budget, _ = _query_budget(self.plan["steps"], paths, directory, _Cancellation())
+        self.assertEqual(estimate.call_count, 3)
         self.assertEqual(budget["workers"], 1)
 
     def test_mixed_plan_batches_ready_snp_samples_and_registers_each_result_for_downstream(self):
@@ -426,7 +484,7 @@ class SnpParallelTests(unittest.TestCase):
 
     def test_insufficient_shared_budget_falls_back_to_serial_execution(self):
         run = self.root / "limited"
-        with patch("nipat_scientific.snp_parallel._query_budget", return_value={"workers": 1, "tasks": 3, "reason": "memory"}):
+        with patch("nipat_scientific.snp_parallel._query_budget", return_value=({"workers": 1, "tasks": 3, "reason": "memory"}, {})):
             state = self.execute(run)
         self.assertEqual(state["status"], "succeeded", state)
         self.assertFalse(list((run / "parallel/snp").glob("job-*.json")))

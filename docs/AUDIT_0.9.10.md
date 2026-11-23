@@ -24,7 +24,7 @@ The Mac review also addressed concurrent Lima startup and a Cocoa shutdown race.
 
 Archived runs distinguish the 8 GiB M1 system with a 4-vCPU, 3,905 MiB guest from a separate M3 system. Three M1 0.9.5 suites recorded 82 completed case executions (45, 10 and 27, including repetitions and modes). The high-depth synthetic workload had three repetitions per setting. Median total time was 36.09 seconds with four automatic R workers, 27.84 seconds with two and 29.87 seconds in serial mode. The respective R-phase medians were 23.449, 15.570 and 17.550 seconds. Acquisition used one samtools worker in all three settings. These measurements isolate a meaningful difference in the R phase but cannot quantify the effect of the acquisition changes made since 0.9.5.
 
-The archived 0.8.99 M1 run used nine BAMs totaling 20,443,505,239 bytes and produced a 3,212,502,181-byte pileup. Its completed chromosome pileup phase took 2,318.457 seconds for 22 chromosome tasks. Indexing the pileup for the R block reader took another 237.357 seconds. Its overall run lacks a completion record. This motivated eliminating a full temporary write and read on the single-worker chromosome path. When multiple chromosomes are processed concurrently, NewPat still assembles them in BAM dictionary order. The small-guest tuning applies only to Apple Silicon with known physical memory of at most 8 GiB and effective Lima memory of at most 4 GiB. The automatic cap applies to the R block pool, and explicit process limits still follow the ordinary memory and CPU checks. Windows single-experiment sizing retains the 0.9.9 policy. [Mac implementation and benchmark](MACOS_INSTALLER.md#compare-worker-settings-on-an-apple-silicon-mac)
+The archived 0.8.99 M1 run used nine BAMs totaling 20,443,505,239 bytes and produced a 3,212,502,181-byte pileup. Its completed chromosome pileup phase took 2,318.457 seconds for 22 chromosome tasks. Indexing the pileup for the R block reader took another 237.357 seconds. Its overall run lacks a completion record. This motivated eliminating a full temporary write and read on the single-worker chromosome path. When multiple chromosomes are processed concurrently, NewPat still assembles them in BAM dictionary order. The initial candidate selected this tuning on Apple Silicon with known physical memory of at most 8 GiB and effective Lima memory of at most 4 GiB. The subsequent portability checks below describe how the current candidate selects it. The automatic cap applies to the R block pool, and explicit process limits still follow the ordinary memory and CPU checks. The original tuning preserved Windows single-experiment sizing at the tested allocations. [Mac implementation and benchmark](MACOS_INSTALLER.md#compare-worker-settings-on-an-apple-silicon-mac)
 
 ## Measurements and verification boundaries
 
@@ -68,6 +68,33 @@ All 24 native individual tables from the 1/2/9 comparison and their genotype sum
 The indexed pileup comparison used samtools 1.21 on 25 scenarios under each of two resource profiles. In a concentrated panel with six target sites and nine synthetic BAMs, median acquisition fell from about 127 to 8 ms in five Linux runs. Whole-contig and restricted scans preserved the pileup bytes across capped depth, indels and overlapping read pairs. Each interval on the historical M1 panel spans more than half of its target chromosome, so its acquisition still uses the previous scan.
 
 The ZIP upgrade fixture now recreates the 0.9.9 launcher and keeps historical results through a failed and a successful upgrade. A desktop service integration test starts two experiments, stops and removes the first, reopens the archive and verifies that the second succeeded and both output files remain intact. That test substitutes a controlled engine command. A real Windows installation upgrade and direct visual inspection of the taskbar and macOS Dock remain final device checks. [Installed upgrade procedure](WINDOWS_INSTALLER.md#verify-an-installed-099-upgrade)
+
+## Portable CPU and memory policy
+
+The Windows 0.9.9 Sapienza archive records three completed DNP and contamination runs. The median workflow took 195.688 seconds, including 72.705 seconds of pileup. A separate Windows 0.9.7 experiment limited the same computer to four CPUs and 3,905 MiB. Acquisition of one BAM took 100.66 and 100.17 seconds with two samtools processes, and 186.53 and 402.97 seconds with one. The M1 high-depth comparison above measured the R phase under a similar VM allocation. These experiments inform separate decisions for acquisition, R memory and multi-sample I/O.
+
+The current candidate was compared with `4c01a36` using the Linux AMD64 scientific userspace, four CPUs, software memory budgets and the desktop-generated environments for WSL and Lima. Each timing is one execution per condition. The 128-locus workload uses distinct input paths to copies of the distributed timing BAM. All individual SNP and DNP tables and genotype summaries matched. Nine additional BAMs with different contents also retained the expected sample-specific results. The timing data below are workflow elapsed seconds. The final two-BAM small-budget run exercised the last block-sizing change. The other measured configurations were checked for equivalent block targets on both versions of the candidate planner. [Run results, platform simulations, source hashes and test scope](validation/0.9.10-resource-portability.json)
+
+| Declared memory | BAMs | Prior candidate (s) | Updated candidate (s) |
+|---|---:|---:|---:|
+| 3,905 MiB | 1 | 16.71 | 16.07 |
+| 3,905 MiB | 2 | 31.81 | 32.09 |
+| 3,905 MiB | 9 | 133.13 | 133.43 |
+| 8,192 MiB | 1 | 16.71 | 18.74 |
+| 8,192 MiB | 2 | 23.82 | 23.56 |
+| 8,192 MiB | 9 | 141.52 | 72.36 |
+
+The earlier candidate already used shared DNP reads on the small translated profile. At 8,192 MiB, extending that path reduced the nine-BAM DNP step from 108.17 to 39.08 seconds. The WSL single-BAM simulation kept its ordinary reader and comparable scientific output. The physical M1 and Windows installation times for this revision remain unmeasured.
+
+The planner was exercised over 756 capacity/workload combinations per policy and 672 launcher combinations per revision. The ordinary WSL plans matched their baseline across the tested range (unknown capacity or 2–32 GiB). For an eight-CPU workload with 844 loci, increasing the translated run allocation from 4,096 to 4,097 MiB now retains two R workers and 22 blocks. The earlier planner jumped to 844 blocks. With only 700 MiB declared, the conservative minimum block reduced sampled DNP process-tree PSS from 283.6 to 177.8 MiB in a Linux single-BAM test. Time increased from 10.40 to 39.03 seconds. Data and genotypes agreed. This low-memory safeguard applies across platforms.
+
+Additional checks exercised the following cases.
+
+- Two simulated cgroup layouts with 2 CPUs and 1 GiB now report those limits. The v1 PID allowance leaves one R worker and v2 allows two.
+- Three pending desktop requests on a four-CPU, 3,905 MiB runtime received 1,301, 1,302 and 1,302 MiB of container capacity. Crash, stop, failed cleanup and waiting-job tests check that a later run cannot claim an active container's reservation. The desktop registry covers sessions of one user on the same runtime. CLI runs and other applications can consume resources outside it.
+- In a mixed SNP workflow an unindexed sample ran alone and the two smaller samples overlapped. With all tables verified, the workflow took 21.48 seconds before and 18.67 seconds after. In a separate 32-sample, 3,000-locus summary test, peak traced Python allocations fell from 20,269 to 7,497 KiB. At renderer entry the live allocations fell from 16,564 to 196 KiB. The merged TSV was byte-identical. These numbers cover Python allocations only.
+
+The final local application suite passed 1,776 tests and skipped 46 platform- or dependency-specific checks. The CI helper suite passed 404 tests. The native R qualification inside the released scientific userspace passed all 25 tests with the candidate sources. Desktop frontend checks exercised 636 assertions. A rendered resource-form check at widths of 800 and 1,024 pixels verified that the half-capacity action fills the memory limit, retains a lower CPU limit and fits within the viewport.
 
 ## Scope and how to verify
 

@@ -10,7 +10,7 @@ main <- function() {
   sys.source(file.path(root, "src/nipat_scientific/parallel.R"), environment)
   sys.source(file.path(root, "src/nipat_scientific/dnp_blocks.R"), environment)
   variables <- c("NIPAT_EXECUTION_MODE", "NIPAT_PARALLEL_CHILD", "NIPAT_PARALLEL_LOG_DIR",
-                 "NIPAT_DNP_SMALL_ARM_GUEST", "NIPAT_MAX_WORKERS", "NIPAT_PERFORMANCE_DIR")
+                 "NIPAT_DNP_OPTIMIZED_IO", "NIPAT_DNP_LIMA_ARM64", "NIPAT_MAX_WORKERS", "NIPAT_PERFORMANCE_DIR")
   previous <- Sys.getenv(variables, unset = NA_character_)
   on.exit(for (name in names(previous)) {
     if (is.na(previous[[name]])) Sys.unsetenv(name) else
@@ -80,6 +80,7 @@ main <- function() {
 
   production_lapply <- environment$nipat_parallel_lapply
   controlled_workers <- 1L
+  environment$nipat_parallel_capacity <- function() list(memory_capacity_mib = 3905)
   memory_budget <- 32768
   environment$nipat_parallel_budget <- function(tasks, memory_mib = NULL, workers = NULL, workload_observed = TRUE) {
     selected <- min(controlled_workers, if (is.null(workers)) Inf else workers, max(1L, tasks))
@@ -97,6 +98,7 @@ main <- function() {
   cases <- list(
     list(samples = 2L, blocks = 4L, workers = 3L),
     list(samples = 2L, blocks = 4L, workers = 4L, small_arm = TRUE, tasks = 4L),
+    list(samples = 2L, blocks = 4L, workers = 4L, native_io = TRUE, tasks = 4L),
     list(samples = 9L, blocks = 3L, workers = 2L, small_arm = TRUE, tasks = 9L),
     list(samples = 2L, blocks = 4L, workers = 2L, small_arm = TRUE, low_memory = TRUE),
     list(samples = 2L, blocks = 4L, workers = 2L, small_arm = TRUE, oversize = TRUE),
@@ -117,7 +119,8 @@ main <- function() {
     trace <- file.path(case_dir, "events")
     Sys.setenv(NIPAT_PARALLEL_LOG_DIR = trace,
                NIPAT_EXECUTION_MODE = if (isTRUE(case$serial)) "serial" else "auto")
-    Sys.setenv(NIPAT_DNP_SMALL_ARM_GUEST = if (isTRUE(case$small_arm)) "1" else "0")
+    Sys.setenv(NIPAT_DNP_OPTIMIZED_IO = if (isTRUE(case$small_arm) || isTRUE(case$native_io)) "1" else "0",
+               NIPAT_DNP_LIMA_ARM64 = if (isTRUE(case$small_arm)) "1" else "0")
     memory_budget <- if (isTRUE(case$low_memory)) 768 else 32768
     if (isTRUE(case$manual)) Sys.setenv(NIPAT_MAX_WORKERS = case$workers) else Sys.unsetenv("NIPAT_MAX_WORKERS")
     controlled_workers <- case$workers
@@ -234,7 +237,7 @@ main <- function() {
                   function(...) stop("scientific failure in sample two"))
   expect_error(environment$nipat_dnp_process_samples(index, plan, labels, refs, failing,
                 workers = 2L, columns = selections[1:2]), "scientific failure in sample two")
-  Sys.setenv(NIPAT_DNP_SMALL_ARM_GUEST = "1")
+  Sys.setenv(NIPAT_DNP_OPTIMIZED_IO = "1")
   expect_error(environment$nipat_dnp_process_samples(index, plan, labels, refs, failing,
                 workers = 1L, columns = selections[1:2]), "scientific failure in sample two")
   check(own_connections(index$path) == 0L)

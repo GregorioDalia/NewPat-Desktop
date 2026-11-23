@@ -43,17 +43,23 @@ class ParallelRuntimeTests(unittest.TestCase):
             self.assertEqual(service["mem_limit"], 6000 * 1024**2)
             self.assertTrue(all(environment[name] == "1" for name in THREAD_LIMITS))
 
-    def test_small_arm_guest_profile_uses_actual_lima_host_and_guest_memory(self):
+    def test_dnp_io_and_translated_worker_policy_follow_the_runtime(self):
+        # Identical engine allocations on different physical hosts, explicit
+        # per-run limits, and the two independent engine policy switches.
         cases = [
-            ("lima", "arm64", 8192, 3905, True),
-            ("lima", "arm64", 8192, 4096, True),
-            ("lima", "arm64", 16384, 3905, False),
-            ("lima", "arm64", 8192, 5000, False),
-            ("lima", "arm64", 8192, None, False),
-            ("lima", "x86_64", 8192, 3905, False),
-            ("wsl", "arm64", 8192, 3905, False),
+            ("lima", "darwin", "arm64", 8192, 3905, None, True, True),
+            ("lima", "darwin", "arm64", 16384, 3905, None, True, True),
+            ("lima", "darwin", "arm64", 32768, 8192, 3905, True, True),
+            ("lima", "darwin", "arm64", None, 8192, None, True, True),
+            ("lima", "darwin", "arm64", 8192, None, None, True, True),
+            ("lima", "darwin", "x86_64", 8192, 3905, None, False, False),
+            ("native", "linux", "x86_64", 16384, 8192, None, True, False),
+            ("native", "linux", "aarch64", 16384, 8192, None, False, False),
+            ("native", "darwin", "x86_64", 8192, 3905, None, False, False),
+            ("wsl", "win32", "AMD64", 8192, 3905, None, False, False),
+            ("wsl", "win32", "arm64", 8192, 3905, None, False, False),
         ]
-        for backend, arch, host, guest, expected in cases:
+        for backend, system, arch, host, guest, limit, io, translated in cases:
             with self.subTest(backend=backend, arch=arch, host=host, guest=guest), tempfile.TemporaryDirectory() as temp:
                 root = Path(temp).resolve()
                 run = root / "runs" / "one"
@@ -61,16 +67,21 @@ class ParallelRuntimeTests(unittest.TestCase):
                 layout = ProjectLayout(root, root, root / "data", root / "runs", root / "compose.yaml")
                 transport = DockerTransport()
                 transport.backend = backend
-                runner = DockerComposeRunner(layout, transport=transport)
+                runner = DockerComposeRunner(layout, transport=transport, options=ExecutionOptions(memory_mb=limit))
                 runner._record = Mock(run_dir=run, data={"resource_snapshot": {
-                    "host": {"memory_mib": host}, "runtime": {"effective": {"memory_mib": guest}},
+                    "host": {"memory_mib": host, "cpus": 8}, "runtime": {"effective": {"memory_mib": guest, "cpus": 4}},
                 }})
-                with patch("nipat.execution.runner.platform.machine", return_value=arch):
+                with patch("nipat.execution.runner.platform.machine", return_value=arch), patch("sys.platform", system):
                     runner._write_engine_compose("sha256:" + "a" * 64)
                 compose = json.loads((run / "work/engine-compose.json").read_text())
                 env = compose["services"]["scientific"]["environment"]
-                self.assertEqual(env.get("NIPAT_DNP_SMALL_ARM_GUEST") == "1", expected)
+                self.assertEqual(env.get("NIPAT_DNP_OPTIMIZED_IO") == "1", io)
+                self.assertEqual(env.get("NIPAT_DNP_LIMA_ARM64") == "1", translated)
                 self.assertNotIn("NIPAT_MAX_WORKERS", env)
+                if limit is not None:
+                    self.assertEqual(json.loads(env["NIPAT_FIXED_RESOURCE_BUDGET"])["memory_capacity_mib"], limit)
+                if guest is None:
+                    self.assertEqual(json.loads(env["NIPAT_FIXED_RESOURCE_BUDGET"])["worker_ceiling"], 1)
 
     def test_old_runtime_is_rejected_instead_of_silently_ignoring_parallel_settings(self):
         for change in ("capability", "module", "workflow", "serial"):

@@ -514,6 +514,7 @@ src/nipat/gui/__init__.py
 src/nipat/gui/app.py
 src/nipat/gui/host.py
 src/nipat/gui/jobs.py
+src/nipat/gui/admission.py
 src/nipat/gui/linux_host.py
 src/nipat/gui/macos_host.py
 src/nipat/gui/native/windows/LICENSE.txt

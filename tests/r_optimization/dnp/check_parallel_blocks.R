@@ -257,6 +257,24 @@ main <- function() {
               pool$coordinator_rss_mib + pool$workers * peak <= pool$memory_budget_mib,
               identical(unlist(lapply(sized$blocks, `[[`, "locus_ids")), rows))
   }
+  # Moving a large run across the translated-worker threshold must not
+  # fragment it into a separate read/task per locus to expose extra workers.
+  Sys.setenv(NIPAT_DNP_LIMA_ARM64 = "1", NIPAT_DNP_OPTIMIZED_IO = "1")
+  capacities <- c(4096L, 4097L, 5120L, 6144L, 7168L, 8192L)
+  expected_workers <- c(2L, 2L, 2L, 3L, 3L, 4L)
+  blocks <- integer(length(capacities))
+  for (i in seq_along(capacities)) {
+    env <- resource_env(capacities[[i]], 8L, 192 * 1024)
+    plan <- env$nipat_dnp_plan(real_size_index, real_size_labels, real_size_refs)
+    peak <- env$nipat_dnp_worker_memory_mib(plan)
+    blocks[[i]] <- length(plan$blocks)
+    pool <- env$nipat_parallel_budget(blocks[[i]], peak, workers = env$nipat_dnp_r_workers())
+    stopifnot(plan$max_bytes >= 16 * 1024^2, pool$workers == expected_workers[[i]],
+              pool$coordinator_rss_mib + pool$workers * peak <= pool$memory_budget_mib,
+              identical(unlist(lapply(plan$blocks, `[[`, "locus_ids")), rows))
+  }
+  stopifnot(blocks[[1L]] == 22L, blocks[[2L]] == blocks[[1L]])
+  Sys.unsetenv(c("NIPAT_DNP_LIMA_ARM64", "NIPAT_DNP_OPTIMIZED_IO"))
   cat("DNP deep scheduling: VM profiles, both block limits, ordered loci and estimated concurrent memory passed.\n")
   cat("DNP resource profiles: 2/4/8 GiB fixed budgets preserve numeric values, read identity, row order and indivisible windows.\n")
   cat("DNP parallel dispatcher: ordered fork results, isolated connections, parent progress, errors and limits passed.\n")

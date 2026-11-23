@@ -281,24 +281,24 @@ class DnpPileupTests(unittest.TestCase):
         self.assertLessEqual(tasks[0]['finished_at_unix'], tasks[1]['started_at_unix'])
         self.assertEqual(self.output.read_bytes(), b'chr2:reads-0\nchr1:reads-0\n')
 
-    def test_small_arm_guest_streams_identical_ordered_or_empty_pileup_only_with_one_worker(self):
+    def test_optimized_io_streams_identical_ordered_or_empty_pileup_only_with_one_worker(self):
         self.samples([True, True])
         self.bed.write_text('chr1\t0\t10\nchr2\t0\t10\n')
         for empty in ('', '1'):
             outputs = []
-            for small_guest, workers in (('', 1), ('1', 1), ('1', 2)):
-                with self.subTest(empty=empty, small_guest=small_guest, workers=workers), patch.dict(
-                        os.environ, MPILEUP_EMPTY=empty, NIPAT_DNP_SMALL_ARM_GUEST=small_guest):
+            for optimized_io, workers in (('', 1), ('1', 1), ('1', 2)):
+                with self.subTest(empty=empty, optimized_io=optimized_io, workers=workers), patch.dict(
+                        os.environ, MPILEUP_EMPTY=empty, NIPAT_DNP_OPTIMIZED_IO=optimized_io):
                     result = self.generate({'mode': 'auto', 'workers': workers})
                     direct = result['parallel'].get('output_strategy') == 'direct-dictionary-order'
-                    self.assertEqual(direct, bool(small_guest) and workers == 1)
+                    self.assertEqual(direct, bool(optimized_io) and workers == 1)
                     outputs.append(self.output.read_bytes())
                     self.output.unlink()
                     self.metadata.unlink()
             expected = b'' if empty else b'chr2:reads-0|reads-1\nchr1:reads-0|reads-1\n'
             self.assertEqual(outputs, [expected] * 3)
 
-    def test_small_guest_bounds_only_large_contigs_with_clustered_targets(self):
+    def test_optimized_io_bounds_only_large_contigs_with_clustered_targets(self):
         bam, = self.samples([True])
         sizes = {"cluster": 2_000_000, "spread": 2_000_000, "tiny": 1000}
         self.reference.with_suffix(".fa.fai").write_text(
@@ -308,7 +308,7 @@ class DnpPileupTests(unittest.TestCase):
         self.bed.write_text("tiny\t5\t10\nspread\t100\t110\ncluster\t1000040\t1000050\n"
                             "spread\t1800000\t1800004\ncluster\t50\t54\n")
         for flag, expected in (("", "cluster"), ("1", "{cluster}:51-1000050")):
-            with self.subTest(flag=flag), patch.dict(os.environ, NIPAT_DNP_SMALL_ARM_GUEST=flag):
+            with self.subTest(flag=flag), patch.dict(os.environ, NIPAT_DNP_OPTIMIZED_IO=flag):
                 result = self.generate({"mode": "auto", "workers": 1})
                 args = [item["args"] for item in self.commands() if item["stage"] == "mpileup"]
                 self.assertEqual([cmd[cmd.index("-r") + 1] for cmd in args], [expected, "spread", "tiny"])
@@ -324,7 +324,7 @@ class DnpPileupTests(unittest.TestCase):
     def test_streamed_failure_on_second_contig_discards_first_contig(self):
         self.samples([True])
         self.bed.write_text('chr2\t0\t10\nchr1\t0\t10\n')
-        with patch.dict(os.environ, MPILEUP_FAIL_CONTIG='chr1', NIPAT_DNP_SMALL_ARM_GUEST='1'):
+        with patch.dict(os.environ, MPILEUP_FAIL_CONTIG='chr1', NIPAT_DNP_OPTIMIZED_IO='1'):
             with self.assertRaises(dnp_pileup.PileupError):
                 self.generate({'mode': 'auto', 'workers': 1})
         result = json.loads(self.metadata.read_text())
@@ -430,7 +430,7 @@ class DnpPileupTests(unittest.TestCase):
                 os.kill(item['pid'], 0)
 
     def test_streamed_cancellation_discards_output_and_reaps_child(self):
-        with patch.dict(os.environ, NIPAT_DNP_SMALL_ARM_GUEST='1'):
+        with patch.dict(os.environ, NIPAT_DNP_OPTIMIZED_IO='1'):
             self.check_chromosome_cancellation(1)
 
     def test_parallel_cancellation_reaps_all_children_and_records_partial_evidence(self):

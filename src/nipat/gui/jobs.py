@@ -2,24 +2,27 @@
 from __future__ import annotations
 
 from collections import deque
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from copy import deepcopy
 from dataclasses import asdict, replace
 from datetime import datetime, timezone
 import json
 from itertools import islice
 from pathlib import Path
+import subprocess
 import threading
 import time
 import uuid
 
-from nipat.errors import ValidationError
+from nipat.errors import RuntimeExecutionError, ValidationError
 from nipat.execution.progress import ProgressSnapshot
 from nipat.execution.recovery import reconcile_run
 from nipat.execution.runner import DockerComposeRunner
 from nipat.execution.tracking import read_run_status
 from nipat.execution.workflows import Workflows
+from nipat.gui.admission import DesktopAdmission
 from nipat.gui.plan import PreparedAnalysis
+from nipat.processes import background_process_options
 
 _TERMINAL = {"succeeded", "failed", "interrupted", "planned"}
 
@@ -29,10 +32,9 @@ def _now() -> str:
 
 
 class Job:
-    def __init__(self, prepared: PreparedAnalysis, concurrent_runs: int = 1):
+    def __init__(self, prepared: PreparedAnalysis):
         self.id = uuid.uuid4().hex
         self.prepared = prepared
-        self.concurrent_runs = concurrent_runs
         self.name = prepared.draft["name"]
         self.status = "starting"
         self.created_at = _now()
@@ -104,6 +106,27 @@ class GuiRunner(DockerComposeRunner):
         super().__init__(prepared.layout, options=prepared.execution,
                          progress_callback=job.progressed, run_finished_callback=job.outcome)
 
+        self._admission = DesktopAdmission(self._transport.metadata, job.id)
+
+    def _project_idle(self, job_id):
+        # Docker Compose labels scientific containers with our unique project.
+        # Exited containers no longer consume the running quota.
+        command = ["docker", "ps", "--all", "--quiet", "--filter",
+                   "label=com.docker.compose.project=nipat-" + job_id]
+        for status in ("created", "running", "restarting", "paused", "removing"):
+            command.extend(["--filter", "status=" + status])
+        environment = self._environment()
+        try:
+            result = subprocess.run(self._transport.command(command, environment), env=environment,
+                                    stdin=subprocess.DEVNULL, capture_output=True, check=True,
+                                    timeout=8, **background_process_options())
+        except (OSError, subprocess.SubprocessError) as exc:
+            message = ("Cannot confirm that the previous experiment has stopped. Check the runtime and retry."
+                       if self.job.prepared.language == "en" else
+                       "Impossibile verificare l’arresto dell’esperimento precedente. Controlla il runtime e riprova.")
+            raise RuntimeExecutionError(message) from exc
+        return not result.stdout.strip()
+
     def _cancel_point(self) -> None:
         if self.job.cancel_event.is_set():
             raise KeyboardInterrupt("Analisi annullata dall’utente.")
@@ -156,8 +179,7 @@ class GuiRunner(DockerComposeRunner):
 
     def _record_resource_snapshot(self):
         super()._record_resource_snapshot()
-        participants = self.job.concurrent_runs
-        if participants == 1 or self.dry_run or self._record is None:
+        if self.dry_run or self._record is None:
             return
         from nipat.resources import fixed_execution_budget
 
@@ -166,21 +188,23 @@ class GuiRunner(DockerComposeRunner):
         capacity = fixed_execution_budget(snapshot)
         cpu, memory = capacity["cpu_limit"], capacity["memory_capacity_mib"]
         requested = self.options
-        # Share measured guest capacity with runs already admitted. A running
-        # container may be in the middle of a scientific phase and is never resized.
-        limits = {}
-        if cpu is not None:
-            limits["cpus"] = min(requested.cpus or cpu, cpu / participants)
-        if memory is not None:
-            share = int(memory // participants)
-            if share < 128:
-                raise ValidationError("RAM insufficiente per un altro esperimento in parallelo.")
-            limits["memory_mb"] = min(requested.memory_mb or share, share)
-        if cpu is None or memory is None:
-            limits["max_workers"] = 1
-        self.options = replace(requested, **limits)
-        data["concurrent_execution"] = {"runs_at_start": participants,
-                                        "requested_options": requested.as_dict()}
+        waiting = False
+        while True:
+            self._cancel_point()
+            allocation = self._admission.try_admit(cpu, memory, requested, self._project_idle)
+            if allocation is not None:
+                break
+            if not waiting:
+                self._preparation_progress("waiting-for-resources")
+                waiting = True
+            self.job.cancel_event.wait(0.3)
+        if allocation.participants > 1:
+            self.options = replace(requested, cpus=allocation.cpus, memory_mb=allocation.memory_mib)
+        data["concurrent_execution"] = {"participants_at_admission": allocation.participants,
+                                        "requested_options": requested.as_dict(),
+                                        "assigned_cpus": allocation.cpus,
+                                        "assigned_memory_mib": allocation.memory_mib,
+                                        "waited": waiting}
         data["execution_options"] = self.options.as_dict()
         snapshot["container"] = {"memory_mib": self.options.memory_mb, "cpus": self.options.cpus}
         data["resource_budget"] = fixed_execution_budget(snapshot, self.options)
@@ -202,7 +226,8 @@ class GuiRunner(DockerComposeRunner):
         with (Path(run_dir) / "gui.json").open("x", encoding="utf-8", newline="\n") as stream:
             json.dump(gui, stream, ensure_ascii=False, allow_nan=False, indent=2)
             stream.write("\n")
-        with super().record_run(run_dir, *args, **kwargs) as record:
+        registration = nullcontext() if self.dry_run else self._admission.registration()
+        with registration, super().record_run(run_dir, *args, **kwargs) as record:
             self._cancel_point()
             yield record
             self._cancel_point()
@@ -216,6 +241,12 @@ class GuiRunner(DockerComposeRunner):
             # the same interrupted status as the CLI's KeyboardInterrupt path.
             self._cancel_point()
             raise
+        finally:
+            if self._record is not None and self._record.data.get("commands"):
+                stage = self._record.data["commands"][-1]
+                cleanup = stage.get("container_cleanup", {}).get("status")
+                if stage.get("started_at") and cleanup not in {"removed", "stopped", "absent"}:
+                    self._admission.unconfirmed_cleanup = True
         self._cancel_point()
         return result
 
@@ -268,8 +299,7 @@ class JobManager:
                     break
                 if self._jobs[job_id].done.is_set():
                     del self._jobs[job_id]
-            participants = 1 + sum(not job.done.is_set() for job in self._jobs.values())
-            job = Job(prepared, participants)
+            job = Job(prepared)
             self._jobs[job.id] = job
             job.thread = threading.Thread(target=self._execute, args=(job,),
                                           name="nipat-analysis-" + job.id[:8], daemon=False)
