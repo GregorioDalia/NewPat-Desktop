@@ -75,15 +75,16 @@ def check_members(package, sources):
 
 
 def check_package(root, work):
-    # Only the text slice of the real installer allowlist is staged here. The
+    # Stage the desktop guidance and its offline example from the installer allowlist. The
     # release workflow separately checks the full packages and runtime assets.
     root = root.resolve()
     included = {p.relative_to(root).as_posix(): p for p in source_files(root)}
     needed = {"README.md", "LICENSE", "THIRD_PARTY_NOTICES.md", "docs/USER_GUIDE.md",
-              "installer/windows/zip-readme.txt", "installer/windows/testing-readme.txt"}
+              "installer/windows/zip-readme.txt", "installer/windows/testing-readme.txt",
+              "examples/newpat-synthetic-trio.zip", "examples/newpat-synthetic-trio.zip.sha256"}
     missing = needed - included.keys()
     if missing:
-        raise ValueError(f"Missing required distribution texts: {sorted(missing)}")
+        raise ValueError(f"Missing required distribution files: {sorted(missing)}")
     version = "0.9.10"
     files = {name: path for name, path in included.items()
              if path.suffix.lower() == ".md" or name in needed or name in zip_package.root_files(version).values()}

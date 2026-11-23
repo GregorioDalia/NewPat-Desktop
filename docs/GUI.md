@@ -25,6 +25,21 @@ If NewPat closes during calculation, reopen the application and check the run st
 
 <a id="read-cpi-and-cpin-plots"></a>
 
+## Read the result summary
+
+Select the marker branch and the sample, pair or trio in **Experiments and results**. The summary describes the selected analysis. Keep different panels or site selections separate when comparing estimates.
+
+| Analysis | Summary |
+| --- | --- |
+| DNP and SNP genotyping | Called and unassigned genotypes for the selected sample. The original tables identify calls as `0/0`, `0/1`, `1/1` or missing. These modules produce the inputs for the parentage analyses. |
+| Prenatal CPI | The reported log₁₀(CPI) at the median fetal allele support for that pair and panel (`CPI_medianFF`). It differs from the median of the CPI curve. When the two original plot guides are available, the summary locates the reported point below, between, above or on them. The default guides are −4 and +4. R rounds this CSV value to three decimals, so a point displayed on a guide may have been rounded from either side. The source script provides a curve and the underlying values. It does not issue a categorical parentage finding. |
+| Postnatal CPI | The stored CPI and log₁₀(CPI) for the selected trio and site selection, plus the number of contributing sites. If both selections were requested, each has its own summary. Read the curves and original tables for the full output. |
+| Contamination | Mean contamination and number of informative sites for the selected sample. An unavailable estimate is distinct from a measured zero. |
+
+### Try the shared example
+
+In **Environment and help**, choose **Save example data**. Select a parent folder for a fresh `synthetic-trio` directory. Open its README to use the same sample IDs, panels, family roles and worker settings. Use the trio to check all five analyses. For comparable DNP and SNP timings, use the dedicated BAM and panels in the timing folder (four contigs, 128 loci and 1,000 reads per locus). Both workloads run offline. The downloadable copy is also usable with 0.9.9. [Example ZIP](../examples/newpat-synthetic-trio.zip)
+
 ## Read prenatal and postnatal CPI plots
 
 Hover over a point or click it to see the original table values. With the keyboard, press **Tab** to focus the plot, use the arrow keys to move through the points on the page, **Home** or **End** to reach its ends, and **Esc** to dismiss the details.

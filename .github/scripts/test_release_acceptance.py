@@ -652,6 +652,15 @@ class NewPatBrandingAcceptanceTests(unittest.TestCase):
                     self.assertEqual(acceptance.reviewable_path(path, revised_r=True, version=version), allowed)
         self.assertFalse(acceptance.reviewable_path("assets/branding/unrelated.png", revised_r=True, version="0.9.10"))
 
+    def test_synthetic_trio_dataset_delta_is_versioned_and_explicit(self):
+        distributed = (Path(__file__).resolve().parents[2] / "distribution-files.txt").read_text().splitlines()
+        self.assertEqual(set(name for name in distributed if name.startswith("examples/")),
+                         acceptance.SYNTHETIC_TRIO_FILES)
+        for path in acceptance.SYNTHETIC_TRIO_FILES:
+            self.assertFalse(acceptance.reviewable_path(path, revised_r=True, version="0.9.9"))
+            self.assertTrue(acceptance.reviewable_path(path, revised_r=True, version="0.9.10"))
+        self.assertFalse(acceptance.reviewable_path("examples/other.zip", revised_r=True, version="0.9.10"))
+
     def test_english_launcher_transition_accepts_removal_and_preserves_historical_reviews(self):
         historical = json.loads((Path(__file__).resolve().parents[1] / "release-acceptance/v0.9.9.json").read_bytes())
         acceptance.validate(historical, "0.9.9", historical["source_commit"], historical["build_run_id"])

@@ -82,7 +82,7 @@ class InstalledSuiteTests(unittest.TestCase):
                          self.app.resolve() / "scripts/windows/run.ps1")
 
     def test_integrity_observes_the_selected_zip_installations_preferences(self):
-        installation = self.root / "local-zip"
+        installation = self.root.resolve() / "local-zip"
         project = installation / "versions" / ("0.9.10-" + "a" * 40)
         self.write(installation / "installation.json",
                    {"schema_version": 1, "product": "nipat-desktop", "installation_method": "zip"})
@@ -91,7 +91,7 @@ class InstalledSuiteTests(unittest.TestCase):
         preferences = installation / "preferences.json"
         self.write(preferences, {"profile": "before"})
         with patch.object(suite.sys, "platform", "win32"), patch.dict(
-            os.environ, {"NIPAT_PROJECT_DIR": str(project), "LOCALAPPDATA": str(self.root),
+            os.environ, {"NIPAT_PROJECT_DIR": str(project), "LOCALAPPDATA": str(installation.parent),
                          "NIPAT_SETTINGS_FILE": ""}
         ):
             self.driver.snapshot_installation()

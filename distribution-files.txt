@@ -586,6 +586,9 @@ docs/RELEASE_0.9.7.md
 docs/RELEASE_0.9.8.md
 docs/RELEASE_0.9.9.md
 docs/RELEASE_0.9.10.md
+examples/newpat-synthetic-trio.zip
+examples/newpat-synthetic-trio.zip.sha256
+src/nipat/gui/examples.py
 src/nipat/gui/diagnostics.py
 tests/test_gui_diagnostics.py
 tests/test_newpat_branding.py

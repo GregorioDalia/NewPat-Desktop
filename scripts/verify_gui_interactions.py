@@ -82,7 +82,10 @@ def prepare_curve_fixtures(layout):
             return {"path": relative, "sha256": hashlib.sha256(target.read_bytes()).hexdigest()}
         if module == "cpi":
             write_table("output/Summary_FetalFraction_CPI.csv",
-                ["Pair", "Median_fetal_fraction_percent", "CPI_medianFF"], [[native, "6", "0.602"]])
+                ["Pair", "Median_fetal_fraction_percent", "CPI_medianFF", "N_sites_mother", "N_sites_father"],
+                [[native, "6", "0.602", "10", "9"]])
+            write_json(run / "output/scientific-settings.json", {"schema_version": 1, "workflow": "cpi",
+                "parameters": {"log_cpi_lower": -4, "log_cpi_upper": 4}})
             curve = write_table(f"output/curves/{native}_panel_1.tsv",
                 ["Iteration", "InfSites_mother", "InfSites_father", "CPI", "log_CPI", "Mismatch", "NotMismatch", "Cutoff"],
                 [["2", "10", "9", "0.0007525631256789", "-3.123456789012345", "1", "8", "ALL"],
@@ -133,8 +136,8 @@ def prepare_fixture(directory):
                "parameters": {"marker_type": "DNP", "sample_mapping": [{"sample_id": "Synthetic",
                    "original_path": selection["tracks"][0]["path"]}]}})
     write_json(run / "gui.json", {"schema_version": 1, "name": "Esperimento interrotto · verifica UI", "draft": draft})
-    output = run / "output" / "DNPcall_output.txt"
-    output.parent.mkdir()
+    output = run / "output" / "individual_outputs" / "full_output_sample_0001.txt"
+    output.parent.mkdir(parents=True)
     output.write_text("chr\tpos1\tpos2\tGT\ttotal_count\n1\t151\t152\t0/1\t20\n", encoding="utf-8")
     preserved = list(data.iterdir()) + [run / "run.json", run / "gui.json", output] + prepare_curve_fixtures(layout)
     return service, job, selection, run, preserved
@@ -310,6 +313,17 @@ def run_verification(report_path, executable):
                 page.screenshot(path=str(home), full_page=True)
                 evidence["screenshots"].append(home.name)
                 verify_language_controls(page, probe, service, check)
+                page.locator('[data-action="navigate"][data-view="environment"]').click()
+                save_examples = page.get_by_role("button", name="Salva dati di esempio")
+                picker.paths = [directory]
+                save_examples.click()
+                examples_dialog = page.get_by_role("dialog", name="Dati di esempio salvati")
+                expected_folder = directory / "synthetic-trio"
+                check(examples_dialog.locator(".path").inner_text() == str(expected_folder)
+                      and (expected_folder / "SHA256SUMS").is_file(),
+                      "Example-data button saves the bundled trio locally and shows its destination")
+                examples_dialog.locator('[data-action="close-modal"]').click()
+                picker.paths = []
                 page.locator('[data-action="navigate"][data-view="activity"]').click()
                 page.wait_for_selector('[data-job-card] .dna-rung')
                 check(page.locator('.dna-rung').count() == 10, "Recognizable DNA helix contains ten rungs")
@@ -431,8 +445,31 @@ def run_verification(report_path, executable):
                         ("cpin", "-3.33278849686833", "-3.42969850987639")):
                     page.locator('[data-action="navigate"][data-view="archive"]').click()
                     page.locator(f'[data-action="open-run"][data-id="{module}-curve-ui-fixture"]').click()
+                    kind = "prenatal_cpi" if module == "cpi" else "postnatal_cpi"
+                    expected = "0,602" if module == "cpi" else "0,00046474155109453"
+                    preview = page.locator(f'.outcome-preview[data-outcome="{kind}"]')
+                    check(preview.locator("strong").inner_text() == expected,
+                          f"{module} overview shows the recorded summary with its original precision")
                     page.locator(f'[role="tab"][data-action="result-module"][data-module="{module}|DNP"]').click()
                     page.wait_for_selector('.interactive-curve .curve-point')
+                    panel = page.locator(f'.outcome-panel[data-outcome="{kind}"]')
+                    check(panel.locator('[data-outcome-value]').inner_text() == expected,
+                          f"{module} selected family shows the same index as the overview")
+                    if module == "cpi":
+                        check("Tra i limiti" in panel.locator('[data-band="between"]').inner_text(),
+                              "Prenatal index uses the archived guides; this family lies between them")
+                    else:
+                        check(panel.locator("[data-band]").count() == 0,
+                              "Postnatal index is displayed without a prenatal threshold")
+                    page.get_by_role("radio", name="Italiano", exact=True).press("ArrowRight")
+                    value_selector = '.outcome-panel [data-outcome-value]'
+                    probe.wait(f"document.querySelector('{value_selector}')?.textContent==='{expected.replace(',', '.')}'")
+                    expected_label = ("log₁₀(CPI) at the median fetal read threshold" if module == "cpi"
+                                      else "Combined Paternity Index (CPI)")
+                    check(panel.locator(".outcome-label").inner_text() == expected_label,
+                          f"{module} English summary reloads the same family, metric and numeric result")
+                    page.get_by_role("radio", name="English", exact=True).press("ArrowLeft")
+                    probe.wait(f"document.querySelector('{value_selector}')?.textContent==='{expected}'")
                     curve_id = probe.evaluate("NipatApp.state.curves[0].file.id")
                     curve_selector = f'.results-body [data-action="curve-mode"][data-id="{curve_id}"]'
                     check(page.locator('.interactive-curve').count() == 2,
@@ -490,6 +527,10 @@ def run_verification(report_path, executable):
                 page.locator('[data-action="open-run"][data-id="archived-ui-fixture"]').click()
                 page.wait_for_selector('[data-action="reuse-run"]')
                 page.locator('[role="tab"][data-module="dnp-call|DNP"]').click()
+                check(page.locator('.outcome-panel [data-outcome-value]').inner_text() == "Analisi incompleta",
+                      "An interrupted call with a partial site table does not appear complete")
+                check(page.locator('.result-table .locus-genotype').inner_text() == "0/1",
+                      "The recorded heterozygous genotype remains visible at the individual locus")
                 page.locator('.page-heading [data-action="run-igv"]').click()
                 probe.wait("NipatApp.state.view==='igv'&&NipatApp.state.igv.loaded")
                 page.locator('#page-back').click()

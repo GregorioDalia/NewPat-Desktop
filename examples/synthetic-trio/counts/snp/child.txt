@@ -1,0 +1,4 @@
+chr	pos	REF	ALT	N_REF	N_ALT	N_Other	total_count
+chrDnpSynthetic	50	A	G	50	50	0	100
+chrDnpSynthetic	140	T	C	50	50	0	100
+chrDnpSynthetic	230	G	A	50	50	0	100

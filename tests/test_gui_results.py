@@ -57,6 +57,10 @@ def file_named(store, name, run="example"):
     return next(f for f in store.files(run) if f["name"] == name)
 
 
+def summary_metrics(entry):
+    return {metric["key"]: metric["value"] for metric in entry["summary"]["metrics"]}
+
+
 def test_original_precision_zero_and_na_survive_table_and_summary(archive):
     run = make_run(archive)
     table(run / "output/contamination_summary.txt", ["individuo", "informative_sites", "mean_contamination", "sd_contamination"],
@@ -73,6 +77,9 @@ def test_original_precision_zero_and_na_survive_table_and_summary(archive):
     assert missing["value"] is None and not missing["available"] and missing["raw_value"] == "NA"
     assert entries[0]["sample_id"] == "A" and entries[0]["sample_label"] == "Campione è.txt"
     assert entries[0]["metrics"][1]["unit"] == "punti %"
+    assert entries[0]["summary"]["kind"] == "contamination"
+    assert summary_metrics(entries[0]) == {"mean_contamination": "0", "sd_contamination": "0.0353553390593274", "informative_sites": "2"}
+    assert summary_metrics(entries[1]) == {"mean_contamination": None, "sd_contamination": None, "informative_sites": "0"}
     assert store.file_path("example", f["id"]).read_bytes() == (run / "output/contamination_summary.txt").read_bytes()
 
 
@@ -88,6 +95,9 @@ def test_large_table_pagination_filters_and_original_row_numbers(archive):
     assert page["rows"][0] == {"chr": "chr1", "pos": "124", "GT": "NA", "total_count": "100"}
     stats = store.overview("example")["modules"][0]["entries"][0]
     assert stats["site_count"] == 1201 and stats["unassigned"] == 401 and stats["read_observations"] == 120100
+    assert stats["summary"]["kind"] == "genotypes"
+    assert summary_metrics(stats) == {"site_count": "1201", "assigned": "800", "unassigned": "401",
+                                     "hom_ref": "0", "heterozygous": "800", "hom_alt": "0"}
     with pytest.raises(ValueError):
         store.table("example", f["id"], limit=1001)
     with pytest.raises(ValueError):
@@ -129,8 +139,9 @@ def test_native_dnp_aliases_map_to_recorded_samples_not_list_position(archive):
         artifact(run, "output/individual_outputs/full_output_sample_0001.txt", sample="maternal", native_name="sample_0001"),
         artifact(run, "output/individual_outputs/full_output_sample_0002.txt", sample="paternal", native_name="sample_0002")]})
     store = ResultsStore(archive)
-    first = store.overview("example")["modules"][0]["entries"][0]
+    first, second = store.overview("example")["modules"][0]["entries"]
     assert first["sample_id"] == "maternal" and first["label"] == "Mother.bam"
+    assert summary_metrics(first)["hom_ref"] == "1" and summary_metrics(second)["hom_alt"] == "1"
     plots = [f for f in store.files("example") if f["kind"] == "pdf"]
     assert [p["sample_id"] for p in plots] == ["maternal", "paternal"]
     assert first["plot_file_ids"] == [plots[0]["id"]]
@@ -155,11 +166,13 @@ def test_cpi_log_scale_family_and_named_cutoff_curve_mapping(archive):
     entries = store.overview("example")["modules"][0]["entries"]
     assert entries[0]["family_label"] == "Materna.txt / Paterno.txt"
     assert entries[0]["metrics"][1]["unit"] == "log10"
-    assert entries[0]["metrics"][1]["label"] == "log₁₀(CPI) alla frazione fetale mediana"
+    assert entries[0]["metrics"][1]["label"] == "log₁₀(CPI) alla soglia mediana di letture fetali"
     assert entries[0]["metrics"][0]["scale"] == 1 and entries[0]["metrics"][0]["unit"] == "%"
     assert entries[0]["curve_file_ids"] != entries[1]["curve_file_ids"]
     assert all(len(e["curve_file_ids"]) == 1 for e in entries)
     assert entries[1]["metrics"][1]["value"] is None
+    assert entries[0]["summary"]["guide_band"] is None
+    assert summary_metrics(entries[0])["CPI_medianFF"] == "0.602"
 
 
 def test_cpin_selection_and_interval_endpoints_stay_separate(archive):
@@ -180,10 +193,120 @@ def test_cpin_selection_and_interval_endpoints_stay_separate(archive):
     store = ResultsStore(archive)
     entries = store.overview("example")["modules"][0]["entries"]
     assert len(entries) == 2 and entries[0]["analysis"] != entries[1]["analysis"]
+    assert all(e["summary"]["kind"] == "postnatal_cpi" and "guide_band" not in e["summary"] for e in entries)
+    assert [summary_metrics(e)["CPI"] for e in entries] == ["0.00046474155109453", "0.000278844930656718"]
+    assert [summary_metrics(e)["Log10_CPI"] for e in entries] == ["-3.33278849686833", "-3.55463724648469"]
     assert entries[0]["curve_file_ids"] != entries[1]["curve_file_ids"]
     page = store.table("example", entries[0]["curve_file_ids"][0])
     assert [(r["Min_child_reads"], r["Through_min_child_reads"]) for r in page["rows"]] == [("2", "5"), ("6", "6"), ("7", "10")]
     assert column_description("Status")["values"]["quality_filter"] == "Filtro di qualità non superato"
+
+
+@pytest.mark.parametrize("column,genotypes,expected", [
+    ("GT", [], (0, 0)), ("GT", ["NA", ""], (0, 2)), ("GT", ["0/1", "unknown"], (None, None)),
+    ("genotype", ["0/1"], (None, None)),
+])
+def test_calling_summary_preserves_unavailable_genotypes(archive, column, genotypes, expected):
+    run = make_run(archive, "snp-call", marker="SNP")
+    table(run / "output/SNPcall_output.txt", [column, "total_count"], [(gt, "9") for gt in genotypes])
+    entry = ResultsStore(archive).overview("example")["modules"][0]["entries"][0]
+    assert (entry["assigned"], entry["unassigned"]) == expected
+    metrics = summary_metrics(entry)
+    assert metrics["site_count"] == str(len(genotypes))
+    assert metrics["heterozygous"] == ("0" if expected[0] == 0 else None)
+
+
+@pytest.mark.parametrize("marker", ["DNP", "SNP"])
+def test_prenatal_guides_use_published_value_support_and_run_settings(archive, marker):
+    run = make_run(archive, "cpi", marker=marker)
+    columns = ["Pair", "Marker_type", "CPI_medianFF", "Median_logCPI", "N_sites_mother", "N_sites_father"]
+    other = "DNP" if marker == "SNP" else "SNP"
+    estimates = ["-2.251", "-2.250", "0", "3.500", "3.501", "NA", "Inf"]
+    rows = [["family", marker, x, "9", "3", "3"] for x in estimates]
+    rows.extend([["family", marker, "5", "9", "0", "3"], ["family", marker, "5", "9", "3", "wrong"],
+                 ["family", other, "5", "9", "3", "3"]])
+    table(run / "output/Summary_FetalFraction_CPI.csv", columns, rows)
+    relative = "output/scientific-settings.json"
+    write_json(run / relative, {"schema_version": 1, "workflow": "cpi",
+                               "parameters": {"log_cpi_lower": -2.25, "log_cpi_upper": 3.5}})
+    validation(run, "cpi", {"scientific-settings": artifact(run, relative)})
+    store = ResultsStore(archive)
+    entries = store.overview("example")["modules"][0]["entries"]
+    assert all(e["summary"]["kind"] == "prenatal_cpi" and e["summary"]["step_status"] == "succeeded" for e in entries)
+    guides = [e["summary"]["guide_band"] for e in entries]
+    assert [g["position"] if g else None for g in guides] == [
+        "below", "at_lower", "between", "at_upper", "above", None, None, None, None, None]
+    assert all(g["lower"] == "-2.25" and g["upper"] == "3.5" for g in guides if g)
+    assert [summary_metrics(e)["CPI_medianFF"] for e in entries[:9]] == [*estimates[:5], None, None, None, None]
+
+    # A new file with the same name in a subdirectory cannot replace this
+    # step's archived settings, and a changed tracked digest cannot set a band.
+    (run / relative).rename(run / "original.json")
+    write_json(run / "output/other/scientific-settings.json", json.loads((run / "original.json").read_text()))
+    assert all(e["summary"]["guide_band"] is None for e in store.overview("example")["modules"][0]["entries"])
+    write_json(run / relative, {"schema_version": 1, "workflow": "cpi",
+                               "parameters": {"log_cpi_lower": -1, "log_cpi_upper": 1}})
+    assert all(e["summary"]["guide_band"] is None for e in store.overview("example")["modules"][0]["entries"])
+
+
+@pytest.mark.parametrize("workflow,lower,upper,status", [
+    ("cpi", 3, 3, "succeeded"), ("cpi", False, 3, "succeeded"), ("cpi", 3, 2, "succeeded"),
+    ("cpin", -4, 4, "succeeded"), ("cpi", "-4", 4, "succeeded"), ("cpi", -4, 4, "failed"),
+])
+def test_prenatal_guides_require_valid_recorded_parameters_and_completed_step(archive, workflow, lower, upper, status):
+    run = make_run(archive, "cpi")
+    metadata = json.loads((run / "run.json").read_text())
+    write_json(run / "run.json", {**metadata, "status": status})
+    write_json(run / "output/scientific-settings.json", {"schema_version": 1, "workflow": workflow,
+               "parameters": {"log_cpi_lower": lower, "log_cpi_upper": upper}})
+    table(run / "output/Summary_FetalFraction_CPI.csv", ["Pair", "CPI_medianFF", "N_sites_mother", "N_sites_father"],
+          [["family", "2", 10, 5]])
+    entry = ResultsStore(archive).overview("example")["modules"][0]["entries"][0]
+    assert entry["summary"]["guide_band"] is None and entry["summary"]["step_status"] == status
+
+
+def test_prenatal_workflow_steps_do_not_share_guides(archive):
+    from test_workflow_five_modules import plan_for
+    from nipat_scientific.plan import validate_plan
+    run = make_run(archive, "analysis")
+    source = plan_for("SNP", called=False)
+    prenatal = next(step for step in source["steps"] if step["workflow"] == "cpi")
+    source["steps"] = [{**prenatal, "id": name} for name in ("first", "second")]
+    del source["presentation"]
+    plan = validate_plan(source)["plan"]
+    expected = [{"id": s["id"], "workflow": s["workflow"]} for s in plan["steps"]]
+    metadata = json.loads((run / "run.json").read_text())
+    metadata["parameters"] = {"plan": plan, "expected_steps": expected,
+        "sample_mapping": [{"sample_id": s["id"], "original_path": s["id"] + ".tsv", "container_path": s["path"]}
+                           for s in plan["samples"]]}
+    write_json(run / "run.json", metadata)
+    write_json(run / "output/workflow/workflow-state.json", {"schema_version": 1, "interface": "workflow-plan-execution-v2",
+               "status": "succeeded", "steps": [{**s, "status": "succeeded", "artifacts": {}} for s in expected]})
+    for name, upper in [("first", 1), ("second", 4)]:
+        output = run / "output/workflow/steps" / name / "output"
+        write_json(output / "scientific-settings.json", {"schema_version": 1, "workflow": "cpi",
+                   "parameters": {"log_cpi_lower": -1, "log_cpi_upper": upper}})
+        table(output / "Summary_FetalFraction_CPI.csv", ["Pair", "CPI_medianFF", "N_sites_mother", "N_sites_father"],
+              [["family", "3", "2", "1"]])
+    entries = ResultsStore(archive).overview("example")["modules"][0]["entries"]
+    assert [(e["step_id"], e["summary"]["guide_band"]["position"]) for e in entries] == [("first", "above"), ("second", "between")]
+
+
+def test_summaries_with_insufficient_sites_keep_original_cells(archive):
+    post = make_run(archive, "cpin")
+    table(post / "output/Summary_Postnatal_CPI.txt", ["Trio", "Analysis", "CPI", "Log10_CPI", "N_sites"],
+          [["family", "all_compatible_sites", "1", "0", 0]])
+    entries = ResultsStore(archive).overview("example")["modules"][0]["entries"]
+    assert summary_metrics(entries[0])["CPI"] is None and summary_metrics(entries[0])["Log10_CPI"] is None
+    assert entries[0]["row"]["CPI"] == "1"
+
+    contamination = make_run(archive, name="contamination")
+    table(contamination / "output/contamination_summary.txt", ["individuo", "informative_sites", "mean_contamination", "sd_contamination"],
+          [["sample", "1", "0.375", "0"], ["sample", "0", "0.4", "0.1"], ["sample", "3", "1.2", "-0.2"]])
+    single, empty, malformed = ResultsStore(archive).overview("contamination")["modules"][0]["entries"]
+    assert summary_metrics(single) == {"mean_contamination": "0.375", "sd_contamination": None, "informative_sites": "1"}
+    for entry in (empty, malformed):
+        assert summary_metrics(entry)["mean_contamination"] is None and summary_metrics(entry)["sd_contamination"] is None
 
 
 @pytest.mark.parametrize("marker", ["DNP", "SNP"])

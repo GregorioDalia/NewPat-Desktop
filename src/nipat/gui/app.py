@@ -99,6 +99,20 @@ class DesktopApplication:
                     archive.write(path, relative)
         return {"path": str(destination), "files": len(paths)}
 
+    def save_examples(self, params):
+        from .examples import save_example_data
+
+        if set(params) - {"language"}:
+            raise ValidationError("Unexpected parameters for the example dataset.")
+        language = params.get("language", "it")
+        title = ("Choose a folder for the synthetic trio" if language == "en" else
+                 "Scegli una cartella per il trio sintetico")
+        parent = self.host.pick_directory(title)
+        if not parent:
+            return {"cancelled": True}
+        target = save_example_data(self.service.base_layout.project_dir, Path(parent), language)
+        return {"path": str(target)}
+
     def open_run_directory(self, params):
         from .diagnostics import open_directory
 
@@ -184,7 +198,7 @@ class DesktopApplication:
                      "files.url": self.file_url, "files.open": self.file_url, "files.export": self.export_file,
                      "runs.export": self.export_run, "igv.prepare": self.prepare_igv,
                      "runs.open_directory": self.open_run_directory,
-                     "diagnostics.export": self.export_diagnostics,
+                     "diagnostics.export": self.export_diagnostics, "examples.save": self.save_examples,
                      "igv.about": self.open_igv_guide, "igv.session.save": self.save_igv_session,
                      "app.close": lambda _p: (self.host.request_close(), {"closing": True})[1]}
         if method in callbacks:

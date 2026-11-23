@@ -35,6 +35,8 @@ Run a module on its own or build a workflow. DNPcall and SNPcall can share BAM i
 
 ## Run your first experiment
 
+To try NewPat with the same inputs on every computer, use the synthetic trio. It includes three indexed BAMs, a reference FASTA, SNP and DNP panels, population frequencies, count tables and expected results. In 0.9.10 open **Environment and help → Save example data**, choose a local folder and follow the enclosed README. With 0.9.9, download and extract the ZIP first. Use the trio to check expected results, or the separate timing workload (one BAM, four contigs, 128 loci) to compare DNP and SNP runtimes. [Example ZIP](examples/newpat-synthetic-trio.zip) · [SHA-256 checksum](examples/newpat-synthetic-trio.zip.sha256)
+
 1. Open **NewPat**, choose **New experiment**, and enter a name for the experiment.
 2. For a DNP analysis, select the sample BAM, its reference FASTA and the DNP panel. Keep the FASTA index next to the reference file (for example, `genome.fa.fai` next to `genome.fa`).
 3. Review the settings and results folder, then choose **Start experiment**. NewPat checks the configuration and runtime before starting the analysis.

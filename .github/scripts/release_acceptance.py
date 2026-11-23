@@ -111,6 +111,7 @@ NEWPAT_BRANDING_FILES = {
     "assets/branding/build_assets.py", "assets/branding/nipat-logo-dark.svg",
     "assets/branding/nipat-logo.svg", "assets/branding/nipat-symbol.svg", "newpat.cmd",
 }
+SYNTHETIC_TRIO_FILES = {"examples/newpat-synthetic-trio.zip", "examples/newpat-synthetic-trio.zip.sha256"}
 INTRECCIO_BRANDING_FILES = {
     "assets/branding/newpat-app-icon.svg", "assets/branding/newpat-app-icon-small.svg",
     "assets/branding/nipat-icon.ico", "assets/branding/nipat-icon.png",
@@ -286,11 +287,11 @@ def reviewable_path(path, *, reliability=False, multiplatform=False, revised_r=F
         if path == "2_AVVIA.cmd":
             return not english_launcher or removed
         return bool(english_launcher)
-    # Permit only the listed artwork from its introduction; exact before/after
+    # Permit only the listed artwork and example data from their introduction; exact before/after
     # hashes still belong to the reviewed source delta.
-    if revised_r and path in NEWPAT_BRANDING_FILES | INTRECCIO_BRANDING_FILES:
+    if revised_r and path in NEWPAT_BRANDING_FILES | INTRECCIO_BRANDING_FILES | SYNTHETIC_TRIO_FILES:
         match = re.fullmatch(r"([0-9]+)\.([0-9]+)\.([0-9]+)(?:(?:a|b|rc)[0-9]+)?", version or "")
-        minimum = (0, 9, 10) if path in INTRECCIO_BRANDING_FILES else (0, 9, 5)
+        minimum = (0, 9, 5) if path in NEWPAT_BRANDING_FILES else (0, 9, 10)
         if match and tuple(map(int, match.groups())) >= minimum:
             return True
     # This known development report is distributed as readable provenance. It

@@ -78,7 +78,7 @@ class GuiPlanTests(GuiFixture):
         from nipat.execution.workflows import Workflows
 
         bam = Path(self.samples[0]["path"])
-        runner = DockerComposeRunner(self.layout, dry_run=True)
+        runner = DockerComposeRunner(self.layout, dry_run=True, transport=DockerTransport(dry_run=True))
         run = Workflows(self.layout, runner).analyze(
             caller="snp", analyses=[], samples=[("Plasma", bam)], reference=self.reference,
             snp_panel=self.snp_panel, dnp_tables=[("Other", Path(self.tables["DNP"][0]["path"]))],

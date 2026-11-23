@@ -34,6 +34,12 @@ MODULE_LABELS = {
     "cpin": ("CPI postnatale", "Postnatal CPI"),
 }
 FIELDS = {
+    "site_count": ("Siti in tabella", "Sites in table"), "assigned": ("Genotipi assegnati", "Assigned genotypes"),
+    "unassigned": ("Genotipi non assegnati", "Unassigned genotypes"),
+    "hom_ref": ("Omozigoti REF (0/0)", "Homozygous REF (0/0)"),
+    "heterozygous": ("Eterozigoti (0/1)", "Heterozygous (0/1)"),
+    "hom_alt": ("Omozigoti ALT (1/1)", "Homozygous ALT (1/1)"),
+    "read_observations": ("Osservazioni nei siti", "Read observations across sites"),
     "chr": ("Cromosoma", "Chromosome"), "pos": ("Posizione", "Position"),
     "pos1": ("Prima posizione", "First position"), "pos2": ("Seconda posizione", "Second position"),
     "REF": ("Allele di riferimento", "Reference allele"), "ALT": ("Allele alternativo", "Alternative allele"),
@@ -68,7 +74,7 @@ FIELDS = {
     "Min_logCPI": ("Minimo log₁₀(CPI)", "Minimum log₁₀(CPI)"),
     "Median_logCPI": ("Mediana log₁₀(CPI)", "Median log₁₀(CPI)"),
     "Mean_logCPI": ("Media log₁₀(CPI)", "Mean log₁₀(CPI)"),
-    "CPI_medianFF": ("log₁₀(CPI) alla frazione fetale mediana", "log₁₀(CPI) at median fetal fraction"),
+    "CPI_medianFF": ("log₁₀(CPI) alla soglia mediana di letture fetali", "log₁₀(CPI) at the median fetal read threshold"),
     "Error_constant": ("Probabilità di errore utilizzata", "Error probability used"),
     "Min_fetal_reads": ("Letture fetali minime", "Minimum fetal reads"),
     "Min_child_reads": ("Letture minime del figlio", "Minimum child reads"),
@@ -156,6 +162,10 @@ def column_description(key: str, *, language="it", samples: dict | None = None) 
             "Sum of natural logarithms, not a normalized probability."), language))
     elif key in {"CPI_medianFF", "Log10_CPI", "log_CPI", "Max_logCPI", "Min_logCPI", "Median_logCPI", "Mean_logCPI"}:
         result["unit"] = "log10"
+        if key == "CPI_medianFF":
+            result["description"] = _translation((
+                "Valore all’iterazione più vicina al numero mediano arrotondato di letture fetali nei siti materni informativi. Lo script lo riporta a tre decimali.",
+                "Value at the iteration nearest the rounded median fetal read count across informative maternal sites. The script reports it to three decimal places."), language)
     elif key == "seconds":
         result["unit"] = "s"
     elif key in {"resident_MB_start", "resident_MB_end"}:
@@ -174,6 +184,53 @@ def column_description(key: str, *, language="it", samples: dict | None = None) 
             "Osservazioni nella base centrale, prima del filtro sull’intera finestra.",
             "Central-base observations before filtering the whole window."), language)
     return result
+
+
+def _prenatal_guides(run, descriptor):
+    """Read the two guides emitted by R for this step, including older models."""
+    try:
+        path = _scoped(run, descriptor["relative_path"], file=True)
+        settings = _json(path, max_bytes=4 * 1024 * 1024, parse_float=Decimal,
+                         expected_sha256=descriptor.get("recorded_sha256"))
+        if (type(settings.get("schema_version")) is not int or settings["schema_version"] != 1
+                or settings.get("workflow") != "cpi"):
+            return None
+        parameters = settings["parameters"]
+        values = [parameters[name] for name in ("log_cpi_lower", "log_cpi_upper")]
+        if any(type(v) not in (int, Decimal) for v in values):
+            return None
+        lower, upper = map(Decimal, values)
+        if lower.is_finite() and upper.is_finite() and lower < upper:
+            return lower, upper
+    except (OSError, ValueError, KeyError, TypeError, InvalidOperation):
+        pass
+    return None
+
+
+def _reported_prenatal_band(row, guides, marker):
+    """Compare the published, rounded estimate, never an inferred unrounded CPI."""
+    if guides is None or row.get("Marker_type", marker) != marker:
+        return None
+    if not all(_read_count(row.get(key)) for key in ("N_sites_mother", "N_sites_father")):
+        return None
+    try:
+        estimate = Decimal(row["CPI_medianFF"])
+    except (KeyError, TypeError, InvalidOperation):
+        return None
+    if not estimate.is_finite():
+        return None
+    lower, upper = guides
+    if estimate < lower:
+        position = "below"
+    elif estimate == lower:
+        position = "at_lower"
+    elif estimate < upper:
+        position = "between"
+    elif estimate == upper:
+        position = "at_upper"
+    else:
+        position = "above"
+    return {"position": position, "lower": str(lower), "upper": str(upper)}
 
 
 def _read_count(value):
@@ -212,15 +269,17 @@ def _scoped(root: Path, relative: str, *, file=False) -> Path:
     return current
 
 
-def _json(path: Path, max_bytes=_MAX_JSON) -> dict:
+def _json(path: Path, max_bytes=_MAX_JSON, *, parse_float=float, expected_sha256=None) -> dict:
     if path.stat().st_size > max_bytes:
         raise ValueError("Il documento dei risultati supera il limite di lettura.")
     with path.open("rb") as stream:
         raw = stream.read(max_bytes + 1)
     if len(raw) > max_bytes:
         raise ValueError("Il documento dei risultati supera il limite di lettura.")
+    if expected_sha256 is not None and hashlib.sha256(raw).hexdigest() != expected_sha256:
+        raise ValueError("Il documento dei risultati è cambiato dopo la verifica dell’esperimento.")
     try:
-        value = json.loads(raw.decode("utf-8-sig"))
+        value = json.loads(raw.decode("utf-8-sig"), parse_float=parse_float)
     except (ValueError, UnicodeError, RecursionError) as exc:
         raise ValueError("Il documento dei risultati non è leggibile.") from exc
     if not isinstance(value, dict):
@@ -918,22 +977,56 @@ class ResultsStore:
         result["available"] = result["value"] is not None
         return result
 
+    def _summary_metric(self, key, row):
+        # The original cell remains available in the detail table even when
+        # an imported or incomplete archive contains an inconsistent estimate.
+        value = row.get(key)
+        metric = self._metric(key, value)
+        if not metric["available"]:
+            return metric
+        try:
+            numeric = Decimal(value)
+            valid = numeric.is_finite()
+            if key in {"informative_sites", "N_sites_mother", "N_sites_father", "N_sites",
+                       "Matching_sites", "Mismatching_sites"}:
+                valid = _read_count(value) is not None
+            elif key in {"mean_contamination", "sd_contamination"}:
+                count = _read_count(row.get("informative_sites"))
+                minimum_sites = 2 if key == "sd_contamination" else 1
+                valid = valid and 0 <= numeric <= 1 and count is not None and count >= minimum_sites
+            elif key in {"CPI", "Log10_CPI", "CPI_medianFF", "Median_fetal_fraction_percent"}:
+                support = {"CPI": ("N_sites",), "Log10_CPI": ("N_sites",),
+                           "CPI_medianFF": ("N_sites_mother", "N_sites_father"),
+                           "Median_fetal_fraction_percent": ("N_sites_mother",)}[key]
+                # Some older summaries omit the count columns. A present entry
+                # must record positive support before we highlight its estimate.
+                valid = valid and all(_read_count(row[field]) for field in support if field in row)
+                if key in {"CPI", "Median_fetal_fraction_percent"}:
+                    valid = valid and numeric >= 0
+        except (ValueError, TypeError, InvalidOperation):
+            valid = False
+        if not valid:
+            metric.update(value=None, available=False)
+        return metric
+
     def _calling_stats(self, path):
         signature = _signature(path)
         key = (str(path), signature)
         with self._lock:
             if key in self._stats_cache:
                 return dict(self._stats_cache[key])
-        count = assigned = reads = missing_counts = 0
+        count = reads = missing_counts = 0
         counts = Counter()
+        recognized = "GT" in _columns(path)
         for row in _rows(path):
             count += 1
-            genotype = row.get("GT", "NA")
-            if genotype in MISSING:
+            genotype = row.get("GT")
+            if genotype in {"0/0", "0/1", "1/1"}:
+                counts[genotype] += 1
+            elif genotype in MISSING:
                 counts["unassigned"] += 1
             else:
-                assigned += 1
-                counts[genotype] += 1
+                recognized = False
             n = _read_count(row.get("total_count"))
             if n is not None:
                 reads += n
@@ -941,10 +1034,11 @@ class ResultsStore:
                 missing_counts += 1
         if signature != _signature(path):
             raise ValueError("La tabella dei genotipi è cambiata durante la lettura.")
-        result = {"site_count": count, "assigned": assigned, "unassigned": count - assigned,
+        result = {"site_count": count, "assigned": count - counts["unassigned"] if recognized else None,
+                  "unassigned": counts["unassigned"] if recognized else None,
                   "read_observations": None if missing_counts else reads,
                   "sites_with_missing_read_counts": missing_counts,
-                  "genotype_counts": dict(counts)}
+                  "genotype_counts": dict(counts) if recognized else None}
         with self._lock:
             if len(self._stats_cache) >= 256:
                 self._stats_cache.pop(next(iter(self._stats_cache)))
@@ -961,6 +1055,7 @@ class ResultsStore:
         _, families = self._artifact_index(context)
         samples = {s["id"]: s for s in context["samples"]}
         groups = {}
+        step_status = {step["id"]: step["status"] for step in context["steps"]}
         for step in context["steps"]:
             key = step["module"], step["marker"]
             if key[0] not in MODULE_LABELS or module and module != key[0] or marker and marker != key[1]:
@@ -979,11 +1074,15 @@ class ResultsStore:
                         continue
                     try:
                         stats = self._calling_stats(_scoped(context["run"], f["relative_path"], file=True))
+                        metrics = [self._metric(k, None if stats[k] is None else str(stats[k]))
+                                   for k in ("site_count", "assigned", "unassigned", "read_observations")]
+                        genotype_counts = stats["genotype_counts"]
+                        distribution = [self._metric(k, str(genotype_counts.get(gt, 0)) if genotype_counts is not None else None)
+                                        for k, gt in (("hom_ref", "0/0"), ("heterozygous", "0/1"), ("hom_alt", "1/1"))]
                         group["entries"].append({"sample_id": f.get("sample_id"), "sample_label": f.get("sample_label"),
-                            "label": f.get("sample_label") or f["name"], "file_id": f["id"], **stats,
-                            "metrics": [{"key": k, "label": _translation(label, self.language), "value": None if stats[k] is None else str(stats[k]), "unit": None, "scale": 1, "available": stats[k] is not None}
-                                        for k, label in (("site_count", ("Siti in tabella", "Sites in table")), ("assigned", ("Genotipi assegnati", "Assigned genotypes")),
-                                                         ("unassigned", ("Genotipi non assegnati", "Unassigned genotypes")), ("read_observations", ("Osservazioni nei siti", "Read observations across sites")))],
+                            "label": f.get("sample_label") or f["name"], "file_id": f["id"], **stats, "metrics": metrics,
+                            "summary": {"kind": "genotypes", "step_status": step_status.get(f.get("step_id")),
+                                        "metrics": [*metrics[:3], *distribution]},
                             "plot_file_ids": [p["id"] for p in relevant if p["kind"] == "pdf" and
                                               (p.get("sample_id") == f.get("sample_id") or not p.get("sample_id"))]})
                     except (OSError, ValueError) as exc:
@@ -991,7 +1090,12 @@ class ResultsStore:
                 group["matrix_file_ids"] = [f["id"] for f in relevant if f["name"] in {"output_AllGenotypes.txt", "SNPcall_AllGenotypes.txt", "merged_genotypes.tsv"}]
                 continue
             name = {"contamination": "contamination_summary.txt", "cpi": "Summary_FetalFraction_CPI.csv", "cpin": "Summary_Postnatal_CPI.txt"}[key[0]]
-            for summary in (f for f in relevant if f["name"] == name):
+            prefixes = {step["id"]: step["output_prefix"] for step in group["steps"]}
+            guides = {f["step_id"]: _prenatal_guides(context["run"], f) for f in relevant
+                      if key[0] == "cpi" and f.get("step_id") in prefixes and step_status[f["step_id"]] == "succeeded"
+                      and f["relative_path"] == prefixes[f["step_id"]] + "scientific-settings.json"}
+            for summary in (f for f in relevant if f.get("step_id") in prefixes
+                            and f["relative_path"] == prefixes[f["step_id"]] + name):
                 try:
                     count = 0
                     for count, row in enumerate(_rows(_scoped(context["run"], summary["relative_path"], file=True)), 1):
@@ -1027,6 +1131,16 @@ class ResultsStore:
                             metric_keys = (["Median_fetal_fraction_percent", "CPI_medianFF", "N_sites_mother", "N_sites_father"]
                                            if key[0] == "cpi" else ["CPI", "Log10_CPI", "N_sites", "Matching_sites", "Mismatching_sites"])
                         entry["metrics"] = [self._metric(k, row.get(k)) for k in metric_keys]
+                        summary_keys = (("CPI_medianFF", "N_sites_mother", "N_sites_father", "Median_fetal_fraction_percent")
+                                        if key[0] == "cpi" else metric_keys)
+                        entry["summary"] = {
+                            "kind": {"cpi": "prenatal_cpi", "cpin": "postnatal_cpi", "contamination": "contamination"}[key[0]],
+                            "step_status": step_status.get(summary.get("step_id")),
+                            "metrics": [self._summary_metric(field, row) for field in summary_keys],
+                        }
+                        if key[0] == "cpi":
+                            entry["summary"]["guide_band"] = _reported_prenatal_band(
+                                row, guides.get(summary.get("step_id")), key[1])
                         group["entries"].append(entry)
                     group["summary_truncated"] = count > _MAX_SUMMARY
                 except (OSError, ValueError) as exc:
