@@ -1,6 +1,7 @@
 import gzip
 import json
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from pathlib import Path
 import struct
 from types import SimpleNamespace
@@ -45,6 +46,54 @@ def test_local_registration_index_restart_and_replacement(tmp_path, catalog):
     assert replacement["id"] != entry["id"] and catalog.list()["entries"] == [replacement]
     path.unlink()
     assert not restored.list()["entries"][0]["available"]
+
+
+@pytest.mark.parametrize("changed_file", ["fasta", "index"])
+def test_same_metadata_rewrite_invalidates_registered_reference(tmp_path, catalog, monkeypatch, changed_file):
+    path = fasta(tmp_path)
+    entry = catalog.register("custom", path)
+    target = Path(entry[changed_file])
+    metadata = references._stamp
+    old_stamp = metadata(target)
+    original = target.read_bytes()
+    updated = original.replace(b"Agc", b"TGC") if changed_file == "fasta" else original.replace(b"first", b"other")
+    assert updated != original and len(updated) == len(original)
+    target.write_bytes(updated)
+
+    # Simulate the same file identity, size and timestamps after an in-place write.
+    monkeypatch.setattr(references, "_stamp", lambda p: old_stamp if p == target else metadata(p))
+    restored = ReferenceCatalog(catalog.path, language="en")
+    assert not restored.list()["entries"][0]["available"]
+    with pytest.raises(ValidationError, match="missing or changed"):
+        restored.resolve(entry["id"])
+    if changed_file == "fasta":
+        replacement = restored.register("custom", path)
+        assert replacement["id"] != entry["id"] and replacement["available"]
+        assert restored.list()["entries"] == [replacement]
+    else:
+        with pytest.raises(ValidationError):
+            restored.register("custom", path)
+
+
+def test_legacy_metadata_only_reference_requires_explicit_reimport(tmp_path, catalog):
+    path = fasta(tmp_path)
+    old = catalog.register("custom", path)
+    legacy = {key: old[key] for key in ("id", "build", "label", "fasta", "index", "naming", "contigs", "index_sha256")}
+    legacy["stamps"] = {}
+    for filename in (path, Path(old["index"])):
+        stat = filename.stat()
+        legacy["stamps"][filename.name] = [
+            stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns,
+        ]
+    catalog.path.write_text(json.dumps({"schema_version": 1, "entries": [legacy]}), encoding="utf-8")
+    restored = ReferenceCatalog(catalog.path, language="en")
+    assert not restored.list()["entries"][0]["available"]
+    with pytest.raises(ValidationError, match="missing or changed"):
+        restored.resolve(old["id"])
+    verified = restored.register("custom", path)
+    assert verified["id"] != old["id"] and verified["available"]
+    assert restored.list()["entries"] == [verified]
+    assert restored.resolve(verified["id"]) == verified
 
 
 @pytest.mark.parametrize(("header", "notation"), [("chr1", "chr"), ("1", "unprefixed"), ("NC_000001.10", "accession")])
@@ -122,7 +171,7 @@ def bgzf_block(data):
             + payload + struct.pack("<II", zlib.crc32(data), len(data)))
 
 
-def test_bgzf_seeks_and_checks_real_dictionary_across_blocks(tmp_path, catalog):
+def test_bgzf_seeks_and_checks_real_dictionary_across_blocks(tmp_path, catalog, monkeypatch):
     first = b">chrTest\nAAAA\n"
     second = b">second\nTTTT\n"
     path = tmp_path / "genome.fa.bgzf"
@@ -134,6 +183,16 @@ def test_bgzf_seeks_and_checks_real_dictionary_across_blocks(tmp_path, catalog):
     gzi.write_bytes(struct.pack("<QQQ", 1, len(cfirst), len(first)))
     entry = catalog.register("custom", path)
     assert entry["compressedIndex"] == str(gzi)
+    metadata = references._stamp
+    gzi_stamp = metadata(gzi)
+    with monkeypatch.context() as patch:
+        patch.setattr(references, "_stamp", lambda p: gzi_stamp if p == gzi else metadata(p))
+        gzi.write_bytes(struct.pack("<QQQ", 1, 0, len(first)))
+        with pytest.raises(ValidationError, match="missing or changed"):
+            catalog.resolve(entry["id"])
+        with pytest.raises(ValidationError, match="indexes do not match"):
+            catalog.register("custom", path)
+    gzi.write_bytes(struct.pack("<QQQ", 1, len(cfirst), len(first)))
     index.write_bytes(index.read_bytes().replace(b"second", b"wrongx"))
     with pytest.raises(ValidationError, match="indexes do not match"):
         catalog.register("custom", path)
@@ -147,6 +206,49 @@ def test_single_long_unwrapped_contig_can_be_indexed_and_reopened(tmp_path, cata
     entry = catalog.register("custom", path)
     assert catalog.resolve(entry["id"])["available"]
     assert Path(entry["index"]).read_text().split()[1:] == ["1048577", "8", "1048577", "1048579"]
+
+
+@pytest.mark.parametrize("sampled", [True, False])
+def test_large_reference_list_is_bounded_and_resolution_checks_every_byte(tmp_path, catalog, monkeypatch, sampled):
+    path = fasta(tmp_path, b">first\n" + b"A" * (2 * 1024 * 1024) + b"\n")
+    metadata = references._stamp
+    fasta_stamp = metadata(path)
+    monkeypatch.setattr(references, "_stamp", lambda p: fasta_stamp if p == path else metadata(p))
+    entry = catalog.register("custom", path)
+    assert catalog.register("custom", path) == entry
+    assert catalog.resolve(entry["id"]) == entry
+    with path.open("r+b") as stream:
+        stream.seek(path.stat().st_size - 2 if sampled else 700_000)
+        stream.write(b"T")
+
+    # Count bytes on the FASTA itself; index and registry reads have separate costs.
+    with monkeypatch.context() as patch:
+        open_file = Path.open
+        read_sizes = []
+
+        @contextmanager
+        def track_reads(self, *args, **kwargs):
+            with open_file(self, *args, **kwargs) as stream:
+                if self != path:
+                    yield stream
+                    return
+                observed = Mock(spec=stream, wraps=stream)
+                def read(*arguments):
+                    data = stream.read(*arguments)
+                    read_sizes.append(len(data))
+                    return data
+                observed.read.side_effect = read
+                observed.readinto.side_effect = AssertionError("Full FASTA digest during listing")
+                yield observed
+
+        patch.setattr(Path, "open", track_reads)
+        assert catalog.list()["entries"][0]["available"] == (not sampled)
+        assert 0 < sum(read_sizes) < 128 * 1024
+    with pytest.raises(ValidationError, match="missing or changed"):
+        catalog.resolve(entry["id"])
+    replacement = catalog.register("custom", path)
+    assert replacement["id"] != entry["id"]
+    assert catalog.resolve(replacement["id"]) == replacement
 
 
 def test_read_only_directory_help(tmp_path, catalog, monkeypatch):

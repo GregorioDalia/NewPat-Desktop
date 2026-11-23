@@ -41,6 +41,7 @@ _SEQ = re.compile(rb"[A-Za-z.*-]+")
 _CONTIG = re.compile(rb"[A-Za-z0-9_.-]+")
 _NUCLEAR = re.compile(r"(chr)?([1-9]|1[0-9]|2[0-2]|X|Y)\Z")
 _REFSEQ = re.compile(r"NC_0000(0[1-9]|1[0-9]|2[0-4])\.([0-9]+)\Z")
+_FULL_PREVIEW_LIMIT = 1024 * 1024
 
 
 def _text(language, italian, english):
@@ -50,6 +51,31 @@ def _text(language, italian, english):
 def _stamp(path):
     stat = path.stat()
     return [stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns]
+
+
+def _reference_files(fasta):
+    yield fasta
+    yield Path(str(fasta) + ".fai")
+    if fasta.suffix.lower() in _COMPRESSED:
+        yield Path(str(fasta) + ".gzi")
+
+
+def _file_sha256(path, *, preview=False):
+    with path.open("rb") as stream:
+        if preview and (size := os.fstat(stream.fileno()).st_size) > _FULL_PREVIEW_LIMIT:
+            # Listing a human reference should not stream gigabytes. Selection
+            # always checks the complete file, including these unsampled spans.
+            window = 4096
+            digest = hashlib.sha256()
+            for offset in (0, (size - window) // 2, size - window):
+                stream.seek(offset)
+                digest.update(stream.read(window))
+            return digest.hexdigest()
+        return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def _content_hashes(fasta, *, preview=False):
+    return {p.name: _file_sha256(p, preview=preview and p == fasta) for p in _reference_files(fasta)}
 
 
 def _fail_fasta(language):
@@ -300,16 +326,24 @@ class ReferenceCatalog:
 
     @staticmethod
     def _stamps(fasta):
-        paths = [fasta, Path(str(fasta) + ".fai")]
-        if fasta.suffix.lower() in _COMPRESSED:
-            paths.append(Path(str(fasta) + ".gzi"))
-        return {p.name: _stamp(p) for p in paths}
+        return {p.name: _stamp(p) for p in _reference_files(fasta)}
 
-    def _public(self, entry):
+    def _public(self, entry, *, exact=False):
         result = dict(entry)
         stamps = result.pop("stamps")
+        hashes = result.pop("content_sha256", None)
+        preview = result.pop("fasta_preview_sha256", None)
+        result["available"] = False
+        # A metadata-only registration cannot establish the identity of its
+        # original sequence. Keep it visible until the user imports it again.
+        if not isinstance(hashes, dict) or not preview:
+            return result
+        path = Path(result["fasta"])
         try:
-            result["available"] = self._stamps(Path(result["fasta"])) == stamps
+            if self._stamps(path) == stamps:
+                expected = hashes if exact else {**hashes, path.name: preview}
+                result["available"] = (_content_hashes(path, preview=not exact) == expected
+                                       and self._stamps(path) == stamps)
         except OSError:
             result["available"] = False
         return result
@@ -322,7 +356,7 @@ class ReferenceCatalog:
     def resolve(self, reference_id):
         for item in self._read():
             if item["id"] == reference_id:
-                entry = self._public(item)
+                entry = self._public(item, exact=True)
                 if entry["available"]:
                     return entry
                 break
@@ -348,19 +382,22 @@ class ReferenceCatalog:
         chromosomes = check.fasta_index(path, index)
         _verify_layout(path, index, compressed, self.language)
         naming = _identify(chromosomes, build, self.language)
-        with index.open("rb") as stream:
-            digest = hashlib.file_digest(stream, "sha256").hexdigest()
+        hashes = _content_hashes(path)
+        preview = (_file_sha256(path, preview=True) if stamps[path.name][2] > _FULL_PREVIEW_LIMIT
+                   else hashes[path.name])
         if stamps != self._stamps(path):
             raise ValidationError(_text(self.language, "Il riferimento è cambiato durante il caricamento.",
                                         "The reference changed during import."))
         entry = {"id": uuid4().hex, "build": build, "label": path.name, "fasta": str(path), "index": str(index),
-                 "naming": naming, "contigs": len(chromosomes), "index_sha256": digest, "stamps": stamps}
+                 "naming": naming, "contigs": len(chromosomes), "index_sha256": hashes[index.name], "stamps": stamps,
+                 "content_sha256": hashes, "fasta_preview_sha256": preview}
         if compressed:
             entry["compressedIndex"] = str(path) + ".gzi"
         with settings_file_lock(self.path):
             entries = self._read()
             for old in entries:
-                if old["fasta"] == str(path) and old["build"] == build and old["stamps"] == stamps:
+                if (old["fasta"] == str(path) and old["build"] == build and old["stamps"] == stamps
+                        and old.get("content_sha256") == hashes):
                     return self._public(old)
             entries = [e for e in entries if not (e["fasta"] == str(path) and e["build"] == build)]
             data = json.dumps({"schema_version": 1, "entries": [*entries, entry]}, ensure_ascii=False).encode("utf-8")
