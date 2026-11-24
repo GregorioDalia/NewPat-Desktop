@@ -54,8 +54,8 @@ first_fields <- clean(raw_fields)
 has_header <- "chr" %in% first_fields &&
   ("pos" %in% first_fields || all(c("pos1", "pos2") %in% first_fields))
 
-dnplist <- read.table(panel_file, header=has_header, sep="\t",
-                      stringsAsFactors=FALSE, check.names=FALSE,
+dnplist <- nipat_read_marker_table(panel_file, header=has_header, sep="\t",
+                      stringsAsFactors=FALSE, check.names=FALSE, chromosome_column=if (has_header) raw_fields[match("chr", first_fields)] else "V1",
                       quote="", comment.char="",
                       colClasses=if (has_header) {
                         setNames("character", raw_fields[match("chr", first_fields)])
@@ -127,7 +127,7 @@ contamination_summary <- data.frame(
 # main processing function
 process_df <- function(file_path) {
 
-  df <- read.table(
+  df <- nipat_read_marker_table(
     file_path,
     header = TRUE,
     sep = "\t",

@@ -74,9 +74,9 @@ dir.create(file.path(output, "summary"), showWarnings = FALSE)
 format_df_decimals <- function(df, digits = 3) {
   df[] <- lapply(df, function(col) {
     if (is.numeric(col)) {
-      # Only format values that are not whole numbers
-      col_formatted <- ifelse(col %% 1 == 0, col, round(col, digits))
-      return(col_formatted)
+      fractional <- is.finite(col) & col != trunc(col)
+      col[fractional] <- round(col[fractional], digits)
+      return(col)  # Q0 can yield an exact -Inf log-likelihood.
     } else {
       return(col)
     }

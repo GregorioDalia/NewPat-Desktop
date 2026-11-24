@@ -94,3 +94,17 @@ nipat_write_settings <- function(workflow, values, out_dir) {
   if (!file.link(temporary, target)) stop("Cannot claim scientific settings output file")
   invisible(target)
 }
+
+# Read NEWPAT marker tables while retaining base R's numeric NA handling.
+# Callers pin the chromosome column to character. With that class read.table
+# represents the token "NA" as NA_character_, and an empty field as "".
+nipat_read_marker_table <- function(..., chromosome_column="chr") {
+  x <- read.table(..., tryLogical=FALSE)
+  if (chromosome_column %in% names(x)) {
+    chromosome <- x[[chromosome_column]]
+    chromosome[is.na(chromosome)] <- "NA"
+    chromosome[!nzchar(trimws(chromosome))] <- NA_character_
+    x[[chromosome_column]] <- chromosome
+  }
+  x
+}

@@ -64,7 +64,7 @@ if (anyDuplicated(tolower(paste0("Mother", coppie$mamma, "-Father", coppie$papa)
 
 ## Read coordinates from the frequency table and use them in every join.
 if (!file.exists(args$popfreq)) stop("popfreq file not found")
-population <- read.table(args$popfreq, header=TRUE, sep="\t",
+population <- nipat_read_marker_table(args$popfreq, header=TRUE, sep="\t",
                          stringsAsFactors=FALSE, check.names=FALSE,
                          quote="", comment.char="", colClasses=c(chr="character"))
 
@@ -83,7 +83,7 @@ marker <- marker_type(population, "population frequencies")
 if (has_markers) {
   # DNPcall lists have five columns without a header; SNPcall lists have four.
   # A header is also accepted, with lower- or upper-case allele column names.
-  marker_list <- read.table(args$markers, header=FALSE, sep="", quote="",
+  marker_list <- nipat_read_marker_table(args$markers, chromosome_column="V1", header=FALSE, sep="", quote="",
                             comment.char="", colClasses="character",
                             stringsAsFactors=FALSE, check.names=FALSE)
   marker_columns <- switch(as.character(ncol(marker_list)),
@@ -200,8 +200,8 @@ if (any(!is.finite(population$Ref_f.pop) | !is.finite(population$Alt_f.pop) |
 PopFreqDNPs <- population[, c(site_columns, "Ref_f.pop", "Alt_f.pop"), drop=FALSE]
 
 read_calls <- function(path) {
-  x <- read.table(path, header=TRUE, check.names=FALSE, stringsAsFactors=FALSE,
-                  colClasses=c(chr="character"))
+  x <- nipat_read_marker_table(path, header=TRUE, check.names=FALSE, stringsAsFactors=FALSE,
+                  colClasses=c(chr="character", REF="character", ALT="character"))
   if (marker_type(x, path) != marker) stop(path, ": format differs from population frequencies")
   check_sites(x, c(site_columns, "REF", "ALT", "N_REF", "N_ALT", "N_Other", "total_count"), path)
   x$chr <- as.character(x$chr)
@@ -280,7 +280,7 @@ if (has_markers) {
   cutoff_df <- do.call(rbind, lapply(panels, as.data.frame))
   if (anyDuplicated(cutoff_df$Cutoff)) stop("Duplicate cutoff label")
   cutoff_panels <- lapply(cutoff_df$Path, function(path) {
-    x <- read.table(path, header=TRUE, sep="\t", check.names=FALSE, stringsAsFactors=FALSE,
+    x <- nipat_read_marker_table(path, header=TRUE, sep="\t", check.names=FALSE, stringsAsFactors=FALSE,
                     colClasses=c(chr="character"))
     if (marker_type(x, path) != marker) stop("Marker panel differs from population type")
     check_sites(x, site_columns, path)

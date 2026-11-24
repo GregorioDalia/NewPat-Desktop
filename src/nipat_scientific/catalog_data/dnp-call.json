@@ -3,7 +3,7 @@
   "workflow": "dnp-call",
   "source": {
     "path": "scientific/vendor/DNPcall/DNPcall.R",
-    "sha256": "d085e3592ff079dc0dd511211f975a1e7646fca2e0ddb650638a1e754a9bf029",
+    "sha256": "7cbcb9eb08ce666d2839e0d5217d144d29edc7881253249ea8a7b15cbb1db2db",
     "line_count": 915
   },
   "public_parameters": [
@@ -636,8 +636,8 @@
         "whole_numbers": "unchanged"
       },
       "description": {
-        "it": "Prima della scrittura delle tabelle, i valori numerici non interi sono arrotondati a tre decimali; i numeri interi restano tali. L’arrotondamento riguarda la serializzazione, non la scelta del genotipo.",
-        "en": "Before tables are written, non-integer numeric values are rounded to three decimal places; integers remain unchanged. Rounding affects serialization, not genotype selection."
+        "it": "Le tabelle riportano tre decimali per i valori finiti frazionari. I valori interi rimangono esatti. Una log-verosimiglianza pari a meno infinito è indicata con -Inf, un valore mancante con NA.",
+        "en": "Tables round finite fractional values to three decimal places. Whole numbers are exact. A negative infinite log-likelihood is written as -Inf and a missing value as NA."
       },
       "source_lines": [
         73,
@@ -994,7 +994,7 @@
               157,
               190
             ],
-            "sha256": "d085e3592ff079dc0dd511211f975a1e7646fca2e0ddb650638a1e754a9bf029"
+            "sha256": "7cbcb9eb08ce666d2839e0d5217d144d29edc7881253249ea8a7b15cbb1db2db"
           },
           {
             "path": "src/nipat_scientific/settings.py",
@@ -1171,7 +1171,7 @@
               157,
               190
             ],
-            "sha256": "d085e3592ff079dc0dd511211f975a1e7646fca2e0ddb650638a1e754a9bf029"
+            "sha256": "7cbcb9eb08ce666d2839e0d5217d144d29edc7881253249ea8a7b15cbb1db2db"
           },
           {
             "path": "src/nipat_scientific/dnp_blocks.R",
@@ -1257,7 +1257,7 @@
               767,
               787
             ],
-            "sha256": "d085e3592ff079dc0dd511211f975a1e7646fca2e0ddb650638a1e754a9bf029"
+            "sha256": "7cbcb9eb08ce666d2839e0d5217d144d29edc7881253249ea8a7b15cbb1db2db"
           },
           {
             "path": "src/nipat_scientific/parallel.R",
@@ -1273,7 +1273,7 @@
               822,
               850
             ],
-            "sha256": "d085e3592ff079dc0dd511211f975a1e7646fca2e0ddb650638a1e754a9bf029"
+            "sha256": "7cbcb9eb08ce666d2839e0d5217d144d29edc7881253249ea8a7b15cbb1db2db"
           },
           {
             "path": "src/nipat/execution/runner.py",
@@ -1369,7 +1369,7 @@
           887,
           909
         ],
-        "sha256": "d085e3592ff079dc0dd511211f975a1e7646fca2e0ddb650638a1e754a9bf029",
+        "sha256": "7cbcb9eb08ce666d2839e0d5217d144d29edc7881253249ea8a7b15cbb1db2db",
         "dependencies": [
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
@@ -1417,7 +1417,7 @@
               157,
               226
             ],
-            "sha256": "d085e3592ff079dc0dd511211f975a1e7646fca2e0ddb650638a1e754a9bf029"
+            "sha256": "7cbcb9eb08ce666d2839e0d5217d144d29edc7881253249ea8a7b15cbb1db2db"
           }
         ]
       }
@@ -1451,7 +1451,7 @@
               149,
               155
             ],
-            "sha256": "d085e3592ff079dc0dd511211f975a1e7646fca2e0ddb650638a1e754a9bf029"
+            "sha256": "7cbcb9eb08ce666d2839e0d5217d144d29edc7881253249ea8a7b15cbb1db2db"
           },
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
@@ -1459,7 +1459,7 @@
               767,
               787
             ],
-            "sha256": "d085e3592ff079dc0dd511211f975a1e7646fca2e0ddb650638a1e754a9bf029"
+            "sha256": "7cbcb9eb08ce666d2839e0d5217d144d29edc7881253249ea8a7b15cbb1db2db"
           },
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
@@ -1467,7 +1467,7 @@
               828,
               833
             ],
-            "sha256": "d085e3592ff079dc0dd511211f975a1e7646fca2e0ddb650638a1e754a9bf029"
+            "sha256": "7cbcb9eb08ce666d2839e0d5217d144d29edc7881253249ea8a7b15cbb1db2db"
           }
         ]
       }
@@ -1546,7 +1546,7 @@
               91,
               91
             ],
-            "sha256": "d085e3592ff079dc0dd511211f975a1e7646fca2e0ddb650638a1e754a9bf029"
+            "sha256": "7cbcb9eb08ce666d2839e0d5217d144d29edc7881253249ea8a7b15cbb1db2db"
           },
           {
             "path": "src/nipat/execution/options.py",
@@ -1570,7 +1570,7 @@
               157,
               190
             ],
-            "sha256": "d085e3592ff079dc0dd511211f975a1e7646fca2e0ddb650638a1e754a9bf029"
+            "sha256": "7cbcb9eb08ce666d2839e0d5217d144d29edc7881253249ea8a7b15cbb1db2db"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
@@ -1896,7 +1896,7 @@
           },
           {
             "path": "src/nipat_scientific/settings.R",
-            "sha256": "d4e0db860501861132aa3fde280d371ab84a5fe7944d94482b7499f29687c392",
+            "sha256": "2903d37f1973f5389ce7c3c13e697df26de80286a36edf4e30615ea7189963c0",
             "source_lines": [
               1,
               96

@@ -52,6 +52,27 @@ Check both the plan outcome and its individual steps. Compare every DNP or SNP t
 
 For prenatal CPI, supply appropriate maternal cfDNA and paternal samples and compatible frequencies. For postnatal CPI, supply distinct mother, father and child samples. SNP and DNP calls can each feed Contamination, prenatal and postnatal CPI on their respective branches. A contamination estimate is a separate output and does not drive an automatic CPI filter.
 
+## Repeat the scientific correctness suite
+
+From the repository root, build the candidate scientific image and run the same native suite as CI. These commands work with Linux containers in Docker Desktop on Windows PowerShell, macOS, or Docker on Linux. They generate tiny artificial reads and tables locally. The inputs, reference bases and expected observations are defined in the tests. No study BAMs or external genome downloads are required.
+
+```sh
+docker build --platform linux/amd64 -f docker/scientific-runtime/Dockerfile -t newpat-science-check .
+docker run --rm --platform linux/amd64 --network=none --cpus=4 --memory=8g -v "${PWD}:/qualification:ro" -v "${PWD}/build/oracle-results:/evidence" -w /qualification -e PYTHONPATH=/opt/nipat/lib:/qualification/src --entrypoint python3 newpat-science-check /qualification/.github/scripts/check_native_r.py --report /evidence/native-r.json
+```
+
+A successful run exits with code 0 and writes `"passed": true` in `build/oracle-results/native-r.json`. The report records the scientific manifest and test-source digests, R and samtools versions, duration by test method, parameterized comparisons, and any failures or skips. A missing required suite or a skipped native test prevents a pass. The scientific job attaches the same report to its diagnostics in the native R check directory. Runs on different machines can be compared using the same revision, manifest and test case IDs. Durations include fixture construction and validation.
+
+| Question | Inputs and expected result |
+| --- | --- |
+| Are the counts, genotypes and likelihoods right? | Cross all 12 ordered SNP allele pairs and all 240 ordered DNP haplotype pairs with ten read mixtures. Each mixture specifies the reads before BAM creation. Compare REF, ALT, Other and GT and independently calculate the three diploid log-likelihoods at known Phred scores. Separate cases vary Phred and mapping quality, zero-quality observations, depth limits, orphaned pairs, excluded flags and acquisition modes. [Caller oracle](../tests/test_native_r_caller_oracle.py) |
+| Is the correct reference and sample used? | Run three distinguishable BAM profiles with plain and BGZF FASTA, changed reference bases, sample order and indexing. A matching panel on an allele-swapped reference must produce the predicted counts. An old panel against those same bases or a missing compression index must fail. These are small custom assemblies. The hg19/GRCh37 and hg38/GRCh38 catalog checks are separate. [Reference oracle](../tests/test_native_r_reference_oracles.py) |
+| Does contamination use the right sites and denominator? | Sweep all 91 splits of 90 allele observations at four Other-read levels. Test default, asymmetric and strict settings on both marker types. Check site membership, unexpected-read counts, fractions, the sample mean, sample standard deviation and the expected missing values in empty or one-site samples. [Contamination oracle](../tests/test_native_r_contamination_oracle.py) |
+| Does prenatal CPI change by the predicted amount? | Multiply independently specified rational per-site indices and compare both the product and its base-ten logarithm at each fetal-read threshold. Repeat with exchanged alleles, altered settings and two panels. In a separate batch, six pairs share parents. Their six different single-locus indices are known in advance and must stay attached to the right pair when ordering and worker settings change. [Threshold and panel oracle](../tests/test_native_r_prenatal_oracle.py) · [Family oracle](../tests/test_native_r_family_oracle.py) |
+| What does the current postnatal model report at each site? | Exercise all 27 combinations of maternal, paternal and child diploid genotypes for each marker type. Check site status, obligate allele and compatibility in the existing output. The revised scalar will need its own author-confirmed example and scale. [Postnatal site contract](../tests/test_native_r_postnatal_contract.py) |
+
+For example, in the shared-parent case the synthetic maternal sample contains 97 REF and three ALT observations. At an ALT frequency of 0.2, a homozygous ALT father gives a single-site index of 5, a heterozygous father 2.5, and a homozygous REF father 0.1 with the selected mismatch weight of 0.02. The table is checked separately for each pair and fetal-read threshold. These are software checks against the specified model. Accuracy on representative family data requires separate domain validation.
+
 ## Per-analysis record
 
 | Field | Observed value |

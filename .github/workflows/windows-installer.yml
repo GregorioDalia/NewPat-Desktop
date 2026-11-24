@@ -212,7 +212,9 @@ jobs:
           docker run --rm --network=none --cpus=4 --memory=8g \
             --mount "type=bind,source=$GITHUB_WORKSPACE,target=/qualification,readonly" \
             --workdir /qualification --env PYTHONPATH=/opt/nipat/lib:/qualification/src \
+            --mount "type=bind,source=$TMPDIR,target=/evidence" \
             --entrypoint python3 "$NIPAT_RUNTIME_IMAGE" /qualification/.github/scripts/check_native_r.py \
+            --report /evidence/native-r.json \
             2>&1 | tee "$TMPDIR/verification.log"
       - name: Verify updated CPI Contamination and CPIN models
         if: steps.scientific_reuse.outputs.reused != 'true'

@@ -5,12 +5,12 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
-import sys
 import tempfile
 import unittest
 
 from nipat_scientific.settings import describe_settings, normalize_settings
 
+from native_engine_helpers import execute_workflow
 from native_r_helpers import NATIVE_R_AVAILABLE, NATIVE_R_REASON
 from test_native_r_edge_cases import HELPERS, PAYLOAD, table
 
@@ -35,20 +35,7 @@ class NativeCallerInputs(unittest.TestCase):
         )
 
     def execute(self, workflow, root, **fields):
-        root.mkdir()
-        request = root / "request.json"
-        request.write_text(json.dumps({
-            "schema_version": 1, "workflow": workflow, **fields,
-            "work_dir": str(root / "work"), "out_dir": str(root / "output"),
-        }), encoding="utf-8")
-        return subprocess.run(
-            [sys.executable, str(PAYLOAD / "engine/main.py"), "execute", workflow,
-             "--request", str(request)], cwd=root, env=dict(
-                self.env, PYTHONPATH=str(HELPERS.parent),
-                NIPAT_DNP_BLOCKS_HELPER=str(HELPERS / "dnp_blocks.R"),
-                NIPAT_DNP_PILEUP_HELPER=str(HELPERS / "dnp_pileup.py"),
-            ), capture_output=True, text=True, timeout=90,
-        )
+        return execute_workflow(workflow, root, env=self.env, **fields)
 
     def fasta(self, contigs):
         fasta = self.root / "reference.fa"

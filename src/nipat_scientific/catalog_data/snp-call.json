@@ -1339,7 +1339,7 @@
           },
           {
             "path": "src/nipat_scientific/settings.R",
-            "sha256": "d4e0db860501861132aa3fde280d371ab84a5fe7944d94482b7499f29687c392",
+            "sha256": "2903d37f1973f5389ce7c3c13e697df26de80286a36edf4e30615ea7189963c0",
             "source_lines": [
               1,
               96

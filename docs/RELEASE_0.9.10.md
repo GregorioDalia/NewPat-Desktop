@@ -4,6 +4,8 @@
 
 ## Experiments and results
 
+The Home screen loads the five newest experiment cards. The Archive displays 25 per page and searches the entire history by experiment name, ID, start date, or sample. You can combine search with status and marker filters.
+
 Activity tracks concurrent experiments and shows their progress, output directory and stop control. You can submit another experiment while others are running or waiting. Each desktop session prepares up to two at once. The runtime admits calculations according to available CPU and memory, so several active experiments can each take longer. If another experiment arrives during a multi-step workflow, a compatible engine can share capacity at the next completed step or group of independent SNP samples. Activity shows when a job is waiting. You can cancel a waiting job or remove an interrupted experiment from activity and history while keeping its files.
 
 Preferences can store named analysis profiles and select a default for new experiments. Sample names, input files and family roles are selected for each experiment. The results view identifies the caller as SNP or DNP and returns to the source table after closing details or IGV. The interface uses the names **Prenatal CPI** and **Postnatal CPI**.

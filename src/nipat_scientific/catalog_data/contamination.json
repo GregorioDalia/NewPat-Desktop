@@ -3,7 +3,7 @@
   "workflow": "contamination",
   "source": {
     "path": "scientific/vendor/NEWPAT/contamination/detect_contamination.R",
-    "sha256": "8ceb587e19bb2f0b8f08051a894cd1780254b7ffe0959b0e48755c96f4792f66",
+    "sha256": "ccfc56a571198e0b5f0e3896d21b0b18098a093b2f92e4bb9332d5dbba1408f5",
     "line_count": 319
   },
   "public_parameters": [
@@ -412,7 +412,7 @@
         "dependencies": [
           {
             "path": "src/nipat_scientific/settings.R",
-            "sha256": "d4e0db860501861132aa3fde280d371ab84a5fe7944d94482b7499f29687c392",
+            "sha256": "2903d37f1973f5389ce7c3c13e697df26de80286a36edf4e30615ea7189963c0",
             "source_lines": [
               1,
               96
@@ -551,7 +551,7 @@
               277,
               311
             ],
-            "sha256": "8ceb587e19bb2f0b8f08051a894cd1780254b7ffe0959b0e48755c96f4792f66"
+            "sha256": "ccfc56a571198e0b5f0e3896d21b0b18098a093b2f92e4bb9332d5dbba1408f5"
           },
           {
             "path": "src/nipat/gui/jobs.py",
