@@ -437,6 +437,23 @@ class REquivalenceTests(unittest.TestCase):
         self.assertEqual({row.split("\t")[0] for row in numeric.splitlines()}, {"1", "2"})
         self.assertIn("2\t100000\t100001\t", numeric)
 
+    def test_historical_comparisons_use_sam_compliant_read_names(self):
+        with patch.object(verification, "run", return_value=""):
+            inputs = verification.make_inputs(self.root, "synthetic-image")
+        # SAMv1 QNAME permits printable ASCII except '@'. Reference names,
+        # qualities and mpileup base encodings have different alphabets.
+        qname = r"\A[!-?A-~]{1,254}\Z"
+        sam_headers = {"@HD", "@SQ", "@RG", "@PG", "@CO"}
+        for path in inputs.rglob("*.sam"):
+            for row in path.read_text().splitlines():
+                name = row.split("\t", 1)[0]
+                if name not in sam_headers:
+                    self.assertRegex(name, qname, path.name)
+        for path in (inputs / "snp").glob("pileup*.txt"):
+            for row in path.read_text().splitlines():
+                for name in row.split("\t")[6].split(","):
+                    self.assertRegex(name, qname, path.name)
+
     def test_generated_inputs_exercise_quality_range_and_optional_pileup_columns(self):
         with patch.object(verification, "run", return_value=""):
             inputs = verification.make_inputs(self.root, "synthetic-image")

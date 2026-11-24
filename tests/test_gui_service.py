@@ -44,7 +44,8 @@ class GuiFixture(unittest.TestCase):
         self.store = PreferencesStore(self.root / "settings" / "preferences.json")
         self.samples = [{"id": name, "path": str(self.file(name + " with spaces.bam", name)), "kind": "bam"}
                         for name in ("Plasma", "Mother", "Father", "Child")]
-        self.reference = self.file("ref.fa", ">chr1\nACGT\n")
+        self.reference = self.root / "ref.fa"
+        self.reference.write_bytes(b">chr1\nACGT\n")
         self.file("ref.fa.fai", "chr1\t4\t6\t4\t5\n")
         self.dnp_panel = self.file("dnp.tsv", "chr1\t2\t3\tCG\tAT\n")
         self.snp_panel = self.file("snp.tsv", "chr\tpos\tref\talt\nchr1\t2\tC\tA\n")

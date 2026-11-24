@@ -52,7 +52,7 @@ def app(tmp_path):
 
 def reference(tmp_path):
     fasta = tmp_path / "reference.fa"
-    fasta.write_text(">chr1\nACGT\n")
+    fasta.write_bytes(b">chr1\nACGT\n")
     fai = tmp_path / "reference.fa.fai"
     fai.write_text("chr1\t4\t6\t4\t5\n")
     return fasta, fai

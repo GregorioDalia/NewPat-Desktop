@@ -353,7 +353,7 @@ def make_dnp_block_inputs(inputs: Path, image: str) -> None:
             add("0001", chromosome, 30, quality="5")
             add("large-coordinate", chromosome, 99970)
             for start in (220, 410, 590):
-                for number, name in enumerate(("shared", "shared2", "001", "1", "z", "A", "r_12", "r@excluded")):
+                for number, name in enumerate(("shared", "shared2", "001", "1", "z", "A", "r_12", "r+8")):
                     bases = list(sequence[start - 1:start + 89])
                     if number % 3 == 1:
                         position = start + 30
@@ -423,7 +423,7 @@ def make_inputs(root: Path, image: str) -> Path:
     for sample in ("A", "B", "Quality"):
         records = ["@HD\tVN:1.6\tSO:coordinate", f"@SQ\tSN:chrDnpSynthetic\tLN:{len(sequence)}"]
         for start, covered in ((20, (50, 52)), (110, (140,)), (200, (230,))):
-            for index, name in enumerate(("a", "A", "z", "Z", "r-1", "r.2", "r_3", "r@skip")):
+            for index, name in enumerate(("a", "A", "z", "Z", "r-1", "r.2", "r_3", "r+7")):
                 bases = list(sequence[start - 1:start + 79])
                 for position in covered:
                     if (index + (sample == "B")) % 3 == 1:
@@ -453,7 +453,7 @@ def make_inputs(root: Path, image: str) -> Path:
                     f"/inputs/{sample}.sam"], inputs=dnp, results=dnp)
     run(image, ["samtools", "faidx", "/results/reference.fa"], inputs=dnp, results=dnp)
 
-    names = ["a", "A", "z", "Z", "r-1", "r.2", "r@skip", "shared"]
+    names = ["a", "A", "z", "Z", "r-1", "r.2", "r+7", "shared"]
     lines = []
     for center, ref, alt in ((50, "A", "G"), (120, "C", "T")):
         for position in (center - 1, center, center + 1):

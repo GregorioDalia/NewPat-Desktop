@@ -135,8 +135,8 @@ class DesktopTransportTests(unittest.TestCase):
     def test_actionable_igv_and_dnp_errors_reach_the_window(self):
         viewer = LocalIGV(self.server.register)
         fasta = self.root / "ref.fa"
-        fasta.write_text(">chr1\nACGT\n")
-        Path(str(fasta) + ".fai").write_text("chr1\t4\t6\t4\t5\n")
+        fasta.write_bytes(b">chr1\r\nACGT\r\n")
+        Path(str(fasta) + ".fai").write_text("chr1\t4\t7\t4\t6\n")
         bam = self.root / "sample.bam"
         bam.write_bytes(b"BAM\x01")
 

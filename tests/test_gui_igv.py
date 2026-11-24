@@ -142,7 +142,7 @@ def test_bam_reference_dictionary_must_be_compatible(local_igv, tmp_path, chromo
 def test_mitochondrial_mismatch_reports_both_files_indexes_and_lengths(local_igv, tmp_path, language):
     local_igv.language = language
     fasta = tmp_path / "genome.fa"
-    fasta.write_text(">chrM\nACGT\n", encoding="ascii")
+    fasta.write_bytes(b">chrM\nACGT\n")
     Path(str(fasta) + ".fai").write_text("chrM\t4\t6\t4\t5\n", encoding="ascii")
     bam = _bam(tmp_path, name="patient", chromosome="chrM", length=5)
     with pytest.raises(ValidationError) as caught:
@@ -250,7 +250,7 @@ def create_alignment_fixture(directory):
     directory.mkdir(parents=True, exist_ok=True)
     sequence = "ACGT" * 250
     fasta = directory / "synthetic-reference.fa"
-    fasta.write_text(f">1\n{sequence}\n>X\n{sequence}\n", encoding="ascii")
+    fasta.write_text(f">1\n{sequence}\n>X\n{sequence}\n", encoding="ascii", newline="\n")
     Path(str(fasta) + ".fai").write_text("1\t1000\t3\t1000\t1001\nX\t1000\t1007\t1000\t1001\n", encoding="ascii")
     text = b"@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:1\tLN:1000\n@SQ\tSN:X\tLN:1000\n"
     header = b"BAM\x01" + struct.pack("<i", len(text)) + text + struct.pack("<i", 2)
