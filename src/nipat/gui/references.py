@@ -1,15 +1,17 @@
 """Persistent selections of local, indexed human and custom reference genomes."""
 from __future__ import annotations
 
-from bisect import bisect_right
+from contextlib import nullcontext
 import gzip
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
 import re
 import struct
 import tempfile
+import zlib
 from uuid import uuid4
 
 from nipat.errors import ValidationError
@@ -53,7 +55,7 @@ def _stamp(path):
     return [stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns]
 
 
-def _reference_files(fasta):
+def reference_files(fasta):
     yield fasta
     yield Path(str(fasta) + ".fai")
     if fasta.suffix.lower() in _COMPRESSED:
@@ -75,7 +77,7 @@ def _file_sha256(path, *, preview=False):
 
 
 def _content_hashes(fasta, *, preview=False):
-    return {p.name: _file_sha256(p, preview=preview and p == fasta) for p in _reference_files(fasta)}
+    return {p.name: _file_sha256(p, preview=preview and p == fasta) for p in reference_files(fasta)}
 
 
 def _fail_fasta(language):
@@ -181,92 +183,166 @@ def build_fasta_index(fasta: Path, *, language="it", check_cancel=None, progress
             temporary.unlink(missing_ok=True)
 
 
-def _bgzf_offsets(source, gzi, error):
-    # The GZI table maps uncompressed file offsets to independently readable
-    # BGZF blocks. Offset (0, 0) is implicit in the htslib format.
-    header = source.read(12)
-    if len(header) != 12 or header[:3] != b"\x1f\x8b\x08" or not header[3] & 4:
-        raise ValidationError(error)
-    extra = source.read(int.from_bytes(header[10:12], "little"))
-    i = 0
-    while i + 4 <= len(extra):
-        size = int.from_bytes(extra[i + 2:i + 4], "little")
-        if i + size + 4 > len(extra):
-            raise ValidationError(error)
-        if extra[i:i + 4] == b"BC\x02\x00":
-            break
-        i += size + 4
-    else:
-        raise ValidationError(error)
+class _HashedReader(io.RawIOBase):
+    """Hash the on-disk representation while validating the FASTA sequence."""
+    def __init__(self, source, digest):
+        self.source = source
+        self.digest = digest
+
+    def readable(self):
+        return True
+
+    def readinto(self, buffer):
+        count = self.source.readinto(buffer)
+        self.digest.update(memoryview(buffer)[:count])
+        return count
+
+
+def _verify_gzi(source, gzi, error):
+    # Compare every indexed block with the BGZF block size and gzip ISIZE.
+    # Both the first (implicit) record and a terminal empty block need no entry.
+    size = os.fstat(source.fileno()).st_size
+    compressed = uncompressed = 0
     with gzi.open("rb") as index:
         count = index.read(8)
-        if len(count) != 8 or gzi.stat().st_size != 8 + 16 * int.from_bytes(count, "little"):
+        if (len(count) != 8 or gzi.stat().st_size > 32 * 1024 * 1024
+                or gzi.stat().st_size != 8 + 16 * int.from_bytes(count, "little")):
             raise ValidationError(error)
-        if gzi.stat().st_size > 32 * 1024 * 1024:
-            raise ValidationError(error)
-        raw = index.read()
-    uncompressed, compressed = [0], [0]
-    file_size = os.fstat(source.fileno()).st_size
-    for cstart, ustart in struct.iter_unpack("<QQ", raw):
-        if not (compressed[-1] < cstart < file_size and uncompressed[-1] < ustart <= uncompressed[-1] + 65536):
-            raise ValidationError(error)
-        uncompressed.append(ustart)
-        compressed.append(cstart)
-    return uncompressed, compressed
-
-
-def _verify_layout(fasta, fai, compressed, language):
-    """Verify boundaries of every contig without rereading gigabytes of sequence."""
-    error = _text(language, "Gli indici del riferimento non corrispondono al FASTA. Seleziona gli indici corretti o rigenerali.",
-                  "The reference indexes do not match the FASTA. Select the matching indexes or regenerate them.")
-    with fasta.open("rb") as source, fai.open("rb") as index:
-        if compressed:
-            uoffsets, coffsets = _bgzf_offsets(source, Path(str(fasta) + ".gzi"), error)
-
-        def read_at(position, count):
-            if not compressed:
-                source.seek(position)
-                return source.read(count)
-            block = bisect_right(uoffsets, position) - 1
-            skip = position - uoffsets[block]
-            if skip > 65536:
+        while compressed < size:
+            source.seek(compressed)
+            header = source.read(12)
+            if len(header) != 12 or header[:4] != b"\x1f\x8b\x08\x04":
                 raise ValidationError(error)
-            source.seek(coffsets[block])
-            try:
-                with gzip.GzipFile(fileobj=source) as reader:
-                    return reader.read(skip + count)[skip:]
-            except (OSError, EOFError) as exc:
-                raise ValidationError(error) from exc
-
-        next_header = 0
-        for row in index:
-            name, size, offset, bases, width = row.rstrip(b"\r\n").split(b"\t")
-            size, offset, bases, width = map(int, (size, offset, bases, width))
-            if not 1 <= offset - next_header <= 8192:
-                raise ValidationError(error)
-            header = read_at(next_header, offset - next_header).lstrip(b"\r\n")
-            if (not header.startswith(b">") or not header.endswith(b"\n")
-                    or header[1:].split()[:1] != [name] or len(header.splitlines()) != 1):
-                raise ValidationError(error)
-            if size > bases:
-                separator = read_at(offset + bases, width - bases)
-                if separator not in (b"\n", b"\r\n"):
+            extra = source.read(int.from_bytes(header[10:12], "little"))
+            pos = 0
+            while pos + 4 <= len(extra):
+                length = int.from_bytes(extra[pos + 2:pos + 4], "little")
+                if pos + 4 + length > len(extra):
                     raise ValidationError(error)
-            last = offset + (size - 1) // bases * width + (size - 1) % bases
-            tail = read_at(last, 3)
-            if not _SEQ.fullmatch(tail[:1]):
-                raise ValidationError(error)
-            if tail[1:].startswith(b"\r\n"):
-                next_header = last + 3
-            elif tail[1:].startswith(b"\n"):
-                next_header = last + 2
-            elif len(tail) == 1:
-                next_header = last + 1
+                if extra[pos:pos + 4] == b"BC\x02\x00":
+                    break
+                pos += 4 + length
             else:
                 raise ValidationError(error)
-        trailing = read_at(next_header, 8193)
-        if len(trailing) > 8192 or trailing.strip(b"\r\n"):
+            block_size = int.from_bytes(extra[pos + 4:pos + 6], "little") + 1
+            end = compressed + block_size
+            if block_size < 12 + len(extra) + 8 or end > size:
+                raise ValidationError(error)
+            source.seek(end - 4)
+            length = int.from_bytes(source.read(4), "little")
+            if length > 65536:
+                raise ValidationError(error)
+            if compressed:
+                entry = index.read(16)
+                # Some encoders include the terminal marker in the directory.
+                if (entry or length or end != size) and entry != struct.pack("<QQ", compressed, uncompressed):
+                    raise ValidationError(error)
+            compressed = end
+            uncompressed += length
+        if not size or index.read(1):
             raise ValidationError(error)
+    source.seek(0)
+
+
+def _verify_indexed_rows(sequences, index, error):
+    """Read regular lines in batches, so a human genome needs no Python loop per line."""
+    chunk = 1024 * 1024
+    # FAI describes byte geometry. Leave scientific alphabet and IGV locus
+    # restrictions to their respective consumers; a SAM contig may include "|".
+    symbols = rb"[!-=?-~]"
+    symbol_run = re.compile(symbols + b"+")
+    names = set()
+    position = 0
+
+    def read_bases(count):
+        while count:
+            length = min(chunk, count)
+            data = sequences.read(length)
+            if len(data) != length or not symbol_run.fullmatch(data):
+                raise ValidationError(error)
+            count -= length
+
+    while raw := index.readline(8193):
+        row = raw.rstrip(b"\r\n").split(b"\t")
+        if len(raw) > 8192 or len(row) != 5 or not all(part.isdigit() for part in row[1:]):
+            raise ValidationError(error)
+        name = row[0]
+        total, offset, bases, width = map(int, row[1:])
+        if (not name or name in names or len(names) >= 100_000 or not 1 <= bases <= total
+                or width - bases not in (0, 1, 2)):
+            raise ValidationError(error)
+        header = sequences.readline(8193)
+        while names and header in (b"\n", b"\r\n"):
+            position += len(header)
+            header = sequences.readline(8193)
+        position += len(header)
+        if (len(header) > 8192 or not header.startswith(b">") or not header.endswith(b"\n")
+                or header[1:].split(maxsplit=1)[:1] != [name] or position != offset):
+            raise ValidationError(error)
+        names.add(name)
+        complete, remaining = divmod(total - 1, bases)
+        last = remaining + 1
+        if complete:
+            if width == bases:
+                raise ValidationError(error)
+            sep = b"\r\n" if width - bases == 2 else b"\n"
+            if width <= chunk:
+                lines = re.compile(b"(?:" + symbols + b"{%d}" % bases + sep + b")+")
+                while complete:
+                    count = min(complete, chunk // width)
+                    data = sequences.read(count * width)
+                    if len(data) != count * width or not lines.fullmatch(data):
+                        raise ValidationError(error)
+                    complete -= count
+            else:
+                for _ in range(complete):
+                    read_bases(bases)
+                    if sequences.read(len(sep)) != sep:
+                        raise ValidationError(error)
+        read_bases(last)
+        ending = sequences.readline(3)
+        # faidx reports an implicit LF for a single unterminated line. Its
+        # stride is never used to cross a row in a one-line contig.
+        if ending not in (b"", b"\n", b"\r\n") or (total == bases and ending and width != bases + len(ending)):
+            raise ValidationError(error)
+        position += ((total - 1) // bases) * width + last + len(ending)
+    if not names:
+        raise ValidationError(error)
+    while data := sequences.read(chunk):
+        if data.strip(b"\r\n"):
+            raise ValidationError(error)
+
+
+def _verify_layout(fasta, fai, compressed, language, gzi=None):
+    """Check every FASTA line and return the digest of the validated file."""
+    error = _text(language, "Gli indici del riferimento non corrispondono al FASTA. Seleziona gli indici corretti o rigenerali.",
+                  "The reference indexes do not match the FASTA. Select the matching indexes or regenerate them.")
+    digest = hashlib.sha256()
+    try:
+        with fasta.open("rb") as source, fai.open("rb") as index:
+            if compressed:
+                _verify_gzi(source, gzi or Path(str(fasta) + ".gzi"), error)
+            with io.BufferedReader(_HashedReader(source, digest), buffer_size=1024 * 1024) as raw:
+                decoder = gzip.GzipFile(fileobj=raw) if compressed else nullcontext(raw)
+                with decoder as sequences:
+                    _verify_indexed_rows(sequences, index, error)
+    except (ValidationError, ValueError, OSError, EOFError, zlib.error) as exc:
+        raise ValidationError(error) from exc
+    return digest.hexdigest()
+
+
+def indexed_reference_identity(fasta, fai, *, gzi=None, language="it"):
+    """Validate the supplied index files and pin the exact on-disk contents."""
+    files = [fasta, fai] + ([gzi] if gzi else [])
+    stamps = [_stamp(p) for p in files]
+    result = {"fasta_sha256": _verify_layout(fasta, fai, gzi is not None, language, gzi),
+              "index_sha256": _file_sha256(fai)}
+    if gzi:
+        result["gzi_sha256"] = _file_sha256(gzi)
+    if stamps != [_stamp(p) for p in files]:
+        raise ValidationError(_text(language, "Il riferimento è cambiato durante il controllo.",
+                                    "The reference changed during verification."))
+    return result
 
 
 def _identify(chromosomes, build, language):
@@ -326,25 +402,38 @@ class ReferenceCatalog:
 
     @staticmethod
     def _stamps(fasta):
-        return {p.name: _stamp(p) for p in _reference_files(fasta)}
+        return {p.name: _stamp(p) for p in reference_files(fasta)}
 
     def _public(self, entry, *, exact=False):
         result = dict(entry)
         stamps = result.pop("stamps")
         hashes = result.pop("content_sha256", None)
         preview = result.pop("fasta_preview_sha256", None)
+        validated = result.pop("validated_layout", False)
         result["available"] = False
         # A metadata-only registration cannot establish the identity of its
         # original sequence. Keep it visible until the user imports it again.
         if not isinstance(hashes, dict) or not preview:
             return result
         path = Path(result["fasta"])
+        required = list(reference_files(path))
+        if any(not re.fullmatch(r"[a-f0-9]{64}", str(hashes.get(p.name, ""))) for p in required):
+            return result
+        result["fasta_sha256"] = hashes[path.name]
+        if path.suffix.lower() in _COMPRESSED:
+            result["gzi_sha256"] = hashes[path.name + ".gzi"]
         try:
             if self._stamps(path) == stamps:
                 expected = hashes if exact else {**hashes, path.name: preview}
-                result["available"] = (_content_hashes(path, preview=not exact) == expected
-                                       and self._stamps(path) == stamps)
-        except OSError:
+                if exact and not validated:
+                    # Catalogs created before full line verification must also check their indexes.
+                    fasta_hash = _verify_layout(path, Path(result["index"]), path.suffix.lower() in _COMPRESSED,
+                                                self.language)
+                    actual = {p.name: fasta_hash if p == path else _file_sha256(p) for p in required}
+                else:
+                    actual = _content_hashes(path, preview=not exact)
+                result["available"] = actual == expected and self._stamps(path) == stamps
+        except (OSError, ValidationError):
             result["available"] = False
         return result
 
@@ -380,9 +469,9 @@ class ReferenceCatalog:
         except OSError as exc:
             raise ValidationError(_text(self.language, "File FASTA o indici mancanti.", "Missing FASTA file or indexes.")) from exc
         chromosomes = check.fasta_index(path, index)
-        _verify_layout(path, index, compressed, self.language)
+        fasta_hash = _verify_layout(path, index, compressed, self.language)
         naming = _identify(chromosomes, build, self.language)
-        hashes = _content_hashes(path)
+        hashes = {p.name: fasta_hash if p == path else _file_sha256(p) for p in reference_files(path)}
         preview = (_file_sha256(path, preview=True) if stamps[path.name][2] > _FULL_PREVIEW_LIMIT
                    else hashes[path.name])
         if stamps != self._stamps(path):
@@ -390,7 +479,7 @@ class ReferenceCatalog:
                                         "The reference changed during import."))
         entry = {"id": uuid4().hex, "build": build, "label": path.name, "fasta": str(path), "index": str(index),
                  "naming": naming, "contigs": len(chromosomes), "index_sha256": hashes[index.name], "stamps": stamps,
-                 "content_sha256": hashes, "fasta_preview_sha256": preview}
+                 "content_sha256": hashes, "fasta_preview_sha256": preview, "validated_layout": True}
         if compressed:
             entry["compressedIndex"] = str(path) + ".gzi"
         with settings_file_lock(self.path):
@@ -398,7 +487,10 @@ class ReferenceCatalog:
             for old in entries:
                 if (old["fasta"] == str(path) and old["build"] == build and old["stamps"] == stamps
                         and old.get("content_sha256") == hashes):
-                    return self._public(old)
+                    if old.get("validated_layout"):
+                        return self._public(old)
+                    entry["id"] = old["id"]
+                    break
             entries = [e for e in entries if not (e["fasta"] == str(path) and e["build"] == build)]
             data = json.dumps({"schema_version": 1, "entries": [*entries, entry]}, ensure_ascii=False).encode("utf-8")
             if len(data) > 4 * 1024 * 1024:

@@ -3,7 +3,7 @@
   "workflow": "cpi",
   "source": {
     "path": "scientific/vendor/NEWPAT/CPI_from_cffDNA/cfDNA_CPI_estimator.R",
-    "sha256": "719ecf368c6375fda8ad0d17021a1ac9e195c6fc70e8ca57b878e84c8273b17b",
+    "sha256": "8807c7e598177ce7ea15a4e6e07ec06d2c8ef9f419bb87434d65fde1e2e0c51c",
     "line_count": 774
   },
   "public_parameters": [
@@ -956,20 +956,24 @@
         "missing_output": "failure",
         "invalid_output": "failure",
         "nonfinite_estimates": "warnings",
-        "zero": "distinct from NA"
+        "zero": "distinct from NA",
+        "excluded_paternal_candidates": [
+          "missing population frequency",
+          "unassigned paternal genotype"
+        ]
       },
       "applies_to": "all",
       "origin": "NewPat scientific runtime",
       "description": {
-        "it": "Il contratto verifica file, campioni, colonne e conteggi; gli output mancanti o malformati bloccano il successo. NA previsto rimane distinto da zero.",
-        "en": "The contract verifies files, samples, columns and counts; missing or malformed outputs prevent success. Expected NA remains distinct from zero."
+        "it": "Il controllo verifica file, identità, colonne e conteggi. Per ogni coppia e pannello registra i siti paterni utilizzati alla soglia minima e alla soglia di supporto mediano. Segnala i candidati esclusi alla soglia minima per frequenza di popolazione mancante o genotipo paterno non assegnato. Un risultato NA atteso in assenza di dati è distinto da zero.",
+        "en": "The output check verifies files, identities, columns and counts. For each pair and panel it records the number of paternal sites used at the minimum and median-support thresholds. It reports candidates excluded at the minimum threshold because the population frequency is missing or the paternal genotype is unassigned. With no contributing data, an expected NA remains distinct from zero."
       },
       "evidence": {
         "path": "src/nipat_scientific/outputs.py",
-        "sha256": "7003ea7be45679fa66c111b6b4f2bb3948e26dcb09e055f8bd083a97606bd22a",
+        "sha256": "ec1e3101c81e3208e0eaf58108468153dacfb749f55ac91201e307e1acd4dcab",
         "source_lines": [
           1,
-          500
+          581
         ]
       }
     },

@@ -15,6 +15,9 @@ import subprocess
 import tempfile
 import unittest
 
+from nipat_scientific.errors import PlanExecutionError
+from nipat_scientific.outputs import validate_standalone_outputs
+
 from native_r_helpers import NATIVE_R_AVAILABLE, NATIVE_R_REASON
 
 
@@ -115,6 +118,40 @@ class NativeREdgeCases(unittest.TestCase):
                         self.assertEqual(summaries[0]["N_sites_father"], "0")
                         self.assertEqual(summaries[0]["Mean_logCPI"], "NA")
 
+    def test_prenatal_exclusions_and_curve_validation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            inputs = root / "inputs"
+            inputs.mkdir()
+            header = "chr\tpos\tREF\tALT\tN_REF\tN_ALT\tN_Other\ttotal_count\n"
+            (inputs / "MotherM1.txt").write_text(header + "".join(
+                f"1\t{i}\tA\tG\t{100-alt}\t{alt}\t0\t100\n" for i, alt in enumerate((2, 3, 5), 1)))
+            (inputs / "FatherF1.txt").write_text(header + "".join(
+                f"1\t{i}\tA\tG\t{ref}\t{100-ref}\t0\t100\n" for i, ref in enumerate((0, 80, 0), 1)))
+            (inputs / "population.txt").write_text(
+                "chr\tpos\tRef_f.pop\tAlt_f.pop\n1\t1\t0.8\t0.2\n1\t2\t0.6\t0.4\n")
+            process, output = self.run_native(root, "cpi", inputs)
+            self.assertEqual(process.returncode, 0, process.stderr)
+            request = {"workflow": "cpi", "marker_type": "SNP", "pairs": "M1:F1", "cutoffs": [],
+                       "cutoff_mode": "all", "work_dir": str(root / "work"), "out_dir": str(output)}
+            artifacts = validate_standalone_outputs(request)
+            self.assertEqual({w["code"] for w in artifacts["quality_warnings"]},
+                             {"output.cpi_missing_frequency", "output.cpi_unassigned_father"})
+            support = artifacts["cpi-pairs"][0]["curves"][0]["prenatal_support"]
+            self.assertEqual(support, {"minimum_fetal_reads": 2, "paternal_candidates": 3, "paternal_used": 1,
+                                       "missing_frequency": 1, "unassigned_father": 1,
+                                       "median_fetal_reads": 3, "paternal_used_at_median": 0})
+            summary = table(output / "Summary_FetalFraction_CPI.csv", ",")[0]
+            self.assertEqual((summary["N_sites_father"], summary["Max_logCPI"], summary["CPI_medianFF"]),
+                             ("3", "0.699", "NA"))
+            curve = next((output / "curves").glob("*.tsv"))
+            lines = curve.read_text().splitlines(keepends=True)
+            for damaged in (lines[:1], lines[:1] + lines[2:], lines[:2] + lines[1:],
+                            [line.replace("0.698970004336019", "text") for line in lines]):
+                curve.write_text("".join(damaged))
+                with self.assertRaises(PlanExecutionError):
+                    validate_standalone_outputs(request)
+
     def test_cpi_log_stays_finite_outside_the_raw_product_range(self):
         for loci, father, expected in ((400, (0, 100), 400.0),
                                        (200, (100, 0), 200 * math.log10(0.002))):
@@ -139,6 +176,18 @@ class NativeREdgeCases(unittest.TestCase):
                     self.assertEqual(float(row["CPI"]), math.inf if loci == 400 else 0.0)
                 summary = table(output / "Summary_FetalFraction_CPI.csv", ",")[0]
                 self.assertAlmostEqual(float(summary["CPI_medianFF"]), expected, places=3)
+                request = {"workflow": "cpi", "marker_type": "SNP", "pairs": "M1:F1", "cutoffs": [],
+                           "cutoff_mode": "all", "work_dir": str(root / "work"), "out_dir": str(output)}
+                self.assertEqual(validate_standalone_outputs(request)["quality_warnings"], [])
+                # Raw Inf/zero is legitimate here, but the reported log must agree with the curve.
+                summary_path = output / "Summary_FetalFraction_CPI.csv"
+                summary["CPI_medianFF"] = str(float(summary["CPI_medianFF"]) + 0.01)
+                with summary_path.open("w", newline="") as stream:
+                    writer = csv.DictWriter(stream, fieldnames=summary)
+                    writer.writeheader()
+                    writer.writerow(summary)
+                with self.assertRaisesRegex(PlanExecutionError, "median-threshold"):
+                    validate_standalone_outputs(request)
 
     def test_downstream_joins_preserve_numeric_looking_contigs(self):
         for workflow in ("cpi", "cpin"):

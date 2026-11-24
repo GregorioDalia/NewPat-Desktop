@@ -30,7 +30,6 @@ nipat_snp_group_reads <- function(observations) {
   aggregate_reads <- function(x) x %>%
     group_by(SNP_id, df.V7) %>%
     summarise(df.V5 = paste(df.V5, collapse = "|"),
-              df.chr = paste(df.chr, collapse = "|"),
               df.qual = paste(df.qual, collapse = "|"), .groups = "drop")
   workers <- nipat_parallel_workers(max(1L, nrow(observations)),
     memory_mib = as.numeric(object.size(observations)) * 3 / 1024^2)
@@ -150,7 +149,9 @@ if (length(mismatch)) {
 # ambiguity before combining neighbouring observations by name.
 window_keys <- c(paste(snp_input$chr, as.integer(positions_numeric) - 1L, sep=":"),
                  fake_DNP$pos, paste(snp_input$chr, as.integer(positions_numeric) + 1L, sep=":"))
-qnames <- strsplit(df$V7[paste(df$V1, df$V2, sep=":") %in% window_keys], ",", fixed=TRUE)
+# Imported pileups may cover the whole genome. Expand only reads within panel windows.
+df <- df[paste(df$V1, df$V2, sep=":") %in% window_keys, , drop=FALSE]
+qnames <- strsplit(df$V7, ",", fixed=TRUE)
 if (any(vapply(qnames, anyDuplicated, integer(1)) > 0L))
   stop("SNP pileup repeats a QNAME at one coordinate. Generate it with overlap removal enabled.")
 rm(qnames)
@@ -192,7 +193,10 @@ direct <- all(!is.na(marked_bases) & !is.na(df2$df.V7) & !is.na(df2$df.qual)) &&
          grepl("[[:space:]]", df2$df.qual)) &&
   !any(grepl("(^,|,$|,,)", df2$df.V7)) &&
   all(nchar(df2$df.qual, type = "bytes") == nchar(df2$df.qual, type = "chars"))
-if (direct) {
+if (!nrow(df2)) {
+  # Keep the normal uncovered-locus joins and ordering for off-panel pileups.
+  df3 <- df2
+} else if (direct) {
   df3 <- data.frame(
     df.chr = rep.int(df2$df.chr, sizes),
     df.V5 = unlist(base_parts, use.names = FALSE),
@@ -267,7 +271,10 @@ df3_marked <- df3 %>%
 # One aggregation replaces three independent groupings and joins. Parallel
 # tasks always contain the complete (SNP_id, QNAME) group, including overlapping
 # windows; canonical group order is restored before all scientific calculations.
-df_merged <- nipat_snp_group_reads(df3_marked) %>% select(-SNP_id)
+# Keep the target coordinate from the panel, even if a contig contains a pipe.
+df_merged <- nipat_snp_group_reads(df3_marked) %>%
+  mutate(df.chr = fake_DNP$pos[SNP_id]) %>%
+  select(-SNP_id)
 rm(df3, df3_marked)
 # keep only reads called on both positions of a single read (micro haplotypes)
 df_merged2 <- df_merged[nchar(df_merged$df.V5) > 4, ]
@@ -281,16 +288,6 @@ df_merged3$df.V5 <- gsub(',', '.', df_merged3$df.V5)
 # STEP5: indel statistics before removing indel observations
 indel_observations <- df_merged3 %>%
   mutate(
-    SNP_key = vapply(
-      strsplit(df.chr, "|", fixed = TRUE),
-      function(x) {
-        if (length(x) != 3L) {
-          stop("Expected three positions for indel statistics")
-        }
-        x[2]
-      },
-      character(1)
-    ),
     SNP_base = vapply(
       strsplit(df.V5, "|", fixed = TRUE),
       function(x) {
@@ -303,29 +300,20 @@ indel_observations <- df_merged3 %>%
     )
   )
 indel_summary <- indel_observations %>%
-  group_by(SNP_key) %>%
+  group_by(SNP_key = df.chr) %>%
   summarise(
     reads_discarded_for_indels = sum(SNP_base == "@"),
     ratio_reads_discarded_for_indels =
       reads_discarded_for_indels / n(),
     .groups = "drop"
   )
-# count rows containing @
-conteggio <- sum(grepl("@", df_merged3$df.V5))
-print(conteggio)
-# remove rows containing @
-df_merged4 <- df_merged3 %>% filter_all(all_vars(!grepl("@", .)))
-# recount rows containing @
-conteggio2 <- sum(grepl("@", df_merged4$df.V5))
-print(conteggio2)
+# Only bases encode indels; chromosome and read names are identifiers.
+df_merged4 <- df_merged3 %>% filter(!grepl("@", df.V5, fixed = TRUE))
 # extract the third character as genotype and drop the original base string
 df_merged5 <- df_merged4 %>% mutate(df.V5.1 = substring(df.V5, 3, 3))
 df_merged5 <- subset(df_merged5, select = -df.V5)
 # count all genotypes found
 df_count2 <- df_merged5 %>% group_by(df.chr, df.V5.1) %>% summarise(n = n(), .groups = "drop")
-# extract the text between pipes and remove the first and last pipe
-df_count2$df.chr <- str_extract(df_count2$df.chr, "\\|.*\\|")
-df_count2$df.chr <- substr(df_count2$df.chr, 2, nchar(df_count2$df.chr) - 1)
 # merge with the dataset containing ref and alt for dnp
 data_info <- merge(df_count2, fake_DNP, by.x = "df.chr", by.y = "pos")
 # create a flag to identify alternative genotypes
@@ -382,18 +370,6 @@ computeGL_snp <- function(haps, Qavg, ref_hap, ploidy = 2) {
 }
 # Use only REF and ALT observations.
 gl_reads <- df_merged5 %>%
-  mutate(
-    df.chr = vapply(
-      strsplit(df.chr, "|", fixed = TRUE),
-      function(x) {
-        if (length(x) != 3L) {
-          stop("Expected three positions per SNP read")
-        }
-        x[2]
-      },
-      character(1)
-    )
-  ) %>%
   inner_join(fake_DNP, by = c("df.chr" = "pos")) %>%
   filter(df.V5.1 == ref | df.V5.1 == alt) %>%
   mutate(
@@ -473,9 +449,7 @@ dataframe_final <- dataframe_final %>%
 
 # Per-allele observations, equivalent to DNPcall combined_bases/counts.
 allele_counts <- df_merged5 %>%
-  mutate(SNP_key = vapply(strsplit(df.chr, "|", fixed=TRUE),
-                         function(x) x[2], character(1))) %>%
-  group_by(SNP_key, df.V5.1) %>%
+  group_by(SNP_key = df.chr, df.V5.1) %>%
   summarise(n = n(), .groups="drop") %>%
   group_by(SNP_key) %>%
   summarise(combined_bases=paste(df.V5.1,collapse="-"),

@@ -93,7 +93,9 @@ class GuiPlanTests(GuiFixture):
         service = self.service()
         self.assertTrue(service.call("runs.get", {"run_id": run.name})["has_igv_inputs"])
         self.assertEqual(service.call("run.igv", {"run_id": run.name}), {
-            "reference": {"fasta": str(self.reference), "index": ""},
+            "reference": {"fasta": str(self.reference), "index": "",
+                          "fasta_sha256": hashlib.sha256(self.reference.read_bytes()).hexdigest(),
+                          "index_sha256": hashlib.sha256(Path(str(self.reference) + ".fai").read_bytes()).hexdigest()},
             "tracks": [{"name": "Plasma", "path": str(bam)}], "locus": "all"})
 
     def test_independent_callers_and_asymmetric_downstream_branches(self):
@@ -117,7 +119,8 @@ class GuiPlanTests(GuiFixture):
 
         entry = {"id": "reference-1", "build": "grch38", "label": "UCSC hg38",
                  "fasta": str(self.reference), "index": str(self.reference) + ".fai",
-                 "naming": "chr", "index_sha256": hashlib.sha256(Path(str(self.reference) + ".fai").read_bytes()).hexdigest()}
+                 "naming": "chr", "fasta_sha256": hashlib.sha256(self.reference.read_bytes()).hexdigest(),
+                 "index_sha256": hashlib.sha256(Path(str(self.reference) + ".fai").read_bytes()).hexdigest()}
         catalog = Mock()
         catalog.resolve.return_value = entry
         draft = self.draft("both")
@@ -136,7 +139,7 @@ class GuiPlanTests(GuiFixture):
         with patch.object(results, "_context", return_value={"gui": {"draft": prepared.draft}}):
             reference, tracks = results.igv_sources("archived")
         self.assertEqual(reference, {"build": "grch38", "fasta": str(self.reference), "index": entry["index"],
-                                     "index_sha256": entry["index_sha256"]})
+                                     "index_sha256": entry["index_sha256"], "fasta_sha256": entry["fasta_sha256"]})
         self.assertEqual([t["name"] for t in tracks], [s["id"] for s in draft["samples"]])
 
         bad = deepcopy(draft)
@@ -157,8 +160,9 @@ class GuiPlanTests(GuiFixture):
         del draft["reference_id"]
         draft["reference"] = str(self.reference)
         manual = prepare_analysis(draft, self.layout)
-        self.assertNotIn("reference_genome", manual.preview)
-        self.assertNotIn("reference_genome", manual.draft)
+        self.assertEqual(manual.preview["reference_genome"]["build"], "custom")
+        self.assertNotIn("id", manual.draft["reference_genome"])
+        self.assertEqual(manual.draft["reference_genome"]["fasta_sha256"], entry["fasta_sha256"])
 
     def test_tables_only_never_schedule_calling_or_require_a_reference(self):
         prepared = prepare_analysis(self.draft("tables", snp=["contamination"]), self.layout)
@@ -219,6 +223,34 @@ class GuiPlanTests(GuiFixture):
 
 
 class GuiServiceTests(GuiFixture):
+    def test_verified_macos_update_can_be_revealed_without_starting_an_installer(self):
+        from nipat.updates import UpdateAsset, UpdateCheck, UpdateOffer
+        for platform in ("darwin-arm64", "darwin-x86_64"):
+            with self.subTest(platform=platform):
+                package = self.file(platform + ".pkg", "test package")
+                asset = UpdateAsset(platform, package.name, package.stat().st_size,
+                                    hashlib.sha256(package.read_bytes()).hexdigest(), "https://example.test/pkg")
+                offer = UpdateOffer("0.9.11", "v0.9.11", "stable", "a" * 40, 1, asset, "https://example.test/release")
+                service = self.service()
+                with (patch("nipat.updates.UpdateClient") as client,
+                      patch("nipat.updates.detect_platform", return_value=platform),
+                      patch("nipat.update_handoff.update_cache_directory", return_value=self.root),
+                      patch("nipat.update_handoff.begin_update") as handoff,
+                      patch("nipat.gui.service.subprocess.run") as native):
+                    client.return_value.check.return_value = UpdateCheck("available", "Available", offer)
+                    client.return_value.download.return_value = package
+                    token = service.call("updates.check", {"channel": "stable"})["offer_id"]
+                    with self.assertRaises(ValidationError):
+                        service.call("updates.reveal", {"offer_id": token})
+                    downloaded = service.call("updates.download", {"offer_id": token})
+                    self.assertEqual(downloaded["path"], str(package))
+                    native.assert_not_called()
+                    self.assertEqual(service.call("updates.reveal", {"offer_id": token}), {"status": "revealed"})
+                    native.assert_called_once_with(["/usr/bin/open", "-R", str(package)], check=True, timeout=15)
+                    self.assertEqual(service.call("updates.install", {"offer_id": token, "confirmed": True}),
+                                     {"status": "manual_install", "path": str(package), "close_required": False})
+                    handoff.assert_not_called()
+
     def test_result_statistics_cache_survives_navigation_but_not_locale_change(self):
         service = self.service()
         first = service._results()

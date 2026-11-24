@@ -61,6 +61,8 @@ If Windows blocks the downloaded command file, first verify the original release
 
 **Testing a candidate from Actions.** Extract the GitHub artifact first. The full Windows build artifact (`nipat-windows-setup`) also contains an EXE, a payload ZIP and build reports. Open the inner `NIPAT-<version>-Windows-complete.zip`, extract it into its own permanent directory and follow steps 2–4 above. The Windows ZIP-only artifact (`newpat-windows-review-zip`) supplies the same type of inner archive. Its `windows-zip-build.json` records the exact ZIP filename, SHA-256, version and source commit for comparison. [Review builds](CI_CD.md)
 
+**If you already installed a candidate with the stable version number.** Compare `source_commit` in the active `NIPAT\current.json` with the full commit of the published release tag. Automatic updates look for higher version numbers. When the commits differ, the ZIP installer also rejects installation over that candidate in the same root. To use the published ZIP, close NewPat, extract it into a separate permanent directory and follow steps 2–4. Keep the candidate directory and its data and runs. The new installation has its own folders. To view an existing experiment, use **Open folder** in the results archive and select its existing run directory.
+
 **Moving from 0.9.9.** The published 0.9.9 ZIP uses `1_INSTALLA.cmd`, `2_AVVIA.cmd` and `LEGGIMI.txt`. Its updater expects those exact archive members. The first move to the English layout requires the new ZIP. Close NewPat, extract that ZIP into a fresh temporary directory and open PowerShell there. Set the existing installation path to the directory that contains your `installation.json`, `data` and `runs`, then run:
 
 ```powershell

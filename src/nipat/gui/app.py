@@ -201,7 +201,8 @@ class DesktopApplication:
     def prepare_igv(self, params):
         from .igv import LocalIGV
         ui = self.service.ui_get() if hasattr(self.service, "ui_get") else {}
-        return LocalIGV(self.server.register, language=ui.get("language", "it")).prepare(params)
+        return LocalIGV(self.server.register, language=ui.get("language", "it"),
+                        register_reference=self.server.register).prepare(params)
 
     def save_igv_session(self, params):
         session = params.get("session")

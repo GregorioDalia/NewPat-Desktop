@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import re
+import subprocess
 import threading
 import uuid
 
@@ -86,7 +87,7 @@ class GuiService:
             "installation.get": self.installation_get,
             "installation.maintain": self.installation_maintain,
             "updates.check": self.updates_check, "updates.download": self.updates_download,
-            "updates.install": self.updates_install,
+            "updates.install": self.updates_install, "updates.reveal": self.updates_reveal,
         }
         if method in handlers:
             return handlers[method](**params)
@@ -497,15 +498,31 @@ class GuiService:
         return {"offer_id": offer_id, "status": "verified", "path": str(downloaded),
                 "offer": asdict(offer)}
 
-    def updates_install(self, offer_id: str, confirmed: bool = False) -> dict:
-        if confirmed is not True:
-            raise ValidationError("Confermare l’installazione dell’aggiornamento verificato.")
-        if self.jobs.active()["active"]:
-            raise ValidationError("Attendere il termine dell’analisi prima dell’aggiornamento.")
+    def _downloaded_update(self, offer_id: str):
         with self._lock:
             selected, downloaded = self._update_offers.get(offer_id), self._downloads.get(offer_id)
         if selected is None or downloaded is None:
             raise ValidationError("Scaricare e verificare l’aggiornamento prima di installarlo.")
+        return selected[1], downloaded
+
+    def updates_reveal(self, offer_id: str) -> dict:
+        offer, downloaded = self._downloaded_update(offer_id)
+        if not offer.asset.platform.startswith("darwin-") or not downloaded.is_file():
+            raise ValidationError("Il pacchetto macOS scaricato non è disponibile.")
+        try:
+            subprocess.run(["/usr/bin/open", "-R", str(downloaded)], check=True, timeout=15)
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise ValidationError("Impossibile mostrare il pacchetto nel Finder.") from exc
+        return {"status": "revealed"}
+
+    def updates_install(self, offer_id: str, confirmed: bool = False) -> dict:
+        if confirmed is not True:
+            raise ValidationError("Confermare l’installazione dell’aggiornamento verificato.")
+        offer, downloaded = self._downloaded_update(offer_id)
+        if offer.asset.platform.startswith("darwin-"):
+            return {"status": "manual_install", "path": str(downloaded), "close_required": False}
+        if self.jobs.active()["active"]:
+            raise ValidationError("Attendere il termine dell’analisi prima dell’aggiornamento.")
         from nipat.update_handoff import begin_update
-        result = begin_update(selected[1], downloaded, self.layout.project_dir)
+        result = begin_update(offer, downloaded, self.layout.project_dir)
         return {"status": "handoff_started" if result else "not_started", "close_required": bool(result)}

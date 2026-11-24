@@ -205,7 +205,7 @@ def test_result_igv_uses_recorded_sources_and_rerun_returns_independent_draft(re
     write(run / "gui.json", {"schema_version": 1, "name": "testgrafico1", "draft": draft})
     service = GuiService(layout, preferences_store=PreferencesStore(tmp_path / "prefs.json"), run_observer=observer(recorded))
     result = service.call("run.igv", {"run_id": run.name, "locus": "1:100-200"})
-    assert result == {"reference": {"fasta": str(reference), "index": ""}, "tracks": [
+    assert result == {"reference": {"fasta": str(reference), "index": "", "historical_identity_incomplete": True}, "tracks": [
         {"name": "SampleA", "path": str(bam)}], "locus": "1:100-200"}
     assert service.call("runs.get", {"run_id": run.name})["has_igv_inputs"]
     repeat = service.call("run.reuse", {"run_id": run.name})

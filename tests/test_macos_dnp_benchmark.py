@@ -1,9 +1,29 @@
 import json
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
 
 from scripts import benchmark_macos_dnp as benchmark
+
+
+def test_startup_report_separates_existing_checks_without_timing_additional_commands():
+    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    def stamp(seconds):
+        return start.replace(second=seconds).isoformat()
+    record = {
+        "commands": [{"started_at": stamp(12)}],
+        "checks": [
+            {"argv": ["python", "-c", "runpy...", "/app/src", "ensure"],
+             "started_at": stamp(2), "finished_at": stamp(6)},
+            {"argv": ["limactl", "shell", "docker", "run", "python3", "/opt/nipat/engine/main.py", "describe", "--json"],
+             "started_at": stamp(7), "finished_at": stamp(9)},
+            {"argv": ["docker", "inspect"], "started_at": stamp(9), "finished_at": stamp(11)},
+        ],
+    }
+    assert benchmark.startup_timings(record, start) == {
+        "launcher_to_first_command_seconds": 12, "runtime_ensure_seconds": 4, "engine_describe_seconds": 2}
+    assert benchmark.startup_timings({}, start) == {}
 
 
 @pytest.mark.parametrize(("interrupt", "include_four"), [(False, False), (False, True), (True, False)])
@@ -60,6 +80,8 @@ def test_benchmark_keeps_native_digests_and_available_diagnostics(tmp_path, monk
         return
     benchmark.compare(args)
     report = json.loads((output / "benchmark.json").read_text())
+    assert report["initial_prepare_seconds"] >= 0
+    assert all(case["startup"] == {} for case in report["cases"])
     assert report["serial_tables_sha256"] == {"samples": {"genotype-matrix": "a" * 64},
                                                "genotype_matrix": "b" * 64}
     serial, two, auto, *extra = report["cases"]

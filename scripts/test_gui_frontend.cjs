@@ -109,6 +109,21 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
  check(app.choiceLabel('both')==='Both site selections'&&env.NipatI18n.t('frequencyDomain').includes('zero is excluded'),'English scientific labels carry the same meaning');
  app.onValue({dataset:{field:'source'},type:'select-one',value:'tables'});check(app.state.draft.caller==='tables'&&app.state.draft.samples.length===0,'Tables path excludes raw input calling');app.state.sampleKind='dnp-table';dialogPaths=['/counts/A.txt'];await app.action('add-samples',{});app.onValue({dataset:{branch:'DNP|cpin'},type:'checkbox',checked:true});check(app.selectedModules().join(',')==='cpin','Tables-only CPIN does not run DNP or SNP');
  await app.navigate('settings');await app.action('save-preferences',{});check(requests.some(r=>r.method==='preferences.save'&&r.params.baseline),'Preferences save uses concurrency baseline');await app.navigate('environment');app.state.runtimeMemory=4096;app.state.runtimeCpus=2;await app.action('preview-resources',{});check(!requests.some(r=>r.method==='resources.apply'),'Resource preview makes no mutation');await app.action('apply-resources',{});check(requests.at(-2).method==='resources.apply'&&requests.at(-2).params.confirmed,'Resources apply only confirmed preview');await app.action('check-updates',{});await app.action('download-update',{});await app.action('confirm-install-update',{});check(requests.at(-1).method==='app.close','Successful install handoff requests native close');
+ const previousCheck=handlers['updates.check'],previousDownload=handlers['updates.download'],previousLanguage=env.NipatI18n.language;
+ for(const [language,architecture,caption] of [['it','arm64','Mostra nel Finder'],['en','x86_64','Show in Finder']]){
+  env.NipatI18n.setLanguage(language);
+  handlers['updates.check']=()=>({status:'available',offer_id:architecture,offer:{version:'0.9.11',channel:'stable',asset:{platform:'darwin-'+architecture}}});
+  handlers['updates.download']=()=>({status:'verified',path:'/Users/A & B/Library/Caches/NewPat-'+architecture+'.pkg'});
+  handlers['updates.reveal']=()=>({status:'revealed'});
+  const before=requests.length;
+  await app.action('check-updates',{});await app.action('download-update',{});
+  const update=element('main').innerHTML;
+  check(update.includes('A &amp; B/Library/Caches/NewPat-'+architecture+'.pkg')&&update.includes(caption)&&!update.includes('data-action="install-update"'),'Verified Mac package and manual action in '+language);
+  await app.action('reveal-update',{});
+  check(requests.at(-1).method==='updates.reveal'&&requests.at(-1).params.offer_id===architecture,'Finder receives only the selected offer');
+  check(!requests.slice(before).some(r=>r.method==='updates.install'||r.method==='app.close'),'Mac manual installation keeps the application open');
+ }
+ handlers['updates.check']=previousCheck;handlers['updates.download']=previousDownload;delete handlers['updates.reveal'];env.NipatI18n.setLanguage(previousLanguage);
  await app.navigate('igv');app.state.igv.reference={fasta:'/ref.fa',index:'/ref.fa.fai'};app.state.igv.tracks=[{name:'Sample',path:'/a.bam',index:'/a.bam.bai'}];await app.action('igv-load',{});check(env.viewer&&requests.some(r=>r.method==='igv.prepare'&&r.params.reference.fasta==='/ref.fa'),'IGV registers real local source paths');app.state.igv.locus='chr1:100-200';await app.action('igv-search',{});check(env.locus==='chr1:100-200','Locus search reaches embedded IGV');app.state.igv.reference.fasta='/unapplied.fa';await app.action('igv-save',{});check(!JSON.stringify(requests.at(-1).params).includes('/token/'),'Saved IGV session contains no ephemeral capability URL');check(requests.at(-1).params.session.reference.fasta==='/ref.fa','IGV session saves the displayed sources, not unapplied form edits');
 
  // Regression coverage for real service contracts and stale asynchronous responses.

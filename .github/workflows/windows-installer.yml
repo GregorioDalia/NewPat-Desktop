@@ -11,6 +11,10 @@ on:
         required: false
         default: false
         type: boolean
+      observed_baseline:
+        description: Observed baseline commit for the full build (defaults to the previous acceptance record)
+        required: false
+        type: string
       qualify_macos_runtime:
         description: Run real VM tests on trusted dedicated Mac runners (requires both architectures)
         required: false
@@ -28,6 +32,9 @@ concurrency:
 jobs:
   release-source:
     if: ${{ !inputs.windows_zip_only }}
+    env:
+      NIPAT_CHECK_ACCEPTANCE_DELTA: '1'
+      NIPAT_OBSERVED_BASELINE: ${{ inputs.observed_baseline }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

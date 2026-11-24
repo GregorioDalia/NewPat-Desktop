@@ -65,9 +65,10 @@ FIELDS = {
     "Pair": ("Coppia", "Pair"), "Trio": ("Trio", "Trio"), "Marker_type": ("Marcatori", "Markers"),
     "Analysis": ("Selezione dei siti", "Site selection"),
     "N_sites_mother": ("Siti informativi materni", "Maternal informative sites"),
-    "N_sites_father": ("Siti informativi paterni", "Paternal informative sites"),
+    "N_sites_father": ("Siti paterni candidati", "Paternal candidate sites"),
+    "paternal_used_at_median": ("Siti paterni usati per il CPI alla soglia mediana", "Paternal sites used for CPI at the median threshold"),
     "InfSites_mother": ("Siti informativi materni", "Maternal informative sites"),
-    "InfSites_father": ("Siti informativi paterni", "Paternal informative sites"),
+    "InfSites_father": ("Siti paterni usati per il CPI a questa soglia", "Paternal sites used for CPI at this threshold"),
     "Median_fetal_fraction_raw": ("Frazione fetale mediana", "Median fetal fraction"),
     "Median_fetal_fraction_percent": ("Frazione fetale mediana", "Median fetal fraction"),
     "Max_logCPI": ("Massimo log₁₀(CPI)", "Maximum log₁₀(CPI)"),
@@ -710,9 +711,22 @@ class ResultsStore:
             reference["index"] = recorded["index"]
             if recorded["build"] != "custom":
                 reference["build"] = recorded["build"]
-            digest = recorded.get("index_sha256")
-            if isinstance(digest, str) and re.fullmatch(r"[0-9a-f]{64}", digest):
-                reference["index_sha256"] = digest
+            for key in ("fasta_sha256", "index_sha256", "gzi_sha256"):
+                if key in recorded:
+                    reference[key] = recorded[key]
+        if fasta:
+            # Older runs may have captured full digests in the input manifest.
+            evidence = context.get("metadata", {}).get("inputs", [])
+            files = {row["path"]: row["sha256"] for row in evidence if isinstance(row, dict)
+                     and isinstance(row.get("path"), str) and row.get("sha256")} if isinstance(evidence, list) else {}
+            required = {"fasta_sha256": fasta, "index_sha256": fasta + ".fai"}
+            if fasta.lower().endswith((".gz", ".bgz", ".bgzf")):
+                required["gzi_sha256"] = fasta + ".gzi"
+            for key, path in required.items():
+                if key not in reference and path in files:
+                    reference[key] = files[path]
+            if not required.keys() <= reference.keys():
+                reference["historical_identity_incomplete"] = True
         return reference, tracks
 
     def _run_record(self, run_id, context=None):
@@ -794,6 +808,11 @@ class ResultsStore:
                     # Do not use presentation copies to overwrite canonical identity.
                     if "/presentation/" not in relative:
                         record = {k: v for k, v in info.items() if k in {"module", "marker", "step_id", "sample_id", "family_id", "native_family", "native_name", "analysis", "cutoff"}}
+                        support = value.get("prenatal_support")
+                        if isinstance(support, dict):
+                            used = support.get("paternal_used_at_median")
+                            if type(used) is int and used >= 0:
+                                record["paternal_used_at_median"] = used
                         if isinstance(value.get("sha256"), str):
                             record["recorded_sha256"] = value["sha256"]
                         index[relative] = {**index.get(relative, {}), **record}
@@ -1206,10 +1225,17 @@ class ResultsStore:
                                                        (not analysis or f.get("analysis") == analysis)]
                             site = next((f for f in related if f["name"].endswith("_sites.tsv")), None)
                             entry["site_file_id"] = site["id"] if site else None
+                            if key[0] == "cpi":
+                                counts = [f["paternal_used_at_median"] for f in related
+                                          if f["id"] in entry["curve_file_ids"] and "paternal_used_at_median" in f]
+                                if len(counts) == 1:
+                                    row["paternal_used_at_median"] = str(counts[0])
                             metric_keys = (["Median_fetal_fraction_percent", "CPI_medianFF", "N_sites_mother", "N_sites_father"]
                                            if key[0] == "cpi" else ["CPI", "Log10_CPI", "N_sites", "Matching_sites", "Mismatching_sites"])
+                        if "paternal_used_at_median" in row and key[0] == "cpi":
+                            metric_keys.append("paternal_used_at_median")
                         entry["metrics"] = [self._metric(k, row.get(k)) for k in metric_keys]
-                        summary_keys = (("CPI_medianFF", "N_sites_mother", "N_sites_father", "Median_fetal_fraction_percent")
+                        summary_keys = (("CPI_medianFF", *metric_keys[2:], "Median_fetal_fraction_percent")
                                         if key[0] == "cpi" else metric_keys)
                         entry["summary"] = {
                             "kind": {"cpi": "prenatal_cpi", "cpin": "postnatal_cpi", "contamination": "contamination"}[key[0]],

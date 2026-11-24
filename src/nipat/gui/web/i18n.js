@@ -1,6 +1,13 @@
 /* UI translations never change scientific values, persisted keys or source files. */
 window.NipatI18n = (() => {
 const strings = {
+ checkUpdates:['Controlla aggiornamenti','Check for updates'],
+ downloadAndVerify:['Scarica e verifica','Download and verify'],
+ installAndClose:['Installa e chiudi NewPat','Install and close NewPat'],
+ installMacUpdateHelp:['Pacchetto verificato. Mostralo nel Finder, attendi la fine degli esperimenti e chiudi tutte le sessioni NewPat. Poi apri il file .pkg nel Finder per installarlo.','Package verified. Show it in Finder, wait for your experiments to finish and quit all NewPat sessions. Then open the .pkg file in Finder to install it.'],
+ showInFinder:['Mostra nel Finder','Show in Finder'],
+ showInFinderFailed:['Se il Finder non mostra il pacchetto, premi ⇧⌘G nel Finder e incolla il percorso indicato. Se il file è stato spostato, ripeti il controllo e il download.','If Finder cannot show the package, press ⇧⌘G in Finder and paste the path shown. If the file has moved, check for updates and download it again.'],
+ historicalReferenceUnverified:['Le impronte del riferimento conservate per questo esperimento sono incomplete. Controlla che il FASTA e gli indici selezionati siano quelli usati per l’analisi.','This experiment has an incomplete reference fingerprint. Check that the selected FASTA and indexes are the files used for the analysis.'],
  referenceAssembly:['Genoma di riferimento','Reference assembly'],
  directFasta:['Scegli un file FASTA','Choose a FASTA file'],
  savedCustomFasta:['Altri riferimenti locali','Other local references'],
@@ -69,7 +76,7 @@ const strings = {
  curveView:["Vista dei grafici", "Chart view"],
  combinedCurve:["Vista combinata", "Combined view"],
  separateCurves:["Viste separate", "Separate views"],
- combinedIdentityAxes:["Nero: log₁₀(CPI), asse sinistro. Verde: siti compatibili; arancione: siti incompatibili, asse destro. Come nella vista prenatale storica, i due assi condividono la scala numerica ma hanno unità diverse.", "Black: log₁₀(CPI), left axis. Green: matching sites; orange: mismatching sites, right axis. As in the historical prenatal view, both axes share a numeric scale but have different units."],
+ combinedIdentityAxes:["Nero: log₁₀(CPI), asse sinistro. Verde: siti senza incompatibilità registrata; arancione: siti incompatibili, asse destro. Come nella vista prenatale storica, i due assi condividono la scala numerica ma hanno unità diverse.", "Black: log₁₀(CPI), left axis. Green: sites without a recorded mismatch; orange: mismatching sites, right axis. As in the historical prenatal view, both axes share a numeric scale but have different units."],
  combinedAffineAxes:["Nero: log₁₀(CPI), asse sinistro. Verde: siti compatibili; arancione tratteggiato: siti incompatibili, asse destro. I conteggi usano una scala distinta e reversibile; il dettaglio mostra sempre i valori originali.", "Black: log₁₀(CPI), left axis. Green: matching sites; dashed orange: mismatching sites, right axis. Counts use a distinct, reversible scale; details always show original values."],
  combinedNoGuides:["Guide archiviate non disponibili: la scala è basata sui valori presenti, con un margine di visualizzazione quando sono costanti.", "Archived guides are unavailable: the scale uses the observed values, with display padding when they are constant."],
  combinedUnavailable:["La vista combinata richiede log₁₀(CPI) e i due conteggi di siti. Consulta le viste separate o i file originali.", "The combined view requires log₁₀(CPI) and both site counts. Consult separate views or original files."],

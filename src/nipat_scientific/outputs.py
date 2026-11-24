@@ -222,6 +222,78 @@ def _dnp_genotypes(output_dir: Path, root: Path, sample_names: list[str], loci: 
     return artifact, genotypes
 
 
+def _prenatal_curve_support(curve: Path, summary: dict, cutoff: str) -> dict:
+    """Validate the dense native curve and recover support for the reported estimate."""
+    counts = ("InfSites_mother", "InfSites_father", "Mismatch", "NotMismatch")
+    columns = {"Iteration", *counts, "CPI", "log_CPI", "Cutoff"}
+    minimum = int(float(summary["Min_fetal_reads"]))
+    maternal = nonnegative_integer(summary["N_sites_mother"], curve, 1, "N_sites_mother")
+    candidates = nonnegative_integer(summary["N_sites_father"], curve, 1, "N_sites_father")
+    if candidates > maternal:
+        raise PlanExecutionError("execution.output", f"{curve.name}: paternal candidates exceed maternal sites.")
+    support = {"minimum_fetal_reads": minimum, "paternal_candidates": candidates,
+               "paternal_used": 0, "missing_frequency": 0, "unassigned_father": 0,
+               "median_fetal_reads": None, "paternal_used_at_median": 0}
+    previous = previous_log = None
+    lower = upper = None
+    for offset, (number, row) in enumerate(table_rows(curve, columns, "Prenatal CPI curve")):
+        threshold = nonnegative_integer(row["Iteration"], curve, number, "Iteration")
+        values = tuple(nonnegative_integer(row[key], curve, number, key) for key in counts)
+        mother, father, mismatch, no_mismatch = values
+        with_frequency = mismatch + no_mismatch
+        if (threshold != minimum + offset or row["Cutoff"] != cutoff or mother == 0
+                or not mismatch <= father <= with_frequency <= min(mother, candidates)
+                or (previous is not None and any(now > before for now, before in zip(values, previous)))):
+            raise PlanExecutionError("execution.output", f"{curve.name}: inconsistent counts, cutoff or threshold at row {number}.")
+        if previous is None:
+            if mother != maternal:
+                raise PlanExecutionError("execution.output", f"{curve.name}: maternal count differs from summary.")
+            support.update(paternal_used=father, missing_frequency=candidates - with_frequency,
+                           unassigned_father=with_frequency - father)
+        log_value = None
+        if father:
+            try:
+                raw, log_value = float(row["CPI"]), float(row["log_CPI"])
+            except ValueError as exc:
+                raise PlanExecutionError("execution.output", f"{curve.name}: invalid CPI at row {number}.") from exc
+            # Exponentiation may legitimately underflow to zero or overflow to Inf.
+            if math.isnan(raw) or raw < 0 or not math.isfinite(log_value):
+                raise PlanExecutionError("execution.output", f"{curve.name}: invalid CPI at row {number}.")
+        elif (row["CPI"], row["log_CPI"]) != ("NA", "NA"):
+            raise PlanExecutionError("execution.output", f"{curve.name}: CPI without a contributing site at row {number}.")
+        if previous is not None and father == previous[1] and log_value != previous_log:
+            raise PlanExecutionError("execution.output", f"{curve.name}: log CPI changed with the same contributing sites at row {number}.")
+        # Site support is an integer. Its two central observations are the last
+        # thresholds retaining respectively more than and at least half the loci.
+        if 2 * mother > maternal:
+            lower = threshold, father, log_value
+        if 2 * mother >= maternal:
+            upper = threshold, father, log_value
+        previous, previous_log = values, log_value
+    if maternal and lower is None:
+        raise PlanExecutionError("execution.output", f"{curve.name}: missing curve for informative maternal sites.")
+    median_log = None
+    if lower is not None:
+        middle = round((lower[0] + upper[0]) / 2)
+        # With even N there are no loci with support between the central two.
+        # Above the lower endpoint every row through the upper one has the same sites.
+        _, used, median_log = lower if middle == lower[0] else upper
+        support.update(median_fetal_reads=middle, paternal_used_at_median=used)
+    reported = summary["CPI_medianFF"]
+    if median_log is None:
+        agrees = reported == "NA"
+    else:
+        try:
+            # R publishes the summary rounded to three decimals; the curve retains
+            # the unrounded log with R's usual text serialization precision.
+            agrees = math.isclose(float(reported), median_log, abs_tol=0.000500000001, rel_tol=5e-15)
+        except ValueError:
+            agrees = False
+    if not agrees:
+        raise PlanExecutionError("execution.output", f"{curve.name}: median-threshold log CPI differs from the summary.")
+    return support
+
+
 def _collect_cpi_outputs(step: dict, request: dict, root: Path, output_dir: Path) -> dict:
     summary = output_dir / "Summary_FetalFraction_CPI.csv"
     artifact = _artifact(summary, root, output_dir)
@@ -252,10 +324,6 @@ def _collect_cpi_outputs(step: dict, request: dict, root: Path, output_dir: Path
         if key in found:
             raise PlanExecutionError("execution.output", "CPI summary contains duplicate pair/cutoff rows.")
         found[key] = number
-        counts = [nonnegative_integer(row[column], summary, number + 1, column)
-                  for column in ("N_sites_mother", "N_sites_father")]
-        warnings.extend(_numeric_warnings(row, _CPI_COLUMNS - {"Pair", "Marker_type", "N_sites_mother", "N_sites_father"},
-                                         summary, number + 1, allow_missing=0 in counts))
     if set(found) != expected:
         raise PlanExecutionError("execution.output", "CPI summary does not match the declared pairs and cutoffs.")
     plots = output_dir / "plots"
@@ -263,8 +331,6 @@ def _collect_cpi_outputs(step: dict, request: dict, root: Path, output_dir: Path
     if {path.name for path in plots.glob("*.pdf")} != expected_plots:
         raise PlanExecutionError("execution.output", "CPI plots do not match the declared pair identities.")
     curves = output_dir / "curves"
-    curve_columns = {"Iteration", "InfSites_mother", "InfSites_father", "CPI", "log_CPI",
-                     "Mismatch", "NotMismatch", "Cutoff"}
     expected_curves = set()
     pairs = []
     for pair in bindings:
@@ -272,8 +338,23 @@ def _collect_cpi_outputs(step: dict, request: dict, root: Path, output_dir: Path
         for index, cutoff in enumerate(cutoffs, 1):
             curve = curves / f"{pair['native_pair']}_panel_{index}.tsv"
             expected_curves.add(curve.name)
-            _output_columns(curve, curve_columns)
-            curves_for_pair.append({"cutoff": cutoff, **_artifact(curve, root, output_dir)})
+            curve_artifact = _artifact(curve, root, output_dir)
+            number = found[(pair["native_pair"], cutoff)]
+            row = rows[number - 1]
+            support = _prenatal_curve_support(curve, row, cutoff if cutoff is not None else "ALL")
+            curves_for_pair.append({"cutoff": cutoff, "prenatal_support": support, **curve_artifact})
+            context = {"Pair": pair["native_pair"], "Cutoff": cutoff or "ALL"}
+            for field, reason in (("missing_frequency", "no population frequency"),
+                                  ("unassigned_father", "unassigned paternal genotype")):
+                if support[field]:
+                    warnings.append({"code": f"output.cpi_{field}", "file": curve.name, "row": 2,
+                                     "column": "InfSites_father", "value": str(support[field]), "context": context,
+                                     "message": f"{support[field]} paternal candidate site(s) excluded at the minimum fetal read threshold: {reason}."})
+            fetal = {"Median_fetal_fraction_raw", "Median_fetal_fraction_percent"}
+            log_stats = {"Max_logCPI", "Min_logCPI", "Median_logCPI", "Mean_logCPI"}
+            for fields, used in ((fetal, support["median_fetal_reads"] is not None), (log_stats, support["paternal_used"]),
+                                 ({"CPI_medianFF"}, support["paternal_used_at_median"])):
+                warnings.extend(_numeric_warnings(row, fields, summary, number + 1, allow_missing=not used))
         pairs.append({
             "pair": pair["pair"], "mother": pair["mother"], "father": pair["father"],
             "native_pair": pair["native_pair"],

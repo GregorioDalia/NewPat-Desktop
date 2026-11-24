@@ -12,11 +12,13 @@ import re
 import struct
 
 from nipat.errors import ValidationError
+from nipat.execution.tracking import input_stat_snapshot
 
 
 class LocalIGV:
-    def __init__(self, register, *, language="it"):
+    def __init__(self, register, *, language="it", register_reference=None):
         self.register = register
+        self.register_reference = register_reference or (lambda path, **_: register(path))
         self.language = language
 
     def text(self, italian, english):
@@ -235,17 +237,34 @@ class LocalIGV:
         fai = self.local_file(reference.get("index") or str(automatic_fai), "FAI")
         expected_digest = reference.get("index_sha256")
         chromosomes = self.fasta_index(fasta, fai, expected_sha256=expected_digest)
+        from .references import indexed_reference_identity
+        gzi = None
+        if fasta.suffix.lower() in (".gz", ".bgz", ".bgzf"):
+            gzi = self.local_file(reference.get("compressedIndex") or str(fasta) + ".gzi", "GZI")
+        files = (fasta, fai, gzi) if gzi else (fasta, fai)
+        identities = {p: input_stat_snapshot(p.stat()) for p in files}
+        actual = indexed_reference_identity(fasta, fai, gzi=gzi, language=self.language)
+        for key, digest in actual.items():
+            expected = reference.get(key)
+            if expected is None:
+                continue
+            if not isinstance(expected, str) or not re.fullmatch(r"[0-9a-f]{64}", expected):
+                self.fail("Impronta SHA-256 del riferimento non valida.", "Invalid reference SHA-256 digest.")
+            if digest != expected:
+                self.fail("Il FASTA o il suo indice differisce da quello registrato. Ripristina i file originali.",
+                          "The FASTA or its index differs from the recorded reference. Restore the original files.")
         locus = self.locus(params.get("locus"), chromosomes)
-        ref = {"id": "nipat-local", "name": fasta.name,
-               "fastaURL": self.register(fasta)["url"], "indexURL": self.register(fai)["url"]}
-        sources = {"reference": {"fasta": str(fasta), "index": str(fai)}, "tracks": []}
+        if any(input_stat_snapshot(p.stat()) != identity for p, identity in identities.items()):
+            self.fail("Il riferimento è cambiato durante il controllo.", "The reference changed during verification.")
+        urls = {p: self.register_reference(p, expected_identity=identity)["url"] for p, identity in identities.items()}
+        ref = {"id": "nipat-local", "name": fasta.name, "fastaURL": urls[fasta], "indexURL": urls[fai]}
+        sources = {"reference": {"fasta": str(fasta), "index": str(fai), **actual}, "tracks": []}
+        if reference.get("historical_identity_incomplete"):
+            sources["reference"]["historical_identity_incomplete"] = True
         if build in ("grch37", "grch38"):
             sources["reference"]["build"] = build
-        if expected_digest is not None:
-            sources["reference"]["index_sha256"] = expected_digest
-        if fasta.name.lower().endswith((".gz", ".bgz", ".bgzf")):
-            gzi = self.local_file(reference.get("compressedIndex") or str(fasta) + ".gzi", "GZI")
-            ref["compressedIndexURL"] = self.register(gzi)["url"]
+        if gzi:
+            ref["compressedIndexURL"] = urls[gzi]
             sources["reference"]["compressedIndex"] = str(gzi)
         tracks = params.get("tracks", [])
         if not isinstance(tracks, list) or len(tracks) > 200:

@@ -14,6 +14,7 @@ import subprocess
 import tempfile
 import tarfile
 import tomllib
+from urllib.error import HTTPError
 from urllib.parse import urljoin
 import zipfile
 
@@ -22,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 from nipat.branding import (windows_complete_filename, windows_feed_filename, windows_package_generation,
                             windows_testing_filename)
 
+from nipat.updates import version_key
 from nipat.repository import OFFICIAL_REPOSITORIES, REPOSITORY_ID, build_repository, official_actions_context, release_urls
 
 REPO = build_repository()
@@ -810,6 +812,17 @@ def create_draft(tag, version, commit, notes, payload_path, channel="testing"):
                               "--input", str(payload_path)))
 
 
+def current_latest():
+    from scientific_reuse import fetch_json
+
+    try:
+        return fetch_json("releases/latest")
+    except HTTPError as error:
+        if error.code != 404:
+            raise
+        return None
+
+
 def process_release(operation, files, commit, tag, version, notes, root, channel="testing", draft_id=""):
     """Publishing never creates, repairs, replaces or adds assets to a prepared draft."""
     require(operation in {"prepare", "publish"}, "Unknown release operation")
@@ -835,16 +848,27 @@ def process_release(operation, files, commit, tag, version, notes, root, channel
         return prepared
     # Address the exact reviewed draft ID, rather than selecting a release by tag.
     # This is the only mutation in the publish phase; no build or asset upload occurs.
+    latest_id = None
+    if channel == "stable":
+        latest_id = release["id"]
+        previous = current_latest()
+        if previous is not None:
+            tag_name = previous.get("tag_name")
+            require(isinstance(tag_name, str) and re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+", tag_name)
+                    and type(previous.get("id")) is int and previous["id"] > 0,
+                    "Cannot identify the current Latest stable version")
+            if version_key(tag_name[1:]) >= version_key(version):
+                latest_id = previous["id"]
     payload = root / "publish-release.json"
     payload.write_text(json.dumps({"draft": False, "prerelease": channel == "testing",
-                                   "make_latest": "true" if channel == "stable" else "false"}), encoding="utf-8")
+                                   "make_latest": "true" if latest_id == release["id"] else "false"}), encoding="utf-8")
     command("gh", "api", f"repos/{REPO}/releases/{release['id']}", "--method", "PATCH", "--input", str(payload))
     published = api(f"releases/{release['id']}")
     require(published.get("id") == release["id"], "Unexpected published release ID")
     verify_uploaded(published, files, commit, tag, notes, complete=True, channel=channel, expect_draft=False)
     check_tag(tag, commit, required=True)
     if channel == "stable":
-        require(api("releases/latest").get("id") == published["id"], "Stable release was not confirmed as Latest")
+        require(api("releases/latest").get("id") == latest_id, "Unexpected Latest version after stable publication")
     return published
 
 

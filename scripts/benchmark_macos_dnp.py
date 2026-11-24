@@ -1,6 +1,7 @@
 """Compare DNP worker ceilings with the installed Apple Silicon package."""
 
 import argparse
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 import platform
@@ -47,6 +48,30 @@ def scientific_tables(work):
     return {"samples": digests, "genotype_matrix": matrix}
 
 
+def startup_timings(record, launched_at):
+    """Read host timestamps already recorded by the installed client."""
+    timings = {}
+    commands = record.get("commands") or []
+    if commands and commands[0].get("started_at"):
+        first = datetime.fromisoformat(commands[0]["started_at"])
+        seconds = (first - launched_at).total_seconds()
+        if seconds >= 0:
+            timings["launcher_to_first_command_seconds"] = round(seconds, 3)
+    for check in record.get("checks", []):
+        argv = check.get("argv", [])
+        if argv[-1:] == ["ensure"]:
+            field = "runtime_ensure_seconds"
+        elif argv[-3:] == ["/opt/nipat/engine/main.py", "describe", "--json"]:
+            field = "engine_describe_seconds"
+        else:
+            continue
+        if check.get("started_at") and check.get("finished_at"):
+            elapsed = datetime.fromisoformat(check["finished_at"]) - datetime.fromisoformat(check["started_at"])
+            if elapsed.total_seconds() >= 0:
+                timings[field] = round(elapsed.total_seconds(), 3)
+    return timings
+
+
 def compare(args):
     resources = args.app.expanduser().resolve() / "Contents/Resources"
     manifest = read_json(resources / "app/.distribution/macos-manifest.json")
@@ -66,7 +91,9 @@ def compare(args):
               "macOS": platform.mac_ver()[0], "image": manifest["runtime_image"], "cases": cases}
     print(f"Results: {output}", flush=True)
     try:
+        tick = time.monotonic()
         subprocess.run([launcher, "--runtime", "prepare"], check=True, stdin=subprocess.DEVNULL)
+        report["initial_prepare_seconds"] = round(time.monotonic() - tick, 3)
         baseline = None
         for number in range(args.rounds):
             start = number % len(conditions)
@@ -78,6 +105,7 @@ def compare(args):
                 cases.append(case)
                 with (output / f"{name}.log").open("x", encoding="utf-8") as log:
                     tick = time.monotonic()
+                    launched_at = datetime.now(timezone.utc)
                     proc = subprocess.run([launcher, "--runs-dir", str(run.parent), "--performance-diagnostics", *options, *dnp,
                                            "--run-name", name], stdin=subprocess.DEVNULL,
                                           stdout=log, stderr=subprocess.STDOUT)
@@ -87,6 +115,7 @@ def compare(args):
                 record = read_json(run / "run.json")
                 if record["status"] != "succeeded":
                     raise ValueError(f"{name}: unexpected status {record['status']}.")
+                case["startup"] = startup_timings(record, launched_at)
                 work = run / "work"
                 pileup = read_json(work / "dnp-pileup.json")
                 blocks = read_json(work / "dnp-blocks.json")

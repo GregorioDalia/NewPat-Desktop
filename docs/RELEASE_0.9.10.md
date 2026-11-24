@@ -10,6 +10,8 @@ Preferences can store named analysis profiles and select a default for new exper
 
 The DNP and SNP summaries show how many loci received a genotype for each sample. Read counts and genotype calls describe the sample at those loci. The Prenatal CPI summary compares the reported log index with the two guides recorded for that analysis. Postnatal CPI displays the estimates and curves produced by the current R script. Contamination shows the recorded estimate when informative sites are available. The DNP glossary explains that `NA` means the program could not determine a value.
 
+DNPcall and SNPcall now retain reads on supported contigs whose names contain `@`. SNPcall also accepts contig names containing `|` in both BAM and imported pileup workflows. When importing a pileup, SNPcall limits read expansion to positions within the requested panel windows.
+
 The installation includes an offline synthetic trio with example alignments, indexed reference, panels, frequencies and count tables for both marker types. Choose **Environment and help → Open demo** to review and run a prefilled DNP/SNP experiment with those three samples. Use **Save example data** to copy the dataset to a local folder, then follow its README to check the five analyses on the trio. The separate timing workload runs both callers on a single BAM with 128 loci across four contigs. [First run in Italian](QUICKSTART_IT.md)
 
 ## Human reference genomes

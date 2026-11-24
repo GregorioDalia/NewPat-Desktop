@@ -287,16 +287,17 @@ def reviewable_path(path, *, reliability=False, multiplatform=False, revised_r=F
         if path == "2_AVVIA.cmd":
             return not english_launcher or removed
         return bool(english_launcher)
-    # Permit only the listed artwork and example data from their introduction; exact before/after
+    # Permit the listed artwork, examples and scheduling report from their introduction; exact before/after
     # hashes still belong to the reviewed source delta.
-    if revised_r and path in NEWPAT_BRANDING_FILES | INTRECCIO_BRANDING_FILES | SYNTHETIC_TRIO_FILES:
+    if revised_r and path in (NEWPAT_BRANDING_FILES | INTRECCIO_BRANDING_FILES | SYNTHETIC_TRIO_FILES
+                              | {"docs/validation/0.9.10-desktop-scheduling.json"}):
         match = re.fullmatch(r"([0-9]+)\.([0-9]+)\.([0-9]+)(?:(?:a|b|rc)[0-9]+)?", version or "")
         minimum = (0, 9, 5) if path in NEWPAT_BRANDING_FILES else (0, 9, 10)
         if match and tuple(map(int, match.groups())) >= minimum:
             return True
     # This known development report is distributed as readable provenance. It
     # does not qualify the image; schema 7 still requires fresh installed-image
-    # evidence. Keep every other non-Markdown document outside the exception.
+    # evidence. Other reports require their own version-scoped exception.
     if revised_r and five_module_contract(version) and path == "docs/validation/0.8.50-development.json":
         return True
     if revised_r and five_module_contract(version) and path == CPIN_SOURCE:
@@ -1188,6 +1189,27 @@ def verify_scientific_equivalence(record, evidence_directory, manifest, read_sou
             "focused_scripts_verified": len(helpers), "pdfs_verified": plots_verified,
             "scope": "synthetic-equivalence-only", "domain_validation_claimed": False}
 
+
+def operative_inventory(data):
+    try:
+        lines = data.decode("utf-8").splitlines()
+    except UnicodeError as error:
+        raise ValueError("Invalid source inventory encoding") from error
+    paths = set()
+    for line in lines:
+        value = line.strip()
+        if not value or value.startswith("#"):
+            continue
+        path = PurePosixPath(value)
+        require(not path.is_absolute() and path.as_posix() == value and ".." not in path.parts
+                and "\\" not in value and value not in paths, "Invalid or duplicate source inventory path")
+        paths.add(value)
+    require("distribution-files.txt" in paths and REQUIRED_OPERATIVE_PATHS <= paths,
+            "Source inventory omits required operative inputs")
+    return {path for path in paths if path != "distribution-files.txt"
+            and not path.startswith(".github/") and PurePosixPath(path).suffix.casefold() != ".md"}
+
+
 def verify_baseline(record, read_source):
     """Compare operative source bytes; this does not assert installer or image identity.
 
@@ -1228,26 +1250,8 @@ def verify_baseline(record, read_source):
         require(isinstance(result, bytes), "Source equivalence requires exact file bytes")
         return result
 
-    def inventory(commit):
-        try:
-            lines = read(commit, "distribution-files.txt").decode("utf-8").splitlines()
-        except UnicodeError as error:
-            raise ValueError("Invalid source inventory encoding") from error
-        paths = set()
-        for line in lines:
-            value = line.strip()
-            if not value or value.startswith("#"):
-                continue
-            path = PurePosixPath(value)
-            require(not path.is_absolute() and path.as_posix() == value and ".." not in path.parts
-                    and "\\" not in value and value not in paths, "Invalid or duplicate source inventory path")
-            paths.add(value)
-        require("distribution-files.txt" in paths and REQUIRED_OPERATIVE_PATHS <= paths,
-                "Source inventory omits required operative inputs")
-        return {path for path in paths if path != "distribution-files.txt"
-                and not path.startswith(".github/") and PurePosixPath(path).suffix.casefold() != ".md"}
-
-    before, after = inventory(baseline), inventory(candidate)
+    before = operative_inventory(read(baseline, "distribution-files.txt"))
+    after = operative_inventory(read(candidate, "distribution-files.txt"))
     if reviewed_delta:
         changes = []
         unchanged = 0

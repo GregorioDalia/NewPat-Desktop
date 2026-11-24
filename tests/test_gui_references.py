@@ -1,4 +1,5 @@
 import gzip
+import hashlib
 import json
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
@@ -278,3 +279,54 @@ def test_blank_lines_between_fasta_records_match_faidx(tmp_path, catalog):
     path = fasta(tmp_path, b">a\nACGT\n\n>b\nTC\n\n")
     entry = catalog.register("custom", path)
     assert Path(entry["index"]).read_bytes() == b"a\t4\t3\t4\t5\nb\t2\t12\t2\t3\n"
+
+
+@pytest.mark.parametrize("compressed", [False, True])
+def test_interior_line_geometry_incompatible_with_fai(tmp_path, catalog, compressed):
+    # The first line, final base, chromosome size and total byte length still match.
+    data = b">chr1\nACGT\nAC\nGTACGT\nACGT\nACGT\n"
+    path = tmp_path / ("wrong.fa.bgz" if compressed else "wrong.fa")
+    path.write_bytes(bgzf_block(data) + bgzf_block(b"") if compressed else data)
+    if compressed:
+        Path(str(path) + ".gzi").write_bytes(struct.pack("<Q", 0))
+    Path(str(path) + ".fai").write_bytes(b"chr1\t20\t6\t4\t5\n")
+    with pytest.raises(ValidationError, match="indexes do not match"):
+        catalog.register("custom", path)
+    assert catalog.list()["entries"] == []
+
+
+def test_interior_gzi_entry_checked_even_in_one_contig(tmp_path, catalog):
+    chunks = [b">chr1\nACGT\n", b"ACGT\n", b"TGCA\n"]
+    blocks = [bgzf_block(chunk) for chunk in chunks]
+    path = tmp_path / "sequence.fa.gz"
+    path.write_bytes(b"".join(blocks) + bgzf_block(b""))
+    Path(str(path) + ".fai").write_bytes(b"chr1\t12\t6\t4\t5\n")
+    gzi = Path(str(path) + ".gzi")
+    gzi.write_bytes(struct.pack("<QQQQQ", 2, len(blocks[0]), len(chunks[0]),
+                                len(blocks[0]) + len(blocks[1]), len(chunks[0]) + len(chunks[1])))
+    entry = catalog.register("custom", path)
+    assert entry["fasta_sha256"] == hashlib.sha256(path.read_bytes()).hexdigest()
+    assert entry["gzi_sha256"] == hashlib.sha256(gzi.read_bytes()).hexdigest()
+    # Offset of the middle block is wrong, both contig endpoints remain correct.
+    data = bytearray(gzi.read_bytes())
+    data[16] += 1
+    gzi.write_bytes(data)
+    with pytest.raises(ValidationError, match="indexes do not match"):
+        catalog.register("custom", path)
+
+
+def test_existing_index_with_long_lines_and_sam_contig_name(tmp_path):
+    from nipat.gui.references import indexed_reference_identity
+    count = 1024 * 1024 + 1
+    path = tmp_path / "long.fa"
+    path.write_bytes(b">chr@10|test\n" + (b"A" * count + b"\r\n") * 2 + b"GT")
+    index = Path(str(path) + ".fai")
+    index.write_text(f"chr@10|test\t{2*count+2}\t13\t{count}\t{count+2}\n")
+    identity = indexed_reference_identity(path, index)
+    assert identity["fasta_sha256"] == hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def test_htslib_index_of_single_unterminated_sequence(tmp_path, catalog):
+    path = fasta(tmp_path, b">a\nAC")
+    Path(str(path) + ".fai").write_bytes(b"a\t2\t3\t2\t3\n")
+    assert catalog.register("custom", path)["available"]

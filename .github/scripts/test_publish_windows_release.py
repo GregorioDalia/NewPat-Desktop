@@ -1388,6 +1388,7 @@ class ReleaseGuards(unittest.TestCase):
             stack.enter_context(patch.object(publisher, "source_bytes", side_effect=lambda commit, path:
                 json.dumps(record).encode() if path.startswith(".github/release-acceptance/") else b"reviewed notes"))
             stack.enter_context(patch.object(publisher, "command", side_effect=command))
+            stack.enter_context(patch.object(publisher, "current_latest", return_value=None))
             stack.enter_context(patch.object(publisher, "api", side_effect=api))
             stack.enter_context(patch.object(publisher, "extract_build_source"))
             stack.enter_context(patch.object(publisher, "load_module", side_effect=load))
@@ -1520,7 +1521,8 @@ class ReleaseGuards(unittest.TestCase):
             files, prepared = self.prepared_draft(channel)
             published = dict(prepared, draft=False)
             responses = [prepared, published] + ([published] if channel == "stable" else [])
-            with self.subTest(channel=channel), patch.object(publisher, "api", side_effect=responses) as api, \
+            with self.subTest(channel=channel), patch.object(publisher, "current_latest", return_value=None), \
+                    patch.object(publisher, "api", side_effect=responses) as api, \
                     patch.object(publisher, "check_tag") as tag, \
                     patch.object(publisher, "command") as command, patch.object(publisher, "create_draft") as create:
                 result = publisher.process_release("publish", files, COMMIT, "v0.6.0", "0.6.0",
@@ -1535,6 +1537,33 @@ class ReleaseGuards(unittest.TestCase):
             tag.assert_called_with("v0.6.0", COMMIT, required=True)
             create.assert_not_called()
 
+    def test_latest_lookup_distinguishes_first_release_from_api_failure(self):
+        for status in (404, 403, 500):
+            error = publisher.HTTPError("https://api.github.com/", status, "fixture", {}, None)
+            with self.subTest(status=status), patch("scientific_reuse.fetch_json", side_effect=error):
+                if status == 404:
+                    self.assertIsNone(publisher.current_latest())
+                else:
+                    with self.assertRaises(publisher.HTTPError):
+                        publisher.current_latest()
+
+    def test_stable_publication_keeps_highest_numeric_latest(self):
+        files, draft = self.prepared_draft("stable")
+        for candidate, previous, promote in (("0.9.19", "0.9.100", False), ("0.9.100", "0.9.19", True)):
+            with self.subTest(candidate=candidate):
+                tag = "v" + candidate
+                prepared = dict(draft, tag_name=tag)
+                published = dict(prepared, draft=False)
+                old = {"tag_name": "v" + previous, "id": 99}
+                expected = published if promote else old
+                with patch.object(publisher, "current_latest", return_value=old), \
+                        patch.object(publisher, "api", side_effect=[prepared, published, expected]), \
+                        patch.object(publisher, "check_tag"), patch.object(publisher, "command"):
+                    publisher.process_release("publish", files, COMMIT, tag, candidate, "reviewed notes",
+                                              self.root, channel="stable", draft_id="42")
+                payload = json.loads((self.root / "publish-release.json").read_text())
+                self.assertEqual(payload["make_latest"], "true" if promote else "false")
+
     def test_publish_checks_result_assets_and_latest_pointer(self):
         files, prepared = self.prepared_draft("stable")
         published = dict(prepared, draft=False)
@@ -1542,7 +1571,8 @@ class ReleaseGuards(unittest.TestCase):
         tampered["assets"][0]["digest"] = "sha256:" + "0" * 64
         for responses, error in (([prepared, tampered], "integrity"),
                                  ([prepared, published, {"id": 99}], "Latest")):
-            with self.subTest(error=error), patch.object(publisher, "api", side_effect=responses), \
+            with self.subTest(error=error), patch.object(publisher, "current_latest", return_value=None), \
+                    patch.object(publisher, "api", side_effect=responses), \
                     patch.object(publisher, "check_tag"), patch.object(publisher, "command"):
                 with self.assertRaisesRegex(ValueError, error):
                     publisher.process_release("publish", files, COMMIT, "v0.6.0", "0.6.0",

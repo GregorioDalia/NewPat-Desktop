@@ -161,9 +161,12 @@ def test_cpi_log_scale_family_and_named_cutoff_curve_mapping(archive):
         relative = f"output/curves/{name}_panel_{n}.tsv"
         table(run / relative, ["Iteration", "log_CPI", "CPI"], [["2", "1.30102999566398", "20"]] if n == 1 else [])
         curves.append(artifact(run, relative, cutoff=cutoff))
+    curves[0]["prenatal_support"] = {"paternal_used_at_median": 2}
     validation(run, "cpi", {"cpi-pairs": [{"pair": "M:F", "native_pair": name, "mother": {"sample": "M"}, "father": {"sample": "F"}, "curves": curves}]})
     store = ResultsStore(archive)
     entries = store.overview("example")["modules"][0]["entries"]
+    assert summary_metrics(entries[0])["paternal_used_at_median"] == "2"
+    assert "paternal_used_at_median" not in summary_metrics(entries[1])
     assert entries[0]["family_label"] == "Materna.txt / Paterno.txt"
     assert entries[0]["metrics"][1]["unit"] == "log10"
     assert entries[0]["metrics"][1]["label"] == "log₁₀(CPI) alla soglia mediana di letture fetali"

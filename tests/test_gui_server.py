@@ -227,6 +227,17 @@ class DesktopTransportTests(unittest.TestCase):
         self.assertEqual(body, b"")
         self.assertEqual(source.read_bytes(), data)
 
+    def test_reference_range_refuses_replaced_file_after_opening_viewer(self):
+        from nipat.execution.tracking import input_stat_snapshot
+        source = self.root / "genome.fa"
+        source.write_bytes(b">a\nACGT\n")
+        route = urlsplit(self.server.register(source, expected_identity=input_stat_snapshot(source.stat()))["url"]).path
+        self.assertEqual(self.request("GET", route, headers={"Range": "bytes=3-6"})[2], b"ACGT")
+        replacement = self.root / "replacement.fa"
+        replacement.write_bytes(b">a\nTTTT\n")
+        replacement.replace(source)
+        self.assertEqual(self.request("GET", route, headers={"Range": "bytes=3-6"})[0], 409)
+
     def test_unsatisfiable_range_empty_file_and_removed_resource(self):
         path = self.root / "empty.bam"
         path.write_bytes(b"")

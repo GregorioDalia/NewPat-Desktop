@@ -15,6 +15,7 @@ from nipat.execution.analysis_plan import build_analysis_plan
 from nipat.execution.options import ExecutionOptions
 from nipat.execution.tracking import input_stat_snapshot
 from nipat.gui.igv import LocalIGV
+from nipat.gui.references import indexed_reference_identity, reference_files
 from nipat.paths import ProjectLayout
 from nipat.preferences import Preferences
 from nipat.scientific_options import effective_config, normalize_config
@@ -133,6 +134,13 @@ def prepare_analysis(draft: dict, layout: ProjectLayout,
     for marker in ("DNP", "SNP"):
         inputs[marker.lower() + "_analyses"] = _rows(branches.get(marker, []), "Analisi", 3)
     inputs["reference"] = _path(draft.get("reference"), "Riferimento FASTA")
+    initial_reference = {}
+    if inputs["samples"] and inputs["reference"]:
+        for path in reference_files(inputs["reference"]):
+            try:
+                initial_reference[path] = input_stat_snapshot(path.stat())
+            except FileNotFoundError:
+                initial_reference[path] = None
     # A reopened draft can carry a historical label. Only the selected local
     # entry can establish the identity of the FASTA for this new experiment.
     draft.pop("reference_genome", None)
@@ -148,7 +156,8 @@ def prepare_analysis(draft: dict, layout: ProjectLayout,
                                   "Il FASTA selezionato è diverso da quello in catalogo. Seleziona di nuovo il riferimento.")
         draft["reference_id"] = entry["id"]
         draft["reference_genome"] = {key: entry[key] for key in
-                                     ("id", "build", "label", "fasta", "index", "naming", "index_sha256")}
+                                     ("id", "build", "label", "fasta", "index", "naming", "index_sha256", "fasta_sha256",
+                                      "gzi_sha256") if key in entry}
     resources = _object(draft.get("resources", {}), "Pannelli e frequenze", {"DNP", "SNP"})
     for marker in ("DNP", "SNP"):
         fields = _object(resources.get(marker, {}), "Risorse " + marker, _RESOURCE_FIELDS)
@@ -181,6 +190,12 @@ def prepare_analysis(draft: dict, layout: ProjectLayout,
     execution = ExecutionOptions(**execution_values)
     plan, _mounts, files, mapping, analyses = build_analysis_plan(
         layout=layout, caller=caller, analyses=[], **inputs)
+    if inputs["samples"] and inputs["reference"] and not reference_id:
+        fasta = inputs["reference"]
+        fai = Path(str(fasta) + ".fai")
+        gzi = Path(str(fasta) + ".gzi") if fasta.suffix.lower() in (".gz", ".bgz", ".bgzf") else None
+        draft["reference_genome"] = {"fasta": str(fasta), "index": str(fai), "build": "custom",
+                                     **indexed_reference_identity(fasta, fai, gzi=gzi, language=language)}
     reference = draft.get("reference_genome")
     if reference and reference["build"] in ("grch37", "grch38"):
         _check_named_reference(reference, inputs, caller, language)
@@ -192,6 +207,9 @@ def prepare_analysis(draft: dict, layout: ProjectLayout,
     normalized_draft = {**draft, "name": name, "scientific_settings": effective_config(settings),
                         "execution": execution.as_dict()}
     evidence = tuple((path, input_stat_snapshot(path.stat())) for path in files)
+    if any(path in initial_reference and initial_reference[path] != stamp for path, stamp in evidence):
+        raise ValidationError("The reference changed during verification." if language == "en" else
+                              "Il riferimento è cambiato durante il controllo.")
     preview = {"name": name, "caller": caller, "steps": deepcopy(plan["steps"]),
                "samples": mapping, "analyses_by_marker": analyses,
                "effective_settings": effective_config(settings), "execution": execution.as_dict(),

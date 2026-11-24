@@ -516,7 +516,7 @@ prepare_individual <- function(i) {
 
   # eliminate reads with "@", indicating reads with INDELs
   DFnoINDEL <- DF %>%
-    filter_all(all_vars(!grepl("@", .)))
+    filter(!grepl("@", pos, fixed = TRUE))
   rm(DF)
 
   # keep only micro haplotype

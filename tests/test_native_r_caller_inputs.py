@@ -67,8 +67,9 @@ class NativeCallerInputs(unittest.TestCase):
         return bam
 
     def test_snp_calls_each_textual_contig_with_real_coverage(self):
-        contigs = ("01", "1", "NA")
-        rows = [("01", "001", "A"), ("1", "01", "G"), ("NA", "1", "A")]
+        contigs = ("01", "1", "NA", "chr@1", "chr|1")
+        rows = [("01", "001", "A"), ("1", "01", "G"), ("NA", "1", "A"),
+                ("chr@1", "a", "A"), ("chr|1", "b", "G")]
         reference = self.fasta(contigs)
         bam = self.bam("reads", [(contig, 100) for contig in contigs],
                        [(contig, qname, f"A{base}AA") for contig, qname, base in rows])
@@ -78,7 +79,8 @@ class NativeCallerInputs(unittest.TestCase):
         panel = self.root / "SNPpanel.tsv"
         panel.write_text("chr\tpos\tref\talt\n" + "".join(f"{contig}\t50\tA\tG\n" for contig in contigs),
                          encoding="utf-8")
-        expected = {"01": ("1", "0", "0/0"), "1": ("0", "1", "1/1"), "NA": ("1", "0", "0/0")}
+        expected = {"01": ("1", "0", "0/0"), "1": ("0", "1", "1/1"), "NA": ("1", "0", "0/0"),
+                    "chr@1": ("1", "0", "0/0"), "chr|1": ("0", "1", "1/1")}
         for mode, sources in (("bam", dict(bam=str(bam), reference=reference, pileup=None)),
                               ("pileup", dict(bam=None, reference=None, pileup=str(pileup)))):
             with self.subTest(mode=mode):
@@ -89,6 +91,19 @@ class NativeCallerInputs(unittest.TestCase):
                 actual = table(output / "output/SNPcall_output.txt")
                 self.assertEqual({row["chr"]: (row["N_REF"], row["N_ALT"], row["GT"]) for row in actual},
                                  expected)
+
+    def test_dnp_accepts_at_in_covered_contig(self):
+        reference = self.fasta(("chr@1",))
+        bam = self.bam("sample_0001", [("chr@1", 100)], [("chr@1", "read", "AAAA")])
+        panel = self.root / "dnp.tsv"
+        panel.write_text("chr@1\t50\t51\tAA\tGG\n", encoding="utf-8")
+        output = self.root / "results"
+        result = self.execute("dnp-call", output, panel=str(panel), reference=reference,
+                              samples=[{"sample_id": "sample_0001", "path": str(bam)}],
+                              parallel=False, scientific_settings={"baq": False})
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        row, = table(output / "output/individual_outputs/full_output_sample_0001.txt")
+        self.assertEqual((row["chr"], row["N_REF"], row["N_ALT"], row["GT"]), ("chr@1", "1", "0", "0/0"))
 
     def test_callers_reject_mismatched_bam_targets_and_keep_true_zero_coverage(self):
         reference = self.fasta(("chrA", "chrB"))

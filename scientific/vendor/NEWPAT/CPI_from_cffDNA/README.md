@@ -22,7 +22,7 @@ Inspect settings with `newpat settings cpi`. Place an override such as `--set cp
 
 ## Results
 
-`output/Summary_FetalFraction_CPI.csv` reports a row for each pair and selected cutoff. The CSV records maternal and paternal informative site counts, raw and percentage median fetal fraction, minimum, maximum, mean and median log₁₀(CPI), `CPI_medianFF` (the log₁₀(CPI) at the selected median-support threshold), `Min_fetal_reads`, `Marker_type` and `Error_constant`. The `curves/` directory contains the threshold data for each pair and cutoff. The `plots/` directory holds per-pair PDFs and `All_CPIplots.pdf`. Counts of matching and mismatching sites help interpret the change in log₁₀(CPI) across support thresholds. [Scientific reference and regression fixtures](../../../README.md)
+`output/Summary_FetalFraction_CPI.csv` reports a row for each pair and selected cutoff. The CSV records the maternal informative site count and the paternal candidate site count, raw and percentage median fetal fraction, minimum, maximum, mean and median log₁₀(CPI), `CPI_medianFF` (the log₁₀(CPI) at the selected median-support threshold), `Min_fetal_reads`, `Marker_type` and `Error_constant`. The `curves/` directory contains the threshold data for each pair and cutoff. The `plots/` directory holds per-pair PDFs and `All_CPIplots.pdf`. In the curves, `InfSites_father` counts the paternal sites contributing a PI at each threshold. `Mismatch` counts recorded mismatches. `NotMismatch` counts candidates with a population frequency and no recorded mismatch, including sites where the paternal genotype is unassigned. [Scientific reference and regression fixtures](../../../README.md)
 
 ## Upstream contact and citations
 

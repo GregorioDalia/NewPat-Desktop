@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import re
+import subprocess
 import tempfile
 import textwrap
 import tomllib
@@ -25,6 +26,52 @@ publisher = load("publish_windows_release")
 
 
 class OfficialDeliveryTests(unittest.TestCase):
+    def test_source_preflight_uses_real_distribution_blobs_and_manifest_changes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            repository = Path(temp)
+            def git(*args):
+                return subprocess.check_output(["git", "-c", "user.name=Test", "-c", "user.email=test@example.org",
+                                                *args], cwd=repository, text=True).strip()
+
+            git("init", "--quiet")
+            report = "docs/validation/0.9.10-desktop-scheduling.json"
+            protected = "docs/validation/unreviewed.json"
+            inventory = source.acceptance.REQUIRED_OPERATIVE_PATHS | {"distribution-files.txt"}
+            for name in inventory | {report, protected}:
+                path = repository / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("fixture", encoding="utf-8")
+            def commit(paths):
+                (repository / "distribution-files.txt").write_text("\n".join(sorted(paths)), encoding="utf-8")
+                git("add", ".")
+                git("commit", "-qm", "Fixture")
+                return git("rev-parse", "HEAD")
+
+            baseline = commit(inventory)
+            candidate = commit(inventory | {report})
+            self.assertEqual(source.check_reviewable_delta("0.9.10", baseline, candidate, repository=repository),
+                             {report})
+            with self.assertRaisesRegex(ValueError, "0.9.10-desktop-scheduling"):
+                source.check_reviewable_delta("0.9.9", baseline, candidate, repository=repository)
+            rejected = commit(inventory | {report, protected})
+            with self.assertRaisesRegex(ValueError, "unreviewed.json"):
+                source.check_reviewable_delta("0.9.10", baseline, rejected, repository=repository)
+            with self.assertRaisesRegex(ValueError, "unreviewed.json"):
+                source.check_reviewable_delta("0.9.10", rejected, candidate, repository=repository)
+            missing = commit(inventory | {"src/absent.py"})
+            with self.assertRaisesRegex(ValueError, "Missing distribution files"):
+                source.check_reviewable_delta("0.9.10", baseline, missing, repository=repository)
+
+    def test_source_preflight_uses_observation_from_last_accepted_version(self):
+        with tempfile.TemporaryDirectory() as temp:
+            records = Path(temp)
+            for version in ("0.9.8", "0.9.11", "0.9.100"):
+                (records / f"v{version}.json").write_text(json.dumps({
+                    "observed_baseline": {"source_commit": version}}), encoding="utf-8")
+            self.assertEqual(source.historical_baseline("0.9.19", records), "0.9.11")
+            with self.assertRaisesRegex(ValueError, "No previous acceptance"):
+                source.historical_baseline("0.9.7", records)
+
     def test_only_explicit_main_or_matching_release_branch_can_build(self):
         for ref in ("refs/heads/main", "refs/heads/release/0.8.2", "refs/heads/release/0.8.2-usability"):
             source.validate_dispatch("workflow_dispatch", ref, "0.8.2", source.PROFILE)

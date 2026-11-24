@@ -555,12 +555,12 @@ plot_CPI <- function(df, cutoff_label, pair_name,
   # Counts and log likelihood ratios have different units. Separate aligned
   # panels keep the original values and avoid negative/fractional site axes.
   sites_plot <- ggplot(df, aes(x = Iteration)) +
-    geom_line(aes(y = NotMismatch, colour = "Matching sites")) +
-    geom_point(aes(y = NotMismatch, colour = "Matching sites"), size = 1) +
+    geom_line(aes(y = NotMismatch, colour = "Sites without a recorded mismatch")) +
+    geom_point(aes(y = NotMismatch, colour = "Sites without a recorded mismatch"), size = 1) +
     geom_line(aes(y = Mismatch, colour = "Mismatching sites"), linetype = "dashed") +
     geom_point(aes(y = Mismatch, colour = "Mismatching sites"), size = 1) +
-    scale_colour_manual(name = NULL, values = c("Matching sites" = "#008A38", "Mismatching sites" = "#C46B00")) +
-    scale_y_continuous(name = "Informative sites", limits = c(0, NA), breaks = nipat_integer_breaks) +
+    scale_colour_manual(name = NULL, values = c("Sites without a recorded mismatch" = "#008A38", "Mismatching sites" = "#C46B00")) +
+    scale_y_continuous(name = "Paternal candidate sites with a population frequency", limits = c(0, NA), breaks = nipat_integer_breaks) +
     scale_x_continuous(name = "Minimum number of fetal reads considered", breaks = ticks,
       limits = c(min_fetal_reads, max(min_fetal_reads + 1, max_iter)), expand = expansion(mult = c(0.02, 0.02))) +
     theme_bw(base_size = 9) +

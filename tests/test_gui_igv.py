@@ -208,7 +208,8 @@ def test_recorded_igv_reference_checks_and_preserves_fai_digest(local_igv, tmp_p
     index = Path(str(fasta) + ".fai")
     digest = hashlib.sha256(index.read_bytes()).hexdigest()
     reference = {"fasta": str(fasta), "index": str(index), "index_sha256": digest}
-    assert local_igv.prepare({"reference": reference})["sources"]["reference"] == reference
+    assert local_igv.prepare({"reference": reference})["sources"]["reference"] == {
+        **reference, "fasta_sha256": hashlib.sha256(fasta.read_bytes()).hexdigest()}
 
     # A syntactically valid replacement FAI can still describe a different reference.
     index.write_text("1\t4\t3\t4\t5\nY\t4\t11\t4\t5\n", encoding="ascii")
@@ -306,3 +307,49 @@ def test_real_alignment_fixture_has_indexed_records_and_matching_dictionary(loca
     assert len(reads) == 20
     assert reads[0] == (0, 101, "qa_read_01") and reads[-1] == (0, 177, "qa_read_20")
     assert offset == len(data)
+
+
+def test_archived_fasta_same_layout_rejected_and_legacy_disclosed(local_igv, tmp_path):
+    from nipat.gui.results import ResultsStore
+    from nipat.gui.references import ReferenceCatalog
+
+    fasta = _reference(tmp_path)
+    ref = ReferenceCatalog(tmp_path / "catalog.json").register("custom", fasta)
+    root = tmp_path / "runs"
+    run = root / "archived"
+    run.mkdir(parents=True)
+    (run / "run.json").write_text(json.dumps({"schema_version": 1, "workflow": "dnp-call",
+                                             "status": "succeeded", "parameters": {}}))
+    recorded = {k: ref[k] for k in ("fasta", "index", "build", "fasta_sha256", "index_sha256")}
+    draft = {"reference": str(fasta), "samples": [], "reference_genome": recorded}
+    gui = run / "gui.json"
+    gui.write_text(json.dumps({"schema_version": 1, "draft": draft}))
+    store = ResultsStore(root)
+    selection, _ = store.igv_sources("archived")
+    assert "historical_identity_incomplete" not in selection
+    fasta.write_bytes(fasta.read_bytes().replace(b"ACGT", b"TTTT"))
+    with pytest.raises(ValidationError, match="differisce"):
+        local_igv.prepare({"reference": selection})
+    del recorded["fasta_sha256"]
+    gui.write_text(json.dumps({"schema_version": 1, "draft": draft}))
+    old, _ = store.igv_sources("archived")
+    reopened = local_igv.prepare({"reference": old})["sources"]["reference"]
+    assert reopened["historical_identity_incomplete"] is True
+
+
+def test_archived_bgzf_rejects_valid_but_replaced_gzi(local_igv, tmp_path):
+    from nipat.gui.references import ReferenceCatalog
+
+    plain = _reference(tmp_path)
+    first = _bgzf(plain.read_bytes())
+    fasta = tmp_path / "reference.fa.bgzf"
+    fasta.write_bytes(first + _bgzf(b""))
+    shutil.copyfile(str(plain) + ".fai", str(fasta) + ".fai")
+    gzi = Path(str(fasta) + ".gzi")
+    gzi.write_bytes(struct.pack("<Q", 0))
+    entry = ReferenceCatalog(tmp_path / "catalog.json").register("custom", fasta)
+    selection = {k: entry[k] for k in ("fasta", "index", "fasta_sha256", "index_sha256", "gzi_sha256")}
+    assert local_igv.prepare({"reference": selection})["sources"]["reference"]["gzi_sha256"] == selection["gzi_sha256"]
+    gzi.write_bytes(struct.pack("<QQQ", 1, len(first), plain.stat().st_size))
+    with pytest.raises(ValidationError, match="differisce"):
+        local_igv.prepare({"reference": selection})

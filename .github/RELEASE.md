@@ -2,7 +2,7 @@
 
 A release publishes the packages produced by a reviewed GitHub Actions installer build. The publisher checks the files again and reuses those bytes. The package set covers Windows x64, Ubuntu 24.04 x86_64, macOS Intel and macOS Apple Silicon, all tied to one Linux AMD64 scientific archive.
 
-For a request to make a version stable, first identify the version, the intended source commit and the approved scientific scope. Integrate that source through the development PR and wait for its required checks. Use an existing successful full installer build only if it still meets the source, ancestry, artifact and evidence requirements. Otherwise dispatch one full build from the integrated commit. Complete the acceptance record with the selected `stable` channel and reviewer's evidence, then merge the acceptance-only PR. The verified publisher creates and checks the draft before making the accepted packages available as **Latest**. These are normally two PRs across the life of the version. Once the code is integrated, only the acceptance PR remains.
+For a request to make a version stable, first identify the version, the intended source commit and the approved scientific scope. Integrate that source through the development PR and wait for its required checks. Use an existing successful full installer build only if it still meets the source, ancestry, artifact and evidence requirements. Otherwise dispatch one full build from the integrated commit. Complete the acceptance record with the selected `stable` channel and reviewer's evidence, then merge the acceptance-only PR. The verified publisher creates and checks the draft before publication. A stable version newer than the current **Latest** becomes the default download. These are normally two PRs across the life of the version. Once the code is integrated, only the acceptance PR remains.
 
 ## Before the 0.9.10 source is finalized
 
@@ -28,7 +28,7 @@ Build this revision. The later acceptance-only PR contains just the release reco
 ## 1. Build the candidate
 
 1. Check that `pyproject.toml`, the client version and release notes identify the intended version. The publisher reads `docs/RELEASE_<version>.md` for the version being prepared.
-2. Run **Installers (review build)** with the default full build (`windows_zip_only` unchecked) on the reviewed commit of `main`, `release/VERSION` or a corresponding `release/VERSION-…` branch. Building from integrated `main` makes commit ancestry straightforward. For an already built release branch, use a merge that preserves the built commit as an ancestor of `main`. A squash or rebase may require a new build even with identical file contents.
+2. Run **Installers (review build)** with the default full build (`windows_zip_only` unchecked) on the reviewed commit of `main`, `release/VERSION` or a corresponding `release/VERSION-…` branch. Before starting the platform jobs, the full build checks whether changes to the distributed files are eligible for review against the observed baseline in the latest applicable acceptance record. If the reviewer has a different documented observation, enter its full commit SHA in `observed_baseline` and use that same observation in the acceptance record. Building from integrated `main` makes commit ancestry straightforward. For an already built release branch, use a merge that preserves the built commit as an ancestor of `main`. A squash or rebase may require a new build even with identical file contents.
 3. Record the full source SHA, installer build run ID, workflow attempt and resulting digests. Require the successful `installer-required` check and all required platform packages. A pull request's CI artifacts cannot substitute for this installer build.
 
 The builder checks the client, qualifies the scientific image, exports the common archive and packages files allowed by `distribution-files.txt`. It may reuse successful scientific evidence from the exact Git tree and immutable image. Without verified matching evidence it runs the scientific checks itself. [CI evidence reuse](../docs/CI_CD.md#scientific-evidence-reuse)
@@ -65,7 +65,7 @@ python .github/scripts/release_acceptance.py \
 
 Review the platform evidence, baseline source comparison, qualified scientific reports, installer and common archive identities. Complete `.github/release-acceptance/vVERSION.json`, replacing VERSION with the actual release. Use the [installer acceptance protocol](../docs/INSTALLER_ACCEPTANCE.md) for the fields, desktop scenarios and limits of each claim. The reviewer records `accepted-for-research` and the `pre-1.0-research` scope only after reviewing the evidence. Keep deferred tests and pending domain validation visible. Historical evidence belongs to its original build.
 
-The `publication_channel` is explicit. Use `stable` for an authorized numeric `MAJOR.MINOR.PATCH` release intended as GitHub **Latest**. Use `testing` for a prerelease. This choice determines discovery by clients; the scientific validation scope is described separately.
+The `publication_channel` is explicit. Use `stable` for an authorized numeric `MAJOR.MINOR.PATCH` release. Publishing an older stable keeps the newer release as GitHub **Latest**. Use `testing` for a prerelease. This choice determines discovery by clients; the scientific validation scope is described separately.
 
 <a id="contratto-scientifico-della-0850"></a>
 
@@ -104,7 +104,7 @@ The published release includes the four platform installers, Windows installatio
 | `update-manifest.json` | Compatible legacy Windows clients and Ubuntu |
 | `update-manifest-macos.json` | Apple Silicon and Intel packages |
 
-Clients check the release, version, source commit, channel, platform, size and SHA-256. On macOS the user closes NewPat and opens the verified PKG. Check availability of the published assets and update feeds, and verify stable releases resolve through GitHub **Latest**.
+Clients check the release, version, source commit, channel, platform, size and SHA-256. On macOS the user closes NewPat and opens the verified PKG. Check availability of the published assets and update feeds, and verify that GitHub **Latest** resolves to the expected stable version.
 
 Releases through 0.9.9 use `update-manifest-windows-bootstrap.json` and `update-manifest-windows-zip.json`. The first upgrade across the Windows launcher layout change requires the new installer for the same installation method. The v2 feeds are published exclusively for the English package layout.
 

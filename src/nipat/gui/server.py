@@ -19,6 +19,7 @@ import threading
 from urllib.parse import unquote, urlsplit
 
 from nipat.errors import NipatError
+from nipat.execution.tracking import input_stat_snapshot
 
 MAX_RPC_BYTES = 2 * 1024 * 1024
 CSP = (
@@ -35,6 +36,7 @@ class LocalResource:
     mime: str
     name: str
     attachment: bool = False
+    expected_identity: dict | None = None
 
 
 def _reject_nonfinite_json(value):
@@ -163,6 +165,9 @@ class DesktopServer:
                     with resource.path.open("rb") as stream:
                         import os
                         info = os.fstat(stream.fileno())
+                        if resource.expected_identity is not None and input_stat_snapshot(info) != resource.expected_identity:
+                            self._json(409, {"error": "The selected file changed. Reopen the reference."})
+                            return
                         size = info.st_size
                         try:
                             selected = byte_range(self.headers.get("Range"), size)
@@ -243,14 +248,14 @@ class DesktopServer:
         self.url = self.base_url + "web/index.html"
         self.thread = threading.Thread(target=self.httpd.serve_forever, name="NIPAT-local-ui", daemon=True)
 
-    def register(self, path: Path | str, *, mime: str | None = None, attachment=False) -> dict:
+    def register(self, path: Path | str, *, mime: str | None = None, attachment=False, expected_identity=None) -> dict:
         path = Path(path).expanduser().resolve(strict=True)
         if not path.is_file():
             raise ValueError("Seleziona un file, non una cartella.")
         file_id = secrets.token_urlsafe(24)
         guessed = mime or mimetypes.guess_type(path.name)[0] or "application/octet-stream"
         with self._resource_lock:
-            self.resources[file_id] = LocalResource(path, guessed, path.name, attachment)
+            self.resources[file_id] = LocalResource(path, guessed, path.name, attachment, expected_identity)
         return {"url": self.base_url + "resources/" + file_id, "name": path.name,
                 "mime": guessed, "size": path.stat().st_size}
 

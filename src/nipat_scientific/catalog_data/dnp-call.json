@@ -3,7 +3,7 @@
   "workflow": "dnp-call",
   "source": {
     "path": "scientific/vendor/DNPcall/DNPcall.R",
-    "sha256": "880b52f8644c60d5133341ec8212ba20c1eee14789121ca8634a081537c7e1e1",
+    "sha256": "d085e3592ff079dc0dd511211f975a1e7646fca2e0ddb650638a1e754a9bf029",
     "line_count": 915
   },
   "public_parameters": [
@@ -404,8 +404,8 @@
         "ratio": "central-indel count / grouped observation count"
       },
       "description": {
-        "it": "Il riepilogo indel usa osservazioni con stringa di basi lunga più di sei caratteri e conta @ nelle due basi centrali. Il rapporto usa queste osservazioni come denominatore. È diverso dal filtro successivo, che esclude @ in qualunque colonna e quindi anche nelle basi laterali.",
-        "en": "The indel summary uses observations whose serialized base string exceeds six characters and counts @ in the two central bases. Its denominator is this observation count. This differs from the following filter, which excludes @ in any column, including flanking bases."
+        "it": "Il riepilogo considera le osservazioni la cui stringa di basi supera sei caratteri. Conta le osservazioni con @ nelle due basi centrali e divide per il numero di osservazioni considerate. Il filtro successivo controlla anche le basi fiancheggianti.",
+        "en": "The indel summary considers observations whose serialized base string exceeds six characters. It counts those with @ in the two central bases and divides by the number of observations considered. The subsequent filter also checks the flanking bases."
       },
       "source_lines": [
         465,
@@ -416,11 +416,11 @@
       "id": "indel_exclusion",
       "kind": "filter",
       "value": {
-        "condition": "no @ in any column of grouped observation"
+        "condition": "no @ in grouped base string"
       },
       "description": {
-        "it": "Una riga aggregata viene esclusa se una qualsiasi colonna contiene @. Il filtro non è limitato alle due basi centrali: il conteggio reads_discarded_for_indels non descrive necessariamente tutte le righe eliminate da questa condizione.",
-        "en": "A grouped row is excluded when any column contains @. The filter is not restricted to the two central bases, so reads_discarded_for_indels does not necessarily describe every row removed by this condition."
+        "it": "Il filtro esclude l’osservazione quando @ compare in una qualunque delle basi raggruppate, inclusi i fianchi. Un carattere @ nei nomi del contig o della lettura è conservato. Il conteggio reads_discarded_for_indels riguarda le sole basi centrali.",
+        "en": "The filter excludes an observation with @ anywhere in its grouped bases, including the flanks. An @ in a contig or read name is preserved. The reads_discarded_for_indels count covers the central bases only."
       },
       "source_lines": [
         517,
@@ -994,7 +994,7 @@
               157,
               190
             ],
-            "sha256": "880b52f8644c60d5133341ec8212ba20c1eee14789121ca8634a081537c7e1e1"
+            "sha256": "d085e3592ff079dc0dd511211f975a1e7646fca2e0ddb650638a1e754a9bf029"
           },
           {
             "path": "src/nipat_scientific/settings.py",
@@ -1052,9 +1052,9 @@
         "path": "src/nipat_scientific/outputs.py",
         "source_lines": [
           1,
-          500
+          581
         ],
-        "sha256": "7003ea7be45679fa66c111b6b4f2bb3948e26dcb09e055f8bd083a97606bd22a"
+        "sha256": "ec1e3101c81e3208e0eaf58108468153dacfb749f55ac91201e307e1acd4dcab"
       }
     },
     {
@@ -1171,7 +1171,7 @@
               157,
               190
             ],
-            "sha256": "880b52f8644c60d5133341ec8212ba20c1eee14789121ca8634a081537c7e1e1"
+            "sha256": "d085e3592ff079dc0dd511211f975a1e7646fca2e0ddb650638a1e754a9bf029"
           },
           {
             "path": "src/nipat_scientific/dnp_blocks.R",
@@ -1257,7 +1257,7 @@
               767,
               787
             ],
-            "sha256": "880b52f8644c60d5133341ec8212ba20c1eee14789121ca8634a081537c7e1e1"
+            "sha256": "d085e3592ff079dc0dd511211f975a1e7646fca2e0ddb650638a1e754a9bf029"
           },
           {
             "path": "src/nipat_scientific/parallel.R",
@@ -1273,7 +1273,7 @@
               822,
               850
             ],
-            "sha256": "880b52f8644c60d5133341ec8212ba20c1eee14789121ca8634a081537c7e1e1"
+            "sha256": "d085e3592ff079dc0dd511211f975a1e7646fca2e0ddb650638a1e754a9bf029"
           },
           {
             "path": "src/nipat/execution/runner.py",
@@ -1369,7 +1369,7 @@
           887,
           909
         ],
-        "sha256": "880b52f8644c60d5133341ec8212ba20c1eee14789121ca8634a081537c7e1e1",
+        "sha256": "d085e3592ff079dc0dd511211f975a1e7646fca2e0ddb650638a1e754a9bf029",
         "dependencies": [
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
@@ -1417,7 +1417,7 @@
               157,
               226
             ],
-            "sha256": "880b52f8644c60d5133341ec8212ba20c1eee14789121ca8634a081537c7e1e1"
+            "sha256": "d085e3592ff079dc0dd511211f975a1e7646fca2e0ddb650638a1e754a9bf029"
           }
         ]
       }
@@ -1451,7 +1451,7 @@
               149,
               155
             ],
-            "sha256": "880b52f8644c60d5133341ec8212ba20c1eee14789121ca8634a081537c7e1e1"
+            "sha256": "d085e3592ff079dc0dd511211f975a1e7646fca2e0ddb650638a1e754a9bf029"
           },
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
@@ -1459,7 +1459,7 @@
               767,
               787
             ],
-            "sha256": "880b52f8644c60d5133341ec8212ba20c1eee14789121ca8634a081537c7e1e1"
+            "sha256": "d085e3592ff079dc0dd511211f975a1e7646fca2e0ddb650638a1e754a9bf029"
           },
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
@@ -1467,7 +1467,7 @@
               828,
               833
             ],
-            "sha256": "880b52f8644c60d5133341ec8212ba20c1eee14789121ca8634a081537c7e1e1"
+            "sha256": "d085e3592ff079dc0dd511211f975a1e7646fca2e0ddb650638a1e754a9bf029"
           }
         ]
       }
@@ -1546,7 +1546,7 @@
               91,
               91
             ],
-            "sha256": "880b52f8644c60d5133341ec8212ba20c1eee14789121ca8634a081537c7e1e1"
+            "sha256": "d085e3592ff079dc0dd511211f975a1e7646fca2e0ddb650638a1e754a9bf029"
           },
           {
             "path": "src/nipat/execution/options.py",
@@ -1570,7 +1570,7 @@
               157,
               190
             ],
-            "sha256": "880b52f8644c60d5133341ec8212ba20c1eee14789121ca8634a081537c7e1e1"
+            "sha256": "d085e3592ff079dc0dd511211f975a1e7646fca2e0ddb650638a1e754a9bf029"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",

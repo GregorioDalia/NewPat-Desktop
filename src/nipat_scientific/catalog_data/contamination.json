@@ -612,10 +612,10 @@
       },
       "evidence": {
         "path": "src/nipat_scientific/outputs.py",
-        "sha256": "7003ea7be45679fa66c111b6b4f2bb3948e26dcb09e055f8bd083a97606bd22a",
+        "sha256": "ec1e3101c81e3208e0eaf58108468153dacfb749f55ac91201e307e1acd4dcab",
         "source_lines": [
           1,
-          500
+          581
         ]
       }
     },
