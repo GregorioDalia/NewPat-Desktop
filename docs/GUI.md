@@ -2,6 +2,14 @@
 
 Use NewPat to set up an experiment, follow its progress, read results and inspect alignments. Choose the British or Italian flag in the top bar to switch between English and Italian. NewPat remembers this choice when you reopen the application. The labels below use English.
 
+## Try the shared example
+
+In the 0.9.10 build with the guided demo, open **Environment and help → Open demo**. If you have an edited draft, NewPat asks before replacing it. The **Review** step opens with three indexed BAMs, a synthetic FASTA and both marker panels already selected. Expand **Expected demo results**, then choose **Start experiment**. All inputs are included and the analysis runs locally. [Guida rapida in italiano](QUICKSTART_IT.md)
+
+When **Activity** shows **Completed**, open **Experiments and results**, select the demo, then open **Results → DNP** and **Results → SNP**. Select each sample. In both analyses the table should have three sites per sample, with 100 reads per site. For `mother`, expect 96 REF and 4 ALT. For `father` and `child`, expect 50 REF and 50 ALT each. The guided demo runs just these two analyses.
+
+To try contamination and the two CPI analyses, select **Environment and help → Save example data**. Pick a writable parent folder and follow the README inside the new `synthetic-trio` directory. It provides the family assignments, marker-specific files and expected outputs for all five analyses. The separate `timing/` workload has four contigs and 128 loci for comparing DNP and SNP timings on different computers. Builds without the guided demo can use the same inputs manually from the [example ZIP](../examples/newpat-synthetic-trio.zip), including version 0.9.9.
+
 ## Set up an experiment
 
 1. Choose **New experiment** and give the experiment a name. Select the starting material (BAM files, SNP pileups or existing count tables). For BAM inputs, supply the reference FASTA, the marker panel for each caller and a sample ID for each file.
@@ -45,16 +53,10 @@ Select the marker branch and the sample, pair or trio in **Experiments and resul
 
 | Analysis | Summary |
 | --- | --- |
-| DNP and SNP genotyping | Called and unassigned genotypes for the selected sample. The original tables identify calls as `0/0`, `0/1`, `1/1` or missing. These modules produce the inputs for the parentage analyses. |
+| DNP and SNP genotyping | Called and unassigned genotypes for the selected sample. The original tables identify calls as `0/0`, `0/1`, `1/1` or `NA`. In the tables, `NA` means the program could not determine the value. These modules produce the inputs for the parentage analyses. |
 | Prenatal CPI | The reported log₁₀(CPI) at the median fetal allele support for that pair and panel (`CPI_medianFF`). It differs from the median of the CPI curve. When the two original plot guides are available, the summary locates the reported point below, between, above or on them. The default guides are −4 and +4. R rounds this CSV value to three decimals, so a point displayed on a guide may have been rounded from either side. The source script provides a curve and the underlying values. It does not issue a categorical parentage finding. |
 | Postnatal CPI | The stored CPI and log₁₀(CPI) for the selected trio and site selection, plus the number of contributing sites. If both selections were requested, each has its own summary. Read the curves and original tables for the full output. |
 | Contamination | Mean contamination and number of informative sites for the selected sample. An unavailable estimate is distinct from a measured zero. |
-
-### Try the shared example
-
-Open **Environment and help → Open demo** to prepare a DNP and SNP experiment. It uses the local `mother`, `father` and `child` BAMs, an indexed synthetic FASTA and both marker panels. Review the configuration and choose **Start experiment**. In the resulting DNP and SNP tables, each sample has three loci with 100 reads per locus. Expect 96 REF and 4 ALT for `mother`, and 50 REF and 50 ALT for both `father` and `child`.
-
-For a copy of the inputs and instructions, choose **Save example data**. Select a parent folder for a fresh `synthetic-trio` directory. Open its README to use the same sample IDs, panels, family roles and worker settings. Use the trio to check all five analyses. For comparable DNP and SNP timings, use the dedicated BAM and panels in the timing folder (four contigs, 128 loci and 1,000 reads per locus). Both workloads run offline. The downloadable copy is also usable with 0.9.9. [Example ZIP](../examples/newpat-synthetic-trio.zip)
 
 ## Read prenatal and postnatal CPI plots
 

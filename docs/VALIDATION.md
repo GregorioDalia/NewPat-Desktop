@@ -33,6 +33,10 @@ For each platform test reopening, reinstalling, resuming interrupted setup and r
 
 ## First end-to-end check
 
+For a first check without study data, open **Environment and help → Open demo**, review the three prefilled BAMs and run both callers with the supplied reference and panels. For each caller, the three maternal loci should each have 96 REF, 4 ALT and genotype `0/0`. The paternal and child loci should each have 50 REF, 50 ALT and genotype `0/1`. All have zero Other reads. Choose **Save example data** to copy the instructions and inputs for the downstream analyses. In the source repository, `tests/fixtures/synthetic-trio-v1/expected.tsv` lists the expected rows and coordinates.
+
+For a representative case with your own inputs, follow these steps.
+
 1. Open NewPat, check the version and choose a results folder for the test.
 2. Run the environment check (option **8** in the terminal menu).
 3. Run DNPcall on a known BAM, matching indexed reference and DNP panel. Record settings before launch.
@@ -64,6 +68,8 @@ For prenatal CPI, supply appropriate maternal cfDNA and paternal samples and com
 | Technical outcome (completed, failed or interrupted) | |
 | Scientific outcome (agreement, discrepancy or not assessable) | |
 | Usability problems, exact messages and reproducible materials | |
+
+For a revised scientific script, retain the upstream revision, a shareable example input, the author’s invocation and the independently checked expected result. For the pending postnatal CPI revision, record which site selection the scalar summarizes, whether it is on the CPI or log₁₀ scale, and the expected output when no sites qualify. For the planned sixth module, use the [integration guide](ARCHITECTURE.md#adding-a-downstream-scientific-module) once the script and its example arrive.
 
 A rerun of the same implementation measures repeatability. Use an independent analytical result, validated dataset or reference implementation when evaluating accuracy.
 

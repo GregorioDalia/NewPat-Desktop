@@ -43,12 +43,12 @@ If the event names a temporary setup executable, include both that filename and 
 
 ## Complete ZIP installation
 
-1. Download `NewPat-<version>-Windows-complete.zip` from the release and compare its SHA-256 with `SHA256SUMS`. In PowerShell, use `Get-FileHash -Algorithm SHA256 -LiteralPath` followed by the actual download path.
+1. From the published release, download `NewPat-<version>-Windows-complete.zip` (through 0.9.9 the suffix is `-Windows-completo.zip`) and compare its SHA-256 with `SHA256SUMS`. In PowerShell, use `Get-FileHash -Algorithm SHA256 -LiteralPath` followed by the actual download path.
 2. Extract the entire archive into its final location on a local fixed disk. Close the compressed-folder view and open the extracted files.
-3. Run `1_INSTALL.cmd` as your regular user. Wait for **NewPat: ready**, including any required restart.
+3. Run `1_INSTALL.cmd` (`1_INSTALLA.cmd` in 0.9.9) as your regular user. Wait for **NewPat: ready**, including any required restart.
 4. If Windows asks for a reboot, restart, sign back in and open `NIPAT\NewPat.lnk` **inside the extracted folder** to resume ZIP preparation. Once ready, the same shortcut opens the application. A normal first installation from the ZIP also opens NewPat when preparation succeeds.
 
-Keep the extracted `NIPAT` directory. It contains the active installation, data and results. The ZIP installs no Start menu shortcut. Python and scientific archives are included, but missing Windows prerequisites may still require a connection. Copying the folder to a different PC does not transfer its registered WSL environment.
+Keep the extracted `NIPAT` directory. After preparation it contains `current.json`, which identifies the active version and full source commit, plus the data and results. For the installed test use [these ZIP-specific instructions](WINDOWS_INSTALLATION_TEST.md#complete-zip). The ZIP installs no Start menu shortcut. Python and scientific archives are included, but missing Windows prerequisites may still require a connection. Copying the folder to a different PC does not transfer its registered WSL environment.
 
 | Item | Location under the extracted `NIPAT` directory |
 | --- | --- |
@@ -58,6 +58,8 @@ Keep the extracted `NIPAT` directory. It contains the active installation, data 
 | Launcher and preparation log | `NewPat.lnk`, `versions\<version>-<commit>\.runtime\installer\setup.log` |
 
 If Windows blocks the downloaded command file, first verify the original release ZIP checksum. For a verified archive, Windows may offer **Properties → Unblock → Apply** on the ZIP. Extract it into a fresh directory after applying the change. The bundled `README.txt` describes the checksum and extraction procedure for that package. Removing the internet-origin mark does not sign the files or override Code Integrity policy.
+
+**Testing a candidate from Actions.** Extract the GitHub artifact first. The full Windows build artifact (`nipat-windows-setup`) also contains an EXE, a payload ZIP and build reports. Open the inner `NIPAT-<version>-Windows-complete.zip`, extract it into its own permanent directory and follow steps 2–4 above. The Windows ZIP-only artifact (`newpat-windows-review-zip`) supplies the same type of inner archive. Its `windows-zip-build.json` records the exact ZIP filename, SHA-256, version and source commit for comparison. [Review builds](CI_CD.md)
 
 **Moving from 0.9.9.** The published 0.9.9 ZIP uses `1_INSTALLA.cmd`, `2_AVVIA.cmd` and `LEGGIMI.txt`. Its updater expects those exact archive members. The first move to the English layout requires the new ZIP. Close NewPat, extract that ZIP into a fresh temporary directory and open PowerShell there. Set the existing installation path to the directory that contains your `installation.json`, `data` and `runs`, then run:
 
@@ -77,7 +79,7 @@ ZIP updates retain the selected root, verify the download and activate the new v
 
 1. Before the upgrade, open a completed experiment in 0.9.9. Record its run directory, the SHA-256 of its `run.json` and the SHA-256 of one scientific result table. For each file, run `Get-FileHash -Algorithm SHA256 -LiteralPath '<full path>'` in PowerShell.
 2. After upgrading, launch `NewPat.lnk` from the same installation root. Open the historical experiment, verify that the two paths and hashes match, and check the NewPat icon in the taskbar.
-3. With the [synthetic timing workload](../examples/synthetic-trio/README.md#run-the-timing-experiment), start two experiments with different names. Stop one while both are active. Record its run directory. Once it shows as interrupted, remove its card and let the other experiment finish.
+3. Use **Save example data** and open the extracted README at **Run the timing experiment**. Start two experiments with that workload and different names. Stop one while both are active. Record its run directory. Once it shows as interrupted, remove its card and let the other experiment finish.
 4. Reopen NewPat. The interrupted card should stay hidden. Its run directory and any files already written should still exist. Open the completed experiment and check the reported genotypes against the timing workload's expected counts.
 
 ## Locations and ownership

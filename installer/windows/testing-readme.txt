@@ -16,8 +16,10 @@ may be reused. Keep its directory in place; it contains your preferences,
 experiments, data, results and runtime. The default testing installation is
 separate from the stable desktop installation.
 
-An internet connection is required for download. The app includes IGV for
-viewing local data. Open IGV inside NewPat.
+An internet connection is required for download. For a first experiment,
+choose Environment and help > Open demo. Review the three simulated samples,
+then start the analysis. Their reference and panels are included. Open the
+IGV viewer inside NewPat to inspect alignments.
 
 If Windows blocks a file, verify the SHA-256 of the downloaded ZIP against
 the entry for that exact filename in SHA256SUMS on the official release page.

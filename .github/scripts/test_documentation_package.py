@@ -8,6 +8,13 @@ import check_documentation_package as docs
 
 
 class DocumentationPackageTests(unittest.TestCase):
+    def test_windows_zip_launcher_is_a_documented_cli_entry(self):
+        text = r'''~~~powershell
+.\newpat.cmd dnp-call --bam "C:\example data\sample.bam"
+~~~'''
+        self.assertEqual(list(docs.commands(text)),
+                         [(2, ["dnp-call", "--bam", r"C:\example data\sample.bam"])])
+
     def test_multiline_examples_are_parsed_in_their_own_shell(self):
         text = """```powershell
 & $newpat workflow snp-batch --bam ".\\space here.bam" `
@@ -55,3 +62,16 @@ newpat fictional-command
             (root / "distribution-files.txt").write_text("distribution-files.txt\n", encoding="utf-8")
             with self.assertRaisesRegex(ValueError, r"Missing.*README.md"):
                 docs.check_package(root, root / "work")
+
+    def test_offline_guide_links_must_resolve_in_installation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            guide = root / "guide.md"
+            guide.write_text("[Start](./quickstart.md#demo) · [Online](https://example.org)", encoding="utf-8")
+            quickstart = root / "quickstart.md"
+            quickstart.write_text("# Demo", encoding="utf-8")
+            files = {"guide.md": guide}
+            with self.assertRaisesRegex(ValueError, "guide.md:1:.*quickstart.md"):
+                docs.offline_targets(root, files, ["guide.md"])
+            files["quickstart.md"] = quickstart
+            self.assertEqual(docs.offline_targets(root, files, ["guide.md"]), {"quickstart.md"})

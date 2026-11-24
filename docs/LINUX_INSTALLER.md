@@ -1,18 +1,19 @@
 # Install NewPat on Ubuntu
 
-The supported system is **Ubuntu 24.04 LTS on x86_64/amd64**. Download `newpat-desktop_0.9.9_amd64.deb` from the [stable release](https://github.com/GregorioDalia/nipat-desktop/releases/latest). The package contains the desktop client, documentation and the Linux image with R, samtools and the scientific dependencies. Its APT package name remains `nipat-desktop` so existing systems can upgrade in place.
+The supported system is **Ubuntu 24.04 LTS on x86_64/amd64**. Download the `newpat-desktop_<version>_amd64.deb` package from the [stable release](https://github.com/GregorioDalia/nipat-desktop/releases/latest). The package contains the desktop client, documentation and the Linux image with R, samtools and the scientific dependencies. Its APT package name remains `nipat-desktop` so existing systems can upgrade in place.
 
 ## Install and start
 
-1. In a terminal, change to the directory containing the downloaded package and run:
+1. In a terminal, change to the directory containing the downloaded package. Run the following and enter the exact DEB filename shown in that directory.
 
    ```bash
-   sudo apt install ./newpat-desktop_0.9.9_amd64.deb
+   read -r -p "Downloaded DEB filename: " package
+   sudo apt install "./$package"
    ```
 
 2. Review the dependencies APT proposes. It uses the configured repositories to install Python 3.12, GTK/WebKit bindings, Docker Engine (`docker.io` or `docker-ce`) and Compose v2 (`docker-compose-v2` or `docker-compose-plugin`). Missing packages require internet access. APT handles dependencies for local packages. A graphical package manager can do this if it supports installation of local files.
 3. Have the administrator start the system Docker daemon and authorize your regular account to access `/var/run/docker.sock`. Membership of the `docker` group confers root-equivalent privileges. After a group change, sign out and sign in again. Follow [Docker's Linux post-installation instructions](https://docs.docker.com/engine/install/linux-postinstall/).
-4. Open **NewPat** from the applications menu or run `newpat` as your regular user. The first launch verifies the included archive, imports the image, checks the engine and runs the self-tests. Allow several minutes. Once the main window opens, create an experiment, supply the inputs and confirm the run.
+4. Open **NewPat** from the applications menu or run `newpat` as your regular user. The first launch verifies the included archive, imports the image, checks the engine and runs the self-tests. Allow several minutes. In 0.9.10, try **Environment and help → Open demo** for a first experiment with bundled data. Review its inputs and start the analysis. [Desktop guide](GUI.md)
 
 Use a local system daemon with Linux AMD64 containers and ordinary UID mapping. Remote daemons, rootless Docker and `userns-remap` are outside this package's supported configuration. The installer leaves Docker configuration and account privileges to the administrator. Allow room for the installed application, expanded image, inputs, intermediates and results.
 

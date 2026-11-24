@@ -7,20 +7,28 @@ import re
 import shlex
 import sys
 import tempfile
+from urllib.parse import unquote, urlsplit
 from zipfile import ZipFile
+
+from check_docs import local_links
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path[:0] = [str(ROOT / "src"), str(ROOT)]
+from nipat import __version__
 from nipat.cli import build_parser
 from installer.windows import testing_package, zip_package
 from scripts.distribution_support import sha256_file, source_files
 
-# Current user/developer guides with directly invocable CLI examples. Historical
-# release notes describe the interfaces of earlier releases.
-GUIDES = ("README.md", "docs/USER_GUIDE.md", "docs/SCIENTIFIC_CATALOG.md",
-          "docs/DISTRIBUTION.md", "docs/RUNS.md", "docs/LINUX_INSTALLER.md",
-          "docs/WINDOWS_INSTALLER.md", "docs/PERFORMANCE.md", "docs/RESOURCES.md")
-LAUNCH = re.compile(r"^(?:newpat|python -m nipat|& \$newpat)(?:\s+|$)")
+# Current guides reachable from the two documentation entry points. Historical
+# release notes and audits describe the interfaces of earlier releases.
+GUIDES = ("README.md", "OVERVIEW.md", "docs/README.md", "docs/QUICKSTART_IT.md", "docs/GUI.md",
+          "docs/USER_GUIDE.md", "docs/SCIENTIFIC_CATALOG.md", "docs/INPUT_VALIDATION.md",
+          "docs/DISTRIBUTION.md", "docs/RUNS.md", "docs/LINUX_INSTALLER.md", "docs/MACOS_INSTALLER.md",
+          "docs/WINDOWS_INSTALLER.md", "docs/WINDOWS_INSTALLATION_TEST.md", "docs/PERFORMANCE.md",
+          "docs/RESOURCES.md", "docs/ARCHITECTURE.md", "docs/ROADMAP.md", "docs/CI_CD.md",
+          "docs/VALIDATION.md", "docs/WORKFLOW_CONTRACT.md", "docs/INSTALLER_ACCEPTANCE.md",
+          ".github/RELEASE.md", "scientific/README.md", "engine/README.md", f"docs/RELEASE_{__version__}.md")
+LAUNCH = re.compile(r"^(?:newpat|\.\\newpat\.cmd|python -m nipat|& \$newpat)(?:\s+|$)")
 
 
 def commands(text):
@@ -74,18 +82,37 @@ def check_members(package, sources):
                 raise ValueError(f"{member} in {package.name} differs from {source}")
 
 
+def offline_targets(root, included, guides):
+    """Resolve links against the files the installers actually ship."""
+    targets = set()
+    for name in guides:
+        source = included[name]
+        for line, href in local_links(source.read_text(encoding="utf-8")):
+            url = urlsplit(href)
+            if url.scheme or url.netloc or not url.path:
+                continue
+            path = unquote(url.path)
+            target = root / path[1:] if path.startswith("/") else source.parent / path
+            target = target.resolve().relative_to(root).as_posix()
+            if target not in included:
+                raise ValueError(f"{name}:{line}: linked file missing from distribution: {target}")
+            targets.add(target)
+    return targets
+
+
 def check_package(root, work):
     # Stage the desktop guidance and its offline example from the installer allowlist. The
     # release workflow separately checks the full packages and runtime assets.
     root = root.resolve()
     included = {p.relative_to(root).as_posix(): p for p in source_files(root)}
-    needed = {"README.md", "LICENSE", "THIRD_PARTY_NOTICES.md", "docs/USER_GUIDE.md",
+    needed = {*GUIDES, "LICENSE", "THIRD_PARTY_NOTICES.md",
               "installer/windows/zip-readme.txt", "installer/windows/testing-readme.txt",
               "examples/newpat-synthetic-trio.zip", "examples/newpat-synthetic-trio.zip.sha256"}
     missing = needed - included.keys()
     if missing:
         raise ValueError(f"Missing required distribution files: {sorted(missing)}")
-    version = "0.9.10"
+    needed.update(offline_targets(root, included, GUIDES))
+    version = __version__
     files = {name: path for name, path in included.items()
              if path.suffix.lower() == ".md" or name in needed or name in zip_package.root_files(version).values()}
     stage = work / "stage"

@@ -4,9 +4,30 @@ A release publishes the packages produced by a reviewed GitHub Actions installer
 
 For a request to make a version stable, first identify the version, the intended source commit and the approved scientific scope. Integrate that source through the development PR and wait for its required checks. Use an existing successful full installer build only if it still meets the source, ancestry, artifact and evidence requirements. Otherwise dispatch one full build from the integrated commit. Complete the acceptance record with the selected `stable` channel and reviewer's evidence, then merge the acceptance-only PR. The verified publisher creates and checks the draft before making the accepted packages available as **Latest**. These are normally two PRs across the life of the version. Once the code is integrated, only the acceptance PR remains.
 
+## Before the 0.9.10 source is finalized
+
+Two scientific deliveries remain open on this candidate. Keep their review in the development PR so the installer build includes the resulting code, fixtures and user documentation.
+
+| Delivery | Evidence to include in the source PR |
+| --- | --- |
+| Revised Postnatal CPI output | Obtain the script and a synthetic input with its author-confirmed expected value. Record the scale, site selection and missing-value behavior. Check the engine output, desktop summary and exported results against that example. |
+| Sixth analysis | Record the script revision, required inputs, parameters, outputs and an author-confirmed synthetic example. Exercise the installed workflow and publish its expected results with the user guide. Extend the scientific qualification and its release verifier to cover the module. |
+
+Use the [0.9.10 release notes](../docs/RELEASE_0.9.10.md) to track what the candidate actually delivers. Record the planned timing comparison on the target Mac as a post-release observation once it has run.
+
+## Finalize documentation for each release
+
+Close the documentation in the **source PR**, before building the intended installers.
+
+1. Check each delivery against its reviewed example. Update the desktop and command-line guides, demo instructions, expected results and scientific catalog wherever the inputs, labels or outcomes changed.
+2. Reconcile the README, documentation index, Italian first-run guide and versioned release notes with the final module set. Remove candidate-only notices and completed pending items, including any version-specific handoff above. Keep any outstanding limitation explicit. Point users to the release channel so the instructions also work after publication.
+3. Confirm that examples, links and shortcuts work from the distributed files and that the notes distinguish observed results from deferred device tests.
+
+Build this revision. The later acceptance-only PR contains just the release record.
+
 ## 1. Build the candidate
 
-1. Check that `pyproject.toml`, the client version and release notes identify the intended version. Use `docs/RELEASE_VERSION.md` with the actual version in the filename.
+1. Check that `pyproject.toml`, the client version and release notes identify the intended version. The publisher reads `docs/RELEASE_<version>.md` for the version being prepared.
 2. Run **Installers (review build)** with the default full build (`windows_zip_only` unchecked) on the reviewed commit of `main`, `release/VERSION` or a corresponding `release/VERSION-…` branch. Building from integrated `main` makes commit ancestry straightforward. For an already built release branch, use a merge that preserves the built commit as an ancestor of `main`. A squash or rebase may require a new build even with identical file contents.
 3. Record the full source SHA, installer build run ID, workflow attempt and resulting digests. Require the successful `installer-required` check and all required platform packages. A pull request's CI artifacts cannot substitute for this installer build.
 
@@ -53,14 +74,14 @@ The `publication_channel` is explicit. Use `stable` for an authorized numeric `M
 The `scientific_equivalence` and `scientific_analysis_qualification` entries each record `reference_source_commit`, `report_path`, `report_sha256` and `runtime_image`. Use the normalized paths and digests from the verified `qualification-evidence.zip`. Both reports identify the same immutable image contained in the accepted packages.
 
 - **DNP and SNP.** The 17-case caller comparison uses frozen NIPAT 0.8.5 for DNP and the separately pinned SNPcall 2.0 source for SNP. Check exact exported tables and unrounded R results, histogram values, plot content and dimensions, and equivalent serial/parallel candidate renderings.
-- **Contamination, prenatal CPI and postnatal CPIN.** The upstream reference commit is `9c2a8be60afcb944153710da6a61cd0559e2b4cf`. `five-module-qualification.json` covers 86 executions, including 16 upstream comparisons and 54 batch cases across both marker types, 2/3/5 samples or families and serial, automatic and two-worker modes. Check analytical expectations, numerical tolerances, fixture and source identity, data integrity, effective settings and worker completion.
+- **Contamination, Prenatal CPI and Postnatal CPI.** The upstream reference commit is `9c2a8be60afcb944153710da6a61cd0559e2b4cf`. `five-module-qualification.json` covers 86 executions, including 16 upstream comparisons and 54 batch cases across both marker types, 2/3/5 samples or families and serial, automatic and two-worker modes. Check analytical expectations, numerical tolerances, fixture and source identity, data integrity, effective settings and worker completion.
 - **Distributed image.** The final image must pass native regressions for empty and zero-coverage inputs and settings, as well as the three-BAM composed workflow. A missing required R dependency, skipped required test or failed case blocks qualification. The publisher verifies sources against Git and compares report and bundle digests. Individual output/log digests describe original run bytes; path sanitization in the public evidence bundle can change those individual files.
 
 Use `reviewed-operative-changes-with-versioned-scientific-models-v1` for the schema 7 source review. List actual before/after digests, including reviewed changes to pinned scientific sources. The caller and downstream decisions are both recorded in `scientific-equivalence-check.json` and their report hashes in `release-provenance.json`. Older accepted records retain their original schema, protected source files and equivalence rules.
 
 ## 3. Publish the accepted build
 
-**Automatic route.** After integrating the source, merge an acceptance-only pull request to `main`. The Linux acceptance CI verifies the record and build evidence. A successful push run with `acceptance`, `required` and a verified acceptance-only change across the full push can trigger **Publish accepted release** for the recorded build/channel. Merging an accepted record can publish the build. Use the manual workflow for a mixed change or a deliberately separated draft review.
+**Automatic route.** Once the source is integrated and the maintainer has authorized publication on the intended channel, merge an acceptance-only pull request to `main`. The Linux acceptance CI verifies the record and build evidence. A successful push run with `acceptance`, `required` and a verified acceptance-only change across the full push can trigger **Publish accepted release** for the recorded build/channel. Merging an accepted record can publish the build. Use the manual workflow for a mixed change or a deliberately separated draft review.
 
 **Manual route.** Dispatch **Prepare or publish verified release** from `main`. After authorizing the release, select one of the following:
 

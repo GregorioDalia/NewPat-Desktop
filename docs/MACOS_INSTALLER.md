@@ -2,10 +2,10 @@
 
 NewPat supports **macOS 14 or later** on Intel and Apple Silicon. Choose the package for the Mac's processor from the [stable release](https://github.com/GregorioDalia/nipat-desktop/releases/latest). In **Apple menu → About This Mac**, an Apple M-series chip means Apple Silicon.
 
-| Processor | NewPat 0.9.9 package | Scientific runtime |
+| Processor | Release asset (match the version to the release tag) | Scientific runtime |
 | --- | --- | --- |
-| Apple Silicon | `NewPat-0.9.9-macos-arm64.pkg` | ARM64 Lima guest running the Linux AMD64 image with Rosetta |
-| Intel | `NewPat-0.9.9-macos-x86_64.pkg` | AMD64 Lima guest running the Linux AMD64 image |
+| Apple Silicon | `NewPat-<version>-macos-arm64.pkg` | ARM64 Lima guest running the Linux AMD64 image with Rosetta |
+| Intel | `NewPat-<version>-macos-x86_64.pkg` | AMD64 Lima guest running the Linux AMD64 image |
 
 The package includes native Python and Lima, the graphical application, CLI and scientific image. The first launch needs virtualization, internet access for guest preparation and sufficient storage for the application, VM disk, image, input files and results. Homebrew, Docker Desktop and separate R or samtools installations are unnecessary.
 
@@ -14,7 +14,9 @@ The package includes native Python and Lima, the graphical application, CLI and 
 1. Download the PKG for your architecture and compare its checksum with the release checksum.
 2. Double-click the PKG and follow Installer. NewPat packages have no Apple Developer ID signature or notarization. If macOS reports that it cannot verify the package, dismiss the dialog, open **System Settings → Privacy & Security**, find the blocked item and choose **Open Anyway** if your device policy allows it. The app may need its own approval on first launch. [Apple's instructions](https://support.apple.com/en-us/102445)
 3. Open **NewPat** from Applications. Keep the preparation window open while the application creates its dedicated Lima environment, imports the verified image and checks engine contracts.
-4. When the main window opens, create an experiment or open previous results. Later launches reuse the prepared environment. Analyses run locally with networking disabled in each analysis container.
+4. When the main window opens, create an experiment or open previous results. In 0.9.10, **Environment and help → Open demo** prepares a first experiment with the bundled inputs. Review the draft and start the analysis. [First experiment in Italian](QUICKSTART_IT.md)
+
+Later launches reuse the prepared environment. Analyses run locally with networking disabled in each analysis container.
 
 An error during preparation leaves the environment unready. Record the message and package identity. On a managed Mac, involve the administrator if policy blocks installation.
 

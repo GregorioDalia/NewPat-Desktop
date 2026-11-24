@@ -31,6 +31,14 @@ Check the overall status as well as the step status. A failed or interrupted wor
 
 Find input validation in `work/input-validation.json`. Single analyses can record quality warnings in `work/scientific-validation.json`; workflows report them under the step's `artifacts.quality_warnings`. [Validation guide](INPUT_VALIDATION.md)
 
+## Stop an experiment or remove its card
+
+1. In **Activity**, select **Stop analysis** and confirm. A queued submission can be cancelled before the calculation starts. For a running experiment, wait for its final state and check the run folder for any files already produced.
+2. Select **Remove from list** on the finished activity card or in **Experiments and results**. Removing a card hides the corresponding experiment from the desktop lists. Existing input files, outputs and logs stay on disk.
+3. To list a saved experiment again, choose **Open existing results** and select the folder containing its `run.json`. A submission cancelled before run creation has only an activity card.
+
+After an unexpected exit, the desktop checks the local runtime before offering to remove a run whose last recorded status was `running` or `preparing`. An unverified run can appear as **Needs verification**. See [Inspect an incomplete run](#inspect-an-incomplete-run).
+
 ## Outputs by analysis
 
 The paths below are relative to an individual run or to a workflow's `steps/<id>/` folder.

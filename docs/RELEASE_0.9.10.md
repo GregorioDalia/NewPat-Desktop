@@ -1,18 +1,20 @@
 # NewPat 0.9.10
 
+**Candidate for review.** The available desktop workflows cover five modules. Stable publication awaits the revised Postnatal CPI output and the sixth analysis script. The behavior below describes the current candidate. The [0.9.9 release](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.9.9) remains the stable download during review.
+
 ## Experiments and results
 
-Activity tracks concurrent experiments and shows their progress, output directory and stop control. You can queue several experiments. A desktop session prepares up to two at once, and calculations share the CPU and memory available on the same runtime. If another experiment arrives during a multi-step workflow, a compatible engine can share capacity at the next completed step or group of independent SNP samples. Activity shows when a job is waiting. You can cancel a waiting job or remove an interrupted experiment from activity and history while keeping its files.
+Activity tracks concurrent experiments and shows their progress, output directory and stop control. You can submit another experiment while others are running or waiting. Each desktop session prepares up to two at once. The runtime admits calculations according to available CPU and memory, so several active experiments can each take longer. If another experiment arrives during a multi-step workflow, a compatible engine can share capacity at the next completed step or group of independent SNP samples. Activity shows when a job is waiting. You can cancel a waiting job or remove an interrupted experiment from activity and history while keeping its files.
 
 Preferences can store named analysis profiles and select a default for new experiments. Sample names, input files and family roles are selected for each experiment. The results view identifies the caller as SNP or DNP and returns to the source table after closing details or IGV. The interface uses the names **Prenatal CPI** and **Postnatal CPI**.
 
-The desktop summary now highlights recorded genotype, CPI and contamination measurements for the selected sample or family. The prenatal summary shows where the reported log index lies relative to the two plot guides recorded for that analysis. Postnatal output retains the estimates and curves produced by the current R script.
+The DNP and SNP summaries show how many loci received a genotype for each sample. Read counts and genotype calls describe the sample at those loci. The Prenatal CPI summary compares the reported log index with the two guides recorded for that analysis. Postnatal CPI displays the estimates and curves produced by the current R script. Contamination shows the recorded estimate when informative sites are available. The DNP glossary explains that `NA` means the program could not determine a value.
 
-The installation includes an offline synthetic trio with example alignments, indexed reference, panels, frequencies and count tables for both marker types. Choose **Environment and help → Open demo** to review and run a prefilled DNP/SNP experiment with those three samples. Use **Save example data** to copy the dataset to a local folder, then follow its README to check the five analyses on the trio. The separate timing workload runs both callers on a single BAM with 128 loci across four contigs.
+The installation includes an offline synthetic trio with example alignments, indexed reference, panels, frequencies and count tables for both marker types. Choose **Environment and help → Open demo** to review and run a prefilled DNP/SNP experiment with those three samples. Use **Save example data** to copy the dataset to a local folder, then follow its README to check the five analyses on the trio. The separate timing workload runs both callers on a single BAM with 128 loci across four contigs. [First run in Italian](QUICKSTART_IT.md)
 
 ## Human reference genomes
 
-BAM experiments and IGV share a local reference catalog. Choose GRCh37 / hg19 or GRCh38 / hg38 and register the FASTA used for alignment, or explicitly download the corresponding UCSC reference. The application verifies the downloaded archive and prepares the reference locally for offline reuse. The synthetic datasets include their own reference FASTAs. [Choosing a reference genome](GUI.md#choose-a-reference-genome)
+BAM experiments and IGV share a local reference catalog. Choose the FASTA used to align the BAMs, with panels in the same coordinates. Register an existing local FASTA or download UCSC hg19 or hg38 if it matches your inputs. The catalog also accepts custom references. The application verifies the downloaded archive and prepares the reference locally for offline reuse. The synthetic datasets include their own reference FASTAs. [Choosing a reference genome](GUI.md#choose-a-reference-genome)
 
 ## Desktop appearance
 

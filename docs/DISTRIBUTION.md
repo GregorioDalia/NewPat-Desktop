@@ -1,22 +1,22 @@
 # Distribution and system requirements
 
-Download installers from **Assets** on the [NewPat 0.9.9 release](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.9.9). Choose the package for your operating system and processor. GitHub's **Source code** downloads are intended for developers.
+For a published version, open **Assets** on the [latest stable release](https://github.com/GregorioDalia/nipat-desktop/releases/latest). Match the version in the filename to the release tag and choose your operating system and processor. GitHub's **Source code** downloads are for developers. The table uses the 0.9.10 naming convention.
 
 | System | Package | Scientific environment |
 | --- | --- | --- |
 | Windows 10 22H2 x64 (build 19045) or Windows 11 x64 | `NewPat-Setup.exe` | NewPat-managed WSL2 distribution with Docker Engine |
-| Same Windows systems, local folder installation | `NewPat-0.9.9-Windows-completo.zip` | Same WSL2 runtime; complete archives included |
-| macOS 14 or later, Apple Silicon | `NewPat-0.9.9-macos-arm64.pkg` | ARM64 Lima VM, Linux AMD64 image with Rosetta |
-| macOS 14 or later, Intel | `NewPat-0.9.9-macos-x86_64.pkg` | AMD64 Lima VM and Docker Engine |
-| Ubuntu 24.04 LTS, x86_64 | `newpat-desktop_0.9.9_amd64.deb` | Local system Docker Engine and Compose v2 |
+| Same Windows systems, local folder installation | `NewPat-<version>-Windows-complete.zip` | Same WSL2 runtime; complete archives included |
+| macOS 14 or later, Apple Silicon | `NewPat-<version>-macos-arm64.pkg` | ARM64 Lima VM, Linux AMD64 image with Rosetta |
+| macOS 14 or later, Intel | `NewPat-<version>-macos-x86_64.pkg` | AMD64 Lima VM and Docker Engine |
+| Ubuntu 24.04 LTS, x86_64 | `newpat-desktop_<version>_amd64.deb` | Local system Docker Engine and Compose v2 |
 
 All packages use the same scientific Linux AMD64 image with R, samtools, the analysis scripts and their dependencies. Each analysis container runs offline, reads selected inputs through read-only mounts and writes to its own run directory.
 
 ## Install
 
-- **Windows.** Run the setup from your regular account. It includes bootstrap Python, downloads a verified payload and prepares missing WSL prerequisites. Those steps may require internet access, an administrator and a reboot. When **NewPat: ready** appears, launch the Start menu or desktop shortcut. For the complete ZIP, extract to a permanent local directory, run `1_INSTALLA.cmd` in 0.9.9 (`1_INSTALL.cmd` in the English layout from 0.9.10) and keep the resulting `NIPAT` directory. Its `NewPat.lnk` opens the app. The ZIP installation has its own update method and machine-specific WSL registration. [Windows guide](WINDOWS_INSTALLER.md)
+- **Windows.** Run the setup from your regular account. It includes bootstrap Python, downloads a verified payload and prepares missing WSL prerequisites. Those steps may require internet access, an administrator and a reboot. When **NewPat: ready** appears, launch the Start menu or desktop shortcut. For the complete ZIP, extract to a permanent local directory, run `1_INSTALL.cmd` and keep the resulting `NIPAT` directory. The older 0.9.9 archive ends in `-Windows-completo.zip` and uses `1_INSTALLA.cmd`. Its `NewPat.lnk` opens the app. The ZIP installation has its own update method and machine-specific WSL registration. [Windows guide](WINDOWS_INSTALLER.md)
 - **macOS.** Open the matching PKG, run Installer and open **NewPat** from Applications. First launch configures the dedicated Lima VM and requires internet access. Native Python and Lima are bundled. macOS may require explicit approval for unsigned, unnotarized software. User data lives in `~/Library/Application Support/NIPAT-Desktop`. [macOS guide](MACOS_INSTALLER.md)
-- **Ubuntu.** From the download directory run `sudo apt install ./newpat-desktop_0.9.9_amd64.deb`. APT resolves eligible missing dependencies. The administrator must authorize the user's access to the local Docker socket. Start **NewPat** from the applications menu. [Ubuntu guide](LINUX_INSTALLER.md)
+- **Ubuntu.** Install the downloaded DEB with APT using its exact filename. APT resolves eligible missing dependencies. The administrator must authorize the user's access to the local Docker socket. Start **NewPat** from the applications menu. [Ubuntu guide](LINUX_INSTALLER.md)
 
 ## Development installation on Ubuntu
 

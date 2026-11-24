@@ -42,6 +42,8 @@ docs/ARCHITECTURE.md
 docs/CI_CD.md
 docs/SCIENTIFIC_CATALOG.md
 docs/DISTRIBUTION.md
+docs/README.md
+docs/QUICKSTART_IT.md
 docs/RUNS.md
 docs/USER_GUIDE.md
 docs/LINUX_INSTALLER.md

@@ -14,7 +14,11 @@ NewPat packages five R programs from [DNPcall](https://github.com/fravasini/DNPc
 
 ## Regression references
 
-| Analysis | Reference used to check a build |
+The routine combined DNP/SNP check runs the candidate on the [bundled synthetic trio](../examples/newpat-synthetic-trio.zip). It compares six caller tables against 18 expected locus-level rows derived from the read design. In the source repository, `tests/fixtures/synthetic-trio-v1/` contains the expected rows, the input digests and the derivation. This check covers allele counts and genotype calls for these samples. It needs no earlier installation of NewPat.
+
+The full scientific qualification also compares the candidate with frozen scripts and tests additional model-specific cases. [CI evidence and reuse rules](../docs/CI_CD.md)
+
+| Analysis | Reference used in full scientific qualification |
 | --- | --- |
 | DNPcall | NIPAT 0.8.5 commit `eafadf7002a9c7d7c1b9af9ccafc47d698a059e5`, frozen in `tests/reference_r/0.8.5`. |
 | SNPcall | [Upstream SNPcall 2.0](https://github.com/lpistacchia/NEWPAT/tree/ce59f4beeeec710b1b42d425cb87d7aad729f71d/SNPcall), Git blob `7a2e01e94c9e278af52aa861646fec3b16df8b1c`. Local reference `tests/reference_r/2.0/SNPcall.R` has SHA-256 `855a96c897d1bcb8ce30b725baecfa739d01be323252da07554a63aa66965da4`. |
@@ -52,13 +56,13 @@ Inputs are explicit maternal cfDNA–father pairs, compatible SNP/DNP population
 
 ## Postnatal CPI
 
-Postnatal CPI takes mother–father–child trios and SNP/DNP frequencies. Both `other_allele` and `all` require a homozygous mother. The setting `both` runs the two selections. Initial support is checked for each called allele in the child. The subsequent curve increases the support requirement for the obligate paternal allele. The upstream PI model uses configurable error constants. The module exports summaries, sites with exclusion reasons, curves and PDFs. It caches shared samples, schedules independent trios within the common budget and computes threshold intervals without rescanning every integer through maximum depth.
+Postnatal CPI takes mother–father–child trios and SNP/DNP frequencies. Both `other_allele` and `all` require a homozygous mother. The setting `both` runs the two selections. Initial support is checked for each called allele in the child. The subsequent curve increases the support requirement for the obligate paternal allele. The upstream PI model uses configurable error constants. The module exports numerical summaries per trio and selected analysis, sites with exclusion reasons, curves and PDFs. The planned change to a single reported value awaits the revised upstream script and a worked example specifying the selection, scale and expected value. It caches shared samples, schedules independent trios within the common budget and computes threshold intervals without rescanning every integer through maximum depth.
 
 ## Configuration and verification
 
 `newpat settings` lists parameter defaults, limits and model constants. `--scientific-config PATH` and `--set module.parameter=value` apply validated overrides. Each step records effective settings and code references. A missing estimate (`NA`) remains distinct from zero.
 
-`scripts/verify_engine_package.py` exercises the installed image on synthetic inputs. Fixture descriptions include inputs, expectations and limitations for [DNPcall](../tests/fixtures/dnp_engine/README.md), [SNPcall](../tests/fixtures/snp_engine/README.md), [Contamination](../tests/fixtures/contamination/README.md), [CPI](../tests/fixtures/cpi/README.md), [CPI error constants](../tests/fixtures/cpi_engine/README.md), [postnatal CPI](../tests/fixtures/cpin/README.md) and [independent model checks](../tests/fixtures/five_modules/README.md).
+`scripts/verify_engine_package.py` exercises the installed image on synthetic inputs. Fixture descriptions include inputs, expectations and limitations for [DNPcall](../tests/fixtures/dnp_engine/README.md), [SNPcall](../tests/fixtures/snp_engine/README.md), [Contamination](../tests/fixtures/contamination/README.md), [CPI](../tests/fixtures/cpi/README.md), [CPI error constants](../tests/fixtures/cpi_engine/README.md), [postnatal CPI](../tests/fixtures/cpin/README.md) and [independent model checks](https://github.com/GregorioDalia/nipat-desktop/blob/23b630aeb8133fb8a36e67b4b588048474d5eea4/tests/fixtures/five_modules/README.md).
 
 `scripts/verify_r_equivalence.py` compares the two callers with their frozen references in the same runtime. `scripts/verify_five_modules.py` checks CPI, postnatal CPI and Contamination against upstream and analytical expectations for both marker types. The checks include unrounded values, tables and plots. Changes to a scientific script require review of its provenance, manifest and relevant regressions. Package identity, fixture equivalence and expert assessment on independent data address separate questions.
 
