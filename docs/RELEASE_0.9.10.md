@@ -8,7 +8,7 @@ Preferences can store named analysis profiles and select a default for new exper
 
 The desktop summary now highlights recorded genotype, CPI and contamination measurements for the selected sample or family. The prenatal summary shows where the reported log index lies relative to the two plot guides recorded for that analysis. Postnatal output retains the estimates and curves produced by the current R script.
 
-The installation includes an offline synthetic trio with example alignments, indexed reference, panels, frequencies and count tables for both marker types. Use **Environment and help → Save example data** to copy it to a local folder, then follow its README to check the five analyses on the trio. The separate timing workload runs both callers on a single BAM with 128 loci across four contigs.
+The installation includes an offline synthetic trio with example alignments, indexed reference, panels, frequencies and count tables for both marker types. Choose **Environment and help → Open demo** to review and run a prefilled DNP/SNP experiment with those three samples. Use **Save example data** to copy the dataset to a local folder, then follow its README to check the five analyses on the trio. The separate timing workload runs both callers on a single BAM with 128 loci across four contigs.
 
 ## Human reference genomes
 

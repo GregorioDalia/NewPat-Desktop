@@ -52,7 +52,9 @@ Select the marker branch and the sample, pair or trio in **Experiments and resul
 
 ### Try the shared example
 
-In **Environment and help**, choose **Save example data**. Select a parent folder for a fresh `synthetic-trio` directory. Open its README to use the same sample IDs, panels, family roles and worker settings. Use the trio to check all five analyses. For comparable DNP and SNP timings, use the dedicated BAM and panels in the timing folder (four contigs, 128 loci and 1,000 reads per locus). Both workloads run offline. The downloadable copy is also usable with 0.9.9. [Example ZIP](../examples/newpat-synthetic-trio.zip)
+Open **Environment and help → Open demo** to prepare a DNP and SNP experiment. It uses the local `mother`, `father` and `child` BAMs, an indexed synthetic FASTA and both marker panels. Review the configuration and choose **Start experiment**. In the resulting DNP and SNP tables, each sample has three loci with 100 reads per locus. Expect 96 REF and 4 ALT for `mother`, and 50 REF and 50 ALT for both `father` and `child`.
+
+For a copy of the inputs and instructions, choose **Save example data**. Select a parent folder for a fresh `synthetic-trio` directory. Open its README to use the same sample IDs, panels, family roles and worker settings. Use the trio to check all five analyses. For comparable DNP and SNP timings, use the dedicated BAM and panels in the timing folder (four contigs, 128 loci and 1,000 reads per locus). Both workloads run offline. The downloadable copy is also usable with 0.9.9. [Example ZIP](../examples/newpat-synthetic-trio.zip)
 
 ## Read prenatal and postnatal CPI plots
 
