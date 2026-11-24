@@ -249,7 +249,8 @@ class ScientificSelection(unittest.TestCase):
                      "src/nipat_scientific/desktop_scheduling.py", "src/nipat_scientific/settings_data.json",
                      "src/nipat_scientific/dnp.py", "src/nipat/resources.py", "config/defaults.toml",
                      "installer/runtime/Dockerfile", "engine/main.py", ".github/workflows/ci.yml",
-                     "new-area/something", *changes.SMOKE_HARNESS):
+                     "new-area/something", ".github/scripts/verify_caller_smoke.py",
+                     ".github/scripts/verify_caller_edges.py", ".github/scripts/test_verify_caller_smoke.py"):
             self.assertEqual(selection(reference, presentation, path), (True, "standard", False), path)
         self.assertEqual(selection(reference, force=True), (True, "standard", False))
 

@@ -38,7 +38,10 @@ CALLER_INTEGRATION_FILES = {
     "src/nipat/gui/references.py", "src/nipat/gui/reference_downloads.py",
     "tests/test_gui_references.py", "tests/test_gui_reference_downloads.py",
 }
-SMOKE_HARNESS = {".github/scripts/verify_caller_smoke.py", ".github/scripts/test_verify_caller_smoke.py"}
+SMOKE_HARNESS = {
+    ".github/scripts/verify_caller_smoke.py", ".github/scripts/verify_caller_edges.py",
+    ".github/scripts/test_verify_caller_smoke.py",
+}
 
 SCIENTIFIC_PREFIXES = ("src/", "scientific/", "docker/", "engine/", "tests/")
 SCIENTIFIC_FILES = {

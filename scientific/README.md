@@ -14,7 +14,7 @@ NewPat packages five R programs from [DNPcall](https://github.com/fravasini/DNPc
 
 ## Regression references
 
-The routine combined DNP/SNP check runs the candidate on the [bundled synthetic trio](../examples/newpat-synthetic-trio.zip). It compares six caller tables against 18 expected locus-level rows derived from the read design. In the source repository, `tests/fixtures/synthetic-trio-v1/` contains the expected rows, the input digests and the derivation. This check covers allele counts and genotype calls for these samples. It needs no earlier installation of NewPat.
+The routine combined DNP/SNP check runs the candidate on the [bundled synthetic trio](../examples/newpat-synthetic-trio.zip). It compares six caller tables against 18 expected locus-level rows derived from the read design. In the source repository, `tests/fixtures/synthetic-trio-v1/` contains the expected rows, the input digests and the derivation. The same check also runs five loci from two separate engine fixtures, including a DNP homozygous ALT call (`1/1`) and two SNP calls masked as `NA` by the Other-read threshold. Both sets of expectations can be checked using the candidate alone.
 
 The full scientific qualification also compares the candidate with frozen scripts and tests additional model-specific cases. [CI evidence and reuse rules](../docs/CI_CD.md)
 

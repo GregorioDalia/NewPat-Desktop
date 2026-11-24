@@ -7,6 +7,8 @@ import unittest
 from unittest.mock import patch
 
 import verify_caller_smoke as smoke
+import verify_caller_edges as edges
+from nipat.errors import ValidationError
 
 
 class CallerSmokeTests(unittest.TestCase):
@@ -85,14 +87,16 @@ class CallerSmokeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "own table"):
             self.check()
 
-    def test_pins_every_planned_input_and_rejects_a_changed_sample_assignment(self):
+    def test_aliased_trio_root_pins_every_input_and_rejects_changed_sample_assignments(self):
         example = self.root / "synthetic-trio"
         # Only the two panels, reference, BAMs and companion indexes are needed.
         for name in ("reference", "alignments", "panels"):
             shutil.copytree(smoke.TRIO / name, example / name)
         layout = smoke.ProjectLayout(smoke.ROOT, self.root, self.root / "data", self.root / "runs",
                                      smoke.ROOT / "compose.yaml")
-        with patch.object(smoke, "TRIO", example):
+        # Exercise two names for the same directory on every host, without symlink privileges.
+        alias = example / "alignments" / ".."
+        with patch.object(smoke, "TRIO", alias):
             prepared = smoke.prepare(layout)
             smoke.check_inputs(prepared)
             self.assertEqual(len(prepared.evidence), 10)
@@ -114,6 +118,45 @@ class CallerSmokeTests(unittest.TestCase):
         self.steps[-1]["artifacts"]["snp-tables"][0]["sample"] = "father"
         with self.assertRaisesRegex(ValueError, "one DNP and one SNP table per sample"):
             self.check()
+
+    def test_quick_engine_cases_validate_the_genotype_at_the_expected_locus(self):
+        fixtures = smoke.ROOT / "tests/fixtures"
+        dnp = self.root / "dnp.txt"
+        snp = self.root / "snp.txt"
+        dnp_oracle = smoke.read_table(fixtures / "dnp_engine/expected.tsv")
+
+        def dnp_rows(sample):
+            return [{key: value for key, value in row.items() if key != "sample"}
+                    for row in dnp_oracle if row["sample"] == sample]
+
+        dnp_a = dnp_rows("A")
+        snp_rows = smoke.read_table(fixtures / "snp_engine/expected.tsv")
+        # Keep the requested cases present even if an expected table is edited.
+        self.assertEqual([(r["pos1"], r["pos2"], r["N_REF"], r["N_ALT"], r["N_Other"])
+                          for r in dnp_a if r["GT"] == "1/1"], [("230", "231", "0", "20", "1")])
+        self.assertEqual({(r["pos"], r["N_Other"], r["total_count"]) for r in snp_rows if r["GT"] == "NA"},
+                         {("50", "1", "7"), ("120", "1", "6")})
+        self.write_table(dnp, dnp_a)
+        self.write_table(snp, snp_rows)
+        edges.check_edge_tables(dnp, snp)
+
+        # Sample B has the same loci and genotype classes, assigned to different loci.
+        self.write_table(dnp, dnp_rows("B"))
+        with self.assertRaises(ValueError):
+            edges.check_edge_tables(dnp, snp)
+        for changes in ({"GT": "0/1"}, {"N_Other": "0"}, {"pos2": "232"}):
+            with self.subTest(marker="DNP", changes=changes):
+                self.write_table(dnp, [{**row, **changes} if row["pos1"] == "230" else row
+                                       for row in dnp_a])
+                with self.assertRaises(ValueError):
+                    edges.check_edge_tables(dnp, snp)
+        self.write_table(dnp, dnp_a)
+
+        for changes in ({"GT": "0/1"}, {"GT": ""}, {"N_Other": "0"}, {"pos": "51"}):
+            with self.subTest(marker="SNP", changes=changes):
+                self.write_table(snp, [{**snp_rows[0], **changes}, *snp_rows[1:]])
+                with self.assertRaises(ValidationError):
+                    edges.check_edge_tables(dnp, snp)
 
 
 if __name__ == "__main__":
