@@ -2,6 +2,8 @@
 
 A release publishes the packages produced by a reviewed GitHub Actions installer build. The publisher checks the files again and reuses those bytes. The package set covers Windows x64, Ubuntu 24.04 x86_64, macOS Intel and macOS Apple Silicon, all tied to one Linux AMD64 scientific archive.
 
+For a request to make a version stable, first identify the version, the intended source commit and the approved scientific scope. Integrate that source through the development PR and wait for its required checks. Use an existing successful full installer build only if it still meets the source, ancestry, artifact and evidence requirements. Otherwise dispatch one full build from the integrated commit. Complete the acceptance record with the selected `stable` channel and reviewer's evidence, then merge the acceptance-only PR. The verified publisher creates and checks the draft before making the accepted packages available as **Latest**. These are normally two PRs across the life of the version. Once the code is integrated, only the acceptance PR remains.
+
 ## 1. Build the candidate
 
 1. Check that `pyproject.toml`, the client version and release notes identify the intended version. Use `docs/RELEASE_VERSION.md` with the actual version in the filename.
@@ -31,7 +33,7 @@ To test a candidate on a Windows PC, enable `windows_zip_only` when dispatching 
 
 ## 2. Review and record acceptance
 
-Generate a pending template from the same build:
+The summary of a full installer build links to `newpat-acceptance-template-<attempt>`. Download `acceptance-for-review.json` for that attempt. The template records the build identity and package digests. Its decision is `pending`. A template can also be generated locally from the same build.
 
 ```bash
 python .github/scripts/release_acceptance.py \

@@ -1,0 +1,9 @@
+# DNP and SNP caller regression on synthetic-trio-v1
+
+`expected.tsv` is a technical regression oracle for the three indexed BAMs shipped with NewPat. It compares the two callers separately, at three loci in each of the mother, father and child samples. For DNP, the oracle's first coordinate (`pos`) corresponds to the caller's `pos1`; `pos2` is the second base. SNP uses only `pos`. All coordinates are 1-based.
+
+The independent expectations follow the synthetic read design in [the SAM recipe](../../../scripts/acceptance/installed_workflows.py) (`_positive_sams`) and [the trio generator](../../../examples/build_synthetic_trio.py). At bases 50–51, 140–141 and 230–231 the REF/ALT pairs are AC/GT, TA/CG and GC/AT. The SNP call uses the first base of each pair. The generator writes 96 REF and 4 ALT reads at each maternal locus and 50 of each allele at each paternal and child locus. All 100 reads carry one of those two alleles. With the default calling model the expected diploid genotypes are 0/0 for the mother and 0/1 for the father and child. The oracle stores those answers explicitly, independently of the generated example count tables and any run of NewPat.
+
+`inputs.sha256` pins the three BAMs and their three indexes, the FASTA and its index, and the two caller panels under [examples/synthetic-trio](../../../examples/synthetic-trio/). The verifier checks the files selected by the desktop plan before and after the workflow. To revise this case, document the new input design, calculate the expected rows from that design and review the input digests and expectations together. A new set of results from a candidate alone does not establish the expected answer.
+
+This check exercises caller counts and genotypes. The scientific qualification covers likelihoods, edge cases and the downstream analyses separately. This fixture records no domain approval or paternity assessment.

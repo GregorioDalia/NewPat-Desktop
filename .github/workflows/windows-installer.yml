@@ -765,7 +765,22 @@ jobs:
           path: build/verified-installers/
           retention-days: 14
           if-no-files-found: error
+      - name: Generate the pending acceptance record for review
+        run: |
+          python .github/scripts/release_acceptance.py \
+            --installer-set build/verified-installers/installer-set-check.json \
+            --run-id "$GITHUB_RUN_ID" --output build/acceptance-for-review.json
+      - name: Retain the pending acceptance record separately
+        id: acceptance_template
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: newpat-acceptance-template-${{ github.run_attempt }}
+          path: build/acceptance-for-review.json
+          retention-days: 14
+          if-no-files-found: error
       - name: Summarize verified candidate
+        env:
+          ACCEPTANCE_TEMPLATE_URL: ${{ steps.acceptance_template.outputs.artifact-url }}
         run: |
           python .github/scripts/installer_downloads.py --evidence build/verified-installers/installer-set-check.json
 

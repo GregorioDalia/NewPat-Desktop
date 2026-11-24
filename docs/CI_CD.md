@@ -43,11 +43,13 @@ A change limited to `.github/release-acceptance/vVERSION.json` uses `acceptance`
 
 ## Scientific checks
 
-The shorter DNP/SNP workflow uses the three BAMs in the [offline synthetic trio](../examples/synthetic-trio/). It goes through desktop plan preparation and the execution engine. For each caller it checks three loci per sample against the shipped counts and expected genotypes, including chromosome, coordinates and allele identity. This catches broken input handling while keeping the independent upstream comparisons available for scientific changes.
+The shorter DNP/SNP workflow uses the three BAMs in the [offline synthetic trio](../examples/synthetic-trio/). It goes through desktop plan preparation and the execution engine. For each caller it checks three loci per sample against the [versioned regression oracle](../tests/fixtures/synthetic-trio-v1/README.md), including chromosome, coordinates, alleles, counts and genotype. The oracle records input digests and expected results independently of tables written by the candidate. This catches broken input handling while keeping the independent upstream comparisons available for scientific changes.
 
 `scripts/verify_r_equivalence.py` compares 17 caller cases against frozen references, NIPAT 0.8.5 for DNP and SNPcall 2.0 for SNP, producing `r-equivalence.json`. The comparisons cover exact scientific tables and unrounded R results. Plot checks cover content, dimensions, histograms and rendering across serial and parallel modes of the candidate.
 
 `scripts/verify_five_modules.py --image IMAGE --full` compares Contamination, prenatal CPI and postnatal CPI with upstream NEWPAT commit `9c2a8be60afcb944153710da6a61cd0559e2b4cf` and independent analytical expectations. Its `five-module-qualification.json` covers 86 runs, including 16 upstream comparisons and 54 batch cases. Batches exercise 2/3/5 families or samples, both SNP/DNP marker types, and serial, automatic and two-worker execution. Upstream numerical tolerances are absolute and relative `1e-11`; sample, pair and trio identities must match exactly.
+
+The routine caller check runs only the candidate on the bundled inputs. Independent analytical expectations for the downstream modules also exist in the [five-module fixtures](../tests/fixtures/five_modules/README.md). The seven-check scientific qualification and the current release acceptance schema still require the pinned upstream comparisons. For a change to a scientific model, record the input, expected result, units or scale, missing-value behavior, and the reason for the changed expectation alongside its test. Validate a new or corrected module against its author’s example before using that example as a regression reference. A future change to the release evidence contract needs explicit coverage of the current cases and a versioned verifier that can still read historical records.
 
 The container supplies R, samtools, model scripts, adapters and orchestration. The client verifies contracts. Scientific scripts used for execution come from the image. The final-image checks run native empty/zero-coverage and parameter cases with required dependencies. A three-BAM, ten-step plan exercises DNP, SNP and all three downstream modules for both callers, in serial and capped at two processes. It checks expected outputs, run identity, settings and original inputs. Presentation checks verify canonical tables with/without readable names and PDF text. The catalog pins distributed scientific sources and preparation dependencies by hash.
 
@@ -65,6 +67,7 @@ For a local Windows test, select **Installers (review build)**, choose the revie
 | `nipat-linux-setup` | Ubuntu AMD64 DEB and reports |
 | `nipat-macos-setup-arm64`, `nipat-macos-setup-x86_64` | macOS PKG and report for each native architecture |
 | `nipat-installer-set-evidence` | Joint identity and verification report |
+| `newpat-acceptance-template-<attempt>` | Pending acceptance record with build identity and digests for the full installer set |
 
 The final job downloads the original packages to verify their identities, then publishes its evidence without uploading another four copies of the packages. Actions artifacts contain review material and have retention limits. Users of a published release download the installer from its Assets list.
 

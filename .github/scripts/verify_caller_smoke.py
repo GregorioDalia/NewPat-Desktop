@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 from collections import Counter
 import csv
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -12,7 +13,10 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 TRIO = ROOT / "examples/synthetic-trio"
-GENOTYPES = {"mother": "0/0", "father": "0/1", "child": "0/1"}
+ORACLE = ROOT / "tests/fixtures/synthetic-trio-v1"
+SAMPLES = ("mother", "father", "child")
+MARKERS = ("dnp", "snp")
+VALUE_FIELDS = ("REF", "ALT", "N_REF", "N_ALT", "N_Other", "total_count", "GT")
 
 sys.path.insert(0, str(ROOT / "src"))
 from nipat.execution.runner import DockerComposeRunner
@@ -26,20 +30,41 @@ def read_table(path: Path) -> list[dict]:
         return list(csv.DictReader(stream, delimiter="\t"))
 
 
-def check_table(path: Path, marker: str, sample: str) -> None:
-    # The example count tables are inputs shipped for downstream-only analyses.
-    # They were produced independently of this run and can also be read back from BAM.
-    expected = read_table(TRIO / "counts" / marker / f"{sample}.txt")
-    for row in expected:
-        row["GT"] = GENOTYPES[sample]
-    fields = ["chr", *(["pos1", "pos2"] if marker == "dnp" else ["pos"]),
-              "REF", "ALT", "N_REF", "N_ALT", "N_Other", "total_count", "GT"]
+def check_inputs(prepared) -> None:
+    expected = {}
+    for line in (ORACLE / "inputs.sha256").read_text(encoding="ascii").splitlines():
+        digest, name = line.split("  ")
+        if name in expected:
+            raise ValueError(f"Duplicate input in the trio oracle: {name}")
+        expected[name] = digest
 
-    def rows(records):
-        return Counter(tuple(row[field] for field in fields) for row in records)
+    inputs = prepared.inputs
+    roles = {f"alignments/{sample}.bam": path for sample, path in inputs["samples"]}
+    roles["reference/synthetic.fa"] = inputs["reference"]
+    for marker in MARKERS:
+        roles[f"panels/{marker}.tsv"] = inputs[f"{marker}_panel"]
+    if any(path != TRIO / relative for relative, path in roles.items()):
+        raise ValueError("A trio input was assigned to the wrong sample, panel or reference")
+    if [sample for sample, path in inputs["samples"]] != list(SAMPLES):
+        raise ValueError("The trio plan changed sample identity or order")
 
-    wanted, actual = rows(expected), rows(read_table(path))
-    if len(expected) != 3 or actual != wanted:
+    # Plan evidence includes the FASTA and BAM indexes actually discovered by the desktop.
+    discovered = {path.relative_to(TRIO).as_posix(): path for path, _ in prepared.evidence}
+    if discovered.keys() != expected.keys():
+        raise ValueError("The desktop plan did not select the pinned trio inputs and indexes")
+    for name, path in discovered.items():
+        with path.open("rb") as stream:
+            if hashlib.file_digest(stream, "sha256").hexdigest() != expected[name]:
+                raise ValueError(f"Synthetic trio input changed: {name}")
+
+
+def check_table(path: Path, marker: str, sample: str, expected: list[dict]) -> None:
+    coordinates = ("chr", "pos1", "pos2") if marker == "dnp" else ("chr", "pos")
+    fields = (*coordinates, *VALUE_FIELDS)
+    wanted = Counter(tuple(row["pos" if field == "pos1" else field] for field in fields)
+                     for row in expected if row["marker"] == marker and row["sample"] == sample)
+    actual = Counter(tuple(row[field] for field in fields) for row in read_table(path))
+    if len(wanted) != 3 or wanted.total() != 3 or actual != wanted:
         raise ValueError(f"{marker.upper()} {sample}: expected three matching loci. "
                          f"Missing {dict(wanted - actual)}, unexpected {dict(actual - wanted)}")
 
@@ -50,14 +75,22 @@ def check_results(workflow: Path) -> None:
     if (state["status"] != "succeeded" or any(step["status"] != "succeeded" for step in steps)
             or Counter(step["workflow"] for step in steps) != {"dnp-call": 1, "snp-call": 3}):
         raise ValueError("Expected one successful DNP step and three successful SNP steps")
+    expected = read_table(ORACLE / "expected.tsv")
+    if len(expected) != len(MARKERS) * len(SAMPLES) * 3:
+        raise ValueError("The trio oracle must specify all 18 sample-loci")
     samples = []
+    seen_paths = set()
     for step in steps:
         marker = step["workflow"].removesuffix("-call")
         for artifact in step["artifacts"][f"{marker}-tables"]:
             sample = artifact["sample"]
-            check_table(workflow / artifact["path"], marker, sample)
+            path = (workflow / artifact["path"]).resolve()
+            if not path.is_relative_to(workflow.resolve()) or path in seen_paths:
+                raise ValueError("Each sample must have its own table in the workflow output")
+            seen_paths.add(path)
+            check_table(path, marker, sample, expected)
             samples.append((marker, sample))
-    if Counter(samples) != Counter((marker, sample) for marker in ("dnp", "snp") for sample in GENOTYPES):
+    if Counter(samples) != Counter((marker, sample) for marker in MARKERS for sample in SAMPLES):
         raise ValueError(f"Expected one DNP and one SNP table per sample, got {samples}")
 
 
@@ -65,10 +98,10 @@ def prepare(layout: ProjectLayout):
     draft = {
         "name": "Synthetic caller smoke", "caller": "both",
         "samples": [{"id": sample, "kind": "bam", "path": str(TRIO / f"alignments/{sample}.bam")}
-                    for sample in GENOTYPES],
+                    for sample in SAMPLES],
         "reference": str(TRIO / "reference/synthetic.fa"),
         "resources": {marker.upper(): {"panel": str(TRIO / f"panels/{marker}.tsv")}
-                      for marker in ("dnp", "snp")},
+                      for marker in MARKERS},
         "execution": {"max_workers": 2},
     }
     return prepare_analysis(draft, layout, language="en")
@@ -83,10 +116,12 @@ def main() -> None:
         root = Path(directory)
         layout = ProjectLayout(ROOT, root, root / "data", root / "runs", ROOT / "compose.yaml")
         prepared = prepare(layout)
+        check_inputs(prepared)
         prepared.assert_inputs_unchanged()
         runner = DockerComposeRunner(layout, options=prepared.execution)
         run = Workflows(layout, runner, prepared.scientific_settings).analyze(
             caller=prepared.draft["caller"], analyses=[], run_name="caller-smoke", **prepared.inputs)
+        check_inputs(prepared)
         check_results(run / "output/workflow")
         print("Synthetic trio passed: both callers matched counts and genotypes at all 18 sample-loci.")
 
