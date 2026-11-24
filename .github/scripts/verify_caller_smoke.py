@@ -1,4 +1,4 @@
-"""Exercise one desktop BAM-to-DNP/SNP workflow against the published synthetic trio."""
+"""Verify the desktop caller workflow and genotype edge cases on synthetic data."""
 from __future__ import annotations
 
 import argparse
@@ -23,6 +23,7 @@ from nipat.execution.runner import DockerComposeRunner
 from nipat.execution.workflows import Workflows
 from nipat.gui.plan import prepare_analysis
 from nipat.paths import ProjectLayout
+from verify_caller_edges import verify_edges
 
 
 def read_table(path: Path) -> list[dict]:
@@ -38,18 +39,20 @@ def check_inputs(prepared) -> None:
             raise ValueError(f"Duplicate input in the trio oracle: {name}")
         expected[name] = digest
 
+    # Desktop preparation resolves inputs, including system aliases for the temp directory.
+    trio_root = TRIO.resolve(strict=True)
     inputs = prepared.inputs
     roles = {f"alignments/{sample}.bam": path for sample, path in inputs["samples"]}
     roles["reference/synthetic.fa"] = inputs["reference"]
     for marker in MARKERS:
         roles[f"panels/{marker}.tsv"] = inputs[f"{marker}_panel"]
-    if any(path != TRIO / relative for relative, path in roles.items()):
+    if any(path != trio_root / relative for relative, path in roles.items()):
         raise ValueError("A trio input was assigned to the wrong sample, panel or reference")
     if [sample for sample, path in inputs["samples"]] != list(SAMPLES):
         raise ValueError("The trio plan changed sample identity or order")
 
     # Plan evidence includes the FASTA and BAM indexes actually discovered by the desktop.
-    discovered = {path.relative_to(TRIO).as_posix(): path for path, _ in prepared.evidence}
+    discovered = {path.relative_to(trio_root).as_posix(): path for path, _ in prepared.evidence}
     if discovered.keys() != expected.keys():
         raise ValueError("The desktop plan did not select the pinned trio inputs and indexes")
     for name, path in discovered.items():
@@ -124,6 +127,8 @@ def main() -> None:
         check_inputs(prepared)
         check_results(run / "output/workflow")
         print("Synthetic trio passed: both callers matched counts and genotypes at all 18 sample-loci.")
+        verify_edges(args.image, root / "caller-edges")
+        print("Genotype edge cases passed: 3 DNP loci including 1/1, and 2 SNP loci with GT=NA.")
 
 
 if __name__ == "__main__":
