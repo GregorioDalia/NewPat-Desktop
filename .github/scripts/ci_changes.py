@@ -26,9 +26,26 @@ def is_documentation(path):
             or re.fullmatch(r"docs/(?:archive/)?[^/]+\.md", path) is not None
             or re.fullmatch(r"\.github/release-acceptance/v[0-9]+\.[0-9]+\.[0-9]+-evidence\.md", path) is not None)
 
+# Only reviewed desktop inputs can use the smaller cross-platform suite.
+# The browser application and reference catalog also choose inputs for the callers.
+PRESENTATION_FILES = {
+    "src/nipat/gui/web/style.css", "src/nipat/gui/web/i18n.js",
+    "src/nipat/gui/web/index.html", "src/nipat/gui/web/newpat-wordmark.svg",
+    "tests/test_gui_frontend.py",
+}
+CALLER_INTEGRATION_FILES = {
+    "src/nipat/gui/web/app.js", "scripts/test_gui_frontend.cjs",
+    "src/nipat/gui/references.py", "src/nipat/gui/reference_downloads.py",
+    "tests/test_gui_references.py", "tests/test_gui_reference_downloads.py",
+}
+SMOKE_HARNESS = {
+    ".github/scripts/verify_caller_smoke.py", ".github/scripts/verify_caller_edges.py",
+    ".github/scripts/test_verify_caller_smoke.py",
+}
+
 SCIENTIFIC_PREFIXES = ("src/", "scientific/", "docker/", "engine/", "tests/")
 SCIENTIFIC_FILES = {
-    "compose.yaml", "pyproject.toml", ".dockerignore", "LICENSE", "THIRD_PARTY_NOTICES.md",
+    "compose.yaml", "config/defaults.toml", "pyproject.toml", ".dockerignore", "LICENSE", "THIRD_PARTY_NOTICES.md",
     "scripts/scientific_worker_evidence.py",
     ".github/workflows/ci.yml", ".github/workflows/windows-installer.yml",
     ".github/scripts/ci_changes.py", ".github/scripts/test_ci_changes.py",
@@ -56,6 +73,10 @@ def layers_for_path(path):
         return {"scientific"}
     if is_documentation(path) or ACCEPTANCE_PATH.fullmatch(path):
         return layers
+    if path in PRESENTATION_FILES | CALLER_INTEGRATION_FILES:
+        return {"client"}
+    if path in SMOKE_HARNESS:
+        return set(LAYERS)
     if (path.startswith(("src/nipat/", "tests/test_", "scripts/windows/", "scripts/acceptance/"))
             or path.startswith("config/")):
         layers.add("client")
@@ -64,7 +85,7 @@ def layers_for_path(path):
     if path.startswith(("scripts/windows/", "scripts/acceptance/", "config/")):
         layers.add("packaging")
     if path.startswith("installer/runtime/"):
-        layers.update(("runtime", "packaging"))
+        layers.update(("scientific", "runtime", "packaging"))
     if (path.startswith("installer/") or path.startswith("scripts/build_")
             or path.startswith(".github/scripts/")
             or path in {"distribution-files.txt", "scripts/distribution_support.py", "pyproject.toml"}
@@ -116,6 +137,15 @@ def select_layers(paths, *, force=False):
     return decision, reason
 
 
+def desktop_checks(paths, decision):
+    """Keep mixed changes at the highest required coverage on PRs and main."""
+    if not paths or decision["scientific"]:
+        return "standard", False
+    desktop = {path for path in paths if not is_documentation(path) and not ACCEPTANCE_PATH.fullmatch(path)}
+    focused = bool(desktop) and desktop <= (PRESENTATION_FILES | CALLER_INTEGRATION_FILES)
+    return ("focused" if focused else "standard"), bool(desktop & CALLER_INTEGRATION_FILES)
+
+
 def layer_decision(base, head, *, force=False, repository=Path(".")):
     return select_layers(changed_paths(base, head, repository=repository), force=force)
 
@@ -135,6 +165,7 @@ def main():
     args = parser.parse_args()
     paths = changed_paths(args.base, args.head)
     decision, reason = select_layers(paths, force=args.event == "workflow_dispatch")
+    desktop, caller_smoke = desktop_checks(paths, decision)
     metadata = acceptance_only(paths) and args.event != "workflow_dispatch"
     records = []
     docs = "none"
@@ -145,11 +176,13 @@ def main():
     with args.output.open("a", encoding="utf-8") as handle:
         for name, selected in decision.items():
             handle.write(f"{name}={str(selected).lower()}\n")
+        handle.write(f"desktop_scope={desktop}\n")
+        handle.write(f"caller_smoke={str(caller_smoke).lower()}\n")
         handle.write(f"reason={reason}\n")
         handle.write(f"acceptance_only={str(metadata).lower()}\n")
         handle.write(f"documentation_scope={docs}\n")
         handle.write(f"acceptance_paths={json.dumps(records)}\n")
-    print(json.dumps({**decision, "reason": reason}))
+    print(json.dumps({**decision, "desktop_scope": desktop, "caller_smoke": caller_smoke, "reason": reason}))
 
 
 if __name__ == "__main__":

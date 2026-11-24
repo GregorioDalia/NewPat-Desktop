@@ -59,6 +59,17 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
  await app.action('new-experiment',{});check(!app.state.draft.reference&&!app.state.draft.reference_id,'New experiments have no silently preselected file');
  const expectedCounts=Object.values(settings.workflows).reduce((a,w)=>a+Object.keys(w.parameters).length,0);app.state.catalogModule='all';app.state.catalogType='parameters';await app.navigate('catalog');check((element('main').innerHTML.match(/class="parameter-row"/g)||[]).length===expectedCounts,'Every scientific parameter is accessible');check(!element('main').innerHTML.includes('<h3>other_fraction_max'),'No implementation key as parameter heading');app.state.catalogType='constants';app.render();check((element('main').innerHTML.match(/class="parameter-row"/g)||[]).length===52,'Every model constant is accessible');check(element('main').innerHTML.includes('<mfrac>')&&!element('main').innerHTML.includes('<mo><</mo>'),'Formulae rendered as valid escaped MathML fragments');
  check(element('main').innerHTML.includes('Vincolo sui dati di ingresso')&&element('main').innerHTML.includes('zero è escluso'),'Population frequency domain identifies the table constraint and its reason');
+ for(const [language,label,description] of [
+  ['it','Risultato non disponibile (NA)','Nelle tabelle, NA indica che il programma non ha potuto determinare il valore.'],
+  ['en','Unavailable result (NA)','In the tables, NA means the program could not determine the value.'],
+ ]){
+  env.NipatI18n.setLanguage(language);
+  app.state.catalogModule='dnp-call';app.state.catalogSearch='(NA)';app.render();
+  const glossary=element('main').innerHTML;
+  check(glossary.includes(`<h3>${label}</h3><p>${description}</p></div>`),'The DNP glossary explains the literal table marker once in '+language);
+  check((glossary.match(/class="parameter-row"/g)||[]).length===1,'The literal marker can be searched in '+language);
+ }
+ env.NipatI18n.setLanguage('it');app.state.catalogModule='all';app.state.catalogSearch='';app.render();
  check(app.constantValue('cpi','population_frequencies',{}).includes('<mn>0</mn><mo>&lt;</mo><mi>p</mi><mo>≤</mo><mn>1</mn>'),'CPI domain excludes zero and includes one');
  check(app.choiceLabel('both')==='Entrambe le selezioni di siti'&&app.choiceLabel('other_allele')==='Siti con figlio eterozigote','Postnatal selection describes sites independently of caller markers');
  check(app.range({minimum:0,maximum:1,exclusive_minimum:true})==='> 0 · ≤ 1','Parameter bounds distinguish exclusive and inclusive limits');
@@ -384,5 +395,95 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
   const cards=app.renderRun();
   check((cards.match(/class="outcome-preview"/g)||[]).length===3&&cards.includes('Family &lt;1&gt;')&&cards.includes('Family 3')&&!cards.includes('Family 4')&&cards.includes(it?'Altri risultati nella scheda di analisi':'More results in the analysis tab'),'Module cards show named subjects and link to additional entries '+lang);
  }
+ // Verify the plan that crosses the RPC boundary when the user starts a family analysis.
+ const pair = {id: 'pair', mother: 'M', father: 'F'};
+ const trio = {id: 'trio', mother: 'M', father: 'F', child: 'C'};
+ const resources = marker => ({
+  panel: marker+'.tsv', popfreq: marker+'-freq.tsv', contamination_panel: marker+'-contamination.tsv',
+  cpi_cutoffs: [{label: 'cutoff', path: marker+'-cutoff.tsv'}], cpin_panel: marker+'-post.tsv'
+ });
+ for (const caller of ['both', 'snp']) {
+  await app.action('navigate', {view: 'new'});
+  Object.assign(app.state.draft, {
+   name: 'Families', caller, samples: ['M','F','C'].map(id=>({id, kind:'bam', path:'/bam/'+id+'.bam'})),
+   reference: '/ref/family.fa', reference_id: 'registered-fasta',
+   families: {cpi:[pair], cpin:[trio]}, branches: {DNP:['cpi'], SNP:['cpin','contamination']},
+   resources: {DNP:resources('DNP'), SNP:resources('SNP')}
+  });
+  handlers['plan.preview'] = params => ({...originalPreview(params), preview_id:'families-'+caller});
+  const offset = requests.length;
+  await app.action('start-analysis', {});
+  const familyCalls = requests.slice(offset).filter(r=>['plan.preview','analysis.start'].includes(r.method));
+  assert.deepEqual(familyCalls.map(r=>r.method), ['plan.preview', 'analysis.start']);
+  assert.deepEqual(familyCalls[1].params, {preview_id:'families-'+caller});
+  const sent = familyCalls[0].params.draft;
+  const dnpIncluded = caller === 'both';
+  assert.deepEqual(sent.families, {cpi:dnpIncluded?[pair]:[], cpin:[trio]});
+  assert.deepEqual(sent.branches, {DNP:dnpIncluded?['cpi']:[], SNP:['cpin','contamination']});
+  assert.deepEqual(sent.resources.DNP, dnpIncluded ? {
+   panel:'DNP.tsv', popfreq:'DNP-freq.tsv', cpi_cutoffs:[{label:'cutoff', path:'DNP-cutoff.tsv'}]
+  } : {});
+  assert.deepEqual(sent.resources.SNP, {
+   panel:'SNP.tsv', popfreq:'SNP-freq.tsv', contamination_panel:'SNP-contamination.tsv', cpin_panel:'SNP-post.tsv'
+  });
+  check(sent.reference === '/ref/family.fa' && sent.reference_id === 'registered-fasta',
+        'Family analysis submits its registered FASTA and selected resources for '+caller);
+ }
+ handlers['plan.preview'] = originalPreview;
+ // A reviewable demo uses the real preview/start boundary and explicit factory settings.
+ const scientificDefaults=Object.fromEntries(Object.entries(settings.workflows).map(([module,workflow])=>
+  [module,Object.fromEntries(Object.entries(workflow.parameters).map(([key,param])=>[key,param.default]))]));
+ const demoDraft={
+  name:'DNP and SNP demo',caller:'both',reference:'/demo/reference/synthetic.fa',
+  samples:['mother','father','child'].map(id=>({id,kind:'bam',path:'/demo/alignments/'+id+'.bam'})),
+  branches:{DNP:[],SNP:[]},resources:{DNP:{panel:'/demo/panels/dnp.tsv'},SNP:{panel:'/demo/panels/snp.tsv'}},
+  families:{cpi:[],cpin:[]},scientific_settings:scientificDefaults,
+  execution:{execution_mode:'auto',max_workers:null,cpus:null,memory_mb:null,pids_limit:null,dnp_block_mib:32,dnp_block_loci:64,input_hashes:'auto',performance_diagnostics:false}
+ };
+ app.state.baseline.execution={max_workers:11,performance_diagnostics:true};
+ app.state.baseline.scientific_settings={'snp-call':{max_depth:17}};
+ const personalDefaults=JSON.stringify(app.state.baseline);
+ handlers['examples.demo']=()=>({draft:demoDraft});
+ handlers['plan.preview']=p=>({preview_id:'demo-validated',steps:[],samples:p.draft.samples});
+ for(const lang of ['it','en']){
+  await app.changeLanguage(lang);
+  await app.action('new-experiment',{});
+  const personal=app.state.draft;
+  app.onValue({dataset:{draft:'name'},type:'text',value:'Keep my draft'});
+  await app.navigate('environment');
+  const expected=lang==='it'?'Risultati attesi della demo':'Expected demo results';
+  const section=element('main').innerHTML;
+  check(section.includes(lang==='it'?'Apri demo':'Open demo')&&section.includes(expected)&&section.includes('96')&&section.includes('50'),'Demo entry and reference counts are available outside the experiment '+lang);
+  const reqStart=requests.length;
+  await app.action('open-demo',{});
+  check(requests.length===reqStart&&element('modal-root').innerHTML.includes('confirm-open-demo'),'Opening demo asks before replacing a personal draft '+lang);
+  await app.action('close-modal',{});
+  check(app.state.draft===personal&&personal.name==='Keep my draft','Cancelling keeps the draft '+lang);
+  await app.action('open-demo',{});
+  await app.action('confirm-open-demo',{});
+  const opened=requests.slice(reqStart);
+  check(opened.some(r=>r.method==='examples.demo'&&r.params.language===lang)&&opened.some(r=>r.method==='plan.preview')&&!opened.some(r=>r.method==='analysis.start'),'Demo validates and awaits explicit Start '+lang);
+  check(app.state.view==='new'&&app.state.step===3&&app.state.preview.preview_id==='demo-validated'&&element('main').innerHTML.includes(expected),'Demo opens the ordinary reviewed wizard '+lang);
+  check(app.submittedDraft().samples.map(s=>s.id).join(',')==='mother,father,child'&&app.activeMarkers().join(',')==='DNP,SNP'&&JSON.stringify(app.state.baseline)===personalDefaults,'Demo settings and synthetic files leave saved preferences untouched '+lang);
+  check(app.state.draft.scientific_settings['snp-call'].max_depth===scientificDefaults['snp-call'].max_depth&&app.state.draft.execution.max_workers===null&&!app.state.draft.execution.performance_diagnostics,'Demo bypasses personal overrides '+lang);
+  if(lang==='it'){
+   await app.action('start-analysis',{});
+   check(requests.some(r=>r.method==='analysis.start'&&r.params.preview_id==='demo-validated'),'Explicit Start submits the approved demo plan');
+  }else{
+   app.onValue({dataset:{draft:'caller'},type:'select-one',value:'snp'});
+   check(app.state.preview===null&&!app.renderNew().includes(expected),'Changing the template invalidates its preview and expected-count panel');
+  }
+ }
+ await app.action('new-experiment',{});
+ const pristine=app.state.draft;
+ await app.navigate('environment');
+ handlers['plan.preview']=()=>Promise.reject(new Error('Demo reference unavailable'));
+ await assert.rejects(app.action('open-demo',{}),/Demo reference unavailable/);
+ check(app.state.draft===pristine&&app.state.view==='environment','Failed demo preparation preserves the existing draft and page');
+ const demoWait=defer();
+ handlers['plan.preview']=()=>demoWait.promise;
+ const lateDemo=app.action('open-demo',{});await tick();await app.navigate('home');
+ demoWait.resolve({preview_id:'late'});await lateDemo;
+ check(app.state.view==='home'&&app.state.draft===pristine&&app.state.preview===null,'Late demo validation cannot redirect a user who navigated away');
  console.log(JSON.stringify({status:'passed',assertions:checks.length,rpcCalls:requests.length,scope:'Frontend state/RPC/markup; native rendering tested separately'}));
 })().catch(error=>{console.error(error);process.exitCode=1});

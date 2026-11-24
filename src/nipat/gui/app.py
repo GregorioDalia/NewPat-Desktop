@@ -115,6 +115,13 @@ class DesktopApplication:
         target = save_example_data(self.service.base_layout.project_dir, Path(parent), language)
         return {"path": str(target)}
 
+    def open_demo(self, params):
+        from .examples import demo_draft
+
+        if set(params) - {"language"}:
+            raise ValidationError("Unexpected parameters for the example dataset.")
+        return {"draft": demo_draft(self.service.base_layout, params.get("language", "it"))}
+
     def references_list(self, params):
         return self.service.reference_catalog(params.get("language", "it")).list()
 
@@ -223,6 +230,7 @@ class DesktopApplication:
                      "runs.export": self.export_run, "igv.prepare": self.prepare_igv,
                      "runs.open_directory": self.open_run_directory,
                      "diagnostics.export": self.export_diagnostics, "examples.save": self.save_examples,
+                     "examples.demo": self.open_demo,
                      "igv.about": self.open_igv_guide, "igv.session.save": self.save_igv_session,
                      "app.close": lambda _p: (self.host.request_close(), {"closing": True})[1]}
         if method in callbacks:

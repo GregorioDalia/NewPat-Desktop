@@ -35,7 +35,9 @@ Run a module on its own or build a workflow. DNPcall and SNPcall can share BAM i
 
 ## Run your first experiment
 
-To try NewPat with the same inputs on every computer, use the synthetic trio. It includes three indexed BAMs, a reference FASTA, SNP and DNP panels, population frequencies, count tables and expected results. In 0.9.10 open **Environment and help → Save example data**, choose a local folder and follow the enclosed README. With 0.9.9, download and extract the ZIP first. Use the trio to check expected results, or the separate timing workload (one BAM, four contigs, 128 loci) to compare DNP and SNP runtimes. [Example ZIP](examples/newpat-synthetic-trio.zip) · [SHA-256 checksum](examples/newpat-synthetic-trio.zip.sha256)
+In 0.9.10, choose **Environment and help → Open demo** to try DNP and SNP with three simulated samples. The sample BAMs, synthetic reference and panels are already selected. Review the experiment and start it when ready.
+
+Choose **Save example data** to copy the same files, population frequencies, count tables and instructions to a folder of your choice. With 0.9.9, download and extract the ZIP first. Use the trio to check expected results, or the separate timing workload (one BAM, four contigs, 128 loci) to compare DNP and SNP runtimes. [Example ZIP](examples/newpat-synthetic-trio.zip) · [SHA-256 checksum](examples/newpat-synthetic-trio.zip.sha256)
 
 1. Open **NewPat**, choose **New experiment**, and enter a name for the experiment.
 2. For a DNP analysis, select the sample BAM, its reference FASTA and the DNP panel. Choose a saved reference, register your own FASTA, or download the UCSC hg19 or hg38 reference once. The same local references are available in IGV. [Choosing a reference genome](docs/GUI.md#choose-a-reference-genome)

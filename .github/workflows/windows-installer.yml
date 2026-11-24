@@ -1,10 +1,16 @@
 name: Installers (review build)
+run-name: ${{ inputs.windows_zip_only && 'Windows ZIP for local testing' || 'Full installer set for review' }} · ${{ github.ref_name }}
 
 on:
   # Installer candidates are explicit, expensive review builds. Ordinary pushes
   # and PRs run CI without generating or publishing new installers.
   workflow_dispatch:
     inputs:
+      windows_zip_only:
+        description: Build only the complete Windows ZIP for local testing
+        required: false
+        default: false
+        type: boolean
       qualify_macos_runtime:
         description: Run real VM tests on trusted dedicated Mac runners (requires both architectures)
         required: false
@@ -21,18 +27,22 @@ concurrency:
 
 jobs:
   release-source:
+    if: ${{ !inputs.windows_zip_only }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Checkout the requested release source
+      - &review-checkout
+        name: Checkout the requested release source
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - name: Set up Python
+      - &review-python
+        name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.12.10'
-      - name: Require a deliberate official release candidate
+      - &review-source
+        name: Require a deliberate official release candidate
         run: python .github/scripts/verify_release_source.py
 
   windows-checks:
@@ -126,11 +136,21 @@ jobs:
         run: python .github/scripts/check_docs.py
       - name: Check dedicated daemon helper syntax
         run: bash -n installer/runtime/nipat-engine
-      - name: Set up Buildx
+      - &review-buildx
+        name: Set up Buildx
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+      - name: Restore verified CI qualification for the exact source and image
+        id: scientific_reuse
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python .github/scripts/scientific_reuse.py restore --promote-image --wait-for-active-ci \
+            --image "$NIPAT_RUNTIME_IMAGE" --output-dir build/scientific-reuse \
+            --runner-temp "$RUNNER_TEMP" --output "$GITHUB_OUTPUT"
       - name: Build scientific runtime using the dependency cache
+        if: steps.scientific_reuse.outputs.reused != 'true'
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
-        with:
+        with: &scientific-build
           context: .
           file: docker/scientific-runtime/Dockerfile
           platforms: linux/amd64
@@ -140,14 +160,6 @@ jobs:
           provenance: false
           cache-from: type=gha,version=2,scope=nipat-scientific-linux-amd64
           cache-to: type=gha,version=2,scope=nipat-scientific-linux-amd64,mode=max,ignore-error=true
-      - name: Restore verified CI qualification for the exact source and image
-        id: scientific_reuse
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          python .github/scripts/scientific_reuse.py restore --wait-for-active-ci \
-            --image "$NIPAT_RUNTIME_IMAGE" --output-dir build/scientific-reuse \
-            --runner-temp "$RUNNER_TEMP" --output "$GITHUB_OUTPUT"
       - name: Verify bundled scientific scripts without host sources
         if: steps.scientific_reuse.outputs.reused != 'true'
         env:
@@ -228,7 +240,7 @@ jobs:
             --redact-root "$GITHUB_WORKSPACE" --redact-root "$RUNNER_TEMP"
       - name: Build dedicated WSL filesystem from pinned dependencies
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
-        with:
+        with: &rootfs-build
           context: .
           file: installer/runtime/Dockerfile
           platforms: linux/amd64
@@ -246,12 +258,13 @@ jobs:
             --entrypoint /bin/bash \
             nipat-wsl-rootfs:installer-test -euc \
             '/usr/local/bin/nipat-engine ensure; /usr/local/bin/nipat-engine ensure; docker info --format "{{.OSType}}"; docker compose version'
-      - name: Fetch the published WSL component for verified reuse
+      - &review-fetch-rootfs
+        name: Fetch the published WSL component for verified reuse
         env:
           GH_TOKEN: ${{ github.token }}
         run: python .github/scripts/release_inputs.py --tag v0.7.2 --kind rootfs --output-dir build/previous-runtime
       - name: Export pinned assets and trusted installer manifest
-        run: |
+        run: &export-and-stage |
           python scripts/build_windows_installer_assets.py export \
             --output-dir build/assets --source-commit "$(git rev-parse HEAD)" \
             --scientific-image "$NIPAT_RUNTIME_IMAGE" --rootfs-image nipat-wsl-rootfs:installer-test \
@@ -357,7 +370,8 @@ jobs:
         with:
           name: nipat-windows-installer-fixture
           path: build/output
-      - name: Record the application payload for safe reinstall and repair
+      - &review-inventory
+        name: Record the application payload for safe reinstall and repair
         shell: powershell
         run: |
           python scripts/build_windows_installer_assets.py inventory --stage-dir build/windows-installer
@@ -402,16 +416,17 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Bootstrap/payload build evidence is invalid.' }
           python scripts/build_windows_installer_assets.py verify-inventory --stage-dir build/windows-installer
           if ($LASTEXITCODE -ne 0) { throw 'Application payload changed during compilation.' }
-      - name: Build the additional complete Windows ZIP
+      - &review-zip
+        name: Build and test the complete Windows ZIP
         shell: powershell
         run: |
-          Copy-Item 'build/windows-installer/app/.distribution/application-files.json' 'build/output/application-files.json'
           python installer/windows/zip_package.py build --stage build/windows-installer --assets build/assets --output build/output
           if ($LASTEXITCODE -ne 0) { throw 'Complete Windows ZIP build failed.' }
           $zipBuild = Get-Content -LiteralPath 'build/output/windows-zip-build.json' -Raw -Encoding UTF8 | ConvertFrom-Json
           & installer/windows/test-zip-package.ps1 -Package (Join-Path 'build/output' $zipBuild.file) `
             -ManifestPath 'build/assets/installer-manifest.json' -OutputPath 'build/output/windows-zip-check.json'
           if ($LASTEXITCODE -ne 0) { throw 'Complete Windows ZIP packaged checks failed.' }
+          Copy-Item 'build/windows-installer/app/.distribution/application-files.json' 'build/output/application-files.json'
       - name: Bind the testing entrypoint to the exact release downloads
         shell: powershell
         run: |
@@ -657,7 +672,7 @@ jobs:
           if-no-files-found: ignore
 
   installer-required:
-    if: always()
+    if: always() && !inputs.windows_zip_only
     needs: [windows-installer, linux-installer, macos-installer]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -750,7 +765,22 @@ jobs:
           path: build/verified-installers/
           retention-days: 14
           if-no-files-found: error
+      - name: Generate the pending acceptance record for review
+        run: |
+          python .github/scripts/release_acceptance.py \
+            --installer-set build/verified-installers/installer-set-check.json \
+            --run-id "$GITHUB_RUN_ID" --output build/acceptance-for-review.json
+      - name: Retain the pending acceptance record separately
+        id: acceptance_template
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: newpat-acceptance-template-${{ github.run_attempt }}
+          path: build/acceptance-for-review.json
+          retention-days: 14
+          if-no-files-found: error
       - name: Summarize verified candidate
+        env:
+          ACCEPTANCE_TEMPLATE_URL: ${{ steps.acceptance_template.outputs.artifact-url }}
         run: |
           python .github/scripts/installer_downloads.py --evidence build/verified-installers/installer-set-check.json
 
@@ -814,3 +844,66 @@ jobs:
             build/macos-runtime-verification-logs/
           retention-days: 14
           if-no-files-found: ignore
+
+  windows-zip-runtime:
+    if: inputs.windows_zip_only
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      NIPAT_RUNTIME_IMAGE: nipat-scientific-runtime:installer-test
+    steps:
+      - name: Check the requested review mode
+        if: inputs.qualify_macos_runtime
+        run: |
+          echo "::error::macOS runtime qualification requires the full installer build."
+          exit 1
+      - *review-checkout
+      - *review-python
+      - *review-source
+      - *review-buildx
+      - name: Build the scientific image for the Windows ZIP
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with: *scientific-build
+      - name: Build the WSL filesystem for the Windows ZIP
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with: *rootfs-build
+      - *review-fetch-rootfs
+      - name: Stage the exact source and both offline archives
+        run: *export-and-stage
+      - name: Transfer ZIP inputs to Windows
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: newpat-windows-review-inputs
+          path: |
+            build/assets/
+            build/windows-installer/
+          include-hidden-files: true
+          compression-level: 0
+          retention-days: 1
+          if-no-files-found: error
+
+  windows-zip-review:
+    needs: windows-zip-runtime
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - *review-checkout
+      - *review-python
+      - name: Download ZIP inputs from this run
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: newpat-windows-review-inputs
+          path: build
+      - *review-inventory
+      - *review-zip
+      - name: Retain the tested ZIP for local review
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: newpat-windows-review-zip
+          path: |
+            build/output/*.zip
+            build/output/windows-zip-build.json
+            build/output/windows-zip-check.json
+          compression-level: 0
+          retention-days: 14
+          if-no-files-found: error

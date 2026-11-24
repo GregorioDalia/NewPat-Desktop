@@ -5,16 +5,26 @@ The repository separates source verification, installer construction and publica
 | Workflow | Trigger | Result |
 | --- | --- | --- |
 | [CI](../.github/workflows/ci.yml) | Pull request, push to `main`, or manual dispatch | Required checks for the changed files, with dedicated Linux jobs for documentation and release acceptance |
-| [Installers (review build)](../.github/workflows/windows-installer.yml) | Manual dispatch on a reviewed release revision | Windows, Ubuntu and both macOS packages, Windows ZIP/payload, manifests and package evidence |
+| [Installers (review build)](../.github/workflows/windows-installer.yml) | Manual dispatch on a reviewed release revision | Full installer set and its qualification by default, or a Windows ZIP for local testing on request |
 | [Prepare or publish verified release](../.github/workflows/publish-windows-release.yml) | Manual dispatch on `main` | Verified draft, publication of a verified draft, or combined preparation and publication |
 | [Publish accepted release](https://github.com/GregorioDalia/nipat-desktop/blob/main/.github/workflows/publish-accepted-release.yml) | Successful qualifying CI push on `main` | Selection of acceptance-only changes and publication of the identified accepted build |
 | [Published runtime security report](../.github/workflows/security-monitoring.yml) | Scheduled or manual dispatch | Inventory and findings for published images |
 
 ## Source verification
 
-CI uses the Git change set to select relevant tests and `required` to check their outcomes. Development branches normally receive CI via pull requests. A branch without an open PR can use manual dispatch. Full installer builds run separately on request.
+CI checks a development branch when it has an open pull request. Each update evaluates the full difference between the PR base and the proposed merge. A new commit can replace an earlier CI run on the same PR. After integration, each push to `main` gets its own run for the full interval from the previous main revision to the new one. Two consecutive merges can therefore finish independently. The `required` check enforces the jobs selected for each revision.
 
-When a change consists entirely of recognized guides, CI runs the `documentation` job on Linux. It checks repository links and heading anchors, parses CLI examples in the current user guides, validates the documented workflow plan and compares shipping text with the contents of small archives created by the Windows package builders. Changes to `LICENSE` or `THIRD_PARTY_NOTICES.md` trigger scientific qualification. CI also checks both files inside the built image against their source hashes. A manual CI dispatch selects all integration layers.
+| Example change | Checks selected |
+| --- | --- |
+| Desktop stylesheet, web wordmark or translations | Linux client and browser tests, native Windows and macOS client checks |
+| Desktop reference registration, FASTA download or browser application logic | Client checks plus the DNP/SNP synthetic workflow |
+| Caller, scientific scripts, analysis plan, scheduler or runtime used by the calculations | Full scientific qualification, plus other affected layers |
+| A recognized guide only | Linux documentation checks |
+| An acceptance record only | Linux acceptance verification and the required gate |
+
+The classifier combines requirements for mixed changes. A graphical change added to a PR that already changes an algorithm still requires the scientific checks. A manual CI run selects all integration layers. Installer construction is a separate manual operation.
+
+When a change consists entirely of recognized guides, CI runs the `documentation` job on Linux. It checks repository links and heading anchors, parses CLI examples in the current user guides, validates the documented workflow plan and compares shipping text with the contents of small archives created by the Windows package builders. Changes to `LICENSE` or `THIRD_PARTY_NOTICES.md` trigger scientific qualification. CI also checks both files inside the built image against their source hashes.
 
 An unavailable comparison or an unfamiliar workflow change receives conservative coverage. Changes to core CI, its selector or installer construction retain applicable integration levels. Changes limited to the manual publisher activate its fast and packaging checks. Changes to automatic publication select the complete integration matrix. A simultaneous scientific change requires scientific checks.
 
@@ -33,9 +43,15 @@ A change limited to `.github/release-acceptance/vVERSION.json` uses `acceptance`
 
 ## Scientific checks
 
+The shorter DNP/SNP workflow uses the three BAMs in the [offline synthetic trio](../examples/synthetic-trio/). It goes through desktop plan preparation and the execution engine. For each caller it checks three loci per sample against the [versioned regression oracle](../tests/fixtures/synthetic-trio-v1/README.md), including chromosome, coordinates, alleles, counts and genotype. The oracle records input digests and expected results independently of tables written by the candidate. This catches broken input handling while keeping the independent upstream comparisons available for scientific changes.
+
+The same rapid check runs two small cases from the existing engine fixtures in the candidate image. DNP sample A has 20 ALT reads and one Other read at positions 230–231 and must return `1/1`. The two SNP sites have one Other read among seven and six total reads, respectively. Both must return the literal `NA` at the default 10% Other threshold. The check compares coordinates, alleles, counts and genotypes for all five additional rows against the versioned tables. The three-sample desktop demo still has its original 18 expected rows.
+
 `scripts/verify_r_equivalence.py` compares 17 caller cases against frozen references, NIPAT 0.8.5 for DNP and SNPcall 2.0 for SNP, producing `r-equivalence.json`. The comparisons cover exact scientific tables and unrounded R results. Plot checks cover content, dimensions, histograms and rendering across serial and parallel modes of the candidate.
 
 `scripts/verify_five_modules.py --image IMAGE --full` compares Contamination, prenatal CPI and postnatal CPI with upstream NEWPAT commit `9c2a8be60afcb944153710da6a61cd0559e2b4cf` and independent analytical expectations. Its `five-module-qualification.json` covers 86 runs, including 16 upstream comparisons and 54 batch cases. Batches exercise 2/3/5 families or samples, both SNP/DNP marker types, and serial, automatic and two-worker execution. Upstream numerical tolerances are absolute and relative `1e-11`; sample, pair and trio identities must match exactly.
+
+The routine caller check runs only the candidate on the bundled inputs. Independent analytical expectations for the downstream modules also exist in the [five-module fixtures](../tests/fixtures/five_modules/README.md). The seven-check scientific qualification and the current release acceptance schema still require the pinned upstream comparisons. For a change to a scientific model, record the input, expected result, units or scale, missing-value behavior, and the reason for the changed expectation alongside its test. Validate a new or corrected module against its author’s example before using that example as a regression reference. A future change to the release evidence contract needs explicit coverage of the current cases and a versioned verifier that can still read historical records.
 
 The container supplies R, samtools, model scripts, adapters and orchestration. The client verifies contracts. Scientific scripts used for execution come from the image. The final-image checks run native empty/zero-coverage and parameter cases with required dependencies. A three-BAM, ten-step plan exercises DNP, SNP and all three downstream modules for both callers, in serial and capped at two processes. It checks expected outputs, run identity, settings and original inputs. Presentation checks verify canonical tables with/without readable names and PDF text. The catalog pins distributed scientific sources and preparation dependencies by hash.
 
@@ -43,7 +59,9 @@ Both scientific reports are required and must identify the same immutable image.
 
 ## Installer construction
 
-The manual build accepts a matching release revision of `main`, `release/VERSION` or `release/VERSION-…`. Package and client versions must match the reviewed source. The Windows checks and Linux runtime build can run in parallel after source verification. Windows package construction depends on the relevant Windows and runtime outputs. The aggregate `installer-required` job checks all four installers and their shared archive. A failed required platform blocks publication.
+The manual build accepts a matching release revision of `main`, `release/VERSION` or `release/VERSION-…`. Package and client versions must match the reviewed source. The Windows checks and Linux runtime build can run in parallel after source verification. Windows package construction depends on the relevant Windows and runtime outputs. The default full build requires all four installers and their shared archive to pass `installer-required`.
+
+For a local Windows test, select **Installers (review build)**, choose the reviewed revision and enable `windows_zip_only`. A Linux runner prepares the same scientific image and WSL filesystem used by the complete ZIP. A Windows runner builds and extracts the ZIP and checks the embedded client. Download `newpat-windows-review-zip` from that run. This mode skips the full scientific qualification, Windows setup EXE and macOS/Ubuntu installers. Official acceptance requires a separate full build.
 
 | Artifact | Package or evidence |
 | --- | --- |
@@ -51,6 +69,7 @@ The manual build accepts a matching release revision of `main`, `release/VERSION
 | `nipat-linux-setup` | Ubuntu AMD64 DEB and reports |
 | `nipat-macos-setup-arm64`, `nipat-macos-setup-x86_64` | macOS PKG and report for each native architecture |
 | `nipat-installer-set-evidence` | Joint identity and verification report |
+| `newpat-acceptance-template-<attempt>` | Pending acceptance record with build identity and digests for the full installer set |
 
 The final job downloads the original packages to verify their identities, then publishes its evidence without uploading another four copies of the packages. Actions artifacts contain review material and have retention limits. Users of a published release download the installer from its Assets list.
 
@@ -58,7 +77,7 @@ The final job downloads the original packages to verify their identities, then p
 
 ## Scientific evidence reuse
 
-After executing all seven scientific checks successfully, a trusted CI run uploads `nipat-scientific-qualification-N-TREE`, where N is the workflow attempt and TREE is the full Git tree. It contains a descriptor and bounded synthetic text evidence. Consumers build the image and inspect its identity before looking up a qualification.
+After executing all seven scientific checks successfully, a trusted CI run uploads `nipat-scientific-qualification-N-TREE`, where N is the workflow attempt and TREE is the full Git tree. It contains a descriptor and bounded synthetic text evidence. The producer also saves the tested image by its immutable Docker ID in a separate Actions artifact retained for three days. The qualification binds the saved archive to the scientific results. This lets a consumer load the same image even when a fresh Docker build from the same sources would produce a different ID.
 
 Reuse requires all of the following:
 
@@ -68,11 +87,11 @@ Reuse requires all of the following:
 - Successful run, scientific job and all seven checks in the same attempt.
 - Matching artifact identity, transport digest and every descriptor entry, including limits on paths, files and total size.
 
-Distinct commits may have the same tree. A documentation change normally changes the tree and invalidates reuse. Identical Dockerfiles alone do not establish identical images. The build restores verified reports with their original timestamps, results and image identity. `build/scientific-reuse/reuse.json` records reuse or fresh execution, the build and the original producer where applicable.
+Distinct commits may have the same tree. A documentation change normally changes the tree and invalidates reuse. Identical Dockerfiles alone do not establish identical images. The build restores verified reports with their original timestamps, results and image identity. `build/scientific-reuse/reuse.json` records reuse or fresh execution, the consumer and the original producer where applicable.
 
-On a push to protected `main`, CI also verifies that the producing pull request actually merged at the push commit and that the recorded host tools match. A successful lookup writes a receipt pointing to the original producer. Only a run that executed the checks can issue a new qualification. If any requirement fails or the reports have expired, CI runs all seven checks.
+On a push to protected `main`, CI looks up the pull request merged at that commit, then checks the producing run, its Git tree and host tools. A successful lookup writes a receipt pointing to the original producer. Only a run that executed the checks can issue a new qualification. If any requirement fails or the reports have expired, CI runs all seven checks.
 
-The installer first searches up to 30 completed CI runs with a two-minute lookup budget. On a miss it can wait up to 15 minutes for an identified CI run already qualifying that source. If the candidate succeeds, the installer repeats the full evidence lookup. Otherwise it runs the scientific suite itself. Independent Windows checks can proceed while the Linux job waits. The build verifies the client, evidence preflight, WSL runtime, exported archive in the distributed engine and each installer on either path.
+The full installer build first searches up to 30 completed CI runs with a two-minute lookup budget. On a miss it can wait up to 15 minutes for an identified CI run already qualifying that source. If the candidate succeeds, the installer repeats the full evidence lookup. If the image or its evidence is missing, expired or fails verification, the job builds the image and runs the full scientific suite. Independent Windows checks can proceed while the Linux job waits. The build verifies the client, evidence preflight, WSL runtime, exported archive in the distributed engine and each installer on either path.
 
 <a id="audit-windows-e-concorrenza-dalla-0820"></a>
 
@@ -84,7 +103,7 @@ For real Lima tests, enable `qualify_macos_runtime` on trusted self-hosted runne
 
 ## Publication and reruns
 
-Integrate the built source first. Merging an acceptance-only PR can trigger publication after Linux acceptance CI succeeds on `main`. The selector verifies the originating repository, push, commit and successful jobs. The publisher verifies package and remote asset digests, permits recovery of a matching draft and serializes manual and automatic publishing. A mixed change or a deliberate two-stage release can use manual dispatch. Follow the [release procedure](../.github/RELEASE.md) for exact inputs, records, update feeds and draft verification.
+Integrate the built source first. Merging an acceptance-only PR can trigger publication after Linux acceptance CI succeeds on `main`. The publisher checks the originating CI attempt, its successful acceptance and required jobs, and the full push interval recorded by CI. A normal code merge ends with CI. Automatic publication requires that the entire push changed only acceptance records, including when the merge adds several commits. The publisher verifies package and remote asset digests, permits recovery of a matching draft and serializes manual and automatic publishing. A mixed change or a deliberate two-stage release can use manual dispatch. Follow the [release procedure](../.github/RELEASE.md) for exact inputs, records, update feeds and draft verification.
 
 The recorded `stable` channel publishes a numeric official release as **Latest**. `testing` publishes a prerelease. CI artifacts and drafts do not enter the update feeds. Active installers distinguish Windows bootstrap, complete ZIP, Ubuntu and macOS feeds. The [validation record](VALIDATION.md) tracks domain observations independently.
 
