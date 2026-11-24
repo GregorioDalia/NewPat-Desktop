@@ -251,6 +251,45 @@ def verify_single_start(page, probe, service, methods, check):
           "New experiment opens a clean input sheet after an attempted run")
 
 
+def verify_archive_pages(page, probe, service, methods, check):
+    for number in range(30):
+        identifier = f"older-{number:02}"
+        write_json(service.layout.runs_dir / identifier / "run.json", {
+            "schema_version": 1, "workflow": "snp-call", "status": "succeeded",
+            "run_name": f"Archive example {number:02}", "started_at": "2001-01-01T00:00:00Z",
+            "parameters": {"marker_type": "SNP", "sample_mapping": [{
+                "sample_id": f"sample-{number:02}", "original_path": f"{identifier}.bam"}]},
+        })
+
+    before = len(methods)
+    page.locator('nav [data-view="home"]').click()
+    probe.wait("NipatApp.state.recentRuns.length===5")
+    check([params for method, params in methods[before:] if method == "runs.list"] == [{"limit": 5, "offset": 0}],
+          "Home retrieves five cards in a single bounded request")
+    page.locator('nav [data-view="archive"]').click()
+    page.wait_for_selector('#archive-results [data-action="archive-page"][data-page="1"]')
+    rows = page.locator('#archive-results [data-action="open-run"]')
+    check(rows.count() == 25, "The first archive page displays exactly 25 cards")
+    page.locator('[data-action="archive-page"][data-page="1"]').click()
+    old_card = page.locator('[data-action="open-run"][data-id="older-00"]')
+    old_card.wait_for()
+    check(rows.count() < 25, "A later archive page includes the oldest experiment")
+    search = page.locator("#archive-search")
+    search.fill("sample-00")
+    probe.wait("NipatApp.state.archiveListing?.total===1 && NipatApp.state.archivePage===0")
+    check(old_card.is_visible() and search.evaluate("el => document.activeElement === el"),
+          "Searching all pages by sample ID resets pagination and preserves keyboard focus")
+    page.select_option("#archive-marker", "DNP")
+    page.get_by_text("Nessun esperimento corrisponde ai filtri.", exact=True).wait_for()
+    page.select_option("#archive-marker", "SNP")
+    old_card.click()
+    probe.wait("NipatApp.state.run?.id==='older-00'")
+    page.locator("#page-back").click()
+    old_card.wait_for()
+    check(search.input_value() == "sample-00" and page.locator("#archive-marker").input_value() == "SNP",
+          "Returning from the result keeps the query, marker and matching old experiment")
+
+
 def run_verification(report_path, executable):
     from playwright.sync_api import sync_playwright
 
@@ -572,8 +611,9 @@ def run_verification(report_path, executable):
                 page.locator('[data-action="remove-run"][data-id="archived-ui-fixture"]').click()
                 check('file di input resteranno' in page.locator('[role="dialog"]').inner_text(), "Removal confirmation explains source and result preservation")
                 page.locator('[data-action="confirm-remove-run"]').click()
-                probe.wait("!NipatApp.state.runs.some(run=>run.id==='archived-ui-fixture')")
+                page.locator('[data-action="open-run"][data-id="archived-ui-fixture"]').wait_for(state="detached")
                 check(archived.is_dir() and digest_files(preserved) == before, "Remove from list preserves every source, index, result and metadata byte")
+                verify_archive_pages(page, probe, service, methods, check)
                 check(not evidence["external_requests"], "All browser resources and genomic byte ranges stay on the local service")
                 check(not evidence["errors"], "No JavaScript exceptions or unexpected browser console errors")
                 evidence["status"] = "passed"

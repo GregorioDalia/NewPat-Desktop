@@ -10,7 +10,7 @@ const tables={calling:{columns:[{key:'chr',label:'Cromosoma'},{key:'pos',label:'
 const run={id:'run-1',name:'Famiglia α <test>',status:'succeeded',workflow:'analysis',version:'0.8.99',started_at:'2026-11-15T10:00:00Z',finished_at:'2026-11-15T10:01:00Z',can_remove:true,has_igv_inputs:true,samples:[{id:'A',label:'A',filename:'a.bam',path:'C:\\samples\\a.bam'}],modules:['snp-call','cpi','cpin'],markers:['DNP','SNP'],settings:[{module:'snp-call',marker:'SNP',document:{parameters:{max_depth:0}}}],warnings:[]};
 const overview={modules:[{module:'snp-call',marker:'SNP',status:'succeeded',files:files.filter(f=>f.module==='snp-call'),entries:[{label:'A',sample_id:'A',file_id:'calling',genotype_counts:{'0/1':1,unassigned:1},metrics:[{key:'assigned',label:'Genotipi assegnati',value:'1',available:true,scale:1}]}]},{module:'cpi',marker:'DNP',status:'succeeded',files:files.filter(f=>f.module==='cpi'),entries:[{family_id:'F',label:'Mother / Father',file_id:'cpi-summary',row:{CPI_medianFF:'0.602'},metrics:[{key:'Median_fetal_fraction_percent',label:'Frazione fetale mediana',value:'6',available:true,scale:1,unit:'%'},{key:'CPI_medianFF',label:'log₁₀(CPI) alla soglia mediana di letture fetali',value:'0.602',available:true,scale:1,unit:'log10'}],curve_file_ids:[]}]},{module:'cpin',marker:'DNP',status:'succeeded',files:files.filter(f=>f.module==='cpin'),entries:[{family_id:'F',label:'Mother / Father / Child',analysis:'all_compatible_sites',file_id:'cpi-summary',site_file_id:'sites',curve_file_ids:['curve'],metrics:[{key:'CPI',label:'CPI',value:'0.00046474155109453',available:true},{key:'N_sites',label:'Siti inclusi',value:'3',available:true}]}]}]};
 const boot={version:'0.9.0',settings,preferences:{data_dir:null,runs_dir:null,workflows:{},update_channel:'stable',check_updates_on_startup:false,execution:{},scientific_settings:{}},layout:{data_dir:'/data',runs_dir:'/runs',project_dir:'/project'},ui:{language:'it',reduce_motion:false},jobs:[]};
-const handlers={bootstrap:()=>boot,'runs.list':()=>({runs:[run],total:1}),'runs.get':()=>run,'runs.overview':()=>overview,'runs.files':()=>files,'runs.table':p=>{const base=tables[p.file_id];assert(base,'Unknown table fixture');const rows=base.rows.map((row,i)=>({row,i})).filter(x=>!p.query||JSON.stringify(x.row).toLowerCase().includes(p.query.toLowerCase()));const offset=p.offset||0,limit=p.limit||100,chosen=rows.slice(offset,offset+limit);return {file:files.find(f=>f.id===p.file_id),columns:base.columns,rows:chosen.map(x=>x.row),row_numbers:chosen.map(x=>x.i),total:base.rows.length,matched:rows.length,offset,limit,has_more:offset+limit<rows.length}},'dialog.open':()=>({paths:dialogPaths}),'plan.preview':p=>({preview_id:'preview-1',steps:[{id:'snp_0001',workflow:'snp-call'}],samples:p.draft.samples,effective_settings:p.draft.scientific_settings}),'analysis.start':()=>{const job={id:'job-1',name:'Analysis',status:'running',run_id:'run-1',progress:{phase:'pileup',workflow:'snp-call',completed:2,total:4,unit:'sites'},logs:[]};jobs.push(job);return job},'jobs.list':()=>jobs,'jobs.cancel':p=>{jobs[0].status='interrupted';return jobs[0]},'ui.save':p=>p.preferences,'preferences.save':p=>p.preferences,'files.url':()=>({url:'http://127.0.0.1:1234/token/result/plot',mime:'application/pdf'}),'files.export':()=>({saved:true}),'runs.export':()=>({saved:true}),'runs.import':()=>({imported:['run-1'],count:1}),'run.reuse':()=>({name:'Copy',caller:'snp',samples:[{id:'A',path:'/a.bam',kind:'bam'}],branches:{DNP:[],SNP:[]},reference:'/ref.fa',resources:{DNP:{},SNP:{panel:'/panel.tsv'}},families:{cpi:[],cpin:[]},scientific_settings:Object.fromEntries(Object.entries(settings.workflows).map(([m,w])=>[m,Object.fromEntries(Object.entries(w.parameters).map(([k,p])=>[k,p.default]))])),execution:{execution_mode:'auto'}}),'resources.get':()=>({host:{memory_mib:16000,cpus:8},runtime:{configured:{memory_mib:8192,cpus:4},effective:{memory_mib:8192,cpus:4}},container:{},backend:'wsl',warnings:[]}),'resources.preview':p=>({preview_id:'resource-1',before:{memory_mib:8192,cpus:4},after:p,affected_running:[],warnings:[]}),'resources.apply':()=>({status:'saved'}),'installation.get':()=>({runtimes:[],cache:[],backups:[],warnings:[],recovery:{recoverable:false}}),'environment.check':()=>({status:'passed',logs:['ready']}),'updates.check':()=>({status:'available',offer_id:'offer-1',message:'0.9.1 available',offer:{version:'0.9.1',channel:'testing'}}),'updates.download':()=>({status:'verified'}),'updates.install':()=>({close_required:true}),'app.close':()=>({closing:true}),'runs.remove':p=>({removed:true,run_id:p.run_id,outputs_preserved:true}),'run.igv':p=>({reference:{fasta:'/ref.fa',index:''},tracks:[{name:'A',path:'/a.bam'}],locus:p.locus||'all'}),'igv.prepare':p=>({chromosomes:[{name:'chr1',length:1000000},{name:'X',length:100000}],sources:{reference:{...p.reference,index:p.reference.index||p.reference.fasta+'.fai'},tracks:p.tracks.map(track=>({...track,index:track.index||track.path+'.bai'}))},reference:{fastaURL:'http://127.0.0.1:1234/token/ref',indexURL:'http://127.0.0.1:1234/token/index'},tracks:[],locus:p.locus}),'igv.session.save':()=>({saved:true})};
+const handlers={bootstrap:()=>boot,'runs.list':p=>({runs:[run],offset:p.offset,total:1,archive_total:1}),'runs.get':()=>run,'runs.overview':()=>overview,'runs.files':()=>files,'runs.table':p=>{const base=tables[p.file_id];assert(base,'Unknown table fixture');const rows=base.rows.map((row,i)=>({row,i})).filter(x=>!p.query||JSON.stringify(x.row).toLowerCase().includes(p.query.toLowerCase()));const offset=p.offset||0,limit=p.limit||100,chosen=rows.slice(offset,offset+limit);return {file:files.find(f=>f.id===p.file_id),columns:base.columns,rows:chosen.map(x=>x.row),row_numbers:chosen.map(x=>x.i),total:base.rows.length,matched:rows.length,offset,limit,has_more:offset+limit<rows.length}},'dialog.open':()=>({paths:dialogPaths}),'plan.preview':p=>({preview_id:'preview-1',steps:[{id:'snp_0001',workflow:'snp-call'}],samples:p.draft.samples,effective_settings:p.draft.scientific_settings}),'analysis.start':()=>{const job={id:'job-1',name:'Analysis',status:'running',run_id:'run-1',progress:{phase:'pileup',workflow:'snp-call',completed:2,total:4,unit:'sites'},logs:[]};jobs.push(job);return job},'jobs.list':()=>jobs,'jobs.cancel':p=>{jobs[0].status='interrupted';return jobs[0]},'ui.save':p=>p.preferences,'preferences.save':p=>p.preferences,'files.url':()=>({url:'http://127.0.0.1:1234/token/result/plot',mime:'application/pdf'}),'files.export':()=>({saved:true}),'runs.export':()=>({saved:true}),'runs.import':()=>({imported:['run-1'],count:1}),'run.reuse':()=>({name:'Copy',caller:'snp',samples:[{id:'A',path:'/a.bam',kind:'bam'}],branches:{DNP:[],SNP:[]},reference:'/ref.fa',resources:{DNP:{},SNP:{panel:'/panel.tsv'}},families:{cpi:[],cpin:[]},scientific_settings:Object.fromEntries(Object.entries(settings.workflows).map(([m,w])=>[m,Object.fromEntries(Object.entries(w.parameters).map(([k,p])=>[k,p.default]))])),execution:{execution_mode:'auto'}}),'resources.get':()=>({host:{memory_mib:16000,cpus:8},runtime:{configured:{memory_mib:8192,cpus:4},effective:{memory_mib:8192,cpus:4}},container:{},backend:'wsl',warnings:[]}),'resources.preview':p=>({preview_id:'resource-1',before:{memory_mib:8192,cpus:4},after:p,affected_running:[],warnings:[]}),'resources.apply':()=>({status:'saved'}),'installation.get':()=>({runtimes:[],cache:[],backups:[],warnings:[],recovery:{recoverable:false}}),'environment.check':()=>({status:'passed',logs:['ready']}),'updates.check':()=>({status:'available',offer_id:'offer-1',message:'0.9.1 available',offer:{version:'0.9.1',channel:'testing'}}),'updates.download':()=>({status:'verified'}),'updates.install':()=>({close_required:true}),'app.close':()=>({closing:true}),'runs.remove':p=>({removed:true,run_id:p.run_id,outputs_preserved:true}),'run.igv':p=>({reference:{fasta:'/ref.fa',index:''},tracks:[{name:'A',path:'/a.bam'}],locus:p.locus||'all'}),'igv.prepare':p=>({chromosomes:[{name:'chr1',length:1000000},{name:'X',length:100000}],sources:{reference:{...p.reference,index:p.reference.index||p.reference.fasta+'.fai'},tracks:p.tracks.map(track=>({...track,index:track.index||track.path+'.bai'}))},reference:{fastaURL:'http://127.0.0.1:1234/token/ref',indexURL:'http://127.0.0.1:1234/token/index'},tracks:[],locus:p.locus}),'igv.session.save':()=>({saved:true})};
 let referenceTestEntries=[],transferTestState={status:'idle'};
 handlers['references.list']=()=>({entries:referenceTestEntries});
 handlers['references.download_status']=()=>transferTestState;
@@ -20,12 +20,12 @@ const env={console,document,Intl,URL,AbortController,location:{href:'http://127.
 const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(condition,label)=>{assert(condition,label);checks.push(label)};
 (async()=>{
  await tick();await tick();const app=env.NipatApp;
- const recent=app.state.runs;
+ const recent=app.state.recentRuns;
  for(const entries of [recent,[]]){
-  app.state.runs=entries;app.render();
+  app.state.recentRuns=entries;app.render();
   check((element('main').innerHTML.match(/data-view="new"/g)||[]).length===1,'Populated and empty overview have one primary creation action');
  }
- app.state.runs=recent;app.render();
+ app.state.recentRuns=recent;app.render();
  check(app.state.boot.version==='0.9.0','Bootstrap uses actual version');check(element('main').innerHTML.includes('Famiglia α &lt;test&gt;'),'Archive name HTML escaped');check(app.state.draft.samples.length===0,'No embedded demonstration samples');
  for(const view of ['home','new','activity','archive','catalog','settings','environment','igv']){await app.navigate(view);check(element('main').innerHTML.length>300,'Render '+view)}
  const pickBuild=(scope,value)=>app.onValue({dataset:{referenceBuild:scope},type:'select-one',value});
@@ -133,7 +133,81 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
  app.state.draft=sparse;app.state.draft.reference='/hidden.fa';app.state.draft.branches.DNP=['cpin'];app.state.draft.families.cpin=[{id:'hidden'}];const clean=app.submittedDraft();check(clean.reference===null&&clean.branches.DNP.length===0&&clean.families.cpin.length===0,'Hidden reference branches and families omitted from submitted plan');
  check(app.resultCell('123456789',{key:'pos'})==='123456789'&&app.resultCell('00123',{key:'sample_id'})==='00123','Genomic coordinates and identifiers retain exact original digits');
  const malformed={...tables.curve,rows:[{Min_child_reads:'2',Through_min_child_reads:'</title><foreignObject>injected',Log10_CPI:'1'}]};check(!app.curveChart(malformed).includes('foreignObject'),'Malformed curve endpoint cannot inject SVG markup');
- const originalList=handlers['runs.list'];const manyRuns=Array.from({length:1003},(_,i)=>({...run,id:'archive-'+i,name:'Archived '+i}));handlers['runs.list']=p=>({runs:manyRuns.slice(p.offset,p.offset+p.limit),has_more:p.offset+p.limit<manyRuns.length,total:manyRuns.length});await app.loadRuns();check(app.state.runs.length===1003,'Archive retrieves entries beyond first server page');app.state.view='archive';app.state.run=null;app.state.archiveSearch='Archived 1002';app.render();check(element('main').innerHTML.includes('Archived 1002'),'Archive search reaches older records');app.state.archiveSearch='';app.render();check((element('main').innerHTML.match(/data-action="open-run"/g)||[]).length===25,'Archive renders bounded readable pages');handlers['runs.list']=originalList;await app.loadRuns();
+ const originalList=handlers['runs.list'];
+ const manyRuns=Array.from({length:1003},(_,i)=>({
+  ...run,id:'archive-'+i,name:'Archived '+i,status:i%2?'failed':'succeeded',
+  markers:[i%3?'DNP':'SNP'],samples:[{id:'sample-'+i,label:i===1002?'Oldest sample':'Sample '+i}]
+ }));
+ const listCalls=[];
+ const listPage=params=>{
+  listCalls.push(params);
+  const matches=manyRuns.filter(row=>(!params.run_id||row.id===params.run_id)&&(!params.status||row.status===params.status)
+   &&(!params.marker||row.markers.includes(params.marker))
+   &&(!params.query||[row.id,row.name,row.started_at,row.samples[0].label,row.samples[0].id].join(' ').toLowerCase().includes(params.query.toLowerCase())));
+  return {runs:matches.slice(params.offset,params.offset+params.limit),offset:params.offset,limit:params.limit,
+   total:matches.length,archive_total:manyRuns.length,has_more:params.offset+params.limit<matches.length};
+ };
+ handlers['runs.list']=listPage;
+ await app.navigate('home');
+ check(listCalls.length===1&&listCalls[0].limit===5&&app.state.recentRuns.length===5,'Home requests exactly five recent cards in one call');
+ await app.navigate('archive');
+ check(listCalls.length===2&&listCalls[1].limit===25&&app.state.archiveListing.total===1003,'Archive requests a single 25-card page with the full result count');
+ await app.action('archive-page',{page:40});
+ check(listCalls.at(-1).offset===1000&&app.state.archiveListing.runs.length===3&&element('archive-results').innerHTML.includes('1,001–1,003 / 1,003'),'Last archive page reports its actual range and total');
+ const originalTimer=env.setTimeout,originalClear=env.clearTimeout;
+ let pendingSearch;
+ env.setTimeout=(fn,ms)=>{if(ms===200){pendingSearch=fn;return 42}return 1};
+ env.clearTimeout=id=>{if(id===42)pendingSearch=null};
+ const typeQuery=value=>events.input[0]({target:{value,dataset:{search:'archive'}}});
+ typeQuery('Old');typeQuery('Oldest sample');
+ check(listCalls.length===3,'Typing a search does not request intermediate pages');
+ await pendingSearch();await tick();
+ check(listCalls.length===4&&listCalls.at(-1).offset===0&&listCalls.at(-1).query==='Oldest sample'&&element('archive-results').innerHTML.includes('Archived 1002'),'Search resets the page and finds an old sample across the entire archive');
+ const setFilter=(field,value)=>app.onValue({dataset:{field},value,type:'select-one'});
+ await setFilter('archiveMarker','DNP');
+ check(listCalls.at(-1).marker==='DNP'&&element('archive-results').innerHTML.includes('No experiments match'),'No matches with an active filter is distinct from an empty archive');
+ await setFilter('archiveMarker','SNP');await setFilter('archiveStatus','succeeded');
+ check(listCalls.at(-1).query==='Oldest sample'&&listCalls.at(-1).status==='succeeded'&&listCalls.at(-1).marker==='SNP'&&app.state.archiveListing.runs[0].id==='archive-1002','Marker and status filters combine with the sample query on the server');
+ const filterBeforeLanguage=listCalls.length;
+ await app.changeLanguage('it');await app.changeLanguage('en');
+ check(listCalls.length===filterBeforeLanguage+2&&listCalls.at(-1).query==='Oldest sample'&&app.state.archiveListing.runs[0].id==='archive-1002','A language change reloads the visible page under the existing filters');
+ handlers['runs.list']=p=>({...listPage(p),checking_status:true});
+ await setFilter('archiveStatus','interrupted');
+ handlers['runs.list']=listPage;manyRuns[1002].status='interrupted';
+ await app.poll();
+ check(app.state.archiveListing.runs[0]?.id==='archive-1002','An invisible run that becomes interrupted can enter an initially empty status-filtered page');
+ manyRuns[1002].status='succeeded';await setFilter('archiveStatus','succeeded');
+ let resolveOldArchive;
+ handlers['runs.list']=p=>p.query==='delayed'?new Promise(resolve=>{resolveOldArchive=()=>resolve(listPage(p))}):listPage(p);
+ typeQuery('delayed');const delayedSearch=pendingSearch();await tick();
+ typeQuery('sample-1002');await pendingSearch();
+ resolveOldArchive();await delayedSearch;
+ check(app.state.archiveListing.runs[0].id==='archive-1002','A late search response cannot replace a more recent match');
+ typeQuery('delayed');const leavingSearch=pendingSearch();await tick();
+ await app.navigate('home');resolveOldArchive();await leavingSearch;
+ check(app.state.recentRuns.length===5&&app.state.recentRuns[0].id==='archive-0'&&element('main').innerHTML.includes('Archived 0'),'A stale archive response cannot overwrite recent Home cards');
+ handlers['runs.list']=listPage;env.setTimeout=originalTimer;env.clearTimeout=originalClear;
+ app.state.archiveSearch='';app.state.archiveMarker='all';app.state.archiveStatus='all';
+ await app.navigate('archive');
+ const getHistory=handlers['runs.get'];handlers['runs.get']=p=>({...run,id:p.run_id});
+ await app.loadRun('archive-1002');await app.loadRun('archive-0');await app.action('page-back',{});
+ check(listCalls.at(-1).limit===1&&listCalls.at(-1).run_id==='archive-1002'&&app.state.run?.id==='archive-1002','Back restores an older run by exact archive ID without fetching intervening pages');
+ await app.loadRun('archive-0');
+ const hiddenHistory=manyRuns.pop();
+ await app.action('page-back',{});
+ check(listCalls.at(-1).run_id==='archive-1002'&&!app.state.run,'A run removed from the archive by another window stays hidden on Back');
+ manyRuns.push(hiddenHistory);handlers['runs.get']=getHistory;
+ await app.action('archive-page',{page:40});
+ manyRuns.splice(1000);const beforeShrink=listCalls.length;
+ await app.loadRuns();app.render();
+ check(listCalls.length===beforeShrink+2&&listCalls.at(-1).offset===975&&app.state.archivePage===39&&element('main').innerHTML.includes('976–1,000 / 1,000'),'Removing the last page returns the archive to its new last page');
+ manyRuns.splice(0);await app.loadRuns();app.render();
+ check(app.state.archivePage===0&&element('main').innerHTML.includes('No experiments yet'),'Removing every record resets pagination and shows the empty archive');
+ handlers['runs.list']=()=>Promise.reject(new Error('Try again'));
+ await assert.rejects(app.action('archive-page',{page:0}));
+ check(element('archive-results').innerHTML.includes('data-action="archive-page"')&&element('archive-results').innerHTML.includes('role="alert"'),'A failed archive request provides an in-place retry');
+ handlers['runs.list']=originalList;await app.action('archive-page',{page:0});
+ check(app.state.archiveListing.runs[0].id==='run-1','Retry reloads the same archive page');
  await app.loadRun('run-1');await app.action('result-module',{module:'snp-call|SNP'});const originalTable=handlers['runs.table'];let resolveOld;handlers['runs.table']=p=>p.query==='delayed'?new Promise(resolve=>{resolveOld=()=>resolve(originalTable({...p,query:''}))}):originalTable(p);app.state.tableSearch='delayed';const oldTable=app.loadTable(0);await tick();await app.action('result-module',{module:'cpin|DNP'});resolveOld();await oldTable;check(app.state.table.file.id==='sites','Delayed previous sample table cannot overwrite current module');handlers['runs.table']=originalTable;
  const originalReuse=handlers['run.reuse'];handlers['run.reuse']=()=>({name:'Historical',caller:'snp',samples:[{id:'A',path:'/a.pileup',kind:'snp-pileup'}],branches:{SNP:[]},scientific_settings:{'snp-call':{max_depth:7}}});await app.action('reuse-run',{});check(app.state.draft.branches.DNP.length===0&&app.state.draft.scientific_settings.cpin.min_child_reads!==undefined,'Reuse action normalizes sparse actual legacy response');handlers['run.reuse']=originalReuse;
 
@@ -377,6 +451,8 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
   const gt=app.resultCell('0/1',{key:'GT'},true),expectedLabel=it?'Eterozigote':'Heterozygous';
   check(gt.includes('class="locus-genotype"')&&gt.includes('>0/1</span> '+expectedLabel),'Site detail shows the recorded genotype and meaning '+lang);
   check(!app.resultCell('NA',{key:'GT'}).includes('locus-genotype'),'Missing site call cannot look assigned '+lang);
+  check(app.resultCell('-Inf',{key:'GL0'})==='-Inf'&&app.resultCell('NA',{key:'GL0'}).includes(it?'Non disponibile':'Not available'),
+        'An impossible genotype retains its negative-infinite log likelihood; an unavailable likelihood is labelled separately '+lang);
   const precise=selectOutcome('cpi','prenatal_cpi',[describe('CPI_medianFF','4.0001')],{guide_band:{lower:'-4',upper:'4',position:'above'}});
   check(precise.includes(it?'>4,0001<':'>4.0001<')&&precise.includes('data-band="above"'),'Preserve additional precision in historical summaries '+lang);
   const bounds={lower:'-2',upper:'7'};

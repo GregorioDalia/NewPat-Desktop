@@ -623,3 +623,139 @@ def test_validated_workflow_preserves_snp_branch_without_callers(archive, explic
     write_json(run / "run.json", metadata)
     assert store.get_run("example")["status"] == "unreadable"
     assert store.overview("example")["warnings"]
+
+
+def test_archive_reads_only_selected_cards_and_searches_all_runs(archive, monkeypatch):
+    from unittest.mock import Mock
+    from nipat.gui import results
+    for number in range(36):
+        make_run(archive, name=f"run-{number:02}", marker="DNP" if number % 2 else "SNP",
+                 mapping=[{"sample_id": f"ID{number:02}", "original_path": f"Échantillon {number:02}.bam"}])
+    store = ResultsStore(archive)
+    details = Mock(wraps=store._context)
+    read_metadata = Mock(wraps=results.read_run_metadata)
+    monkeypatch.setattr(store, "_context", details)
+    monkeypatch.setattr(results, "read_run_metadata", read_metadata)
+
+    home = store.list_runs(limit=5)
+    assert [row["id"] for row in home["runs"]] == [f"run-{i:02}" for i in range(35, 30, -1)]
+    assert home["archive_total"] == home["total"] == 36 and home["has_more"]
+    assert details.call_count == 5
+    details.reset_mock()
+    read_metadata.reset_mock()
+    page = store.list_runs(offset=25, limit=25)
+    assert [row["id"] for row in page["runs"]] == [f"run-{i:02}" for i in range(10, -1, -1)]
+    assert not page["has_more"]
+    assert details.call_count == read_metadata.call_count == 11
+    for text in ("éCHANTILLON 00", "id00", "run-00"):
+        matched = store.list_runs(query=text, status="succeeded", marker="SNP", limit=25)
+        assert [row["id"] for row in matched["runs"]] == ["run-00"]
+        assert (matched["total"], matched["archive_total"]) == (1, 36)
+        assert store.list_runs(query=text, marker="DNP")["total"] == 0
+    details.reset_mock()
+    assert store.list_runs(offset=36, limit=25)["runs"] == []
+    details.assert_not_called()
+
+
+def test_archive_imports_use_one_registry_snapshot_and_reflect_external_changes(archive, tmp_path, monkeypatch):
+    from unittest.mock import Mock
+    external = tmp_path / "elsewhere"
+    for number in range(12):
+        make_run(external, name=f"run-{number:02}")
+    store = ResultsStore(archive)
+    store.register_run(external)
+    registry = Mock(wraps=store._registry)
+    monkeypatch.setattr(store, "_registry", registry)
+    page = store.list_runs(limit=5)
+    assert (len(page["runs"]), page["total"], registry.call_count) == (5, 12, 1)
+    path = external / "run-01"
+    run_id = store.identifier_for_path(path)
+    assert store.list_runs(query=run_id)["total"] == 1
+    assert store.list_runs(query="2026-11-15T10:00:00Z")["total"] == 12
+
+    metadata = json.loads((path / "run.json").read_text(encoding="utf-8"))
+    metadata.update(started_at="2027-01-01", status="failed")
+    metadata["parameters"]["marker_type"] = "SNP"
+    write_json(path / "run.json", metadata)
+    write_json(path / "gui.json", {"schema_version": 1, "name": "Renamed experiment"})
+    assert store.list_runs(limit=1)["runs"][0]["id"] == run_id
+    matched, = store.list_runs(query="renamed", status="failed", marker="SNP")["runs"]
+    assert matched["id"] == run_id
+    (path / "gui.json").unlink()
+    assert store.list_runs(query="renamed")["total"] == 0
+    other = ResultsStore(archive)
+    other.remove_run(run_id)
+    assert store.list_runs(query=run_id)["total"] == 0
+    other.register_run(path)
+    assert store.list_runs(query=run_id)["total"] == 1
+    (path / "run.json").unlink()
+    missing, = store.list_runs(query=run_id, status="unreadable")["runs"]
+    assert missing["id"] == run_id and missing["can_remove"]
+    assert other.forget_missing_import(run_id)
+    assert store.list_runs()["archive_total"] == 11
+    make_run(archive, name="another")
+    assert store.list_runs(query="another")["archive_total"] == 12
+
+
+def test_archive_status_filter_rechecks_live_observations_even_on_empty_page(archive):
+    path = make_run(archive)
+    metadata = json.loads((path / "run.json").read_text(encoding="utf-8"))
+    metadata["status"] = "running"
+    write_json(path / "run.json", metadata)
+    observation = {"status": "unknown", "status_reason": "checking"}
+    store = ResultsStore(archive, status_observer=lambda *_: observation.copy())
+    pending = store.list_runs(status="interrupted")
+    assert pending["runs"] == [] and pending["checking_status"]
+    observation.update(status="interrupted", status_reason="abandoned", can_remove=True)
+    ready = store.list_runs(status="interrupted")
+    assert not ready["checking_status"]
+    assert ready["runs"][0]["id"] == "example" and ready["runs"][0]["can_remove"]
+    assert store.list_runs(status="unknown")["total"] == 0
+
+
+def test_archive_filters_revalidate_workflow_state_without_run_metadata_change(archive):
+    run = make_run(archive, module="dnp-contamination")
+    document = run / "output/workflow/workflow-state.json"
+    state = {"schema_version": 1, "interface": "workflow-plan-execution-v2", "status": "succeeded",
+             "steps": [{"id": "dnp", "workflow": "dnp-call", "status": "succeeded"},
+                       {"id": "contamination", "workflow": "contamination", "status": "succeeded"}]}
+    write_json(document, state)
+    store = ResultsStore(archive)
+    assert store.list_runs(status="succeeded", marker="DNP")["total"] == 1
+    write_json(document, {**state, "steps": []})
+    assert store.list_runs(status="succeeded", marker="DNP")["total"] == 0
+    assert store.list_runs(status="unreadable")["runs"][0]["id"] == "example"
+    write_json(document, state)
+    assert store.list_runs(status="succeeded", marker="DNP")["total"] == 1
+
+
+def test_archive_filtered_card_uses_the_observation_that_selected_it(archive):
+    run = make_run(archive)
+    metadata = json.loads((run / "run.json").read_text(encoding="utf-8"))
+    write_json(run / "run.json", {**metadata, "status": "running"})
+    states = iter([{"status": "unknown", "status_reason": "checking", "can_remove": False},
+                   {"status": "interrupted", "status_reason": "abandoned", "can_remove": True}])
+    store = ResultsStore(archive, status_observer=lambda *_: next(states))
+    pending, = store.list_runs(status="unknown")["runs"]
+    assert pending["status"] == "unknown" and not pending["can_remove"]
+    ready, = store.list_runs(status="interrupted")["runs"]
+    assert ready["status"] == "interrupted" and ready["can_remove"]
+
+
+def test_archive_lookup_by_exact_id_excludes_hidden_history(archive, monkeypatch):
+    from unittest.mock import Mock
+    store = ResultsStore(archive)
+    other_window = ResultsStore(archive)
+    for name in ("case-1", "case-10", "group/case-1"):
+        make_run(archive, name=name)
+    index = Mock(wraps=store._archive_entry)
+    monkeypatch.setattr(store, "_archive_entry", index)
+    result = store.list_runs(run_id="case-1", limit=1)
+    assert [r["id"] for r in result["runs"]] == ["case-1"]
+    assert (result["total"], result["archive_total"], index.call_count) == (1, 3, 1)
+    other_window.remove_run("case-1")
+    hidden = store.list_runs(run_id="case-1", limit=1)
+    assert hidden["runs"] == [] and hidden["total"] == 0 and hidden["archive_total"] == 2
+    assert index.call_count == 1
+    assert store.list_runs(run_id="../case-1")["total"] == 0
+    assert store.get_run("case-1")["id"] == "case-1"  # Removal preserved the original files.

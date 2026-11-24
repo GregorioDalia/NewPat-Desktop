@@ -16,6 +16,7 @@ import stat
 import tempfile
 import threading
 from collections import Counter
+from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Iterator
@@ -382,6 +383,67 @@ def _file_label(name, language="it"):
     return english.get(label, label) if language == "en" else label
 
 
+@dataclass
+class _ArchiveEntry:
+    # Keep searchable metadata, never the workflow state, validation reports or BAM inputs.
+    stamp: tuple
+    started: str
+    searchable: str
+    is_workflow: bool
+    recorded_active: bool
+    filters: tuple | None = None
+    workflow_stamp: tuple | None = None
+
+
+def _file_stamp(path):
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        return None
+    return info.st_mode, info.st_size, info.st_mtime_ns, info.st_ctime_ns, info.st_ino
+
+
+def _run_name(gui, metadata, run_id):
+    name = gui.get("name") or metadata.get("run_name") or run_id
+    return name if isinstance(name, str) else run_id
+
+
+def _gui_metadata(run):
+    try:
+        path = _scoped(run, "gui.json")
+        if path.is_file():
+            snapshot = _json(path, max_bytes=4 * 1024 * 1024)
+            if snapshot.get("schema_version") == 1:
+                return snapshot
+    except (OSError, ValueError):
+        pass
+    return {}
+
+
+def _observed_steps(run, metadata):
+    workflow = metadata.get("workflow")
+    declared = workflow_steps(metadata, include_markers=True)
+    state = read_workflow_state(run, workflow, metadata)
+    observed = {step["id"]: step for step in state["steps"]}
+    steps = []
+    for step in declared:
+        marker = step.get("marker")
+        if step["workflow"] in {"dnp-call", "snp-call"}:
+            marker = "DNP" if step["workflow"] == "dnp-call" else "SNP"
+        if marker not in {"DNP", "SNP"}:
+            marker = "DNP"  # Legacy preset workflows only consume DNP tables.
+        steps.append({"id": step["id"], "module": step["workflow"], "marker": marker,
+                      "status": observed[step["id"]].get("status"), "sample_id": step.get("sample"),
+                      "output_prefix": f"output/workflow/steps/{step['id']}/output/"})
+    return steps, state
+
+
+def _standalone_marker(metadata):
+    parameters = metadata.get("parameters")
+    default = "SNP" if metadata.get("workflow") == "snp-call" else "DNP"
+    return parameters.get("marker_type", default) if isinstance(parameters, dict) else default
+
+
 class ResultsStore:
     """Scope every read to a configured local archive, never a frontend path."""
 
@@ -391,12 +453,14 @@ class ResultsStore:
         self.language = "en" if language == "en" else "it"
         self.registry_path = Path(registry_path).expanduser().absolute() if registry_path else self.root / "gui-imports.json"
         self._stats_cache: dict[tuple, dict] = {}
+        self._archive_cache: dict[str, _ArchiveEntry] = {}
+        self._archive_lock = threading.Lock()
         self.status_observer = status_observer
         self._lock = threading.RLock()
 
-    def _run(self, run_id: str) -> Path:
+    def _run(self, run_id: str, imports=None) -> Path:
         if isinstance(run_id, str) and run_id.startswith("imported-"):
-            records = self._imports()
+            records = self._imports() if imports is None else imports
             if run_id not in records:
                 raise ValueError("Esperimento importato non registrato.")
             path = Path(records[run_id])
@@ -535,94 +599,154 @@ class ResultsStore:
         run = self._run(run_id)
         return run, read_run_metadata(run)
 
-    def list_runs(self, query="", status=None, offset=0, limit=100) -> dict:
-        self._page(offset, limit)
-        if not isinstance(query, str) or len(query) > 1000:
-            raise ValueError("Ricerca dell’archivio non valida.")
-        found = []
-        registry = self._registry()
+    def _archive_locations(self, registry):
         hidden = set(registry["hidden"])
         imports = {Path(path): identifier for identifier, path in registry["imports"].items()}
         for directory, directories, files in os.walk(self.root, followlinks=False):
             path = Path(directory)
-            directories[:] = [name for name in sorted(directories) if not _is_link(path / name)
-                              and name not in {"output", "inputs", "work", ".git"}]
-            if "run.json" not in files:
-                continue
-            directories[:] = []
-            run_id = path.relative_to(self.root).as_posix()
-            imports.pop(path, None)  # A registered run can also be in the current archive.
-            if str(path.resolve()) in hidden:
-                continue
-            try:
-                item = self._run_record(run_id)
-            except (OSError, ValueError, KeyError, TypeError) as exc:
-                if _is_link(path / "run.json"):
-                    continue
-                item = {"id": run_id, "name": path.name, "status": "unreadable", "workflow": None,
-                        "started_at": None, "finished_at": None, "version": None, "samples": [],
-                        "modules": [], "markers": [], "warning": str(exc)}
-            searchable = " ".join([item["name"], run_id, str(item["started_at"] or ""),
-                                   *(s["label"] for s in item["samples"]), *(s["id"] for s in item["samples"])])
-            if query.casefold() not in searchable.casefold() or status and item["status"] != status:
-                continue
-            found.append(item)
-        for imported_path, identifier in imports.items():
-            if str(imported_path.resolve()) in hidden:
-                continue
-            try:
-                item = self._run_record(identifier)
-            except (OSError, ValueError, KeyError, TypeError) as exc:
-                item = {"id": identifier, "name": _translation(("Esperimento importato non disponibile",
-                        "Imported experiment unavailable"), self.language), "status": "unreadable",
-                        "can_remove": not (Path(imported_path) / "run.json").is_file(),
-                        "workflow": None, "started_at": None, "finished_at": None, "version": None,
-                        "samples": [], "modules": [], "markers": [], "warning": str(exc)}
-            searchable = " ".join([item["name"], *(s["label"] for s in item["samples"]), *(s["id"] for s in item["samples"])])
-            if query.casefold() not in searchable.casefold() or status and item["status"] != status:
-                continue
-            found.append(item)
-        found.sort(key=lambda row: (row.get("started_at") or "", row["id"]), reverse=True)
-        return {"runs": found[offset:offset + limit], "total": len(found), "offset": offset,
-                "limit": limit, "has_more": offset + limit < len(found)}
+            if "run.json" in files:
+                directories[:] = []
+                imports.pop(path, None)  # An imported directory may now belong to this archive.
+                if str(path) not in hidden and not _is_link(path / "run.json"):
+                    yield path.relative_to(self.root).as_posix(), path, False
+            else:
+                directories[:] = [name for name in directories
+                                  if name not in {"output", "inputs", "work", ".git"} and not _is_link(path / name)]
+        for path, identifier in imports.items():
+            if str(path) not in hidden:
+                yield identifier, path, True
 
-    def _context(self, run_id) -> dict:
-        run, metadata = self._metadata(run_id)
+    def _archive_entry(self, run_id, run):
+        stamp = (run, _file_stamp(run / "run.json"), _file_stamp(run / "gui.json"))
+        cached = self._archive_cache.get(run_id)
+        if cached and cached.stamp == stamp:
+            return cached
+        metadata = read_run_metadata(run)
+        samples = sample_rows(metadata)
+        name = _run_name(_gui_metadata(run), metadata, run_id)
+        started = metadata.get("started_at")
+        started = started if isinstance(started, str) else ""
+        searchable = " ".join([name, run_id, started, *(s["original_name"] for s in samples),
+                               *(s["sample_id"] for s in samples)]).casefold()
+        workflow = metadata.get("workflow") in WORKFLOW_STEPS
+        active = metadata.get("status") in ("running", "preparing")
+        entry = _ArchiveEntry(stamp, started, searchable, workflow, active)
+        if not workflow and not active:
+            entry.filters = (read_run_status(run, metadata), (_standalone_marker(metadata),), None)
+        return entry
+
+    def _archive_filters(self, run, entry):
+        # Only filtered views inspect off-page workflow state. A running record
+        # must consult the observer again even if no files have changed.
+        state_stamp = None
+        if entry.is_workflow:
+            try:
+                state_stamp = _file_stamp(_scoped(run, "output/workflow/workflow-state.json"))
+            except (OSError, ValueError):
+                state_stamp = None
+        if entry.filters is not None and entry.workflow_stamp == state_stamp and not entry.recorded_active:
+            return entry.filters
+        metadata = read_run_metadata(run)
+        if entry.is_workflow:
+            try:
+                steps, _ = _observed_steps(run, metadata)
+                markers = tuple({s["marker"] for s in steps})
+            except (OSError, ValueError, KeyError, TypeError):
+                markers = ()
+        else:
+            markers = (_standalone_marker(metadata),)
+        observed = self.status_observer(run, metadata) if self.status_observer else None
+        status = observed["status"] if observed else read_run_status(run, metadata)
+        filters = (status, markers, observed if entry.recorded_active else None)
+        if not entry.recorded_active:
+            entry.filters, entry.workflow_stamp = filters, state_stamp
+        return filters
+
+    def _unreadable_card(self, identifier, path, imported, exc):
+        name = (_translation(("Esperimento importato non disponibile", "Imported experiment unavailable"),
+                             self.language) if imported else path.name)
+        row = {"id": identifier, "name": name, "status": "unreadable", "workflow": None,
+               "started_at": None, "finished_at": None, "version": None, "samples": [],
+               "modules": [], "markers": [], "warning": str(exc)}
+        if imported:
+            row["can_remove"] = not (path / "run.json").is_file()
+        return row
+
+    def list_runs(self, query="", status=None, offset=0, limit=100, marker=None, run_id=None) -> dict:
+        self._page(offset, limit)
+        if not isinstance(query, str) or len(query) > 1000:
+            raise ValueError("Ricerca dell’archivio non valida.")
+        if marker not in (None, "DNP", "SNP"):
+            raise ValueError("Marcatore non valido.")
+        if run_id is not None and (not isinstance(run_id, str) or not run_id):
+            raise ValueError("Identificativo del risultato non valido.")
+        query = query.casefold()
+        registry = self._registry()
+        found, updated = [], {}
+        archive_total, checking = 0, False
+        with self._archive_lock:
+            for identifier, path, imported in self._archive_locations(registry):
+                archive_total += 1
+                if run_id is not None and identifier != run_id:
+                    if identifier in self._archive_cache:
+                        updated[identifier] = self._archive_cache[identifier]
+                    continue
+                error_row, observation = None, None
+                try:
+                    run = self._run(identifier, registry["imports"])
+                    entry = self._archive_entry(identifier, run)
+                    updated[identifier] = entry
+                    if query not in entry.searchable:
+                        continue
+                    if marker or status:
+                        actual, markers, observation = self._archive_filters(run, entry)
+                        if marker and marker not in markers:
+                            continue
+                        checking |= bool(status and observation and observation.get("status_reason") == "checking")
+                        if status and status != actual:
+                            continue
+                    started = entry.started
+                except (OSError, ValueError, KeyError, TypeError) as exc:
+                    error_row = self._unreadable_card(identifier, path, imported, exc)
+                    if (marker or status and status != "unreadable"
+                            or query not in f"{error_row['name']} {identifier}".casefold()):
+                        continue
+                    started = ""
+                found.append((started, identifier, path, imported, error_row, observation))
+            self._archive_cache = updated
+
+        found.sort(key=lambda row: (row[0], row[1]), reverse=True)
+        runs = []
+        for _, identifier, path, imported, row, observation in found[offset:offset + limit]:
+            if row is None:
+                try:
+                    context = self._context(identifier, imports=registry["imports"], observation=observation)
+                    row = self._run_record(identifier, context)
+                except (OSError, ValueError, KeyError, TypeError) as exc:
+                    row = self._unreadable_card(identifier, path, imported, exc)
+            runs.append(row)
+        return {"runs": runs, "total": len(found), "archive_total": archive_total,
+                "checking_status": checking, "offset": offset, "limit": limit,
+                "has_more": offset + limit < len(found)}
+
+    def _context(self, run_id, *, imports=None, observation=None) -> dict:
+        run = self._run(run_id, imports)
+        metadata = read_run_metadata(run)
         parameters = metadata.get("parameters")
         parameters = parameters if isinstance(parameters, dict) else {}
         samples = [{"id": s["sample_id"], "label": s["original_name"], "filename": original_basename(s["original_path"]),
                     "path": s["original_path"], "role": s["role"]} for s in sample_rows(metadata)]
-        gui = {}
-        try:
-            gui_path = _scoped(run, "gui.json")
-            if gui_path.is_file():
-                gui = _json(gui_path, max_bytes=4 * 1024 * 1024)
-                if gui.get("schema_version") != 1:
-                    gui = {}
-        except (OSError, ValueError):
-            pass
+        gui = _gui_metadata(run)
         warnings, steps, documents = [], [], []
         workflow = metadata.get("workflow")
         if workflow in WORKFLOW_STEPS:
             try:
-                declared = workflow_steps(metadata, include_markers=True)
-                state = read_workflow_state(run, workflow, metadata)
-                observed = {step["id"]: step for step in state["steps"]}
+                steps, state = _observed_steps(run, metadata)
                 documents.append((state, "output/workflow/", None))
-                for step in declared:
-                    actual = observed[step["id"]]
-                    marker = step.get("marker")
-                    if step["workflow"] in {"dnp-call", "snp-call"}:
-                        marker = "DNP" if step["workflow"] == "dnp-call" else "SNP"
-                    if marker not in {"DNP", "SNP"}:
-                        marker = "DNP"  # Legacy preset workflows only consume DNP tables.
-                    steps.append({"id": step["id"], "module": step["workflow"], "marker": marker,
-                                  "status": actual.get("status"), "sample_id": step.get("sample"),
-                                  "output_prefix": f"output/workflow/steps/{step['id']}/output/"})
             except (OSError, ValueError, KeyError, TypeError) as exc:
                 warnings.append({"code": "archive.workflow", "message": str(exc)})
         else:
-            marker = parameters.get("marker_type", "SNP" if workflow == "snp-call" else "DNP")
+            marker = _standalone_marker(metadata)
             steps = [{"id": "standalone", "module": workflow, "marker": marker,
                       "status": read_run_status(run, metadata), "sample_id": samples[0]["id"] if len(samples) == 1 else None,
                       "output_prefix": "output/"}]
@@ -654,7 +778,8 @@ class ResultsStore:
                         collect_warnings(child, origin, depth + 1)
         for document, _, _ in documents:
             collect_warnings(document)
-        observation = self.status_observer(run, metadata) if self.status_observer else None
+        if observation is None and self.status_observer:
+            observation = self.status_observer(run, metadata)
         if observation and observation["status"] == "interrupted" and observation.get("status_reason") == "abandoned":
             # Display the interrupted lifecycle without changing completed step
             # evidence or any original workflow/run document.
@@ -732,9 +857,7 @@ class ResultsStore:
     def _run_record(self, run_id, context=None):
         ctx = context or self._context(run_id)
         md, gui = ctx["metadata"], ctx["gui"]
-        name = gui.get("name") or md.get("run_name") or run_id
-        if not isinstance(name, str):
-            name = run_id
+        name = _run_name(gui, md, run_id)
         state = dict(ctx.get("observation") or {"status": read_run_status(ctx["run"], md)})
         notes = {
             "checking": ("Verifica dello stato dell’esperimento in corso.", "Checking the experiment’s current state."),
@@ -744,11 +867,13 @@ class ResultsStore:
             "external_active": ("Il runtime segnala un’esecuzione ancora attiva, avviata fuori da questa sessione.", "The runtime reports an active run started outside this session."),
         }
         state["status_note"] = _translation(notes[state["status_reason"]], self.language) if state.get("status_reason") in notes else None
+        source = md.get("source")
+        version = source.get("nipat_version") if isinstance(source, dict) else None
         reference, tracks = self._igv_sources(ctx)
         has_igv_inputs = bool(reference and tracks)
         return {"id": run_id, "name": name, "workflow": md.get("workflow"), **state,
                 "has_igv_inputs": has_igv_inputs, "started_at": md.get("started_at"),
-                "finished_at": md.get("finished_at"), "version": md.get("source", {}).get("nipat_version"),
+                "finished_at": md.get("finished_at"), "version": version,
                 "samples": ctx["samples"], "modules": sorted({s["module"] for s in ctx["steps"] if s["module"]}),
                 "markers": sorted({s["marker"] for s in ctx["steps"] if s["marker"]}),
                 "warnings": ctx["warnings"]}

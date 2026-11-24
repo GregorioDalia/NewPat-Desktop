@@ -12,7 +12,7 @@ const moduleName=m=>({'dnp-call':t('genotypes')+' DNP','snp-call':t('genotypes')
 const icons={home:'<path d="m3 10 9-7 9 7v10H3Z"/><path d="M9 20v-7h6v7"/>',new:'<path d="M8 3v6l-4 9a2 2 0 0 0 2 3h12a2 2 0 0 0 2-3l-4-9V3M7 3h10M7 15h10"/>',archive:'<path d="M3 6h7l2 2h9v12H3ZM3 8V4h7l2 2h9v2"/>',activity:'<circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/>',igv:'<path d="M3 5h18M3 19h18M5 9h4m2 0h6m2 0h2M3 12h6m2 0h3m2 0h3M6 15h5m2 0h8"/>',catalog:'<path d="M4 4h6a3 3 0 0 1 3 3v14a4 4 0 0 0-4-2H4ZM20 4h-4a3 3 0 0 0-3 3M20 4v15h-3a4 4 0 0 0-4 2"/>',settings:'<path d="M4 7h16M4 17h16"/><circle cx="8" cy="7" r="3"/><circle cx="16" cy="17" r="3"/>',environment:'<rect x="3" y="3" width="18" height="13" rx="2"/><path d="M9 21h6m-3-5v5M7 8l3 2-3 2m6 0h4"/>',arrow:'<path d="m9 5 7 7-7 7"/>',back:'<path d="m15 5-7 7 7 7"/>',plus:'<path d="M12 4v16M4 12h16"/>',close:'<path d="m6 6 12 12M18 6 6 18"/>',file:'<path d="M5 3h9l5 5v13H5ZM14 3v6h5M8 13h8m-8 4h5"/>',download:'<path d="M12 3v12m-5-5 5 5 5-5M4 17v4H16"/>',check:'<path d="m5 12 4 4L19 6"/>',info:'<circle cx="12" cy="12" r="9"/><path d="M12 10v7m0-10v.1"/>',stop:'<rect x="6" y="6" width="12" height="12" rx="1"/>',play:'<path d="m8 4 12 8-12 8Z"/>'};
 const icon=n=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[n]||icons.file}</svg>`;
 const nav=['home','new','activity','archive','igv','catalog','settings','environment'];
-const state={view:'home',boot:null,settings:{},draft:null,step:0,source:'bam',sampleKind:'bam',preview:null,error:'',jobs:[],runs:[],run:null,runId:null,runTab:'results',overview:null,files:[],module:null,entry:0,table:null,tableFile:null,tableOffset:0,tableSearch:'',allColumns:false,curves:[],curvePages:{},curveModes:{},archiveSearch:'',archivePage:0,archiveStatus:'all',archiveMarker:'all',catalogModule:'all',catalogType:'parameters',catalogSearch:'',catalogDefaults:false,preferences:null,baseline:null,environment:null,resourcePreview:null,igv:{reference:{fasta:'',index:''},tracks:[],locus:'',loaded:false},motion:true};
+const state={view:'home',boot:null,settings:{},draft:null,step:0,source:'bam',sampleKind:'bam',preview:null,error:'',jobs:[],recentRuns:[],archiveListing:null,run:null,runId:null,runTab:'results',overview:null,files:[],module:null,entry:0,table:null,tableFile:null,tableOffset:0,tableSearch:'',allColumns:false,curves:[],curvePages:{},curveModes:{},archiveSearch:'',archivePage:0,archiveStatus:'all',archiveMarker:'all',catalogModule:'all',catalogType:'parameters',catalogSearch:'',catalogDefaults:false,preferences:null,baseline:null,environment:null,resourcePreview:null,igv:{reference:{fasta:'',index:''},tracks:[],locus:'',loaded:false},motion:true};
 let igvNavigationUnsubscribe=null,curveId=0;const curveViews=new Map();
 let startingDraft=null,demoRevision=null;
 const visibleLogs=new Map();
@@ -21,6 +21,9 @@ const pageTrail=[];
 function pageLocation(){
  const page={view:state.view,scroll:window.scrollY||0};
  if(state.view==='catalog')page.catalogDefaults=state.catalogDefaults;
+ if(state.view==='archive'&&!state.run){
+  page.list={archivePage:state.archivePage,archiveSearch:state.archiveSearch,archiveStatus:state.archiveStatus,archiveMarker:state.archiveMarker};
+ }
  if(state.view==='archive'&&state.run){
   Object.assign(page,{runId:state.runId,root:state.baseline?.runs_dir||state.boot.layout.runs_dir,
    tab:state.runTab,module:state.module,entry:state.entry,
@@ -69,16 +72,21 @@ async function pageBack(){
  const page=pageTrail.pop()||{view:'home'};
  if(page.runId){
   if(page.root!==(state.baseline?.runs_dir||state.boot.layout.runs_dir))return navigate('archive',{remember:false});
-  const cached=state.run?.id===page.runId;
+  const cached=state.run?.id===page.runId,version=runLoadVersion+1;
   await navigate('archive',{remember:false,keepRun:cached});
-  if(state.view!=='archive')return;
+  if(state.view!=='archive'||runLoadVersion!==version)return;
   if(!cached){
-   if(!state.runs.some(run=>run.id===page.runId))return;
+   // History can refer to a different page or a run hidden by another window.
+   if(!state.archiveListing?.runs?.some(run=>run.id===page.runId)){
+    const match=await rpc('runs.list',{run_id:page.runId,offset:0,limit:1});
+    if(runLoadVersion!==version||!match.runs.some(run=>run.id===page.runId))return;
+   }
    await loadRun(page.runId,false);
   }
   await restoreResultsPage(page);
  }else{
   if(page.view==='catalog')state.catalogDefaults=page.catalogDefaults;
+  if(page.list)Object.assign(state,page.list);
   await navigate(page.view,{remember:false});
   if(page.viewer&&state.view==='igv'){
    Object.assign(state.igv,page.viewer);referenceForms.delete(state.igv);await action('igv-load',{});
@@ -271,7 +279,19 @@ function blankDraft(profile=state.baseline?.default_profile||''){
  return {name:'',caller:'dnp',samples:[],branches:{DNP:[],SNP:[]},reference:null,resources:{DNP:{},SNP:{}},families:{cpi:[],cpin:[]},...profileSettings(profile)};
 }
 
-function archiveRows(){const runs=filteredRuns(),limit=25,pages=Math.max(1,Math.ceil(runs.length/limit));state.archivePage=Math.min(state.archivePage,pages-1);const offset=state.archivePage*limit;return runRows(runs.slice(offset,offset+limit))+`<div class="pager"><span>${format(offset+1,0)}–${format(Math.min(offset+limit,runs.length),0)} / ${format(runs.length,0)}</span><div class="actions"><button class="button small" data-action="archive-page" data-page="${state.archivePage-1}" ${state.archivePage===0?'disabled':''}>${t('previous')}</button><button class="button small" data-action="archive-page" data-page="${state.archivePage+1}" ${state.archivePage+1>=pages?'disabled':''}>${t('next')}</button></div></div>`}
+const archivePageSize=25;
+function archiveRows(){
+ const listing=state.archiveListing;
+ if(!listing)return '<p class="panel-body" role="status">'+esc(t('loading'))+'</p>';
+ if(listing.error)return notice(listing.error,'error')+button(t('retry'),'archive-page',{page:state.archivePage},'small');
+ const {runs,total,archive_total,offset}=listing;
+ if(!total)return empty(t(archive_total?'noFilteredRuns':'noRuns'),archive_total?'':t('noRunsCopy'));
+ return runRows(runs)+`<div class="pager"><span>${format(offset+1,0)}–${format(offset+runs.length,0)} / ${format(total,0)}</span><div class="actions"><button class="button small" data-action="archive-page" data-page="${state.archivePage-1}" ${offset===0?'disabled':''}>${t('previous')}</button><button class="button small" data-action="archive-page" data-page="${state.archivePage+1}" ${offset+runs.length>=total?'disabled':''}>${t('next')}</button></div></div>`;
+}
+function updateArchiveRows(){
+ const container=$('archive-results');
+ if(container&&state.view==='archive'&&!state.run)container.innerHTML=archiveRows();
+}
 function normalizeDraft(value){const base=blankDraft(''),draft=clone(value.draft||value);return {...base,...draft,branches:{...base.branches,...draft.branches},resources:{DNP:{...base.resources.DNP,...draft.resources?.DNP},SNP:{...base.resources.SNP,...draft.resources?.SNP}},families:{...base.families,...draft.families},scientific_settings:Object.fromEntries(Object.entries(base.scientific_settings).map(([module,values])=>[module,{...values,...draft.scientific_settings?.[module]}])),execution:{...base.execution,...draft.execution}}}
 function applyDraft(value){state.profileChoice='';++draftLoadVersion;state.draft=normalizeDraft(value);state.source=state.draft.caller==='tables'?'tables':state.draft.samples.some(sample=>sample.kind.endsWith('-table'))?'mixed':'bam';state.sampleKind=state.source==='tables'?(state.draft.samples.find(s=>s.kind.endsWith('-table'))?.kind||'dnp-table'):'bam';state.step=0;invalidate()}
 function newExperiment(){applyDraft(blankDraft());state.profileChoice=state.baseline?.default_profile||'';closeModal();return navigate('new')}
@@ -291,29 +311,65 @@ async function choosePath(key,filter='all',multiple=false){
   if(!current())return[];const paths=Array.isArray(result)?result:result?.paths||[];if(!paths.length)return[];if(key)setPath(key,paths[0]);return paths;
  }catch(error){if(current())throw error;return[]}
 }
-let archiveListVersion=0;
+let archiveListVersion=0,archiveSearchTimer;
 async function loadRuns(){
- const version=++archiveListVersion,runs=[];
- let offset=0;
- while(true){
-  const result=await rpc('runs.list',{offset,limit:1000});
-  if(version!==archiveListVersion)return state.runs;
-  const page=result.runs||result||[];
-  runs.push(...page);
-  if(!result.has_more||!page.length)break;
-  offset+=page.length;
+ const view=state.view;
+ if(view!=='home'&&(view!=='archive'||state.run))return false;
+ const version=++archiveListVersion;
+ const current=()=>version===archiveListVersion&&state.view===view&&(view==='home'||!state.run);
+ const params=view==='home'?{offset:0,limit:5}:{offset:state.archivePage*archivePageSize,limit:archivePageSize};
+ if(view==='archive'){
+  if(state.archiveSearch)params.query=state.archiveSearch;
+  if(state.archiveStatus!=='all')params.status=state.archiveStatus;
+  if(state.archiveMarker!=='all')params.marker=state.archiveMarker;
  }
- state.runs=[...new Map(runs.map(run=>[run.id,run])).values()];
- return state.runs;
+ try{
+  while(current()){
+   const result=await rpc('runs.list',params);
+   if(!current())return false;
+   if(view==='home'){
+    const changed=JSON.stringify(state.recentRuns)!==JSON.stringify(result.runs);
+    state.recentRuns=result.runs;
+    return changed;
+   }
+   // Removing records can make the last page disappear between requests.
+   const lastOffset=Math.max(0,Math.ceil(result.total/archivePageSize)-1)*archivePageSize;
+   if(params.offset>lastOffset){params.offset=lastOffset;continue}
+   const changed=JSON.stringify(state.archiveListing)!==JSON.stringify(result);
+   state.archivePage=params.offset/archivePageSize;
+   state.archiveListing=result;
+   return changed;
+  }
+ }catch(error){
+  if(!current())return false;
+  if(view==='archive'){state.archiveListing={error:humanError(error)};updateArchiveRows()}
+  throw error;
+ }
+ return false;
 }
-function filteredRuns(){const q=state.archiveSearch.toLowerCase();return state.runs.filter(r=>(state.archiveStatus==='all'||r.status===state.archiveStatus)&&(state.archiveMarker==='all'||r.markers?.includes(state.archiveMarker))&&[r.name,r.id,r.started_at,...(r.samples||[]).map(s=>s.label||s.id)].join(' ').toLowerCase().includes(q))}
+async function refreshVisibleRuns(){
+ if(await loadRuns()){
+  if(state.view==='home')render();
+  else updateArchiveRows();
+ }
+}
+function requestArchivePage(page,debounce=false){
+ clearTimeout(archiveSearchTimer);
+ ++archiveListVersion;
+ state.archivePage=page;
+ state.archiveListing=null;
+ updateArchiveRows();
+ const refresh=()=>state.view==='archive'&&!state.run?refreshVisibleRuns():Promise.resolve();
+ if(debounce){archiveSearchTimer=setTimeout(()=>refresh().catch(showError),200);return}
+ return refresh();
+}
 function runRows(runs){if(!runs.length)return empty(t('noRuns'),t('noRunsCopy'),button(t('openFolder'),'import-run',{},'','archive'));return `<div class="table-scroll" tabindex="0"><table class="table"><thead><tr><th>${t('name')}</th><th>${t('date')}</th><th>${t('analysis')}</th><th>${t('status')}</th><th><span class="screen-reader-only">${t('open')}</span></th></tr></thead><tbody>${runs.map(r=>`<tr><td><b>${esc(r.name||r.id)}</b><small>${r.samples?.length||0} ${t(r.samples?.length===1?'sample':'samples').toLowerCase()} · ${esc((r.markers||[]).join(' / '))}</small></td><td>${date(r.started_at)}</td><td>${esc((r.modules||[r.workflow]).map(m=>moduleName(typeof m==='string'?m:m.module)).join(' · '))}</td><td>${badge(r.status)}</td><td><div class="actions">${button(t('openResults'),'open-run',{id:r.id},'small result-link','arrow')}${button(t('rerun'),'reuse-run',{id:r.id},'quiet small','play')}${r.can_remove===true?button(t('removeFromList'),'remove-run',{id:r.id},'quiet small','close'):''}</div></td></tr>`).join('')}</tbody></table></div>`}
 function renderHome(){
  const parameterCount=Object.values(state.settings).reduce((n,group)=>n+Object.keys(group.parameters||{}).length,0);
  const constantCount=Object.values(state.settings).reduce((n,group)=>n+Object.keys(group.constants||{}).length,0);
  const tools=[['igv',t('igvHelp')],['catalog',`${parameterCount} ${t('parameters').toLowerCase()} · ${constantCount} ${t('constants').toLowerCase()}`]];
  return heading(t('welcome'),t('welcomeCopy'),button(t('new'),'navigate',{view:'new'},'primary','plus'))+`
-  <section class="panel"><div class="panel-header"><h2>${t('recent')}</h2>${button(t('allExperiments'),'navigate',{view:'archive'},'quiet','arrow')}</div>${runRows(state.runs.slice(0,5))}</section>
+  <section class="panel"><div class="panel-header"><h2>${t('recent')}</h2>${button(t('allExperiments'),'navigate',{view:'archive'},'quiet','arrow')}</div>${runRows(state.recentRuns)}</section>
   <div class="grid two-columns section-gap">${tools.map(([view,description])=>`<button class="home-card" data-action="navigate" data-view="${view}"><span class="icon-box">${icon(view)}</span><span><strong>${t(view)}</strong><small>${esc(description)}</small></span>${icon('arrow')}</button>`).join('')}</div>`;
 }
 function renderInputs(){const d=state.draft,markers=activeMarkers();return `<div class="section-title"><h2>${t('addSamples')}</h2></div><div class="form-row">${input(t('experimentName'),'experiment-name',d.name,'data-draft="name" maxlength="120" placeholder="'+esc(t('experimentPlaceholder'))+'"')}${select(t('startFrom'),'source',[['bam',t('rawInputs')],['tables',t('existingTables')],['mixed',t('mixedInputs')]],state.source,'data-field="source"')}</div>${state.source!=='tables'?`<fieldset class="choice-fieldset"><legend>${t('whichMarkers')}</legend><div class="choices">${[['dnp','onlyDnp','dnpDescription'],['snp','onlySnp','snpDescription'],['both','both','bothDescription']].map(([v,key,help])=>`<label class="choice ${d.caller===v?'selected':''}"><input type="radio" name="caller" value="${v}" data-draft="caller" ${d.caller===v?'checked':''}><span><b>${t(key)}</b><small>${t(help)}</small></span></label>`).join('')}</div></fieldset>`:''}<div class="toolbar">${select(t('sampleKind'),'sample-kind',(state.source==='tables'?[['dnp-table',t('dnpTable')],['snp-table',t('snpTable')]]:state.source==='bam'?[['bam',t('bam')],['snp-pileup',t('snpPileup')]]:[['bam',t('bam')],['snp-pileup',t('snpPileup')],['dnp-table',t('dnpTable')],['snp-table',t('snpTable')]]),state.sampleKind,'data-field="sampleKind"')}${button(t('addSamples'),'add-samples',{},'primary','plus')}</div><div class="table-scroll"><table class="table"><thead><tr><th>${t('sampleName')}</th><th>${t('sampleFile')}</th><th>${t('fileType')}</th><th></th></tr></thead><tbody>${d.samples.map((s,i)=>`<tr><td class="sample-name"><input class="input" value="${esc(s.id)}" data-sample="${i}" maxlength="48" aria-label="${t('sampleName')} ${i+1}"></td><td><b>${esc(basename(s.path))}</b><details class="file-name"><summary>${t('details')}</summary>${esc(s.path)}</details></td><td>${esc({bam:t('bam'),'snp-pileup':t('snpPileup'),'dnp-table':t('dnpTable'),'snp-table':t('snpTable')}[s.kind])}</td><td>${button(t('remove'),'remove-sample',{index:i},'quiet small','close')}</td></tr>`).join('')}</tbody></table>${!d.samples.length?empty(t('noSamples')):''}</div><p class="help section-gap">${t('sampleIdHelp')}</p>${d.samples.some(s=>s.kind==='bam')||state.source!=='tables'&&state.sampleKind==='bam'?`${renderReferencePicker('new')}<p class="help">${t('referenceHelp')}</p>`:''}${d.caller!=='tables'?`<div class="form-row">${(d.caller==='both'?['DNP','SNP']:[d.caller.toUpperCase()]).map(m=>fileField(t('panel')+' '+m,'resource.'+m+'.panel',d.resources[m].panel,'table')).join('')}</div>`:''}`}
@@ -348,7 +404,7 @@ function renderProfilePicker(){
 function renderParameters(){return `<h2>${t('parameters')}</h2>${renderProfilePicker()}${selectedModules().map(m=>`<details class="disclosure" open><summary>${moduleName(m)}</summary><div class="details-body">${parameterRows(m)}</div></details>`).join('')}<details class="disclosure"><summary>${t('execution')}</summary><div class="details-body">${executionFields(state.draft.execution)}</div></details>`}
 function renderReview(){const d=state.draft,processed=state.preview?.samples,labels=processed?[...new Set(processed.map(sample=>sample.biological_id||sample.id||sample.sample_id))]:d.samples.map(sample=>sample.id),branches=state.preview?.analyses_by_marker||d.branches;return `<h2>${t('review')}</h2>${demoRevision===draftRevision?demoExpectedResults():''}${state.jobs.some(job=>!terminal(job))?notice(t('concurrentWarning'),'warning'):''}<div class="review-block"><dl class="review-list"><dt>${t('experimentName')}</dt><dd>${esc(d.name)}</dd><dt>${t('samples')}</dt><dd>${labels.map(esc).join(', ')||t('emptyValue')}</dd><dt>${t('markers')}</dt><dd>${activeMarkers().join(' / ')}</dd>${d.reference&&d.samples.some(s=>s.kind==='bam')?`<dt>${t('reference')}</dt><dd class="path">${esc(d.reference_id?assemblyLabel((state.preview?.reference_genome||d.reference_genome)?.build||referenceForm('new').build)+' · ':'')}${esc(d.reference)}</dd>`:''}</dl></div><div class="review-block"><h3>${t('expectedResults')}</h3>${activeMarkers().map(marker=>{const analyses=[...(callerRuns(marker)?[t('genotypes')]:[]),...(branches[marker]||[]).map(moduleName)];return `<p><b>${marker}</b> · ${analyses.length?analyses.join(' · '):(L.language==='it'?'Nessuna analisi selezionata: queste tabelle non saranno elaborate.':'No analysis selected: these tables will not be processed.')}</p>`}).join('')}</div><div class="review-block"><h3>${t('resultLocation')}</h3><p>${t('archive')} → ${esc(d.name)} → ${t('results')}</p></div>${state.preview?`<div class="section-gap">${notice(t('validated'))}<ol class="plan-list">${state.preview.steps.map(step=>`<li>${esc(moduleName(step.workflow||step.module))}${step.parameters?.marker_type?' · '+esc(step.parameters.marker_type):''}${step.inputs?.sample?' · '+esc(step.inputs.sample):''}</li>`).join('')}</ol></div>`:`<p class="help section-gap">${t('startChecksHelp')}</p>`}<div class="actions section-gap">${startingDraft===d?`<span class="start-check" role="status"><span aria-hidden="true" class="check-spinner ${state.motion?'':'paused'}"></span>${t('checkingPlan')}</span>`:button(t('showPlan'),'validate-plan',{},'quiet small')}</div>`}
 function renderNew(){const d=state.draft;return heading(t('new'),t('newCopy'))+`${state.error?notice(state.error,'error'):''}<div class="form-layout section-gap"><section class="panel"><div class="steps" role="tablist">${['samples','analysis','parameters','review'].map((key,i)=>`<button class="step ${state.step===i?'active':''}" data-action="step" data-index="${i}" role="tab" aria-selected="${state.step===i}"><span>${i+1}</span>${t(key)}</button>`).join('')}</div><div class="panel-body">${[renderInputs,renderAnalyses,renderParameters,renderReview][state.step]()}</div><div class="form-footer"><span class="help">${state.step+1} / 4</span><div class="actions">${state.step?button(t('back'),'step',{index:state.step-1},'','back'):''}${state.step<3?button(t('continue'),'step',{index:state.step+1},'primary','arrow'):`<button class="button primary" data-action="start-analysis" ${startingDraft?'disabled aria-busy="true"':''}>${icon('play')}${t('startAnalysis')}</button>`}</div></div></section><aside class="side-summary"><h3>${t('review')}</h3><dl><div><dt>${t('name')}</dt><dd>${esc(d.name)||'—'}</dd></div><div><dt>${t('samples')}</dt><dd>${d.samples.length}</dd></div><div><dt>${t('markers')}</dt><dd>${activeMarkers().join(' / ')||'—'}</dd></div><div><dt>${t('expectedResults')}</dt><dd>${selectedModules().map(moduleName).map(esc).join(', ')||'—'}</dd></div></dl></aside></div>`}
-function renderArchive(){if(state.run)return renderRun();return heading(t('archive'),t('archiveCopy'),button(t('openFolder'),'import-run',{},'','archive')+button(t('new'),'navigate',{view:'new'},'primary','plus'))+`<section class="panel"><div class="panel-body"><div class="toolbar"><input class="input stretch" id="archive-search" placeholder="${t('archiveSearch')}" aria-label="${t('search')}" value="${esc(state.archiveSearch)}" data-search="archive">${select(t('status'),'archive-status',[['all',t('all')],['succeeded',t('succeeded')],['failed',t('failed')],['running',t('running')],['interrupted',t('interrupted')],['unknown',t('unknown')]],state.archiveStatus,'data-field="archiveStatus"')}${select(t('markers'),'archive-marker',[['all',t('all')],['DNP','DNP'],['SNP','SNP']],state.archiveMarker,'data-field="archiveMarker"')}</div></div>${filteredRuns().length?archiveRows():empty(t(state.runs.length?'noFilteredRuns':'noRuns'),state.runs.length?'':t('noRunsCopy'))}</section>`}
+function renderArchive(){if(state.run)return renderRun();return heading(t('archive'),t('archiveCopy'),button(t('openFolder'),'import-run',{},'','archive')+button(t('new'),'navigate',{view:'new'},'primary','plus'))+`<section class="panel"><div class="panel-body"><div class="toolbar"><input class="input stretch" id="archive-search" maxlength="1000" placeholder="${t('archiveSearch')}" aria-label="${t('search')}" value="${esc(state.archiveSearch)}" data-search="archive">${select(t('status'),'archive-status',[['all',t('all')],['succeeded',t('succeeded')],['failed',t('failed')],['running',t('running')],['interrupted',t('interrupted')],['unknown',t('unknown')]],state.archiveStatus,'data-field="archiveStatus"')}${select(t('markers'),'archive-marker',[['all',t('all')],['DNP','DNP'],['SNP','SNP']],state.archiveMarker,'data-field="archiveMarker"')}</div></div><div id="archive-results">${archiveRows()}</div></section>`}
 function jobProgress(job){const p=job.progress;if(p&&Number.isFinite(p.completed)&&Number.isFinite(p.total)&&p.total>0)return Math.max(0,Math.min(100,p.completed/p.total*100));if(typeof p==='number')return Math.max(0,Math.min(100,p));if(p&&typeof p==='object'){const value=p.percent??p.percentage??p.overall_percent;if(Number.isFinite(Number(value)))return Math.max(0,Math.min(100,Number(value)))}return null}
 function terminal(job){return ['succeeded','completed','failed','cancelled','canceled','interrupted','planned'].includes(job.status)}
 function jobDisplayStatus(job){
@@ -756,8 +812,8 @@ async function openFile(id,offset=0){
   if(generation===runLoadVersion)modal(file.label||file.name,`<p class="help">${t('pdfFallback')}</p><iframe class="pdf-preview" src="${esc(safeLocalUrl(info.url))}" title="${esc(file.label||file.name)}"></iframe>`,button(t('download'),'export-file',{id},'','download'),'close-modal');
  }
 }
-async function navigate(view,{remember=true,keepRun=false}={}){if(!nav.includes(view))return;if(remember&&(view!==state.view||view==='archive'&&state.run&&!keepRun))rememberPage();if(view==='home')pageTrail.length=0;if(view!=='activity')visibleLogs.clear();++runLoadVersion;++entryLoadVersion;++tableLoadVersion;if(state.view==='igv'&&view!=='igv'){++igvLoadVersion;igvNavigationUnsubscribe?.();igvNavigationUnsubscribe=null;window.NipatIGV?.dispose();state.igv.loaded=false}state.error='';state.view=view;if(view==='archive'&&!keepRun)state.run=null;render();$('main').focus();try{if(['home','archive'].includes(view)){await loadRuns();if(state.view===view)render()}else if(view==='activity'){const jobs=await rpc('jobs.list',{include_logs:false});state.jobs=jobs.jobs||jobs;if(state.view===view)render()}else if(view==='new'||view==='igv'){await loadReferenceEntries();if(state.view===view)render()}else if(view==='environment'){const results=await Promise.allSettled([rpc('resources.get'),rpc('installation.get')]);if(results[0].status==='fulfilled')state.environment=results[0].value;else showError(results[0].reason);if(results[1].status==='fulfilled')state.installation=results[1].value;if(state.view===view)render()}}catch(error){showError(error)}}
-async function savePreferences(){const saved=await rpc('preferences.save',{preferences:state.preferences,baseline:state.baseline});state.preferences=clone(saved);state.baseline=clone(saved);await rpc('ui.save',{preferences:{language:L.language,reduce_motion:!state.motion}});toast(t('saved'))}
+async function navigate(view,{remember=true,keepRun=false}={}){if(!nav.includes(view))return;clearTimeout(archiveSearchTimer);++archiveListVersion;if(remember&&(view!==state.view||view==='archive'&&state.run&&!keepRun))rememberPage();if(view==='home')pageTrail.length=0;if(view!=='activity')visibleLogs.clear();++runLoadVersion;++entryLoadVersion;++tableLoadVersion;if(state.view==='igv'&&view!=='igv'){++igvLoadVersion;igvNavigationUnsubscribe?.();igvNavigationUnsubscribe=null;window.NipatIGV?.dispose();state.igv.loaded=false}state.error='';state.view=view;if(view==='archive'&&!keepRun){state.run=null;state.archiveListing=null}render();$('main').focus();try{if(['home','archive'].includes(view)){await refreshVisibleRuns()}else if(view==='activity'){const jobs=await rpc('jobs.list',{include_logs:false});state.jobs=jobs.jobs||jobs;if(state.view===view)render()}else if(view==='new'||view==='igv'){await loadReferenceEntries();if(state.view===view)render()}else if(view==='environment'){const results=await Promise.allSettled([rpc('resources.get'),rpc('installation.get')]);if(results[0].status==='fulfilled')state.environment=results[0].value;else showError(results[0].reason);if(results[1].status==='fulfilled')state.installation=results[1].value;if(state.view===view)render()}}catch(error){showError(error)}}
+async function savePreferences(){const saved=await rpc('preferences.save',{preferences:state.preferences,baseline:state.baseline});if(saved.runs_dir!==state.baseline.runs_dir){++archiveListVersion;state.recentRuns=[];state.archiveListing=null;state.archivePage=0}state.preferences=clone(saved);state.baseline=clone(saved);await rpc('ui.save',{preferences:{language:L.language,reduce_motion:!state.motion}});toast(t('saved'))}
 async function persistProfile(name,remove=false){
  const baseline=state.baseline;
  let profiles={...baseline.parameter_profiles};
@@ -797,7 +853,7 @@ async function action(name,data,element){
   return data.view==='new'?newExperiment():navigate(data.view);
  }
  if(name==='new-experiment')return newExperiment();
- if(name==='archive-page'){state.archivePage=Math.max(0,Number(data.page));render();return}
+ if(name==='archive-page')return requestArchivePage(Math.max(0,Number(data.page)));
  if(name==='retry-boot')return boot();
  if(name==='close-modal')return closeModal();
  if(name==='modal-backdrop'){closeModal();return}
@@ -823,7 +879,7 @@ async function action(name,data,element){
    const job=await rpc('analysis.start',{preview_id:preview.preview_id});
    state.jobs=[job,...state.jobs.filter(item=>item.id!==job.id)];
    if(current()&&state.view==='new'){rememberPage();state.view='activity';render();$('main').focus()}
-   await loadRuns();
+   await refreshVisibleRuns();
   }catch(error){if(current())throw error}
   finally{startingDraft=null;if(current())state.preview=null;if(state.view==='new')render()}
   return;
@@ -858,7 +914,7 @@ async function action(name,data,element){
   if(version===runLoadVersion)return loadRun(result.run_id);
   return;
  }
- if(name==='import-run'){const paths=await choosePath(null,'directory');if(paths.length){const result=await rpc('runs.import',{path:paths[0]});await loadRuns();const id=result.imported?.[0];if(id)return loadRun(id);await navigate('archive')}return}
+ if(name==='import-run'){const paths=await choosePath(null,'directory');if(paths.length){const result=await rpc('runs.import',{path:paths[0]});const id=result.imported?.[0];if(id)return loadRun(id);await navigate('archive')}return}
  if(name==='run-tab'){state.runTab=data.tab;render();return}
  if(name==='result-module'){++entryLoadVersion;++tableLoadVersion;state.module=data.module||null;state.entry=0;state.tableSearch='';if(state.module&&state.module!=='files')await loadEntry();else render();return}
  if(name==='table-page')return loadTable(Number(data.offset));
@@ -979,7 +1035,7 @@ function onValue(target){const value=target.type==='checkbox'?target.checked:tar
  if(target.dataset.execution){const [key,scope]=target.dataset.execution.split('|');const dest=scope==='defaults'?state.preferences.execution:state.draft.execution;dest[key]=['execution_mode','input_hashes'].includes(key)?value:key==='performance_diagnostics'?!!value:value===''?null:Number(value);invalidate();return}
  if(target.dataset.preference){state.preferences[target.dataset.preference]=value;return}
  if(target.dataset.trackName!==undefined){state.igv.tracks[Number(target.dataset.trackName)].name=value;return}
- if(target.dataset.field){const key=target.dataset.field;if(key==='source'){state.source=value;state.draft.caller=value==='tables'?'tables':state.draft.caller==='tables'?'dnp':state.draft.caller;state.sampleKind=value==='tables'?'dnp-table':'bam';if(value==='tables'){state.draft.samples=state.draft.samples.filter(s=>s.kind.endsWith('-table'));state.draft.reference=null;delete state.draft.reference_id;delete state.draft.reference_genome;referenceForms.delete(state.draft)}else if(value==='bam')state.draft.samples=state.draft.samples.filter(s=>!s.kind.endsWith('-table'));invalidate();render()}else if(key==='igvLocus'){state.igv.locus=value}else if(key==='igvChromosome'){window.NipatIGV.search(value).catch(showError)}else if(key==='runtimeMemory'||key==='runtimeCpus'){state[key]=value;state.resourcePreview=null}else{state[key]=value;if(key==='archiveStatus'||key==='archiveMarker')state.archivePage=0;if(key==='sampleKind'&&value==='snp-pileup'&&state.draft.caller==='dnp'){state.draft.caller='snp';invalidate()}if(key!=='motion')render();else rpc('ui.save',{preferences:{language:L.language,reduce_motion:!value}}).catch(showError)}return}
+ if(target.dataset.field){const key=target.dataset.field;if(key==='source'){state.source=value;state.draft.caller=value==='tables'?'tables':state.draft.caller==='tables'?'dnp':state.draft.caller;state.sampleKind=value==='tables'?'dnp-table':'bam';if(value==='tables'){state.draft.samples=state.draft.samples.filter(s=>s.kind.endsWith('-table'));state.draft.reference=null;delete state.draft.reference_id;delete state.draft.reference_genome;referenceForms.delete(state.draft)}else if(value==='bam')state.draft.samples=state.draft.samples.filter(s=>!s.kind.endsWith('-table'));invalidate();render()}else if(key==='igvLocus'){state.igv.locus=value}else if(key==='igvChromosome'){window.NipatIGV.search(value).catch(showError)}else if(key==='runtimeMemory'||key==='runtimeCpus'){state[key]=value;state.resourcePreview=null}else{state[key]=value;if(key==='archiveStatus'||key==='archiveMarker')return requestArchivePage(0).catch(showError);if(key==='sampleKind'&&value==='snp-pileup'&&state.draft.caller==='dnp'){state.draft.caller='snp';invalidate()}if(key!=='motion')render();else rpc('ui.save',{preferences:{language:L.language,reduce_motion:!value}}).catch(showError)}return}
  if(target.dataset.result){if(target.dataset.result==='module'){state.module=value;state.entry=0}else state.entry=Number(value);loadEntry().catch(showError);return}
 }
 let languageWrite=Promise.resolve();
@@ -999,7 +1055,10 @@ async function changeLanguage(language){
   const page=pageLocation(),version=runLoadVersion+1;
   await loadRun(page.runId,false);
   if(version===runLoadVersion&&write===languageWrite)await restoreResultsPage(page);
- }else render();
+ }else{
+  render();
+  await refreshVisibleRuns();
+ }
 }
 function bind(){
  document.addEventListener('mouseover',event=>showCurvePoint(event.target,event));
@@ -1008,7 +1067,7 @@ function bind(){
  document.addEventListener('focusout',event=>hideCurvePoint(event.target));
  document.addEventListener('click',async event=>{if(showCurvePoint(event.target,event))event.target.closest('[data-curve-point]').focus();const element=event.target.closest('[data-action]');if(!element||element.disabled)return;if(element.dataset.action==='modal-backdrop'){if(event.target===element)closeModal();return}event.preventDefault();const actionName=element.dataset.action;const longAction=['open-demo','confirm-open-demo','validate-plan','start-analysis','import-run','reuse-run','run-igv','confirm-remove-run','prepare-module','check-environment','check-updates','download-update','igv-load','export-diagnostics','reference-register'].includes(actionName);try{element.disabled=true;if(longAction){$('operation-indicator').textContent=t('loading');element.setAttribute?.('aria-busy','true');}await action(actionName,element.dataset,element)}catch(error){showError(error)}finally{element.disabled=false;if(longAction){$('operation-indicator').textContent='';element.removeAttribute?.('aria-busy');}}});
  document.addEventListener('change',event=>{if(event.target.name==='language'&&event.target.checked){changeLanguage(event.target.value).catch(showError);return}onValue(event.target)});
- document.addEventListener('input',event=>{const el=event.target;if(el.dataset.search){clearTimeout(searchTimer);const kind=el.dataset.search;const value=el.value;if(kind==='archive'){state.archiveSearch=value;state.archivePage=0;refreshPreservingInput('archive-search')}else if(kind==='catalog'){state.catalogSearch=value;refreshPreservingInput('catalog-search')}else{state.tableSearch=value;searchTimer=setTimeout(()=>loadTable(0).then(()=>$('site-search')?.focus()).catch(showError),300)}return}if(el.tagName==='INPUT'&&!['checkbox','radio'].includes(el.type))onValue(el)});
+ document.addEventListener('input',event=>{const el=event.target;if(el.dataset.search){clearTimeout(searchTimer);const kind=el.dataset.search;const value=el.value;if(kind==='archive'){state.archiveSearch=value;requestArchivePage(0,true)}else if(kind==='catalog'){state.catalogSearch=value;refreshPreservingInput('catalog-search')}else{state.tableSearch=value;searchTimer=setTimeout(()=>loadTable(0).then(()=>$('site-search')?.focus()).catch(showError),300)}return}if(el.tagName==='INPUT'&&!['checkbox','radio'].includes(el.type))onValue(el)});
  document.addEventListener('keydown',event=>{if(curveKey(event))return;const dialog=$('modal-root').querySelector('[role=dialog]');if(dialog){if(event.key==='Escape'){closeModal();return}if(event.key==='Tab'){const nodes=[...dialog.querySelectorAll('button,input,select,summary,[tabindex="0"]')].filter(n=>!n.disabled);const first=nodes[0],last=nodes[nodes.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus()}}}else if(event.key==='Enter'&&event.target.id==='igv-locus'){event.preventDefault();action('igv-search',{}).catch(showError)}});
 }
 async function refreshOpenedRun(){
@@ -1037,15 +1096,14 @@ async function poll(){
    await Promise.all(state.jobs.filter(job=>visibleLogs.has(job.id)).map(refreshJobLog));
   }
   const listing=state.view==='home'||state.view==='archive'&&!state.run;
-  if(before!==archiveKeys(state.jobs)||listing&&state.runs.some(run=>run.status_reason==='checking')){
-   const previous=state.runs;await loadRuns();
-   if((state.view==='home'||state.view==='archive'&&!state.run)&&JSON.stringify(previous)!==JSON.stringify(state.runs))render();
-  }
+  const rows=state.view==='home'?state.recentRuns:(state.archiveListing?.runs||[]);
+  const checking=rows.some(run=>run.status_reason==='checking')||(state.view==='archive'&&state.archiveListing?.checking_status);
+  if(listing&&(before!==archiveKeys(state.jobs)||checking))await refreshVisibleRuns();
   if(state.view==='archive'&&state.run&&(!terminal(state.run)||state.jobs.some(j=>!terminal(j)&&j.run_id===state.runId)))await refreshOpenedRun();
  }catch{/* A transient poll error must not replace work in progress. */}
  finally{pollTimer=setTimeout(poll,state.jobs.some(j=>!terminal(j))||[...referenceDownloads.values()].some(activeTransfer)?1500:5000)}
 }
-async function boot(){delete document.documentElement.dataset.nipatReady;try{const data=await rpc('bootstrap');state.boot=data;state.settings=data.settings?.workflows||data.settings||{};state.preferences=clone(data.preferences);state.preferences.scientific_settings??={};state.preferences.execution??={};state.baseline=clone(data.preferences);state.jobs=data.jobs||[];state.motion=!data.ui?.reduce_motion;L.setLanguage(data.ui?.language||'it');applyDraft(blankDraft());state.profileChoice=state.baseline?.default_profile||'';await loadRuns();render();document.documentElement.dataset.nipatReady='true';clearTimeout(pollTimer);pollTimer=setTimeout(poll,1500);if(state.preferences.check_updates_on_startup){rpc('updates.check',{channel:state.preferences.update_channel}).then(result=>{state.update=result;if(result.offer)toast(result.message)}).catch(()=>{})}}catch(error){$('main').innerHTML=heading(t('loadingFailed'))+notice(humanError(error),'error')+`<div class="actions section-gap">${button(t('retry'),'retry-boot',{},'primary')}</div>`}}
+async function boot(){delete document.documentElement.dataset.nipatReady;try{const data=await rpc('bootstrap');state.view='home';state.boot=data;state.settings=data.settings?.workflows||data.settings||{};state.preferences=clone(data.preferences);state.preferences.scientific_settings??={};state.preferences.execution??={};state.baseline=clone(data.preferences);state.jobs=data.jobs||[];state.motion=!data.ui?.reduce_motion;L.setLanguage(data.ui?.language||'it');applyDraft(blankDraft());state.profileChoice=state.baseline?.default_profile||'';await loadRuns();render();document.documentElement.dataset.nipatReady='true';clearTimeout(pollTimer);pollTimer=setTimeout(poll,1500);if(state.preferences.check_updates_on_startup){rpc('updates.check',{channel:state.preferences.update_channel}).then(result=>{state.update=result;if(result.offer)toast(result.message)}).catch(()=>{})}}catch(error){$('main').innerHTML=heading(t('loadingFailed'))+notice(humanError(error),'error')+`<div class="actions section-gap">${button(t('retry'),'retry-boot',{},'primary')}</div>`}}
 window.NipatApp={state,rpc,boot,render,navigate,action,onValue,activeMarkers,selectedModules,blankDraft,normalizeDraft,submittedDraft,loadRuns,parameterVisible,range,choiceLabel,metricValue,resultCell,shownColumns,curveChart,curvePointDetails,curveDefinition,combinedCurveScale,renderCurve,constantValue,genotypeBars,jobProgress,terminal,safeSampleId,missing:absent,number,esc,changeLanguage,loadRun,loadEntry,loadTable,renderRun,renderNew,renderActivity,updateActivity,elapsedTime,rowLocus,renderIGV,renderIgvNavigation,syncIgvNavigation,refreshOpenedRun,poll};
 bind();boot();
 })();
