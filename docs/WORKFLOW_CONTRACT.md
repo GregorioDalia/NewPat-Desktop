@@ -36,6 +36,8 @@ Every entry in `steps` contains exactly `id`, `workflow`, `inputs` and `paramete
 | `cpi` | `pairs` (explicit pairs), `popfreq` (population frequencies), `cutoffs` (selected panels) | `cutoff_mode` (`all`, `panel` or `named`), optional finite `err_const` in `(0, 1]` |
 | `cpin` | `trios` (explicit trios), `popfreq` (population frequencies), `markers` (panel with REF/ALT alleles or `null`) | No module-specific required field |
 
+The desktop displays `cpi` as **Prenatal CPI** and `cpin` as **Postnatal CPI**. Saved plans and run records use the workflow IDs above. The [module integration guide](ARCHITECTURE.md#adding-a-downstream-scientific-module) lists the engine and desktop changes for an additional downstream script.
+
 All steps accept a `scientific_settings` object in `parameters` for module-specific overrides. Downstream steps also accept `marker_type: "SNP"` or `"DNP"`. The validator infers the type if omitted and checks it if supplied. Each downstream analysis uses one table type. Frequencies and panels must use the corresponding coordinates. The engine checks their contents during execution.
 
 `nipat settings` lists defaults, types, bounds, cross-parameter constraints and model constants. `nipat settings --export FILE` writes reusable JSON for `--scientific-config FILE`. Command-line overrides such as `--set module.parameter=value` take precedence over that file. Validation rejects unknown keys, nonfinite values, incorrect types and invalid threshold combinations. Python and R use the same registry. The client records the settings in the steps and run metadata. The registry documents formulas and other fixed model properties separately from the editable settings.
@@ -156,7 +158,7 @@ The parent directory must exist and the destination itself must be new, even if 
 
 DNPcall expects `sample_0001.bam`, `sample_0002.bam` and subsequent aliases in `inputs.samples` order. The internal paths must work with the R interface and its samtools calls. The client creates read-only mounts without copying the BAMs. A plan with several DNPcall steps must respect this mapping in every step. An incompatible alias order is rejected. Plan ID `cfDNA_a`, for example, can map to alias `sample_0001`. The results record that mapping.
 
-Downstream steps wait for their tables. The scheduler groups ready independent SNPcall steps under one process budget, including in mixed plans. The coordinator estimates sample memory from the input before choosing how many samples to start. A batch whose memory cost cannot be estimated runs one sample at a time. Simultaneous samples each use a single computational worker, including during pileup acquisition. When samples run one at a time, eligible chromosome and R tasks can use the shared budget. Explicit `serial` mode limits computation to one process. The shared execution policy determines actual DNP parallelism, including when the DNP `parallel` parameter is set.
+Downstream steps wait for their tables. The scheduler groups ready independent SNPcall steps under one process budget, including in mixed plans. The coordinator estimates sample memory from the input before choosing how many samples to start. Samples with known estimates can run together if their combined cost fits. Each sample of unknown cost runs on its own. Simultaneous samples each use a single computational worker, including during pileup acquisition. When samples run one at a time, eligible chromosome and R tasks can use the shared budget. Explicit `serial` mode limits computation to one process. The shared execution policy determines actual DNP parallelism, including when the DNP `parallel` parameter is set.
 
 Contamination receives individual SNP or DNP tables and records both the sample and the producing step. It stages tables as `table_0001.txt`, `table_0002.txt` and so on in the consumer's declared order. The state records the original sample identity separately.
 
@@ -198,7 +200,7 @@ Postnatal CPI accepts SNP or DNP tables, matching population frequencies and exp
 
 `scientific_settings.site_selection` accepts `other_allele`, `all` or `both`. Other settings include minimum child read counts, error constants and genotype thresholds. The engine prepares shared tables once. `trio_mapping` links the plan ID, the three roles and the native trio identifier.
 
-Outputs include `Summary_Postnatal_CPI.txt`, site details in `sites`, interval curves in `curves`, individual trio/analysis PDFs in `plots` and `All_CPIplots.pdf` at the root of the output directory. The engine checks the summary, expected trio/analysis combinations, tables and PDFs. Successful mappings appear in `artifacts.cpin-trios`.
+`Summary_Postnatal_CPI.txt` currently reports one row per trio and selected analysis, with `N_sites`, `CPI` and `Log10_CPI`. Selecting `both` gives two rows per trio. Other outputs include site details in `sites`, interval curves in `curves`, individual trio/analysis PDFs in `plots` and `All_CPIplots.pdf` at the root of the output directory. The engine checks the summary, expected trio/analysis combinations, tables and PDFs. Successful mappings appear in `artifacts.cpin-trios`.
 
 ### Evidence and states
 

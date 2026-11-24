@@ -7,6 +7,7 @@ NewPat runs on the user's computer. The Python client owns the desktop interface
 | Component | Responsibility |
 | --- | --- |
 | `src/nipat/gui/` | Desktop windows, local interface, experiments, results and IGV. |
+| `src/nipat/gui/jobs.py`, `src/nipat/gui/admission.py`, `src/nipat_scientific/desktop_scheduling.py` | Queue desktop submissions, reserve runtime capacity across sessions and apply revised CPU and memory budgets between scientific steps. |
 | `src/nipat/cli.py`, `wizard.py` | Commands, menu, input selection and confirmation. |
 | `src/nipat/execution/workflows.py` | Preliminary validation, workflow request and run creation. |
 | `src/nipat/execution/analysis_plan.py`, `analysis_forms.py` | Plans for SNP and DNP branches, including explicit samples and family roles. |
@@ -96,6 +97,8 @@ The Ubuntu package includes the scientific archive and uses the host's Docker da
 
 ## Resource controls and diagnostics
 
-Fixed run capacity, phase-specific estimates and execution settings determine compute concurrency. A reconfiguration lock coordinates resource changes with analyses. The preview and its configuration hash prevent applying a stale change. WSL changes require confirmation because settings may affect other distributions. Lima is dedicated to NewPat. Native Linux applies container limits.
+The initial container limits bound each run. For a desktop workflow, the host can revise its share of those resources after a step or batch has finished. Before starting new work, the engine applies the agreed budget and uses the available tasks and estimated memory costs to size the next worker pool. See [Run budget and workers](RESOURCES.md#run-budget-and-workers).
+
+A reconfiguration lock coordinates resource changes with analyses. The preview and its configuration hash prevent applying a stale change. WSL changes require confirmation because settings may affect other distributions. Lima is dedicated to NewPat. Native Linux applies container limits.
 
 DNPcall checks every samtools exit, keeps stderr and records the strategy and observed concurrency in `work/dnp-pileup.json`. A failed acquisition stops the call. Its memory estimates guide scheduling. Hard container limits and kernel measurements provide separate evidence. Optional diagnostics record client-side samples, cgroup/process measurements and scientific phases with size limits and explicit missing-data indicators. A monitoring error preserves the scientific outcome. Numerical comparisons on representative cases and expert review are needed to assess scientific suitability. [Performance diagnostics](PERFORMANCE.md)

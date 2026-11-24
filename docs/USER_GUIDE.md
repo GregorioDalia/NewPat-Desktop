@@ -1,6 +1,6 @@
 # Input files, commands and workflows
 
-Use the [desktop guide](GUI.md) for interactive experiments. The command line exposes the same scientific modules and lets you keep a reproducible command with each run.
+This guide covers input formats and repeatable commands for the five scientific modules. To run a first experiment from the desktop, use the [guided demo](GUI.md#try-the-shared-example) or the [guida rapida in italiano](QUICKSTART_IT.md).
 
 <a id="comandi-diretti"></a>
 
@@ -21,7 +21,15 @@ $newpat = Join-Path $appDir 'newpat.cmd'
 & $newpat --help
 ```
 
-For a complete ZIP installation, set `$newpat` to the full path of `newpat.cmd` in the prepared application folder. Supply your own data paths in the commands below. Global options such as `--runs-dir`, `--execution-mode`, `--scientific-config` and `--dry-run` go before the module name. Each module has its own `--help`. A successful dry run writes a `planned` request; use a fresh run name for the calculation.
+For a complete ZIP installation, open the installed `NIPAT` folder in File Explorer. Open PowerShell **in that folder**, alongside `current.json` and `NewPat.lnk`, and run:
+
+```powershell
+$active = Get-Content -Raw -LiteralPath '.\current.json' | ConvertFrom-Json
+$newpat = Join-Path $active.app_dir 'newpat.cmd'
+& $newpat --version
+```
+
+Supply your own data paths in the commands below. Global options such as `--runs-dir`, `--execution-mode`, `--scientific-config` and `--dry-run` go before the module name. Each module has its own `--help`. A successful dry run writes a `planned` request; use a fresh run name for the calculation.
 
 <a id="percorsi-e-cartelle"></a>
 
@@ -29,7 +37,8 @@ For a complete ZIP installation, set `$newpat` to the full path of `newpat.cmd` 
 
 | Installation | Default results directory |
 | --- | --- |
-| Windows | `%LOCALAPPDATA%\NIPAT-Desktop\runs` |
+| Windows, guided EXE | `%LOCALAPPDATA%\NIPAT-Desktop\runs` unless changed in setup |
+| Windows, complete ZIP | `runs\` under the active `NIPAT` folder containing `current.json` |
 | macOS | `~/Library/Application Support/NIPAT-Desktop/runs` |
 | Ubuntu | `$XDG_DATA_HOME/nipat-desktop/runs`, or `~/.local/share/nipat-desktop/runs` when the variable is unset |
 | Source checkout | A `runs` directory next to the checkout, unless the workspace or results directory is overridden |
@@ -84,7 +93,7 @@ With the default prefixes, `--pairs A1:A1` selects `MotherA1.txt` and `FatherA1.
 
 ### Postnatal CPI
 
-Supply the mother, alleged father and child tables, trio assignments and population frequencies. Use three distinct samples per trio, the same coordinate scheme as the frequency table, and both REF and ALT alleles in an optional postnatal CPI filter panel. With the default prefixes, `--trios A:A:A` selects `MotherA.txt`, `FatherA.txt` and `ChildA.txt`. Separate multiple trios with commas. `cpin.site_selection` accepts `other_allele`, `all` and `both`.
+The desktop labels this analysis **Postnatal CPI**. The CLI command and configuration prefix are `cpin`. Supply the mother, alleged father and child tables, trio assignments and population frequencies. Use three distinct samples per trio, the same coordinate scheme as the frequency table, and both REF and ALT alleles in an optional postnatal CPI filter panel. With the default prefixes, `--trios A:A:A` selects `MotherA.txt`, `FatherA.txt` and `ChildA.txt`. Separate multiple trios with commas. `cpin.site_selection` accepts `other_allele`, `all` and `both`.
 
 ```powershell
 & $newpat cpin --input-dir ".\trios" --trios "A:A:A" --popfreq ".\population.tsv"

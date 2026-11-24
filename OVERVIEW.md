@@ -1,6 +1,6 @@
 # NewPat at a glance
 
-Start with the files you have and the result you need.
+Choose the analysis from your starting files. To try NewPat with the bundled samples, open **Environment and help → Open demo**. [Guida rapida in italiano](docs/QUICKSTART_IT.md) · [English demo instructions](docs/GUI.md#try-the-shared-example)
 
 | Starting material | Action | Result |
 | --- | --- | --- |
@@ -10,6 +10,8 @@ Start with the files you have and the result you need.
 | Maternal cfDNA and alleged-father counts | Assign a prenatal pair and supply population frequencies | Fetal fraction estimates and a combined paternity index |
 | Mother, alleged father and child counts | Assign a postnatal trio and supply population frequencies | Per-site and combined paternity indices |
 
-In the desktop window, choose **New experiment**, add the samples and reference files, review the analysis settings and validate the configuration. You can connect the calling and downstream analyses in one workflow. For results, open **Experiments and results** or read `run-report.html` in the run folder. The integrated IGV viewer opens local alignments at a selected locus.
+In a new experiment, DNPcall and SNPcall can read the same BAMs using a separate panel for each marker type. Their count tables can feed Contamination or CPI in the same workflow. A caller's summary describes the sample's genotypes. To obtain a CPI, select the corresponding analysis and assign the samples in each family. [Desktop guide](docs/GUI.md)
 
-[Installation](docs/DISTRIBUTION.md) · [Desktop guide](docs/GUI.md) · [Input formats and command-line examples](docs/USER_GUIDE.md) · [Reading results](docs/RUNS.md)
+To compare runs, save a named parameter profile and reuse it when setting up another experiment. Each experiment keeps its own input selection, progress and results. Open **Experiments and results** for the tables, or use **View in IGV** on a covered site to inspect its reads when the BAM and reference are available. [Results and run records](docs/RUNS.md)
+
+[Installation](docs/DISTRIBUTION.md) · [Input formats and command-line examples](docs/USER_GUIDE.md) · [All guides](docs/README.md)

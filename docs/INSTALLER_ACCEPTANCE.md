@@ -13,6 +13,7 @@ Use a successful **Installers (review build)** with a passing `installer-require
 | `version`, `source_commit`, `build_run_id`, `publication_channel` | Candidate version, exact commit, build and intended channel. |
 | `installer_manifest_sha256`, `scientific_archive_sha256` | Installer manifest and common scientific archive digests. |
 | `windows_installer_sha256`, `linux_installer_sha256`, `macos_arm64_installer_sha256`, `macos_x86_64_installer_sha256` | The four installer identities. |
+| `windows_zip_sha256`, `windows_payload_sha256` | The Windows complete ZIP and the payload used by the guided installation. |
 | `decision`, `scope`, `review` | Reviewed `accepted-for-research` decision, `pre-1.0-research` scope, reviewer, UTC date and HTTPS evidence. |
 | `observed_baseline` | Actual observed commit and evidence, labeled `historical-platform-evidence`. |
 | `observed_baseline.source_comparison_scope`, `reviewed_source_changes` | `reviewed-operative-changes-with-versioned-scientific-models-v1` and ordered path plus before/after hashes, using null for additions/removals. |
@@ -66,7 +67,9 @@ For WSL/Lima, test proposed configuration changes, cancel, backups, unrelated se
 
 ## Submit the acceptance record
 
-Generate a pending record from the identified build:
+Open the summary of the successful full installer build and download `acceptance-for-review.json` from `newpat-acceptance-template-<attempt>`. Check that its version, source commit and run ID identify the build you reviewed. The template starts with a pending decision, an unset channel and empty review and scientific report details. Complete those entries from the evidence for this build.
+
+If you need to regenerate the template, use the installer set from that same build:
 
 ```bash
 python .github/scripts/release_acceptance.py \

@@ -29,6 +29,18 @@ Global scheduling options precede the analysis command. `--execution-mode auto` 
 
 DNP defaults are `--dnp-block-mib 32` and `--dnp-block-loci 64`. These targets describe raw input and loci per block. An indivisible group can exceed them. R memory depends on the expanded observations. Samples and blocks share a task queue. `work/dnp-blocks.json` records the resulting blocks and workers. The [input and output checks](INPUT_VALIDATION.md) describe preparatory validation separately from the scientific rules.
 
+## Reading the desktop results
+
+DNPcall and SNPcall count REF, ALT and other reads and assign a genotype at each locus. A genotype of `0/0` means two reference alleles. A genotype of `NA` means the caller could not assign a genotype there. The genotype alone gives no paternity classification.
+
+| Desktop result | How to read it |
+| --- | --- |
+| Contamination | The mean is a fraction across informative sites. Read it together with the site count. With no informative sites the estimate is `NA`. An estimated zero with informative sites is a possible numerical result. |
+| Prenatal CPI | For the selected pair and site panel, the desktop compares the reported log₁₀ CPI at the median fetal fraction with the two plot guides saved for that step. The defaults are −4 and +4. When a reported value equals a guide, the display identifies the boundary because the R summary rounds to three decimal places. These guides describe the plot. |
+| Postnatal CPI | Read the summary for the selected trio and site selection. The current model reports raw CPI, log₁₀ CPI and the number of retained sites. Changing the minimum number of supporting child reads can change the curve. |
+
+**Population allele frequencies** are supplied in a per-locus input table for each CPI marker type. `Ref_f.pop` and `Alt_f.pop` give the REF and ALT frequencies in the selected population. The catalog entry `(0, 1]` documents the allowed values. Each must be finite, greater than zero and at most one. The model uses the frequency of the obligatory paternal allele in the denominator of the site paternity index. A zero frequency would make that division undefined. The frequencies in the demo were assigned for its simulated loci. For an analysis, record the population table and its source. [CPI input checks](INPUT_VALIDATION.md#file-requirements)
+
 ## Provenance
 
 Every module entry identifies the R source path, SHA-256 and reviewed line ranges across the script. Preparation entries identify adapter sources and their hashes. CI checks both sets of references in the checkout, including the Dockerfile that pins samtools. The engine rechecks available embedded sources in the installed image. Client-only and build-only files are checked during CI.

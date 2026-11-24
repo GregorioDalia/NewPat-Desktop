@@ -28,11 +28,11 @@ The same global option works for a workflow. `newpat --performance-diagnostics w
 
 The run records its initial capacity and worker ceiling at startup. In a desktop workflow sharing a runtime, the budget for a later step can change when an earlier step or independent SNP batch has finished. SNP summaries also check for a new budget before each eligible summary group. Each phase selects its pool from its current assignment, available tasks, CPU limits and workload estimate. A coordinator is accounted for separately. Nested work cannot multiply the worker limit. DNP first acquires a pileup, possibly processing independent target chromosomes concurrently, then builds a global index and computes blocks in R. Start with the same requested limits, normally **32 MiB of raw input** and **64 loci** per block. Record both requested and effective targets. Indivisible groups can exceed them. Raw pileup bytes and resident R memory measure different things. [Resource policy](RESOURCES.md)
 
-In the terminal menu, change parallelism and block size in the run summary. Save reusable defaults in the resources, performance and provenance preferences. On Windows, using the CLI launcher in `$nipat`:
+In the terminal menu, change parallelism and block size in the run summary. Save reusable defaults in the resources, performance and provenance preferences. On Windows, set `$newpat` to the installed CLI launcher as shown in the [user guide](USER_GUIDE.md), then run the two commands from the folder containing the inputs.
 
 ```powershell
-& $nipat --execution-mode serial dnp-call --bam ".\sample.bam" --reference ".\genome.fa" --panel ".\DNP_list.txt" --run-name dnp-serial-01
-& $nipat --execution-mode auto dnp-call --bam ".\sample.bam" --reference ".\genome.fa" --panel ".\DNP_list.txt" --run-name dnp-auto-01
+& $newpat --execution-mode serial dnp-call --bam ".\sample.bam" --reference ".\genome.fa" --panel ".\DNP_list.txt" --run-name dnp-serial-01
+& $newpat --execution-mode auto dnp-call --bam ".\sample.bam" --reference ".\genome.fa" --panel ".\DNP_list.txt" --run-name dnp-auto-01
 ```
 
 Check overlapping worker events in `work/parallel/*.jsonl` for actual concurrency. For DNP acquisition inspect the observed processes in `work/dnp-pileup.json`. For SNP BAM acquisition, inspect the strategy, fallback reason and observed process count in the sample’s `work/snp-acquisition.json`. For a multi-sample workflow, follow the work directory recorded for each step and inspect the outer sample events separately.
@@ -97,7 +97,9 @@ python scripts/benchmark_workflows.py \
   --sample-counts 1 --repeats 3 --workflow dnp-call --performance-diagnostics
 ```
 
-`benchmark.json` retains inputs, times, resources and available summaries. The [installed synthetic suite](WINDOWS_INSTALLATION_TEST.md) checks known workloads. Use representative local inputs for performance estimates. [Run records](RUNS.md) · [Docker statistics](https://docs.docker.com/reference/cli/docker/container/stats/) · [Linux cgroup v2 counters](https://docs.kernel.org/admin-guide/cgroup-v2.html)
+`benchmark.json` retains inputs, times, resources and available summaries. To compare one, two and N BAMs in one experiment, pass the desired counts to `--sample-counts` (for example, `1 2 4` for a four-file list). For each count the supervisor selects that many entries from the start of the same ordered list. To measure several desktop experiments competing for the runtime, launch the same workload as separate experiments, record their submission times and compare the elapsed time to finish the whole group with each run’s individual time and resource grants.
+
+The [installed synthetic suite](WINDOWS_INSTALLATION_TEST.md) checks known workloads. For a physical Apple Silicon comparison, the [Mac worker benchmark](MACOS_INSTALLER.md#compare-worker-settings-on-an-apple-silicon-mac) uses the installed package and checks each condition against the serial output. The [candidate audit](AUDIT_0.9.10.md#portable-cpu-and-memory-policy) identifies which measurements came from earlier Mac runs and which exercised the policy on Linux. Measure representative local inputs to estimate elapsed time on a particular machine. [Run records](RUNS.md) · [Docker statistics](https://docs.docker.com/reference/cli/docker/container/stats/) · [Linux cgroup v2 counters](https://docs.kernel.org/admin-guide/cgroup-v2.html)
 
 <a id="collaudo-dei-cinque-moduli-nella-0850"></a>
 <a id="collaudo-del-parallelismo-0812"></a>

@@ -1,10 +1,12 @@
 # NewPat documentation
 
+For a first run, install the package for your operating system, then open the guided demo with the three bundled samples. [Guida rapida in italiano](QUICKSTART_IT.md) · [English demo instructions](GUI.md#try-the-shared-example) · [0.9.10 release notes](RELEASE_0.9.10.md)
+
 <a id="installare"></a>
 
 ## Install NewPat
 
-Choose the guide for your operating system. The installer prepares the desktop application and the local environment that runs R and samtools.
+For the published version, choose the installer under **Assets** on the release page. Each platform guide explains how to prepare the local environment that runs R and samtools. [Latest stable release](https://github.com/GregorioDalia/nipat-desktop/releases/latest)
 
 | Platform | Guide |
 | --- | --- |
@@ -18,7 +20,8 @@ Choose the guide for your operating system. The installer prepares the desktop a
 
 | To do this | Read |
 | --- | --- |
-| Create an experiment, explore plots or inspect alignments in IGV | [Desktop guide](GUI.md) |
+| Choose an analysis from the files you have | [NewPat at a glance](../OVERVIEW.md) |
+| Set up experiments, reuse a profile, explore plots or inspect alignments in IGV | [Desktop guide](GUI.md) |
 | Choose input files, assign family roles or run a workflow from the terminal | [Input formats, commands and workflows](USER_GUIDE.md) |
 | Understand a rejected input or an output warning | [Input and output validation](INPUT_VALIDATION.md) |
 | Check a formula, default, constant or allowed parameter range | [Scientific catalog](SCIENTIFIC_CATALOG.md) |
@@ -28,6 +31,9 @@ Choose the guide for your operating system. The installer prepares the desktop a
 
 ## Development and verification
 
-[Architecture](ARCHITECTURE.md) · [Workflow contract](WORKFLOW_CONTRACT.md) · [Engine interface](../engine/README.md) · [Scientific components](../scientific/README.md) · [Validation](VALIDATION.md) · [Verification priorities](ROADMAP.md)
-
-[0.9.10 candidate code audit](AUDIT_0.9.10.md) · [CI and packaging](CI_CD.md) · [Installer acceptance](INSTALLER_ACCEPTANCE.md) · [Publication procedure](../.github/RELEASE.md)
+| To do this | Read |
+| --- | --- |
+| Trace a workflow from the desktop client to the scientific engine | [Architecture](ARCHITECTURE.md) · [Workflow contract](WORKFLOW_CONTRACT.md) · [Engine interface](../engine/README.md) |
+| Check a scientific module, its inputs and the evidence for its results | [Scientific components](../scientific/README.md) · [Scientific CI checks](CI_CD.md#scientific-checks) · [Validation worksheet](VALIDATION.md) |
+| Review a change, qualify an installer set or publish an accepted release | [CI and packaging](CI_CD.md) · [Installer acceptance](INSTALLER_ACCEPTANCE.md) · [Publication procedure](../.github/RELEASE.md) |
+| Review the 0.9.10 audit and outstanding verification work | [0.9.10 code audit](AUDIT_0.9.10.md) · [Verification priorities](ROADMAP.md) |
