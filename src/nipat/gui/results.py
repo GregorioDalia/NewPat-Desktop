@@ -1,4 +1,4 @@
-"""Read-only, desktop-facing access to native NIPAT experiments and results.
+"""Read experiment records and scientific results for the desktop interface.
 
 Scientific cells remain strings exactly as written by the engine.  Display metadata
 adds units and labels; it never fills missing cells, recalculates genotypes, or

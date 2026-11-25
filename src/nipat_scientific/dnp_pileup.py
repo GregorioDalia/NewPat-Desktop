@@ -6,7 +6,7 @@ deduplicated by name and original BAMs remain read-only. Default quality,
 filter and depth options preserve the original acquisition behavior.
 An explicit R-owned budget enables indexed chromosome tasks, with exactly one
 samtools process per task. Output is reassembled in BAM dictionary order.
-The unbudgeted API retains the 0.8.12 acquisition path for regression comparison.
+Regression tests also exercise the indexed selection path without a supplied budget.
 """
 
 from __future__ import annotations
@@ -393,9 +393,9 @@ def _budgeted_acquisition(bams, samples, bed, reference, staging, output, cancel
             sample["strategy"] = "indexed-chromosomes" if contigs else "sequential-no-index"
             selected.append(str(bam))
             continue
-        # Preserve the established fallback's validation of every PRESENT index.
-        # Ignoring one because another BAM lacks an index would hide corruption.
-        # Stage sequentially (one samtools at a time), as in 0.8.12 multi-BAM.
+        # Stage every indexed input, even if another BAM has no index, so a corrupt
+        # index surfaces during selection. Process one input at a time to keep
+        # the fallback within the acquisition budget.
         directory = staging / f"sample-{number:04d}"
         directory.mkdir()
         destination = directory / bam.name

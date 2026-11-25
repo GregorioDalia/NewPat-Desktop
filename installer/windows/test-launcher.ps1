@@ -104,9 +104,7 @@ function Invoke-TestLauncher([string] $Executable, [string[]] $Arguments = @(), 
             throw 'Launcher did not return within 20 seconds; possible unwanted pause.'
         }
         if ($BatchFile -and $process.ExitCode -eq 0) {
-            # GUI launch now detaches a windowed Python process. Wait for its
-            # atomic fixture record, rather than treating the bridge's exit as
-            # evidence that the child has already finished writing it.
+            # The launcher can exit before the detached GUI writes its record.
             $limit = [DateTime]::UtcNow.AddSeconds(10)
             while (-not (Test-Path -LiteralPath $script:CapturePath) -and [DateTime]::UtcNow -lt $limit) {
                 Start-Sleep -Milliseconds 20

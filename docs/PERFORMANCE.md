@@ -106,4 +106,4 @@ The [installed synthetic suite](WINDOWS_INSTALLATION_TEST.md) checks known workl
 <a id="collaudo-del-pileup-parallelo-0813"></a>
 <a id="collaudo-delle-ottimizzazioni-0814"></a>
 
-Additional qualification protocols cover [five-module equivalence](DEVELOPMENT_0.8.50.md), [parallel execution](PARALLELISM_0.8.12.md), [pileup acquisition](PILEUP_0.8.13.md) and [real-input comparisons](OPTIMIZATIONS_0.8.14.md).
+Earlier experiments and their test conditions are indexed in the [historical performance studies](https://github.com/GregorioDalia/nipat-desktop/blob/c2b936b6d581137746b372b9bbade2318bae716c/docs/archive/README.md#audits-tests-and-decisions).

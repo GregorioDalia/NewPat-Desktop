@@ -111,7 +111,7 @@ Integrate the built source first. Merging an acceptance-only PR can trigger publ
 
 The recorded `stable` channel publishes a numeric official release. GitHub **Latest** advances only when the accepted version is newer than the current default download. `testing` publishes a prerelease. CI artifacts and drafts do not enter the update feeds. Active installers distinguish Windows bootstrap, complete ZIP, Ubuntu and macOS feeds. The [validation record](VALIDATION.md) tracks domain observations independently.
 
-For a transient failure on the same commit, review the job logs and rerun failed jobs. A changed source needs evidence for the new revision. When analyzing build time, distinguish queueing, execution and the dependency chain. Parallel job duration sums exceed elapsed time. The [historical build timing profile](https://github.com/GregorioDalia/nipat-desktop/blob/main/docs/archive/README.md#profilo-storico-della-build-degli-installatori) provides one recorded example.
+For a transient failure on the same commit, review the job logs and rerun failed jobs. A changed source needs evidence for the new revision. When analyzing build time, distinguish queueing, execution and the dependency chain. Parallel job duration sums exceed elapsed time. The [historical build timing profile](https://github.com/GregorioDalia/nipat-desktop/blob/c2b936b6d581137746b372b9bbade2318bae716c/docs/archive/README.md#timing-of-a-historical-installer-build) provides one recorded example.
 
 ## Preparing the GitHub repository rename
 

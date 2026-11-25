@@ -8,21 +8,21 @@ frequencies; no expected answer is derived by running the candidate.
 ## Contamination
 
 Four loci have `(REF,ALT,Other)` counts `(95,5,11)`, `(100,0,0)`, `(80,20,0)`,
-`(0,0,5)`. The first is retained by the new Other/total filter (`11/111 <= .1`).
+`(0,0,5)`. The first is retained by the Other/total filter (`11/111 <= .1`).
 The first two are homozygous under the configured ratio rules. Consequently:
 
 - Include zeros: 2 informative sites, mean `.025`, SD `sqrt(.00125)`.
 - Exclude zeros: 1 informative site, mean `.05`, SD `NA`.
 
-The old filter `11/100 > .1` would incorrectly retain only the zero site when
-used as a reference for the newly requested model.
+The denominator includes Other reads. Dividing by REF + ALT alone would
+exclude the first locus and change the expected mean.
 
 ## Prenatal CPI
 
 Maternal minor-allele counts are 2, 3, 4 and 1 out of 100; paternal genotypes
 and ALT frequencies give PI contributions 5, 2, 2 and 5. With minimum support
 2, CPI at thresholds 2,3,4 is therefore 20,4,2; the median fetal fraction is
-6%. With minimum 1, the new first CPI is 100 and the fraction is 5%. Minimum
+6%. With minimum 1, the CPI at threshold 1 is 100 and the fraction is 5%. Minimum
 5 gives no informative sites. A separate no-sites pair tests explicit NA.
 With only a 2.5% filter, the 3- and 4-read sites survive and the curve starts
 at threshold 1. Setting minimum reads to 2 and percentage to 3 retains the

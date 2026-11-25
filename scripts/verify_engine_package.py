@@ -247,8 +247,7 @@ def check_plan_contract(identifier: str, root: Path) -> None:
     ))
     expected_plan = copy.deepcopy(plan)
     expected_plan["steps"].reverse()
-    # Consumers now declare their inferred marker type in the canonical plan.
-    # Keep this expectation explicit rather than using the validator as oracle.
+    # Derive the expected marker independently of the validator under test.
     expected_plan["steps"][1]["parameters"] = {"marker_type": "DNP"}
     if report.get("execution_order") != ["dnp", "contamination"] or report.get("plan") != expected_plan:
         raise ValueError("The bundled validator returned an unexpected plan or execution order.")

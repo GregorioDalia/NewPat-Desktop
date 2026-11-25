@@ -1,10 +1,7 @@
-# NIPAT 0.8.13: one resource budget for pileup acquisition and R processing.
-# Scientific formulas and within-locus observation order remain unchanged.
-# NIPAT 0.8.50: declared scientific parameters and readable model constants.
+# NewPat runs pileup acquisition and genotype calculation under a shared resource budget.
 cat("\n###### DNPcall ######\n\n\n\n")
 
 
-# Track start time and memory
 start_time <- Sys.time()
 get_memory_usage_mb <- function() {
   mem_kb <- as.numeric(gsub("VmRSS:\\s+| kB", "", grep("VmRSS", readLines("/proc/self/status"), value = TRUE)))
@@ -26,14 +23,12 @@ update_peak <- function() {
 
 
 
-# package needed
 suppressPackageStartupMessages(library('tidyverse'))
 suppressPackageStartupMessages(library('stringr'))
 suppressPackageStartupMessages(library('purrr'))
 suppressPackageStartupMessages(library('ComplexUpset'))
 suppressPackageStartupMessages(library('parallel'))
 
-# read the arguments given
 args <- commandArgs(trailingOnly = TRUE)
 error0 = c()
 
@@ -64,13 +59,11 @@ if(length(error0)>0) {
   quit()
 }
 
-# create output directories
 dir.create(output, showWarnings = FALSE)
 dir.create(file.path(output, "individual_outputs"), showWarnings = FALSE)
 dir.create(file.path(output, "plots"), showWarnings = FALSE)
 dir.create(file.path(output, "summary"), showWarnings = FALSE)
 
-# function to format all numeric columns to fixed decimal places (e.g., 3 decimals)
 format_df_decimals <- function(df, digits = 3) {
   df[] <- lapply(df, function(col) {
     if (is.numeric(col)) {
@@ -97,7 +90,6 @@ source(Sys.getenv("NIPAT_PLOTS_HELPER", unset = "/opt/nipat/lib/nipat_scientific
 
 
 
-# read the df
 r_bamlist<-read.table(bamlist,header=F,col.names = "samples")
 r_DNPlist <- read.table(DNPlist, header=FALSE, col.names=c("chr","pos1","pos2","REF","ALT"),
                         colClasses=c("character","integer","integer","character","character"),
@@ -132,7 +124,6 @@ df_int <- gather(data=ForUniqReads1,key="col", value="pos", 1:4)
 ForUniqReads <- df_int[,c(3,1)]
 colnames(ForUniqReads) <- c("df.chr","uniq")
 
-# make a DNP-based df
 make_RefAltDNP <- function(r_DNPlist) {
   RefAltDNP <- data.frame(
     POS = paste0(r_DNPlist$chr, ":", r_DNPlist$pos1, "|", r_DNPlist$chr, ":", r_DNPlist$pos2),
@@ -154,7 +145,6 @@ if (nzchar(progress_helper)) {
   tryCatch(source(progress_helper), error = function(error) invisible(NULL))
 }
 
-# pileup calling with samtools
 cat("\nMaking mpileup...\n")
 dnp_scratch <- Sys.getenv("NIPAT_DNP_SCRATCH")
 if (!nzchar(dnp_scratch)) {
@@ -165,12 +155,10 @@ dir.create(dnp_scratch, recursive = TRUE, showWarnings = FALSE)
 dnp_scratch <- normalizePath(dnp_scratch, mustWork = TRUE)
 pileup_path <- file.path(dnp_scratch, "mpileup.txt")
 pileup_helper <- Sys.getenv("NIPAT_DNP_PILEUP_HELPER", unset = "/opt/nipat/lib/nipat_scientific/dnp_pileup.py")
-# Acquisition finishes before the R block pool starts. Export the same resource
-# policy to the Python scheduler instead of creating a second independent pool
-# or interpreting the legacy --parallel flag. The helper caps this upper bound
-# by the actual number of chromosome tasks and counts each samtools process.
-# Size the external samtools pool separately from the later R block workers.
-# The Python helper still validates indices and dictionaries before partitioning.
+# samtools finishes before R starts its block workers. Give the helper the acquisition
+# budget so independent pools cannot overbook the same container.
+# The helper checks indices and dictionaries, then caps concurrent samtools
+# processes by the number of target chromosomes.
 acquisition_budget <- nipat_dnp_acquisition_budget(r_DNPlist$chr, nrow(r_bamlist), nipat_cfg, reference)
 acquisition_budget_path <- file.path("work", "dnp-acquisition-budget.json")
 dir.create(dirname(acquisition_budget_path), recursive = TRUE, showWarnings = FALSE)
@@ -198,7 +186,6 @@ read_samplelist <- function(bamlist_file) {
 }
 samplelist <- read_samplelist(bamlist)
 
-# reading pileup file in r
 cat("\nReading mpileup...\n")
 nipat_progress("start", "pileup-index")
 pileup_index <- nipat_dnp_index(pileup_path, empty_samples=length(samplelist))
@@ -232,7 +219,6 @@ final_merged_data <- NULL
 
 update_peak()
 
-# calling processing for each sample
 prepare_individual <- function(i) {
   force(i)
   cat(paste0("\nProcessing sample: ", i, "\n"))
@@ -241,7 +227,6 @@ prepare_individual <- function(i) {
   start_ind_mem <- get_memory_usage_mb()
   peak_ind_mem <- start_ind_mem
 
-  # update the peak memory usage for the current individual
   update_peak_ind <- function() {
     current_mem <- get_memory_usage_mb()
     if (current_mem > peak_ind_mem) {
@@ -316,7 +301,6 @@ prepare_individual <- function(i) {
     result$covered <- FALSE
     return(result)
   }
-  # extract sample-specific columns
   reads_col <- depth_col + 1
   qual_col <- reads_col + 1
   id_col <- qual_col + 1
@@ -351,10 +335,8 @@ prepare_individual <- function(i) {
   # substitute . and , with reference base
   indiv_df$V5 <- mapply(function(v3, v5) gsub("[.,]", v3, v5), indiv_df$V3, indiv_df$V5)
 
-  # create "chr:position" column
   indiv_df$chr <- paste(indiv_df$V1, indiv_df$V2, sep = ":")
 
-  # select necessary columns
   df2 <- data.frame(df.chr = indiv_df$chr, df.V5 = indiv_df$V5, df.V7 = indiv_df$V7, df.qual = indiv_df$V6)
   rm(indiv_df)
 
@@ -476,7 +458,6 @@ prepare_individual <- function(i) {
       group_by(chr, pos2) %>%
       summarise(n = n(), .groups = "drop")
 
-    # Pulizia colonna chr
     dfIND_count$chr <- str_extract(dfIND_count$chr, "\\|.*\\|")
     dfIND_count$chr <- substr(dfIND_count$chr, 2, nchar(dfIND_count$chr) - 1)
 
@@ -523,7 +504,6 @@ prepare_individual <- function(i) {
   righe_modificate <- DFnoINDEL[nchar(DFnoINDEL$pos)>6,]
   rm(DFnoINDEL)
 
-  # extract DNP info
   # Coordinates and quality patterns recur across reads. Extract each distinct
   # pattern once; preserve the original strsplit handling of short/empty values
   # and the names produced by sapply on character vectors.
@@ -550,7 +530,6 @@ prepare_individual <- function(i) {
            qual1 = extract_middle_pair(qual1))
   rm(righe_modificate)
 
-  # compute BQ average between the two DNP positions
   # Compute each distinct pair once with the original mean(), including its
   # missing-value behavior, then restore the exact per-read order.
   quality_pairs <- unique(good_reads$qual1)
@@ -617,7 +596,6 @@ prepare_individual <- function(i) {
   # create df only for alleles ref or alt
   ref_alt_dt <- subset(data_info, pos2 == ref | pos2 == alt)
 
-  ############## GL ###########
 
   # likelihood function
   computeGL_dinuc_safe <- function(haps, Qavg, ref_hap, ploidy = 2) {
@@ -641,7 +619,6 @@ prepare_individual <- function(i) {
     logL
   }
 
-  # loop on DNPs
   positions <- unique(ref_alt_dt$chr1)
   out <- vector("list", length(positions))
   # Build row indices once, preserving both locus and within-locus read order.
@@ -660,18 +637,14 @@ prepare_individual <- function(i) {
       ref_alt_dt[position_rows[[k]], , drop = FALSE]
     }
 
-    # alleles without'|'
     haps <- gsub("\\|", "", sub$pos2)
     Qavg <- sub$mean_quality
 
-    # reference and alt alleles
     ref_hap <- gsub("\\|", "", sub$ref[1])
     alt_hap <- gsub("\\|", "", sub$alt[1])
 
-    # compute log‐likelihood
     logL <- computeGL_dinuc_safe(haps, Qavg, ref_hap, ploidy = 2)
 
-    # call GT
     gt   <- c("0/0","0/1","1/1")[which.max(logL)]
 
     out[[k]] <- data.frame(
@@ -692,7 +665,6 @@ prepare_individual <- function(i) {
   update_peak_ind()
 
 
-###################################
 
 
   # create df for reference alleles
@@ -711,7 +683,6 @@ prepare_individual <- function(i) {
   ref_dt_grouped <- make_df_ref(data_info)
 
 
-  # create df for alternative alleles
   make_df_alt <- function(data_info) {
     alt_dt <- subset(data_info, pos2 == alt)
 
@@ -728,7 +699,6 @@ prepare_individual <- function(i) {
   rm(data_info)
 
 
-  # merge the 3 dfs
   merge_3_dfs <- function(ref_dt_grouped, alt_dt_grouped, altro_dt3, RefAltDNP, res) {
     # A complete block can lack retained ref/alt reads although other blocks
     # have them. Preserve the whole-sample merge's empty likelihood schema.
@@ -748,7 +718,6 @@ prepare_individual <- function(i) {
   # substitute NA with 0
   merged4[is.na(merged4)] <- 0
 
-  # reorder and rename columns
   dataframe_final <- merged4[, c(1, 11, 12, 5,9,10, 15,16,17,18)]
   colnames(dataframe_final) <- c("DNPs", "Reference", "Alternative",
                                  "N_Reference", "N_Alternative", "N_Altro",
@@ -787,12 +756,10 @@ prepare_individual <- function(i) {
   nipat_progress("start", "plots", sample_ids = i)
 
 
-  # format numeric columns and save individual output files
   final_formatted <- format_df_decimals(final)
   write.table(final_formatted, file.path(output, "individual_outputs", paste0("full_output_", i, ".txt")), sep = "\t", row.names = FALSE, quote = FALSE)
 
 
- # create individual folder inside plots
   indiv_plot_dir <- file.path(output, "plots", i)
   dir.create(indiv_plot_dir, showWarnings = FALSE, recursive = TRUE)
 

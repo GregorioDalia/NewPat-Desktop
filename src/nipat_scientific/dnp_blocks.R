@@ -99,8 +99,8 @@ nipat_dnp_target_bytes <- function(requested, tasks = .Machine$integer.max, shar
   # useful blocks (at least half the requested grain when it fits). Estimating
   # lanes at one byte could split every locus into a separate read and fork.
   if (remaining < 2 * full_block && !identical(Sys.getenv("NIPAT_DNP_OPTIMIZED_IO"), "1")) {
-    # For substantial jobs on a small allocation, retain the 0.9.5 division
-    # of the available memory. Coarsening those jobs left usable cores idle.
+    # When memory is tight, smaller blocks can keep more cores busy.
+    # Use this division only if the job has enough independent tasks.
     # A short job can still use the coarser plan when it has too few tasks
     # at the requested size to keep the finer-grained pool busy.
     fine <- nipat_parallel_budget(.Machine$integer.max, memory_mib = nipat_dnp_estimate_mib(1),

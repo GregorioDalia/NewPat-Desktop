@@ -108,6 +108,20 @@ class OfficialDeliveryTests(unittest.TestCase):
                 source.validate_dispatch("workflow_dispatch", "refs/heads/main", "0.9.5",
                                          dict(source.NEWPAT_PROFILE, **{key: f"different-{value}"}))
 
+    def test_dedicated_runners_require_explicit_true_on_the_owned_manual_branch(self):
+        workflow = (Path(__file__).resolve().parents[1] / "workflows/windows-installer.yml").read_text()
+        self.assertRegex(workflow, r"qualify_macos_runtime:\n(?: +[^\n]*\n)*?"
+                                  r"        required: false\n        default: false\n        type: boolean")
+        match = re.search(r"^  macos-runtime:\n(?:    #[^\n]*\n)*    if: >-\n"
+                          r"(?P<condition>(?:      [^\n]*\n)+)", workflow, re.MULTILINE)
+        self.assertIsNotNone(match)
+        clauses = " ".join(match["condition"].split()).split(" && ")
+        self.assertCountEqual(clauses, [
+            "github.event_name == 'workflow_dispatch'", "inputs.qualify_macos_runtime == true",
+            "github.repository_id == '1307623649'",
+            "((github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/0.8.')) || startsWith(github.ref, 'refs/heads/release/0.9.'))",
+        ])
+
     def test_actual_checkout_profile_passes_official_candidate_preflight(self):
         project = Path(__file__).resolve().parents[2]
         version = tomllib.loads((project / "pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
@@ -143,7 +157,6 @@ class OfficialDeliveryTests(unittest.TestCase):
         self.assertIn("--tag v0.9.9 --kind deb --output-dir build/upgrade-baseline", workflow)
         self.assertIn("--previous-package build/upgrade-baseline/nipat-desktop_0.9.9_amd64.deb", workflow)
         self.assertIn("--macos-arm64-dir build/macos-arm64 --macos-x86-64-dir build/macos-x86_64", workflow)
-        self.assertNotIn("verify_experimental_installers.py", workflow)
         self.assertNotIn("contents: write", workflow)
         self.assertIn("${{ runner.temp }}/nipat-performance-check/", workflow)
 

@@ -172,7 +172,7 @@ The CLI accepts repeated `--cutoff` arguments and `--cutoff-map`. An unlabeled p
 
 Labels cannot contain commas, equals signs or control characters. Internal cutoff paths cannot contain commas or equals signs because the R parser cannot encode them. The client uses aliases for host paths containing these characters. `err_const` must be finite and in `(0, 1]` for the selected marker type. Arguments are passed without a shell, preserving empty prefixes and values beginning with a hyphen.
 
-Pair labels and PDFs use `Mother<id>-Father<id>_DNPs` regardless of the input prefixes. Ambiguous sample names and pair output collisions, including case-only collisions, cause an error before staging. The request, prepared tables and panels remain in `work`. The engine writes `Summary_FetalFraction_CPI.csv` in `output`, one PDF per pair and `All_CPIplots.pdf` in `output/plots`, and iteration tables for each pair and cutoff in `output/curves`.
+Pair labels and PDFs use `Mother<id>-Father<id>_DNPs` or `Mother<id>-Father<id>_SNPs`, according to the marker type, regardless of the input prefixes. Ambiguous sample names and pair output collisions, including case-only collisions, cause an error before staging. The request, prepared tables and panels remain in `work`. The engine writes `Summary_FetalFraction_CPI.csv` in `output`, one PDF per pair and `All_CPIplots.pdf` in `output/plots`, and iteration tables for each pair and cutoff in `output/curves`.
 
 <a id="cpin"></a>
 

@@ -1,4 +1,4 @@
-/* NewPat desktop UI. Scientific work is performed only by the existing Python service. */
+/* NewPat desktop UI. The local Python service submits analyses to the scientific engine. */
 (() => {
 'use strict';
 const L=window.NipatI18n,t=k=>L.t(k),$=id=>document.getElementById(id);

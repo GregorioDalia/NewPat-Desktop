@@ -480,8 +480,7 @@ def make_inputs(root: Path, image: str) -> Path:
     (inputs / "snp/pileup-empty.txt").write_text("", encoding="utf-8")
     write_tsv(inputs / "snp/overlap-panel.tsv", ("chr", "pos", "ref", "alt"),
               [("chrSynthetic", 50, "A", "G"), ("chrSynthetic", 51, "A", "T")])
-    # The same reads span two overlapping windows: each must remain attached
-    # to its SNP rather than being combined globally by QNAME as in 0.8.5.
+    # Reads spanning two SNP windows must be grouped by both SNP and QNAME.
     overlap = [f"chrSynthetic\t{position}\tA\t4\t{bases}\tI?5I\tshared,ref,alt,other\n"
                for position, bases in ((49, "...."), (50, ".GGT"), (51, "T.TG"), (52, "...."))]
     (inputs / "snp/pileup-overlap.txt").write_text("".join(overlap), encoding="utf-8")
@@ -646,11 +645,6 @@ def verify(root: Path, image: str) -> dict:
         raise ValueError("Both invariant caller models must pass real parallel qualification")
     helpers = []
     for helper in sorted((PROJECT / "tests/r_optimization").glob("*/check_*.R")):
-        if helper.parent.name == "cpi":
-            # This old-model equality check cannot qualify updated CPI science.
-            # Contamination now uses its frozen NEWPAT oracle and proves loaded
-            # inner parallelism under serial unobserved sample admission.
-            continue
         relative = helper.relative_to(PROJECT)
         log = root / f"{helper.parent.name}-{helper.stem}.log"
         run(image, ["Rscript", f"/repo/{relative.as_posix()}", "/repo"],

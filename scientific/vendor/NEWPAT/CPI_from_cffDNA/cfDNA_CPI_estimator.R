@@ -1,8 +1,8 @@
 #!/usr/bin/env Rscript
 # Prenatal CPI model from NEWPAT eabff16, including absolute and percentage fetal-read filters.
 # Reuse invariant CPI calculations and identical threshold selections; retain every output row.
-# NIPAT 0.8.12: bounded, ordered parallel work across pairs, cutoffs or
-# independent threshold intervals. Scientific reductions retain their order.
+# NewPat schedules independent pairs, cutoffs or threshold intervals within one
+# worker budget and retains the order of the scientific reductions.
 
 suppressPackageStartupMessages({
   library(dplyr)
@@ -21,7 +21,6 @@ source(Sys.getenv("NIPAT_PLOTS_HELPER", unset = "/opt/nipat/lib/nipat_scientific
 source(Sys.getenv("NIPAT_SETTINGS_HELPER", unset="/opt/nipat/lib/nipat_scientific/settings.R"))
 nipat_cfg <- nipat_settings("cpi")
 
-## cli parser
 parser <- ArgumentParser()
 
 parser$add_argument("--pileup_dir",    required=TRUE)
@@ -281,7 +280,7 @@ check_pair <- function(mother, father) {
   }
 }
 
-# Multiple panels are a NIPAT feature; preserve them with marker-aware validation.
+# Each named panel needs coordinates compatible with the selected marker type.
 if (has_markers && !is.null(args$cutoff_map) && nzchar(args$cutoff_map))
   stop("Choose --markers or --cutoff_map")
 if (has_markers) {
@@ -588,7 +587,6 @@ plot_CPI <- function(df, cutoff_label, pair_name,
   (cpi_plot / sites_plot) + patchwork::plot_layout(heights = c(2, 1))
 }
 
-## main containers
 fetal_fraction_rows <- vector("list", nrow(coppie) * nrow(cutoff_df))
 all_combined_plots <- list()
 ## Reuse a parent shared by consecutive pairs, retaining at most the two
@@ -735,7 +733,6 @@ for (i in seq_along(pair_results)) {
     fetal_fraction_rows[[summary_index]] <- cutoff_result$summary
   }
 
-  ## save combined plots in plots_dir
   if (length(per_cutoff_plots)>0) {
     combined <- nipat_cpi_pages(per_cutoff_plots[names(per_cutoff_plots)])
     ggsave(file.path(plots_dir, paste0(pair_name,"_CPIplot.pdf")),
@@ -745,7 +742,6 @@ for (i in seq_along(pair_results)) {
 
 }
 
-## save single big pdf with all pairs
 if (length(all_combined_plots)>0) {
   final_plot <- nipat_cpi_pages(all_combined_plots)
   ggsave(file.path(plots_dir, "All_CPIplots.pdf"),

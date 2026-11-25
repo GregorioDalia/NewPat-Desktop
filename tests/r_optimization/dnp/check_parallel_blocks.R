@@ -234,9 +234,8 @@ main <- function() {
                         c(49L, 15L)), env$nipat_parallel_workers(2) == 1L)
     Sys.setenv(NIPAT_EXECUTION_MODE = "auto")
   }
-  # Replay the total pileup size from the Windows real-BAM comparison with
-  # synthetic equal-sized loci. The small VM keeps the validated 0.9.5 grain;
-  # the ample VM keeps the validated P1 grain. No sample data are required.
+  # Recreate the measured Windows pileup size with equal synthetic loci to
+  # check how block size and worker count adapt to two resource budgets.
   count <- 844L
   total_bytes <- 474497291
   rows <- seq_len(count)

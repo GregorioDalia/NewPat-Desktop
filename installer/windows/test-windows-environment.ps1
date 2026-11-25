@@ -28,9 +28,7 @@ foreach ($case in @(
     Assert-Test ($accepted -eq $case[6]) "bootstrap platform: $($case -join ',')"
 }
 
-# A reported Windows 10 Pro 22H2 system is 10.0.19045.6466. Its revision
-# (UBR 6466) identifies a cumulative update, not a separate compatibility gate.
-# A later revision on the same 19045 client build remains eligible as well.
+# Windows 10 eligibility depends on the build number, independently of its cumulative update revision.
 foreach ($windowsVersion in @([version] '10.0.19045.6466', [version] '10.0.19045.9999')) {
     Assert-NipatWindowsPlatform $true $true 'AMD64' $windowsVersion.Build 1
 }
@@ -85,8 +83,6 @@ try {
     $script:statusExit = 0; $script:servicePresent = $false
     Assert-Test (-not (Get-NipatWslReadiness).Ready) 'package and status alone are insufficient without VM compute service'
 
-    # The corresponding fixed-scope Python prerequisite decisions and command
-    # allowlist run in tests/test_windows_wsl_prerequisites.py on every platform.
     Write-Host "PASS: $assertions Windows platform/WSL decision assertions (simulated, no OS installation)."
 } finally {
     Set-Item Function:Invoke-NipatWsl $probe

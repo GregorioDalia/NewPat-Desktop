@@ -11,10 +11,10 @@ license comments. `licenses/` additionally retains upstream notices and full
 license texts for bundled components identified in the source or comments;
 `licenses/sources.json` identifies each notice source. The `igv-utils` v1.8.4
 package declares MIT but does not supply a separate license file at that tag;
-its unmodified package metadata is retained. NIPAT's GPL does not replace any
+its unmodified package metadata is retained. NewPat's GPL does not replace any
 of these third-party terms.
 
-The NIPAT adapter is the adjacent `../igv-view.js`, maintained separately from
+The NewPat adapter is the adjacent `../igv-view.js`, maintained separately from
 upstream code. It disables default genome downloads, online gene lookup,
 query-string configuration and WebSocket control. It permits only same-origin
 loopback URLs registered by the desktop application. BAM/CRAM and reference

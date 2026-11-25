@@ -1,6 +1,6 @@
-# NIPAT 0.8.30: shared, presentation-only plots. Scientific tables are never
-# changed. Counts include zero, missing values are explicit, and PDF pages have
-# bounded dimensions rather than growing by one inch per locus/sample.
+# Shared plots show zero counts and missing observations explicitly.
+# Bound PDF page dimensions even for large panels or sample counts.
+# Rendering uses the original scientific tables as input.
 
 nipat_count_classes <- function(values, max_bins = 80L) {
   if (!is.numeric(values) || any(!is.na(values) &

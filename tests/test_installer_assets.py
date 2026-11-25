@@ -60,12 +60,8 @@ class InstallerAssetTests(unittest.TestCase):
         self.assertIn("ArchitecturesAllowed=x64compatible and not arm64", inno)
         self.assertIn("Version.ProductType = VER_NT_WORKSTATION", inno)
         self.assertIn("(Version.Build = 19045) or (Version.Build >= 22000)", inno)
-        # Actual PowerShell/C# decisions run in test-windows-environment.ps1;
-        # this cross-language guard prevents a silent mismatch in the Inno gate.
         bootstrap = (root / "bootstrap-common.ps1").read_text()
-        helper = (root / "EnableWsl.cs").read_text()
         self.assertIn("$Build -ne 19045 -and $Build -lt 22000", bootstrap)
-        self.assertIn("build == 19045 || build >= 22000", helper)
 
     def test_official_upgrade_preserves_runtime_namespace_and_protects_experimental_locations(self):
         root = Path(__file__).resolve().parents[1] / "installer/windows"

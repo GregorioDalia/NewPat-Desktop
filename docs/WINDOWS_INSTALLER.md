@@ -171,7 +171,3 @@ if ($LASTEXITCODE -ne 0) { throw 'Client preparation failed.' }
 The source setup prepares the client with an explicit distribution and immutable `sha256:` image ID. It does not build the image or create a WSL filesystem. For independent development use a dedicated WSL distribution with `nipat-engine`, Docker Engine, Compose and the matching verified archive.
 
 The [installer build](../.github/workflows/windows-installer.yml) packages the allowlisted source and binds the bootstrap, payloads and hashes in `installer-build.json`. Internal artifact names can retain the NIPAT identifier. The [acceptance protocol](INSTALLER_ACCEPTANCE.md), [CI guide](CI_CD.md) and [validation record](VALIDATION.md) describe what was tested. The bootstrap version and launcher version are recorded separately. Running the guided setup refreshes recognized shortcuts.
-
-<a id="riparazione-dellautotest-cpin-della-0850"></a>
-
-For an installation still on NIPAT 0.8.50, see the [historical CPIN self-test repair on GitHub](https://github.com/GregorioDalia/nipat-desktop/blob/main/docs/WINDOWS_INSTALLATION_TEST_0.8.50.md#correzione-locale-dellautotest-cpin).

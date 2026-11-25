@@ -3,8 +3,8 @@
   "workflow": "dnp-call",
   "source": {
     "path": "scientific/vendor/DNPcall/DNPcall.R",
-    "sha256": "7cbcb9eb08ce666d2839e0d5217d144d29edc7881253249ea8a7b15cbb1db2db",
-    "line_count": 915
+    "sha256": "5231ae9fefb1c10f40bd5d51d73864043deccbb757a439d75577bce722c6b262",
+    "line_count": 882
   },
   "public_parameters": [
     {
@@ -32,8 +32,8 @@
         "en": "Headerless BAM list, passed to R as --bamlist=path. NewPat accepts one or more BAMs or a list and generates a list of safe container aliases. The menu offers both modes; samples are selected for each execution."
       },
       "source_lines": [
-        40,
-        44
+        35,
+        39
       ]
     },
     {
@@ -60,8 +60,8 @@
         "en": "Headerless panel containing chr, pos1, pos2, REF and ALT. NewPat validates and writes a normalized copy, selectable through the CLI and menu; its path can be saved in preferences."
       },
       "source_lines": [
-        45,
-        49
+        40,
+        44
       ]
     },
     {
@@ -88,8 +88,8 @@
         "en": "FASTA reference genome. NewPat mounts the file and indexes using a safe alias. The CLI and menu allow selection, and the reference can be saved in preferences."
       },
       "source_lines": [
-        50,
-        54
+        45,
+        49
       ]
     },
     {
@@ -118,8 +118,8 @@
         "en": "R requires an output directory. NewPat manages it through the results directory and run name, passing --out=output from the run root. The native value is not freely exposed; this convention also stabilizes the summary filename."
       },
       "source_lines": [
-        55,
-        59
+        50,
+        54
       ]
     },
     {
@@ -146,8 +146,8 @@
         "en": "Historical option still accepted by the CLI and script for compatibility. It no longer selects the process count: global auto/serial policy and the worker maximum take precedence. Omitting --parallel does not request serial execution."
       },
       "source_lines": [
-        89,
-        91
+        82,
+        84
       ]
     }
   ],
@@ -170,8 +170,8 @@
         "en": "Valued options use =. The parser searches unanchored substrings and takes the first result; it is not a general option parser. The script does not implement --help."
       },
       "source_lines": [
-        36,
-        65
+        32,
+        60
       ]
     },
     {
@@ -189,8 +189,8 @@
         "en": "One pool schedules blocks across all samples and preserves sample and block order. The process limit follows CPU, memory and task count. On Apple Silicon with Lima or native x86_64 Linux, one task can read a block for up to four consecutive samples if the memory model admits the group. Samples in a group are calculated in sequence. In serial mode the coordinator performs every task."
       },
       "source_lines": [
-        822,
-        850
+        789,
+        817
       ]
     },
     {
@@ -212,8 +212,8 @@
         "en": "Tables are read with read.table using whitespace separation. The R panel has five columns in this order; NewPat validates its schema before execution. Panel contigs are text and keep their leading zeroes."
       },
       "source_lines": [
-        100,
-        104
+        93,
+        96
       ]
     },
     {
@@ -234,8 +234,8 @@
         "en": "For two adjacent positions, the BED covers four bases: the DNP and one flanking base on each side. Coordinates and offsets are coupled to subsequent extraction of the two central bases and are not independent thresholds."
       },
       "source_lines": [
-        112,
-        127
+        104,
+        119
       ]
     },
     {
@@ -254,7 +254,7 @@
         "input_selection": {
           "budgeted_chromosomes": "-b original BAM list in original sample order",
           "budgeted_fallback": "-b ordered list of indexed selections and original unindexed BAMs",
-          "internal_unbudgeted_legacy": "0.8.12 indexed pipe/disk selection"
+          "internal_unbudgeted_legacy": "indexed pipe/disk selection for differential tests"
         },
         "output": "mpileup.txt in invocation scratch",
         "stderr_ignored": false,
@@ -267,8 +267,8 @@
         "en": "R calls the Python helper with the BED, FASTA and shared process budget. Each indexed chromosome task reads the original ordered BAMs with -r. On Apple Silicon with Lima or native x86_64 Linux, a sufficiently compact panel can restrict -r to its outermost BED coordinates on that chromosome. The original BED still selects the pileup positions. The fallback stages indexed selections on disk and uses one mpileup for all inputs. The output includes QNAME. The insertion and deletion options retain length markers and omit the associated sequences. The end-marker option removes read-start and read-end markers. Each run uses its effective quality, depth, BAQ and filter settings. A failed helper stops the run."
       },
       "source_lines": [
-        157,
-        190
+        148,
+        178
       ]
     },
     {
@@ -289,8 +289,8 @@
         "en": "The pileup is interpreted as three common columns followed by four columns per sample. Column selection depends on BAM-list order. Contigs, bases, qualities and QNAMEs retain their text."
       },
       "source_lines": [
-        228,
-        347
+        215,
+        331
       ]
     },
     {
@@ -308,8 +308,8 @@
         "en": "Reference-match markers are replaced by the base in pileup column three before haplotypes are reconstructed. Subsequent REF/ALT classification uses panel alleles."
       },
       "source_lines": [
-        351,
-        358
+        335,
+        340
       ]
     },
     {
@@ -327,8 +327,8 @@
         "en": "The * character and listed patterns are replaced with @. This is the script’s implemented textual rule, not a general reconstruction of every possible indel event."
       },
       "source_lines": [
-        361,
-        368
+        343,
+        350
       ]
     },
     {
@@ -342,8 +342,8 @@
         "en": "Observations are tokenized directly when bases, QNAMEs and qualities align without whitespace or missing values. The compatibility path preserves the original splitting and recycling for other inputs. Both paths exclude observations with an empty QNAME."
       },
       "source_lines": [
-        372,
-        407
+        354,
+        389
       ]
     },
     {
@@ -357,8 +357,8 @@
         "en": "Each observation receives the DNP identifier associated with its coordinate; bases, coordinates and qualities are aggregated together by QNAME and DNP identifier, preserving observation order. The suffix distinguishes nearby loci covered by the same read. Aggregated rows are sorted using the current locale."
       },
       "source_lines": [
-        414,
-        453
+        396,
+        435
       ]
     },
     {
@@ -372,8 +372,8 @@
         "en": "Qualities use Phred+33: the character ASCII value minus 33. A lookup table converts valid SAM characters; nonstandard values retain the original conversion. The encoding is not selectable."
       },
       "source_lines": [
-        425,
-        436
+        407,
+        418
       ]
     },
     {
@@ -387,8 +387,8 @@
         "en": "Lowercase bases are converted to uppercase before haplotype comparison; output counts are not separated by orientation."
       },
       "source_lines": [
-        455,
-        461
+        437,
+        443
       ]
     },
     {
@@ -408,8 +408,8 @@
         "en": "The indel summary considers observations whose serialized base string exceeds six characters. It counts those with @ in the two central bases and divides by the number of observations considered. The subsequent filter also checks the flanking bases."
       },
       "source_lines": [
-        465,
-        513
+        447,
+        494
       ]
     },
     {
@@ -423,8 +423,8 @@
         "en": "The filter excludes an observation with @ anywhere in its grouped bases, including the flanks. An @ in a contig or read name is preserved. The reads_discarded_for_indels count covers the central bases only."
       },
       "source_lines": [
-        517,
-        519
+        498,
+        500
       ]
     },
     {
@@ -450,8 +450,8 @@
         "en": "After indel filtering, base strings longer than six characters are retained. Characters 3–5 are extracted from bases and elements 2–3 from qualities and coordinates; each distinct string is processed once and mapped back to reads in their original order. The expected format contains four positions, but the length check does not require exactly four observations."
       },
       "source_lines": [
-        522,
-        550
+        503,
+        530
       ]
     },
     {
@@ -466,8 +466,8 @@
         "en": "Dinucleotide quality is the arithmetic mean of the two selected Phred qualities. Each distinct pair is calculated once with mean(), preserving missing-value behavior and read order. No additional configurable quality parameter is applied."
       },
       "source_lines": [
-        553,
-        570
+        533,
+        549
       ]
     },
     {
@@ -486,8 +486,8 @@
         "en": "Remaining observations are counted by DNP and dinucleotide; combined_bases and combined_counts list combinations using -, while total_count sums their counts."
       },
       "source_lines": [
-        573,
-        591
+        552,
+        570
       ]
     },
     {
@@ -501,8 +501,8 @@
         "en": "N_Other counts dinucleotides differing from both panel REF and ALT. These observations are excluded from genotype-likelihood calculation."
       },
       "source_lines": [
-        593,
-        618
+        572,
+        597
       ]
     },
     {
@@ -514,8 +514,8 @@
         "en": "The model is diploid: the likelihood function is explicitly called with ploidy=2. This value is not a public script parameter."
       },
       "source_lines": [
-        644,
-        672
+        622,
+        646
       ]
     },
     {
@@ -538,8 +538,8 @@
         "en": "GL0, GL1 and GL2 sum natural logarithms of per-read probabilities, using the REF/ALT model and the error derived from mean quality. They are neither log10 values nor Phred scores. The code applies no explicit probability floor before the logarithm."
       },
       "source_lines": [
-        622,
-        642
+        600,
+        620
       ]
     },
     {
@@ -558,8 +558,8 @@
         "en": "The genotype has the highest likelihood in the order 0/0, 0/1, 1/1; which.max chooses the first maximum on a tie. No minimum separation between the best and second-best likelihood is required."
       },
       "source_lines": [
-        671,
-        686
+        646,
+        659
       ]
     },
     {
@@ -574,8 +574,8 @@
         "en": "Counts, panel and likelihoods are combined with full outer joins, then missing values are globally replaced with zero. This replacement precedes the rule that marks a genotype as unassigned."
       },
       "source_lines": [
-        731,
-        755
+        702,
+        724
       ]
     },
     {
@@ -593,8 +593,8 @@
         "en": "GT becomes NA when N_Other/total_count reaches other_fraction_max (default 0.1). The inclusive rule is unchanged; the threshold is configurable and recorded. Counts and likelihoods remain available."
       },
       "source_lines": [
-        757,
-        759
+        726,
+        728
       ]
     },
     {
@@ -624,8 +624,8 @@
         "en": "The individual table exposes these columns in order. Coordinates are numeric and internal | separators are removed from alleles; the indel summary is joined by chr, pos1 and pos2."
       },
       "source_lines": [
-        253,
-        284
+        238,
+        269
       ]
     },
     {
@@ -640,8 +640,8 @@
         "en": "Tables round finite fractional values to three decimal places. Whole numbers are exact. A negative infinite log-likelihood is written as -Inf and a missing value as NA."
       },
       "source_lines": [
-        73,
-        85
+        67,
+        78
       ]
     },
     {
@@ -659,8 +659,8 @@
         "en": "Each sample produces a TSV table and a plot directory. In NIPAT, the sample name is the internal alias; run metadata retain its association with the original BAM."
       },
       "source_lines": [
-        785,
-        797
+        754,
+        764
       ]
     },
     {
@@ -677,8 +677,8 @@
         "en": "The four per-sample PDFs use the shared helper with 11×5-inch pages. Unassigned genotypes have an explicit category; read counts distinguish zero, positive and missing values."
       },
       "source_lines": [
-        800,
-        800
+        767,
+        767
       ]
     },
     {
@@ -696,8 +696,8 @@
         "en": "The shared helper puts zero in a separate class and positive counts in inclusive intervals matching their labels: 1–5, 6–10, etc. At high depth it explicitly widens intervals to at most 80 positive classes; the caption states their width. Missing values have a separate class."
       },
       "source_lines": [
-        800,
-        800
+        767,
+        767
       ]
     },
     {
@@ -720,8 +720,8 @@
         "en": "The summary joins sample genotypes on coordinates and alleles. Its native filename incorporates --out; under NIPAT’s --out=output convention, the file is output/summary/output_AllGenotypes.txt."
       },
       "source_lines": [
-        853,
-        870
+        820,
+        837
       ]
     },
     {
@@ -739,8 +739,8 @@
         "en": "Point-in-time VmRSS observations are expressed in MiB. Reporting explicitly distinguishes the observed maximum of one R process from the concurrent peak of all processes, recorded by container diagnostics. Worker RSS values are not summed because pages can be shared."
       },
       "source_lines": [
-        7,
-        24
+        5,
+        21
       ]
     },
     {
@@ -758,8 +758,8 @@
         "en": "The summary counts NA genotypes per locus and uses 12×6-inch pages with at most 35 loci, retaining every locus. The vertical scale counts samples and the title identifies the page."
       },
       "source_lines": [
-        885,
-        885
+        852,
+        852
       ]
     },
     {
@@ -779,8 +779,8 @@
         "en": "UpSet requires at least two samples and represents loci with an assigned genotype, not merely reads present. Page dimensions are bounded; the helper does not modify scientific tables."
       },
       "source_lines": [
-        885,
-        885
+        852,
+        852
       ]
     },
     {
@@ -796,8 +796,8 @@
         "en": "At the end of computation, R removes the scratch pileup and the BED in its working directory. An internal verification option can retain a separate pileup copy. The invocation temporary directory and container volume are managed by the engine and client."
       },
       "source_lines": [
-        911,
-        915
+        878,
+        882
       ]
     }
   ],
@@ -962,7 +962,7 @@
           381,
           425
         ],
-        "sha256": "c7fc375c91075e0295903abaa66ad0f3e09531291b593edb8e6e6e49eaff52a9",
+        "sha256": "45939c999b7aa02b7468f25ce07d78840c1bcc7c1b3a497270380f10e0fc5ef4",
         "dependencies": [
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
@@ -970,7 +970,7 @@
               38,
               38
             ],
-            "sha256": "c7fc375c91075e0295903abaa66ad0f3e09531291b593edb8e6e6e49eaff52a9"
+            "sha256": "45939c999b7aa02b7468f25ce07d78840c1bcc7c1b3a497270380f10e0fc5ef4"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
@@ -978,7 +978,7 @@
               292,
               378
             ],
-            "sha256": "c7fc375c91075e0295903abaa66ad0f3e09531291b593edb8e6e6e49eaff52a9"
+            "sha256": "45939c999b7aa02b7468f25ce07d78840c1bcc7c1b3a497270380f10e0fc5ef4"
           },
           {
             "path": "docker/scientific-runtime/Dockerfile",
@@ -991,10 +991,10 @@
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
             "source_lines": [
-              157,
-              190
+              148,
+              178
             ],
-            "sha256": "7cbcb9eb08ce666d2839e0d5217d144d29edc7881253249ea8a7b15cbb1db2db"
+            "sha256": "5231ae9fefb1c10f40bd5d51d73864043deccbb757a439d75577bce722c6b262"
           },
           {
             "path": "src/nipat_scientific/settings.py",
@@ -1107,7 +1107,7 @@
         "result_order": "BAM @SQ dictionary order, independent of task completion",
         "fallback": "sequential-budgeted: indexed inputs selected to disk sequentially, then one whole mpileup; original unindexed inputs retained",
         "failed_indexed_read": "execution failure; no silent sequential retry",
-        "internal_unbudgeted_legacy": "0.8.12 view -u -M -L pipe/disk path retained for regression comparison",
+        "internal_unbudgeted_legacy": "view -u -M -L pipe/disk selection for differential tests",
         "dictionary_requirements": "identical ordered BAM @SQ dictionaries; panel targets present; shared BAM/FASTA contigs have equal lengths",
         "concurrent_samtools_cap": 5,
         "concurrency_estimate": "For depth 1–8000 and supported filters, each chromosome task costs BAM count × 2 × max(288, 48 + ceil(largest target length / 2^20)) MiB. After coordinator RSS, single-BAM tasks share 25% of the remaining budget. A pair can use up to 40% on optimized I/O backends, or at 576 MiB per task on other backends. Joint multi-BAM tasks share 50%.",
@@ -1131,7 +1131,7 @@
           232,
           289
         ],
-        "sha256": "c7fc375c91075e0295903abaa66ad0f3e09531291b593edb8e6e6e49eaff52a9",
+        "sha256": "45939c999b7aa02b7468f25ce07d78840c1bcc7c1b3a497270380f10e0fc5ef4",
         "dependencies": [
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
@@ -1139,7 +1139,7 @@
               381,
               425
             ],
-            "sha256": "c7fc375c91075e0295903abaa66ad0f3e09531291b593edb8e6e6e49eaff52a9"
+            "sha256": "45939c999b7aa02b7468f25ce07d78840c1bcc7c1b3a497270380f10e0fc5ef4"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
@@ -1147,7 +1147,7 @@
               292,
               378
             ],
-            "sha256": "c7fc375c91075e0295903abaa66ad0f3e09531291b593edb8e6e6e49eaff52a9"
+            "sha256": "45939c999b7aa02b7468f25ce07d78840c1bcc7c1b3a497270380f10e0fc5ef4"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
@@ -1155,7 +1155,7 @@
               171,
               197
             ],
-            "sha256": "c7fc375c91075e0295903abaa66ad0f3e09531291b593edb8e6e6e49eaff52a9"
+            "sha256": "45939c999b7aa02b7468f25ce07d78840c1bcc7c1b3a497270380f10e0fc5ef4"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
@@ -1163,15 +1163,15 @@
               77,
               93
             ],
-            "sha256": "c7fc375c91075e0295903abaa66ad0f3e09531291b593edb8e6e6e49eaff52a9"
+            "sha256": "45939c999b7aa02b7468f25ce07d78840c1bcc7c1b3a497270380f10e0fc5ef4"
           },
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
             "source_lines": [
-              157,
-              190
+              148,
+              178
             ],
-            "sha256": "7cbcb9eb08ce666d2839e0d5217d144d29edc7881253249ea8a7b15cbb1db2db"
+            "sha256": "5231ae9fefb1c10f40bd5d51d73864043deccbb757a439d75577bce722c6b262"
           },
           {
             "path": "src/nipat_scientific/dnp_blocks.R",
@@ -1179,7 +1179,7 @@
               577,
               629
             ],
-            "sha256": "aac8bf10d5283046aa2c71f7283eaa54cc2c15ab65bd9ef1e7c1a036a2a92266"
+            "sha256": "75b44e332a7948993ae15ff0f5934fcadba7b4dfda16fcdfcdec0f6357c2ac65"
           },
           {
             "path": "src/nipat/execution/runner.py",
@@ -1249,15 +1249,15 @@
           1,
           572
         ],
-        "sha256": "aac8bf10d5283046aa2c71f7283eaa54cc2c15ab65bd9ef1e7c1a036a2a92266",
+        "sha256": "75b44e332a7948993ae15ff0f5934fcadba7b4dfda16fcdfcdec0f6357c2ac65",
         "dependencies": [
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
             "source_lines": [
-              767,
-              787
+              736,
+              756
             ],
-            "sha256": "7cbcb9eb08ce666d2839e0d5217d144d29edc7881253249ea8a7b15cbb1db2db"
+            "sha256": "5231ae9fefb1c10f40bd5d51d73864043deccbb757a439d75577bce722c6b262"
           },
           {
             "path": "src/nipat_scientific/parallel.R",
@@ -1270,10 +1270,10 @@
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
             "source_lines": [
-              822,
-              850
+              789,
+              817
             ],
-            "sha256": "7cbcb9eb08ce666d2839e0d5217d144d29edc7881253249ea8a7b15cbb1db2db"
+            "sha256": "5231ae9fefb1c10f40bd5d51d73864043deccbb757a439d75577bce722c6b262"
           },
           {
             "path": "src/nipat/execution/runner.py",
@@ -1366,10 +1366,10 @@
       "evidence": {
         "path": "scientific/vendor/DNPcall/DNPcall.R",
         "source_lines": [
-          887,
-          909
+          854,
+          876
         ],
-        "sha256": "7cbcb9eb08ce666d2839e0d5217d144d29edc7881253249ea8a7b15cbb1db2db",
+        "sha256": "5231ae9fefb1c10f40bd5d51d73864043deccbb757a439d75577bce722c6b262",
         "dependencies": [
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
@@ -1377,7 +1377,7 @@
               381,
               425
             ],
-            "sha256": "c7fc375c91075e0295903abaa66ad0f3e09531291b593edb8e6e6e49eaff52a9"
+            "sha256": "45939c999b7aa02b7468f25ce07d78840c1bcc7c1b3a497270380f10e0fc5ef4"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
@@ -1385,7 +1385,7 @@
               292,
               378
             ],
-            "sha256": "c7fc375c91075e0295903abaa66ad0f3e09531291b593edb8e6e6e49eaff52a9"
+            "sha256": "45939c999b7aa02b7468f25ce07d78840c1bcc7c1b3a497270380f10e0fc5ef4"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
@@ -1393,7 +1393,7 @@
               208,
               229
             ],
-            "sha256": "c7fc375c91075e0295903abaa66ad0f3e09531291b593edb8e6e6e49eaff52a9"
+            "sha256": "45939c999b7aa02b7468f25ce07d78840c1bcc7c1b3a497270380f10e0fc5ef4"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
@@ -1401,7 +1401,7 @@
               428,
               565
             ],
-            "sha256": "c7fc375c91075e0295903abaa66ad0f3e09531291b593edb8e6e6e49eaff52a9"
+            "sha256": "45939c999b7aa02b7468f25ce07d78840c1bcc7c1b3a497270380f10e0fc5ef4"
           },
           {
             "path": "src/nipat_scientific/dnp_blocks.R",
@@ -1409,15 +1409,15 @@
               339,
               552
             ],
-            "sha256": "aac8bf10d5283046aa2c71f7283eaa54cc2c15ab65bd9ef1e7c1a036a2a92266"
+            "sha256": "75b44e332a7948993ae15ff0f5934fcadba7b4dfda16fcdfcdec0f6357c2ac65"
           },
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
             "source_lines": [
-              157,
-              226
+              148,
+              213
             ],
-            "sha256": "7cbcb9eb08ce666d2839e0d5217d144d29edc7881253249ea8a7b15cbb1db2db"
+            "sha256": "5231ae9fefb1c10f40bd5d51d73864043deccbb757a439d75577bce722c6b262"
           }
         ]
       }
@@ -1448,26 +1448,26 @@
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
             "source_lines": [
-              149,
-              155
+              140,
+              146
             ],
-            "sha256": "7cbcb9eb08ce666d2839e0d5217d144d29edc7881253249ea8a7b15cbb1db2db"
+            "sha256": "5231ae9fefb1c10f40bd5d51d73864043deccbb757a439d75577bce722c6b262"
           },
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
             "source_lines": [
-              767,
-              787
+              736,
+              756
             ],
-            "sha256": "7cbcb9eb08ce666d2839e0d5217d144d29edc7881253249ea8a7b15cbb1db2db"
+            "sha256": "5231ae9fefb1c10f40bd5d51d73864043deccbb757a439d75577bce722c6b262"
           },
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
             "source_lines": [
-              828,
-              833
+              795,
+              800
             ],
-            "sha256": "7cbcb9eb08ce666d2839e0d5217d144d29edc7881253249ea8a7b15cbb1db2db"
+            "sha256": "5231ae9fefb1c10f40bd5d51d73864043deccbb757a439d75577bce722c6b262"
           }
         ]
       }
@@ -1543,10 +1543,10 @@
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
             "source_lines": [
-              91,
-              91
+              84,
+              84
             ],
-            "sha256": "7cbcb9eb08ce666d2839e0d5217d144d29edc7881253249ea8a7b15cbb1db2db"
+            "sha256": "5231ae9fefb1c10f40bd5d51d73864043deccbb757a439d75577bce722c6b262"
           },
           {
             "path": "src/nipat/execution/options.py",
@@ -1567,10 +1567,10 @@
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
             "source_lines": [
-              157,
-              190
+              148,
+              178
             ],
-            "sha256": "7cbcb9eb08ce666d2839e0d5217d144d29edc7881253249ea8a7b15cbb1db2db"
+            "sha256": "5231ae9fefb1c10f40bd5d51d73864043deccbb757a439d75577bce722c6b262"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
@@ -1578,7 +1578,7 @@
               171,
               197
             ],
-            "sha256": "c7fc375c91075e0295903abaa66ad0f3e09531291b593edb8e6e6e49eaff52a9"
+            "sha256": "45939c999b7aa02b7468f25ce07d78840c1bcc7c1b3a497270380f10e0fc5ef4"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
@@ -1586,7 +1586,7 @@
               292,
               378
             ],
-            "sha256": "c7fc375c91075e0295903abaa66ad0f3e09531291b593edb8e6e6e49eaff52a9"
+            "sha256": "45939c999b7aa02b7468f25ce07d78840c1bcc7c1b3a497270380f10e0fc5ef4"
           },
           {
             "path": "src/nipat_scientific/parallel.py",
@@ -1610,7 +1610,7 @@
               403,
               551
             ],
-            "sha256": "aac8bf10d5283046aa2c71f7283eaa54cc2c15ab65bd9ef1e7c1a036a2a92266"
+            "sha256": "75b44e332a7948993ae15ff0f5934fcadba7b4dfda16fcdfcdec0f6357c2ac65"
           },
           {
             "path": "src/nipat/resources.py",
@@ -1618,7 +1618,7 @@
               100,
               148
             ],
-            "sha256": "17510f7684bc2f629d7dfec5f4a75584b4b8e73099a95a54adb6c5c275673f4a"
+            "sha256": "ade3337dc4975159ca7df91ff0554ed1c77c6ee72a710cfbc7256e27eaa9b61f"
           },
           {
             "path": "src/nipat/execution/runner.py",
@@ -1642,7 +1642,7 @@
               577,
               629
             ],
-            "sha256": "aac8bf10d5283046aa2c71f7283eaa54cc2c15ab65bd9ef1e7c1a036a2a92266"
+            "sha256": "75b44e332a7948993ae15ff0f5934fcadba7b4dfda16fcdfcdec0f6357c2ac65"
           },
           {
             "path": "src/nipat/execution/runner.py",
@@ -1654,7 +1654,7 @@
           },
           {
             "path": "src/nipat_scientific/dnp_blocks.R",
-            "sha256": "aac8bf10d5283046aa2c71f7283eaa54cc2c15ab65bd9ef1e7c1a036a2a92266",
+            "sha256": "75b44e332a7948993ae15ff0f5934fcadba7b4dfda16fcdfcdec0f6357c2ac65",
             "source_lines": [
               79,
               85
@@ -1721,7 +1721,7 @@
       },
       "evidence": {
         "path": "src/nipat_scientific/plots.R",
-        "sha256": "4bb6d65e05d4cc6d69a0a8160b4405e48a7bab549bfe9cbe4ea7d7185ffa35a3",
+        "sha256": "714e86d4e080ade63be3a47c0322dae93097d9a4ccef0ef9fadc5cbba7d35d1d",
         "source_lines": [
           1,
           183
@@ -1909,327 +1909,327 @@
   "audit_sections": [
     {
       "start": 1,
-      "end": 28,
+      "end": 25,
       "summary": {
         "it": "Avvio e campionamento della memoria RSS del processo R.",
         "en": "Startup and sampling of R-process RSS memory."
       }
     },
     {
-      "start": 29,
-      "end": 35,
+      "start": 26,
+      "end": 31,
       "summary": {
         "it": "Caricamento delle librerie R.",
         "en": "Loading R libraries."
       }
     },
     {
-      "start": 36,
-      "end": 66,
+      "start": 32,
+      "end": 61,
       "summary": {
         "it": "Lettura delle quattro opzioni obbligatorie con valore e controllo delle opzioni mancanti.",
         "en": "Reading the four required valued options and checking for missing options."
       }
     },
     {
-      "start": 67,
-      "end": 72,
+      "start": 62,
+      "end": 66,
       "summary": {
         "it": "Creazione delle directory dei risultati.",
         "en": "Creating result directories."
       }
     },
     {
-      "start": 73,
-      "end": 88,
+      "start": 67,
+      "end": 81,
       "summary": {
         "it": "Funzione di arrotondamento delle colonne numeriche.",
         "en": "Numeric-column rounding function."
       }
     },
     {
-      "start": 89,
-      "end": 99,
+      "start": 82,
+      "end": 92,
       "summary": {
         "it": "Caricamento della policy comune; --parallel resta un’opzione di compatibilità. Caricamento del registro scientifico e delle impostazioni effettive del run.",
         "en": "Loading the shared policy; --parallel remains a compatibility option. Loading the scientific registry and effective run settings."
       }
     },
     {
-      "start": 100,
-      "end": 111,
+      "start": 93,
+      "end": 103,
       "summary": {
         "it": "Lettura della lista BAM e del pannello e stampa dei campioni.",
         "en": "Reading the BAM list and panel and displaying samples."
       }
     },
     {
-      "start": 112,
-      "end": 134,
+      "start": 104,
+      "end": 126,
       "summary": {
         "it": "Generazione del BED e associazione delle quattro posizioni a ciascun DNP.",
         "en": "Generating the BED and associating four positions with each DNP."
       }
     },
     {
-      "start": 135,
-      "end": 148,
+      "start": 127,
+      "end": 139,
       "summary": {
         "it": "Preparazione delle coordinate e degli alleli dinucleotidici del pannello.",
         "en": "Preparing panel coordinates and dinucleotide alleles."
       }
     },
     {
-      "start": 149,
-      "end": 156,
+      "start": 140,
+      "end": 147,
       "summary": {
         "it": "Caricamento del lettore a blocchi e degli eventi di avanzamento facoltativi.",
         "en": "Loading the block reader and optional progress events."
       }
     },
     {
-      "start": 157,
-      "end": 191,
+      "start": 148,
+      "end": 179,
       "summary": {
         "it": "Esportazione del budget comune, acquisizione del pileup nello scratch e controllo dell’esito prima del calcolo R.",
         "en": "Exporting the shared budget, acquiring the scratch pileup and checking its outcome before R calculation."
       }
     },
     {
-      "start": 192,
-      "end": 200,
+      "start": 180,
+      "end": 188,
       "summary": {
         "it": "Derivazione dei nomi campione dalla lista originale dei BAM.",
         "en": "Deriving sample names from the original BAM list."
       }
     },
     {
-      "start": 201,
-      "end": 234,
+      "start": 189,
+      "end": 221,
       "summary": {
         "it": "Indicizzazione, piano globale dei blocchi e registrazione preliminare della strategia.",
         "en": "Indexing, global block plan and initial strategy record."
       }
     },
     {
-      "start": 235,
-      "end": 252,
+      "start": 222,
+      "end": 237,
       "summary": {
         "it": "Preparazione delle funzioni di calcolo e finalizzazione per campione, campionamento della memoria e avvio degli eventi.",
         "en": "Preparing per-sample computation and finalization functions, sampling memory and starting progress events."
       }
     },
     {
-      "start": 253,
-      "end": 299,
+      "start": 238,
+      "end": 284,
       "summary": {
         "it": "Formattazione finale condivisa: coordinate e alleli, join degli indel, schema, chiave originale di ordinamento e memoria.",
         "en": "Shared final formatter: coordinates and alleles, indel join, schema, original sort key and memory."
       }
     },
     {
-      "start": 300,
-      "end": 318,
+      "start": 285,
+      "end": 303,
       "summary": {
         "it": "Conservazione dei loci senza righe pileup mediante conteggi nulli e genotipi non assegnati.",
         "en": "Retaining loci without pileup rows through zero counts and unassigned genotypes."
       }
     },
     {
-      "start": 319,
-      "end": 350,
+      "start": 304,
+      "end": 334,
       "summary": {
         "it": "Selezione delle colonne del campione nel blocco e campionamento della memoria.",
         "en": "Selecting sample columns within the block and sampling memory."
       }
     },
     {
-      "start": 351,
-      "end": 371,
+      "start": 335,
+      "end": 353,
       "summary": {
         "it": "Espansione dei marcatori di riferimento, colonne necessarie e normalizzazione dei marcatori indel.",
         "en": "Reference-marker expansion, required columns and indel-marker normalization."
       }
     },
     {
-      "start": 372,
-      "end": 413,
+      "start": 354,
+      "end": 395,
       "summary": {
         "it": "Tokenizzazione diretta delle osservazioni allineate, percorso compatibile per gli altri input ed esclusione dei QNAME vuoti.",
         "en": "Direct tokenization of aligned observations, compatibility path for other inputs and exclusion of empty QNAMEs."
       }
     },
     {
-      "start": 414,
-      "end": 454,
+      "start": 396,
+      "end": 436,
       "summary": {
         "it": "Associazione QNAME-DNP, conversione Phred tramite tabella o percorso compatibile, raggruppamento unico e ordinamento.",
         "en": "QNAME-DNP association, Phred conversion through a lookup or compatibility path, single aggregation and sorting."
       }
     },
     {
-      "start": 455,
-      "end": 464,
+      "start": 437,
+      "end": 446,
       "summary": {
         "it": "Normalizzazione dell’orientamento delle basi.",
         "en": "Normalizing base orientation."
       }
     },
     {
-      "start": 465,
-      "end": 516,
+      "start": 447,
+      "end": 497,
       "summary": {
         "it": "Calcolo dei conteggi e del rapporto indel sulle posizioni centrali.",
         "en": "Calculating indel counts and fraction at central positions."
       }
     },
     {
-      "start": 517,
-      "end": 572,
+      "start": 498,
+      "end": 551,
       "summary": {
         "it": "Filtro indel, estrazione delle coppie centrali e qualità media con riutilizzo delle stringhe e coppie distinte.",
         "en": "Indel filtering, central-pair extraction and mean quality with reuse of distinct strings and quality pairs."
       }
     },
     {
-      "start": 573,
-      "end": 592,
+      "start": 552,
+      "end": 571,
       "summary": {
         "it": "Conteggi delle combinazioni osservate e del totale per DNP.",
         "en": "Counting observed combinations and totals per DNP."
       }
     },
     {
-      "start": 593,
-      "end": 619,
+      "start": 572,
+      "end": 598,
       "summary": {
         "it": "Join con il pannello, conteggio OTHER e selezione delle osservazioni REF/ALT.",
         "en": "Joining the panel, counting OTHER and selecting REF/ALT observations."
       }
     },
     {
-      "start": 620,
-      "end": 643,
+      "start": 599,
+      "end": 621,
       "summary": {
         "it": "Definizione del modello di likelihood diploide.",
         "en": "Defining the diploid likelihood model."
       }
     },
     {
-      "start": 644,
-      "end": 697,
+      "start": 622,
+      "end": 669,
       "summary": {
         "it": "Indicizzazione delle righe per sito, calcolo delle likelihood e scelta del genotipo, conservando l’ordine delle osservazioni.",
         "en": "Indexing rows per locus, calculating likelihoods and selecting genotypes while preserving observation order."
       }
     },
     {
-      "start": 698,
-      "end": 730,
+      "start": 670,
+      "end": 701,
       "summary": {
         "it": "Conteggi dei dinucleotidi REF e ALT.",
         "en": "Counting REF and ALT dinucleotides."
       }
     },
     {
-      "start": 731,
-      "end": 756,
+      "start": 702,
+      "end": 725,
       "summary": {
         "it": "Unione delle tabelle, completamento dei valori mancanti e schema intermedio.",
         "en": "Joining tables, filling missing values and defining the intermediate schema."
       }
     },
     {
-      "start": 757,
-      "end": 760,
+      "start": 726,
+      "end": 729,
       "summary": {
         "it": "Invalidazione del genotipo alla soglia OTHER del 10%.",
         "en": "Marking the genotype unassigned at the 10% OTHER threshold."
       }
     },
     {
-      "start": 761,
-      "end": 766,
+      "start": 730,
+      "end": 735,
       "summary": {
         "it": "Applicazione del formato finale e registrazione della presenza di likelihood nel blocco.",
         "en": "Applying the final format and recording whether the block has likelihoods."
       }
     },
     {
-      "start": 767,
-      "end": 787,
+      "start": 736,
+      "end": 756,
       "summary": {
         "it": "Metriche per campione, controllo delle likelihood sull’intero campione e ricomposizione ordinata dei blocchi.",
         "en": "Per-sample metrics, whole-sample likelihood check and ordered block recombination."
       }
     },
     {
-      "start": 788,
-      "end": 799,
+      "start": 757,
+      "end": 766,
       "summary": {
         "it": "Arrotondamento e scrittura dell’output individuale e preparazione della cartella grafici.",
         "en": "Rounding and writing individual output and preparing the plot directory."
       }
     },
     {
-      "start": 800,
-      "end": 801,
+      "start": 767,
+      "end": 768,
       "summary": {
         "it": "Quattro grafici per campione tramite helper condiviso: genotipi, conteggi REF/ALT/altre basi con classi corrette e zero esplicito.",
         "en": "Four per-sample plots through the shared helper: genotypes and REF/ALT/other counts with corrected classes and explicit zero."
       }
     },
     {
-      "start": 802,
-      "end": 821,
+      "start": 769,
+      "end": 788,
       "summary": {
         "it": "Resoconto temporale e di memoria, ritorno dei risultati e delle funzioni individuali.",
         "en": "Timing and memory summary, return of individual results and functions."
       }
     },
     {
-      "start": 822,
-      "end": 852,
+      "start": 789,
+      "end": 819,
       "summary": {
         "it": "Selezione delle colonne, coda globale dei blocchi, avanzamento per campione, metriche del pool e finalizzazione nell’ordine originale.",
         "en": "Column selection, global block queue, per-sample progress, pool metrics and finalization in original order."
       }
     },
     {
-      "start": 853,
-      "end": 872,
+      "start": 820,
+      "end": 839,
       "summary": {
         "it": "Unione dei genotipi fra campioni e scrittura della tabella di riepilogo.",
         "en": "Joining sample genotypes and writing the summary table."
       }
     },
     {
-      "start": 873,
-      "end": 883,
+      "start": 840,
+      "end": 850,
       "summary": {
         "it": "Resoconto di tempi, massimo RSS osservato per singolo processo R distinto dalla memoria del container e numero di campioni.",
         "en": "Reporting timing, maximum observed individual R-process RSS separately from container memory, and sample count."
       }
     },
     {
-      "start": 884,
-      "end": 886,
+      "start": 851,
+      "end": 853,
       "summary": {
         "it": "Riepiloghi tramite helper condiviso: genotipi mancanti paginati e UpSet con dimensioni limitate.",
         "en": "Summaries through the shared helper: paginated missing genotypes and bounded-size UpSet."
       }
     },
     {
-      "start": 887,
-      "end": 910,
+      "start": 854,
+      "end": 877,
       "summary": {
         "it": "Metriche finali di acquisizione, indice, task, letture condivise, byte logici, tempi di lettura e calcolo, budget e concorrenza osservata.",
         "en": "Final acquisition, index, task, shared-read, logical byte, read and compute time, memory estimate and observed concurrency metrics."
       }
     },
     {
-      "start": 911,
-      "end": 915,
+      "start": 878,
+      "end": 882,
       "summary": {
         "it": "Rimozione del pileup e del BED temporanei e messaggio finale.",
         "en": "Removing the temporary pileup and BED and displaying the final message."

@@ -1,10 +1,8 @@
 # Il primo esperimento con NewPat
 
-La demo guidata della 0.9.10 esegue DNP e SNP su tre campioni simulati. Puoi provare l’intero percorso, dall’avvio alla lettura dei risultati, usando solo i file inclusi.
+La demo guidata di NewPat esegue DNP e SNP su tre campioni simulati. Puoi provare l’intero percorso, dall’avvio alla lettura dei risultati, usando solo i file inclusi.
 
 ## Apri la demo
-
-Se nella tua copia della 0.9.10 vedi soltanto **Salva dati di esempio**, scegli una cartella come Documenti e apri il file `synthetic-trio/README.md` che NewPat vi copia. Ti indica quali file selezionare. Nelle build con **Apri demo**, segui questi tre passaggi.
 
 1. Avvia NewPat. Su Windows, se hai installato lo ZIP completo, apri il collegamento `NewPat.lnk` nella cartella `NIPAT` creata dall’installazione. Con il setup EXE usa **NewPat** nel menu Start. Su macOS apri **NewPat** da Applicazioni. Puoi scegliere l’italiano dalla bandiera nella barra superiore.
 2. Apri **Ambiente e guida → Dati di esempio → Apri demo**. Se avevi già modificato una bozza, NewPat ti chiede conferma prima di sostituirla. Nel **Riepilogo** trovi `mother`, `father` e `child`, il riferimento sintetico e i pannelli DNP e SNP già selezionati. Puoi espandere **Risultati attesi della demo** prima di iniziare.
@@ -32,7 +30,7 @@ DNP e SNP assegnano un genotipo ai siti di ogni campione. Le stime di parentela 
 | Indicare l’installazione Windows ZIP a uno strumento di collaudo | Se viene richiesta la cartella con `current.json`, scegli la cartella `NIPAT` che contiene quel file e `NewPat.lnk`. Per la distinta richiesta dei dati indica la cartella in cui hai conservato i campioni. |
 | Ritrovare i risultati sul disco | Apri l’esperimento e scegli **Apri cartella esperimento**. Con lo ZIP Windows, per impostazione predefinita i risultati sono in `NIPAT\runs`. |
 
-Nella cartella `synthetic-trio`, il `README.md` spiega come provare anche **Contaminazione**, **CPI prenatale** e **CPI postnatale** e confrontare i risultati con quelli attesi. Per confrontare i tempi fra due computer usa i file della sottocartella `timing` e le ripetizioni indicate nel README. Se usi la 0.9.9, estrai lo [ZIP di esempio](../examples/newpat-synthetic-trio.zip) e segui il README per inserire i file a mano.
+Nella cartella `synthetic-trio`, il `README.md` spiega come provare anche **Contaminazione**, **CPI prenatale** e **CPI postnatale** e confrontare i risultati con quelli attesi. Per confrontare i tempi fra due computer usa i file della sottocartella `timing` e le ripetizioni indicate nel README. Gli stessi dati sono disponibili anche nello [ZIP di esempio](../examples/newpat-synthetic-trio.zip).
 
 ## Per gli esperimenti successivi
 

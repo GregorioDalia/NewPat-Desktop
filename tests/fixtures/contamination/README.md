@@ -29,7 +29,7 @@ three sites and a mean of 0.05. The verifier checks exact retained coordinates a
 well as ratios and per-site contamination, so a matching aggregate alone cannot pass.
 
 `NoSites.txt` includes only four excluded cases; its position 700 has 12 Other
-reads, so `12/112 > 0.10` remains excluded under the updated denominator. It supplies the minimal
+reads, so `12/112 > 0.10` excludes the site. It supplies the minimal
 six-column schema: chr, pos1, pos2, N_REF, N_ALT, N_Other. It must yield count 0,
 literal `NA` for mean and SD, and a per-site TXT containing only its header.
 
@@ -38,5 +38,5 @@ rows and the columns individuo, informative_sites, mean_contamination,
 sd_contamination. Per-site files are `contamination_<sample>.txt`.
 
 The expected values are derived analytically. The integration check executes
-the bundled R script through NIPAT and verifies numerical results in the selected
+the bundled R script through NewPat and verifies numerical results in the selected
 runtime image.

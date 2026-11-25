@@ -1,4 +1,4 @@
-"""Bounded progress reader and presentation snapshots for CLI and future GUIs."""
+"""Bounded progress reader for the terminal and desktop job monitor."""
 from __future__ import annotations
 
 from dataclasses import dataclass

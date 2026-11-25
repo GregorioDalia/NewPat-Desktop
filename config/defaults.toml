@@ -1,9 +1,5 @@
-# Runtime reference only; guided preferences are stored by Configura.
-# The authoritative scientific defaults, ranges and readable model constants are
-# in src/nipat_scientific/settings_data.json, shared by Python and R.
-# Inspect with: nipat settings
-# Export editable scientific configuration with: nipat settings --export PATH
-# Apply with: nipat --scientific-config PATH --set cpin.min_coverage=20 ...
+# Scientific defaults and ranges are defined in the registry below.
+# Inspect them with newpat settings, or export a copy with newpat settings --export PATH.
 
 [runtime]
 compose_service = "scientific"

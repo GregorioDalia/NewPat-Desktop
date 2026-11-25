@@ -3,8 +3,8 @@
   "workflow": "cpi",
   "source": {
     "path": "scientific/vendor/NEWPAT/CPI_from_cffDNA/cfDNA_CPI_estimator.R",
-    "sha256": "527f126b4a7dfe127c484209ecf95f42293b96c54614fafa9f9331f99851f2c6",
-    "line_count": 762
+    "sha256": "74b137364e2cdf553a58b40f1629aa6e3f42c4922232897e8868a5684f0fe204",
+    "line_count": 758
   },
   "public_parameters": [
     {
@@ -27,8 +27,8 @@
         "mapping": "adapted"
       },
       "source_lines": [
-        27,
-        32
+        26,
+        31
       ],
       "description": {
         "it": "Cartella delle tabelle selezionate SNP o DNP.",
@@ -56,8 +56,8 @@
         "mapping": "adapted"
       },
       "source_lines": [
-        27,
-        32
+        26,
+        31
       ],
       "description": {
         "it": "Cartella dei risultati creata per il run.",
@@ -84,8 +84,8 @@
         "mapping": "adapted"
       },
       "source_lines": [
-        27,
-        32
+        26,
+        31
       ],
       "description": {
         "it": "Coppie madre:padre; identificativi distinti e nomi di output unici.",
@@ -112,8 +112,8 @@
         "mapping": "adapted"
       },
       "source_lines": [
-        27,
-        32
+        26,
+        31
       ],
       "description": {
         "it": "Prefisso dei file materni.",
@@ -140,8 +140,8 @@
         "mapping": "adapted"
       },
       "source_lines": [
-        27,
-        32
+        26,
+        31
       ],
       "description": {
         "it": "Prefisso dei file paterni.",
@@ -168,8 +168,8 @@
         "mapping": "adapted"
       },
       "source_lines": [
-        27,
-        32
+        26,
+        31
       ],
       "description": {
         "it": "Frequenze di popolazione finite e positive; il formato identifica SNP o DNP.",
@@ -199,8 +199,8 @@
         "mapping": "adapted"
       },
       "source_lines": [
-        34,
-        35
+        33,
+        34
       ],
       "description": {
         "it": "Uno o più pannelli normalizzati, anche con etichette; alternativo a --markers.",
@@ -227,8 +227,8 @@
         "mapping": "adapted"
       },
       "source_lines": [
-        36,
-        36
+        35,
+        35
       ],
       "description": {
         "it": "Pannello SNP/DNP con alleli; la CLI NewPat lo normalizza e usa il percorso multipannello equivalente.",
@@ -255,8 +255,8 @@
         "mapping": "adapted"
       },
       "source_lines": [
-        37,
-        38
+        36,
+        37
       ],
       "description": {
         "it": "Sovrascrittura esplicita della costante del tipo rilevato; se omessa resta il valore del registro.",
@@ -284,8 +284,8 @@
         "mapping": "adapted"
       },
       "source_lines": [
-        39,
-        68
+        38,
+        67
       ],
       "description": {
         "it": "Costante per mismatch SNP, configurabile e registrata nel riepilogo.",
@@ -313,8 +313,8 @@
         "mapping": "adapted"
       },
       "source_lines": [
-        39,
-        68
+        38,
+        67
       ],
       "description": {
         "it": "Costante per mismatch DNP, configurabile e registrata nel riepilogo.",
@@ -342,8 +342,8 @@
         "mapping": "adapted"
       },
       "source_lines": [
-        41,
-        65
+        40,
+        64
       ],
       "description": {
         "it": "Numero minimo di letture dell’allele minoritario. Se entrambi i filtri sono omessi, il minimo effettivo è due letture.",
@@ -375,8 +375,8 @@
         "en": "Minimum minor-allele percentage among maternal REF + ALT reads, in (0, 100]. Both active filters must pass."
       },
       "source_lines": [
-        41,
-        65
+        40,
+        64
       ]
     }
   ],
@@ -397,8 +397,8 @@
         "mixed_types": "rejected"
       },
       "source_lines": [
-        84,
-        126
+        83,
+        125
       ],
       "description": {
         "it": "Coordinate dinamiche e controlli di coerenza tra frequenze, pannelli e conteggi.",
@@ -414,8 +414,8 @@
         "Alt_f.pop"
       ],
       "source_lines": [
-        155,
-        219
+        154,
+        218
       ],
       "description": {
         "it": "Solo coordinate e frequenze entrano nel join scientifico; metadati NA irrilevanti non eliminano loci.",
@@ -431,8 +431,8 @@
         "zero_coverage_total": "NA allowed only for all-zero counts"
       },
       "source_lines": [
-        221,
-        282
+        220,
+        281
       ],
       "description": {
         "it": "Si controllano alleli, conteggi, coordinate e concordanza dei genitori. Il totale deve essere coerente con la somma dei tre conteggi.",
@@ -444,8 +444,8 @@
       "kind": "formula",
       "value": "N_REF / (N_REF + N_ALT)",
       "source_lines": [
-        611,
-        648
+        609,
+        646
       ],
       "description": {
         "it": "Rapporto REF usato per classificare l’omozigosi materna e paterna.",
@@ -457,8 +457,8 @@
       "kind": "filter",
       "value": "N_Other / total_count <= other_fraction_max",
       "source_lines": [
-        611,
-        648
+        609,
+        646
       ],
       "description": {
         "it": "Il filtro mantiene il totale fornito; la soglia è configurabile.",
@@ -470,8 +470,8 @@
       "kind": "filter",
       "value": "maternal homozygous REF or ALT; minor reads and 100 * minor reads / (REF + ALT) each >= its active threshold",
       "source_lines": [
-        336,
-        346
+        335,
+        345
       ],
       "description": {
         "it": "Sono ammessi i siti materni con rapporto da omozigote che soddisfano tutti i filtri attivi. Il denominatore della percentuale esclude le letture Other.",
@@ -488,8 +488,8 @@
         "optimization": "evaluate identical selections once; expand every original threshold"
       },
       "source_lines": [
-        350,
-        476
+        349,
+        475
       ],
       "description": {
         "it": "Le selezioni invarianti sono riusate, mantenendo ogni soglia e l’ordine dei prodotti.",
@@ -512,8 +512,8 @@
         }
       },
       "source_lines": [
-        384,
-        396
+        383,
+        395
       ],
       "description": {
         "it": "Le sei formule originarie usano classi genotipiche configurabili e la costante del tipo SNP/DNP.",
@@ -528,8 +528,8 @@
         "log_CPI": "sum(log10(PI)) across informative loci; NA with no paternal loci"
       },
       "source_lines": [
-        434,
-        435
+        433,
+        434
       ],
       "description": {
         "it": "Il log10 CPI somma i log10 dei PI. Il CPI grezzo viene ricostruito e può risultare 0 o Inf quando il prodotto esce dall’intervallo rappresentabile. Senza loci informativi paterni entrambi i valori sono NA.",
@@ -541,8 +541,8 @@
       "kind": "formula",
       "value": "nearest threshold to round(median(fetal_reads))",
       "source_lines": [
-        478,
-        483
+        477,
+        482
       ],
       "description": {
         "it": "Il valore riepilogativo usa la soglia più vicina alla mediana arrotondata.",
@@ -558,8 +558,8 @@
         "percent_multiplier": 100
       },
       "source_lines": [
-        664,
-        672
+        662,
+        670
       ],
       "description": {
         "it": "Il fattore diploide 2 è una costante del modello consultabile.",
@@ -575,8 +575,8 @@
         "logCPI_digits": 3
       },
       "source_lines": [
-        689,
-        705
+        687,
+        703
       ],
       "description": {
         "it": "Arrotondamento del riepilogo; le curve TSV mantengono i valori calcolati.",
@@ -597,8 +597,8 @@
         "curves": "curves/<Pair>_panel_<index>.tsv"
       },
       "source_lines": [
-        686,
-        762
+        684,
+        758
       ],
       "description": {
         "it": "Riepilogo per coppia e pannello, metadati effettivi e curva completa anche senza siti.",
@@ -623,8 +623,8 @@
         ]
       },
       "source_lines": [
-        485,
-        589
+        484,
+        588
       ],
       "description": {
         "it": "Grafici con unità separate, guide configurabili, indicatore della soglia mediana e paginazione.",
@@ -645,8 +645,8 @@
         "nested_pools": false
       },
       "source_lines": [
-        321,
-        476
+        320,
+        475
       ],
       "description": {
         "it": "Cache dei genitori e parallelismo ordinato senza pool annidati; grafici creati dal coordinatore.",
@@ -930,7 +930,7 @@
               100,
               148
             ],
-            "sha256": "17510f7684bc2f629d7dfec5f4a75584b4b8e73099a95a54adb6c5c275673f4a"
+            "sha256": "ade3337dc4975159ca7df91ff0554ed1c77c6ee72a710cfbc7256e27eaa9b61f"
           },
           {
             "path": "src/nipat/execution/runner.py",
@@ -1053,63 +1053,63 @@
   "audit_sections": [
     {
       "start": 1,
-      "end": 83,
+      "end": 82,
       "summary": {
         "it": "Librerie, configurazione e argomenti.",
         "en": "Libraries, settings and arguments."
       }
     },
     {
-      "start": 84,
-      "end": 220,
+      "start": 83,
+      "end": 219,
       "summary": {
         "it": "Rilevamento SNP/DNP, frequenze e validazione.",
         "en": "SNP/DNP detection, frequencies and validation."
       }
     },
     {
-      "start": 221,
-      "end": 283,
+      "start": 220,
+      "end": 282,
       "summary": {
         "it": "Lettura e controlli dei conteggi parentali.",
         "en": "Parent count reading and validation."
       }
     },
     {
-      "start": 284,
-      "end": 335,
+      "start": 283,
+      "end": 334,
       "summary": {
         "it": "Multipannelli e cache degli input.",
         "en": "Multiple panels and input cache."
       }
     },
     {
-      "start": 336,
-      "end": 477,
+      "start": 335,
+      "end": 476,
       "summary": {
         "it": "Selezione materna, formule PI e intervalli paralleli.",
         "en": "Maternal selection, PI formulas and parallel intervals."
       }
     },
     {
-      "start": 478,
-      "end": 590,
+      "start": 477,
+      "end": 589,
       "summary": {
         "it": "Selezione della mediana e grafici con unità separate.",
         "en": "Median selection and plots with separate units."
       }
     },
     {
-      "start": 591,
-      "end": 711,
+      "start": 590,
+      "end": 709,
       "summary": {
         "it": "Preparazione parentale e riepiloghi per coppia e pannello.",
         "en": "Parent preparation and per-pair/panel summaries."
       }
     },
     {
-      "start": 712,
-      "end": 762,
+      "start": 710,
+      "end": 758,
       "summary": {
         "it": "Curve complete, PDF paginati e riepilogo finale.",
         "en": "Complete curves, paginated PDFs and final summary."

@@ -21,7 +21,7 @@ EXPECTED_SITES = {
     ("chr1", "200", "201"): (0.0, 0.0),
     ("chr1", "300", "301"): (0.95, 0.05),
     ("chr1", "400", "401"): (0.05, 0.05),
-    # The new denominator includes Other: 11 / 111 <= 0.1 retains this site.
+    # The denominator includes Other: 11 / 111 <= 0.1 retains this site.
     ("chr1", "700", "701"): (0.95, 0.05),
 }
 EXPECTED_SD = math.sqrt(0.00075)

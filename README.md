@@ -38,7 +38,7 @@ Run a module on its own or build a workflow. DNPcall and SNPcall can share BAM i
 
 **Try the demo.** Open **Environment and help → Open demo**. NewPat opens a draft for three simulated samples with DNP and SNP selected. Review the settings and choose **Start experiment**. Open **Experiments and results** when it finishes. Each caller should report three loci per sample, with 100 reads per locus. [Guida rapida in italiano](docs/QUICKSTART_IT.md) · [English desktop walkthrough](docs/GUI.md#try-the-shared-example)
 
-Choose **Save example data** to copy the BAMs, reference, panels, expected results and instructions to a local folder. If an earlier 0.9.10 review build shows only this button, follow the README in the copied folder to select the inputs. On 0.9.9, download and extract the example ZIP first. Its separate timing dataset lets you compare runs on different computers with the same BAM and panels. [Example ZIP](examples/newpat-synthetic-trio.zip) · [SHA-256 checksum](examples/newpat-synthetic-trio.zip.sha256)
+Choose **Save example data** to copy the BAMs, reference, panels, expected results and instructions to a local folder. The separate timing dataset lets you compare runs on different computers with the same BAM and panels. [Example ZIP](examples/newpat-synthetic-trio.zip) · [SHA-256 checksum](examples/newpat-synthetic-trio.zip.sha256)
 
 **Use your own files.** Open **New experiment**, select the sample BAMs, the exact reference FASTA used for alignment and the panel for each caller. Review the configuration and start the experiment. You can reopen the results in the desktop window or read `run-report.html` in the run folder. [Choosing a reference genome](docs/GUI.md#choose-a-reference-genome) · [Reading run results](docs/RUNS.md)
 
@@ -49,7 +49,7 @@ For a DNP run from PowerShell, open the application directory containing `newpat
   --reference "C:\Data\genome.fa" --panel "C:\Data\dnp-panel.txt"
 ```
 
-[Input formats and CLI examples](docs/USER_GUIDE.md) · [All guides, including developer and release documentation](docs/README.md)
+[Input formats and CLI examples](docs/USER_GUIDE.md) · [Code guide](docs/CODE_GUIDE.md) · [All guides](docs/README.md)
 
 ## Scientific methods
 

@@ -84,7 +84,7 @@ class ScientificCatalogTests(unittest.TestCase):
                 declared = set(re.findall(r'parser\$add_argument\("(--[a-z_]+)"', source))
                 self.assertEqual(names, declared)
             elif workflow == "dnp-call":
-                declared = set(re.findall(r'"(--[A-Za-z]+)\*?"', source[:source.index("# read the df")]))
+                declared = set(re.findall(r'grep\(\s*"(--[A-Za-z]+)\*?"\s*,\s*args\s*\)', source))
                 # --parallel is retained as an accepted compatibility argument;
                 # the common execution policy now controls R process counts.
                 self.assertEqual(names - {"--parallel"}, declared)

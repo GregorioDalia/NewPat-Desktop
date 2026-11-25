@@ -30,7 +30,7 @@ because they were produced with NewPat, place scientific results under the GPL.
 | Component | Upstream source | Included license and scope |
 | --- | --- | --- |
 | NEWPAT | <https://github.com/lpistacchia/NEWPAT> | [Upstream LICENSE](scientific/vendor/NEWPAT/LICENSE), containing the GNU GPL version 3 text. Includes the supplied SNPcall, prenatal CPI, postnatal CPI and Contamination files and accompanying examples. |
-| DNPcall | <https://github.com/fravasini/DNPcall> | [Upstream LICENSE](scientific/vendor/DNPcall/LICENSE), containing the GNU GPL version 3 text. Includes the supplied DNPcall files and accompanying examples. |
+| DNPcall | <https://github.com/fravasini/DNPcall> | [Upstream LICENSE](scientific/vendor/DNPcall/LICENSE), containing the GNU GPL version 3 text. Covers the bundled DNPcall R program. |
 
 These components retain their original authorship, license texts and notices.
 NewPat uses the complete SNPcall 2.0 scientific core from NEWPAT commit

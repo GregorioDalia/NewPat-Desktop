@@ -6,7 +6,7 @@ import subprocess
 
 
 def background_process_options() -> dict[str, int]:
-    """Keep captured/piped Windows helpers inside NIPAT's own UI and logs.
+    """Keep background Windows helpers inside the desktop UI and logs.
 
     A GUI launched by pythonw has no console to inherit. Without this flag,
     console helpers such as wsl.exe create a separate visible window. Do not

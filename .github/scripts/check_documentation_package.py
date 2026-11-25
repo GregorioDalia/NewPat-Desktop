@@ -25,7 +25,7 @@ GUIDES = ("README.md", "OVERVIEW.md", "docs/README.md", "docs/QUICKSTART_IT.md",
           "docs/USER_GUIDE.md", "docs/SCIENTIFIC_CATALOG.md", "docs/INPUT_VALIDATION.md",
           "docs/DISTRIBUTION.md", "docs/RUNS.md", "docs/LINUX_INSTALLER.md", "docs/MACOS_INSTALLER.md",
           "docs/WINDOWS_INSTALLER.md", "docs/WINDOWS_INSTALLATION_TEST.md", "docs/PERFORMANCE.md",
-          "docs/RESOURCES.md", "docs/ARCHITECTURE.md", "docs/ROADMAP.md", "docs/CI_CD.md",
+          "docs/RESOURCES.md", "docs/CODE_GUIDE.md", "docs/ARCHITECTURE.md", "docs/ROADMAP.md", "docs/CI_CD.md",
           "docs/VALIDATION.md", "docs/WORKFLOW_CONTRACT.md", "docs/INSTALLER_ACCEPTANCE.md",
           ".github/RELEASE.md", "scientific/README.md", "engine/README.md", f"docs/RELEASE_{__version__}.md")
 LAUNCH = re.compile(r"^(?:newpat|\.\\newpat\.cmd|python -m nipat|& \$newpat)(?:\s+|$)")

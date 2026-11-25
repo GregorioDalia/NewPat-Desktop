@@ -214,7 +214,7 @@ def resource_file_lock(path: Path, *, exclusive: bool):
 
 @contextmanager
 def analysis_session(layout=None):
-    """Shared across local NIPAT processes; safe for nested calls in one thread."""
+    """The resource lock is shared across local clients and reentrant in one thread."""
     key = (str(Path.home().resolve()), _backend())
     active = getattr(_LOCAL, "analysis", {})
     if active.get(key, 0):

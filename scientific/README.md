@@ -66,4 +66,4 @@ Postnatal CPI takes mother–father–child trios and SNP/DNP frequencies. The m
 
 `scripts/verify_r_equivalence.py` compares the two callers with their frozen references in the same runtime. `scripts/verify_five_modules.py` checks CPI, postnatal CPI and Contamination against upstream and analytical expectations for both marker types. The checks include unrounded values, tables and plots. Changes to a scientific script require review of its provenance, manifest and relevant regressions. Package identity, fixture equivalence and expert assessment on independent data address separate questions.
 
-Upstream READMEs under `vendor/` describe their respective projects and may refer to resources shipped only upstream. Consult the [NewPat user guide](../docs/USER_GUIDE.md) for installation and file locations. [Third-party notices and licenses](../THIRD_PARTY_NOTICES.md)
+The module guides under `vendor/` describe the bundled implementations and link to the original projects. Consult the [NewPat user guide](../docs/USER_GUIDE.md) for installation and file locations. [Third-party notices and licenses](../THIRD_PARTY_NOTICES.md)

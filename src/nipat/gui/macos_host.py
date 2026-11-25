@@ -329,7 +329,7 @@ class _Window:
         c.send(self.window, "setMinSize:", None, (CGSize,), CGSize(860, 600))
         c.send(self.window, "setDelegate:", None, (PTR,), self.delegate)
         configuration = c.allocate("WKWebViewConfiguration")
-        # Native preferences/results are persisted by NIPAT. Web content has an
+        # The desktop app stores preferences and results. Web content has an
         # ephemeral cache, so no genomic paths leak into a shared Safari profile.
         store = c.send(c.cls("WKWebsiteDataStore"), "nonPersistentDataStore")
         c.send(configuration, "setWebsiteDataStore:", None, (PTR,), store)

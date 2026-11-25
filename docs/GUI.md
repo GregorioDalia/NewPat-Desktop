@@ -4,11 +4,11 @@ Use NewPat to set up an experiment, follow its progress, read results and inspec
 
 ## Try the shared example
 
-In the 0.9.10 build with the guided demo, open **Environment and help → Open demo**. If you have an edited draft, NewPat asks before replacing it. The **Review** step opens with three indexed BAMs, a synthetic FASTA and both marker panels already selected. Expand **Expected demo results**, then choose **Start experiment**. All inputs are included and the analysis runs locally. [Guida rapida in italiano](QUICKSTART_IT.md)
+Open **Environment and help → Open demo**. If you have an edited draft, NewPat asks before replacing it. The **Review** step opens with three indexed BAMs, a synthetic FASTA and both marker panels already selected. Expand **Expected demo results**, then choose **Start experiment**. All inputs are included and the analysis runs locally. [Guida rapida in italiano](QUICKSTART_IT.md)
 
 When **Activity** shows **Completed**, open **Experiments and results**, select the demo, then open **Results → DNP** and **Results → SNP**. Select each sample. In both analyses the table should have three sites per sample, with 100 reads per site. For `mother`, expect 96 REF and 4 ALT. For `father` and `child`, expect 50 REF and 50 ALT each. The guided demo runs just these two analyses.
 
-To try contamination and the two CPI analyses, select **Environment and help → Save example data**. Pick a writable parent folder and follow the README inside the new `synthetic-trio` directory. It provides the family assignments, marker-specific files and expected outputs for all five analyses. The separate `timing/` workload has four contigs and 128 loci for comparing DNP and SNP timings on different computers. Builds without the guided demo can use the same inputs manually from the [example ZIP](../examples/newpat-synthetic-trio.zip), including version 0.9.9.
+To try contamination and the two CPI analyses, select **Environment and help → Save example data**. Pick a writable parent folder and follow the README inside the new `synthetic-trio` directory. It provides the family assignments, marker-specific files and expected outputs for all five analyses. The separate `timing/` workload has four contigs and 128 loci for comparing DNP and SNP timings on different computers. The same inputs are available in the [example ZIP](../examples/newpat-synthetic-trio.zip).
 
 ## Set up an experiment
 

@@ -1,7 +1,4 @@
-"""Presentation-only messages shared by CLI diagnostics and future interfaces.
-
-The existing guided forms remain Italian. This initial catalog covers reliability
-diagnostics; language never changes command names, JSON keys or scientific values.
+"""Italian and English diagnostics for the guided terminal and command line.
 """
 from __future__ import annotations
 

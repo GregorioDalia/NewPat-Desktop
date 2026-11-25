@@ -204,8 +204,7 @@ class ContainerPerformanceObserver:
         return True
 
     def _record_failure(self, exc: Exception, *, reason: str | None = None) -> None:
-        # Retain the original exception-type counter for report compatibility,
-        # adding fixed reason codes so future failures can actually be diagnosed.
+        # Reports group parse failures under ValueError and retain the specific reason separately.
         kind = "ValueError" if isinstance(exc, _StatsError) else type(exc).__name__
         self._failures[kind] += 1
         self._failure_reasons[reason or (exc.reason if isinstance(exc, _StatsError) else kind)] += 1

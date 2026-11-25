@@ -33,6 +33,7 @@ For the published version, choose the installer under **Assets** on the release 
 
 | To do this | Read |
 | --- | --- |
+| Find the source for a screen, a formula or a test | [Code guide](CODE_GUIDE.md) |
 | Trace a workflow from the desktop client to the scientific engine | [Architecture](ARCHITECTURE.md) · [Workflow contract](WORKFLOW_CONTRACT.md) · [Engine interface](../engine/README.md) |
 | Check a scientific module, its inputs and the evidence for its results | [Scientific components](../scientific/README.md) · [Scientific CI checks](CI_CD.md#scientific-checks) · [Validation worksheet](VALIDATION.md) |
 | Review a change, qualify an installer set or publish an accepted release | [CI and packaging](CI_CD.md) · [Installer acceptance](INSTALLER_ACCEPTANCE.md) · [Publication procedure](../.github/RELEASE.md) |

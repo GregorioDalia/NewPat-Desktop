@@ -7,7 +7,7 @@ packaging and execution, not scientific or clinical validity.
 background bases were generated with Python `random.Random(505).choice("ACGT")`,
 then the three declared REF dinucleotides were substituted at positions 50–51,
 140–141 and 230–231. `DNP_list.txt` deliberately uses lowercase allele letters
-to exercise normalization before passing the panel to the unchanged R script.
+to exercise normalization before the DNP caller reads the panel.
 
 Each of `reads_A.sam` and `reads_B.sam` contains 63 coordinate-sorted, unpaired,
 62-base reads with unique QNAMEs, mapping quality 60, base quality 40 and `62M`
@@ -40,7 +40,7 @@ BAM indexes; `mpileup -l` supports this input mode. Default base-quality filters
 and BAQ remain enabled. No scientific settings are changed to fit the fixture.
 GL0 and GL2 are not hardcoded from the SAM's original Q40 because BAQ can alter
 qualities. All scientific table fields, including those likelihoods, must also
-match an independent invocation of the unchanged packaged R interface.
+match a separate invocation of the packaged R interface.
 
 The real-image checks cover the complete engine request and the public client
 workflow with a project directory containing only `compose.yaml`: a single BAM,

@@ -1,8 +1,7 @@
 """Observe abandoned desktop runs without rewriting scientific provenance.
 
-The existing cross-process analysis/resource lock protects the observation from
-mistaking a live client (including 0.9.0) for a crashed one. Runtime inspection is
-read-only and inconclusive evidence never becomes an interrupted/successful run.
+The shared execution lock distinguishes live clients from abandoned runs.
+Read-only inspection leaves the recorded status intact when evidence is inconclusive.
 """
 from __future__ import annotations
 

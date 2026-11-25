@@ -289,7 +289,7 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
 
  handlers['run.prepare']=p=>({name:'Additional analysis',caller:'tables',samples:[{id:'A',path:'/completed/counts.txt',kind:'dnp-table'}],branches:{DNP:[p.module]},families:{cpin:[{id:'F',mother:'A',father:'B',child:'C'}]},scientific_settings:{cpin:{min_coverage:6}}});await app.action('prepare-module',{module:'cpin'});check(app.state.draft.caller==='tables'&&app.selectedModules().join(',')==='cpin'&&app.state.step===1,'Additional analysis consumes existing counts without rerunning callers or prior modules');check(app.state.draft.scientific_settings.cpin.min_coverage===6&&app.state.source==='tables','Additional analysis preserves recorded settings and exposes family assignments');
 
- // 0.9.1 usability and lifecycle regressions.
+ // Activity updates preserve progress indicators and fetch logs only while they are open.
  const noProgress={id:'initial',name:'Initial',status:'running',created_at:'2026-11-15T12:00:00Z',finished_at:'2026-11-15T12:02:03Z',progress:null,logs:[]};
  app.state.jobs=[noProgress];const initialProgress=app.renderActivity();
  check(/progress-track indeterminate/.test(initialProgress)&&!/<span style="width:0%"><\/span>/.test(initialProgress),'Unknown progress renders a visible indeterminate band without inline zero width');
@@ -347,7 +347,7 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
  dialogPaths=['/sample.bam.bai'];await app.action('choose-path',{key:'igv-track.0.index',filter:'bai'});check(requests.at(-1).params.filters[0].extensions.join(',')==='bai,csi','BAM index picker offers only BAM index formats');
  const html=fs.readFileSync(path.join(web,'index.html'),'utf8');check(!/(?:src|href)=["']https?:/.test(html),'All frontend scripts/styles packaged offline');check(!fs.readFileSync(path.join(web,'app.js'),'utf8').includes('window.open('),'No external-browser launch in frontend');
 
- // NewPat 0.9.5: explicit fresh starts, scoped diagnostics and honest viewer guidance.
+ // A new experiment starts from saved defaults after any previous job outcome.
  const savedPreferences=JSON.parse(JSON.stringify(app.state.preferences)),savedBaseline=JSON.parse(JSON.stringify(app.state.baseline));
  app.state.preferences.scientific_settings={'snp-call':{max_depth:250}};app.state.preferences.execution={max_workers:2};await app.action('save-preferences',{});
  app.state.preferences.scientific_settings['snp-call'].max_depth=999;app.state.preferences.execution.max_workers=7;

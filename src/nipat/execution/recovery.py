@@ -1,4 +1,4 @@
-"""Inspect recorded containers and stop only positively identified NIPAT runs.
+"""Inspect recorded containers and stop only those owned by the selected run.
 
 Inspection never rewrites the original run status. It is not scientific resume.
 """
