@@ -1,6 +1,6 @@
 # Input files, commands and workflows
 
-This guide covers input formats and repeatable commands for the five scientific modules. To run a first experiment from the desktop, use the [guided demo](GUI.md#try-the-shared-example) or the [guida rapida in italiano](QUICKSTART_IT.md).
+This guide covers input formats and repeatable commands for the six scientific modules. To run a first experiment from the desktop, use the [guided demo](GUI.md#try-the-shared-example) or the [guida rapida in italiano](QUICKSTART_IT.md).
 
 <a id="comandi-diretti"></a>
 
@@ -148,6 +148,16 @@ Use `--pair ID MATERNAL_CFDNA FATHER` for prenatal CPI and `--trio ID MOTHER FAT
 ## Reuse existing count tables
 
 Choose the existing-tables option in the workflow or use `workflow analyze --caller tables`. Supply `--dnp-table ID PATH` and/or `--snp-table ID PATH` for the branches being analyzed. Define the sample pairs or trios as for a BAM workflow. The source DNP run's `output/individual_outputs/` directory holds individual counts. Use the source sample map to preserve identities and record where each table came from.
+
+## Fetal sex from maternal cfDNA
+
+Select three calling tables from the same maternal sample. The autosomal and X tables use DNP coordinates and the Y table uses SNP coordinates. A paternal sample is unnecessary. Use X and Y markers validated for specificity.
+
+```powershell
+& $newpat fetal-sex --autosomes ".\maternal_autosomes.txt" --x ".\maternal_X.txt" --y ".\maternal_Y.txt"
+```
+
+The summary records the classification (F, M or Undetermined), three ratios, site counts and the thresholds used. Three site tables document the underlying observations. The classification thresholds are preliminary. The published [inputs and expected outputs](https://github.com/lpistacchia/NEWPAT/tree/dde1a759e4b994a42ec9c9651f896394c546b109/Fetal_sex/examples) can be used to check an installation.
 
 ## Text wizard and troubleshooting
 

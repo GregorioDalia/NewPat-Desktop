@@ -68,17 +68,17 @@ class EnginePackageTests(unittest.TestCase):
         self.assertEqual(set(metadata["workflows"]), set(engine.SCRIPT_PATHS))
         self.assertEqual(metadata["workflow_interfaces"], {
             "contamination": "contamination-v2", "snp-call": "snp-call-v2", "dnp-call": "dnp-call-v1",
-            "cpi": "cpi-v3", "cpin": "cpin-v2",
+            "cpi": "cpi-v3", "cpin": "cpin-v2", "fetal-sex": "fetal-sex-v1",
         })
         self.assertEqual(metadata["plan_execution"], {
             "interface": "workflow-plan-execution-v2", "schema_version": 1,
-            "workflows": ["dnp-call", "snp-call", "contamination", "cpi", "cpin"], "scheduling": "dependency-order-with-bounded-independent-snp", "resume": False,
+            "workflows": ["dnp-call", "snp-call", "contamination", "cpi", "cpin", "fetal-sex"], "scheduling": "dependency-order-with-bounded-independent-snp", "resume": False,
         })
         self.assertEqual(metadata["preparation"]["interface"], "workflow-preparation-v1")
         self.assertEqual(metadata["scientific_validation"], {
             "interface": "scientific-validation-v1",
-            "input_workflows": ["dnp-call", "snp-call", "contamination", "cpi", "cpin"],
-            "output_workflows": ["dnp-call", "snp-call", "contamination", "cpi", "cpin"],
+            "input_workflows": ["dnp-call", "snp-call", "contamination", "cpi", "cpin", "fetal-sex"],
+            "output_workflows": ["dnp-call", "snp-call", "contamination", "cpi", "cpin", "fetal-sex"],
             "snp_alleles": "uppercase-working-copy",
             "snp_model": "SNPcall-2.0", "snp_output_columns": 17,
             "snp_panel_formats": ["chr-pos-ref-alt", "legacy-chr:pos-ref-alt"],

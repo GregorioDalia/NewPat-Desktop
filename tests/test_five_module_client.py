@@ -340,7 +340,7 @@ class FiveModuleClientTests(unittest.TestCase):
         self.assertEqual(result, 0)
         runner.assert_not_called()
         config = load_scientific_config(export)
-        self.assertEqual(set(config), {"dnp-call", "snp-call", "contamination", "cpi", "cpin"})
+        self.assertEqual(set(config), {"dnp-call", "snp-call", "contamination", "cpi", "cpin", "fetal-sex"})
         self.assertEqual(config["snp-call"]["min_base_quality"], 23)
 
     def test_scientific_config_rejects_silently_overwritten_modules_and_parameters(self):

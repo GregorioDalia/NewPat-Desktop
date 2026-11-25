@@ -47,7 +47,10 @@ class Job:
         self.log_revision = 0
         self.events = deque(maxlen=5)
         self.event_revision = 0
-        self.sample_labels = tuple(dict.fromkeys(sample["id"] for sample in prepared.draft["samples"]))
+        labels = [sample["id"] for sample in prepared.draft.get("samples", [])]
+        if prepared.draft.get("fetal_sex"):
+            labels.append(prepared.draft["fetal_sex"]["id"])
+        self.sample_labels = tuple(dict.fromkeys(labels))
         self.cancel_event = threading.Event()
         self.done = threading.Event()
         self.lock = threading.RLock()

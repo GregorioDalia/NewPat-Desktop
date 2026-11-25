@@ -117,6 +117,13 @@ def _result_basis(case, entry, language):
         return t(f"La tabella del campione riporta {observations} in totale, sommando i conteggi dei singoli siti.",
                  f"The sample table records {observations} in total across the individual sites.") + " " + method
 
+    if module == "fetal-sex":
+        return t("L’analisi utilizza tre tabelle dello stesso campione di DNA libero circolante materno. "
+                 "Confronta la media delle letture non materne nei DNP autosomici e del cromosoma X con la media "
+                 "delle letture REF e ALT negli SNP del cromosoma Y. I tre rapporti sono valutati con le soglie registrate.",
+                 "The analysis uses three tables from the same maternal cell-free DNA sample. It compares mean "
+                 "non-maternal reads at autosomal and X-chromosome DNPs with mean REF and ALT reads at Y-chromosome "
+                 "SNPs. The three ratios are evaluated using the recorded thresholds.")
     if module == "contamination":
         count = _read_count(measures.get("informative_sites"))
         if count is None:
@@ -240,6 +247,21 @@ def _outcome(entry, module, language, *, concise):
 
     summary = entry["summary"]
     measures = {m["key"]: m for m in summary["metrics"]}
+    if module == "fetal-sex":
+        call = measures["Fetal_sex"]
+        if not call["available"]:
+            return "nonassessable", t("Risultato non disponibile", "Result unavailable"), t(
+                "Il riepilogo archiviato non contiene una classificazione riconosciuta.",
+                "The archived summary contains no recognized classification.")
+        if call["value"] == "Undetermined":
+            return "inconclusive", t("Sesso fetale indeterminato", "Fetal sex undetermined"), t(
+                "I dati del campione non permettono di assegnare il sesso fetale con le soglie utilizzate.",
+                "The sample data do not establish fetal sex under the thresholds used.")
+        headline = t("Stima del sesso fetale: femminile", "Estimated fetal sex: female") if call["value"] == "F" else t(
+            "Stima del sesso fetale: maschile", "Estimated fetal sex: male")
+        return "descriptive", headline, t(
+            "La stima deriva dai marcatori del DNA libero circolante materno. Le soglie di classificazione sono preliminari.",
+            "This estimate uses markers from maternal cell-free DNA. The classification thresholds are preliminary.")
     primary = {"cpi": "CPI_medianFF", "cpin": "CPI", "contamination": "mean_contamination"}.get(module, "assigned")
     if module == "cpin" and not measures[primary]["available"] and measures["Log10_CPI"]["available"]:
         primary = "Log10_CPI"
@@ -353,6 +375,38 @@ def _details(store, run_id, case, entry, result):
 
     module = case["module"]
     overview_metrics = {m["key"]: m for m in entry["summary"]["metrics"]}
+    if module == "fetal-sex":
+        points = []
+        for i, (key, label) in enumerate((("MFF_A", t("Autosomi", "Autosomes")), ("MFF_X", "X"), ("MFF_Y", "Y"))):
+            value = _number(overview_metrics[key]["value"])
+            if value is not None:
+                points.append((label, i, value))
+        result["chart"] = _chart(t("Letture medie per sito", "Mean reads per site"), "bar", "",
+                                 t("Letture", "Reads"), points)
+        if result["chart"]:
+            result["chart"]["caption"] = t(
+                "Sugli autosomi e su X si contano le letture non materne. Su Y si contano le letture REF e ALT.",
+                "Autosomal and X counts include non-maternal reads. Y counts include REF and ALT reads.")
+        result["tables"] = []
+        keys_by_file = {"Autosomal_informative_sites.txt": ("chr", "pos1", "pos2", "fetal_reads"),
+                        "X_informative_sites.txt": ("chr", "pos1", "pos2", "fetal_reads"),
+                        "Y_sites.txt": ("chr", "pos", "Y_reads", "Included")}
+        for name, keys in keys_by_file.items():
+            file_id = entry["site_tables"].get(name)
+            if not file_id:
+                result["notes"].append(t("Tabella dei siti non disponibile", "Site table unavailable") + f" ({name}).")
+                continue
+            table = _detail_table(store, run_id, file_id)
+            columns = {col["key"]: col for col in table["columns"]}
+            if not all(key in columns for key in keys):
+                raise ValueError("Missing site columns.")
+            result["tables"].append({
+                "title": table["file"]["label"],
+                "columns": [columns[k]["label"] for k in keys],
+                "rows": [[_display(row[k], columns[k], lang) for k in keys] for row in table["rows"]],
+                "note": t(f"Righe mostrate: {len(table['rows'])} di {table['total']}.",
+                          f"Rows shown: {len(table['rows'])} of {table['total']}.")})
+        return
     count_keys = (("hom_ref", "heterozygous", "hom_alt", "unassigned") if module in {"dnp-call", "snp-call"} else
                   ("Matching_sites", "Mismatching_sites", "No_obligatory_allele_sites") if module == "cpin" else ())
     if count_keys:
@@ -445,7 +499,8 @@ def _build_selected_report(store, run_id, selected, record, *, detailed):
     for metric in entry["metrics"]:
         if metric["key"] not in metrics:
             metrics[metric["key"]] = _pair(metric["label"], _display(metric["value"], metric, lang))
-    facts = {"cpi": ("CPI_medianFF", "paternal_used_at_median", "Median_fetal_fraction_percent"),
+    facts = {"fetal-sex": ("N_A_sites", "N_X_sites", "N_Y_sites_used"),
+             "cpi": ("CPI_medianFF", "paternal_used_at_median", "Median_fetal_fraction_percent"),
              "cpin": ("CPI", "Log10_CPI", "N_sites"), "contamination": ("mean_contamination", "informative_sites"),
              "dnp-call": ("assigned", "site_count", "unassigned"), "snp-call": ("assigned", "site_count", "unassigned")}
     if not detailed and case["module"] in {"cpi", "cpin"}:

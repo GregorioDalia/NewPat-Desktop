@@ -780,16 +780,18 @@ class Workflows:
     def analyze(self, *, caller: str, analyses: list[str], run_name: str | None = None,
                 **inputs) -> Path:
         """Any subset of Contamination, prenatal CPI and postnatal CPI, independently for SNP/DNP."""
-        from nipat.execution.analysis_plan import build_analysis_plan
+        from nipat.execution.analysis_plan import build_analysis_plan, fetal_sex_metadata
         plan, mounts, input_files, mapping, branch_analyses = build_analysis_plan(
             layout=self.layout, caller=caller, analyses=analyses, **inputs)
         plan = self._validate_plan(plan)["plan"]
+        sex_tables = [item for item in mapping if "fetal_sex_role" in item]
         run_dir = self.layout.new_run_dir("analysis", run_name)
         with self._record_run(
             run_dir, workflow="analysis", inputs=input_files, mounts=mounts,
             bundled_workflow="workflow-plan-all", parameters={
                 "caller": caller, "analyses": analyses,
                 "analyses_by_marker": branch_analyses,
+                **({"fetal_sex": fetal_sex_metadata(sex_tables)} if sex_tables else {}),
                 "sample_mapping": mapping,
                 "expected_steps": _expected_steps(plan), "plan": plan},
         ):
@@ -800,6 +802,28 @@ class Workflows:
                  self.layout.container_path(plan_file), "--run-dir",
                  self.layout.container_path(run_dir / "output" / "workflow")],
                 working_dir=self.layout.container_path(run_dir / "work"))
+        return run_dir
+
+    def fetal_sex(self, *, autosomes: Path, x: Path, y: Path, run_name: str | None = None) -> Path:
+        """Analyze three region-specific calling tables from one maternal cfDNA sample."""
+        from nipat.execution.analysis_plan import bind_fetal_sex_tables, fetal_sex_metadata
+
+        mounts = InputMounts(self.layout)
+        mapping = bind_fetal_sex_tables(mounts, autosomes, x, y)
+        run_dir = self.layout.new_run_dir("fetal-sex", run_name)
+        with self._record_run(run_dir, workflow="fetal-sex", bundled_workflow="fetal-sex", mounts=mounts,
+                              inputs=[Path(item["original_path"]) for item in mapping],
+                              parameters={"fetal_sex": fetal_sex_metadata(mapping), "sample_mapping": mapping}):
+            request_file = run_dir / "work" / "engine-request.json"
+            self._write_request(request_file, {
+                "schema_version": 1, "workflow": "fetal-sex",
+                **{item["fetal_sex_role"]: item["container_path"] for item in mapping},
+                "work_dir": str(self.layout.container_path(run_dir / "work")),
+                "out_dir": str(self.layout.container_path(run_dir / "output")),
+            })
+            self.runner.run(["python3", "/opt/nipat/engine/main.py", "execute", "fetal-sex",
+                             "--request", self.layout.container_path(request_file)],
+                            working_dir=self.layout.container_path(run_dir / "work"))
         return run_dir
 
     def cpin(self, *, input_dir: Path, trios: str, mother_prefix: str = "Mother",

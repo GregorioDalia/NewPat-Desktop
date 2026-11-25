@@ -1,6 +1,6 @@
 # Scientific programs and reference models
 
-NewPat packages five R programs from [DNPcall](https://github.com/fravasini/DNPcall) and [NEWPAT](https://github.com/lpistacchia/NEWPAT). The image includes R, samtools, their dependencies and the `nipat_scientific` preparation library. Before execution the engine checks all five operational scripts against [SHA256SUMS](SHA256SUMS). Analyses use the copies inside the verified image. The host client owns file selection and run records.
+NewPat packages six R programs from [DNPcall](https://github.com/fravasini/DNPcall) and [NEWPAT](https://github.com/lpistacchia/NEWPAT). The image includes R, samtools, their dependencies and the `nipat_scientific` preparation library. Before execution the engine checks all six operational scripts against [SHA256SUMS](SHA256SUMS). Analyses use the copies inside the verified image. The host client owns file selection and run records.
 
 | Workflow | Bundled source |
 | --- | --- |
@@ -9,6 +9,7 @@ NewPat packages five R programs from [DNPcall](https://github.com/fravasini/DNPc
 | Contamination | [detect_contamination.R](vendor/NEWPAT/contamination/detect_contamination.R) |
 | Prenatal CPI | [cfDNA_CPI_estimator.R](vendor/NEWPAT/CPI_from_cffDNA/cfDNA_CPI_estimator.R) |
 | Postnatal CPI | [Postnatal_CPI.R](vendor/NEWPAT/CPI_postnatal/Postnatal_CPI.R) |
+| Fetal sex | [Fetal_sex.R](vendor/NEWPAT/Fetal_sex/Fetal_sex.R) |
 
 <a id="provenienza-e-identità"></a>
 
@@ -57,6 +58,10 @@ Inputs are explicit maternal cfDNA–father pairs, compatible SNP/DNP population
 ## Postnatal CPI
 
 Postnatal CPI takes mother–father–child trios and SNP/DNP frequencies. The module caches shared samples and schedules trios within the common budget. Optional minimum coverage applies to each trio member. Users can select any nonempty subset of the four compatible mother–child genotype combinations. Sites with an obligatory paternal allele use a transmission or mismatch weight divided by its population frequency. Heterozygous mother–child sites contribute 1/(f_REF + f_ALT). Each trio yields one CPI, its base-10 logarithm, and a table of sites with inclusion and exclusion details. With zero eligible sites both index fields are `NA`. [Postnatal settings and output](vendor/NEWPAT/CPI_postnatal/README.md)
+
+## Fetal sex
+
+NewPat runs the upstream R script from [NEWPAT revision dde1a75](https://github.com/lpistacchia/NEWPAT/tree/dde1a759e4b994a42ec9c9651f896394c546b109/Fetal_sex). The three inputs come from one maternal cfDNA sample: autosomal and X DNP counts, and Y SNP counts. Use X and Y panels previously validated for specificity. For the two published examples the expected ratios (A, B, C) are (1, 0, 0) with outcome F and (0.125, 1.5, 12) with outcome M. Missing ratios or a combination outside both sets of thresholds gives Undetermined. The author describes the thresholds as preliminary.
 
 ## Configuration and verification
 

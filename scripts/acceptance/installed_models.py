@@ -73,6 +73,54 @@ def tree_hashes(root: Path) -> dict[str, str]:
             for path in sorted(root.rglob("*")) if path.is_file()}
 
 
+FETAL_SEX_EXAMPLES = ("Female_fetus", "Male_fetus")
+FETAL_SEX_OUTPUTS = ("Fetal_sex_summary.txt", "Autosomal_informative_sites.txt",
+                     "X_informative_sites.txt", "Y_sites.txt")
+# Digest of the 14 path/SHA256 pairs from Letizia's two examples at dde1a759.
+FETAL_SEX_FIXTURE_DIGEST = "60a792950aa0876cbd1d40ebd0a4574663c574e96f35063f716b90bdab4d7f63"
+
+
+def fetal_sex_inputs(fixture, sample):
+    return [fixture / "inputs" / f"{sample}_{suffix}.txt" for suffix in ("autosomes", "X", "Y")]
+
+
+def copy_fetal_sex_fixtures(source, destination):
+    paths = [path for sample in FETAL_SEX_EXAMPLES for path in fetal_sex_inputs(source, sample)]
+    paths.extend(source / "outputs" / sample / name for sample in FETAL_SEX_EXAMPLES for name in FETAL_SEX_OUTPUTS)
+    hashes = {}
+    for path in paths:
+        relative = path.relative_to(source)
+        require(path.is_file() and path.resolve() == path.absolute(), f"Missing or linked reference table: {relative}")
+        target = destination / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(path, target)
+        hashes[relative.as_posix()] = file_hash(target)
+    fingerprint = hashlib.sha256(json.dumps(hashes, sort_keys=True).encode("ascii")).hexdigest()
+    require(fingerprint == FETAL_SEX_FIXTURE_DIGEST, "Fetal-sex reference cases differ from the published examples")
+    return hashes
+
+
+def check_fetal_sex(run, fixture, sample):
+    output = run / "output"
+    hashes = {}
+    for name in FETAL_SEX_OUTPUTS:
+        hashes[name] = file_hash(output / name)
+        require(hashes[name] == file_hash(fixture / "outputs" / sample / name),
+                f"Fetal-sex result differs from the published {sample}/{name}")
+    summary, = table(output / "Fetal_sex_summary.txt", {"Sample", "Fetal_sex"})
+    return {"sample": summary["Sample"], "fetal_sex": summary["Fetal_sex"], "output_sha256": hashes}
+
+
+def fetal_sex_cases(fixture):
+    cases = []
+    for sample in FETAL_SEX_EXAMPLES:
+        autosomes, x, y = fetal_sex_inputs(fixture, sample)
+        cases.append({"id": "fetal-sex-" + sample.lower().replace("_", "-"), "category": "model", "mode": "auto",
+                      "args": ["fetal-sex", "--autosomes", autosomes, "--x", x, "--y", y],
+                      "validate": partial(check_fetal_sex, fixture=fixture, sample=sample)})
+    return cases
+
+
 def settings_expected(workflow, minimum, percent, coverage, include_hom_het, include_zero):
     """Explicit model defaults; observed settings never define the oracle."""
     if workflow == "contamination":

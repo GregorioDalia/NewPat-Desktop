@@ -482,6 +482,12 @@ def _numeric_warnings(row: dict, columns: set[str], path: Path, number: int, *, 
 
 
 def _collect_outputs_unchecked(step: dict, request: dict, root: Path, output_dir: Path) -> dict:
+    if step["workflow"] == "fetal-sex":
+        from nipat_scientific.fetal_sex import SUMMARY, SITE_TABLES, validate_tables
+        validate_tables(request, output_dir)
+        return {"summary": _artifact(output_dir / SUMMARY, root, output_dir),
+                "fetal-sex-sites": {role: _artifact(output_dir / name, root, output_dir)
+                                    for role, name in SITE_TABLES.items()}, "quality_warnings": []}
     if step["workflow"] == "cpin":
         return _collect_cpin_outputs(step, request, root, output_dir)
     if step["workflow"] == "cpi":
@@ -657,7 +663,7 @@ def validate_standalone_outputs(request: dict) -> dict:
                              "father": {"sample": father}, "child": {"sample": child},
                              "native_trio": f"Mother{mother}-Father{father}-Child{child}_{marker}s"})
         step["native_bindings"] = bindings
-    else:
+    elif workflow == "cpi":
         bindings = []
         for pair in request["pairs"].split(","):
             mother, father = [value.strip() for value in pair.split(":")]

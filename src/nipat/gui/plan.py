@@ -23,7 +23,7 @@ from nipat_scientific.panels import read_dnp_list, read_snp_positions
 from nipat_scientific.plan import validate_plan
 
 _DRAFT_FIELDS = {"name", "caller", "samples", "branches", "reference", "resources",
-                 "families", "scientific_settings", "execution", "reference_id", "reference_genome"}
+                 "families", "fetal_sex", "scientific_settings", "execution", "reference_id", "reference_genome"}
 _RESOURCE_FIELDS = {"panel", "popfreq", "contamination_panel", "cpi_cutoffs", "cpin_panel"}
 _KINDS = {"bam": "samples", "snp-pileup": "pileups", "dnp-table": "dnp_tables",
           "snp-table": "snp_tables"}
@@ -180,6 +180,17 @@ def prepare_analysis(draft: dict, layout: ProjectLayout,
             rows.append(tuple(_text(row.get(k), "Famiglia: " + k, maximum=48)
                               for k in ("id", *roles)))
         inputs[key] = rows
+    if draft.get("fetal_sex") is not None:
+        fetal = _object(draft["fetal_sex"], "Fetal sex", {"id", "autosomes", "x", "y"})
+        sample_id = _text(fetal.get("id"), "Maternal cfDNA sample ID" if language == "en" else
+                          "ID del campione di cfDNA materno", maximum=48)
+        paths = [_path(fetal.get(role), role) for role in ("autosomes", "x", "y")]
+        if any(path is None for path in paths):
+            raise ValidationError("Choose the autosomal DNP, X DNP and Y SNP count tables."
+                                  if language == "en" else
+                                  "Seleziona le tre tabelle di conteggi: DNP autosomici, DNP X e SNP Y.")
+        inputs["fetal_sex"] = (sample_id, *paths)
+        draft["fetal_sex"]["id"] = sample_id
     settings = deepcopy(preferences.scientific_settings)
     for module, values in normalize_config(draft.get("scientific_settings", {})).items():
         settings.setdefault(module, {}).update(values)

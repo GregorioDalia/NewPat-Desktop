@@ -226,7 +226,7 @@
       const igv = igvFigure(model.igv, l);
       if (igv) content.push(igv);
       if (model.metrics.length) content.push(section(l.metrics), keyValues(model.metrics));
-      if (model.table) content.push(...tableSection(model.table));
+      for (const table of model.tables || (model.table ? [model.table] : [])) content.push(...tableSection(table));
       if (model.result_basis) {
         const tab = { 'dnp-call': 'DNP', 'snp-call': 'SNP' }[model.workflow] || model.module;
         const isFamily = model.workflow === 'cpi' || model.workflow === 'cpin';

@@ -29,8 +29,10 @@ because they were produced with NewPat, place scientific results under the GPL.
 
 | Component | Upstream source | Included license and scope |
 | --- | --- | --- |
-| NEWPAT | <https://github.com/lpistacchia/NEWPAT> | [Upstream LICENSE](scientific/vendor/NEWPAT/LICENSE), containing the GNU GPL version 3 text. Includes the supplied SNPcall, prenatal CPI, postnatal CPI and Contamination files and accompanying examples. |
+| NEWPAT | <https://github.com/lpistacchia/NEWPAT> | [Upstream LICENSE](scientific/vendor/NEWPAT/LICENSE), containing the GNU GPL version 3 text. Includes the supplied SNPcall, prenatal CPI, postnatal CPI, fetal sex and Contamination files and accompanying examples. |
 | DNPcall | <https://github.com/fravasini/DNPcall> | [Upstream LICENSE](scientific/vendor/DNPcall/LICENSE), containing the GNU GPL version 3 text. Covers the bundled DNPcall R program. |
+
+The bundled fetal sex script and its example tables come from [NEWPAT revision dde1a75](https://github.com/lpistacchia/NEWPAT/tree/dde1a759e4b994a42ec9c9651f896394c546b109/Fetal_sex).
 
 These components retain their original authorship, license texts and notices.
 NewPat uses the complete SNPcall 2.0 scientific core from NEWPAT commit

@@ -49,6 +49,7 @@ CPI_REFERENCE_SHA256 = {
     "CPI_from_cffDNA/cfDNA_CPI_estimator.R": "263b517d37532b724f429b9ee883a64d748a8d5d2398444f2956d6eda3a2ac81",
     "contamination/detect_contamination.R": "afbbf20b937dfef356d0046e18ffff3d6746113ae771dd87745369b3e64081ca"
 }
+FETAL_SEX_SOURCE = "scientific/vendor/NEWPAT/Fetal_sex/Fetal_sex.R"
 CPIN_SOURCE = "scientific/vendor/NEWPAT/CPI_postnatal/Postnatal_CPI.R"
 ANALYSIS_HELPERS = ("__init__.py", "errors.py", "settings.py", "settings.R", "settings_data.json", "parallel.R", "plots.R")
 CALLER_SUPPORTING_SOURCES = tuple("src/nipat_scientific/" + name for name in (
@@ -319,6 +320,8 @@ def reviewable_path(path, *, reliability=False, multiplatform=False, revised_r=F
     # does not qualify the image; schema 7 still requires fresh installed-image
     # evidence. Other reports require their own version-scoped exception.
     if revised_r and five_module_contract(version) and path == "docs/validation/0.8.50-development.json":
+        return True
+    if revised_r and revised_cpi_contract(version) and path == FETAL_SEX_SOURCE:
         return True
     if revised_r and five_module_contract(version) and path == CPIN_SOURCE:
         return True
@@ -973,7 +976,27 @@ def verify_analysis_qualification(record, evidence_directory, read_source):
             "scope": "synthetic-independent-oracles-and-upstream-models", "domain_validation_claimed": False}
 
 
-def verify_caller_parallel_qualification(archive, image):
+def verify_fetal_sex_examples(report, source):
+    """Compare the two source-free client results with the exact candidate's reference tables."""
+    examples = report.get("fetal_sex_examples")
+    cases = {"Female_fetus": "F", "Male_fetus": "M"}
+    require(isinstance(examples, dict) and set(examples) == set(cases),
+            "Both source-free fetal-sex examples must be present")
+    root = "tests/fixtures/fetal_sex"
+    outputs = ("Fetal_sex_summary.txt", "Autosomal_informative_sites.txt", "X_informative_sites.txt", "Y_sites.txt")
+    for name, sex in cases.items():
+        case = examples[name]
+        require(isinstance(case, dict) and case.get("sample") == name + "_autosomes" and case.get("call") == sex,
+                "Fetal-sex example has the wrong call or maternal sample")
+        names = [f"{name}_{suffix}.txt" for suffix in ("autosomes", "X", "Y")]
+        for field, directory, required in (("input_sha256", f"{root}/inputs", names),
+                                           ("output_sha256", f"{root}/outputs/{name}", outputs)):
+            require(case.get(field) == {filename: hashlib.sha256(source(f"{directory}/{filename}")).hexdigest()
+                                        for filename in required},
+                    f"Fetal-sex example {name} {field} differs from the Git fixture")
+
+
+def verify_caller_parallel_qualification(archive, image, *, version, source):
     """Recheck the exact-image acquisition and composed SNP proofs from 0.9.9."""
     filename = "caller-parallel-qualification.json"
     with zipfile.ZipFile(archive) as handle:
@@ -1032,7 +1055,11 @@ def verify_caller_parallel_qualification(archive, image):
                 and all(isinstance(worker, dict) and worker.get("maximum_planned_workers") == 1
                         and worker.get("observed_child_pids") == [] for worker in inner.values()),
                 "SNP workflow multiplied its shared parallel budget inside a sample")
-    return {"acquisitions_verified": sorted(acquisitions),
+    fetal_sex_checked = revised_cpi_contract(version)
+    if fetal_sex_checked:
+        verify_fetal_sex_examples(report, source)
+    return {**({"fetal_sex_examples_verified": sorted(report["fetal_sex_examples"])} if fetal_sex_checked else {}),
+            "acquisitions_verified": sorted(acquisitions),
             "workflow_identical_tables": workflow["identical_scientific_tables"]}
 
 
@@ -1148,6 +1175,8 @@ def verify_scientific_equivalence(record, evidence_directory, manifest, read_sou
     candidate_hashes = {path: hashlib.sha256(source(commit, path)).hexdigest() for path in workflows}
     all_hashes = {path: hashlib.sha256(source(commit, path)).hexdigest()
                   for path in set(R_WORKFLOWS) | ({CPIN_SOURCE} if five_modules else set())}
+    if revised_cpi_contract(record["version"]):
+        all_hashes[FETAL_SEX_SOURCE] = hashlib.sha256(source(commit, FETAL_SEX_SOURCE)).hexdigest()
     require(report.get("candidate_r_sha256") == candidate_hashes,
             "Scientific equivalence was performed on different candidate R sources")
     try:
@@ -1229,7 +1258,8 @@ def verify_scientific_equivalence(record, evidence_directory, manifest, read_sou
                 hashlib.sha256(source(commit, helper["path"])).hexdigest(),
                 "Scientific focused comparison failed or used different test sources")
     analysis = verify_analysis_qualification(record, evidence_directory, read_source) if five_modules else None
-    callers = (verify_caller_parallel_qualification(archive, evidence["runtime_image"])
+    callers = (verify_caller_parallel_qualification(archive, evidence["runtime_image"],
+                                                   version=record["version"], source=lambda path: source(commit, path))
                if measured_sample_contract(record["version"]) else None)
     return {"source_commit": commit, "reference_source_commit": R_REFERENCE_COMMIT,
             **({"native_r_qualification": native} if native is not None else {}),

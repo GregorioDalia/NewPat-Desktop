@@ -55,6 +55,8 @@ def installation_checks(version):
     checks = INSTALLATION_CHECKS | (WORKFLOW_INSTALLATION_CHECKS if not version.startswith("0.6.") else set())
     if tuple(map(int, re.match(r"(\d+)\.(\d+)\.(\d+)", version).groups())) >= (0, 8, 50):
         checks = (checks - {"all_four_workflows"}) | {"all_five_workflows"}
+    if tuple(map(int, re.match(r"(\d+)\.(\d+)\.(\d+)", version).groups())) >= (0, 9, 10):
+        checks.add("fetal_sex_example")
     return checks
 
 

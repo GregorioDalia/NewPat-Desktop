@@ -71,7 +71,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--set", dest="scientific_overrides", action="append", default=[],
                         metavar="MODULO.PARAMETRO=VALORE", help="sovrascrive un parametro scientifico; ripetibile")
     subparsers = parser.add_subparsers(dest="command", required=True)
-    settings = subparsers.add_parser("settings", help="mostra parametri effettivi, predefiniti e costanti dei cinque moduli")
+    settings = subparsers.add_parser("settings", help="mostra parametri effettivi, predefiniti e costanti dei moduli")
     settings.add_argument("workflow", nargs="?", choices=WORKFLOWS)
     settings.add_argument("--json", action="store_true", help="schema dei parametri e valori effettivi")
     settings.add_argument("--export", type=_path, help="salva un JSON riutilizzabile con --scientific-config")
@@ -80,11 +80,11 @@ def build_parser() -> argparse.ArgumentParser:
     doctor.add_argument(
         "--runtime",
         action="store_true",
-        help="verifica R, samtools e i cinque workflow nell'immagine scientifica",
+        help="verifica R, samtools e i workflow nell'immagine scientifica",
     )
 
     subparsers.add_parser("build-runtime", help="costruisce l'immagine R/samtools")
-    subparsers.add_parser("wizard", help="avvia la CLI guidata per i cinque workflow")
+    subparsers.add_parser("wizard", help="avvia la CLI guidata per i workflow")
     gui = subparsers.add_parser("gui", help="avvia l’applicazione desktop con visualizzatore IGV")
     gui.add_argument("--smoke-test", action="store_true", help=argparse.SUPPRESS)
     gui.add_argument("--smoke-report", type=_path, help=argparse.SUPPRESS)
@@ -158,6 +158,8 @@ def build_parser() -> argparse.ArgumentParser:
         analyze.add_argument(f"--{marker}-cpi-cutoff", nargs=2, action="append", metavar=("LABEL", "PATH"),
                              help="cutoff CPI etichettato; ripetibile; se omesso usa ALL")
         analyze.add_argument(f"--{marker}-cpin-panel", type=_path, help="pannello CPI postnatale con coordinate e alleli REF/ALT; se omesso usa tutti i siti")
+    analyze.add_argument("--fetal-sex", nargs=4, metavar=("SAMPLE_ID", "AUTOSOMES", "X", "Y"),
+                         help="ID del campione cfDNA materno e le sue tre tabelle DNP autosomi, DNP X e SNP Y")
     analyze.add_argument("--run-name")
     dnp_contamination = workflow_presets.add_parser(
         "dnp-contamination",
@@ -276,6 +278,11 @@ def build_parser() -> argparse.ArgumentParser:
     cpin.add_argument("--popfreq", type=_path, required=True)
     cpin.add_argument("--panel", type=_path, help="pannello con coordinate SNP/DNP e REF/ALT; se omesso usa tutti i siti")
     cpin.add_argument("--run-name")
+    sex = subparsers.add_parser("fetal-sex", help="stima del sesso fetale da tre tabelle dello stesso campione di cfDNA materno")
+    sex.add_argument("--autosomes", type=_path, required=True, help="conteggi DNP autosomici")
+    sex.add_argument("--x", "--X", type=_path, required=True, help="conteggi DNP del cromosoma X")
+    sex.add_argument("--y", "--Y", type=_path, required=True, help="conteggi SNP del cromosoma Y")
+    sex.add_argument("--run-name")
     return parser
 
 
@@ -301,7 +308,7 @@ def main(argv: list[str] | None = None) -> int:
         if getattr(args, name) is not None
     }
     if execution_overrides and args.command not in {
-        "wizard", "workflow", "dnp-call", "snp-call", "contamination", "cpi", "cpin",
+        "wizard", "workflow", "dnp-call", "snp-call", "contamination", "cpi", "cpin", "fetal-sex",
     }:
         parser.error("Le opzioni di provenienza, risorse e prestazioni si applicano alle analisi e al wizard; "
                      "rimuoverle per diagnostica, autotest e manutenzione.")
@@ -466,6 +473,7 @@ def main(argv: list[str] | None = None) -> int:
                     caller=args.caller, analyses=[part.strip().lower() for part in args.analyses.split(",") if part.strip()],
                     samples=args.sample, pileups=args.pileup, dnp_tables=args.dnp_table, snp_tables=args.snp_table,
                     pairs=args.pair, trios=args.trio, reference=args.reference,
+                    **({"fetal_sex": args.fetal_sex} if args.fetal_sex else {}),
                     **{key: getattr(args, key) for key in (
                         "dnp_panel", "snp_panel", "dnp_popfreq", "snp_popfreq",
                         "dnp_contamination_panel", "snp_contamination_panel", "dnp_cpin_panel", "snp_cpin_panel")},
@@ -538,6 +546,9 @@ def main(argv: list[str] | None = None) -> int:
                 err_const=args.err_const,
                 run_name=args.run_name,
             )
+            print(f"{completion_label}: {run_dir}")
+        elif args.command == "fetal-sex":
+            run_dir = workflows.fetal_sex(autosomes=args.autosomes, x=args.x, y=args.y, run_name=args.run_name)
             print(f"{completion_label}: {run_dir}")
         elif args.command == "cpin":
             run_dir = workflows.cpin(input_dir=args.input_dir, trios=args.trios,

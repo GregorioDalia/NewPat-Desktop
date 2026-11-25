@@ -114,7 +114,7 @@ def check_bundled_run(run_dir: Path, layout: ProjectLayout, *, workflow: str = "
     runtime = record["runtime"]
     engine = runtime.get("engine", {})
     interfaces = {"dnp-call": "dnp-call-v1", "snp-call": "snp-call-v2",
-                  "contamination": "contamination-v2", "cpi": "cpi-v3", "cpin": "cpin-v2"}
+                  "contamination": "contamination-v2", "cpi": "cpi-v3", "cpin": "cpin-v2", "fetal-sex": "fetal-sex-v1"}
     if (record["status"] != "succeeded" or record["source"].get("role") != "client"
             or record.get("workflow") != workflow
             or engine.get("workflow_interfaces", {}) != interfaces
@@ -125,12 +125,12 @@ def check_bundled_run(run_dir: Path, layout: ProjectLayout, *, workflow: str = "
     required = {"engine/main.py", *(f"lib/nipat_scientific/{name}.py" for name in (
         "__init__", "errors", "panels", "files", "contamination", "snp", "snp_summary", "snp_parallel", "dnp", "cpi",
         "catalog", "plan", "executor", "outputs", "presentation", "performance",
-        "scratch", "dnp_pileup", "progress", "parallel", "cpin", "settings",
+        "scratch", "dnp_pileup", "progress", "parallel", "cpin", "fetal_sex", "settings",
     )), "lib/nipat_scientific/presentation.R", "lib/nipat_scientific/progress.R",
         "lib/nipat_scientific/dnp_blocks.R", "lib/nipat_scientific/parallel.R", "lib/nipat_scientific/plots.R",
         "lib/nipat_scientific/settings.R", "lib/nipat_scientific/settings_data.json",
         *(f"lib/nipat_scientific/catalog_data/{name}.json" for name in (
-        "dnp-call", "snp-call", "contamination", "cpi", "cpin",
+        "dnp-call", "snp-call", "contamination", "cpi", "cpin", "fetal-sex",
     ))}
     if engine.get("desktop_scheduling") == "step-budget-v1":
         required.add("lib/nipat_scientific/desktop_scheduling.py")

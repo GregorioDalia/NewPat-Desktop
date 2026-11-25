@@ -178,7 +178,7 @@ def check_count_panel(path: Path) -> None:
 class WorkflowForm:
     """Retain values in memory; no run is created until the caller executes it."""
 
-    TITLES = {"1": "DNPcall", "2": "SNPcall", "3": "Contamination", "4": "CPI"}
+    TITLES = {"1": "DNPcall", "2": "SNPcall", "3": "Contamination", "4": "CPI", "f": "Sesso fetale"}
 
     def __init__(self, choice: str, ui: Any, layout: ProjectLayout, err_const: float,
                  *, defaults: dict[str, Any] | None = None):
@@ -203,6 +203,10 @@ class WorkflowForm:
                        if values.get("mode") == "2" else [Field("bams", "BAM", "files")])
             result += [Field("reference", "File FASTA di riferimento", "file", check=check_reference),
                        Field("panel", "Pannello DNP", "file", check=read_dnp_list)]
+        elif self.choice == "f":
+            result = [Field("autosomes", "Tabella DNP autosomica del cfDNA materno", "file"),
+                      Field("x", "Tabella DNP del cromosoma X dello stesso campione", "file"),
+                      Field("y", "Tabella SNP del cromosoma Y dello stesso campione", "file")]
         elif self.choice == "2":
             result = [Field("mode", "Input SNPcall", "choice", "1", options=(
                 ("1", "BAM e riferimento", "Preparazione automatica del pileup"),
@@ -248,6 +252,9 @@ class WorkflowForm:
     def _guide(self, field: Field, default: str = "") -> None:
         """Keep instructions beside the input they describe, including retries."""
         guides = {
+            "autosomes": "Selezionare i conteggi DNP autosomici di un campione di cfDNA materno.",
+            "x": "Selezionare i conteggi DNP dei marcatori X validati per specificità.",
+            "y": "Selezionare i conteggi SNP dei marcatori Y validati per specificità.",
             "bams": "Selezionare uno o piu' file BAM: incollare un percorso per volta e premere Invio.",
             "bam": "Incollare il percorso di un singolo file BAM. NewPat preparera' il pileup per SNPcall.",
             "bamlist": "Scegliere un file di testo con un percorso BAM per riga, senza intestazione. I percorsi nella lista sono relativi alla cartella della lista stessa, oppure completi.",
@@ -625,6 +632,8 @@ class WorkflowForm:
     def arguments(self) -> dict[str, Any]:
         v = self.values
         common = {"run_name": v["run_name"]}
+        if self.choice == "f":
+            return {**common, "autosomes": v["autosomes"], "x": v["x"], "y": v["y"]}
         if self.choice == "1":
             return {**common, "bams": v["bams"] if v["mode"] == "1" else None,
                     "bamlist": v["bamlist"] if v["mode"] == "2" else None,

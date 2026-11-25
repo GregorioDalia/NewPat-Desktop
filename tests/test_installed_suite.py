@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -177,9 +178,58 @@ class InstalledSuiteTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         document = json.loads(result.stdout)
-        expected = {"dnp-call", "snp-call", "contamination", "cpi", "cpin"}
+        expected = {"dnp-call", "snp-call", "contamination", "cpi", "cpin", "fetal-sex"}
         self.assertEqual(set(document["modules"]), expected)
         self.assertEqual(set(document["effective"]), expected)
+
+    def test_settings_select_sixth_module_only_on_capable_installations(self):
+        original = dict.fromkeys(("dnp-call", "snp-call", "contamination", "cpi", "cpin"), {})
+        def probe(modules):
+            payload = json.dumps({"modules": modules, "effective": modules})
+            with patch.object(self.driver, "probe", return_value=self.process_result(stdout=payload, code=0)):
+                self.driver.probe_scientific_modules()
+        probe(original)
+        self.assertNotIn("fetal-sex", self.driver.report["modules"])
+        (self.app / "tests/fixtures/fetal_sex").mkdir(parents=True)
+        with self.assertRaisesRegex(ValueError, "fetal-sex"):
+            probe(original)
+        probe({**original, "fetal-sex": {}})
+        self.assertIn("fetal-sex", self.driver.report["modules"])
+
+    def test_published_fetal_sex_cases_validate_all_tables_and_pin_the_copy(self):
+        with patch.object(sys, "path", [str(suite.HARNESS), *sys.path]):
+            import installed_models as models
+            import installed_workflows as workflows
+        source = ROOT / "tests/fixtures/fetal_sex"
+        fixture = self.driver.fixtures / "fetal_sex"
+        hashes = models.copy_fetal_sex_fixtures(source, fixture)
+        self.assertEqual(len(hashes), 14)
+        cases = models.fetal_sex_cases(fixture)
+        self.assertEqual([case["mode"] for case in cases], ["auto", "auto"])
+        for case, sample, call in zip(cases, ("Female_fetus", "Male_fetus"), ("F", "M"), strict=True):
+            run = self.driver.runs / sample
+            shutil.copytree(fixture / "outputs" / sample, run / "output")
+            self.assertEqual(case["args"][2::2], models.fetal_sex_inputs(fixture, sample))
+            self.assertEqual(case["validate"](run)["fetal_sex"], call)
+            for name in models.FETAL_SEX_OUTPUTS:
+                with self.subTest(case=sample, table=name):
+                    output = run / "output" / name
+                    output.write_bytes(output.read_bytes() + b"altered")
+                    with self.assertRaisesRegex(ValueError, re.escape(name)):
+                        case["validate"](run)
+                    shutil.copyfile(fixture / "outputs" / sample / name, output)
+        metadata = {"combined": self.root, "positive": self.root,
+                    "bams": [self.root / f"sample{i}.bam" for i in range(3)],
+                    "pileups": [self.root / f"sample{i}.pileup" for i in range(3)]}
+        combined = workflows.build_cases(self.driver.fixtures, self.driver.generated, metadata, fetal_sex=fixture)
+        six = [case for case in combined if case.get("compare_group") == "all-six"]
+        self.assertEqual({case["mode"] for case in six}, {"serial", "auto", "cap2"})
+        for case in six:
+            self.assertEqual(case["args"][-5:], ["--fetal-sex", "maternal_cfDNA",
+                             *models.fetal_sex_inputs(fixture, "Female_fetus")])
+        shutil.copyfile(fixture / "outputs/Female_fetus/Y_sites.txt", fixture / "outputs/Male_fetus/Y_sites.txt")
+        with self.assertRaisesRegex(ValueError, "differ from the published"):
+            models.copy_fetal_sex_fixtures(fixture, self.driver.generated)
 
     def test_probe_failure_surfaces_the_actual_diagnostic_in_the_report_error(self):
         for stdout, stderr, expected in (("", "Specific CLI rejection", "Specific CLI rejection"),

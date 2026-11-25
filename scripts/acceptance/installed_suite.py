@@ -168,7 +168,7 @@ class Suite:
                        "expected_installation": {"version": installation_version, "source_commit": installation_commit},
                        "started_utc": utc(), "harness_source_commit": commit,
                        "status": "RUNNING", "app_dir": str(self.app), "session": str(self.session),
-                       "scope": "Cinque moduli, oracoli analitici indipendenti e workflow sintetici sul client installato.",
+                       "scope": "Moduli del client installato, oracoli numerici e workflow sintetici.",
                        "limits": ["Le fixture non sono campioni biologici reali.",
                                   "La parita fra modi verifica la riproducibilita; gli oracoli numerici sono controlli separati.",
                                   "Il collaudo non certifica ogni possibile input o una validazione clinica."],
@@ -250,6 +250,18 @@ class Suite:
             diagnostic = (log_text(result["stderr"]).strip() or log_text(result["stdout"]).strip())[-2000:]
             raise ValueError(f"Controllo {name} fallito (codice {result['returncode']}): "
                              f"{diagnostic or 'nessun messaggio restituito'}. Log: {result['stderr']}")
+        return result
+
+    def probe_scientific_modules(self):
+        result = self.probe("settings", ["settings", "--json"])
+        settings = json.loads(log_text(result["stdout"]))
+        modules = settings["modules"]
+        if (not isinstance(modules, dict) or set(modules) != set(settings["effective"])
+                or not {"dnp-call", "snp-call", "contamination", "cpi", "cpin"}.issubset(modules)):
+            raise ValueError("Catalogo scientifico installato incompleto.")
+        if "fetal-sex" not in modules and (self.app / "tests/fixtures/fetal_sex").exists():
+            raise ValueError("Modulo fetal-sex assente dal catalogo dell'installazione con esempi fetal-sex.")
+        self.report["modules"] = sorted(modules)
         return result
 
     def preflight(self):
@@ -472,16 +484,22 @@ class Suite:
             self.snapshot_installation()
             self.transport = DockerTransport.from_environment()
             self.check("ambiente-scientifico", lambda: self.probe("doctor", ["doctor", "--runtime"]), fatal=True)
-            self.check("parametri-scientifici", lambda: self.probe("settings", ["settings", "--json"]), fatal=True)
+            self.check("parametri-scientifici", self.probe_scientific_modules, fatal=True)
             self.check("risorse-disponibili", lambda: self.probe("resources", ["resources", "inspect", "--json"]))
             self.report["fixture_sha256"] = extract_fixtures(HARNESS / "fixtures.json", self.fixtures)
             self.generated.mkdir()
             import installed_models
             import installed_workflows
             self.cases.extend(installed_models.build_cases(self.fixtures, self.generated))
+            fetal_sex = None
+            if "fetal-sex" in self.report["modules"]:
+                fetal_sex = self.fixtures / "fetal_sex"
+                hashes = installed_models.copy_fetal_sex_fixtures(self.app / "tests/fixtures/fetal_sex", fetal_sex)
+                self.report["fixture_sha256"].update({"fetal_sex/" + name: value for name, value in hashes.items()})
+                self.cases.extend(installed_models.fetal_sex_cases(fetal_sex))
             try:
                 metadata = installed_workflows.prepare_inputs(self.fixtures, self.generated, self.samtools)
-                self.cases.extend(installed_workflows.build_cases(self.fixtures, self.generated, metadata))
+                self.cases.extend(installed_workflows.build_cases(self.fixtures, self.generated, metadata, fetal_sex=fetal_sex))
             except SuiteStopped:
                 raise
             except Exception as exc:

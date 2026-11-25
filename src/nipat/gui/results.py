@@ -33,6 +33,7 @@ MODULE_LABELS = {
     "contamination": ("Contaminazione", "Contamination"),
     "cpi": ("CPI prenatale", "Prenatal CPI"),
     "cpin": ("CPI postnatale", "Postnatal CPI"),
+    "fetal-sex": ("Stima del sesso fetale", "Fetal sex estimation"),
 }
 FIELDS = {
     "site_count": ("Siti in tabella", "Sites in table"), "assigned": ("Genotipi assegnati", "Assigned genotypes"),
@@ -62,6 +63,36 @@ FIELDS = {
     "mean_contamination": ("Contaminazione media", "Mean contamination"),
     "sd_contamination": ("Deviazione standard", "Standard deviation"),
     "contamination": ("Contaminazione del sito", "Site contamination"),
+    "Fetal_sex": ("Sesso fetale stimato", "Estimated fetal sex"),
+    "N_A_original": ("Siti autosomici in ingresso", "Input autosomal sites"),
+    "N_A_sites": ("Siti autosomici informativi", "Informative autosomal sites"),
+    "N_X_original": ("Siti X in ingresso", "Input X sites"),
+    "N_X_sites": ("Siti X informativi", "Informative X sites"),
+    "N_Y_sites": ("Siti Y in ingresso", "Input Y sites"),
+    "N_Y_covered_sites": ("Siti Y con copertura", "Covered Y sites"),
+    "N_Y_sites_used": ("Siti Y inclusi", "Included Y sites"),
+    "Fetal_reads_A": ("Letture non materne sugli autosomi", "Non-maternal reads on autosomes"),
+    "Fetal_reads_X": ("Letture non materne sul cromosoma X", "Non-maternal reads on chromosome X"),
+    "Reads_Y": ("Letture REF e ALT sul cromosoma Y", "REF and ALT reads on chromosome Y"),
+    "MFF_A": ("Media delle letture non materne per sito autosomico", "Mean non-maternal reads per autosomal site"),
+    "MFF_X": ("Media delle letture non materne per sito X", "Mean non-maternal reads per X site"),
+    "MFF_Y": ("Media delle letture REF e ALT per sito Y", "Mean REF and ALT reads per Y site"),
+    "Ratio_A": ("Rapporto A (X / autosomi)", "Ratio A (X / autosomes)"),
+    "Ratio_B": ("Rapporto B (Y / autosomi)", "Ratio B (Y / autosomes)"),
+    "Ratio_C": ("Rapporto C (Y / X)", "Ratio C (Y / X)"),
+    "Max_other_fraction": ("Frazione massima di altre letture", "Maximum other-read fraction"),
+    "Maternal_hom_threshold": ("Soglia di omozigosi materna", "Maternal homozygosity threshold"),
+    "Include_zero_coverage_Y": ("Includi siti Y a copertura zero", "Include Y sites with zero coverage"),
+    "A_threshold": ("Soglia per il rapporto A", "Ratio A threshold"),
+    "B_female_max": ("Rapporto B massimo per la stima femminile", "Maximum ratio B for a female estimate"),
+    "B_male_min": ("Rapporto B minimo per la stima maschile", "Minimum ratio B for a male estimate"),
+    "C_female_max": ("Rapporto C massimo per la stima femminile", "Maximum ratio C for a female estimate"),
+    "C_male_min": ("Rapporto C minimo per la stima maschile", "Minimum ratio C for a male estimate"),
+    "ratio_Ref_mother": ("Proporzione REF materna", "Maternal REF proportion"),
+    "fetal_reads": ("Letture non materne", "Non-maternal reads"),
+    "fetal_percent": ("Percentuale di letture non materne", "Non-maternal read percentage"),
+    "Y_reads": ("Letture REF e ALT sul sito Y", "REF and ALT reads at the Y site"),
+    "Covered": ("Sito coperto", "Covered site"), "Included": ("Sito incluso", "Included site"),
     "N_unexpected": ("Letture inattese", "Unexpected reads"),
     "Pair": ("Coppia", "Pair"), "Trio": ("Trio", "Trio"), "Marker_type": ("Marcatori", "Markers"),
     "Analysis": ("Selezione dei siti", "Site selection"),
@@ -176,7 +207,7 @@ def column_description(key: str, *, language="it", samples: dict | None = None) 
         result.update(unit="punti %" if key == "sd_contamination" and language != "en" else
                       "percentage points" if key == "sd_contamination" else "%", scale=100,
                       source_unit="proportion")
-    elif key in {"Median_fetal_fraction_percent", "Min_fetal_percent"}:
+    elif key in {"Median_fetal_fraction_percent", "Min_fetal_percent", "fetal_percent"}:
         result["unit"] = "%"
     elif key == "Median_fetal_fraction_raw" or key.startswith("ratio") or key in {
         "Ref_f.pop", "Alt_f.pop", "Error_constant", "Mismatch_probability", "Paternal_transmission",
@@ -198,6 +229,11 @@ def column_description(key: str, *, language="it", samples: dict | None = None) 
         result.update(unit="MiB", description=_translation((
             "Misura istantanea della memoria residente; non è il picco di memoria.",
             "Resident memory at this instant; this is not peak memory."), language))
+    if key == "Fetal_sex":
+        result["values"] = {k: _translation(v, language) for k, v in {
+            "F": ("Femminile", "Female"), "M": ("Maschile", "Male"),
+            "Undetermined": ("Indeterminato", "Undetermined"),
+        }.items()}
     if key == "Status":
         result["values"] = {k: _translation(v, language) for k, v in SITE_REASONS.items()}
     if key == "Genotype_combination":
@@ -370,7 +406,10 @@ def _file_label_it(name):
         return "Conteggi e genotipi"
     if name in {"output_AllGenotypes.txt", "SNPcall_AllGenotypes.txt", "merged_genotypes.tsv"}:
         return "Matrice dei genotipi"
-    fixed = {"contamination_summary.txt": "Riepilogo della contaminazione", "Summary_FetalFraction_CPI.csv": "Frazione fetale e CPI",
+    fixed = {"Fetal_sex_summary.txt": "Riepilogo del sesso fetale",
+             "Autosomal_informative_sites.txt": "Siti autosomici informativi",
+             "X_informative_sites.txt": "Siti X informativi", "Y_sites.txt": "Siti del cromosoma Y",
+             "contamination_summary.txt": "Riepilogo della contaminazione", "Summary_FetalFraction_CPI.csv": "Frazione fetale e CPI",
              "Summary_Postnatal_CPI.txt": "Riepilogo CPI postnatale", "scientific-settings.json": "Impostazioni scientifiche",
              "resources.tsv": "Tempo e memoria", "Unassigned_genotypes.pdf": "Genotipi non assegnati",
              "All_CPIplots.pdf": "Tutti i grafici di paternità", "run.json": "Provenienza dell’esperimento",
@@ -398,6 +437,8 @@ def _file_label_it(name):
 def _file_label(name, language="it"):
     label = _file_label_it(name)
     english = {
+        "Riepilogo del sesso fetale": "Fetal sex summary", "Siti autosomici informativi": "Informative autosomal sites",
+        "Siti X informativi": "Informative X sites", "Siti del cromosoma Y": "Chromosome Y sites",
         "Conteggi e genotipi": "Counts and genotypes", "Matrice dei genotipi": "Genotype matrix",
         "Riepilogo della contaminazione": "Contamination summary", "Frazione fetale e CPI": "Fetal fraction and CPI",
         "Riepilogo CPI postnatale": "Postnatal CPI summary", "Impostazioni scientifiche": "Scientific settings",
@@ -462,7 +503,9 @@ def _observed_steps(run, metadata):
         marker = step.get("marker")
         if step["workflow"] in {"dnp-call", "snp-call"}:
             marker = "DNP" if step["workflow"] == "dnp-call" else "SNP"
-        if marker not in {"DNP", "SNP"}:
+        if step["workflow"] == "fetal-sex":
+            marker = "DNP+SNP"
+        elif marker not in {"DNP", "SNP"}:
             marker = "DNP"  # Legacy preset workflows only consume DNP tables.
         steps.append({"id": step["id"], "module": step["workflow"], "marker": marker,
                       "status": observed[step["id"]].get("status"), "sample_id": step.get("sample"),
@@ -470,7 +513,13 @@ def _observed_steps(run, metadata):
     return steps, state
 
 
+def _marker_types(marker):
+    return ("DNP", "SNP") if marker == "DNP+SNP" else (marker,)
+
+
 def _standalone_marker(metadata):
+    if metadata.get("workflow") == "fetal-sex":
+        return "DNP+SNP"
     parameters = metadata.get("parameters")
     default = "SNP" if metadata.get("workflow") == "snp-call" else "DNP"
     return parameters.get("marker_type", default) if isinstance(parameters, dict) else default
@@ -664,7 +713,7 @@ class ResultsStore:
         active = metadata.get("status") in ("running", "preparing")
         entry = _ArchiveEntry(stamp, started, searchable, workflow, active)
         if not workflow and not active:
-            entry.filters = (read_run_status(run, metadata), (_standalone_marker(metadata),), None)
+            entry.filters = (read_run_status(run, metadata), _marker_types(_standalone_marker(metadata)), None)
         return entry
 
     def _archive_filters(self, run, entry):
@@ -682,11 +731,11 @@ class ResultsStore:
         if entry.is_workflow:
             try:
                 steps, _ = _observed_steps(run, metadata)
-                markers = tuple({s["marker"] for s in steps})
+                markers = tuple({m for s in steps for m in _marker_types(s["marker"])})
             except (OSError, ValueError, KeyError, TypeError):
                 markers = ()
         else:
-            markers = (_standalone_marker(metadata),)
+            markers = _marker_types(_standalone_marker(metadata))
         observed = self.status_observer(run, metadata) if self.status_observer else None
         status = observed["status"] if observed else read_run_status(run, metadata)
         filters = (status, markers, observed if entry.recorded_active else None)
@@ -768,6 +817,12 @@ class ResultsStore:
         parameters = parameters if isinstance(parameters, dict) else {}
         samples = [{"id": s["sample_id"], "label": s["original_name"], "filename": original_basename(s["original_path"]),
                     "path": s["original_path"], "role": s["role"]} for s in sample_rows(metadata)]
+        mapping = parameters.get("sample_mapping")
+        biological_ids = {item["sample_id"]: item["biological_id"] for item in mapping
+                          if isinstance(item, dict) and isinstance(item.get("sample_id"), str)
+                          and isinstance(item.get("biological_id"), str) and item["biological_id"]} if isinstance(mapping, list) else {}
+        for sample in samples:
+            sample["biological_id"] = biological_ids.get(sample["id"], sample["id"])
         gui = _gui_metadata(run)
         warnings, steps, documents = [], [], []
         workflow = metadata.get("workflow")
@@ -906,8 +961,9 @@ class ResultsStore:
         return {"id": run_id, "name": name, "workflow": md.get("workflow"), **state,
                 "has_igv_inputs": has_igv_inputs, "started_at": md.get("started_at"),
                 "finished_at": md.get("finished_at"), "version": version,
+                "sample_count": len({s["biological_id"] for s in ctx["samples"]}),
                 "samples": ctx["samples"], "modules": sorted({s["module"] for s in ctx["steps"] if s["module"]}),
-                "markers": sorted({s["marker"] for s in ctx["steps"] if s["marker"]}),
+                "markers": sorted({m for s in ctx["steps"] if s["marker"] for m in _marker_types(s["marker"])}),
                 "warnings": ctx["warnings"]}
 
     def _artifact_index(self, context):
@@ -1238,10 +1294,16 @@ class ResultsStore:
         metric = self._metric(key, value)
         if not metric["available"]:
             return metric
+        if key == "Fetal_sex":
+            if value not in metric["values"]:
+                metric.update(value=None, available=False)
+            return metric
         try:
             numeric = Decimal(value)
             valid = numeric.is_finite()
-            if key in {"informative_sites", "N_sites_mother", "N_sites_father", "N_sites",
+            if key in {"Ratio_A", "Ratio_B", "Ratio_C"}:
+                valid = (numeric.is_finite() or value == "Inf") and numeric >= 0
+            elif key in {"N_A_sites", "N_X_sites", "N_Y_sites_used", "informative_sites", "N_sites_mother", "N_sites_father", "N_sites",
                        "Matching_sites", "Mismatching_sites", "No_obligatory_allele_sites"}:
                 valid = _read_count(value) is not None
             elif key in {"mean_contamination", "sd_contamination"}:
@@ -1312,7 +1374,7 @@ class ResultsStore:
         step_status = {step["id"]: step["status"] for step in context["steps"]}
         for step in context["steps"]:
             key = step["module"], step["marker"]
-            if key[0] not in MODULE_LABELS or module and module != key[0] or marker and marker != key[1]:
+            if key[0] not in MODULE_LABELS or module and module != key[0] or marker and marker not in _marker_types(key[1]):
                 continue
             group = groups.setdefault(key, {"module": key[0], "label": _translation(MODULE_LABELS[key[0]], self.language),
                                            "marker": key[1], "status": step["status"], "steps": [], "entries": [], "warnings": [], "files": []})
@@ -1343,7 +1405,7 @@ class ResultsStore:
                         group["warnings"].append(str(exc))
                 group["matrix_file_ids"] = [f["id"] for f in relevant if f["name"] in {"output_AllGenotypes.txt", "SNPcall_AllGenotypes.txt", "merged_genotypes.tsv"}]
                 continue
-            name = {"contamination": "contamination_summary.txt", "cpi": "Summary_FetalFraction_CPI.csv", "cpin": "Summary_Postnatal_CPI.txt"}[key[0]]
+            name = {"fetal-sex": "Fetal_sex_summary.txt", "contamination": "contamination_summary.txt", "cpi": "Summary_FetalFraction_CPI.csv", "cpin": "Summary_Postnatal_CPI.txt"}[key[0]]
             prefixes = {step["id"]: step["output_prefix"] for step in group["steps"]}
             guides = {f["step_id"]: _cpi_guides(context["run"], f, key[0]) for f in relevant
                       if key[0] in {"cpi", "cpin"} and f.get("step_id") in prefixes and step_status[f["step_id"]] == "succeeded"
@@ -1351,14 +1413,27 @@ class ResultsStore:
             for summary in (f for f in relevant if f.get("step_id") in prefixes
                             and f["relative_path"] == prefixes[f["step_id"]] + name):
                 try:
+                    path = _scoped(context["run"], summary["relative_path"], file=True)
+                    if key[0] == "fetal-sex" and summary.get("recorded_sha256"):
+                        self.verify_count_table(path, summary["recorded_sha256"])
                     count = 0
-                    for count, row in enumerate(_rows(_scoped(context["run"], summary["relative_path"], file=True)), 1):
+                    for count, row in enumerate(_rows(path), 1):
                         if count > _MAX_SUMMARY:
                             group["warnings"].append("Riepilogo limitato a 10000 righe; tutte le righe restano consultabili nella tabella originale.")
                             break
                         entry = {"file_id": summary["id"], "row": row, "row_number": count - 1, "metrics": [],
                                  "step_id": summary.get("step_id"), "curve_file_ids": [], "plot_file_ids": []}
-                        if key[0] == "contamination":
+                        if key[0] == "fetal-sex":
+                            assignment = context["parameters"].get("fetal_sex")
+                            subject = assignment.get("sample_id") if isinstance(assignment, dict) else None
+                            subject = subject if isinstance(subject, str) and subject else row.get("Sample")
+                            entry.update(sample_id=subject, sample_label=subject, label=subject)
+                            entry["site_tables"] = {f["name"]: f["id"] for f in relevant
+                                if f.get("step_id") == summary["step_id"] and f["relative_path"] == prefixes[summary["step_id"]] + f["name"]
+                                and f["name"] in {"Autosomal_informative_sites.txt", "X_informative_sites.txt", "Y_sites.txt"}}
+                            metric_keys = ["Fetal_sex", "Ratio_A", "Ratio_B", "Ratio_C",
+                                           "N_A_sites", "N_X_sites", "N_Y_sites_used", "MFF_A", "MFF_X", "MFF_Y"]
+                        elif key[0] == "contamination":
                             table = next((f for f in relevant if f.get("step_id") == summary.get("step_id") and
                                           f.get("native_name") == row.get("individuo") and f["name"].startswith("contamination_") and f["name"] != name), None)
                             sample_id = table.get("sample_id") if table else row.get("individuo")
@@ -1400,7 +1475,7 @@ class ResultsStore:
                         summary_keys = (("CPI_medianFF", *metric_keys[2:], "Median_fetal_fraction_percent")
                                         if key[0] == "cpi" else metric_keys)
                         entry["summary"] = {
-                            "kind": {"cpi": "prenatal_cpi", "cpin": "postnatal_cpi", "contamination": "contamination"}[key[0]],
+                            "kind": {"fetal-sex": "fetal_sex", "cpi": "prenatal_cpi", "cpin": "postnatal_cpi", "contamination": "contamination"}[key[0]],
                             "step_status": step_status.get(summary.get("step_id")),
                             "metrics": [self._summary_metric(field, row) for field in summary_keys],
                         }

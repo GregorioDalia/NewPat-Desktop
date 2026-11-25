@@ -38,11 +38,11 @@ R_JSONLITE_AVAILABLE = r_jsonlite_available()
 class ScientificSettingsTests(unittest.TestCase):
     def test_registry_has_all_modules_and_readable_definitions(self):
         modules = describe_settings()
-        self.assertEqual(set(modules), {"dnp-call", "snp-call", "contamination", "cpi", "cpin"})
+        self.assertEqual(set(modules), {"dnp-call", "snp-call", "contamination", "cpi", "cpin", "fetal-sex"})
         for workflow, schema in modules.items():
             with self.subTest(workflow=workflow):
                 expected = defaults(workflow)
-                if workflow == "cpi":
+                if workflow in {"cpi", "fetal-sex"}:
                     expected["min_fetal_reads"] = 2
                 self.assertEqual(normalize_settings(workflow), expected)
                 self.assertTrue(schema["constants"])
@@ -52,6 +52,19 @@ class ScientificSettingsTests(unittest.TestCase):
                     self.assertIn("unit", definition)
         modules["cpi"]["parameters"]["min_fetal_reads"]["default"] = 999
         self.assertIsNone(defaults("cpi")["min_fetal_reads"])
+
+    def test_fetal_sex_read_filters_and_classification_bounds(self):
+        self.assertEqual(normalize_settings("fetal-sex")["min_fetal_reads"], 2)
+        percent_only = normalize_settings("fetal-sex", {"min_fetal_percent": 3})
+        self.assertIsNone(percent_only["min_fetal_reads"])
+        both = normalize_settings("fetal-sex", {"min_fetal_reads": 1, "min_fetal_percent": 3})
+        self.assertEqual((both["min_fetal_reads"], both["min_fetal_percent"]), (1, 3))
+        for invalid in ({"min_fetal_reads": 0}, {"min_fetal_percent": 0}, {"min_fetal_percent": 101},
+                        {"maternal_hom_threshold": .5}, {"max_other_fraction": 1.1},
+                        {"include_zero_coverage_y": 0}, {"a_threshold": 0}, {"c_male_min": .1},
+                        {"b_female_max": 1}, {"b_male_min": float("nan")}):
+            with self.subTest(invalid=invalid), self.assertRaises(ValidationError):
+                normalize_settings("fetal-sex", invalid)
 
     def test_invalid_types_limits_and_cross_parameter_constraints_are_rejected(self):
         for workflow, override in (
@@ -180,6 +193,8 @@ class ScientificSettingsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             for workflow in describe_settings():
                 override = {"other_fraction_max": .25}
+                if workflow == "fetal-sex":
+                    override = {"max_other_fraction": .25, "include_zero_coverage_y": False}
                 if workflow == "cpin":
                     override.update(min_coverage=7, include_het_hom=False)
                 with self.subTest(workflow=workflow), settings_context(workflow, override, Path(directory) / workflow):

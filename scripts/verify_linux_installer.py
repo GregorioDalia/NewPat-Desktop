@@ -44,7 +44,14 @@ def checks_for_version(version: str) -> tuple[str, ...]:
     checks = CHECKS[:-2] if version.startswith("0.6.") else CHECKS
     if not current_model(version):
         checks = tuple("all_four_workflows" if key == "all_five_workflows" else key for key in checks)
+    if has_fetal_sex(version):
+        return (*checks, "fetal_sex_example")
     return checks
+
+
+def has_fetal_sex(version: str) -> bool:
+    parsed = re.match(r"^(\d+)\.(\d+)\.(\d+)", version)
+    return parsed is not None and tuple(map(int, parsed.groups())) >= (0, 9, 10)
 
 
 def current_model(version: str) -> bool:
@@ -182,7 +189,8 @@ def check_automatic_plan(run_directory: Path, fixture: Path, manifest: dict,
             "Installed workflow does not identify the tested package and loaded image.")
     modern = current_model(manifest["version"])
     require(set(record["runtime"]["engine"]["plan_execution"]["workflows"])
-            == ({"dnp-call", "snp-call", "contamination", "cpi"} | ({"cpin"} if modern else set())),
+            == ({"dnp-call", "snp-call", "contamination", "cpi"} | ({"cpin"} if modern else set())
+                | ({"fetal-sex"} if has_fetal_sex(manifest["version"]) else set())),
             "Installed image lacks the complete plan interface.")
     require(len(record["commands"]) == 1 and "execute-plan" in record["commands"][0]["argv"],
             "Installed composition must execute in one scientific container.")
@@ -448,6 +456,20 @@ def verify(package: Path, manifest_path: Path, work: Path, output: Path) -> None
                 environment=environment, cwd=work)
             check_automatic_plan(data / "runs/installed-automatic-plan", fixture, manifest, image, [bam, paternal])
             evidence["checks"]["automatic_workflow_plan"] = True
+        if has_fetal_sex(manifest["version"]):
+            fixture_root = APP / "tests/fixtures/fetal_sex"
+            for case in ("Female_fetus", "Male_fetus"):
+                argv = [COMMAND, "fetal-sex", "--run-name", "installed-" + case]
+                for option, region in (("--autosomes", "autosomes"), ("--x", "X"), ("--y", "Y")):
+                    argv.extend([option, str(fixture_root / "inputs" / f"{case}_{region}.txt")])
+                run(argv, environment=environment, cwd=work)
+                result = data / "runs" / ("installed-" + case) / "output"
+                for name in ("Fetal_sex_summary.txt", "Autosomal_informative_sites.txt",
+                             "X_informative_sites.txt", "Y_sites.txt"):
+                    expected_file = fixture_root / "outputs" / case / name
+                    require(read_table(result / name) == read_table(expected_file),
+                            f"Installed fetal sex result differs from the reference: {case}/{expected_file.name}")
+            evidence["checks"]["fetal_sex_example"] = True
         require(snapshot(inputs) == originals, "The installed workflow changed original inputs.")
         require(snapshot(configuration) == preferences_before, "Installed analysis changed saved preferences.")
         evidence["checks"]["private_inputs_unchanged"] = True

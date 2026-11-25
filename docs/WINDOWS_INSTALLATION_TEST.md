@@ -2,7 +2,7 @@
 
 For a short desktop check in 0.9.10, choose **Environment and help → Open demo**, then review and start the experiment. The [Italian quick start](QUICKSTART_IT.md) gives the expected counts.
 
-For a full installation check, the package includes a synthetic suite for the five current modules and their workflows. It creates its own inputs. Finish setup, open **Windows PowerShell as your regular user** and select the instructions for your installation.
+For a full installation check, the package includes a synthetic suite for the six current modules and their workflows. It creates its own inputs. Finish setup, open **Windows PowerShell as your regular user** and select the instructions for your installation.
 
 ## Complete ZIP
 
@@ -34,14 +34,15 @@ The PowerShell execution policy option applies only to the process used for the 
 
 ## Expected results
 
-The suite contains 64 runs (58 positive cases and 6 expected input rejections), 9 reproducibility comparisons and 7 initial/final checks. A complete passing environment reports **80 PASS, 0 FAIL, 0 BLOCKED, 0 INTERRUPTED**.
+For a build with fetal sex, the suite schedules 66 runs (60 positive cases and 6 expected input rejections), 9 reproducibility comparisons and 7 initial/final checks. A complete passing environment reports **82 PASS, 0 FAIL, 0 BLOCKED, 0 INTERRUPTED**. Earlier five-module installations retain the 64-run suite.
 
 It verifies:
 
 - Installed application, runtime, settings and resource identity.
 - DNP, SNP, Contamination, prenatal CPI and postnatal CPI numerical outputs against independent expected values.
+- Fetal sex on the two published maternal cfDNA examples. The suite copies the three input tables for each case to the session and compares every cell of the summary and the three site tables with the published results.
 - Prenatal read-count, percentage-only and combined filters, including empty curves. Postnatal scalar CPI and per-site reasons under genotype selection and trio coverage filters.
-- Workflows from three BAMs, SNP pileup and tables, including compositions of the five modules.
+- Workflows from three BAMs, SNP pileup and tables, including a combined plan with all six modules.
 - Sample IDs, family roles, parameters and artifacts actually produced.
 - Equality of scientific tables in serial, automatic and two-worker execution.
 - Invalid inputs rejected for the expected reason, and integrity of inputs, installation, preferences and test fixtures.

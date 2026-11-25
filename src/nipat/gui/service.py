@@ -201,7 +201,8 @@ class GuiService:
 
     def _derived_name(self, base, module=None):
         italian, english = {None: ("nuova analisi", "new analysis"), "contamination": ("contaminazione", "contamination"),
-                            "cpi": ("CPI prenatale", "Prenatal CPI"), "cpin": ("CPI postnatale", "Postnatal CPI")}[module]
+                            "cpi": ("CPI prenatale", "Prenatal CPI"), "cpin": ("CPI postnatale", "Postnatal CPI"),
+                            "fetal-sex": ("sesso fetale", "fetal sex")}[module]
         suffix = " · " + (english if self.ui_get()["language"] == "en" else italian)
         # Generated names must fit the same 120-character field as typed names.
         return str(base)[:120 - len(suffix)].rstrip() + suffix
@@ -226,6 +227,8 @@ class GuiService:
             draft["name"] = self._derived_name(draft.get("name", run_id))
             return draft
         metadata = self._results().metadata(run_id)
+        if metadata.get("workflow") == "fetal-sex":
+            return self.run_prepare(run_id, "fetal-sex")
         if metadata.get("workflow") != "analysis":
             raise ValidationError("Per questo esperimento precedente creare una nuova analisi e selezionare i file. I risultati restano consultabili.")
         try:
@@ -290,8 +293,8 @@ class GuiService:
         mapping. Imported count inputs retain their explicit biological IDs.
         Missing family roles/population resources stay empty for user selection.
         """
-        if module not in {"contamination", "cpi", "cpin"}:
-            raise ValidationError("Scegliere contaminazione, CPI prenatale o CPI postnatale.")
+        if module not in {"contamination", "cpi", "cpin", "fetal-sex"}:
+            raise ValidationError("Scegliere un modulo disponibile per le tabelle di conteggi.")
         store = self._results()
         run, metadata = store.get_run(run_id), store.metadata(run_id)
         parameters = metadata.get("parameters", {})
@@ -302,6 +305,16 @@ class GuiService:
             except (KeyError, TypeError, ValueError):
                 source = {}
         source = deepcopy(source)
+        if module == "fetal-sex":
+            # Generic DNP and SNP outputs do not identify the required chromosome roles.
+            settings = source.get("scientific_settings", parameters.get("scientific_settings_effective", {}))
+            recorded = parameters.get("fetal_sex") or {}
+            fetal = source.get("fetal_sex") or {"id": recorded.get("sample_id", ""),
+                                                **{role: recorded.get(role, "") for role in ("autosomes", "x", "y")}}
+            return {"name": self._derived_name(run.get("name") or run_id, module),
+                    "caller": "tables", "samples": [], "fetal_sex": fetal,
+                    "scientific_settings": effective_config(migrate_saved_settings(settings)),
+                    "execution": source.get("execution", self._requested_execution(metadata))}
         mapping = {row["sample_id"]: row.get("biological_id", row["sample_id"])
                    for row in parameters.get("sample_mapping", [])
                    if isinstance(row, dict) and isinstance(row.get("sample_id"), str)}
@@ -380,9 +393,12 @@ class GuiService:
         plan = p["plan"]
         mounts = {item["container_path"]: item["host_path"] for item in metadata["input_mounts"]}
         mapping = {item["sample_id"]: item for item in p["sample_mapping"]}
-        samples = [{"id": mapping[s["id"]].get("biological_id", s["id"]),
-                    "path": mapping[s["id"]]["original_path"], "kind": s["kind"]}
-                   for s in plan["samples"]]
+        samples = []
+        for sample in plan["samples"]:
+            row = mapping[sample["id"]]
+            if not row.get("fetal_sex_role") or row.get("shared_fetal_sex_table"):
+                samples.append({"id": row.get("biological_id", sample["id"]),
+                                "path": row["original_path"], "kind": sample["kind"]})
         draft = {"name": self._derived_name(metadata.get("run_name", "NewPat")),
                  "caller": p["caller"], "samples": samples, "branches": p["analyses_by_marker"],
                  "resources": {"DNP": {}, "SNP": {}}, "families": {"cpi": [], "cpin": []},
@@ -390,6 +406,11 @@ class GuiService:
                  "execution": self._requested_execution(metadata)}
         for step in plan["steps"]:
             workflow, inputs, parameters = step["workflow"], step["inputs"], step["parameters"]
+            if workflow == "fetal-sex":
+                recorded = p["fetal_sex"]
+                draft["fetal_sex"] = {"id": recorded["sample_id"],
+                                      **{role: recorded[role] for role in ("autosomes", "x", "y")}}
+                continue
             marker = "DNP" if workflow == "dnp-call" else "SNP" if workflow == "snp-call" else parameters["marker_type"]
             resource = draft["resources"][marker]
             if workflow in {"dnp-call", "snp-call"}:

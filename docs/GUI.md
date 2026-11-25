@@ -8,7 +8,7 @@ Open **Environment and help → Open demo**. If you have an edited draft, NewPat
 
 When **Activity** shows **Completed**, open **Experiments and results**, select the demo, then open **Results → DNP** and **Results → SNP**. Select each sample. In both analyses the table should have three sites per sample, with 100 reads per site. For `mother`, expect 96 REF and 4 ALT. For `father` and `child`, expect 50 REF and 50 ALT each. The guided demo runs just these two analyses.
 
-To try contamination and the two CPI analyses, select **Environment and help → Save example data**. Pick a writable parent folder and follow the README inside the new `synthetic-trio` directory. It provides the family assignments, marker-specific files and expected outputs for all five analyses. The separate `timing/` workload has four contigs and 128 loci for comparing DNP and SNP timings on different computers. The same inputs are available in the [example ZIP](../examples/newpat-synthetic-trio.zip).
+To try contamination and the two CPI analyses, select **Environment and help → Save example data**. Pick a writable parent folder and follow the README inside the new `synthetic-trio` directory. It provides the family assignments, marker-specific files and expected outputs for the five analyses supported by the trio. The separate `timing/` workload has four contigs and 128 loci for comparing DNP and SNP timings on different computers. The same inputs are available in the [example ZIP](../examples/newpat-synthetic-trio.zip).
 
 ## Set up an experiment
 
@@ -16,6 +16,8 @@ To try contamination and the two CPI analyses, select **Environment and help →
 2. Select the analyses. Contamination, prenatal CPI and postnatal CPI can each use a caller's count tables. For parentage analyses, identify each sample's role in its pair or trio and select population frequencies for the marker type.
 3. Review the scientific parameters, sample list, execution settings and destination. Select **Record performance diagnostics** if you need timing and resource measurements. Choose **Start experiment** once. NewPat checks the configuration and runtime and starts the analysis when the checks pass. If a check fails, use the displayed message to correct the problem before trying again.
 4. Open **Activity** to see the current phase, the sample when available, and the elapsed time. Recent activity lists changes as they happen. Expand **Technical log** for detailed messages. The DNA animation shows activity while the engine prepares. When a phase has measurable progress, the percentage refers to that phase. Stopping an analysis can take time while its processes exit.
+
+For fetal sex alone, choose **New experiment → Fetal sex from three count tables**. Enter the maternal sample name and select its three files: autosomal DNP counts, chromosome X DNP counts and chromosome Y SNP counts. Use X and Y markers previously validated for specificity. To include this estimate alongside another analysis, select **Fetal sex** in the analyses step and supply the same three files. You can try this with either [worked example](../tests/fixtures/fetal_sex/README.md).
 
 **New experiment** starts with the defaults in Preferences. **Run again** opens a fresh draft with an existing run's input files and settings. Review those paths before starting it. See the [input and command reference](USER_GUIDE.md) for panel formats and sample roles.
 
@@ -69,6 +71,7 @@ Select the marker branch and the sample, pair or trio in **Experiments and resul
 | Prenatal CPI | The reported log₁₀(CPI) at the median fetal allele support for that pair and panel (`CPI_medianFF`). It differs from the median of the CPI curve. When the two original plot guides are available, the summary locates the reported point below, between, above or on them. The default guides are −4 and +4. R rounds this CSV value to three decimals, so a point displayed on a guide may have been rounded from either side. The source script provides a curve and the underlying values. It does not issue a categorical parentage finding. |
 | Postnatal CPI | One CPI and log₁₀(CPI) for the selected trio, with its contributing site count. Open the per-site table to inspect quality filters, genotype combinations and PI values. When no sites qualify, both index fields are unavailable. For a supported estimate, the reference band compares the recorded log₁₀(CPI) with the two saved numeric limits. A value exactly on a limit is marked as such. |
 | Contamination | Mean contamination and number of informative sites for the selected sample. An unavailable estimate is distinct from a measured zero. |
+| Fetal sex | Female, male or undetermined for the selected maternal sample. The thresholds are preliminary. The detailed report shows the three ratios, the thresholds used and the underlying site tables. |
 
 The default lower and upper limits are −4 and +4. You can change the two numbers before a run. An exact boundary is shown separately. These indicators describe the position of the reported index and do not assign a parentage verdict.
 

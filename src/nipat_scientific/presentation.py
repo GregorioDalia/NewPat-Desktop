@@ -22,7 +22,7 @@ from nipat_scientific.errors import PlanExecutionError, ValidationError
 
 
 _MODULE_LABELS = {"dnp-call": "DNPcall", "snp-call": "SNPcall", "contamination": "Contamination",
-                  "cpi": "CPI prenatale", "cpin": "CPI postnatale"}
+                  "cpi": "CPI prenatale", "cpin": "CPI postnatale", "fetal-sex": "Sesso fetale"}
 
 
 def _label(value: object, *, basename: bool) -> str:
@@ -51,6 +51,8 @@ def validate_request_presentation(request: dict) -> dict | None:
         workflow = request["workflow"]
         if workflow == "dnp-call":
             sample_ids = {sample["sample_id"] for sample in request["samples"]}
+        elif workflow == "fetal-sex":
+            sample_ids = {"autosomes", "x", "y"}
         elif workflow == "snp-call":
             sample_ids = {"sample_0001"}
         else:
@@ -124,6 +126,8 @@ def step_presentation(plan: dict, step: dict, request: dict, bindings: list[dict
                     for number, identity in enumerate(step["inputs"]["samples"], 1)}
     elif workflow == "snp-call":
         selected = {"sample_0001": labels[step["inputs"]["sample"]]}
+    elif workflow == "fetal-sex":
+        selected = {role: labels[identity] for role, identity in step["inputs"].items()}
     elif workflow == "contamination":
         selected = {f"table_{number:04d}": labels[reference["sample"]]
                     for number, reference in enumerate(step["inputs"]["samples"], 1)}
@@ -183,6 +187,10 @@ def prepare_presentation(request: dict, script: Path, arguments: list[str]) -> l
         export("contamination_summary.txt", "Contamination_summary.txt")
         for identity, label in samples.items():
             export(f"contamination_{identity}.txt", f"{_filename(label, identity)}_Contamination.txt", sample=identity)
+    elif workflow == "fetal-sex":
+        from nipat_scientific.fetal_sex import SUMMARY, SITE_TABLES
+        for name in (SUMMARY, *SITE_TABLES.values()):
+            export(name, name)
     elif workflow == "cpin":
         export("Summary_Postnatal_CPI.txt", "Summary_Postnatal_CPI.txt")
         for identity, label in pairs.items():
@@ -206,6 +214,9 @@ def prepare_presentation(request: dict, script: Path, arguments: list[str]) -> l
         handle.write("\n")
     for identity, label in samples.items():
         print(f"NIPAT campione {identity}: {label}", flush=True)
+    if workflow == "fetal-sex":
+        # All outputs are tables. Python makes the readable copies after the native script exits.
+        return ["Rscript", str(script), *arguments]
     return ["Rscript", str(Path(__file__).with_suffix(".R")), *arguments]
 
 

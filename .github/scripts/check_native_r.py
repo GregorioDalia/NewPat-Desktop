@@ -22,6 +22,7 @@ ORACLE_MODULES = {
     "test_native_r_contamination_oracle",
     "test_native_r_prenatal_oracle",
     "test_native_r_postnatal_contract",
+    "test_native_r_fetal_sex",
     "test_native_r_family_oracle",
     "test_native_r_reference_oracles",
 }

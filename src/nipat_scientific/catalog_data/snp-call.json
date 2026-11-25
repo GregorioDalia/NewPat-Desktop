@@ -694,22 +694,22 @@
               5,
               6
             ],
-            "sha256": "d68dbb867a790b765863e972f1eff751c44fc323653c66edb764c3be0f89eabc"
+            "sha256": "2e6092934e6a6c564f1208ed83c1547bab88a5dcb4c1992e45a4ef663ec88b59"
           },
           {
             "path": "src/nipat_scientific/settings.py",
-            "sha256": "721d5e0915a077195c53c6422d7caaaaa5a1f94ea108fd836a506bcfa3927e62",
+            "sha256": "dc40a1dfff1e87fbc8c9eb8427ea413ed1b358cf6b62542678e061894605cba9",
             "source_lines": [
               1,
-              204
+              207
             ]
           },
           {
             "path": "src/nipat_scientific/settings_data.json",
-            "sha256": "09ff49fcf78dd995526609109bfe2fd2b9b095ad5e596545dc3d9a87c0ea967b",
+            "sha256": "9c72fe224c9a07f665d7067d4b4db4161b209acab85cccff9e1963125b066f44",
             "source_lines": [
               1,
-              653
+              749
             ]
           }
         ]
@@ -822,9 +822,9 @@
         "path": "src/nipat_scientific/outputs.py",
         "source_lines": [
           1,
-          671
+          677
         ],
-        "sha256": "190281bd06b46ea6a1ab6281551978daee8f040c4acd674f59215f6ac6200ddf"
+        "sha256": "153a82cf0235abc18503a673896570a7ad3073af6a4f30c3b28aece382510023"
       }
     },
     {
@@ -845,9 +845,9 @@
         "path": "src/nipat_scientific/presentation.py",
         "source_lines": [
           1,
-          398
+          409
         ],
-        "sha256": "85e1047d55a67b2cd61563f41b4f737ed8dd60209736e0b6dfc7a79ab9cd6dbd",
+        "sha256": "c566d6a193f07e02afcb809342737e18d8984eb2f30133aef312d8b230e21405",
         "dependencies": [
           {
             "path": "src/nipat_scientific/presentation.R",
@@ -933,10 +933,10 @@
           {
             "path": "src/nipat/execution/runner.py",
             "source_lines": [
-              208,
-              229
+              209,
+              230
             ],
-            "sha256": "320e0a160691be4910a7351347e69cbd1069c8585c5df4f1ef46b7e95631f2f8"
+            "sha256": "34781cb5994c850c102c17ab5d41aa365e217f117d46c2c3ae7939677571873b"
           },
           {
             "path": "src/nipat_scientific/parallel.py",
@@ -949,10 +949,10 @@
           {
             "path": "engine/main.py",
             "source_lines": [
-              462,
-              469
+              469,
+              476
             ],
-            "sha256": "922f297cbb7055c99358a53e8bf76f78e7ed68a8a71b47022cc1adcb2e15a2d7"
+            "sha256": "45fa6db0dc1209c2e53150e7fa76c9c712a4c6e501b31e6d4f4152ce8fe32456"
           },
           {
             "path": "scientific/vendor/NEWPAT/SNPcall/SNPcall.R",
@@ -973,18 +973,18 @@
           {
             "path": "src/nipat/execution/runner.py",
             "source_lines": [
-              111,
-              132
+              112,
+              133
             ],
-            "sha256": "320e0a160691be4910a7351347e69cbd1069c8585c5df4f1ef46b7e95631f2f8"
+            "sha256": "34781cb5994c850c102c17ab5d41aa365e217f117d46c2c3ae7939677571873b"
           },
           {
             "path": "src/nipat/execution/runner.py",
             "source_lines": [
-              204,
-              229
+              205,
+              230
             ],
-            "sha256": "320e0a160691be4910a7351347e69cbd1069c8585c5df4f1ef46b7e95631f2f8"
+            "sha256": "34781cb5994c850c102c17ab5d41aa365e217f117d46c2c3ae7939677571873b"
           },
           {
             "path": "src/nipat_scientific/snp_parallel.py",
@@ -1005,10 +1005,10 @@
           {
             "path": "src/nipat/gui/jobs.py",
             "source_lines": [
-              182,
-              237
+              185,
+              240
             ],
-            "sha256": "2c04211c4c361c00f9a00c1be7c108dffb606419c4ddaea7db085a395ae6aeae"
+            "sha256": "92bec0c8d12f11e3e215decd14ce9ff7a75dea590187c31f963718573a02b6b3"
           },
           {
             "path": "src/nipat/gui/admission.py",
@@ -1029,18 +1029,18 @@
           {
             "path": "src/nipat_scientific/executor.py",
             "source_lines": [
-              439,
-              580
+              451,
+              592
             ],
-            "sha256": "db4a0092a08e53b4d112960d232962d7dc607cb00d8d293b63e2f00f04aa4c49"
+            "sha256": "b3229758cf1ebc9bf0173888d9934cdf13d2da3c8ec4d16c39887a8af4bf7b99"
           },
           {
             "path": "src/nipat/execution/runner.py",
             "source_lines": [
-              224,
-              227
+              225,
+              228
             ],
-            "sha256": "320e0a160691be4910a7351347e69cbd1069c8585c5df4f1ef46b7e95631f2f8"
+            "sha256": "34781cb5994c850c102c17ab5d41aa365e217f117d46c2c3ae7939677571873b"
           }
         ]
       }
@@ -1093,10 +1093,10 @@
           },
           {
             "path": "src/nipat_scientific/executor.py",
-            "sha256": "db4a0092a08e53b4d112960d232962d7dc607cb00d8d293b63e2f00f04aa4c49",
+            "sha256": "b3229758cf1ebc9bf0173888d9934cdf13d2da3c8ec4d16c39887a8af4bf7b99",
             "source_lines": [
               1,
-              580
+              592
             ]
           }
         ]
@@ -1162,10 +1162,10 @@
         "dependencies": [
           {
             "path": "src/nipat_scientific/outputs.py",
-            "sha256": "190281bd06b46ea6a1ab6281551978daee8f040c4acd674f59215f6ac6200ddf",
+            "sha256": "153a82cf0235abc18503a673896570a7ad3073af6a4f30c3b28aece382510023",
             "source_lines": [
               1,
-              671
+              677
             ]
           }
         ]
@@ -1323,26 +1323,26 @@
       },
       "evidence": {
         "path": "src/nipat_scientific/settings_data.json",
-        "sha256": "09ff49fcf78dd995526609109bfe2fd2b9b095ad5e596545dc3d9a87c0ea967b",
+        "sha256": "9c72fe224c9a07f665d7067d4b4db4161b209acab85cccff9e1963125b066f44",
         "source_lines": [
           1,
-          653
+          749
         ],
         "dependencies": [
           {
             "path": "src/nipat_scientific/settings.py",
-            "sha256": "721d5e0915a077195c53c6422d7caaaaa5a1f94ea108fd836a506bcfa3927e62",
+            "sha256": "dc40a1dfff1e87fbc8c9eb8427ea413ed1b358cf6b62542678e061894605cba9",
             "source_lines": [
               1,
-              204
+              207
             ]
           },
           {
             "path": "src/nipat_scientific/settings.R",
-            "sha256": "809817ff9eefd5ed2e932a021a6a3d9e9fa7a8178120a2babfd7c503f257ea6a",
+            "sha256": "fb6e63b54b8e99c9cc754e7a0cce36ae9803312eee117a014fd6e9c5f6019af7",
             "source_lines": [
               1,
-              99
+              104
             ]
           }
         ]

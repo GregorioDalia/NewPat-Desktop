@@ -37,11 +37,12 @@ BUNDLED_WORKFLOW_INTERFACES = {
     "snp-call": "snp-call-v2",
     "cpi": "cpi-v3",
     "cpin": "cpin-v2",
+    "fetal-sex": "fetal-sex-v1",
 }
 BUNDLED_WORKFLOW_LABELS = {
     "contamination": "Contamination", "dnp-call": "DNPcall", "snp-call": "SNPcall", "cpi": "CPI prenatale",
-    "cpin": "CPI postnatale",
-    "workflow-plan-all": "Workflow con cinque moduli",
+    "cpin": "CPI postnatale", "fetal-sex": "Sesso fetale",
+    "workflow-plan-all": "Workflow di analisi",
     "workflow-plan": "Workflow automatico",
     "workflow-plan-cpi": "Workflow automatico con CPI",
     "workflow-plan-snp": "Workflow SNPcall su piu' campioni",
@@ -49,7 +50,7 @@ BUNDLED_WORKFLOW_LABELS = {
 }
 PLAN_EXECUTION_INTERFACE = "workflow-plan-execution-v2"
 PLAN_WORKFLOWS = {
-    "workflow-plan-all": ("dnp-call", "snp-call", "contamination", "cpi", "cpin"),
+    "workflow-plan-all": tuple(BUNDLED_WORKFLOW_INTERFACES),
     "workflow-plan": ("dnp-call", "contamination"),
     "workflow-plan-cpi": ("dnp-call", "contamination", "cpi"),
     "workflow-plan-snp": ("snp-call",),
@@ -300,6 +301,7 @@ class DockerComposeRunner:
             "engine/main.py", "lib/nipat_scientific/__init__.py",
             "lib/nipat_scientific/errors.py", "lib/nipat_scientific/panels.py",
             "lib/nipat_scientific/files.py", "lib/nipat_scientific/contamination.py",
+            "lib/nipat_scientific/fetal_sex.py",
             "lib/nipat_scientific/snp.py", "lib/nipat_scientific/dnp.py",
             "lib/nipat_scientific/cpi.py", "lib/nipat_scientific/cpin.py",
             "lib/nipat_scientific/settings.py", "lib/nipat_scientific/settings.R",
@@ -370,7 +372,7 @@ class DockerComposeRunner:
                 and parallel.get("modes") == ["auto", "serial"]
                 and parallel.get("max_workers") is True
                 and isinstance(parallel.get("workflows"), list)
-                and required_workflows.issubset(
+                and (required_workflows - {"fetal-sex"}).issubset(
                     name for name in parallel["workflows"] if isinstance(name, str))
                 and validation.get("interface") == "scientific-validation-v1"
                 and validation.get("snp_alleles") == "uppercase-working-copy"
@@ -403,7 +405,7 @@ class DockerComposeRunner:
                 )
         if not valid:
             label = (BUNDLED_WORKFLOW_LABELS.get(workflow, workflow)
-                     if workflow is not None else "dei cinque workflow")
+                     if workflow is not None else "dei moduli scientifici")
             contracts = ", ".join(str(value) for value in expected_interfaces.values())
             if is_plan:
                 contracts = PLAN_EXECUTION_INTERFACE + ", " + contracts

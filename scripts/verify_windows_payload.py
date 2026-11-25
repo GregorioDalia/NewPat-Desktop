@@ -209,8 +209,10 @@ def exercise_client(app: Path, work: Path, manifest: dict) -> None:
         help_text = invoke(f"self-test-{script.stem}", ["--help"], script=script)
         require("--help" in help_text, f"Packaged self-test help is missing: {filename}")
     catalog = json.loads(invoke("catalog", ["parameters", "--json"]))
-    require(set(catalog["workflows"]) ==
-            {"dnp-call", "snp-call", "contamination", "cpi", "cpin"}, "Incomplete packaged scientific catalog.")
+    modules = {"dnp-call", "snp-call", "contamination", "cpi", "cpin"}
+    if version and tuple(map(int, version.groups())) >= (0, 9, 10):
+        modules.add("fetal-sex")
+    require(set(catalog["workflows"]) == modules, "Incomplete packaged scientific catalog.")
     settings_path = work / "scientific-settings.json"
     settings = json.loads(invoke("settings", ["settings", "--json", "--export", settings_path]))
     require(set(settings["effective"]) == set(catalog["workflows"]) and

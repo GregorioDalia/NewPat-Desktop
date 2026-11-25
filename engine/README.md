@@ -17,6 +17,7 @@ python3 /opt/nipat/engine/main.py execute snp-call --request /run/work/request.j
 python3 /opt/nipat/engine/main.py execute contamination --request /run/work/request.json
 python3 /opt/nipat/engine/main.py execute cpi --request /run/work/request.json
 python3 /opt/nipat/engine/main.py execute cpin --request /run/work/request.json
+python3 /opt/nipat/engine/main.py execute fetal-sex --request /run/work/request.json
 ```
 
 `execute` validates the request, prepares the input files and starts the R program. Use `run` for a direct call with native R arguments.
@@ -28,20 +29,20 @@ python3 /opt/nipat/engine/main.py run snp-call -- \
 
 `run` passes the arguments following the workflow name directly to R and removes an optional leading `--`. It skips the input preparation performed by `execute`.
 
-Before running any workflow, the engine checks all five R sources against the bundled scientific manifest. `describe --json` returns the following contract.
+Before running any workflow, the engine checks all six R sources against the bundled scientific manifest. `describe --json` returns the following contract.
 
 | Field | Value or meaning |
 | --- | --- |
 | `schema_version` | `1` |
 | `interface` | `native-r-v1` |
-| `workflow_interfaces` | `dnp-call-v1`, `snp-call-v2`, `contamination-v2`, `cpi-v3` and `cpin-v2` for their respective workflows |
+| `workflow_interfaces` | `dnp-call-v1`, `snp-call-v2`, `contamination-v2`, `cpi-v3`, `cpin-v2` and `fetal-sex-v1` for their respective workflows |
 | `preparation.interface` | `workflow-preparation-v1` |
 | `plan_execution.interface` | `workflow-plan-execution-v2` |
-| `plan_execution.workflows` | `dnp-call`, `snp-call`, `contamination`, `cpi`, `cpin` |
+| `plan_execution.workflows` | `dnp-call`, `snp-call`, `contamination`, `cpi`, `cpin`, `fetal-sex` |
 | `scientific_settings.interface` | `scientific-settings-v1`, with a shared registry and effective values per step |
 | `plan_execution.scheduling` | `dependency-order-with-bounded-independent-snp` |
 | `plan_execution.resume` | `false` |
-| Scientific identity | Manifest hash and path/hash of each of the five R scripts |
+| Scientific identity | Manifest hash and path/hash of each of the six R scripts |
 | `preparation.file_sha256` | Hashes of the engine entry point, shared preparation modules, R presentation adapter and JSON catalog records |
 
 Verification rejects missing modules and paths outside the bundle. The preparation hashes identify bytes installed in the image. The engine also checks each R hash against the manifest. Build evidence and run metadata supply the release commit, distributed archive and image ID.
@@ -52,7 +53,7 @@ Verification rejects missing modules and paths outside the bundle. The preparati
 
 `execute-plan` validates and executes a plan in a new destination. It prints the outcome and the path to `workflow-state.json`. With `--json`, it writes the full JSON report to stdout and progress messages to stderr. The exit code reflects the plan outcome in either mode.
 
-The engine supports DNPcall, SNPcall, Contamination, prenatal CPI and postnatal CPI. Both callers produce typed count tables that feed any of the three downstream modules. A downstream step uses either SNP or DNP tables. Prenatal CPI selects explicit pairs and postnatal CPI explicit trios. Dependencies determine step order. Ready independent SNP steps share a bounded process budget, including in mixed plans. The policy admits one outer sample when memory demand is unknown. Nested sample workers use serial R pools. Users can request serial execution.
+Both callers produce typed count tables for contamination, prenatal CPI and postnatal CPI. Each of those steps uses either SNP or DNP tables. Prenatal CPI selects explicit pairs and postnatal CPI explicit trios. Fetal sex uses three role-specific tables for one maternal sample. Dependencies determine step order. Ready independent SNP steps share a bounded process budget, including in mixed plans. The policy admits one outer sample when memory demand is unknown. Nested sample workers use serial R pools. Users can request serial execution.
 
 Each step keeps its request, prepared files, results and log. The engine maintains the overall state in `workflow-state.json`, coordinates the sequence, and forwards interruptions to the scientific process group. Errors and interruptions prevent later steps from starting. A retry uses a new destination.
 
@@ -183,6 +184,10 @@ An `execute cpin` request uses `schema_version: 1`, `workflow: "cpin"`, a `sampl
 `trios` is a comma-separated list of `mother:father:child` triples. Each role selects a distinct table through its prefix and identifier. Tables, the marker panel and population frequencies must use the same marker type, SNP or DNP. `scientific_settings` supplies validated overrides including `min_coverage`, the four `include_*` genotype-combination flags and the two marker-specific mismatch probabilities.
 
 The engine exports a single combined index per trio in `Summary_Postnatal_CPI.txt` and an audit of included and excluded sites in each `<Trio>_sites.txt`. See [Postnatal CPI preparation and trio identity](../docs/WORKFLOW_CONTRACT.md#postnatal-cpi-preparation-and-trio-identity) for the workflow-plan equivalent.
+
+## Fetal sex
+
+An `execute fetal-sex` request uses `schema_version: 1`, `workflow: "fetal-sex"`, and absolute paths for `autosomes` (DNP), `x` (DNP), `y` (SNP), `work_dir` and `out_dir`. The three input tables belong to the same maternal cfDNA sample. The summary takes its sample label from the autosomal filename. The optional `scientific_settings` object overrides the source defaults. Each completed run exports `Fetal_sex_summary.txt`, `Autosomal_informative_sites.txt`, `X_informative_sites.txt` and `Y_sites.txt`. [Reference inputs and expected outputs](../tests/fixtures/fetal_sex/README.md)
 
 ## Readable labels
 

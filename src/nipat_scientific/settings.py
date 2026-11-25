@@ -1,4 +1,4 @@
-"""Validated scientific parameters and readable model constants for all five modules.
+"""Validated scientific parameters and readable model constants for all registered modules.
 
 Python and R read the same packaged registry. Input files are never modified.
 Execution budgets are a separate contract (parallel.py / parallel.R).
@@ -93,8 +93,11 @@ def normalize_settings(workflow: str, overrides: dict | None = None) -> dict:
         raise ValidationError("La guida logCPI inferiore deve essere minore della superiore.")
     if values.get("redo_baq") and not values.get("baq", True):
         raise ValidationError("redo_baq richiede baq=true.")
-    if workflow == "cpi" and values["min_fetal_reads"] is None and values["min_fetal_percent"] is None:
+    if workflow in {"cpi", "fetal-sex"} and values["min_fetal_reads"] is None and values["min_fetal_percent"] is None:
         values["min_fetal_reads"] = 2
+    if workflow == "fetal-sex" and (values["b_female_max"] >= values["b_male_min"]
+                                    or values["c_female_max"] >= values["c_male_min"]):
+        raise ValidationError("Per i rapporti B e C il massimo femminile deve precedere il minimo maschile.")
     if workflow == "cpin" and not any(values[f"include_{pair}"] for pair in GENOTYPE_COMBINATIONS):
         raise ValidationError("Selezionare almeno una combinazione genotipica madre–figlio.")
     return values

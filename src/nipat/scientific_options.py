@@ -8,7 +8,7 @@ from pathlib import Path
 from nipat.errors import ValidationError
 from nipat_scientific.settings import defaults, describe_settings, normalize_settings
 
-WORKFLOWS = ("dnp-call", "snp-call", "contamination", "cpi", "cpin")
+WORKFLOWS = ("dnp-call", "snp-call", "contamination", "cpi", "cpin", "fetal-sex")
 
 
 def _unique_settings(pairs: list[tuple[str, object]]) -> dict:

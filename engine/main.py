@@ -1,6 +1,6 @@
 """Execute the bundled R scripts without importing the desktop application.
 
-Native script invocation remains available. All five workflows also
+Native script invocation remains available. All workflows also
 accept versioned requests prepared with the bundled shared adapters.
 """
 
@@ -25,17 +25,18 @@ SCRIPT_PATHS = {
     "contamination": "vendor/NEWPAT/contamination/detect_contamination.R",
     "cpi": "vendor/NEWPAT/CPI_from_cffDNA/cfDNA_CPI_estimator.R",
     "cpin": "vendor/NEWPAT/CPI_postnatal/Postnatal_CPI.R",
+    "fetal-sex": "vendor/NEWPAT/Fetal_sex/Fetal_sex.R",
 }
 PREPARATION_FILES = (
     "__init__.py", "errors.py", "panels.py", "files.py", "contamination.py", "snp.py", "dnp.py", "cpi.py",
     "catalog.py", "plan.py", "executor.py", "desktop_scheduling.py", "outputs.py", "presentation.py", "presentation.R", "performance.py",
     "scratch.py", "dnp_pileup.py", "dnp_blocks.R", "progress.py", "progress.R",
-    "parallel.py", "parallel.R", "plots.R", "snp_summary.py", "snp_parallel.py", "cpin.py", "settings.py", "settings.R", "settings_data.json",
+    "parallel.py", "parallel.R", "plots.R", "snp_summary.py", "snp_parallel.py", "cpin.py", "fetal_sex.py", "settings.py", "settings.R", "settings_data.json",
 )
 CATALOG_FILES = tuple(f"catalog_data/{workflow}.json" for workflow in SCRIPT_PATHS)
 WORKFLOW_INTERFACES = {
     "contamination": "contamination-v2", "snp-call": "snp-call-v2", "dnp-call": "dnp-call-v1",
-    "cpi": "cpi-v3", "cpin": "cpin-v2",
+    "cpi": "cpi-v3", "cpin": "cpin-v2", "fetal-sex": "fetal-sex-v1",
 }
 
 
@@ -160,7 +161,7 @@ def verify_bundle(bundle_root: Path) -> dict:
         },
         "parallel_execution": {
             "interface": "nipat-parallel-v1", "schema_version": 1,
-            "workflows": list(SCRIPT_PATHS), "default_mode": "auto",
+            "workflows": [name for name in SCRIPT_PATHS if name != "fetal-sex"], "default_mode": "auto",
             "modes": ["auto", "serial"], "max_workers": True,
             "budget_scope": "one scientific analysis; nested pools disabled",
             "memory_budget": "conservative estimate; not a hard memory guarantee",
@@ -302,6 +303,9 @@ def run_validated_request(request: dict, script: Path, native_arguments: list[st
         if code or cancellation.signum is not None:
             return cancellation.exit_code if cancellation.signum is not None else code
         with phase("output-validation", workflow=request["workflow"]) as validation_state:
+            if request["workflow"] == "fetal-sex":
+                from nipat_scientific.fetal_sex import publish_outputs
+                publish_outputs(request)
             artifacts = validate_standalone_outputs(request)
             if cancellation.signum is not None:
                 validation_state["outcome"] = "cancelled"
@@ -418,6 +422,9 @@ def main(argv: list[str] | None = None) -> int:
                         if arguments.workflow == "contamination":
                             from nipat_scientific.contamination import prepare_contamination
                             native_arguments = prepare_contamination(request)
+                        elif arguments.workflow == "fetal-sex":
+                            from nipat_scientific.fetal_sex import prepare_fetal_sex
+                            native_arguments = prepare_fetal_sex(request)
                         elif arguments.workflow == "cpi":
                             from nipat_scientific.cpi import prepare_cpi
                             native_arguments = prepare_cpi(request)

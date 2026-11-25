@@ -4,7 +4,7 @@ A plan identifies samples, analysis steps and their input and output relationshi
 
 `validate-plan --plan FILE` checks the structure and dependencies and returns JSON. It works without the sample files and starts no R or samtools process. File content, reference compatibility and output checks belong to execution.
 
-`execute-plan --plan FILE --run-dir DIR` runs plans containing DNPcall, SNPcall, Contamination, prenatal CPI and postnatal CPI. Both callers produce typed count tables accepted by all three downstream modules. Each SNPcall step processes one BAM or pileup. Multiple steps can share a panel. Use `execute` to run a single module.
+`execute-plan --plan FILE --run-dir DIR` runs plans containing DNPcall, SNPcall, contamination, prenatal CPI, postnatal CPI and fetal sex. Both callers produce typed count tables accepted by contamination and both CPI analyses. Each SNPcall step processes one BAM or pileup. Multiple steps can share a panel. Use `execute` to run a single module.
 
 The desktop command `workflow analyze` and menu **W → 5** build DNP branches, SNP branches, or both, starting from alignments or existing tables. Each branch can select its own subset of Contamination, prenatal and postnatal CPI. The client generates the JSON from the confirmed menu selections or CLI arguments.
 
@@ -35,10 +35,11 @@ Every entry in `steps` contains exactly `id`, `workflow`, `inputs` and `paramete
 | `contamination` | `samples` (list of table references), `panel` (coordinate panel) | No module-specific required field |
 | `cpi` | `pairs` (explicit pairs), `popfreq` (population frequencies), `cutoffs` (selected panels) | `cutoff_mode` (`all`, `panel` or `named`), optional finite `err_const` in `(0, 1]` |
 | `cpin` | `trios` (explicit trios), `popfreq` (population frequencies), `markers` (panel with REF/ALT alleles or `null`) | No module-specific required field |
+| `fetal-sex` | Three registered table IDs for one maternal cfDNA sample: `autosomes` (DNP), `x` (DNP) and `y` (SNP) | No module-specific required field |
 
 The desktop displays `cpi` as **Prenatal CPI** and `cpin` as **Postnatal CPI**. Saved plans and run records use the workflow IDs above. The [module integration guide](ARCHITECTURE.md#adding-a-downstream-scientific-module) lists the engine and desktop changes for an additional downstream script.
 
-All steps accept a `scientific_settings` object in `parameters` for module-specific overrides. Downstream steps also accept `marker_type: "SNP"` or `"DNP"`. The validator infers the type if omitted and checks it if supplied. Each downstream analysis uses one table type. Frequencies and panels must use the corresponding coordinates. The engine checks their contents during execution.
+All steps accept a `scientific_settings` object in `parameters` for module-specific overrides. Contamination and the two CPI steps also accept `marker_type: "SNP"` or `"DNP"`. The validator infers the type if omitted and checks it if supplied. Frequencies and panels must use the corresponding coordinates. Fetal sex uses both marker types in the roles shown above and requires three distinct tables. The engine checks their contents during execution.
 
 `newpat settings` lists defaults, types, bounds, cross-parameter constraints and model constants. `newpat settings --export FILE` writes reusable JSON for `--scientific-config FILE`. Command-line overrides such as `--set module.parameter=value` take precedence over that file. Validation rejects unknown keys, nonfinite values, incorrect types and invalid threshold combinations. Python and R use the same registry. The client records the settings in the steps and run metadata. The registry documents formulas and other fixed model properties separately from the editable settings.
 

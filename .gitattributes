@@ -9,3 +9,4 @@ tests/reference_r/NEWPAT_20261125/**/*.R -whitespace
 installer/macos/licenses/** -text -whitespace
 # Keep the offline PDF renderer, fonts and notices byte-identical in each installer.
 src/nipat/gui/web/vendor/pdfmake/** -text -whitespace
+tests/fixtures/fetal_sex/**/*.txt text eol=lf

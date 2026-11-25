@@ -447,6 +447,29 @@ def verify_grouped_reports(page, picker, directory, evidence, check):
     picker.report_path = None
 
 
+def verify_fetal_sex_form(page, probe, picker, check):
+    page.locator('nav [data-view="new"]').click()
+    page.locator("#experiment-name").fill("Maternal cfDNA")
+    page.locator("#source").select_option("fetal-sex")
+    page.locator("#fetal-sample-id").fill("Maternal")
+    inputs = ROOT / "tests/fixtures/fetal_sex/inputs"
+    for role, suffix in (("autosomes", "autosomes"), ("x", "X"), ("y", "Y")):
+        picker.paths = [inputs / f"Female_fetus_{suffix}.txt"]
+        page.locator(f'[data-action="choose-path"][data-key="fetal.{role}"]').click()
+        probe.wait(f"Boolean(NipatApp.state.draft.fetal_sex.{role})")
+    page.locator('[role="tab"][data-index="2"]').click()
+    page.locator('[data-parameter="fetal-sex|b_female_max|draft"]').fill("0.05")
+    page.locator('[role="tab"][data-index="3"]').click()
+    page.locator('[data-action="validate-plan"]').click()
+    page.locator(".plan-list li").wait_for()
+    preview = probe.evaluate("NipatApp.state.preview")
+    check([step["workflow"] for step in preview["steps"]] == ["fetal-sex"]
+          and preview["steps"][0]["parameters"]["scientific_settings"]["b_female_max"] == 0.05
+          and set(row["biological_id"] for row in preview["samples"]) == {"Maternal"},
+          "Maternal table pickers and the edited threshold reach one validated fetal-sex step")
+    picker.paths = []
+
+
 def run_verification(report_path, executable):
     from playwright.sync_api import sync_playwright
 
@@ -799,6 +822,7 @@ def run_verification(report_path, executable):
                 check(archived.is_dir() and digest_files(preserved) == before, "Remove from list preserves every source, index, result and metadata byte")
                 verify_grouped_reports(page, picker, report_path.parent, evidence, check)
                 verify_report_igv_capture(page, app, check)
+                verify_fetal_sex_form(page, probe, picker, check)
                 verify_archive_pages(page, probe, service, methods, check)
                 check(not evidence["external_requests"], "All browser resources and genomic byte ranges stay on the local service")
                 check(not evidence["errors"], "No JavaScript exceptions or unexpected browser console errors")

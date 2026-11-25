@@ -66,6 +66,11 @@ nipat_validate_settings <- function(workflow, values) {
   if (!is.null(values$log_cpi_lower) && values$log_cpi_lower >= values$log_cpi_upper)
     stop("Invalid logCPI plot guide order")
   if (isTRUE(values$redo_baq) && !isTRUE(values$baq)) stop("redo_baq requires baq=true")
+  if (workflow == "fetal-sex") {
+    if (is.null(values$min_fetal_reads) && is.null(values$min_fetal_percent)) values$min_fetal_reads <- 2L
+    if (values$b_female_max >= values$b_male_min || values$c_female_max >= values$c_male_min)
+      stop("Female maximum must be below male minimum for each of ratios B and C")
+  }
   if (workflow == "cpin" && !any(unlist(values[paste0("include_", c("hom_hom", "hom_het", "het_hom", "het_het"))])))
     stop("At least one mother-child genotype combination must be enabled")
   values

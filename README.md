@@ -31,6 +31,7 @@ This guide describes **0.9.10**. The release notes record its status and changes
 | **Contamination** | SNP or DNP count tables and a matching coordinate panel | Per-site contamination estimates and a summary per sample |
 | **Prenatal CPI** | Count tables for maternal cell-free DNA and the alleged father, sample pairings, and population allele frequencies | Fetal fraction estimates, combined paternity index (CPI), tables and plots |
 | **Postnatal CPI** | Mother, alleged father and child count tables, sample trios, and population allele frequencies | One CPI per trio, its base-10 logarithm and a table of included and excluded sites |
+| **Fetal sex** | Autosomal DNP, X DNP and Y SNP count tables from the same maternal cfDNA sample | F, M or Undetermined, three ratios and three site tables |
 
 Run a module on its own or build a workflow. DNPcall and SNPcall can share BAM inputs and feed separate analyses. Each branch uses its own panels and population frequencies. For parentage analyses, assign samples to family roles explicitly.
 

@@ -1,6 +1,6 @@
 # Scientific parameter catalog
 
-The catalog documents public arguments, calculation rules and input preparation for the five R programs distributed with NewPat. It is available in English and Italian without starting the scientific runtime or opening samples. In the terminal menu, choose **7 → 6** (Help and information → Scientific catalog), then a module and section. **L — Language** changes the language of the catalog view.
+The catalog documents public arguments, calculation rules and input preparation for the six R programs distributed with NewPat. It is available in English and Italian without starting the scientific runtime or opening samples. In the terminal menu, choose **7 → 6** (Help and information → Scientific catalog), then a module and section. **L — Language** changes the language of the catalog view.
 
 ```sh
 newpat parameters cpi --lang en

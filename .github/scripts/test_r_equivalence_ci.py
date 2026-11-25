@@ -108,7 +108,7 @@ class REquivalenceCI(unittest.TestCase):
         self.assertLessEqual(set(packages), installed)
         required = {"jsonlite"}
         for relative in ("CPI_postnatal/Postnatal_CPI.R", "CPI_from_cffDNA/cfDNA_CPI_estimator.R",
-                         "contamination/detect_contamination.R"):
+                         "contamination/detect_contamination.R", "Fetal_sex/Fetal_sex.R"):
             source = (ROOT / "scientific/vendor/NEWPAT" / relative).read_text()
             required.update(re.findall(r"library\(([A-Za-z][A-Za-z0-9.]*)\)", source))
         required.discard("tools")  # Included with base R, not a CRAN dependency.

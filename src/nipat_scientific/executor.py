@@ -1,6 +1,6 @@
 """Execute typed scientific plans in the image, including independent SNPcall.
 
-The plan validator and executor support the five bundled workflows.
+The plan validator and executor share the bundled workflow contracts.
 The executor never imports the desktop application,
 changes R sources, copies BAMs, executes shell fragments, or resumes an old run.
 """
@@ -24,6 +24,7 @@ import time
 from nipat_scientific.contamination import prepare_contamination
 from nipat_scientific.cpi import prepare_cpi
 from nipat_scientific.cpin import prepare_cpin
+from nipat_scientific.fetal_sex import ROLES as FETAL_SEX_ROLES, prepare_fetal_sex, publish_outputs as publish_fetal_sex_outputs
 from nipat_scientific.settings import normalize_settings, settings_context
 from nipat_scientific.dnp import prepare_dnp
 from nipat_scientific.errors import PlanExecutionError, ValidationError
@@ -44,7 +45,7 @@ from nipat_scientific.presentation import (
 )
 
 
-SUPPORTED_WORKFLOWS = frozenset({"dnp-call", "snp-call", "contamination", "cpi", "cpin"})
+SUPPORTED_WORKFLOWS = frozenset({"dnp-call", "snp-call", "contamination", "cpi", "cpin", "fetal-sex"})
 INTERFACE = "workflow-plan-execution-v2"
 _NATIVE_PATH = re.compile(r"[A-Za-z0-9_./:-]+\Z")
 
@@ -132,6 +133,9 @@ def _preflight(document: object, run_dir: Path, script_paths: dict[str, Path]) -
 
     for step in plan["steps"]:
         inputs = step["inputs"]
+        if step["workflow"] == "fetal-sex":
+            # Imported files are checked above and their region-specific contents during preparation.
+            continue
         if step["workflow"] in {"cpi", "cpin"}:
             marker = step["parameters"]["marker_type"]
             popfreq = require_file(Path(inputs["popfreq"]), "Population frequencies")
@@ -348,6 +352,12 @@ def _execute_step(plan, step, record, root, scripts, samples, outputs, cancellat
                         for kind, name in (("regions-bed", "snp_regions.bed"), ("pileup", "pileup.txt"))
                     ]
                     persist()
+            elif step["workflow"] == "fetal-sex":
+                request.update({role: samples[step["inputs"][role]]["path"] for role in FETAL_SEX_ROLES})
+                record["input_tables"] = step["inputs"].copy()
+                record_request()
+                native, cwd = prepare_fetal_sex(request), work
+                activate_settings()
             elif step["workflow"] == "contamination":
                 selected = []
                 for number, reference in enumerate(step["inputs"]["samples"], 1):
@@ -420,6 +430,8 @@ def _execute_step(plan, step, record, root, scripts, samples, outputs, cancellat
         if code:
             raise PlanExecutionError("execution.process", f"{step['id']} exited with code {code}; see {record['log']}.")
         with phase("output-validation", workflow=step["workflow"], step=step["id"]):
+            if step["workflow"] == "fetal-sex":
+                publish_fetal_sex_outputs(request)
             artifacts = _collect_outputs(step, request, root, output)
         with phase("presentation-finalization", workflow=step["workflow"], step=step["id"]):
             presentation = finish_presentation(request, root)

@@ -476,6 +476,42 @@ class FiveModuleAcceptanceTests(unittest.TestCase):
             with self.subTest(field=field), self.assertRaisesRegex(ValueError, "measured workload"):
                 self.verify()
 
+    def test_0910_publication_requires_both_source_bound_fetal_sex_examples(self):
+        report = self.caller_report_fixture()
+
+        def verify(version="0.9.10"):
+            archive = io.BytesIO()
+            with zipfile.ZipFile(archive, "w") as handle:
+                handle.writestr("scientific/_temp/nipat-engine-check/caller-parallel-qualification.json",
+                                json.dumps(report))
+            return acceptance.verify_caller_parallel_qualification(
+                archive, IMAGE, version=version, source=lambda path: (ROOT / path).read_bytes())
+
+        self.assertNotIn("fetal_sex_examples_verified", verify("0.9.9"))
+        with self.assertRaisesRegex(ValueError, "Both source-free fetal-sex examples"):
+            verify()
+        folder = ROOT / "tests/fixtures/fetal_sex"
+        examples = {}
+        for sample, call in (("Female_fetus", "F"), ("Male_fetus", "M")):
+            inputs = (folder / "inputs").glob(f"{sample}_*.txt")
+            outputs = (folder / "outputs" / sample).glob("*.txt")
+            examples[sample] = {"call": call, "sample": sample + "_autosomes",
+                                "input_sha256": {p.name: digest(p.read_bytes()) for p in inputs},
+                                "output_sha256": {p.name: digest(p.read_bytes()) for p in outputs}}
+        report["fetal_sex_examples"] = examples
+        self.assertEqual(verify()["fetal_sex_examples_verified"], sorted(examples))
+        for key, value in (("call", "F"), ("sample", "Female_fetus_autosomes"),
+                           ("input_sha256", examples["Female_fetus"]["input_sha256"]),
+                           ("output_sha256", {})):
+            report["fetal_sex_examples"] = copy.deepcopy(examples)
+            report["fetal_sex_examples"]["Male_fetus"][key] = value
+            with self.subTest(field=key), self.assertRaisesRegex(ValueError, "Fetal-sex"):
+                verify()
+        report["fetal_sex_examples"] = copy.deepcopy(examples)
+        report["fetal_sex_examples"]["Male_fetus"]["output_sha256"]["Y_sites.txt"] = "0" * 64
+        with self.assertRaisesRegex(ValueError, "differs from the Git fixture"):
+            verify()
+
     def test_0910_publication_requires_one_source_bound_native_report(self):
         self.prepare_parallel_report()
         self.record["version"] = self.manifest["version"] = "0.9.10"

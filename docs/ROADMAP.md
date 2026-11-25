@@ -15,10 +15,10 @@ NewPat development centers on the reproducibility of research results and the op
 | Item | Evidence needed |
 | --- | --- |
 | Revised prenatal and postnatal CPI | Compare the packaged workflows with the revised upstream models, including the postnatal [worked SNP and DNP trios](https://github.com/lpistacchia/NEWPAT/tree/97c4eb5f7a901d0435b950c3e2a52a8bd7eae9d4/CPI_postnatal/examples). Check the scalar and its logarithm in the postnatal summary, site audit and exported results. |
-| Sixth downstream module | Obtain the sex-estimation script, invocation, required inputs and expected outputs. Use these to define the module contract and add a regression case. [Integration steps](ARCHITECTURE.md#adding-a-downstream-scientific-module) |
+| Sixth downstream module | Qualify fetal sex with the three maternal input tables and all four expected outputs from the [pinned upstream examples](https://github.com/lpistacchia/NEWPAT/tree/dde1a759e4b994a42ec9c9651f896394c546b109/Fetal_sex/examples). [Integration steps](ARCHITECTURE.md#adding-a-downstream-scientific-module) |
 | Performance on physical Apple Silicon | Compare the installed stable build on the same BAM lists and fixed Lima allocation. Record actual worker counts, phase times and table agreement. [Mac benchmark](MACOS_INSTALLER.md#compare-worker-settings-on-an-apple-silicon-mac) |
 
-The two CPI sources have been supplied. The sixth script is still under development. Qualify the final module set before publication. The physical Mac measurement is planned for after the stable build becomes available. [Publication procedure](../.github/RELEASE.md)
+The revised CPI scripts and the fetal sex script have been supplied. Qualify the final module set before publication. The physical Mac measurement is planned for after the stable build becomes available. [Publication procedure](../.github/RELEASE.md)
 
 The current CPI display highlights the reported log index against two numeric limits and marks exact boundaries. User-selectable strict or inclusive comparison operators for assigning outcome categories remain a separate proposal.
 

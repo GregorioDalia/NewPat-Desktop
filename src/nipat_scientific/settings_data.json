@@ -648,6 +648,102 @@
         "log_cpi_lower < log_cpi_upper",
         "include_hom_hom or include_hom_het or include_het_hom or include_het_het"
       ]
+    },
+    "fetal-sex": {
+      "workflow": "fetal-sex",
+      "parameters": {
+        "max_other_fraction": {
+          "default": 0.1,
+          "type": "number",
+          "description": "Massima frazione N_Other/total_count ammessa nei siti autosomici e X. Il limite è incluso.",
+          "unit": "proporzione",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "maternal_hom_threshold": {
+          "default": 0.9,
+          "type": "number",
+          "description": "Frazione minima di letture REF o ALT tra le letture REF + ALT per assegnare l’allele materno prevalente.",
+          "unit": "proporzione",
+          "minimum": 0.5,
+          "exclusive_minimum": true,
+          "maximum": 1
+        },
+        "include_zero_coverage_y": {
+          "default": true,
+          "type": "boolean",
+          "description": "Include nella media Y i marcatori con zero letture REF + ALT.",
+          "unit": null
+        },
+        "min_fetal_reads": {
+          "default": null,
+          "type": "integer",
+          "description": "Numero minimo di letture non materne nei siti autosomici e X. Se entrambi i filtri sono vuoti si usano due letture.",
+          "unit": "letture",
+          "minimum": 1,
+          "maximum": 2147483647,
+          "nullable": true
+        },
+        "min_fetal_percent": {
+          "default": null,
+          "type": "number",
+          "description": "Percentuale minima di letture non materne sul totale REF + ALT nei siti autosomici e X. Se impostati, entrambi i filtri devono essere soddisfatti.",
+          "unit": "%",
+          "minimum": 0,
+          "exclusive_minimum": true,
+          "maximum": 100,
+          "nullable": true
+        },
+        "a_threshold": {
+          "default": 0.5,
+          "type": "number",
+          "description": "Soglia del rapporto X/autosomi. Valori uguali o superiori soddisfano il criterio femminile, valori inferiori quello maschile.",
+          "unit": "rapporto",
+          "minimum": 0,
+          "exclusive_minimum": true
+        },
+        "b_female_max": {
+          "default": 0.1,
+          "type": "number",
+          "description": "Massimo rapporto Y/autosomi per la classificazione femminile, limite incluso.",
+          "unit": "rapporto",
+          "minimum": 0
+        },
+        "b_male_min": {
+          "default": 1,
+          "type": "number",
+          "description": "Minimo rapporto Y/autosomi per la classificazione maschile, limite incluso.",
+          "unit": "rapporto",
+          "minimum": 0
+        },
+        "c_female_max": {
+          "default": 0.1,
+          "type": "number",
+          "description": "Massimo rapporto Y/X per la classificazione femminile, limite incluso.",
+          "unit": "rapporto",
+          "minimum": 0
+        },
+        "c_male_min": {
+          "default": 2,
+          "type": "number",
+          "description": "Minimo rapporto Y/X per la classificazione maschile, limite incluso.",
+          "unit": "rapporto",
+          "minimum": 0
+        }
+      },
+      "constants": {
+        "classification_rule": {
+          "value": "A AND B AND C",
+          "description": "La classificazione richiede concordanza dei tre rapporti. In caso di dati mancanti o criteri discordanti il risultato è indeterminato."
+        }
+      },
+      "source_files": [
+        "scientific/vendor/NEWPAT/Fetal_sex/Fetal_sex.R"
+      ],
+      "constraints": [
+        "Il massimo femminile deve essere inferiore al minimo maschile sia per B sia per C.",
+        "Se entrambi i filtri sulle letture fetali sono assenti, la soglia effettiva è di due letture."
+      ]
     }
   }
 }

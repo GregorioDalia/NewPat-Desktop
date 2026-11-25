@@ -198,11 +198,14 @@ def check_snp_plan(parent, expected, count, *, additional=()):
     return {"snp_samples": count, "steps": len(plan["steps"])}
 
 
-def check_all_five(parent, fixtures):
-    root, plan, _ = check_plan(parent, ["dnp-call"] + ["snp-call"] * 3 + ["contamination", "cpi", "cpin"] * 2)
+def check_all_modules(parent, fixtures, *, fetal_sex=None):
+    other_modules = ["dnp-call"] + ["contamination", "cpi", "cpin"] * 2
+    if fetal_sex is not None:
+        other_modules.append("fetal-sex")
+    root, plan, _ = check_plan(parent, ["snp-call"] * 3 + other_modules)
     check_dnp(root / "steps/dnp", fixtures)
     check_snp_plan(parent, fixtures / "snp_engine/expected.tsv", 3,
-                   additional=["dnp-call"] + ["contamination", "cpi", "cpin"] * 2)
+                   additional=other_modules)
     for step in plan["steps"]:
         if step["workflow"] in {"cpi", "cpin"}:
             refs = step["inputs"]["pairs" if step["workflow"] == "cpi" else "trios"]
@@ -211,7 +214,11 @@ def check_all_five(parent, fixtures):
                     require(family[role]["output"] in {"dnp-tables", "snp-tables"} and
                             planned_workflow(plan, family[role]["step"]) in {"dnp-call", "snp-call"},
                             "Riferimento familiare collegato a un modulo consumatore invece che al caller")
-    return {"steps": 10, "bam_count": 3, "scope": "caller numerical oracles; downstream routing/contracts; not a biologically valid trio"}
+    result = {"steps": len(plan["steps"]), "bam_count": 3, "scope": "caller numerical oracles and downstream routing"}
+    if fetal_sex is not None:
+        from installed_models import check_fetal_sex
+        result["fetal_sex"] = check_fetal_sex(root / "steps/fetal_sex", fetal_sex, "Female_fetus")
+    return result
 
 
 def planned_workflow(plan, identity):
@@ -417,7 +424,7 @@ def prepare_inputs(fixtures: Path, generated: Path, samtools):
     return {"combined": combined, "positive": positive, "bams": bams, "pileups": pileups}
 
 
-def build_cases(fixtures: Path, generated: Path, metadata):
+def build_cases(fixtures: Path, generated: Path, metadata, *, fetal_sex=None):
     del generated
     c, positive = metadata["combined"], metadata["positive"]
     bams, pileups = metadata["bams"], metadata["pileups"]
@@ -453,8 +460,14 @@ def build_cases(fixtures: Path, generated: Path, metadata):
             "--dnp-popfreq", c / "dnp-frequency.tsv", "--snp-popfreq", c / "snp-frequency.tsv",
             "--dnp-cpin-panel", c / "dnp-panel.tsv", "--snp-cpin-panel", c / "snp-panel.tsv",
             "--pair", "prenatal", "mother", "father", "--trio", "postnatal", "mother", "father", "child"]
+    group = "all-five"
+    if fetal_sex is not None:
+        from installed_models import fetal_sex_inputs
+        full.extend(["--fetal-sex", "maternal_cfDNA", *fetal_sex_inputs(fetal_sex, "Female_fetus")])
+        group = "all-six"
     for mode in ("serial", "auto", "cap2"):
-        add(f"all-five-{mode}", full.copy(), lambda run: check_all_five(run, fixtures), mode=mode, compare_group="all-five")
+        add(f"{group}-{mode}", full.copy(), lambda run: check_all_modules(run, fixtures, fetal_sex=fetal_sex),
+            mode=mode, compare_group=group)
     def contamination_plan(run):
         root, _, _ = check_plan(run, ["dnp-call", "contamination"])
         return check_dnp(root / "steps/dnp", fixtures)

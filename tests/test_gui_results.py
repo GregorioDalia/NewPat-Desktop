@@ -653,7 +653,7 @@ def test_validated_workflow_preserves_snp_branch_without_callers(archive, explic
     assert record["markers"] == ["SNP"]
     assert record["modules"] == ["contamination", "cpi", "cpin"]
     overview = store.overview("example")
-    assert overview["not_run"] == ["dnp-call", "snp-call"]
+    assert overview["not_run"] == ["dnp-call", "snp-call", "fetal-sex"]
     assert all(g["marker"] == "SNP" for g in overview["modules"])
     metadata["parameters"]["expected_steps"][0]["id"] = "../outside"
     write_json(run / "run.json", metadata)

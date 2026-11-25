@@ -14,7 +14,7 @@ Start with one experiment. A researcher selects samples in a desktop window. New
 
 ## Where do I look for the science?
 
-The two folders under `scientific/vendor/` record where the programs came from. **DNPcall** came from the DNPcall project. **SNPcall, Contamination, Prenatal CPI and Postnatal CPI** came from Letizia's NEWPAT project. All five use the same NewPat engine. The files here are the operational copies adapted for NewPat. The [scientific guide](../scientific/README.md) links directly to each R file and identifies its reference implementation.
+The two folders under `scientific/vendor/` record where the programs came from. **DNPcall** came from the DNPcall project. **SNPcall, Contamination, Prenatal CPI, Postnatal CPI and Fetal sex** came from Letizia's NEWPAT project. All six use the same NewPat engine. The files here are the operational copies adapted for NewPat. The [scientific guide](../scientific/README.md) links directly to each R file and identifies its reference implementation.
 
 For a question about a value, start with the [settings registry](../src/nipat_scientific/settings_data.json) for its default and allowed range. For a question about a formula, use the [scientific catalog](SCIENTIFIC_CATALOG.md) to locate the calculation. For a question about speed, start with [the resource guide](RESOURCES.md), which distinguishes sharing resources between experiments from splitting work inside one analysis.
 

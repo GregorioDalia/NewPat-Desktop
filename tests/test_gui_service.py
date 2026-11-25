@@ -265,7 +265,7 @@ class GuiServiceTests(GuiFixture):
     def test_bootstrap_contains_full_catalog_without_running_engine(self):
         with patch.object(DockerComposeRunner, "doctor", side_effect=AssertionError("unexpected runtime")):
             value = self.service().call("bootstrap")
-        self.assertEqual(set(value["settings"]["workflows"]), {"dnp-call", "snp-call", "contamination", "cpi", "cpin"})
+        self.assertEqual(set(value["settings"]["workflows"]), {"dnp-call", "snp-call", "contamination", "cpi", "cpin", "fetal-sex"})
         post = value["settings"]["workflows"]["cpin"]["parameters"]
         self.assertTrue(all(post["include_" + pair]["default"] for pair in ("hom_hom", "hom_het", "het_hom", "het_het")))
         self.assertNotIn("min_child_reads", post)

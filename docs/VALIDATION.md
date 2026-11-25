@@ -90,7 +90,7 @@ For example, in the shared-parent case the synthetic maternal sample contains 97
 | Scientific outcome (agreement, discrepancy or not assessable) | |
 | Usability problems, exact messages and reproducible materials | |
 
-For a revised scientific script, retain the upstream revision, a shareable example input, the author’s invocation and the independently checked expected result. For the revised postnatal workflow use the enabled mother–child combinations, verify the raw CPI and its log₁₀ value, and check for a zero site count and two unavailable indices when no sites qualify. For the planned sixth module, use the [integration guide](ARCHITECTURE.md#adding-a-downstream-scientific-module) once the script and its example arrive.
+For a revised scientific script, retain the upstream revision, a shareable example input, the author’s invocation and the independently checked expected result. For the revised postnatal workflow use the enabled mother–child combinations, verify the raw CPI and its log₁₀ value, and check for a zero site count and two unavailable indices when no sites qualify. For fetal sex, compare the four output tables for each [published upstream example](https://github.com/lpistacchia/NEWPAT/tree/dde1a759e4b994a42ec9c9651f896394c546b109/Fetal_sex/examples) and exercise the Undetermined outcome and filter boundaries.
 
 A rerun of the same implementation measures repeatability. Use an independent analytical result, validated dataset or reference implementation when evaluating accuracy.
 

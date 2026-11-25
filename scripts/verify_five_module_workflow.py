@@ -1,4 +1,4 @@
-"""Run all five modules from three synthetic BAMs in serial and capped modes.
+"""Run the five trio-based modules from three synthetic BAMs in serial and capped modes.
 
 Local qualification requires Rscript, samtools and bundled R libraries. With
 --image, the image supplies samtools and all scientific code, while the real
@@ -166,7 +166,7 @@ def qualify(destination: Path):
     if tables["serial"] != tables["capped"]:
         raise AssertionError("Serial/capped scientific tables differ")
     check_unchanged({**original, **input_hashes, **source_hashes})
-    report = {"status": "passed", "bam_count": 3, "scope": "all five modules, both marker branches, presentation and original inputs",
+    report = {"status": "passed", "bam_count": 3, "scope": "five trio-based modules, both marker branches, presentation and original inputs",
               "runs": results, "identical_scientific_tables": len(tables["serial"]),
               "input_sha256": input_hashes, "fixture_sha256": original,
               "script_sha256": {name: source_hashes[str(path)] for name, path in scripts.items()}, "engine_sha256": source_hashes}

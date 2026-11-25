@@ -70,7 +70,8 @@ class LinuxInstallationEvidenceTests(unittest.TestCase):
         }
         for version in ("0.9.0", nipat.__version__):
             with self.subTest(version=version):
-                self.assertEqual(set(check.checks_for_version(version)), expected)
+                self.assertEqual(set(check.checks_for_version(version)),
+                                 expected | ({"fetal_sex_example"} if version == nipat.__version__ else set()))
 
     def test_all_five_workflows_must_have_successful_run_records(self):
         for workflow in ("dnp-call", "snp-call", "contamination", "cpi", "cpin"):

@@ -33,6 +33,7 @@ MAIN_MENU = [
     ("2", "SNPcall", "SNP da BAM o pileup esistente"),
     ("3", "Contamination", "Stima da tabelle compatibili"),
     ("4", "CPI prenatale", "Frazione fetale e indice di paternita'"),
+    ("F", "Sesso fetale", "Tre tabelle dello stesso cfDNA materno: autosomi, X e Y"),
     ("N", "CPI postnatale", "Trii madre, padre e figlio da SNP o DNP"),
     ("W", "Workflow automatici", "SNP/DNP verso Contamination, CPI prenatale e CPI postnatale"),
     ("5", "Configura", "Cartelle e parametri predefiniti"),
@@ -60,7 +61,7 @@ def _select_workflow(ui: Terminal) -> str | None:
     )
     while True:
         selected = ui.menu("Workflow automatici", [
-            ("5", "Workflow completo: tutti i cinque moduli", "Scegli calling, analisi successive e ruoli familiari"),
+            ("5", "Workflow completo: analisi di calling e parentela", "Scegli calling, analisi successive e ruoli familiari"),
             ("1", "DNPcall -> Contamination", "Conteggi DNP e stima della contaminazione"),
             ("2", "DNPcall -> CPI", "Coppie cfDNA materno / campione paterno"),
             ("3", "DNPcall -> Contamination e CPI prenatale", "Entrambe le analisi sulle tabelle DNPcall"),
@@ -104,10 +105,11 @@ def _help(ui: Terminal, layout: ProjectLayout, runner=None, *, dry_run: bool = F
             "Con --dry-run vengono preparati i comandi, senza eseguire l'analisi o produrre risultati scientifici.",
         )),
         "2": ("Analisi disponibili", (
-            "NewPat prepara gli input ed esegue cinque moduli scientifici R nell'ambiente distribuito con l'applicazione.",
+            "NewPat prepara gli input ed esegue i moduli scientifici R nell'ambiente distribuito con l'applicazione.",
             "DNPcall: uno o piu' BAM, un FASTA indicizzato e un pannello DNP; produce conteggi, genotipi, riepiloghi e grafici.",
             "SNPcall: un BAM con FASTA oppure un pileup con QNAME, e una lista SNP; produce una tabella di conteggi allelici.",
             "Contamination: tabelle SNP o DNP e coordinate dello stesso tipo; produce stime per sito e un riepilogo per campione.",
+            "Sesso fetale: usa i conteggi autosomici, X e Y dello stesso cfDNA materno e restituisce F, M o indeterminato.",
             "CPI postnatale: trii madre, padre e figlio, conteggi SNP o DNP e frequenze di popolazione; produce indici di paternita' e risultati per sito.",
             "CPI prenatale: tabelle cfDNA materno e presunto padre, coppie e frequenze di popolazione; produce stime di frazione fetale, CPI e grafici.",
             "Workflow automatici: W -> 5 collega DNPcall e/o SNPcall a Contamination, CPI prenatale e CPI postnatale, anche partendo da tabelle esistenti. Una sola conferma avvia il piano selezionato.",
@@ -118,7 +120,7 @@ def _help(ui: Terminal, layout: ProjectLayout, runner=None, *, dry_run: bool = F
             "Configura salva le cartelle e i valori predefiniti per i prossimi avvii della CLI guidata.",
             "Le preferenze vengono proposte nei campi dell'analisi: prima dell'avvio e' sempre possibile correggerle nel riepilogo.",
             "Campioni, coppie CPI e nome dell'esecuzione vengono scelti per ogni analisi; non sono memorizzati come preferenze.",
-            "Configura -> Parametri scientifici e costanti mostra i valori dei cinque moduli e permette di salvare parametri personalizzati. Il riepilogo di ogni analisi permette ulteriori modifiche valide solo per quella esecuzione.",
+            "Configura -> Parametri scientifici e costanti mostra i valori dei moduli e permette di salvare parametri personalizzati. Il riepilogo di ogni analisi permette ulteriori modifiche valide solo per quella esecuzione.",
             "Cambiare cartella dati o risultati non sposta i file gia' presenti. App, runtime e cache si configurano attraverso il programma di installazione.",
             "Ripristina impostazioni elimina solo le preferenze: conserva dati, risultati e installazione.",
             "I comandi diretti mantengono le proprie opzioni e i propri valori predefiniti. --data-dir e --runs-dir espliciti prevalgono sulle cartelle salvate nella sessione guidata.",
@@ -153,7 +155,7 @@ def _help(ui: Terminal, layout: ProjectLayout, runner=None, *, dry_run: bool = F
         ui.message("Scegliere un argomento. La consultazione della guida non avvia analisi o strumenti scientifici.", kind="muted")
         action = ui.menu("Guida e informazioni", [
             ("1", "Come usare NewPat", "Selezione dei file, navigazione e avvio"),
-            ("2", "Analisi disponibili", "Scopo, input e risultati dei cinque moduli"),
+            ("2", "Analisi disponibili", "Scopo, input e risultati dei moduli"),
             ("3", "Cartelle e parametri", "Preferenze, modifiche e ripristino"),
             ("4", "Risultati e analisi in sequenza", "File intermedi, log e workflow successivi"),
             ("5", "Informazioni su NewPat", "Versione, ambiente e documentazione"),
@@ -260,7 +262,7 @@ def run_wizard(
             if choice == ":indietro":
                 continue
             if choice not in {item[0].casefold() for item in MAIN_MENU}:
-                ui.message("Scegliere una delle opzioni indicate (0-9, N oppure W).", kind="error")
+                ui.message("Scegliere una delle opzioni indicate (0-9, F, N oppure W).", kind="error")
                 continue
             try:
                 if choice == "5":
@@ -316,6 +318,8 @@ def run_wizard(
                             defaults=settings.preferences.workflow_defaults("1"),
                             cpi_defaults=settings.preferences.workflow_defaults("4"),
                         )
+                elif choice == "f":
+                    form = WorkflowForm(choice, ui, layout, err_const)
                 elif choice == "n":
                     form = CpinForm("n", ui, layout, err_const, defaults=settings.preferences.workflow_defaults("n"))
                 else:
@@ -349,10 +353,10 @@ def run_wizard(
                         method = {
                             "1": workflows.dnp_contamination, "2": workflows.dnp_cpi,
                             "3": workflows.dnp_cpi, "4": workflows.snp_batch, "5": workflows.analyze,
-                        }[preset] if choice == "w" else {
-                            "1": workflows.dnp_call, "2": workflows.snp_call,
-                            "3": workflows.contamination, "4": workflows.cpi, "n": workflows.cpin,
-                        }[choice]
+                        }[preset] if choice == "w" else getattr(workflows, {
+                            "1": "dnp_call", "2": "snp_call", "3": "contamination", "4": "cpi",
+                            "n": "cpin", "f": "fetal_sex",
+                        }[choice])
                         run_dir = method(**form.arguments())
                     except KeyboardInterrupt:
                         interrupted_run = workflows.runner.last_run_dir
