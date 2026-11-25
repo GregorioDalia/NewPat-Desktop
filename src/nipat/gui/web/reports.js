@@ -7,7 +7,9 @@
     it: {
       summary: 'Sintesi dei risultati', detailed: 'Relazione dettagliata', combined: 'Sintesi e relazione dettagliata', result: 'Risultato',
       facts: 'Dati principali', metrics: 'Valori dell’analisi', context: 'Esperimento e campioni',
-      source: 'Origine dei dati', notes: 'Note di lettura', run: 'Esperimento', id: 'ID esperimento',
+      source: 'Origine dei dati', notes: 'Note di lettura', run: 'Esperimento',
+      findResult: 'Dove ritrovare il risultato in NewPat', sample: 'Campione', family: 'Famiglia',
+      route: (run, tab) => `In «Esperimenti e risultati», apri «${run}». In «Risultati», scegli «${tab}».`,
       caseId: 'Riferimento risultato', date: 'Data registrata', subject: 'Campione o famiglia',
       selection: 'Selezione dei siti', marker: 'Marcatori', version: 'Versione NewPat',
       igv: 'Regione genomica in IGV', locus: 'Regione', site: 'Sito selezionato', build: 'Riferimento', tracks: 'Tracce',
@@ -19,7 +21,9 @@
     en: {
       summary: 'Results summary', detailed: 'Detailed report', combined: 'Summary and detailed report', result: 'Result',
       facts: 'Key findings', metrics: 'Analysis values', context: 'Experiment and samples',
-      source: 'Data sources', notes: 'Reading notes', run: 'Experiment', id: 'Experiment ID',
+      source: 'Data sources', notes: 'Reading notes', run: 'Experiment',
+      findResult: 'Where to find this result in NewPat', sample: 'Sample', family: 'Family',
+      route: (run, tab) => `In “Experiments and results”, open “${run}”. Under “Results”, choose “${tab}”.`,
       caseId: 'Result reference', date: 'Recorded date', subject: 'Sample or family',
       selection: 'Site selection', marker: 'Markers', version: 'NewPat version',
       igv: 'Genomic region in IGV', locus: 'Region', site: 'Selected site', build: 'Reference', tracks: 'Tracks',
@@ -223,11 +227,15 @@
       if (igv) content.push(igv);
       if (model.metrics.length) content.push(section(l.metrics), keyValues(model.metrics));
       if (model.table) content.push(...tableSection(model.table));
-      const sources = [...model.provenance];
-      if (model.run_id && model.run_id !== model.run_name) sources.push({label: l.id, value: model.run_id});
-      if (model.case_id) sources.push({label: l.caseId, value: model.case_id});
-      if (sources.length) content.push({unbreakable: sources.length <= 8,
-        stack: [section(l.source), keyValues(sources)]});
+      if (model.result_basis) {
+        const tab = { 'dnp-call': 'DNP', 'snp-call': 'SNP' }[model.workflow] || model.module;
+        const isFamily = model.workflow === 'cpi' || model.workflow === 'cpin';
+        const choices = [model.marker && (l.marker + ' · ' + model.marker),
+          model.archive_entry && ((isFamily ? l.family : l.sample) + ' · ' + model.archive_entry)].filter(Boolean);
+        content.push(section(l.source), cell(model.result_basis, {lineHeight: 1.13}),
+          cell(l.findResult, {bold: true, fontSize: 9.5, margin: [0, 8, 0, 2]}), cell(l.route(model.run_name, tab)));
+        if (choices.length) content.push(cell(choices.join('   /   '), {color: muted, margin: [0, 2, 0, 0]}));
+      }
     }
     if (model.notes.length) {
       if (!short) content.push(section(l.notes));

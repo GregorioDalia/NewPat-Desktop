@@ -389,6 +389,12 @@ def verify_result_reports(page, picker, directory, evidence, check):
             else:
                 check("DNP" in text and "CPI" in text and re.search(r"\b10\b", text),
                       "Detailed PDF includes the recorded postnatal CPI and marker as selectable text")
+                source = " ".join(text.partition("Origine dei dati")[2].split())
+                page.get_by_role("tab", name="CPI postnatale", exact=True).click()
+                entry = page.locator("#result-entry option:checked").text_content()
+                check("Esperimenti e risultati" in source and "CPI postnatale" in source and entry in source
+                      and "Summary_Postnatal_CPI.txt" not in source and "Riferimento risultato" not in source,
+                      "Data sources identifies the actual archive tab and family option in operator language")
             check(record["pages"] == 1 if kind == "summary" else record["pages"] >= 1,
                   f"The {kind} PDF has the required page count")
         evidence["report_exports"].append(record)

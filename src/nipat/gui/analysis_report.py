@@ -9,7 +9,7 @@ import math
 from pathlib import PurePosixPath, PureWindowsPath
 
 from nipat.gui.report_charts import detail_charts, site_label
-from nipat.gui.results import FIELDS, MISSING, _signature, column_description
+from nipat.gui.results import FIELDS, MISSING, _read_count, _signature, column_description
 
 
 _PREVIEW_ROWS = 8
@@ -75,6 +75,104 @@ def _display(value, description, language, *, concise=False, guides=None):
 
 def _pair(label, value):
     return {"label": label, "value": str(value)}
+
+
+def _archive_entry(entry, language):
+    # The Results view names an entry independently of the report's case selector.
+    label = entry.get("label") or entry.get("sample_label") or entry.get("family_id") or _text(language, "Riepilogo", "Overview")
+    parts = [_public_label(label)]
+    if selection := entry.get("analysis"):
+        selection = {"all": "all_compatible_sites", "heterozygous": "heterozygous_child_sites",
+                     "other_allele": "heterozygous_child_sites"}.get(selection, selection)
+        parts.append(_text(language, "Entrambe le selezioni di siti", "Both site selections") if selection == "both"
+                     else _display(selection, column_description("Analysis", language=language), language))
+    if cutoff := entry.get("cutoff"):
+        parts.append(_public_label(cutoff))
+    return " · ".join(parts)
+
+
+def _result_basis(case, entry, language):
+    def t(it, en):
+        return _text(language, it, en)
+
+    def quantity(count, one, many):
+        return f"{count} {one if count == 1 else many}"
+
+    def sites(count):
+        return quantity(count, t("sito", "site"), t("siti", "sites"))
+
+    module = case["module"]
+    measures = {m["key"]: m["value"] for m in entry["summary"]["metrics"] if m["available"]}
+    if module in {"dnp-call", "snp-call"}:
+        method = (t("Per assegnare il genotipo, NewPat conta le coppie di basi osservate insieme su ciascuna lettura del campione.",
+                    "To assign a genotype, NewPat counts the pairs of bases observed together on each read from this sample.")
+                  if module == "dnp-call" else
+                  t("Per assegnare il genotipo, NewPat conta le singole basi osservate nelle letture del campione a ciascuna posizione.",
+                    "To assign a genotype, NewPat counts the individual bases observed in the sample’s reads at each position."))
+        reads = entry.get("read_observations")
+        if reads is None:
+            return method + " " + t("Il totale delle osservazioni sui siti non è disponibile.",
+                                    "The total number of observations across sites is unavailable.")
+        observations = quantity(reads, t("osservazione", "observation"), t("osservazioni", "observations"))
+        return t(f"La tabella del campione riporta {observations} in totale, sommando i conteggi dei singoli siti.",
+                 f"The sample table records {observations} in total across the individual sites.") + " " + method
+
+    if module == "contamination":
+        count = _read_count(measures.get("informative_sites"))
+        if count is None:
+            return t("La tabella del campione non riporta un conteggio utilizzabile dei siti informativi per la stima.",
+                     "The sample table has no usable count of informative sites for the estimate.")
+        if count == 0:
+            return t("Nessun sito del campione soddisfa i criteri per misurare la quota di letture inattese.",
+                     "No site in the sample met the criteria for measuring the proportion of unexpected reads.")
+        informative = quantity(count, t("sito informativo", "informative site"), t("siti informativi", "informative sites"))
+        if "mean_contamination" not in measures:
+            return t(f"La tabella riporta {informative} per questo campione. La quota media di letture inattese non è disponibile.",
+                     f"The sample table records {informative}. The mean proportion of unexpected reads is unavailable.")
+        return t(f"La stima è la media delle percentuali di letture con l’allele inatteso misurate in {informative} del campione. "
+                 "Per ciascun sito si considerano le letture dell’allele di riferimento e dell’allele alternativo.",
+                 f"The estimate is the mean percentage of reads carrying the unexpected allele across {informative} in this sample. "
+                 "At each site, the denominator counts reads carrying either the reference or the alternative allele.")
+
+    if module == "cpi":
+        maternal = _read_count(measures.get("N_sites_mother"))
+        used = _read_count(measures.get("paternal_used_at_median"))
+        candidates = _read_count(measures.get("N_sites_father"))
+        pair = (t("Per la coppia e il pannello selezionati", "For the selected pair and panel")
+                if entry.get("cutoff") not in (None, *MISSING) else t("Per la coppia selezionata", "For the selected pair"))
+        maternal_sites = quantity(maternal, t("sito informativo", "informative site"), t("siti informativi", "informative sites"))
+        maternal_basis = (t(f"il riepilogo riporta {maternal_sites} nel campione materno.",
+                            f"the summary records {maternal_sites} in the maternal sample.")
+                          if maternal is not None else
+                          t("il numero di siti informativi materni non è disponibile.", "the maternal informative site count is unavailable."))
+        if used is not None:
+            paternal_basis = t(f"Alla soglia mediana di letture fetali, il confronto ha utilizzato {sites(used)} del campione paterno.",
+                               f"At the median fetal read threshold, the comparison used {sites(used)} from the paternal sample.")
+        elif candidates is not None:
+            possible = quantity(candidates, t("sito paterno candidato", "paternal candidate site"), t("siti paterni candidati", "paternal candidate sites"))
+            paternal_basis = t(f"Il riepilogo riporta {possible}. La tabella non specifica quanti siti abbiano "
+                               "contribuito all’indice alla soglia mediana di letture fetali.",
+                               f"The summary records {possible}. The table does not specify how many sites "
+                               "contributed to the index at the median fetal read threshold.")
+        else:
+            paternal_basis = t("Il numero di siti paterni utilizzati alla soglia mediana di letture fetali non è registrato.",
+                               "The number of paternal sites used at the median fetal read threshold is unrecorded.")
+        return f"{pair}, {maternal_basis} {paternal_basis}"
+
+    count = _read_count(measures.get("N_sites"))
+    if count is None:
+        return t("Il riepilogo del trio non riporta un conteggio utilizzabile dei siti che contribuiscono al confronto.",
+                 "The trio summary has no usable count of the sites contributing to the comparison.")
+    if count == 0:
+        return t("Nessun sito del trio è stato incluso nel calcolo per la selezione indicata.",
+                 "No sites from the trio were included in the calculation for this selection.")
+    if "CPI" not in measures and "Log10_CPI" not in measures:
+        return t(f"Il confronto del trio comprende {sites(count)}. L’indice complessivo non è disponibile.",
+                 f"The trio comparison includes {sites(count)}. The combined index is unavailable.")
+    return t(f"Per il trio, NewPat ha calcolato l’indice complessivo a partire da {sites(count)}. "
+             "Il contributo di ciascun sito deriva dai genotipi osservati e dalle frequenze degli alleli nella popolazione di riferimento.",
+             f"NewPat calculated the combined index for this trio from {sites(count)}. "
+             "Each site’s contribution uses the observed genotypes and the allele frequencies in the reference population.")
 
 
 def _cases(store, run_id, *, notes=None):
@@ -336,7 +434,7 @@ def _build_selected_report(store, run_id, selected, record, *, detailed):
     def t(it, en):
         return _text(lang, it, en)
 
-    case, group, entry, source = selected
+    case, group, entry, _ = selected
     case_id = case["id"]
     step_id = case["step_id"]
     if not any(s["id"] == step_id and s["status"] == "succeeded" for s in record["steps"]):
@@ -364,7 +462,7 @@ def _build_selected_report(store, run_id, selected, record, *, detailed):
               "version": record.get("version") or "", "workflow": case["module"], "module": group["label"], "marker": case["marker"],
               "subject": case["subject"], "selection": case["selection"], "outcome_category": category, "headline": headline, "explanation": explanation,
               "facts": [metrics[k] for k in facts[case["module"]] if k in metrics], "metrics": [], "chart": None,
-              "provenance": [], "table": None, "notes": []}
+              "table": None, "notes": []}
     family = next((f for f in record["families"] if f["id"] == entry.get("family_id") and f["step_id"] == step_id
                    and f["native_id"] == entry.get("native_family")), None)
     result["subjects"] = []
@@ -384,11 +482,8 @@ def _build_selected_report(store, run_id, selected, record, *, detailed):
                                     _public_label(entry["native_family"]))]
     if not detailed:
         return result
-    result["provenance"] = [_pair(t("Fase", "Step"), step_id), _pair(t("Tabella del risultato", "Result table"), source["name"])]
-    if case["row_number"] is not None:
-        result["provenance"].append(_pair(t("Riga dati", "Data row"), case["row_number"] + 1))
-    if entry.get("native_family"):
-        result["provenance"].append(_pair(t("Famiglia nella tabella", "Family in the source table"), _public_label(entry["native_family"])))
+    result["result_basis"] = _result_basis(case, entry, lang)
+    result["archive_entry"] = _archive_entry(entry, lang)
     for k, value in entry.get("row", {}).items():
         if k in FIELDS and k not in metrics and k not in {"Trio", "Pair", "Analysis", "Cutoff", "Marker_type", "individuo"}:
             column = column_description(k, language=lang)

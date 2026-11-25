@@ -28,7 +28,7 @@ def test_bundle_resolves_selection_once_and_keeps_the_same_case_order_in_both_fo
     for name in ("results", "summary_results"):
         assert [row["case_id"] for row in bundle[name]] == ids
         assert [row["outcome_category"] for row in bundle[name]] == ["nonassessable", "descriptive"]
-    assert bundle["results"][0]["provenance"] and not bundle["summary_results"][0]["provenance"]
+    assert bundle["results"][0]["result_basis"] and "result_basis" not in bundle["summary_results"][0]
     with pytest.raises(ValidationError, match="selection changed"):
         build_bundle(store, "example", [ids[1], "0" * 64], "detailed")
 

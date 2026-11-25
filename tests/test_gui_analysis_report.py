@@ -21,10 +21,15 @@ def test_contamination_separates_missing_and_zero_and_refuses_reordered_case(tmp
     first, second = report_cases(store, "example")
     unavailable = build_report(store, "example", first["id"])
     assert unavailable["headline"] == "Result unavailable"
+    assert {"result_basis", "archive_entry"}.isdisjoint(unavailable)
+    zero = build_report(store, "example", first["id"], detailed=True)
+    assert "No site in the sample met the criteria" in zero["result_basis"]
     report = build_report(store, "example", second["id"], detailed=True)
     assert report["case_id"] == second["id"]
     assert report["subject"] == "Campione è.txt" and "D:\\" not in json.dumps(report)
     assert report["facts"][0]["value"] == "0 %" and "0 %" in report["headline"]
+    assert "across 2 informative sites" in report["result_basis"] and "reference or the alternative allele" in report["result_basis"]
+    assert report["archive_entry"] == report["subject"] and "provenance" not in report
     assert report["table"]["rows"] == [["chr1", "1", "3 %"], ["chr1", "2", "Unavailable"]]
     assert [p["y"] for p in report["chart"]["points"]] == [3]
     table(path, headers, list(reversed(rows)))
@@ -59,6 +64,9 @@ def test_prenatal_case_has_its_own_guides_and_curve(tmp_path):
     assert extended["chart"]["kind"] == "line"
     assert [p["y"] for p in extended["chart"]["points"]] == [0.0, 2.0]
     assert extended["table"]["rows"] == [["1", "0"], ["2", "2"]]
+    assert extended["archive_entry"].endswith(" · Selected")
+    assert "5 siti informativi" in extended["result_basis"] and "3 siti paterni candidati" in extended["result_basis"]
+    assert "non specifica quanti siti" in extended["result_basis"]
     incomplete_curve = build_report(store, "example", second["id"], detailed=True)
     assert incomplete_curve["chart"] is None and incomplete_curve["notes"]
 
@@ -95,10 +103,12 @@ def test_postnatal_scalar_and_historical_site_selections(tmp_path, legacy):
     else:
         assert report["table"]["rows"][0][-1] == "2"
     assert report["subject"] == "trio1"
+    assert "from 3 sites" in report["result_basis"] and "allele frequencies" in report["result_basis"]
     assert report["subjects"] == [{"label": "Maternal sample", "value": "A · Campione è.txt"}]
     assert report["date"] == "2026-11-15T10:01:00Z" and report["version"] == "0.8.99"
     if legacy:
         assert all(case["selection"] for case in cases)
+        assert report["archive_entry"].endswith(" · All sites compatible with the mother")
 
 
 @pytest.mark.parametrize(("module", "file"), [("dnp-call", "full_output_sample_0001.txt"), ("snp-call", "SNPcall_output.txt")])
@@ -110,6 +120,8 @@ def test_callers_and_summaries_report_only_completed_steps(tmp_path, module, fil
     (case,) = report_cases(store, "example")
     report = build_report(store, "example", case["id"], detailed=True)
     assert "1 of 2 sites" in report["headline"]
+    assert "5 observations in total" in report["result_basis"]
+    assert ("pairs of bases" if module == "dnp-call" else "individual bases") in report["result_basis"]
     assert [p["y"] for p in report["chart"]["points"]] == [1, 0, 0, 1]
     assert report["table"]["rows"][1][-2:] == ["Unavailable", "0"]
     metadata = run / "run.json"
@@ -135,6 +147,7 @@ def test_report_does_not_infer_a_positive_result_with_no_sites_or_export_host_pa
     assert "private" not in json.dumps(report) and "8888" not in json.dumps(report)
     assert report["run_name"] == "Case X" and "mother.bam" in report["subjects"][0]["value"]
     assert report["headline"] == "Risultato non disponibile"
+    assert "Nessun sito del trio" in report["result_basis"]
     assert report["facts"][0]["value"] == "Non disponibile"
     assert report["facts"][2]["value"] == "0" and "insufficiente" in report["explanation"]
 
@@ -147,6 +160,42 @@ def test_unrecognized_genotypes_are_not_counted_as_zero(tmp_path):
     result = build_report(store, "example", case["id"], detailed=True)
     assert result["headline"] == "Risultato non disponibile" and result["chart"] is None
     assert result["facts"][0]["value"] == "Non disponibile" and result["facts"][1]["value"] == "1"
+    assert "totale delle osservazioni sui siti non è disponibile" in result["result_basis"]
+
+
+@pytest.mark.parametrize("lang", ["it", "en"])
+def test_origin_uses_verified_prenatal_support_for_the_selected_panel_only(tmp_path, lang):
+    run = make_run(tmp_path, "cpi")
+    table(run / "output/Summary_FetalFraction_CPI.csv",
+          ["Pair", "Cutoff", "CPI_medianFF", "N_sites_mother", "N_sites_father"],
+          [["family", "Full", "0.903", "3", "3"], ["family", "First", "0.301", "1", "1"]])
+    curves = []
+    for index, (panel, used) in enumerate([("Full", 2), ("First", 1)], 1):
+        path = f"output/curves/family_panel_{index}.tsv"
+        table(run / path, ["Iteration", "log_CPI"], [[1, 2]])
+        curves.append(artifact(run, path, cutoff=panel, prenatal_support={"paternal_used_at_median": used}))
+    validation(run, "cpi", {"cpi-pairs": [{"pair": "pair1", "native_pair": "family", "curves": curves}]})
+    store = ResultsStore(tmp_path, language=lang)
+    full, first = [build_report(store, "example", c["id"], detailed=True) for c in report_cases(store, "example")]
+    assert full["archive_entry"].endswith(" · Full") and first["archive_entry"].endswith(" · First")
+    assert ("3 siti informativi" if lang == "it" else "3 informative sites") in full["result_basis"]
+    assert ("utilizzato 2 siti" if lang == "it" else "used 2 sites") in full["result_basis"]
+    assert ("utilizzato 1 sito" if lang == "it" else "used 1 site") in first["result_basis"]
+
+
+@pytest.mark.parametrize("lang", ["it", "en"])
+def test_origin_does_not_treat_missing_contamination_counts_as_zero_or_repeat_a_stale_mean(tmp_path, lang):
+    run = make_run(tmp_path)
+    table(run / "output/contamination_summary.txt", ["individuo", "informative_sites", "mean_contamination"],
+          [["first", "NA", "0.95"], ["second", "1", "NA"], ["third", "1", "0.03"]])
+    store = ResultsStore(tmp_path, language=lang)
+    unknown, no_estimate, single = [build_report(store, "example", c["id"], detailed=True)["result_basis"]
+                                    for c in report_cases(store, "example")]
+    assert ("non riporta un conteggio" if lang == "it" else "no usable count") in unknown
+    assert "95" not in unknown and "0" not in unknown
+    assert ("1 sito informativo" if lang == "it" else "1 informative site") in no_estimate
+    assert ("non è disponibile" if lang == "it" else "unavailable") in no_estimate
+    assert ("in 1 sito informativo" if lang == "it" else "across 1 informative site") in single
 
 
 def test_prenatal_chart_does_not_interpolate_across_an_absent_threshold(tmp_path):
