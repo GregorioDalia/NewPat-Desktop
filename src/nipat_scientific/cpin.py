@@ -79,7 +79,7 @@ def prepare_cpin(request: object) -> list[str]:
         raise ValidationError("Versione della richiesta CPI postnatale non supportata.")
     if request["workflow"] != "cpin":
         raise ValidationError("Workflow della richiesta CPI postnatale non valido.")
-    from nipat_scientific.settings import normalize_settings
+    from nipat_scientific.settings import GENOTYPE_COMBINATIONS, normalize_settings
     settings = normalize_settings("cpin", request.get("scientific_settings", {}))
     trios, required_names = normalize_trios(request["trios"], request["mother_prefix"],
                                           request["father_prefix"], request["child_prefix"])
@@ -148,8 +148,13 @@ def prepare_cpin(request: object) -> list[str]:
                  f"--trios={trios}", f"--mother_prefix={request['mother_prefix']}",
                  f"--father_prefix={request['father_prefix']}", f"--child_prefix={request['child_prefix']}",
                  "--popfreq", str(population)]
-    for key in ("min_child_reads", "site_selection", "err_const_snp", "err_const_dnp"):
+    if settings["min_coverage"] is not None:
+        arguments.extend(("--min_coverage", str(settings["min_coverage"])))
+    for key in ("mismatch_probability_snp", "mismatch_probability_dnp"):
         arguments.extend(("--" + key, str(settings[key])))
+    for combination in GENOTYPE_COMBINATIONS:
+        key = "include_" + combination
+        arguments.extend(("--" + key, str(settings[key]).upper()))
     if panel:
         arguments.extend(("--markers", str(native_panel)))
     return arguments

@@ -3,8 +3,8 @@
   "workflow": "cpi",
   "source": {
     "path": "scientific/vendor/NEWPAT/CPI_from_cffDNA/cfDNA_CPI_estimator.R",
-    "sha256": "0668104621275de52f05a66675c8365757afb65ada644c9e45ea9b2715b1e2e6",
-    "line_count": 774
+    "sha256": "527f126b4a7dfe127c484209ecf95f42293b96c54614fafa9f9331f99851f2c6",
+    "line_count": 762
   },
   "public_parameters": [
     {
@@ -285,7 +285,7 @@
       },
       "source_lines": [
         39,
-        45
+        68
       ],
       "description": {
         "it": "Costante per mismatch SNP, configurabile e registrata nel riepilogo.",
@@ -314,7 +314,7 @@
       },
       "source_lines": [
         39,
-        45
+        68
       ],
       "description": {
         "it": "Costante per mismatch DNP, configurabile e registrata nel riepilogo.",
@@ -328,9 +328,9 @@
       ],
       "position": null,
       "type": "integer",
-      "default": 2,
+      "default": null,
       "required": false,
-      "unit": null,
+      "unit": "reads",
       "nipat": {
         "cli": [
           "--set",
@@ -343,12 +343,41 @@
       },
       "source_lines": [
         41,
-        49
+        65
       ],
       "description": {
-        "it": "Minimo supporto allelico fetale; determina selezione, frazione fetale e inizio della curva.",
-        "en": "Minimum fetal allele support; controls selection, fetal fraction and curve start."
+        "it": "Numero minimo di letture dell’allele minoritario. Se entrambi i filtri sono omessi, il minimo effettivo è due letture.",
+        "en": "Minimum minor-allele read count. If both fetal-support filters are omitted, the effective minimum is two reads."
       }
+    },
+    {
+      "id": "min_fetal_percent",
+      "r_names": [
+        "--min_fetal_percent"
+      ],
+      "position": null,
+      "type": "number",
+      "default": null,
+      "required": false,
+      "unit": "percent",
+      "nipat": {
+        "cli": [
+          "--set",
+          "--scientific-config"
+        ],
+        "request_fields": [
+          "scientific_settings.min_fetal_percent"
+        ],
+        "mapping": "adapted"
+      },
+      "description": {
+        "it": "Percentuale minima di letture dell’allele minoritario fra le letture materne REF + ALT, in (0, 100]. Il sito deve superare entrambi i filtri attivi.",
+        "en": "Minimum minor-allele percentage among maternal REF + ALT reads, in (0, 100]. Both active filters must pass."
+      },
+      "source_lines": [
+        41,
+        65
+      ]
     }
   ],
   "fixed_settings": [
@@ -368,8 +397,8 @@
         "mixed_types": "rejected"
       },
       "source_lines": [
-        65,
-        107
+        84,
+        126
       ],
       "description": {
         "it": "Coordinate dinamiche e controlli di coerenza tra frequenze, pannelli e conteggi.",
@@ -385,8 +414,8 @@
         "Alt_f.pop"
       ],
       "source_lines": [
-        136,
-        200
+        155,
+        219
       ],
       "description": {
         "it": "Solo coordinate e frequenze entrano nel join scientifico; metadati NA irrilevanti non eliminano loci.",
@@ -402,8 +431,8 @@
         "zero_coverage_total": "NA allowed only for all-zero counts"
       },
       "source_lines": [
-        202,
-        263
+        221,
+        282
       ],
       "description": {
         "it": "Si controllano alleli, conteggi, coordinate e concordanza dei genitori. Il totale deve essere coerente con la somma dei tre conteggi.",
@@ -415,8 +444,8 @@
       "kind": "formula",
       "value": "N_REF / (N_REF + N_ALT)",
       "source_lines": [
-        591,
-        628
+        611,
+        648
       ],
       "description": {
         "it": "Rapporto REF usato per classificare l’omozigosi materna e paterna.",
@@ -428,8 +457,8 @@
       "kind": "filter",
       "value": "N_Other / total_count <= other_fraction_max",
       "source_lines": [
-        591,
-        628
+        611,
+        648
       ],
       "description": {
         "it": "Il filtro mantiene il totale fornito; la soglia è configurabile.",
@@ -439,28 +468,28 @@
     {
       "id": "maternal_informative_selection",
       "kind": "filter",
-      "value": "homozygous REF/ALT and minor reads >= min_fetal_reads",
+      "value": "maternal homozygous REF or ALT; minor reads and 100 * minor reads / (REF + ALT) each >= its active threshold",
       "source_lines": [
-        315,
-        327
+        336,
+        346
       ],
       "description": {
-        "it": "Soglie genotipiche e minimo supporto sono letti dalla configurazione.",
-        "en": "Genotype thresholds and minimum support are read from configuration."
+        "it": "Sono ammessi i siti materni con rapporto da omozigote che soddisfano tutti i filtri attivi. Il denominatore della percentuale esclude le letture Other.",
+        "en": "Retain maternal sites meeting the homozygous ratio and every active fetal-support filter. The percentage denominator excludes Other reads."
       }
     },
     {
       "id": "fetal_read_iteration",
       "kind": "execution",
       "value": {
-        "start": "min_fetal_reads",
+        "start": "active min_fetal_reads, or 1 for percentage alone",
         "end": "maximum maternal fetal_reads",
         "step": 1,
         "optimization": "evaluate identical selections once; expand every original threshold"
       },
       "source_lines": [
-        330,
-        456
+        350,
+        476
       ],
       "description": {
         "it": "Le selezioni invarianti sono riusate, mantenendo ogni soglia e l’ordine dei prodotti.",
@@ -483,8 +512,8 @@
         }
       },
       "source_lines": [
-        364,
-        376
+        384,
+        396
       ],
       "description": {
         "it": "Le sei formule originarie usano classi genotipiche configurabili e la costante del tipo SNP/DNP.",
@@ -499,8 +528,8 @@
         "log_CPI": "sum(log10(PI)) across informative loci; NA with no paternal loci"
       },
       "source_lines": [
-        414,
-        415
+        434,
+        435
       ],
       "description": {
         "it": "Il log10 CPI somma i log10 dei PI. Il CPI grezzo viene ricostruito e può risultare 0 o Inf quando il prodotto esce dall’intervallo rappresentabile. Senza loci informativi paterni entrambi i valori sono NA.",
@@ -512,8 +541,8 @@
       "kind": "formula",
       "value": "nearest threshold to round(median(fetal_reads))",
       "source_lines": [
-        458,
-        463
+        478,
+        483
       ],
       "description": {
         "it": "Il valore riepilogativo usa la soglia più vicina alla mediana arrotondata.",
@@ -529,8 +558,8 @@
         "percent_multiplier": 100
       },
       "source_lines": [
-        644,
-        685
+        664,
+        672
       ],
       "description": {
         "it": "Il fattore diploide 2 è una costante del modello consultabile.",
@@ -546,8 +575,8 @@
         "logCPI_digits": 3
       },
       "source_lines": [
-        694,
-        722
+        689,
+        705
       ],
       "description": {
         "it": "Arrotondamento del riepilogo; le curve TSV mantengono i valori calcolati.",
@@ -562,13 +591,14 @@
         "metadata": [
           "Error_constant",
           "Min_fetal_reads",
-          "Marker_type"
+          "Marker_type",
+          "Min_fetal_percent"
         ],
         "curves": "curves/<Pair>_panel_<index>.tsv"
       },
       "source_lines": [
-        690,
-        774
+        686,
+        762
       ],
       "description": {
         "it": "Riepilogo per coppia e pannello, metadati effettivi e curva completa anche senza siti.",
@@ -593,8 +623,8 @@
         ]
       },
       "source_lines": [
-        465,
-        569
+        485,
+        589
       ],
       "description": {
         "it": "Grafici con unità separate, guide configurabili, indicatore della soglia mediana e paginazione.",
@@ -615,8 +645,8 @@
         "nested_pools": false
       },
       "source_lines": [
-        302,
-        456
+        321,
+        476
       ],
       "description": {
         "it": "Cache dei genitori e parallelismo ordinato senza pool annidati; grafici creati dal coordinatore.",
@@ -701,12 +731,23 @@
             "unit": "log10(CPI)"
           },
           "min_fetal_reads": {
-            "default": 2,
+            "default": null,
             "type": "integer",
-            "description": "Supporto minimo dell'allele minoritario nel cfDNA materno.",
+            "description": "Numero minimo di letture dell’allele minoritario. Si applica la soglia di 2 letture quando entrambi i filtri fetali sono disattivati.",
             "unit": "letture",
             "minimum": 1,
-            "maximum": 2147483646
+            "maximum": 2147483647,
+            "nullable": true
+          },
+          "min_fetal_percent": {
+            "default": null,
+            "type": "number",
+            "nullable": true,
+            "description": "Percentuale minima di letture fetali sul totale REF + ALT. Se attivi, entrambi i filtri devono essere soddisfatti.",
+            "unit": "%",
+            "minimum": 0,
+            "exclusive_minimum": true,
+            "maximum": 100
           }
         },
         "constants": {
@@ -767,26 +808,26 @@
       },
       "evidence": {
         "path": "src/nipat_scientific/settings.py",
-        "sha256": "21fd42ad2c04e8f7bf7bf3f08e01aa88df27416f7fbd104aeae6439ba7cd8f88",
+        "sha256": "721d5e0915a077195c53c6422d7caaaaa5a1f94ea108fd836a506bcfa3927e62",
         "source_lines": [
           1,
-          197
+          204
         ],
         "dependencies": [
           {
             "path": "src/nipat_scientific/settings.R",
-            "sha256": "2903d37f1973f5389ce7c3c13e697df26de80286a36edf4e30615ea7189963c0",
+            "sha256": "809817ff9eefd5ed2e932a021a6a3d9e9fa7a8178120a2babfd7c503f257ea6a",
             "source_lines": [
               1,
-              96
+              99
             ]
           },
           {
             "path": "src/nipat_scientific/settings_data.json",
-            "sha256": "fe4892f4c0cb570495d43f6811e9c3d8fc0867aa919403aa9de1eae693e57a7e",
+            "sha256": "09ff49fcf78dd995526609109bfe2fd2b9b095ad5e596545dc3d9a87c0ea967b",
             "source_lines": [
               1,
-              631
+              653
             ]
           }
         ]
@@ -812,10 +853,10 @@
       },
       "evidence": {
         "path": "src/nipat_scientific/cpi.py",
-        "sha256": "cf21054d212f2d2b578ad2cec9404ab05ddbb79485767dab361170434dee9b15",
+        "sha256": "d779089d0bce8b5e228907d2a6409823e72d6b722bddfe414acb0449bb9f6f98",
         "source_lines": [
           1,
-          209
+          212
         ],
         "dependencies": [
           {
@@ -897,7 +938,7 @@
               111,
               132
             ],
-            "sha256": "185b0506f45d534698fd3f257132b35b0734ae4242b2696be181a73230097251"
+            "sha256": "320e0a160691be4910a7351347e69cbd1069c8585c5df4f1ef46b7e95631f2f8"
           },
           {
             "path": "src/nipat/execution/runner.py",
@@ -905,7 +946,7 @@
               204,
               229
             ],
-            "sha256": "185b0506f45d534698fd3f257132b35b0734ae4242b2696be181a73230097251"
+            "sha256": "320e0a160691be4910a7351347e69cbd1069c8585c5df4f1ef46b7e95631f2f8"
           },
           {
             "path": "src/nipat/gui/jobs.py",
@@ -945,7 +986,7 @@
               224,
               227
             ],
-            "sha256": "185b0506f45d534698fd3f257132b35b0734ae4242b2696be181a73230097251"
+            "sha256": "320e0a160691be4910a7351347e69cbd1069c8585c5df4f1ef46b7e95631f2f8"
           }
         ]
       }
@@ -970,10 +1011,10 @@
       },
       "evidence": {
         "path": "src/nipat_scientific/outputs.py",
-        "sha256": "ec1e3101c81e3208e0eaf58108468153dacfb749f55ac91201e307e1acd4dcab",
+        "sha256": "190281bd06b46ea6a1ab6281551978daee8f040c4acd674f59215f6ac6200ddf",
         "source_lines": [
           1,
-          581
+          671
         ]
       }
     },
@@ -991,10 +1032,10 @@
       },
       "evidence": {
         "path": "src/nipat_scientific/presentation.py",
-        "sha256": "c63d95df5b6e9fa65a2390c1109a2864587729e81fd73071e1dfe831297ab8a1",
+        "sha256": "85e1047d55a67b2cd61563f41b4f737ed8dd60209736e0b6dfc7a79ab9cd6dbd",
         "source_lines": [
           1,
-          405
+          398
         ],
         "dependencies": [
           {
@@ -1012,63 +1053,63 @@
   "audit_sections": [
     {
       "start": 1,
-      "end": 64,
+      "end": 83,
       "summary": {
         "it": "Librerie, configurazione e argomenti.",
         "en": "Libraries, settings and arguments."
       }
     },
     {
-      "start": 65,
-      "end": 201,
+      "start": 84,
+      "end": 220,
       "summary": {
         "it": "Rilevamento SNP/DNP, frequenze e validazione.",
         "en": "SNP/DNP detection, frequencies and validation."
       }
     },
     {
-      "start": 202,
-      "end": 264,
+      "start": 221,
+      "end": 283,
       "summary": {
         "it": "Lettura e controlli dei conteggi parentali.",
         "en": "Parent count reading and validation."
       }
     },
     {
-      "start": 265,
-      "end": 314,
+      "start": 284,
+      "end": 335,
       "summary": {
         "it": "Multipannelli e cache degli input.",
         "en": "Multiple panels and input cache."
       }
     },
     {
-      "start": 315,
-      "end": 457,
+      "start": 336,
+      "end": 477,
       "summary": {
         "it": "Selezione materna, formule PI e intervalli paralleli.",
         "en": "Maternal selection, PI formulas and parallel intervals."
       }
     },
     {
-      "start": 458,
-      "end": 570,
+      "start": 478,
+      "end": 590,
       "summary": {
         "it": "Selezione della mediana e grafici con unità separate.",
         "en": "Median selection and plots with separate units."
       }
     },
     {
-      "start": 571,
-      "end": 728,
+      "start": 591,
+      "end": 711,
       "summary": {
         "it": "Preparazione parentale e riepiloghi per coppia e pannello.",
         "en": "Parent preparation and per-pair/panel summaries."
       }
     },
     {
-      "start": 729,
-      "end": 774,
+      "start": 712,
+      "end": 762,
       "summary": {
         "it": "Curve complete, PDF paginati e riepilogo finale.",
         "en": "Complete curves, paginated PDFs and final summary."

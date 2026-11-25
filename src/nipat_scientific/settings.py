@@ -19,6 +19,7 @@ from nipat_scientific.errors import ValidationError
 
 
 REGISTRY = Path(__file__).with_name("settings_data.json")
+GENOTYPE_COMBINATIONS = ("hom_hom", "hom_het", "het_hom", "het_het")
 
 
 @lru_cache(maxsize=1)
@@ -58,6 +59,8 @@ def normalize_settings(workflow: str, overrides: dict | None = None) -> dict:
     for name, value in values.items():
         definition = definitions[name]
         kind = definition["type"]
+        if value is None and definition.get("nullable"):
+            continue
         valid = ((kind == "boolean" and type(value) is bool)
                  or (kind == "string" and isinstance(value, str))
                  or (kind == "integer" and type(value) is int)
@@ -90,6 +93,10 @@ def normalize_settings(workflow: str, overrides: dict | None = None) -> dict:
         raise ValidationError("La guida logCPI inferiore deve essere minore della superiore.")
     if values.get("redo_baq") and not values.get("baq", True):
         raise ValidationError("redo_baq richiede baq=true.")
+    if workflow == "cpi" and values["min_fetal_reads"] is None and values["min_fetal_percent"] is None:
+        values["min_fetal_reads"] = 2
+    if workflow == "cpin" and not any(values[f"include_{pair}"] for pair in GENOTYPE_COMBINATIONS):
+        raise ValidationError("Selezionare almeno una combinazione genotipica madre–figlio.")
     return values
 
 
@@ -101,7 +108,7 @@ def validate_settings_document(document: object, workflow: str) -> dict:
             or document.get("workflow") != workflow or not isinstance(document.get("parameters"), dict)):
         raise ValidationError("Schema o modulo dei parametri scientifici non valido.")
     effective = normalize_settings(workflow, document["parameters"])
-    if set(document["parameters"]) != set(effective):
+    if document["parameters"] != effective:
         raise ValidationError("Il documento dei parametri scientifici non contiene tutti i valori effettivi.")
     # JSON boolean equality must not let true impersonate a numeric constant
     # such as the homozygous transmission probability (Python True == 1).
@@ -118,7 +125,7 @@ def settings_from_environment(workflow: str) -> dict:
     """Read a verified run's effective settings (also used by the pileup helper)."""
     path = os.environ.get("NIPAT_SCIENTIFIC_SETTINGS")
     if not path:
-        return defaults(workflow)
+        return normalize_settings(workflow)
     try:
         with Path(path).open(encoding="utf-8") as stream:
             document = json.load(stream)

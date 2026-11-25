@@ -1,6 +1,6 @@
 # NewPat 0.9.10
 
-**Candidate for review.** The available desktop workflows cover five modules. Stable publication awaits the revised Postnatal CPI output and the sixth analysis script. The behavior below describes the current candidate. The [0.9.9 release](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.9.9) remains the stable download during review.
+**Candidate for review.** The five available workflows include the revised prenatal and postnatal CPI models. Stable publication awaits the sixth analysis script for sex estimation and its integration and qualification. The [0.9.9 release](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.9.9) remains the stable download during review.
 
 ## Experiments and results
 
@@ -10,7 +10,7 @@ Activity tracks concurrent experiments and shows their progress, output director
 
 Preferences can store named analysis profiles and select a default for new experiments. Sample names, input files and family roles are selected for each experiment. The results view identifies the caller as SNP or DNP and returns to the source table after closing details or IGV. The interface uses the names **Prenatal CPI** and **Postnatal CPI**.
 
-The DNP and SNP summaries show how many loci received a genotype for each sample. Read counts and genotype calls describe the sample at those loci. The Prenatal CPI summary compares the reported log index with the two guides recorded for that analysis. Postnatal CPI displays the estimates and curves produced by the current R script. Contamination shows the recorded estimate when informative sites are available. The DNP glossary explains that `NA` means the program could not determine a value.
+The DNP and SNP summaries show how many loci received a genotype for each sample. Read counts and genotype calls describe the sample at those loci. The Prenatal CPI summary compares the reported log index with the two guides recorded for that analysis. Prenatal CPI can filter maternal minor-allele support by read count, percentage or both. Postnatal CPI now reports one CPI and log₁₀(CPI) per trio, with a site table documenting exclusions. Four mother–child genotype combinations and an optional minimum coverage for every trio member determine which sites contribute. Contamination shows the recorded estimate when informative sites are available. The DNP glossary explains that `NA` means the program could not determine a value.
 
 DNPcall and SNPcall now retain reads on supported contigs whose names contain `@`. SNPcall also accepts contig names containing `|` in both BAM and imported pileup workflows. When importing a pileup, SNPcall limits read expansion to positions within the requested panel windows.
 

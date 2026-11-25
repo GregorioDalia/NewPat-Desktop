@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
-# NIPAT 0.8.50 integrates NEWPAT 9c2a8be SNP/DNP model; reuse invariant CPI calculations and
-# identical threshold selections; retain the formulas and every output row.
+# Prenatal CPI model from NEWPAT eabff16, including absolute and percentage fetal-read filters.
+# Reuse invariant CPI calculations and identical threshold selections; retain every output row.
 # NIPAT 0.8.12: bounded, ordered parallel work across pairs, cutoffs or
 # independent threshold intervals. Scientific reductions retain their order.
 
@@ -39,14 +39,33 @@ parser$add_argument("--err_const", default=NULL,
 parser$add_argument("--err_const_snp", default=NULL)
 parser$add_argument("--err_const_dnp", default=NULL)
 parser$add_argument("--min_fetal_reads", type="double", default=NULL)
+parser$add_argument("--min_fetal_percent", type="double", default=NULL)
 args <- parser$parse_args()
 args$err_const_snp <- if (is.null(args$err_const_snp)) nipat_cfg$err_const_snp else args$err_const_snp
 args$err_const_dnp <- if (is.null(args$err_const_dnp)) nipat_cfg$err_const_dnp else args$err_const_dnp
-min_fetal_reads <- if (is.null(args$min_fetal_reads)) nipat_cfg$min_fetal_reads else args$min_fetal_reads
-if (!is.finite(min_fetal_reads) || min_fetal_reads < 1 ||
-    min_fetal_reads != floor(min_fetal_reads) || min_fetal_reads >= .Machine$integer.max)
-  stop("--min_fetal_reads must be a positive integer below the R integer limit")
-min_fetal_reads <- as.integer(min_fetal_reads)
+# Explicit native filter arguments select the requested combination. A run
+# without native filter arguments uses the settings supplied by the desktop.
+if (!is.null(args$min_fetal_reads) || !is.null(args$min_fetal_percent)) {
+  min_fetal_reads <- args$min_fetal_reads
+  min_fetal_percent <- args$min_fetal_percent
+} else {
+  min_fetal_reads <- nipat_cfg$min_fetal_reads
+  min_fetal_percent <- nipat_cfg$min_fetal_percent
+}
+if (is.null(min_fetal_reads) && is.null(min_fetal_percent)) min_fetal_reads <- 2L
+if (!is.null(min_fetal_reads)) {
+  if (!is.finite(min_fetal_reads) || min_fetal_reads < 1 ||
+      min_fetal_reads != floor(min_fetal_reads) || min_fetal_reads > .Machine$integer.max)
+    stop("--min_fetal_reads must be a positive integer within the R integer range")
+  min_fetal_reads <- as.integer(min_fetal_reads)
+}
+if (!is.null(min_fetal_percent) && (!is.finite(min_fetal_percent) ||
+    min_fetal_percent <= 0 || min_fetal_percent > 100))
+  stop("--min_fetal_percent must be a finite number in (0, 100]")
+curve_start <- if (is.null(min_fetal_reads)) 1L else min_fetal_reads
+message("Minimum fetal reads: ", if (is.null(min_fetal_reads)) "NULL" else min_fetal_reads)
+message("Minimum fetal-read percentage: ",
+        if (is.null(min_fetal_percent)) "NULL" else paste0(min_fetal_percent, "%"))
 if (!dir.exists(args$out_dir)) dir.create(args$out_dir, recursive=TRUE)
 plots_dir <- file.path(args$out_dir, "plots")
 dir.create(plots_dir, recursive=TRUE, showWarnings=FALSE)
@@ -125,7 +144,7 @@ if (!is.null(args$err_const)) err_const <- read_error_constant(args$err_const, "
 nipat_cfg$err_const_snp <- error_constants$SNP
 nipat_cfg$err_const_dnp <- error_constants$DNP
 nipat_cfg[[paste0("err_const_", tolower(marker))]] <- err_const
-nipat_cfg$min_fetal_reads <- min_fetal_reads
+nipat_cfg[c("min_fetal_reads", "min_fetal_percent")] <- list(min_fetal_reads, min_fetal_percent)
 message("Mismatch constant used for ", marker, ": ", sprintf("%.17g", err_const))
 
 site_key <- function(x) {
@@ -312,18 +331,19 @@ for (x in calls_cache) {
   }
 }
 
-## helper: compute fetal_reads on mother dataframe
 nipat_write_settings("cpi", nipat_cfg, args$out_dir)
-## note: this mirrors the logic used in cpi iteration
+
 compute_madre_info <- function(madre_df) {
-  madre_df %>%
-    dplyr::filter(
-      (ratio_Ref_mother >= nipat_cfg$homozygous_ref_min & Alt_mother >= min_fetal_reads) |
-        (ratio_Ref_mother <= nipat_cfg$homozygous_alt_max & Ref_mother >= min_fetal_reads)
-    ) %>%
+  info <- madre_df %>%
+    dplyr::filter(ratio_Ref_mother >= nipat_cfg$homozygous_ref_min |
+                  ratio_Ref_mother <= nipat_cfg$homozygous_alt_max) %>%
     dplyr::mutate(
-      fetal_reads = ifelse(ratio_Ref_mother >= nipat_cfg$homozygous_ref_min, Alt_mother, Ref_mother)
+      fetal_reads = ifelse(ratio_Ref_mother >= nipat_cfg$homozygous_ref_min, Alt_mother, Ref_mother),
+      fetal_percent = 100 * fetal_reads / (Ref_mother + Alt_mother)
     )
+  if (!is.null(min_fetal_reads)) info <- dplyr::filter(info, fetal_reads >= min_fetal_reads)
+  if (!is.null(min_fetal_percent)) info <- dplyr::filter(info, fetal_percent >= min_fetal_percent)
+  info
 }
 
 ## core: compute cpi for one list (or all sites if dnp_list is NULL)
@@ -338,7 +358,7 @@ run_CPI_iteration <- function(madre_df, padre_df, dnp_list, cutoff_label, err_co
 
   madre_info <- compute_madre_info(madre)
   max_fetal <- suppressWarnings(max(madre_info$fetal_reads, na.rm=TRUE))
-  if (!is.finite(max_fetal) || max_fetal < min_fetal_reads) {
+  if (!is.finite(max_fetal) || max_fetal < curve_start) {
     empty <- data.frame(Iteration=integer(), InfSites_mother=integer(),
       InfSites_father=integer(), CPI=double(), log_CPI=double(), Mismatch=integer(),
       NotMismatch=integer(), Cutoff=character())
@@ -383,14 +403,14 @@ run_CPI_iteration <- function(madre_df, padre_df, dnp_list, cutoff_label, err_co
     (informative_all$ratio_Ref_mother <= nipat_cfg$homozygous_alt_max &
        informative_all$ratio_Ref_father <= nipat_cfg$homozygous_alt_max)
 
-  iterations <- seq.int(min_fetal_reads, max_fetal)
+  iterations <- seq.int(curve_start, max_fetal)
   ## A locus with f fetal reads disappears at threshold floor(f) + 1.
-  ## Index 1 corresponds to min_fetal_reads; disappearance has index
-  ## floor(f) - min_fetal_reads + 2. All joined rows originate from these maternal loci, so their
+  ## Index 1 corresponds to curve_start; disappearance has index
+  ## floor(f) - curve_start + 2. All joined rows originate from these maternal loci, so their
   ## PI and mismatch selections are constant between the same boundaries.
   ## Keep every threshold in the final table: its repetitions affect the
   ## summary statistics, median-threshold lookup and plots.
-  interval_starts <- sort(unique(c(1L, floor(madre_info$fetal_reads) - min_fetal_reads + 2L)))
+  interval_starts <- sort(unique(c(1L, floor(madre_info$fetal_reads) - curve_start + 2L)))
   interval_starts <- interval_starts[interval_starts <= length(iterations)]
   interval_lengths <- diff(c(interval_starts, length(iterations) + 1))
   interval_count <- length(interval_starts)
@@ -478,8 +498,8 @@ plot_CPI <- function(df, cutoff_label, pair_name,
 
   max_iter <- max(df$Iteration, na.rm = TRUE)
 
-  ticks <- sort(unique(c(min_fetal_reads, pretty(c(min_fetal_reads, max_iter), n=8), max_iter)))
-  ticks <- ticks[ticks >= min_fetal_reads & ticks <= max_iter]
+  ticks <- sort(unique(c(curve_start, pretty(c(curve_start, max_iter), n=8), max_iter)))
+  ticks <- ticks[ticks >= curve_start & ticks <= max_iter]
   median_threshold <- if (is.finite(median_reads)) df$Iteration[which.min(abs(df$Iteration - median_reads))] else numeric()
 
   cfDNA_lbl <- if (is.finite(cfDNA_percent)) {
@@ -534,7 +554,7 @@ plot_CPI <- function(df, cutoff_label, pair_name,
     scale_x_continuous(
       name = "minimum number of fetal reads considered",
       breaks = ticks,
-      limits = c(min_fetal_reads, max(min_fetal_reads + 1, max_iter)),
+      limits = c(curve_start, max(curve_start + 1, max_iter)),
       expand = expansion(mult = c(0.02, 0.02))
     ) +
 
@@ -562,7 +582,7 @@ plot_CPI <- function(df, cutoff_label, pair_name,
     scale_colour_manual(name = NULL, values = c("Sites without a recorded mismatch" = "#008A38", "Mismatching sites" = "#C46B00")) +
     scale_y_continuous(name = "Paternal candidate sites with a population frequency", limits = c(0, NA), breaks = nipat_integer_breaks) +
     scale_x_continuous(name = "Minimum number of fetal reads considered", breaks = ticks,
-      limits = c(min_fetal_reads, max(min_fetal_reads + 1, max_iter)), expand = expansion(mult = c(0.02, 0.02))) +
+      limits = c(curve_start, max(curve_start + 1, max_iter)), expand = expansion(mult = c(0.02, 0.02))) +
     theme_bw(base_size = 9) +
     theme(legend.position = "bottom", axis.text.x = element_text(angle = 45, hjust = 1, size = 7))
   (cpi_plot / sites_plot) + patchwork::plot_layout(heights = c(2, 1))
@@ -651,37 +671,13 @@ process_pair <- function(i) {
 
     cfDNA_percent <- median_fetal_fraction * 100
 
-    ## The core has already selected this panel and the informative maternal
-    ## rows. Every row admitted by the summary below is in madre_info; retain
-    ## its original summary formula and positivity filter.
-    madre_cutoff <- out$madre_info
-
-    madre_cutoff <- madre_cutoff %>%
-      mutate(
-        fetal_reads = case_when(
-          ratio_Ref_mother >= nipat_cfg$homozygous_ref_min ~ Alt_mother,
-          ratio_Ref_mother <= nipat_cfg$homozygous_alt_max ~ Ref_mother,
-          TRUE ~ NA_real_
-        ),
-        fetal_fraction_site = 2*fetal_reads/(Ref_mother+Alt_mother)
-      ) %>% filter(!is.na(fetal_fraction_site), fetal_fraction_site > 0, fetal_reads >= min_fetal_reads)
-
-    n_sites_mother <- nrow(madre_cutoff)
-
-    ## Maternal keys are already limited to the panel. Joining the original
-    ## father table therefore selects the same paternal rows (and duplicates)
-    ## in the same order, without applying that panel a second time.
-    df_merge_tmp <- inner_join(madre_cutoff, padre, by=site_columns) %>%
-      mutate(threshold = case_when(
-        ratio_Ref_mother >= nipat_cfg$homozygous_ref_min & Alt_father >= 0 ~ "informative",
-        ratio_Ref_mother <= nipat_cfg$homozygous_alt_max & Ref_father >= 0 ~ "informative",
-        TRUE ~ "non informative"
-      ))
-
-    n_sites_father <- sum(df_merge_tmp$threshold=="informative")
-
-
-    median_fetal_fraction <- suppressWarnings(median(madre_cutoff$fetal_fraction_site, na.rm=TRUE))
+    # Each maternal row has already passed both active filters and panel selection.
+    n_sites_mother <- nrow(out$madre_info)
+    shared <- dplyr::inner_join(out$madre_info, padre, by=site_columns)
+    n_sites_father <- sum(
+      (shared$ratio_Ref_mother >= nipat_cfg$homozygous_ref_min & shared$Alt_father >= 0) |
+      (shared$ratio_Ref_mother <= nipat_cfg$homozygous_alt_max & shared$Ref_father >= 0)
+    )
 
     all_cpi_vals <- res$log_CPI[!is.na(res$log_CPI)]
 
@@ -690,36 +686,23 @@ process_pair <- function(i) {
     med_cpi <- ifelse(length(all_cpi_vals)==0, NA, median(all_cpi_vals))
     mean_cpi <- ifelse(length(all_cpi_vals)==0, NA, mean(all_cpi_vals))
 
-    if (has_cutoffs) {
-      summary_row <- data.frame(
-        Pair = pair_name,
-        Cutoff = cutoff_label,
-        N_sites_mother = n_sites_mother,
-        N_sites_father = n_sites_father,
-        Median_fetal_fraction_raw = round(median_fetal_fraction,4),
-        Median_fetal_fraction_percent = round(median_fetal_fraction*100,2),
-        Max_logCPI = round(max_cpi,3),
-        Min_logCPI = round(min_cpi,3),
-        Median_logCPI = round(med_cpi,3),
-        Mean_logCPI = round(mean_cpi,3),
-        CPI_medianFF = round(cpi_at_med,3),
-        Error_constant = err_const, Min_fetal_reads = min_fetal_reads, Marker_type = marker
-      )
-    } else {
-      summary_row <- data.frame(
-        Pair = pair_name,
-        N_sites_mother = n_sites_mother,
-        N_sites_father = n_sites_father,
-        Median_fetal_fraction_raw = round(median_fetal_fraction,4),
-        Median_fetal_fraction_percent = round(median_fetal_fraction*100,2),
-        Max_logCPI = round(max_cpi,3),
-        Min_logCPI = round(min_cpi,3),
-        Median_logCPI = round(med_cpi,3),
-        Mean_logCPI = round(mean_cpi,3),
-        CPI_medianFF = round(cpi_at_med,3),
-        Error_constant = err_const, Min_fetal_reads = min_fetal_reads, Marker_type = marker
-      )
-    }
+    summary_row <- data.frame(Pair=pair_name)
+    if (has_cutoffs) summary_row$Cutoff <- cutoff_label
+    summary_row <- cbind(summary_row, data.frame(
+      N_sites_mother = n_sites_mother,
+      N_sites_father = n_sites_father,
+      Median_fetal_fraction_raw = round(median_fetal_fraction,4),
+      Median_fetal_fraction_percent = round(cfDNA_percent,2),
+      Max_logCPI = round(max_cpi,3),
+      Min_logCPI = round(min_cpi,3),
+      Median_logCPI = round(med_cpi,3),
+      Mean_logCPI = round(mean_cpi,3),
+      CPI_medianFF = round(cpi_at_med,3),
+      Error_constant = err_const,
+      Min_fetal_reads = if (is.null(min_fetal_reads)) NA_integer_ else min_fetal_reads,
+      Min_fetal_percent = if (is.null(min_fetal_percent)) NA_real_ else min_fetal_percent,
+      Marker_type = marker
+    ))
     list(label = cutoff_label, plot_data = res, summary = summary_row,
          cfDNA_percent = cfDNA_percent, cpi_at_med = cpi_at_med, median_reads=target_i)
   }, label = "cpi-cutoffs")
@@ -734,6 +717,11 @@ for (i in seq_along(pair_results)) {
   per_cutoff_plots <- list()
   for (k in seq_along(pair_result$cutoffs)) {
     cutoff_result <- pair_result$cutoffs[[k]]
+    if (!cutoff_result$summary$N_sites_mother) {
+      warning(pair_name, " (", cutoff_result$label, "): No maternal informative sites satisfy ",
+              "the selected fetal-read filters. Fetal fraction and CPI cannot be calculated.",
+              call.=FALSE, immediate.=TRUE)
+    }
     per_cutoff_plots[[cutoff_result$label]] <- plot_CPI(
       cutoff_result$plot_data, cutoff_result$label, pair_name,
       cfDNA_percent = cutoff_result$cfDNA_percent,

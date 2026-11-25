@@ -14,11 +14,13 @@ NewPat development centers on the reproducibility of research results and the op
 
 | Item | Evidence needed |
 | --- | --- |
-| Revised Postnatal CPI | Obtain the updated script and a worked trio with the expected scalar. Verify its value through the engine, original output file and desktop summary. The candidate currently retains the existing summary and curves. |
-| Sixth downstream module | Obtain the script, invocation, required inputs and expected outputs. Use these to define the module contract and add a regression case. [Integration steps](ARCHITECTURE.md#adding-a-downstream-scientific-module) |
+| Revised prenatal and postnatal CPI | Compare the packaged workflows with the revised upstream models, including the postnatal [worked SNP and DNP trios](https://github.com/lpistacchia/NEWPAT/tree/97c4eb5f7a901d0435b950c3e2a52a8bd7eae9d4/CPI_postnatal/examples). Check the scalar and its logarithm in the postnatal summary, site audit and exported results. |
+| Sixth downstream module | Obtain the sex-estimation script, invocation, required inputs and expected outputs. Use these to define the module contract and add a regression case. [Integration steps](ARCHITECTURE.md#adding-a-downstream-scientific-module) |
 | Performance on physical Apple Silicon | Compare the installed stable build on the same BAM lists and fixed Lima allocation. Record actual worker counts, phase times and table agreement. [Mac benchmark](MACOS_INSTALLER.md#compare-worker-settings-on-an-apple-silicon-mac) |
 
-The first two items are pending for publication. The physical Mac measurement is planned for after the stable build becomes available. [Publication procedure](../.github/RELEASE.md)
+The two CPI sources have been supplied. The sixth script is still under development. Qualify the final module set before publication. The physical Mac measurement is planned for after the stable build becomes available. [Publication procedure](../.github/RELEASE.md)
+
+The current CPI display highlights the reported log index against two numeric limits and marks exact boundaries. User-selectable strict or inclusive comparison operators for assigning outcome categories remain a separate proposal.
 
 Scientific reference implementations, analytical test cases and domain review serve different purposes. Record which comparison you performed and the evidence it supports. For an issue, include the software version, platform, expected behavior, observed behavior and the smallest input that reproduces it. The package acceptance process records which checks ran on an installer and which observations came from a physical device.
 

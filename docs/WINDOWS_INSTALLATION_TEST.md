@@ -34,12 +34,13 @@ The PowerShell execution policy option applies only to the process used for the 
 
 ## Expected results
 
-The suite contains 54 runs (48 positive cases and 6 expected input rejections), 9 reproducibility comparisons and 7 initial/final checks. A complete passing environment reports **70 PASS, 0 FAIL, 0 BLOCKED, 0 INTERRUPTED**.
+The suite contains 64 runs (58 positive cases and 6 expected input rejections), 9 reproducibility comparisons and 7 initial/final checks. A complete passing environment reports **80 PASS, 0 FAIL, 0 BLOCKED, 0 INTERRUPTED**.
 
 It verifies:
 
 - Installed application, runtime, settings and resource identity.
 - DNP, SNP, Contamination, prenatal CPI and postnatal CPI numerical outputs against independent expected values.
+- Prenatal read-count, percentage-only and combined filters, including empty curves. Postnatal scalar CPI and per-site reasons under genotype selection and trio coverage filters.
 - Workflows from three BAMs, SNP pileup and tables, including compositions of the five modules.
 - Sample IDs, family roles, parameters and artifacts actually produced.
 - Equality of scientific tables in serial, automatic and two-worker execution.

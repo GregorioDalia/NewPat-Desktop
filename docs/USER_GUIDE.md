@@ -85,6 +85,8 @@ Count tables need nonnegative integer `N_REF`, `N_ALT` and `N_Other` and unique 
 
 Supply maternal cell-free DNA and alleged-father count tables, pair assignments and population allele frequencies. Count tables contain coordinates, `REF`, `ALT`, `N_REF`, `N_ALT`, `N_Other` and `total_count`. Population tables have the same marker coordinates and the columns `Ref_f.pop` and `Alt_f.pop`. Each locus is unique and both frequencies must be finite and in (0, 1]. Check warnings about frequencies that do not sum to one.
 
+Use `cpi.min_fetal_reads` for an absolute minimum count and `cpi.min_fetal_percent` for a percentage of maternal REF + ALT reads. When both are set a site must meet both. When neither is specified the minimum is two reads. A percentage alone starts the CPI curve at one read. [Prenatal settings and output](../scientific/vendor/NEWPAT/CPI_from_cffDNA/README.md)
+
 With the default prefixes, `--pairs A1:A1` selects `MotherA1.txt` and `FatherA1.txt` in the input directory. Separate multiple pairs with commas. For an individual CPI run, choose at most one panel-selection method: `--panel PATH`, repeated `--cutoff LABEL PATH`, or `--cutoff-map "LABEL=PATH,LABEL2=PATH2"`. Omitting these uses available sites. Repeated `--cutoff` arguments also work for paths containing commas or equals signs. `--err-const` accepts a finite run-specific error constant in (0, 1].
 
 ```powershell
@@ -93,11 +95,13 @@ With the default prefixes, `--pairs A1:A1` selects `MotherA1.txt` and `FatherA1.
 
 ### Postnatal CPI
 
-The desktop labels this analysis **Postnatal CPI**. The CLI command and configuration prefix are `cpin`. Supply the mother, alleged father and child tables, trio assignments and population frequencies. Use three distinct samples per trio, the same coordinate scheme as the frequency table, and both REF and ALT alleles in an optional postnatal CPI filter panel. With the default prefixes, `--trios A:A:A` selects `MotherA.txt`, `FatherA.txt` and `ChildA.txt`. Separate multiple trios with commas. `cpin.site_selection` accepts `other_allele`, `all` and `both`.
+The desktop labels this analysis **Postnatal CPI**. The CLI command and configuration prefix are `cpin`. Supply the mother, alleged father and child tables, trio assignments and population frequencies. Use three distinct samples per trio, the same coordinate scheme as the frequency table, and both REF and ALT alleles in an optional postnatal CPI filter panel. With the default prefixes, `--trios A:A:A` selects `MotherA.txt`, `FatherA.txt` and `ChildA.txt`. Separate multiple trios with commas. All four compatible mother–child genotype combinations are enabled by default. You can exclude combinations individually or require a minimum total coverage in each trio member. The output contains one CPI and log₁₀(CPI) per trio and a table with the decision for every evaluated site. [Postnatal settings and site rules](../scientific/vendor/NEWPAT/CPI_postnatal/README.md)
 
 ```powershell
 & $newpat cpin --input-dir ".\trios" --trios "A:A:A" --popfreq ".\population.tsv"
 ```
+
+When opening a profile saved under the earlier postnatal model, review the selected genotype groups before comparing results. The migration preserves the previous mismatch weights and selects the union of the earlier mother–child groups. The previous minimum child-allele support has no equivalent trio-wide coverage threshold. Choose a coverage threshold for the new experiment if needed.
 
 See [input validation](INPUT_VALIDATION.md) for file checks and warnings, and the [scientific catalog](SCIENTIFIC_CATALOG.md) for formulas, thresholds and settings.
 
@@ -109,7 +113,7 @@ See [input validation](INPUT_VALIDATION.md) for file checks and warnings, and th
 & $newpat settings cpin
 & $newpat parameters snp-call --section preparation --lang en
 & $newpat settings --export ".\settings.json"
-& $newpat --scientific-config ".\settings.json" --set cpin.min_child_reads=4 settings cpin
+& $newpat --scientific-config ".\settings.json" --set cpin.min_coverage=20 settings cpin
 ```
 
 <a id="risultati-e-analisi-in-sequenza"></a>

@@ -1,4 +1,4 @@
-"""Qualify 0.8.50 downstream science against independent oracles and frozen R.
+"""Qualify downstream science against independent oracles and frozen R.
 
 Runs with local R or against an immutable scientific image using --image.
 This complements (does not replace) DNP/SNP caller equivalence and BAM workflow
@@ -28,16 +28,16 @@ import time
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / "src"))
 FIXTURE = PROJECT / "tests/fixtures/five_modules"
-REFERENCE = PROJECT / "tests/reference_r/NEWPAT_20261113"
+REFERENCE = PROJECT / "tests/reference_r/NEWPAT_20261125"
 SOURCES = {
     "cpin": "CPI_postnatal/Postnatal_CPI.R",
     "cpi": "CPI_from_cffDNA/cfDNA_CPI_estimator.R",
     "contamination": "contamination/detect_contamination.R",
 }
 REFERENCE_SHA256 = {
-    "CPI_postnatal/Postnatal_CPI.R": "66f260ef0d66b923b763d1115b36e797c6784b37b0b4793964fa53f55dfa658e",
-    "CPI_from_cffDNA/cfDNA_CPI_estimator.R": "8c8062b6110af7d957f152bb26539d72b22d7d90a26ebe251b27679c573d14f6",
-    "contamination/detect_contamination.R": "e82a71b90dfc73982b350b719bcbeedbb20502b353a9d735c590dc14635d6d1d",
+    "CPI_postnatal/Postnatal_CPI.R": "611fd93c4606298e97174c5c7b55f9a34445b95389537c994b7f41ffa43a05e6",
+    "CPI_from_cffDNA/cfDNA_CPI_estimator.R": "263b517d37532b724f429b9ee883a64d748a8d5d2398444f2956d6eda3a2ac81",
+    "contamination/detect_contamination.R": "afbbf20b937dfef356d0046e18ffff3d6746113ae771dd87745369b3e64081ca",
 }
 HELPERS = ("__init__.py", "errors.py", "settings.py", "settings.R", "settings_data.json",
            "parallel.R", "plots.R")
@@ -181,7 +181,7 @@ def compare_tables(observed, expected):
 
 def verify_frozen_sources():
     manifest = json.loads((REFERENCE / "manifest.json").read_text())
-    require(manifest["upstream_commit"] == "9c2a8be60afcb944153710da6a61cd0559e2b4cf",
+    require(manifest["upstream_commit"] == "97c4eb5f7a901d0435b950c3e2a52a8bd7eae9d4",
             "Unexpected upstream reference identity")
     require(manifest["sha256"] == REFERENCE_SHA256, "Immutable reference manifest altered")
     for name, expected in manifest["sha256"].items():
@@ -190,63 +190,28 @@ def verify_frozen_sources():
     return manifest
 
 
-def check_cpin(output, marker, families=1, minimum=2):
+def check_cpin(output, marker, families=1):
     rows = table(output / "Summary_Postnatal_CPI.txt")
-    require(len(rows) == families * 2, "CPIN must retain both selections for every trio")
-    epsilon = .001 if marker == "SNP" else .0000892303778101497
-    expected_pi = {"heterozygous_child_sites": 3.125 * epsilon,
-                   "all_compatible_sites": (3.125 / .6) * epsilon}
     trios = ([f"MotherM-FatherF-ChildC_{marker}s"] if families == 1 else
              [f"MotherM{i}-FatherF{i}-ChildC{i}_{marker}s" for i in range(1, families + 1)])
-    require({(row["Trio"], row["Analysis"]) for row in rows}
-            == {(trio, selection) for trio in trios for selection in expected_pi},
-            "CPIN must retain each distinct trio and selection exactly once")
-    for row in rows:
-        selection = row["Analysis"]
-        require(selection in expected_pi and row["Marker_type"] == marker, "Wrong CPIN selection/type")
-        count = 2 if selection == "heterozygous_child_sites" else 3
-        number(row["N_sites"], count)
-        number(row["N_heterozygous_child_sites"], 2)
-        number(row["N_homozygous_child"], count - 2)
-        number(row["Matching_sites"], count - 1)
-        number(row["Mismatching_sites"], 1)
-        number(row["Log10_CPI"], math.log10(expected_pi[selection]))
-        number(row["CPI"], expected_pi[selection])
-        number(row["Error_constant"], epsilon)
-        number(row["Min_child_reads"], minimum)
-    return rows
-
-
-def check_cpin_curves(output, marker, families):
-    """The test fixture has three eligible sites with support 5, 6 and 10.
-
-    An interval table is expanded only for these tiny bounded fixtures. A curve
-    raises obligatory-paternal-allele support after the initial child-genotype
-    support filter; it is not a fresh genotype call at every threshold.
-    """
+    require(len(rows) == families and {row["Trio"] for row in rows} == set(trios),
+            "Postnatal CPI must retain each distinct trio exactly once")
     epsilon = .001 if marker == "SNP" else .0000892303778101497
-    paths = sorted((output / "curves").glob("*.tsv"))
-    require(len(paths) == families * 2, "CPIN curve tables missing")
-    for path in paths:
-        homozygous = "all_compatible_sites" in path.name
-        expanded = {}
-        for row in table(path):
-            first = int(row["Min_child_reads"])
-            last = int(row.get("Through_min_child_reads", first))
-            require(2 <= first <= last <= 10, "Curve interval out of range")
-            for threshold in range(first, last + 1):
-                require(threshold not in expanded, "Overlapping curve intervals")
-                expanded[threshold] = row
-        require(set(expanded) == set(range(2, 11 if homozygous else 7)), "Curve has gaps")
-        for threshold, row in expanded.items():
-            contributions = [(5, 1.25, False), (6, epsilon / .4, True)]
-            if homozygous:
-                contributions.append((10, 1 / .6, False))
-            retained = [item for item in contributions if item[0] >= threshold]
-            number(row["N_sites"], len(retained))
-            number(row["Log10_CPI"], sum(math.log10(item[1]) for item in retained))
-            number(row["Matching_sites"], sum(not item[2] for item in retained))
-            number(row["Mismatching_sites"], sum(item[2] for item in retained))
+    # Positions 100, 200, 300, 500 and 600 pass. Position 500 is neutral
+    # (heterozygous mother and child). Positions 200 and 600 mismatch.
+    cpi = (0.5 / 0.4) * (epsilon / 0.4) * (1 / 0.6) * (epsilon / 0.4)
+    for row in rows:
+        require(row["Marker_type"] == marker, "Wrong postnatal marker type")
+        for key, expected in {"N_sites": 5, "N_hom_hom": 1, "N_hom_het": 3,
+                              "N_het_hom": 0, "N_het_het": 1, "Matching_sites": 2,
+                              "Mismatching_sites": 2, "No_obligatory_allele_sites": 1,
+                              "Maternal_incompatible_sites": 1, "Mismatch_probability": epsilon,
+                              "Min_coverage": None, "CPI": cpi, "Log10_CPI": math.log10(cpi)}.items():
+            number(row[key], expected, key)
+        sites = table(output / (row["Trio"] + "_sites.txt"))
+        require(len(sites) == 9 and sum(site["Status"] == "eligible" for site in sites) == 5,
+                "Postnatal CPI must report all nine input sites and five eligible sites")
+    return rows
 
 
 def check_cpi(output, marker, minimum=2, families=1, mismatch=False, *, candidate=True):
@@ -464,7 +429,7 @@ def run_case(root, name, workflow, marker, *, candidate=True, minimum=2,
         else:
             trios = "M:F:C" if families == 1 else ",".join(f"M{i}:F{i}:C{i}" for i in range(1, families + 1))
             arguments += ["--child_prefix", "Child", "--trios", trios]
-            overrides = {"min_child_reads": minimum}
+
     context = settings_context(workflow, overrides, work) if candidate else nullcontext()
     start = time.monotonic()
     with context:
@@ -486,9 +451,7 @@ def run_case(root, name, workflow, marker, *, candidate=True, minimum=2,
     (destination / "stderr.log").write_text(process.stderr)
     require(process.returncode == 0, f"{name}: R exited {process.returncode}; {process.stderr[-1200:]}")
     if workflow == "cpin":
-        rows = check_cpin(output, marker, families, minimum)
-        if candidate:
-            check_cpin_curves(output, marker, families)
+        rows = check_cpin(output, marker, families)
     elif workflow == "cpi":
         rows = check_cpi(output, marker, minimum, families, mismatch, candidate=candidate)
         if candidate:
@@ -552,6 +515,11 @@ def qualify(destination, full=False, runtime=None):
                     actual = run_case(destination, case + "-candidate", workflow, marker, **variant)
                     results.append(actual)
                     compare_tables(actual["rows"], wanted["rows"])
+                    if workflow == "cpin":
+                        for row in actual["rows"]:
+                            sites = row["Trio"] + "_sites.txt"
+                            compare_tables(table(destination / actual["name"] / "output" / sites),
+                                           table(destination / wanted["name"] / "output" / sites))
                     pairs.append(case)
                     comparison_evidence[case] = {"equal": True,
                         "candidate_sha256": actual["summary_sha256"],

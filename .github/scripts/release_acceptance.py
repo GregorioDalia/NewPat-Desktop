@@ -40,6 +40,13 @@ ANALYSIS_REFERENCE_SHA256 = {
     "CPI_from_cffDNA/cfDNA_CPI_estimator.R": "8c8062b6110af7d957f152bb26539d72b22d7d90a26ebe251b27679c573d14f6",
     "contamination/detect_contamination.R": "e82a71b90dfc73982b350b719bcbeedbb20502b353a9d735c590dc14635d6d1d",
 }
+CPI_REFERENCE_COMMIT = "97c4eb5f7a901d0435b950c3e2a52a8bd7eae9d4"
+CPI_REFERENCE_ROOT = "tests/reference_r/NEWPAT_20261125"
+CPI_REFERENCE_SHA256 = {
+    "CPI_postnatal/Postnatal_CPI.R": "611fd93c4606298e97174c5c7b55f9a34445b95389537c994b7f41ffa43a05e6",
+    "CPI_from_cffDNA/cfDNA_CPI_estimator.R": "263b517d37532b724f429b9ee883a64d748a8d5d2398444f2956d6eda3a2ac81",
+    "contamination/detect_contamination.R": "afbbf20b937dfef356d0046e18ffff3d6746113ae771dd87745369b3e64081ca"
+}
 CPIN_SOURCE = "scientific/vendor/NEWPAT/CPI_postnatal/Postnatal_CPI.R"
 ANALYSIS_HELPERS = ("__init__.py", "errors.py", "settings.py", "settings.R", "settings_data.json", "parallel.R", "plots.R")
 CALLER_SUPPORTING_SOURCES = tuple("src/nipat_scientific/" + name for name in (
@@ -184,6 +191,17 @@ def audited_r_contract(version):
 def snp2_contract(version):
     match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:(?:a|b|rc)[0-9]+)?", version or "")
     return bool(match and tuple(map(int, match.groups())) >= (0, 8, 30))
+
+
+def revised_cpi_contract(version):
+    match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:(?:a|b|rc)\d+)?", version or "")
+    return bool(match and tuple(map(int, match.groups())) >= (0, 9, 10))
+
+
+def downstream_reference(version):
+    if revised_cpi_contract(version):
+        return CPI_REFERENCE_COMMIT, CPI_REFERENCE_ROOT, CPI_REFERENCE_SHA256
+    return ANALYSIS_REFERENCE_COMMIT, ANALYSIS_REFERENCE_ROOT, ANALYSIS_REFERENCE_SHA256
 
 
 def five_module_contract(version):
@@ -390,7 +408,7 @@ def template(installer_set, run_id):
             record["schema_version"] = 7
             record["observed_baseline"]["source_comparison_scope"] = FIVE_MODULE_SOURCE_SCOPE
             record["scientific_analysis_qualification"] = {
-                "reference_source_commit": ANALYSIS_REFERENCE_COMMIT,
+                "reference_source_commit": downstream_reference(fields["version"])[0],
                 "report_path": "", "report_sha256": "", "runtime_image": "",
             }
         if explicit_publication_contract(fields["version"]):
@@ -568,7 +586,7 @@ def validate_research(record, version, commit, run_id, installer_set=None):
     if revised_r:
         validate_scientific_record(record["scientific_equivalence"])
     if five_modules:
-        validate_analysis_record(record["scientific_analysis_qualification"])
+        validate_analysis_record(record["scientific_analysis_qualification"], version)
         require(record["scientific_equivalence"]["runtime_image"] ==
                 record["scientific_analysis_qualification"]["runtime_image"],
                 "All five modules must be qualified in the same packaged image")
@@ -633,12 +651,12 @@ def validate_scientific_record(evidence):
             "Scientific equivalence requires an immutable runtime image ID")
 
 
-def validate_analysis_record(evidence):
+def validate_analysis_record(evidence, version):
     require(isinstance(evidence, dict) and set(evidence) == {
         "reference_source_commit", "report_path", "report_sha256", "runtime_image",
     }, "Invalid downstream scientific qualification record fields")
-    require(evidence["reference_source_commit"] == ANALYSIS_REFERENCE_COMMIT,
-            "Updated analyses require the frozen NEWPAT 20261113 reference")
+    require(evidence["reference_source_commit"] == downstream_reference(version)[0],
+            "Downstream analyses require the frozen NEWPAT reference for this release")
     require(safe_evidence_path(evidence["report_path"])
             and evidence["report_path"].startswith("scientific/")
             and PurePosixPath(evidence["report_path"]).name == "five-module-qualification.json",
@@ -708,7 +726,7 @@ def compare_analysis_rows(actual, expected):
                         "Downstream scientific numerical results differ")
 
 
-def verify_analysis_summary(archive, report_path, case):
+def verify_analysis_summary(archive, report_path, case, revised_cpi):
     workflow, marker, size = case["workflow"], case["marker"], case["batch_size"]
     filename = {"cpin": "Summary_Postnatal_CPI.txt", "cpi": "Summary_FetalFraction_CPI.csv",
                 "contamination": "contamination_summary.txt"}[workflow]
@@ -736,15 +754,29 @@ def verify_analysis_summary(archive, report_path, case):
                 "Mean_logCPI", "CPI_medianFF", "Error_constant"},
         "contamination": {"individuo", "informative_sites", "mean_contamination", "sd_contamination"},
     }[workflow]
+    if revised_cpi and workflow == "cpin":
+        required_columns = {
+            "Trio", "Marker_type", "N_sites", "N_hom_hom", "N_hom_het", "N_het_hom", "N_het_het",
+            "Matching_sites", "Mismatching_sites", "No_obligatory_allele_sites", "Maternal_incompatible_sites",
+            "Log10_CPI", "CPI", "Mismatch_probability", "Min_coverage",
+            "Include_hom_hom", "Include_hom_het", "Include_het_hom", "Include_het_het",
+        }
+    if revised_cpi and workflow == "cpi":
+        required_columns |= {"Min_fetal_reads", "Min_fetal_percent"}
     require(all(required_columns <= set(row) for row in rows), "Downstream scientific summary columns are incomplete")
     if workflow == "cpin":
         selections = {"heterozygous_child_sites", "all_compatible_sites"}
         trios = ([f"MotherM-FatherF-ChildC_{marker}s"] if size == 1 else
                  [f"MotherM{i}-FatherF{i}-ChildC{i}_{marker}s" for i in range(1, size + 1)])
-        identities = {(row.get("Trio"), row.get("Analysis")) for row in rows}
-        require(len(rows) == 2 * size and identities == {(trio, selection) for trio in trios for selection in selections}
-                and all(row.get("Marker_type") == marker for row in rows),
-                "CPIN summary must contain each expected trio and selection exactly once")
+        if revised_cpi:
+            require(len(rows) == size and {row.get("Trio") for row in rows} == set(trios)
+                    and all(row.get("Marker_type") == marker for row in rows),
+                    "Postnatal summary must contain one row per expected trio")
+        else:
+            identities = {(row.get("Trio"), row.get("Analysis")) for row in rows}
+            require(len(rows) == 2 * size and identities == {(trio, selection) for trio in trios for selection in selections}
+                    and all(row.get("Marker_type") == marker for row in rows),
+                    "CPIN summary must contain each expected trio and selection exactly once")
     elif workflow == "cpi":
         pairs = ([f"MotherM-FatherF_{marker}s", f"MotherN-FatherN_{marker}s"] if size == 1 else
                  [f"MotherM{i}-FatherF{i}_{marker}s" for i in range(1, size + 1)])
@@ -758,7 +790,10 @@ def verify_analysis_summary(archive, report_path, case):
 def verify_analysis_qualification(record, evidence_directory, read_source):
     """Validate updated models separately; never relabel changed science as old equivalence."""
     evidence = record["scientific_analysis_qualification"]
-    validate_analysis_record(evidence)
+    version = record["version"]
+    validate_analysis_record(evidence, version)
+    reference_commit, reference_root, source_hashes = downstream_reference(version)
+    revised_cpi = revised_cpi_contract(version)
     archive = Path(evidence_directory) / "qualification-evidence.zip"
     require(archive.is_file() and not archive.is_symlink()
             and hashlib.sha256(archive.read_bytes()).hexdigest() == record["qualification_evidence_sha256"],
@@ -799,7 +834,7 @@ def verify_analysis_qualification(record, evidence_directory, read_source):
             and runtime.get("image_id") == evidence["runtime_image"],
             "Local R evidence cannot qualify the packaged scientific image")
     installed = {"scientific/vendor/NEWPAT/" + name: "scientific/vendor/NEWPAT/" + name
-                 for name in ANALYSIS_REFERENCE_SHA256}
+                 for name in source_hashes}
     installed.update({"lib/nipat_scientific/" + name: "src/nipat_scientific/" + name
                       for name in ANALYSIS_HELPERS})
     require(runtime.get("candidate_and_helper_sha256") == {
@@ -810,12 +845,12 @@ def verify_analysis_qualification(record, evidence_directory, read_source):
             hashlib.sha256(source("scripts/verify_five_modules.py")).hexdigest(),
             "Downstream qualification used a different verifier")
     reference = {"repository": "https://github.com/lpistacchia/NEWPAT",
-                 "upstream_commit": ANALYSIS_REFERENCE_COMMIT, "sha256": ANALYSIS_REFERENCE_SHA256}
+                 "upstream_commit": reference_commit, "sha256": source_hashes}
     require(report.get("upstream_reference") == reference
-            and json.loads(source(ANALYSIS_REFERENCE_ROOT + "/manifest.json")) == reference,
+            and json.loads(source(reference_root + "/manifest.json")) == reference,
             "Downstream qualification uses a different immutable upstream reference")
-    for path, digest in ANALYSIS_REFERENCE_SHA256.items():
-        require(hashlib.sha256(source(ANALYSIS_REFERENCE_ROOT + "/" + path)).hexdigest() == digest,
+    for path, digest in source_hashes.items():
+        require(hashlib.sha256(source(reference_root + "/" + path)).hexdigest() == digest,
                 "Frozen downstream reference bytes were modified")
     fixtures = report.get("fixture_sha256")
     hashes(fixtures, "fixture")
@@ -848,14 +883,18 @@ def verify_analysis_qualification(record, evidence_directory, read_source):
         for field in ("input_sha256", "output_sha256", "log_sha256"):
             hashes(case.get(field), field)
         require(valid_digest(case.get("summary_sha256")), "Missing downstream summary digest")
-        verify_analysis_summary(archive, evidence["report_path"], case)
+        verify_analysis_summary(archive, evidence["report_path"], case, revised_cpi)
         if not candidate:
             require(case.get("worker_evidence") is None and case.get("scientific_settings") is None,
                     "The independent reference cannot use candidate settings or worker helpers")
             continue
         parameters = {key: value["default"] for key, value in registry[workflow]["parameters"].items()}
-        parameters[{"cpin": "min_child_reads", "cpi": "min_fetal_reads", "contamination": "include_zero"}[workflow]] = (
-            variant["include_zero"] if workflow == "contamination" else variant["minimum"])
+        if workflow == "cpi":
+            parameters["min_fetal_reads"] = variant["minimum"]
+        elif workflow == "contamination":
+            parameters["include_zero"] = variant["include_zero"]
+        elif not revised_cpi:
+            parameters["min_child_reads"] = variant["minimum"]
         settings = {"schema_version": 1, "workflow": workflow, "parameters": parameters,
                     "constants": registry[workflow]["constants"]}
         require(case.get("settings_match") is True and same_scientific_values(case.get("scientific_settings"), settings),
@@ -926,7 +965,7 @@ def verify_analysis_qualification(record, evidence_directory, read_source):
                     compare_analysis_rows(by_name[f"{prefix}-auto-cap{cap}"]["rows"],
                                           by_name[f"{prefix}-serial-capNone"]["rows"])
     return {"report_sha256": evidence["report_sha256"], "runtime_image": evidence["runtime_image"],
-            "reference_source_commit": ANALYSIS_REFERENCE_COMMIT,
+            "reference_source_commit": reference_commit,
             "executions_verified": len(results), "reference_comparisons_verified": len(comparisons),
             "batch_executions_verified": sum("-batch" in name for name in expected),
             "scope": "synthetic-independent-oracles-and-upstream-models", "domain_validation_claimed": False}

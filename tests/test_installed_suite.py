@@ -30,11 +30,14 @@ class InstalledSuiteTests(unittest.TestCase):
                                                 "installed_workflows.py", "fixtures.json"})
         for name, expected in document["files"].items():
             self.assertEqual(suite.digest(directory / name), expected, name)
-        for filename in ("test-installed-0850.ps1", "test-installed.ps1"):
+        # The 0.8.50-only downloader remains pinned to its original acceptance models.
+        pins = {"test-installed-0850.ps1": "c8728ab4582a65e4f446eea1e0da9f15cae379caa2df5a73464018ef219ff693",
+                "test-installed.ps1": suite.digest(manifest)}
+        for filename, digest in pins.items():
             wrapper = (ROOT / "scripts/windows" / filename).read_text(encoding="utf-8")
             expected = re.search(r"\$ExpectedManifestSha256 = '([a-f0-9]{64})'", wrapper)
             self.assertIsNotNone(expected)
-            self.assertEqual(expected.group(1), suite.digest(manifest))
+            self.assertEqual(expected.group(1), digest)
 
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()

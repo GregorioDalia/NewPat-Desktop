@@ -79,6 +79,14 @@ FIELDS = {
     "CPI_medianFF": ("log₁₀(CPI) alla soglia mediana di letture fetali", "log₁₀(CPI) at the median fetal read threshold"),
     "Error_constant": ("Probabilità di errore utilizzata", "Error probability used"),
     "Min_fetal_reads": ("Letture fetali minime", "Minimum fetal reads"),
+    "Min_fetal_percent": ("Percentuale minima di letture fetali", "Minimum fetal read percentage"),
+    "Min_coverage": ("Copertura minima per individuo", "Minimum coverage per trio member"),
+    "Mismatch_probability": ("Peso del mismatch paterno", "Paternal mismatch weight"),
+    "No_obligatory_allele_sites": ("Siti senza allele paterno obbligato", "Sites without an obligatory paternal allele"),
+    "Maternal_incompatible_sites": ("Siti incompatibili tra madre e figlio", "Mother–child incompatible sites"),
+    "Genotype_combination": ("Genotipi di madre e figlio", "Mother and child genotypes"),
+    "Combination_selected": ("Combinazione selezionata", "Selected genotype combination"),
+    "Paternity_status": ("Contributo del sito al CPI", "Site contribution to the CPI"),
     "Min_child_reads": ("Letture minime del figlio", "Minimum child reads"),
     "Through_min_child_reads": ("Fino a · letture minime del figlio", "Through · minimum child reads"),
     "N_sites": ("Siti inclusi", "Included sites"),
@@ -111,14 +119,30 @@ FIELDS = {
 }
 SITE_REASONS = {
     "eligible": ("Ammissibile", "Eligible"),
+    "missing_call": ("Sito assente in almeno un campione", "Site missing from at least one sample"),
+    "missing_population_frequency": ("Frequenza di popolazione assente", "Missing population frequency"),
+    "combination_not_selected": ("Combinazione madre–figlio esclusa", "Mother–child combination excluded"),
+    "child_unassigned": ("Genotipo del figlio non assegnato", "Child genotype unassigned"),
+    "mother_unassigned": ("Genotipo materno non assegnato", "Mother genotype unassigned"),
     "mother_child_incompatible": ("Incompatibilità madre–figlio", "Mother–child incompatibility"),
     "mother_not_homozygous": ("Madre non omozigote", "Mother not homozygous"),
     "insufficient_child_support": ("Letture del figlio insufficienti", "Insufficient child reads"),
     "quality_filter": ("Filtro di qualità non superato", "Quality filter not passed"),
     "father_unassigned": ("Genotipo paterno non assegnato", "Father genotype unassigned"),
 }
+GENOTYPE_COMBINATIONS = {
+    "hom_hom": ("Madre omozigote, figlio omozigote", "Homozygous mother, homozygous child"),
+    "hom_het": ("Madre omozigote, figlio eterozigote", "Homozygous mother, heterozygous child"),
+    "het_hom": ("Madre eterozigote, figlio omozigote", "Heterozygous mother, homozygous child"),
+    "het_het": ("Madre eterozigote, figlio eterozigote", "Heterozygous mother, heterozygous child"),
+}
+for combination, (italian, english) in GENOTYPE_COMBINATIONS.items():
+    FIELDS["N_" + combination] = ("Siti · " + italian, "Sites · " + english)
+    FIELDS["Include_" + combination] = ("Includi · " + italian, "Include · " + english)
+
 MISSING = frozenset(("", "NA", "NaN", "nan", "null"))
 _MAX_PAGE = 1000
+_CPI_CURVE_NAME = re.compile(r"(?:_curve|_panel_[1-9][0-9]*)\.tsv\Z")
 _MAX_SUMMARY = 10000
 _MAX_JSON = 32 * 1024 * 1024
 _MAX_LINE = 8 * 1024 * 1024
@@ -152,10 +176,10 @@ def column_description(key: str, *, language="it", samples: dict | None = None) 
         result.update(unit="punti %" if key == "sd_contamination" and language != "en" else
                       "percentage points" if key == "sd_contamination" else "%", scale=100,
                       source_unit="proportion")
-    elif key == "Median_fetal_fraction_percent":
+    elif key in {"Median_fetal_fraction_percent", "Min_fetal_percent"}:
         result["unit"] = "%"
     elif key == "Median_fetal_fraction_raw" or key.startswith("ratio") or key in {
-        "Ref_f.pop", "Alt_f.pop", "Error_constant", "Paternal_transmission",
+        "Ref_f.pop", "Alt_f.pop", "Error_constant", "Mismatch_probability", "Paternal_transmission",
     }:
         result["unit"] = "proportion"
     elif key in {"GL0", "GL1", "GL2"}:
@@ -176,6 +200,13 @@ def column_description(key: str, *, language="it", samples: dict | None = None) 
             "Resident memory at this instant; this is not peak memory."), language))
     if key == "Status":
         result["values"] = {k: _translation(v, language) for k, v in SITE_REASONS.items()}
+    if key == "Genotype_combination":
+        result["values"] = {k: _translation(v, language) for k, v in GENOTYPE_COMBINATIONS.items()}
+    if key == "Paternity_status":
+        result["values"] = {k: _translation(v, language) for k, v in {
+            "match": ("Compatibile", "Match"), "mismatch": ("Incompatibile", "Mismatch"),
+            "no_obligatory_allele": ("Nessun allele paterno obbligato", "No obligatory paternal allele"),
+        }.items()}
     if key == "Analysis":
         result["values"] = {
             "all_compatible_sites": _translation(("Tutti i siti compatibili con la madre", "All sites compatible with the mother"), language),
@@ -188,14 +219,14 @@ def column_description(key: str, *, language="it", samples: dict | None = None) 
     return result
 
 
-def _prenatal_guides(run, descriptor):
+def _cpi_guides(run, descriptor, workflow):
     """Read the two guides emitted by R for this step, including older models."""
     try:
         path = _scoped(run, descriptor["relative_path"], file=True)
         settings = _json(path, max_bytes=4 * 1024 * 1024, parse_float=Decimal,
                          expected_sha256=descriptor.get("recorded_sha256"))
         if (type(settings.get("schema_version")) is not int or settings["schema_version"] != 1
-                or settings.get("workflow") != "cpi"):
+                or settings.get("workflow") != workflow):
             return None
         parameters = settings["parameters"]
         values = [parameters[name] for name in ("log_cpi_lower", "log_cpi_upper")]
@@ -209,14 +240,15 @@ def _prenatal_guides(run, descriptor):
     return None
 
 
-def _reported_prenatal_band(row, guides, marker):
+def _reported_cpi_band(row, guides, marker, workflow):
     """Compare the published, rounded estimate, never an inferred unrounded CPI."""
     if guides is None or row.get("Marker_type", marker) != marker:
         return None
-    if not all(_read_count(row.get(key)) for key in ("N_sites_mother", "N_sites_father")):
+    support = ("N_sites_mother", "N_sites_father") if workflow == "cpi" else ("N_sites",)
+    if not all(_read_count(row.get(key)) for key in support):
         return None
     try:
-        estimate = Decimal(row["CPI_medianFF"])
+        estimate = Decimal(row["CPI_medianFF" if workflow == "cpi" else "Log10_CPI"])
     except (KeyError, TypeError, InvalidOperation):
         return None
     if not estimate.is_finite():
@@ -354,9 +386,9 @@ def _file_label_it(name):
             return label
     if name.startswith("contamination_"):
         return "Contaminazione per sito"
-    if name.endswith("_sites.tsv"):
+    if name.endswith(("_sites.tsv", "_sites.txt")):
         return "Siti inclusi ed esclusi"
-    if name.endswith("_curve.tsv") or "_panel_" in name:
+    if _CPI_CURVE_NAME.search(name):
         return "Valori della curva"
     if name.endswith("_CPIplot.pdf"):
         return "Grafico di paternità"
@@ -1161,7 +1193,7 @@ class ResultsStore:
         module = descriptor.get("module")
         if (descriptor["kind"] != "table" or not descriptor["canonical"] or
                 module not in {"cpi", "cpin"} or
-                not (descriptor["name"].endswith("_curve.tsv") or "_panel_" in descriptor["name"])):
+                not _CPI_CURVE_NAME.search(descriptor["name"])):
             raise ValueError(_translation(("Il risultato selezionato non è una curva CPI prenatale o postnatale.",
                                            "The selected result is not a prenatal or postnatal CPI curve."), self.language))
         too_large = _translation((
@@ -1210,7 +1242,7 @@ class ResultsStore:
             numeric = Decimal(value)
             valid = numeric.is_finite()
             if key in {"informative_sites", "N_sites_mother", "N_sites_father", "N_sites",
-                       "Matching_sites", "Mismatching_sites"}:
+                       "Matching_sites", "Mismatching_sites", "No_obligatory_allele_sites"}:
                 valid = _read_count(value) is not None
             elif key in {"mean_contamination", "sd_contamination"}:
                 count = _read_count(row.get("informative_sites"))
@@ -1313,8 +1345,8 @@ class ResultsStore:
                 continue
             name = {"contamination": "contamination_summary.txt", "cpi": "Summary_FetalFraction_CPI.csv", "cpin": "Summary_Postnatal_CPI.txt"}[key[0]]
             prefixes = {step["id"]: step["output_prefix"] for step in group["steps"]}
-            guides = {f["step_id"]: _prenatal_guides(context["run"], f) for f in relevant
-                      if key[0] == "cpi" and f.get("step_id") in prefixes and step_status[f["step_id"]] == "succeeded"
+            guides = {f["step_id"]: _cpi_guides(context["run"], f, key[0]) for f in relevant
+                      if key[0] in {"cpi", "cpin"} and f.get("step_id") in prefixes and step_status[f["step_id"]] == "succeeded"
                       and f["relative_path"] == prefixes[f["step_id"]] + "scientific-settings.json"}
             for summary in (f for f in relevant if f.get("step_id") in prefixes
                             and f["relative_path"] == prefixes[f["step_id"]] + name):
@@ -1343,12 +1375,12 @@ class ResultsStore:
                                          native_family=native, cutoff=row.get("Cutoff"))
                             related = [f for f in relevant if f.get("step_id") == summary.get("step_id") and f.get("family_id") == family_id]
                             entry["curve_file_ids"] = [f["id"] for f in related if f["kind"] == "table" and
-                                                        ("_curve.tsv" in f["name"] or "_panel_" in f["name"]) and
+                                                        _CPI_CURVE_NAME.search(f["name"]) and
                                                         (not analysis or f.get("analysis") == analysis) and
                                                         (key[0] != "cpi" or f.get("cutoff") == row.get("Cutoff"))]
                             entry["plot_file_ids"] = [f["id"] for f in related if f["kind"] == "pdf" and
                                                        (not analysis or f.get("analysis") == analysis)]
-                            site = next((f for f in related if f["name"].endswith("_sites.tsv")), None)
+                            site = next((f for f in related if f["name"].endswith(("_sites.tsv", "_sites.txt"))), None)
                             entry["site_file_id"] = site["id"] if site else None
                             if key[0] == "cpi":
                                 counts = [f["paternal_used_at_median"] for f in related
@@ -1357,8 +1389,13 @@ class ResultsStore:
                                     row["paternal_used_at_median"] = str(counts[0])
                             metric_keys = (["Median_fetal_fraction_percent", "CPI_medianFF", "N_sites_mother", "N_sites_father"]
                                            if key[0] == "cpi" else ["CPI", "Log10_CPI", "N_sites", "Matching_sites", "Mismatching_sites"])
+                        if key[0] == "cpin" and "No_obligatory_allele_sites" in row:
+                            metric_keys.append("No_obligatory_allele_sites")
                         if "paternal_used_at_median" in row and key[0] == "cpi":
                             metric_keys.append("paternal_used_at_median")
+                        if count == 1:
+                            group.setdefault("summary_columns", {}).update(
+                                (k, column_description(k, language=self.language)) for k in row)
                         entry["metrics"] = [self._metric(k, row.get(k)) for k in metric_keys]
                         summary_keys = (("CPI_medianFF", *metric_keys[2:], "Median_fetal_fraction_percent")
                                         if key[0] == "cpi" else metric_keys)
@@ -1367,9 +1404,9 @@ class ResultsStore:
                             "step_status": step_status.get(summary.get("step_id")),
                             "metrics": [self._summary_metric(field, row) for field in summary_keys],
                         }
-                        if key[0] == "cpi":
-                            entry["summary"]["guide_band"] = _reported_prenatal_band(
-                                row, guides.get(summary.get("step_id")), key[1])
+                        if key[0] == "cpi" or key[0] == "cpin" and "Mismatch_probability" in row:
+                            entry["summary"]["guide_band"] = _reported_cpi_band(
+                                row, guides.get(summary.get("step_id")), key[1], key[0])
                         group["entries"].append(entry)
                     group["summary_truncated"] = count > _MAX_SUMMARY
                 except (OSError, ValueError) as exc:

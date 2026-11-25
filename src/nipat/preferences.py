@@ -19,7 +19,7 @@ import time
 from typing import Any, Callable, Mapping
 
 from nipat.errors import ValidationError
-from nipat.scientific_options import effective_config, normalize_config
+from nipat.scientific_options import effective_config, migrate_saved_settings, normalize_config
 from nipat.distribution import WINDOWS_DIRECTORY, UNIX_DIRECTORY
 from nipat.execution.options import ExecutionOptions
 from nipat.paths import ProjectLayout
@@ -177,8 +177,14 @@ def _parameter_profiles(profiles: Any) -> dict[str, dict]:
             raise ValidationError("Un profilo deve contenere parametri scientifici e di esecuzione.")
         execution = _execution_options(profile["execution"]).as_dict()
         del execution["performance_diagnostics"]
+        overrides = migrate_saved_settings(profile["scientific_settings"])
+        scientific = effective_config(overrides)
+        # A profile stores editable filters. Resolve the two-read fallback at
+        # execution time so that setting only a percentage remains possible.
+        if overrides.get("cpi", {}).get("min_fetal_reads") is None:
+            scientific["cpi"]["min_fetal_reads"] = None
         normalized[name] = {
-            "scientific_settings": effective_config(normalize_config(profile["scientific_settings"])),
+            "scientific_settings": scientific,
             "execution": execution,
         }
     return normalized
@@ -302,7 +308,7 @@ class Preferences:
                    update_channel=document.get("update_channel", "stable"),
                    check_updates_on_startup=document.get("check_updates_on_startup", False),
                    execution=document.get("execution", {}),
-                   scientific_settings=document.get("scientific_settings", {}),
+                   scientific_settings=migrate_saved_settings(document.get("scientific_settings", {})),
                    parameter_profiles=document.get("parameter_profiles", {}),
                    default_profile=document.get("default_profile", ""))
 

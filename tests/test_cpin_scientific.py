@@ -50,44 +50,8 @@ def run_native(tmp_path, marker="SNP", settings=None, inputs=None, trios="M1:F1:
 
 
 @pytest.mark.parametrize("marker", ["SNP", "DNP"])
-def test_analytical_sites_curves_and_outputs(tmp_path, marker):
+def test_analytical_sites_and_scalar_outputs(tmp_path, marker):
     check_outputs(run_native(tmp_path, marker), marker)
-
-
-@pytest.mark.parametrize("settings,counts", [
-    ({"min_child_reads": 1}, [3, 4]),
-    ({"min_child_reads": 101}, [0, 0]),
-    ({"other_fraction_max": 0.11}, [3, 4]),
-    ({"heterozygous_max": 0.7}, [3, 4]),
-    ({"site_selection": "other_allele"}, [2]),
-    ({"site_selection": "all"}, [3]),
-])
-def test_settings_change_eligibility_and_analysis(tmp_path, settings, counts):
-    run = run_native(tmp_path, settings=settings)
-    rows = table(run / "output/Summary_Postnatal_CPI.txt")
-    assert [int(row["N_sites"]) for row in rows] == counts
-    if counts == [0, 0]:
-        assert all(row["CPI"] == row["Log10_CPI"] == "NA" for row in rows)
-        assert all(table(path) == [] for path in (run / "output/curves").iterdir())
-
-
-def test_mismatch_constant_reaches_native_formula(tmp_path):
-    run = run_native(tmp_path, settings={"err_const_snp": 0.02})
-    rows = table(run / "output/Summary_Postnatal_CPI.txt")
-    assert float(rows[0]["CPI"]) == pytest.approx(1.25 * 0.02 / 0.4, rel=1e-12)
-    assert float(rows[1]["CPI"]) == pytest.approx(1.25 * 0.02 / 0.4 / 0.6, rel=1e-12)
-
-
-def test_large_support_exports_intervals_without_depth_sized_allocation(tmp_path):
-    inputs = tmp_path / "inputs"
-    shutil.copytree(FIXTURE / "SNP", inputs)
-    child = inputs / "ChildC1.txt"
-    data = child.read_text().replace("100\t0\t0\t100", "1000000000\t0\t0\t1000000000")
-    child.write_text(data)
-    run = run_native(tmp_path, inputs=inputs)
-    curve = table(next((run / "output/curves").glob("*all_compatible*")))
-    assert len(curve) == 2
-    assert float(curve[-1]["Through_min_child_reads"]) == 1_000_000_000
 
 
 def test_native_role_local_ids_use_distinct_prefixed_files(tmp_path):
@@ -98,13 +62,14 @@ def test_native_role_local_ids_use_distinct_prefixed_files(tmp_path):
     run = run_native(tmp_path, inputs=inputs, trios="A:A:A")
     rows = table(run / "output/Summary_Postnatal_CPI.txt")
     assert {row["Trio"] for row in rows} == {"MotherA-FatherA-ChildA_SNPs"}
-    assert float(rows[0]["CPI"]) == pytest.approx(0.003125)
+    assert len(rows) == 1
+    assert float(rows[0]["CPI"]) == pytest.approx(1.25 * (.001 / .4) ** 2 / .6)
 
 
 def test_native_sidecar_records_explicit_cli_overrides(tmp_path):
-    run = run_native(tmp_path, native_options=("--min_child_reads", "3", "--err_const_snp", "0.02"))
+    run = run_native(tmp_path, native_options=("--min_coverage", "3", "--mismatch_probability_snp", "0.02"))
     document = json.loads((run / "output/scientific-settings.json").read_text())
-    assert document["parameters"]["min_child_reads"] == 3
-    assert document["parameters"]["err_const_snp"] == 0.02
+    assert document["parameters"]["min_coverage"] == 3
+    assert document["parameters"]["mismatch_probability_snp"] == 0.02
     assert document["workflow"] == "cpin"
     assert document["constants"]["ploidy"]["value"] == 2

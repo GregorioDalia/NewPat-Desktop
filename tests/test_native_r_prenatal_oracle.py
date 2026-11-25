@@ -9,6 +9,7 @@ import unittest
 
 import test_native_r_edge_cases as native
 from downstream_oracle_tables import alleles, coordinate, coordinate_header, write_calls, write_table
+from native_engine_helpers import execute_workflow
 from native_r_helpers import NATIVE_R_AVAILABLE, NATIVE_R_REASON
 
 
@@ -146,6 +147,49 @@ class PrenatalOracles(unittest.TestCase):
                         subset = [row for row in truth if (row[0] <= 6) == (index == 1)]
                         self.check_panel(output, marker, index, summary["Cutoff"], summary, subset, minimum)
 
+    def test_independent_absolute_percentage_and_combined_filters_through_engine(self):
+        # Maternal minor allele supports and percentages are (1,10%), (2,2%),
+        # (5,5%), (4,2%). Locus 3 has ten Other reads, which must be excluded
+        # from the percentage denominator. Each matching father has a distinct PI.
+        profiles = (
+            ({}, "2", "NA", 3, {2: 200, 3: 50, 4: 50, 5: 5}),
+            ({"min_fetal_reads": 4}, "4", "NA", 2, {4: 50, 5: 5}),
+            ({"min_fetal_percent": 5}, "NA", "5", 2, {1: 10, 2: 5, 3: 5, 4: 5, 5: 5}),
+            ({"min_fetal_reads": 2, "min_fetal_percent": 5}, "2", "5", 1, {2: 5, 3: 5, 4: 5, 5: 5}),
+            ({"min_fetal_percent": 100}, "NA", "100", 0, {}),
+        )
+        for marker in ("SNP", "DNP"):
+            with tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                mother, father = root / "MotherM1.txt", root / "FatherF1.txt"
+                write_calls(mother, marker, [(1, (9, 1, 0)), (2, (2, 98, 0)), (3, (95, 5, 10)), (4, (196, 4, 0))])
+                write_calls(father, marker, [(4, (0, 10, 0)), (3, (0, 10, 0)), (2, (10, 0, 0)), (1, (0, 10, 0))])
+                frequencies = root / "population.txt"
+                rows = [(*coordinate(marker, locus), *alleles(marker), ref, alt)
+                        for locus, ref, alt in ((1, .5, .5), (2, .25, .75), (3, .8, .2), (4, .9, .1))]
+                write_table(frequencies, (*coordinate_header(marker), "REF", "ALT", "Ref_f.pop", "Alt_f.pop"), rows)
+                for index, (settings, reads, percent, count, curve) in enumerate(profiles):
+                    with self.subTest(marker=marker, settings=settings):
+                        run = root / f"run_{index}"
+                        result = execute_workflow(
+                            "cpi", run, marker_type=marker,
+                            samples=[{"path": str(p), "name": p.name} for p in (mother, father)],
+                            pairs="M1:F1", mother_prefix="Mother", father_prefix="Father",
+                            popfreq=str(frequencies), cutoff_mode="all", cutoffs=[], scientific_settings=settings)
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        output = run / "output"
+                        summary, = native.table(output / "Summary_FetalFraction_CPI.csv", ",")
+                        self.assertEqual((summary["Min_fetal_reads"], summary["Min_fetal_percent"]), (reads, percent))
+                        self.assertEqual((int(summary["N_sites_mother"]), int(summary["N_sites_father"])), (count, count))
+                        points = native.table(next((output / "curves").glob("*.tsv")))
+                        self.assertEqual([int(p["Iteration"]) for p in points], list(curve))
+                        for point in points:
+                            expected = curve[int(point["Iteration"])]
+                            self.assertAlmostEqual(float(point["CPI"]), expected)
+                            self.assertAlmostEqual(float(point["log_CPI"]), math.log10(expected))
+                        if not count:
+                            self.assertEqual(summary["CPI_medianFF"], "NA")
+
     def test_invalid_frequency_or_count_produces_no_summary(self):
         # Zero is invalid for an explicitly supplied allele frequency. It would
         # otherwise introduce division by zero or an infinite log-CPI.
@@ -195,3 +239,30 @@ class PrenatalOracles(unittest.TestCase):
             rows = native.table(next((output / "curves").glob("*.tsv")))
             self.assertEqual([int(row["Iteration"]) for row in rows], [2, 3, 4, 5])
             self.assertTrue(all(math.isclose(float(row["CPI"]), 5, rel_tol=1e-12) for row in rows))
+
+    def test_maximum_absolute_filter_accepts_r_integer_limit(self):
+        maximum = 2**31 - 1
+        for support in (maximum - 1, maximum):
+            with self.subTest(support=support), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                mother, father, frequencies = (root / name for name in ("MotherM1.txt", "FatherF1.txt", "pop.tsv"))
+                write_calls(mother, "SNP", [(1, (10 * maximum, support, 0))])
+                write_calls(father, "SNP", [(1, (0, 20, 0))])
+                write_table(frequencies, (*coordinate_header("SNP"), "Ref_f.pop", "Alt_f.pop"),
+                            [(*coordinate("SNP", 1), .8, .2)])
+                run = root / "run"
+                result = execute_workflow("cpi", run, marker_type="SNP",
+                    samples=[{"path": str(p), "name": p.name} for p in (mother, father)],
+                    pairs="M1:F1", mother_prefix="Mother", father_prefix="Father", popfreq=str(frequencies),
+                    cutoff_mode="all", cutoffs=[], scientific_settings={"min_fetal_reads": maximum})
+                self.assertEqual(result.returncode, 0, result.stderr)
+                output = run / "output"
+                summary, = native.table(output / "Summary_FetalFraction_CPI.csv", ",")
+                self.assertEqual(int(summary["Min_fetal_reads"]), maximum)
+                self.assertEqual(int(summary["N_sites_mother"]), int(support == maximum))
+                curve = native.table(next((output / "curves").glob("*.tsv")))
+                self.assertEqual([int(p["Iteration"]) for p in curve], [maximum] if support == maximum else [])
+                if curve:
+                    self.assertAlmostEqual(float(curve[0]["CPI"]), 5)
+                else:
+                    self.assertEqual(summary["CPI_medianFF"], "NA")

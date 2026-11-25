@@ -85,7 +85,7 @@ def check_readable(run: Path, *, artifact_root: Path | None = None) -> dict:
             labels = [config["samples"][export["sample"]]]
         elif source.endswith(("DNPs_covered_UpSet_plot.pdf", "SNPs_covered_UpSet_plot.pdf")):
             labels = list(config["samples"].values())
-        elif config["workflow"] in {"cpi", "cpin"}:
+        elif config["workflow"] == "cpi":
             if source.endswith("All_CPIplots.pdf"):
                 labels = list(config["pairs"].values())
             else:
@@ -98,6 +98,20 @@ def check_readable(run: Path, *, artifact_root: Path | None = None) -> dict:
         for label in labels:
             if "".join(unicodedata.normalize("NFC", label).split()) not in "".join(text.split()):
                 raise ValueError(f"Original sample label missing inside PDF {source}: {label!r}\n{text}")
+    if config["workflow"] == "cpin":
+        output = run / "output"
+        expected = {"Summary_Postnatal_CPI.txt", *(f"{trio}_sites.txt" for trio in config["pairs"])}
+        if set(config["tables"]) != expected or config["plots"] or any(output.rglob("*.pdf")):
+            raise ValueError("Expected one postnatal summary and one site table per trio")
+        with (output / "Summary_Postnatal_CPI.txt").open(encoding="utf-8", newline="") as handle:
+            summary = list(csv.DictReader(handle, delimiter="\t"))
+        if len(summary) != len(config["pairs"]) or {row["Trio"] for row in summary} != set(config["pairs"]):
+            raise ValueError("Postnatal summary must contain exactly one scalar result per trio")
+        for row in summary:
+            sites = read_table(output / f"{row['Trio']}_sites.txt")
+            included = sum(site[sites[0].index("Status")] == "eligible" for site in sites[1:])
+            if int(row["N_sites"]) != included or not {"CPI", "Log10_CPI"}.issubset(row):
+                raise ValueError("Postnatal summary and site audit disagree")
     if config["workflow"] == "snp-call":
         table = read_table(run / "output/SNPcall_output.txt")
         expected_columns = {"chr", "pos", "REF", "ALT", "N_REF", "N_ALT", "N_Other", "total_count", "ratio",
@@ -126,7 +140,7 @@ def execute(identifier: str, root: Path, inputs: Path, request: dict, labels: di
         runs.append(run)
     check_canonical(runs[0] / "output", runs[1] / "output")
     check_readable(runs[1])
-    print(f"PASS: {name}, canonical numeric parity and readable table/PDF labels.", flush=True)
+    print(f"PASS: {name}, canonical numeric parity and readable exports.", flush=True)
     return runs[1]
 
 

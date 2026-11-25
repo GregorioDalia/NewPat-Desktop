@@ -665,6 +665,12 @@ class NewPatBrandingAcceptanceTests(unittest.TestCase):
         historical = json.loads((Path(__file__).resolve().parents[1] / "release-acceptance/v0.9.9.json").read_bytes())
         acceptance.validate(historical, "0.9.9", historical["source_commit"], historical["build_run_id"])
         record = dict(historical, version="0.9.10")
+        with self.assertRaisesRegex(ValueError, "reference"):
+            acceptance.validate_analysis_record(record["scientific_analysis_qualification"], record["version"])
+        record["scientific_analysis_qualification"] = {
+            **historical["scientific_analysis_qualification"],
+            "reference_source_commit": acceptance.CPI_REFERENCE_COMMIT,
+        }
         old, new = "2_AVVIA.cmd", "2_LAUNCH.cmd"
         launcher = b"@echo off\n"
         before = dict.fromkeys(acceptance.REQUIRED_OPERATIVE_PATHS, b"same")

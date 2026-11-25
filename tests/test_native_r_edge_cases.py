@@ -79,13 +79,13 @@ class NativeREdgeCases(unittest.TestCase):
                     process, output = self.run_native(root, "cpin", inputs)
                     self.assertEqual(process.returncode, 0, process.stderr)
                     summaries = table(output / "Summary_Postnatal_CPI.txt")
-                    self.assertEqual(len(summaries), 2)
+                    self.assertEqual(len(summaries), 1)
                     for row in summaries:
                         self.assertEqual((row["N_sites"], row["CPI"], row["Log10_CPI"]), ("0", "NA", "NA"))
-                    sites = table(next((output / "sites").glob("*.tsv")))
+                    sites = table(next(output.glob("*_sites.txt")))
                     expected = "quality_filter" if case == "uncovered_child" else "missing_call"
                     self.assertEqual({row["Status"] for row in sites}, {expected} if case != "empty_trio" else set())
-                    self.assertTrue(all(not table(path) for path in (output / "curves").iterdir()))
+                    self.assertFalse((output / "curves").exists())
 
     def test_cpi_empty_and_uncovered_samples_preserve_invalid_total_errors(self):
         for marker in ("SNP", "DNP"):
@@ -232,13 +232,19 @@ class NativeREdgeCases(unittest.TestCase):
                     else:
                         self.assertEqual(process.returncode, 0, process.stderr)
                         summaries = table(output / "Summary_Postnatal_CPI.txt")
-                        self.assertEqual([row["N_sites"] for row in summaries], ["2", "3"])
+                        self.assertEqual([row["N_sites"] for row in summaries], ["5"])
                         for row in summaries:
-                            expected = math.log10(0.5) + math.log10(float(row["Error_constant"]))
+                            # Two mismatches, one heterozygous father, one matching
+                            # homozygous father and one het/het PI = 1/(2*f).
+                            expected = 2 * math.log10(0.5) + 2 * math.log10(float(row["Mismatch_probability"]))
                             expected -= int(row["N_sites"]) * math.log10(float(frequency))
                             self.assertAlmostEqual(float(row["Log10_CPI"]), expected, places=10)
-                        for path in (output / "curves").iterdir():
-                            self.assertTrue(all(math.isfinite(float(row["Log10_CPI"])) for row in table(path)))
+                        # A per-site PI may also overflow. The desktop artifact validator
+                        # must still accept the finite logarithm of the complete product.
+                        request = {"workflow": "cpin", "marker_type": marker, "trios": "M1:F1:C1",
+                                   "work_dir": str(root / "work"), "out_dir": str(output)}
+                        result = validate_standalone_outputs(request)
+                        self.assertEqual(len(result["cpin-trios"]), 1)
 
 
 if __name__ == "__main__":

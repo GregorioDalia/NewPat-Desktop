@@ -41,8 +41,7 @@ class FiveModuleQualificationTests(unittest.TestCase):
                 self.assertFalse(qualification.same_settings(actual, expected))
 
     def test_same_number_of_rows_cannot_hide_missing_family_or_sample_identities(self):
-        cpin_rows = [{"Trio": "MotherM1-FatherF1-ChildC1_SNPs", "Analysis": selection}
-                     for selection in ("heterozygous_child_sites", "all_compatible_sites")] * 2
+        cpin_rows = [{"Trio": "MotherM1-FatherF1-ChildC1_SNPs"}] * 2
         cpi_rows = [{"Pair": "MotherM1-FatherF1_SNPs"}] * 2
         contamination_rows = [{"individuo": "Sample1"}] * 2
         for check, rows, kwargs in (

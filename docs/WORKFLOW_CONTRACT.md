@@ -198,9 +198,9 @@ The script writes `Summary_FetalFraction_CPI.csv`, one PDF per pair and `All_CPI
 
 Postnatal CPI accepts SNP or DNP tables, matching population frequencies and explicit trios. `inputs.markers` is `null` for all sites or points to a panel with coordinates **and REF/ALT alleles**. A coordinate list alone lacks the alleles required for this input.
 
-`scientific_settings.site_selection` accepts `other_allele`, `all` or `both`. Other settings include minimum child read counts, error constants and genotype thresholds. The engine prepares shared tables once. `trio_mapping` links the plan ID, the three roles and the native trio identifier.
+The four `include_*` flags in `scientific_settings` control compatible mother–child genotype combinations. At least one combination must be enabled. The optional `min_coverage` threshold applies to total reads independently in each of the three samples. The engine prepares shared tables once. `trio_mapping` links the plan ID, the three roles and the native trio identifier.
 
-`Summary_Postnatal_CPI.txt` currently reports one row per trio and selected analysis, with `N_sites`, `CPI` and `Log10_CPI`. Selecting `both` gives two rows per trio. Other outputs include site details in `sites`, interval curves in `curves`, individual trio/analysis PDFs in `plots` and `All_CPIplots.pdf` at the root of the output directory. The engine checks the summary, expected trio/analysis combinations, tables and PDFs. Successful mappings appear in `artifacts.cpin-trios`.
+The tab-separated `Summary_Postnatal_CPI.txt` has one row per trio. It reports `N_sites`, `CPI`, `Log10_CPI`, site counts by genotype combination and the effective settings. Each `<Trio>_sites.txt` in the output directory records which sites contributed and why other sites were excluded. Zero eligible sites gives `N_sites=0` and `NA` for both indices. Successful mappings appear in `artifacts.cpin-trios`.
 
 ### Evidence and states
 

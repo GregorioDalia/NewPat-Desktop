@@ -43,7 +43,7 @@ def engine_metadata():
             for name in ("dnp-call", "snp-call", "contamination", "cpi", "cpin")
         },
         "workflow_interfaces": {"contamination": "contamination-v2", "snp-call": "snp-call-v2",
-                                "dnp-call": "dnp-call-v1", "cpi": "cpi-v2", "cpin": "cpin-v1"},
+                                "dnp-call": "dnp-call-v1", "cpi": "cpi-v3", "cpin": "cpin-v2"},
         "preparation": {
             "interface": "workflow-preparation-v1",
             "file_sha256": {name: "d" * 64 for name in (
@@ -209,7 +209,7 @@ class BundledRunnerTests(unittest.TestCase):
         # The preceding image can run CPI alone, but cannot execute it as a
         # plan step. Reject it before starting even the upstream DNP analysis.
         legacy = self.plan_metadata()
-        self.assertEqual(legacy["workflow_interfaces"]["cpi"], "cpi-v2")
+        self.assertEqual(legacy["workflow_interfaces"]["cpi"], "cpi-v3")
         variants = [legacy]
         for key in ("workflow_interfaces", "preparation"):
             description = self.plan_metadata()
@@ -514,7 +514,7 @@ class BundledRunnerTests(unittest.TestCase):
                 self.assertEqual(record["bundled_workflow"], workflow)
                 self.assertEqual(record["runtime"]["image_id"], IMAGE_ID)
                 self.assertEqual(record["runtime"]["engine"]["workflow_interfaces"][workflow],
-                                 f"{workflow}-v{2 if workflow in {'snp-call', 'cpi'} else 1}")
+                                 engine_metadata()["workflow_interfaces"][workflow])
                 self.assertEqual(record["source"]["role"], "client")
                 service = json.loads((run / "work/engine-compose.json").read_text(encoding="utf-8"))[
                     "services"]["scientific"]
@@ -546,7 +546,7 @@ class BundledRunnerTests(unittest.TestCase):
                         self.runner, "_capture", side_effect=self.captured(description),
                     ), patch("nipat.execution.runner.subprocess.Popen") as popen:
                         with self.assertRaisesRegex(RuntimeExecutionError,
-                                                    f"contratto {label}.*{workflow}-v{2 if workflow in {'snp-call', 'cpi'} else 1}"):
+                                                    f"contratto {label}.*{engine_metadata()['workflow_interfaces'][workflow]}"):
                             with context:
                                 self.fail(f"An incompatible image must not execute {label}.")
                     popen.assert_not_called()

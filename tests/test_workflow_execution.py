@@ -120,7 +120,7 @@ class WorkflowExecutionTests(unittest.TestCase):
             ]
             columns = ["Pair", "N_sites_mother", "N_sites_father", "Median_fetal_fraction_raw",
                        "Median_fetal_fraction_percent", "Max_logCPI", "Min_logCPI",
-                       "Median_logCPI", "Mean_logCPI", "CPI_medianFF", "Error_constant", "Min_fetal_reads", "Marker_type"]
+                       "Median_logCPI", "Mean_logCPI", "CPI_medianFF", "Error_constant", "Min_fetal_reads", "Min_fetal_percent", "Marker_type"]
             if cutoff_argument is not None:
                 columns.insert(1, "Cutoff")
             plots = output / "plots"
@@ -141,7 +141,8 @@ class WorkflowExecutionTests(unittest.TestCase):
                         row = {name: "NA" for name in columns}
                         row.update(Pair=native_pair, N_sites_mother="0", N_sites_father="0",
                                    Error_constant=str(settings["err_const_dnp"]),
-                                   Min_fetal_reads=str(settings["min_fetal_reads"]), Marker_type="DNP")
+                                   Min_fetal_reads=settings["min_fetal_reads"] or "NA",
+                                   Min_fetal_percent=settings["min_fetal_percent"] or "NA", Marker_type="DNP")
                         if cutoff is not None:
                             row["Cutoff"] = cutoff
                         writer.writerow(row)

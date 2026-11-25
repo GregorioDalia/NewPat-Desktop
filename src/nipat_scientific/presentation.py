@@ -185,16 +185,8 @@ def prepare_presentation(request: dict, script: Path, arguments: list[str]) -> l
             export(f"contamination_{identity}.txt", f"{_filename(label, identity)}_Contamination.txt", sample=identity)
     elif workflow == "cpin":
         export("Summary_Postnatal_CPI.txt", "Summary_Postnatal_CPI.txt")
-        selection = request.get("scientific_settings", {}).get("site_selection", "both")
-        analyses = {"other_allele": ["heterozygous_child_sites"], "all": ["all_compatible_sites"],
-                    "both": ["heterozygous_child_sites", "all_compatible_sites"]}[selection]
         for identity, label in pairs.items():
-            stem = _filename(label, identity)
-            export(f"sites/{identity}_sites.tsv", f"{stem}_sites.tsv")
-            for analysis in analyses:
-                export(f"curves/{identity}_{analysis}_curve.tsv", f"{stem}_{analysis}_curve.tsv")
-                export(f"plots/{identity}_{analysis}_CPIplot.pdf", f"{stem}_{analysis}_CPI.pdf", kind="plot")
-        export("All_CPIplots.pdf", "All_CPIplots.pdf", kind="plot")
+            export(f"{identity}_sites.txt", f"{_filename(label, identity)}_sites.txt")
     else:
         # The original summary retains its exact numbers and row order.
         for source in ("Summary_FetalFraction_CPI.csv",):
@@ -343,11 +335,12 @@ def _interpretation_notes(workflow: str) -> str:
             "non CPI grezzo. I grafici distinguono log10(CPI) dai conteggi dei siti matching/mismatching. "
             "I confronti senza siti informativi mantengono NA e sono indicati come privi di dati.</p>"),
         "cpin": (
-            "<p>Log10_CPI è il logaritmo in base dieci dell'indice; CPI è il valore grezzo. Le analisi "
-            "heterozygous_child_sites e all_compatible_sites applicano selezioni diverse, riportate separatamente. "
-            "La tabella dei siti conserva anche esclusioni e motivi; le curve indicano intervalli inclusivi di "
-            "soglie Min_child_reads–Through_min_child_reads con identico risultato. "
-            "Un confronto privo di siti utilizzabili mantiene NA.</p>"),
+            "<p>Il riepilogo riporta un unico CPI per trio, calcolato come prodotto degli indici dei siti "
+            "inclusi. Log10_CPI esprime lo stesso risultato in scala logaritmica. N_sites indica quanti siti "
+            "contribuiscono al calcolo. Se vale zero, entrambi i risultati sono NA.</p>"
+            "<p>La tabella del trio riporta tutti i siti. Status indica il motivo di ogni esclusione. "
+            "Per i siti inclusi, Paternity_status distingue match, mismatch e assenza di un allele paterno "
+            "obbligato quando madre e figlio sono entrambi eterozigoti.</p>"),
         "contamination": (
             "<p>Le stime di contaminazione sono frazioni: 0,025 corrisponde al 2,5%. La tabella di riepilogo separa "
             "i campioni e riporta anche il numero di loci usati. Un campione senza loci informativi mantiene "

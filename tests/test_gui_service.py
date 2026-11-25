@@ -266,7 +266,11 @@ class GuiServiceTests(GuiFixture):
         with patch.object(DockerComposeRunner, "doctor", side_effect=AssertionError("unexpected runtime")):
             value = self.service().call("bootstrap")
         self.assertEqual(set(value["settings"]["workflows"]), {"dnp-call", "snp-call", "contamination", "cpi", "cpin"})
-        self.assertEqual(sum(len(w["parameters"]) for w in value["settings"]["workflows"].values()), 45)
+        post = value["settings"]["workflows"]["cpin"]["parameters"]
+        self.assertTrue(all(post["include_" + pair]["default"] for pair in ("hom_hom", "hom_het", "het_hom", "het_het")))
+        self.assertNotIn("min_child_reads", post)
+        self.assertIsNone(post["min_coverage"]["default"])
+        self.assertIsNone(value["settings"]["workflows"]["cpi"]["parameters"]["min_fetal_percent"]["default"])
         self.assertEqual(value["jobs"], [])
         self.assertEqual(value["ui"], {"language": "it", "reduce_motion": False})
 
@@ -1089,7 +1093,8 @@ class GuiPrepareTests(GuiRuntimeFixture):
             "workflow": "dnp-call", "status": "passed", "artifacts": {"dnp-tables": artifacts}}))
         if gui:
             draft = self.draft("dnp", ["cpi", "cpin"])
-            draft["scientific_settings"] = {"cpin": {"min_child_reads": 7}}
+            draft["scientific_settings"] = {"cpin": {"min_child_reads": 7, "site_selection": "other_allele",
+                                                       "err_const_snp": 0.003}}
             (directory / "gui.json").write_text(json.dumps({"schema_version": 1,
                 "name": "Original GUI experiment", "draft": draft}))
         return directory
@@ -1115,7 +1120,13 @@ class GuiPrepareTests(GuiRuntimeFixture):
         draft = self.service().run_prepare("previous", "cpin")
         self.assertEqual(draft["families"]["cpin"], [{"id": "Postnatal", "mother": "Mother", "father": "Father", "child": "Child"}])
         self.assertEqual(draft["families"]["cpi"], [])
-        self.assertEqual(draft["scientific_settings"]["cpin"]["min_child_reads"], 7)
+        for settings in (draft["scientific_settings"]["cpin"],
+                         self.service().run_reuse("previous")["scientific_settings"]["cpin"]):
+            self.assertNotIn("min_child_reads", settings)
+            self.assertIsNone(settings.get("min_coverage"))
+            self.assertEqual(settings["mismatch_probability_snp"], 0.003)
+            self.assertTrue(settings["include_hom_het"])
+            self.assertFalse(any(settings[key] for key in ("include_hom_hom", "include_het_het", "include_het_hom")))
         self.assertEqual(draft["resources"]["DNP"]["popfreq"], str(self.dnp_freq))
         prepared = prepare_analysis(draft, self.layout)
         self.assertEqual([step["workflow"] for step in prepared.preview["steps"]], ["cpin"])

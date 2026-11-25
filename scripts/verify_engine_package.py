@@ -166,9 +166,9 @@ def check_metadata(identifier: str) -> dict:
         raise ValueError("The engine lacks the complete SNPcall interface.")
     if description.get("workflow_interfaces", {}).get("dnp-call") != "dnp-call-v1":
         raise ValueError("The engine lacks the complete DNPcall interface.")
-    if description.get("workflow_interfaces", {}).get("cpi") != "cpi-v2":
+    if description.get("workflow_interfaces", {}).get("cpi") != "cpi-v3":
         raise ValueError("The engine lacks the complete CPI interface.")
-    if description.get("workflow_interfaces", {}).get("cpin") != "cpin-v1":
+    if description.get("workflow_interfaces", {}).get("cpin") != "cpin-v2":
         raise ValueError("The engine lacks the complete CPIN interface.")
     if description.get("desktop_scheduling") != "step-budget-v1":
         raise ValueError("The image lacks the desktop step-budget interface.")
@@ -636,7 +636,7 @@ def check_cpin_workflow(identifier: str, root: Path) -> None:
         check_cpin(run, marker)
         check_bundled_run(run, layout, workflow="cpin")
         effective = json.loads((run / "work/effective-scientific-settings.json").read_text())
-        if effective.get("workflow") != "cpin" or effective["parameters"]["min_child_reads"] != 2:
+        if effective.get("workflow") != "cpin" or effective["parameters"]["min_coverage"] is not None:
             raise ValueError("CPIN did not preserve its effective scientific settings.")
         if any(path.read_bytes() != content for path, content in originals.items()):
             raise ValueError("CPIN changed an original input.")

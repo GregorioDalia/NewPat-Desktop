@@ -38,7 +38,7 @@ With the standard scientific settings, the three loci have the same read proport
 | DNP and SNP calls | Three assigned genotypes per sample. Each locus has 100 observations, zero Other reads and the REF/ALT counts listed above. |
 | Contamination | The mother has three informative sites and mean 4%. Father and child each have zero informative sites and an unavailable mean. |
 | Prenatal CPI | `Full` has three informative sites and `First` has one. The reported median fetal fraction is 8% in both. The expected `CPI_medianFF` values, already on the log₁₀ scale, are 0.903 and 0.301, respectively. |
-| Postnatal CPI | For trio `trio1` with the default **Both** site selections, each marker branch reports two rows. All maternally compatible sites and the subset with a heterozygous child each give 3 sites, 3 matching and 0 mismatching. Both rows record CPI = 8 and log₁₀(CPI) ≈ 0.903090. |
+| Postnatal CPI | With all four mother–child genotype combinations enabled and minimum coverage left blank, each marker branch reports one row for `trio1`. All 3 sites have a homozygous mother and a heterozygous child. All 3 match the father. Each site contributes PI = 0.5 / 0.25 = 2, giving CPI = 8 and log₁₀(CPI) ≈ 0.903090. Open the site table to check each contribution. |
 
 The expected postnatal values above refer to the current script and these synthetic inputs. The two prenatal rows use overlapping selections of the same loci. Compare each selection separately. No clinical or individual-level verdict forms part of this exercise.
 

@@ -25,7 +25,7 @@ nipat_settings <- function(workflow) {
         !is.list(supplied$parameters)) stop("Scientific settings identity mismatch")
     unknown <- setdiff(names(supplied$parameters), names(definitions))
     if (length(unknown)) stop("Unknown scientific parameter: ", paste(unknown, collapse=", "))
-    for (name in names(supplied$parameters)) values[[name]] <- supplied$parameters[[name]]
+    values[names(supplied$parameters)] <- supplied$parameters
   }
   nipat_validate_settings(workflow, values)
 }
@@ -40,6 +40,7 @@ nipat_validate_settings <- function(workflow, values) {
   for (name in names(definitions)) {
     spec <- definitions[[name]]
     value <- values[[name]]
+    if (is.null(value) && isTRUE(spec$nullable)) next
     if (length(value) != 1L || is.na(value)) stop("Invalid scientific parameter: ", name)
     valid <- switch(spec$type, boolean=is.logical(value), string=is.character(value),
       integer=is.integer(value) && is.finite(value),
@@ -65,6 +66,8 @@ nipat_validate_settings <- function(workflow, values) {
   if (!is.null(values$log_cpi_lower) && values$log_cpi_lower >= values$log_cpi_upper)
     stop("Invalid logCPI plot guide order")
   if (isTRUE(values$redo_baq) && !isTRUE(values$baq)) stop("redo_baq requires baq=true")
+  if (workflow == "cpin" && !any(unlist(values[paste0("include_", c("hom_hom", "hom_het", "het_hom", "het_het"))])))
+    stop("At least one mother-child genotype combination must be enabled")
   values
 }
 

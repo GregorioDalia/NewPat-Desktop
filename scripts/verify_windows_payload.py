@@ -217,10 +217,10 @@ def exercise_client(app: Path, work: Path, manifest: dict) -> None:
             read_json(settings_path) == settings["effective"] and settings["modules"]["cpin"]["constants"],
             "Packaged scientific settings/defaults/constants are incomplete.")
     configured = json.loads(invoke("configured-settings", ["--scientific-config", settings_path,
-                               "--set", "cpin.min_child_reads=4", "settings", "cpin", "--json"]))
-    require(configured["effective"]["cpin"]["min_child_reads"] == 4 and
-            configured["modules"]["cpin"]["parameters"]["min_child_reads"]["default"] ==
-            settings["effective"]["cpin"]["min_child_reads"], "Scientific settings override/default separation failed.")
+                               "--set", "cpin.min_coverage=4", "settings", "cpin", "--json"]))
+    require(configured["effective"]["cpin"]["min_coverage"] == 4 and
+            configured["modules"]["cpin"]["parameters"]["min_coverage"]["default"] ==
+            settings["effective"]["cpin"]["min_coverage"], "Scientific settings override/default separation failed.")
     menu = invoke("wizard", ["--dry-run", "wizard"], "w\n0\n0\n")
     require(all(label in menu for label in ("Workflow automatici", "DNPcall -> Contamination",
             "DNPcall -> CPI", "DNPcall -> Contamination e CPI prenatale", "SNPcall su piu' campioni",
@@ -257,7 +257,7 @@ def exercise_client(app: Path, work: Path, manifest: dict) -> None:
     for marker in ("SNP", "DNP"):
         directory = packaged_fixtures / marker
         name = "cpin-" + marker.lower()
-        invoke(name, ["--dry-run", "--scientific-config", settings_path, "--set", "cpin.min_child_reads=4",
+        invoke(name, ["--dry-run", "--scientific-config", settings_path, "--set", "cpin.min_coverage=4",
                       "cpin", "--input-dir", directory, "--trios", "M1:F1:C1",
                       "--popfreq", directory / "population.txt", "--panel", directory / "markers.tsv", "--run-name", name])
         run = work / "runs" / name
@@ -267,7 +267,7 @@ def exercise_client(app: Path, work: Path, manifest: dict) -> None:
                 record.get("workflow") == "cpin", "CPIN dry-run must not claim scientific success.")
         require(request["workflow"] == "cpin" and request["trios"] == "M1:F1:C1" and
                 {sample["name"] for sample in request["samples"]} == {"MotherM1.txt", "FatherF1.txt", "ChildC1.txt"} and
-                request["scientific_settings"]["min_child_reads"] == 4 and request["markers"] is not None,
+                request["scientific_settings"]["min_coverage"] == 4 and request["markers"] is not None,
                 "CPIN native request lost roles, panel or scientific settings.")
         volumes = read_json(run / "work/engine-compose.json")["services"]["scientific"]["volumes"]
         require(all(any(mount["target"] == sample["path"] and mount.get("read_only") is True for mount in volumes)
@@ -278,7 +278,7 @@ def exercise_client(app: Path, work: Path, manifest: dict) -> None:
                    ("Father", paths["father.bam"]), ("Child", paths["child.bam"])]
     selected = [part for identity, path in all_samples for part in ("--sample", identity, path)]
     name = "all-five-modules"
-    invoke(name, ["--dry-run", "--set", "cpin.min_child_reads=3", "workflow", "analyze", "--caller", "both",
+    invoke(name, ["--dry-run", "--set", "cpin.min_coverage=3", "workflow", "analyze", "--caller", "both",
                   "--analyses", "contamination,cpi,cpin", *selected, "--reference", paths["reference.fa"],
                   "--dnp-panel", paths["dnp.tsv"], "--snp-panel", paths["snp.tsv"],
                   "--dnp-popfreq", paths["population.tsv"], "--snp-popfreq", paths["snp-population.tsv"],
@@ -301,7 +301,7 @@ def exercise_client(app: Path, work: Path, manifest: dict) -> None:
                 pair["father"]["sample"] == "Father" and trio["id"] == "Postnatal" and
                 [trio[role]["sample"] for role in ("mother", "father", "child")] == ["Mother", "Father", "Child"] and
                 all(trio[role]["output"] == marker + "-tables" for role in ("mother", "father", "child")) and
-                steps[marker + "_cpin"]["parameters"]["scientific_settings"]["min_child_reads"] == 3,
+                steps[marker + "_cpin"]["parameters"]["scientific_settings"]["min_coverage"] == 3,
                 "Generic family roles, typed outputs or settings changed.")
     require(hashes == {path: digest(path) for path in original_files}, "Original inputs were changed.")
 

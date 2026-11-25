@@ -6,12 +6,12 @@ For a request to make a version stable, first identify the version, the intended
 
 ## Before the 0.9.10 source is finalized
 
-Two scientific deliveries remain open on this candidate. Keep their review in the development PR so the installer build includes the resulting code, fixtures and user documentation.
+The prenatal and postnatal CPI revisions are available. The sixth analysis is still under development. Review the scientific changes in the development PR so the installer build includes the corresponding code, fixtures and user documentation.
 
 | Delivery | Evidence to include in the source PR |
 | --- | --- |
-| Revised Postnatal CPI output | Obtain the script and a synthetic input with its author-confirmed expected value. Record the scale, site selection and missing-value behavior. Check the engine output, desktop summary and exported results against that example. |
-| Sixth analysis | Record the script revision, required inputs, parameters, outputs and an author-confirmed synthetic example. Exercise the installed workflow and publish its expected results with the user guide. Extend the scientific qualification and its release verifier to cover the module. |
+| Revised CPI workflows | Check prenatal count-only, percentage-only and combined settings. Compare the postnatal scalar, site counts and base-10 logarithm against the [upstream SNP and DNP examples](https://github.com/lpistacchia/NEWPAT/tree/97c4eb5f7a901d0435b950c3e2a52a8bd7eae9d4/CPI_postnatal/examples/outputs). Inspect the installed summary and exported tables, including a zero-site case. |
+| Sixth analysis (sex estimation) | Record the script revision, required inputs, parameters, outputs and an author-confirmed synthetic example. Exercise the installed workflow and publish its expected results with the user guide. Extend the scientific qualification and its release verifier to cover the module. |
 
 Use the [0.9.10 release notes](../docs/RELEASE_0.9.10.md) to track what the candidate actually delivers. Record the planned timing comparison on the target Mac as a post-release observation once it has run.
 
@@ -74,7 +74,7 @@ The `publication_channel` is explicit. Use `stable` for an authorized numeric `M
 The `scientific_equivalence` and `scientific_analysis_qualification` entries each record `reference_source_commit`, `report_path`, `report_sha256` and `runtime_image`. Use the normalized paths and digests from the verified `qualification-evidence.zip`. Both reports identify the same immutable image contained in the accepted packages.
 
 - **DNP and SNP.** The 17-case caller comparison uses frozen NIPAT 0.8.5 for DNP and the separately pinned SNPcall 2.0 source for SNP. Check exact exported tables and unrounded R results, histogram values, plot content and dimensions, and equivalent serial/parallel candidate renderings.
-- **Contamination, Prenatal CPI and Postnatal CPI.** The upstream reference commit is `9c2a8be60afcb944153710da6a61cd0559e2b4cf`. `five-module-qualification.json` covers 86 executions, including 16 upstream comparisons and 54 batch cases across both marker types, 2/3/5 samples or families and serial, automatic and two-worker modes. Check analytical expectations, numerical tolerances, fixture and source identity, data integrity, effective settings and worker completion.
+- **Contamination, Prenatal CPI and Postnatal CPI.** The upstream reference snapshot is `97c4eb5f7a901d0435b950c3e2a52a8bd7eae9d4`. `five-module-qualification.json` covers 86 executions, including 16 upstream comparisons and 54 batch cases across both marker types, 2/3/5 samples or families and serial, automatic and two-worker modes. Check analytical expectations, numerical tolerances, fixture and source identity, data integrity, effective settings and worker completion.
 - **Distributed image.** The final image must pass native regressions for empty and zero-coverage inputs and settings, as well as the three-BAM composed workflow. A missing required R dependency, skipped required test or failed case blocks qualification. The publisher verifies sources against Git and compares report and bundle digests. Individual output/log digests describe original run bytes; path sanitization in the public evidence bundle can change those individual files.
 
 Use `reviewed-operative-changes-with-versioned-scientific-models-v1` for the schema 7 source review. List actual before/after digests, including reviewed changes to pinned scientific sources. The caller and downstream decisions are both recorded in `scientific-equivalence-check.json` and their report hashes in `release-provenance.json`. Older accepted records retain their original schema, protected source files and equivalence rules.

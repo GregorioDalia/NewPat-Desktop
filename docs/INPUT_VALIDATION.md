@@ -43,6 +43,6 @@ Standalone analyses and plans verify expected files, schemas, sample corresponde
 
 SNPcall retains textual contig identifiers, so `01` and `1` identify distinct contigs. Counts and coordinates must match the panel. Valid genotype values are `0/0`, `0/1`, `1/1` or `NA`. The DNP genotype summary must agree with the individual tables on samples, loci, alleles and calls. Quality warnings preserve the original values from R. A Contamination estimate does not trigger an extra CPI filter.
 
-Each module must write `output/scientific-settings.json` with the requested values and distributed registry. Missing/extra parameters, type errors or mismatches prevent successful completion. Prenatal and postnatal CPI summaries are also checked for marker type, minimum reads and error constant. Standalone analyses write `work/scientific-validation.json`. Plan steps record `artifacts.quality_warnings` in `workflow-state.json`.
+Each module must write `output/scientific-settings.json` with the requested values and distributed registry. Missing/extra parameters, type errors or mismatches prevent successful completion. The prenatal summary records the marker, active fetal-read thresholds and error constant. The postnatal summary records the marker, minimum coverage, enabled genotype combinations and mismatch probability. Standalone analyses write `work/scientific-validation.json`. Plan steps record `artifacts.quality_warnings` in `workflow-state.json`.
 
 [Scientific catalog](SCIENTIFIC_CATALOG.md) · [Runs and results](RUNS.md) · [Domain validation worksheet](VALIDATION.md)

@@ -32,8 +32,8 @@ def test_staging_preserves_counts_and_full_marker_panel(tmp_path, marker):
     originals = {path: path.read_bytes() for path in (tmp_path / "inputs").iterdir()}
     argv = prepare_cpin(request)
     assert "--trios=M1:F1:C1" in argv
-    assert argv[argv.index("--min_child_reads") + 1] == "2"
-    assert argv[argv.index("--site_selection") + 1] == "both"
+    assert "--min_coverage" not in argv
+    assert "--min_child_reads" not in argv and "--site_selection" not in argv
     for sample in request["samples"]:
         assert (tmp_path / "run/work/inputs" / sample["name"]).read_bytes() == originals[Path(sample["path"])]
     assert "\tREF\tALT\n" in (tmp_path / "run/work/markers.tsv").read_text()
@@ -77,8 +77,8 @@ def test_prefix_composition_cannot_alias_distinct_samples():
 
 
 @pytest.mark.parametrize("changes", [
-    {"scientific_settings": {"err_const_snp": 0}},
-    {"scientific_settings": {"min_child_reads": 1.5}},
+    {"scientific_settings": {"mismatch_probability_snp": 0}},
+    {"scientific_settings": {"min_coverage": 1.5}},
     {"scientific_settings": {"unsupported": 42}},
     {"marker_type": "DNP"}, {"schema_version": True}, {"extra": 1},
     {"samples": []}, {"presentation": {}},

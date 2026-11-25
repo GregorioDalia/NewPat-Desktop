@@ -26,7 +26,7 @@ from nipat.gui.plan import prepare_analysis
 from nipat.paths import ProjectLayout
 from nipat.preferences import Preferences, PreferencesStore
 from nipat.resources import ResourceManager
-from nipat.scientific_options import effective_config
+from nipat.scientific_options import effective_config, migrate_saved_settings
 from nipat_scientific.catalog import load_catalog
 from nipat_scientific.settings import describe_settings
 
@@ -221,6 +221,8 @@ class GuiService:
             draft = gui.get("draft")
         if isinstance(draft, dict):
             draft = deepcopy(draft)
+            if "scientific_settings" in draft:
+                draft["scientific_settings"] = migrate_saved_settings(draft["scientific_settings"])
             draft["name"] = self._derived_name(draft.get("name", run_id))
             return draft
         metadata = self._results().metadata(run_id)
@@ -370,7 +372,7 @@ class GuiService:
                 "caller": "tables", "samples": list(samples.values()), "reference": None,
                 "branches": {marker: [module] if marker in markers else [] for marker in ("DNP", "SNP")},
                 "resources": resources, "families": families,
-                "scientific_settings": effective_config(settings),
+                "scientific_settings": effective_config(migrate_saved_settings(settings)),
                 "execution": source.get("execution", self._requested_execution(metadata))}
 
     def _draft_from_legacy(self, metadata: dict) -> dict:
@@ -384,7 +386,7 @@ class GuiService:
         draft = {"name": self._derived_name(metadata.get("run_name", "NewPat")),
                  "caller": p["caller"], "samples": samples, "branches": p["analyses_by_marker"],
                  "resources": {"DNP": {}, "SNP": {}}, "families": {"cpi": [], "cpin": []},
-                 "scientific_settings": p.get("scientific_settings_effective", {}),
+                 "scientific_settings": migrate_saved_settings(p.get("scientific_settings_effective", {})),
                  "execution": self._requested_execution(metadata)}
         for step in plan["steps"]:
             workflow, inputs, parameters = step["workflow"], step["inputs"], step["parameters"]

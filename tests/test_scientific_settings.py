@@ -41,19 +41,25 @@ class ScientificSettingsTests(unittest.TestCase):
         self.assertEqual(set(modules), {"dnp-call", "snp-call", "contamination", "cpi", "cpin"})
         for workflow, schema in modules.items():
             with self.subTest(workflow=workflow):
-                self.assertEqual(normalize_settings(workflow), defaults(workflow))
+                expected = defaults(workflow)
+                if workflow == "cpi":
+                    expected["min_fetal_reads"] = 2
+                self.assertEqual(normalize_settings(workflow), expected)
                 self.assertTrue(schema["constants"])
                 for definition in schema["parameters"].values():
                     self.assertTrue(definition["description"])
                     self.assertIn("type", definition)
                     self.assertIn("unit", definition)
         modules["cpi"]["parameters"]["min_fetal_reads"]["default"] = 999
-        self.assertEqual(defaults("cpi")["min_fetal_reads"], 2)
+        self.assertIsNone(defaults("cpi")["min_fetal_reads"])
 
     def test_invalid_types_limits_and_cross_parameter_constraints_are_rejected(self):
         for workflow, override in (
-            ("cpin", {"min_child_reads": True}), ("cpin", {"min_child_reads": 2.0}),
-            ("cpin", {"min_child_reads": 0}), ("cpin", {"site_selection": "unknown"}),
+            ("cpin", {"min_coverage": True}), ("cpin", {"min_coverage": 2.0}),
+            ("cpin", {"min_coverage": 0}), ("cpin", {"include_het_hom": "FALSE"}),
+            ("cpin", {f"include_{pair}": False for pair in ("hom_hom", "hom_het", "het_hom", "het_het")}),
+            ("cpi", {"min_fetal_percent": 0}), ("cpi", {"min_fetal_percent": 100.0001}),
+            ("cpi", {"min_fetal_percent": True}), ("cpi", {"min_fetal_reads": 0}),
             ("cpi", {"err_const_dnp": 0}), ("cpi", {"err_const_snp": math.inf}),
             ("snp-call", {"other_fraction_max": math.nan}),
             ("dnp-call", {"baq": 1}), ("dnp-call", {"baq": False, "redo_baq": True}),
@@ -74,22 +80,31 @@ class ScientificSettingsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {}, clear=True):
             root = Path(directory)
             with self.assertRaisesRegex(RuntimeError, "test"):
-                with settings_context("cpin", {"min_child_reads": 5}, root / "outer") as value:
+                with settings_context("cpin", {"min_coverage": 5}, root / "outer") as value:
                     saved = json.loads((root / "outer/effective-scientific-settings.json").read_text())
                     self.assertEqual(saved["parameters"], value)
                     self.assertEqual(saved["constants"], describe_settings("cpin")["constants"])
-                    self.assertEqual(settings_from_environment("cpin")["min_child_reads"], 5)
+                    self.assertEqual(settings_from_environment("cpin")["min_coverage"], 5)
                     with self.assertRaises(ValidationError):
                         settings_from_environment("cpi")
                     outer_path = os.environ["NIPAT_SCIENTIFIC_SETTINGS"]
                     with settings_context("cpi", {}, root / "inner"):
-                        self.assertEqual(settings_from_environment("cpi"), defaults("cpi"))
+                        self.assertEqual(settings_from_environment("cpi"), normalize_settings("cpi"))
                     self.assertEqual(os.environ["NIPAT_SCIENTIFIC_SETTINGS"], outer_path)
                     raise RuntimeError("test")
             self.assertNotIn("NIPAT_SCIENTIFIC_SETTINGS", os.environ)
             with self.assertRaises(ValidationError), settings_context("cpi", {"err_const_snp": 0}, root / "bad"):
                 pass
             self.assertFalse((root / "bad").exists())
+
+    def test_prenatal_active_filters_and_conditional_fallback(self):
+        for supplied, effective in (({}, (2, None)), ({"min_fetal_reads": None}, (2, None)),
+                ({"min_fetal_reads": 3}, (3, None)), ({"min_fetal_percent": 100}, (None, 100)),
+                ({"min_fetal_percent": 2.5, "min_fetal_reads": 1}, (1, 2.5))):
+            with self.subTest(supplied=supplied):
+                values = normalize_settings("cpi", supplied)
+                self.assertEqual((values["min_fetal_reads"], values["min_fetal_percent"]), effective)
+                self.assertEqual(normalize_settings("cpi", values), values)
 
     def test_samtools_default_and_custom_flags(self):
         self.assertEqual(samtools_options("dnp-call"), [])
@@ -104,10 +119,10 @@ class ScientificSettingsTests(unittest.TestCase):
     def test_reused_context_preserves_prior_provenance_and_rejects_changes(self):
         with tempfile.TemporaryDirectory() as directory:
             work = Path(directory) / "work"
-            with settings_context("cpin", {"min_child_reads": 5}, work):
+            with settings_context("cpin", {"min_coverage": 5}, work):
                 target = work / "effective-scientific-settings.json"
                 original, timestamp = target.read_bytes(), target.stat().st_mtime_ns
-                with settings_context("cpin", {"min_child_reads": 5}, work):
+                with settings_context("cpin", {"min_coverage": 5}, work):
                     self.assertEqual(target.stat().st_mtime_ns, timestamp)
                 with self.assertRaises(ValidationError), settings_context("cpin", {}, work):
                     pass
@@ -161,12 +176,12 @@ class ScientificSettingsTests(unittest.TestCase):
     def test_r_and_python_share_defaults_and_custom_settings(self):
         helper = REGISTRY.with_name("settings.R")
         expression = ('args <- commandArgs(TRUE); source(args[[1]]); '
-                      'cat(jsonlite::toJSON(nipat_settings(args[[2]]), auto_unbox=TRUE, digits=17))')
+                      'cat(jsonlite::toJSON(nipat_settings(args[[2]]), auto_unbox=TRUE, digits=17, null="null"))')
         with tempfile.TemporaryDirectory() as directory:
             for workflow in describe_settings():
                 override = {"other_fraction_max": .25}
                 if workflow == "cpin":
-                    override.update(min_child_reads=7, site_selection="all")
+                    override.update(min_coverage=7, include_het_hom=False)
                 with self.subTest(workflow=workflow), settings_context(workflow, override, Path(directory) / workflow):
                     result = subprocess.run(["Rscript", "-e", expression, str(helper), workflow],
                                             capture_output=True, text=True, check=True)

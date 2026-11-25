@@ -4,7 +4,7 @@ Linux CI uses a system Chromium/Chrome through Playwright. Native window smoke
 checks remain separate. Native file dialogs and the external-browser handoff are observed with test doubles.
 RPC and genomic decoding/rendering are production code. A non-executing job
 checks progress rendering and an unavailable-runtime fixture checks startup errors.
-Recorded CPI/CPIN fixtures exercise plots without recalculating scientific results.
+Recorded family results exercise prenatal curves, archived postnatal plots and the current postnatal scalar.
 """
 from __future__ import annotations
 
@@ -62,14 +62,14 @@ def digest_files(paths):
     return {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in paths}
 
 
-def prepare_curve_fixtures(layout):
+def prepare_cpi_fixtures(layout):
     """Write deterministic native-schema result rows, not a scientific calculation."""
     preserved = []
-    for module in ("cpi", "cpin"):
-        run = layout.runs_dir / f"{module}-curve-ui-fixture"
+    for module, form in (("cpi", "curve"), ("cpin", "curve"), ("cpin", "scalar")):
+        run = layout.runs_dir / f"{module}-{form}-ui-fixture"
         native = "MotherM-FatherF_DNPs" if module == "cpi" else "MotherM-FatherF-ChildC_DNPs"
         write_json(run / "run.json", {"schema_version": 1, "workflow": module, "status": "succeeded",
-            "run_name": f"{module.upper()} · fixture grafici", "started_at": "2026-11-15T10:00:00Z",
+            "run_name": f"{module.upper()} · fixture {form}", "started_at": "2026-11-15T10:00:00Z",
             "finished_at": "2026-11-15T10:01:00Z", "source": {"nipat_version": __version__},
             "parameters": {"marker_type": "DNP", "sample_mapping": []}})
         def write_table(relative, columns, rows):
@@ -93,7 +93,7 @@ def prepare_curve_fixtures(layout):
                  ["4", "8", "7", "NA", "NA", "1", "6", "ALL"]])
             artifacts = {"cpi-pairs": [{"pair": "M:F", "native_pair": native,
                 "mother": {"sample": "M"}, "father": {"sample": "F"}, "curves": [{**curve, "cutoff": None}]}]}
-        else:
+        elif form == "curve":
             analysis = "all_compatible_sites"
             write_table("output/Summary_Postnatal_CPI.txt",
                 ["Trio", "Analysis", "CPI", "Log10_CPI", "N_sites", "Matching_sites", "Mismatching_sites"],
@@ -105,6 +105,21 @@ def prepare_curve_fixtures(layout):
                  ["7", "10", "0.221848749616356", "1", "1", "0"]])
             artifacts = {"cpin-trios": [{"trio": "family", "native_trio": native,
                 "analyses": [{"analysis": analysis, "curve": curve}]}]}
+        else:
+            write_table("output/Summary_Postnatal_CPI.txt", [
+                "Trio", "Marker_type", "N_sites", "N_hom_hom", "N_hom_het", "N_het_hom", "N_het_het",
+                "Matching_sites", "Mismatching_sites", "No_obligatory_allele_sites", "Maternal_incompatible_sites",
+                "Log10_CPI", "CPI", "Mismatch_probability", "Min_coverage", "Include_hom_hom", "Include_hom_het",
+                "Include_het_hom", "Include_het_het"],
+                [[native, "DNP", 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0.0000892303778101497, 10,
+                  "TRUE", "TRUE", "TRUE", "TRUE"]])
+            write_json(run / "output/scientific-settings.json", {"schema_version": 1, "workflow": "cpin",
+                "parameters": {"log_cpi_lower": -1, "log_cpi_upper": 1}})
+            sites = write_table(f"output/{native}_sites.txt",
+                ["chr", "pos1", "pos2", "Status", "Genotype_combination", "Paternity_Index"],
+                [["1", 100, 101, "eligible", "hom_hom", 10],
+                 ["1", 200, 201, "quality_filter", "NA", "NA"]])
+            artifacts = {"cpin-trios": [{"trio": "family", "native_trio": native, "sites": sites}]}
         write_json(run / "work/scientific-validation.json", {"schema_version": 1, "workflow": module,
             "status": "passed", "artifacts": artifacts})
         preserved.extend(path for path in run.rglob("*") if path.is_file())
@@ -139,7 +154,7 @@ def prepare_fixture(directory):
     output = run / "output" / "individual_outputs" / "full_output_sample_0001.txt"
     output.parent.mkdir(parents=True)
     output.write_text("chr\tpos1\tpos2\tGT\ttotal_count\n1\t151\t152\t0/1\t20\n", encoding="utf-8")
-    preserved = list(data.iterdir()) + [run / "run.json", run / "gui.json", output] + prepare_curve_fixtures(layout)
+    preserved = list(data.iterdir()) + [run / "run.json", run / "gui.json", output] + prepare_cpi_fixtures(layout)
     return service, job, selection, run, preserved
 
 
@@ -295,7 +310,7 @@ def run_verification(report_path, executable):
 
     report_path.parent.mkdir(parents=True, exist_ok=True)
     evidence = {"schema_version": 1, "status": "failed", "nipat_version": __version__,
-                "scope": "Actual browser rendering, production DesktopApplication/GuiService/HTTP and bundled IGV; synthetic indexed alignment and recorded CPI/CPIN fixtures, not domain or native-host acceptance.",
+                "scope": "Actual browser rendering, production DesktopApplication/GuiService/HTTP and bundled IGV; synthetic indexed alignment and recorded prenatal, postnatal and archived curve fixtures.",
                 "checks": [], "screenshots": [], "errors": [], "external_requests": []}
     page = None
     token = ""
@@ -521,7 +536,7 @@ def run_verification(report_path, executable):
                               "Prenatal index uses the archived guides; this family lies between them")
                     else:
                         check(panel.locator("[data-band]").count() == 0,
-                              "Postnatal index is displayed without a prenatal threshold")
+                              "Archived postnatal curve has no recorded guides")
                     page.get_by_role("radio", name="Italiano", exact=True).press("ArrowRight")
                     value_selector = '.outcome-panel [data-outcome-value]'
                     probe.wait(f"document.querySelector('{value_selector}')?.textContent==='{expected.replace(',', '.')}'")
@@ -583,6 +598,26 @@ def run_verification(report_path, executable):
                     chart_image = report_path.parent / f"{module}-interactive-curve.png"
                     page.screenshot(path=str(chart_image), full_page=True)
                     evidence["screenshots"].append(chart_image.name)
+
+                page.locator('[data-action="navigate"][data-view="archive"]').click()
+                page.locator('[data-action="open-run"][data-id="cpin-scalar-ui-fixture"]').click()
+                preview = page.locator('.outcome-preview[data-outcome="postnatal_cpi"]')
+                check(preview.locator("strong").inner_text() == "10", "Trio overview shows its recorded scalar CPI")
+                page.locator('[role="tab"][data-module="cpin|DNP"]').click()
+                panel = page.locator('.outcome-panel[data-outcome="postnatal_cpi"]')
+                check(panel.locator('[data-outcome-value]').inner_text() == "10",
+                      "Selected trio shows its raw CPI even when the log index is on a guide")
+                check(panel.locator('[data-band="at_upper"]').is_visible(),
+                      "Postnatal log index equals the recorded upper guide for this experiment")
+                page.wait_for_selector('.result-table tbody tr')
+                check(page.locator('.result-table tbody tr').count() == 2 and
+                      page.locator('.interactive-curve').count() == 0,
+                      "New postnatal output displays the eligible and excluded sites without a threshold curve")
+                check(probe.evaluate("NipatApp.state.table.rows.map(r=>r.Status)") == ["eligible", "quality_filter"],
+                      "Displayed site audit preserves the included site and exclusion reason")
+                scalar_image = report_path.parent / "postnatal-trio-scalar.png"
+                page.screenshot(path=str(scalar_image), full_page=True)
+                evidence["screenshots"].append(scalar_image.name)
 
                 page.locator('[data-action="navigate"][data-view="archive"]').click()
                 page.locator('[data-action="open-run"][data-id="archived-ui-fixture"]').click()

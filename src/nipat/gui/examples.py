@@ -12,7 +12,8 @@ from nipat.errors import ValidationError
 from nipat.execution.options import ExecutionOptions
 from nipat.paths import ProjectLayout
 from nipat.preferences import settings_file_lock
-from nipat.scientific_options import effective_config
+from nipat.scientific_options import WORKFLOWS
+from nipat_scientific.settings import defaults
 
 
 ARCHIVE_NAME = "newpat-synthetic-trio.zip"
@@ -138,6 +139,6 @@ def demo_draft(layout: ProjectLayout, language: str) -> dict:
         "resources": {marker.upper(): {"panel": str(target / f"{marker}.tsv")} for marker in ("dnp", "snp")},
         "branches": {"DNP": [], "SNP": []},
         "families": {"cpi": [], "cpin": []},
-        "scientific_settings": effective_config({}),
+        "scientific_settings": {module: defaults(module) for module in WORKFLOWS},
         "execution": ExecutionOptions().as_dict(),
     }

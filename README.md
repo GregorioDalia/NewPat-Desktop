@@ -30,7 +30,7 @@ This guide describes **0.9.10**. The release notes record its status and changes
 | **SNPcall** | A single nucleotide polymorphism (SNP) panel, plus a BAM with an indexed FASTA or a pileup with base qualities and read names | Allele counts, genotype likelihoods, genotypes, indel statistics and plots |
 | **Contamination** | SNP or DNP count tables and a matching coordinate panel | Per-site contamination estimates and a summary per sample |
 | **Prenatal CPI** | Count tables for maternal cell-free DNA and the alleged father, sample pairings, and population allele frequencies | Fetal fraction estimates, combined paternity index (CPI), tables and plots |
-| **Postnatal CPI** | Mother, alleged father and child count tables, sample trios, and population allele frequencies | Site-level and combined paternity indices, with tables and plots from the current script |
+| **Postnatal CPI** | Mother, alleged father and child count tables, sample trios, and population allele frequencies | One CPI per trio, its base-10 logarithm and a table of included and excluded sites |
 
 Run a module on its own or build a workflow. DNPcall and SNPcall can share BAM inputs and feed separate analyses. Each branch uses its own panels and population frequencies. For parentage analyses, assign samples to family roles explicitly.
 

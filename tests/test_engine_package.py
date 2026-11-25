@@ -68,7 +68,7 @@ class EnginePackageTests(unittest.TestCase):
         self.assertEqual(set(metadata["workflows"]), set(engine.SCRIPT_PATHS))
         self.assertEqual(metadata["workflow_interfaces"], {
             "contamination": "contamination-v2", "snp-call": "snp-call-v2", "dnp-call": "dnp-call-v1",
-            "cpi": "cpi-v2", "cpin": "cpin-v1",
+            "cpi": "cpi-v3", "cpin": "cpin-v2",
         })
         self.assertEqual(metadata["plan_execution"], {
             "interface": "workflow-plan-execution-v2", "schema_version": 1,

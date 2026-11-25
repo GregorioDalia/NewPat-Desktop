@@ -57,17 +57,21 @@ Select the marker branch and the sample, pair or trio in **Experiments and resul
 | --- | --- |
 | DNP and SNP genotyping | Called and unassigned genotypes for the selected sample. The original tables identify calls as `0/0`, `0/1`, `1/1` or `NA`. In the tables, `NA` means the program could not determine the value. These modules produce the inputs for the parentage analyses. |
 | Prenatal CPI | The reported log₁₀(CPI) at the median fetal allele support for that pair and panel (`CPI_medianFF`). It differs from the median of the CPI curve. When the two original plot guides are available, the summary locates the reported point below, between, above or on them. The default guides are −4 and +4. R rounds this CSV value to three decimals, so a point displayed on a guide may have been rounded from either side. The source script provides a curve and the underlying values. It does not issue a categorical parentage finding. |
-| Postnatal CPI | The stored CPI and log₁₀(CPI) for the selected trio and site selection, plus the number of contributing sites. If both selections were requested, each has its own summary. Read the curves and original tables for the full output. |
+| Postnatal CPI | One CPI and log₁₀(CPI) for the selected trio, with its contributing site count. Open the per-site table to inspect quality filters, genotype combinations and PI values. When no sites qualify, both index fields are unavailable. For a supported estimate, the reference band compares the recorded log₁₀(CPI) with the two saved numeric limits. A value exactly on a limit is marked as such. |
 | Contamination | Mean contamination and number of informative sites for the selected sample. An unavailable estimate is distinct from a measured zero. |
 
-## Read prenatal and postnatal CPI plots
+The default lower and upper limits are −4 and +4. You can change the two numbers before a run. An exact boundary is shown separately. These indicators describe the position of the reported index and do not assign a parentage verdict.
+
+## Read prenatal and archived postnatal CPI plots
+
+New postnatal experiments return a scalar and site table. Older experiments may include threshold plots from the previous postnatal model.
 
 Hover over a point or click it to see the original table values. With the keyboard, press **Tab** to focus the plot, use the arrow keys to move through the points on the page, **Home** or **End** to reach its ends, and **Esc** to dismiss the details.
 
 | Result | Horizontal axis | Index series | Site counts |
 | --- | --- | --- | --- |
 | Prenatal CPI | `Iteration`, the minimum fetal read count | `log_CPI`, already on a base-10 logarithmic scale | `NotMismatch` and `Mismatch` |
-| Postnatal CPI | Inclusive interval from `Min_child_reads` to `Through_min_child_reads` | `Log10_CPI`, already on a base-10 logarithmic scale | `N_sites`, `Matching_sites` and `Mismatching_sites` |
+| Archived postnatal curves | Inclusive interval from `Min_child_reads` to `Through_min_child_reads` | `Log10_CPI`, already on a base-10 logarithmic scale | `N_sites`, `Matching_sites` and `Mismatching_sites` |
 
 The separate views give the index and counts their own panels. The combined view shows log CPI in black and recorded mismatches with a dashed orange line. For prenatal CPI, the green `NotMismatch` series counts candidate sites with a population frequency and no recorded mismatch, including sites with an unassigned paternal genotype. `InfSites_father` gives the number actually contributing a PI at that threshold. For postnatal CPI, the green series shows `Matching_sites`. Read the index on the left axis and counts on the right. Total postnatal site counts remain available in the separate view and point details.
 

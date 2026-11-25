@@ -49,7 +49,7 @@ The paths below are relative to an individual run or to a workflow's `steps/<id>
 | SNPcall | `output/SNPcall_output.txt`, per-sample plots and tables in `output/summary/` when available |
 | Contamination | `output/contamination_summary.txt` and sample-level `contamination_<sample>.txt` tables |
 | Prenatal CPI | `output/Summary_FetalFraction_CPI.csv`, curves in `output/curves/` and PDF figures in `output/plots/` |
-| Postnatal CPI | `output/Summary_Postnatal_CPI.txt`, per-site tables in `output/sites/`, threshold curves in `output/curves/` and PDF figures |
+| Postnatal CPI | `output/Summary_Postnatal_CPI.txt` with one result per trio, and `output/<Trio>_sites.txt` with site-level details |
 
 Use the *individual count table* as the starting point for another module. Match the file against the sample map. In a workflow, use the plan and `workflow-state.json` to trace labels such as `table_0001` back to the sample. The artifact keys `snp-tables`, `cpi-pairs` and `cpin-trios` connect outputs to samples, pairs and trios. Numbering in `summary_rows` starts at the first data row and excludes the header.
 

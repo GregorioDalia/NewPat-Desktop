@@ -39,7 +39,7 @@ def plan_for(marker="SNP", *, called=True):
             "popfreq": "/input/frequency.tsv", "cutoffs": []}, "parameters": {"cutoff_mode": "all"}},
         {"id": "postnatal", "workflow": "cpin", "inputs": {
             "trios": [{"id": "trio_family", "mother": ref("mother"), "father": ref("father"), "child": ref("child")}],
-            "popfreq": "/input/frequency.tsv", "markers": None}, "parameters": {"scientific_settings": {"min_child_reads": 5}}},
+            "popfreq": "/input/frequency.tsv", "markers": None}, "parameters": {"scientific_settings": {"min_coverage": 5}}},
     ])
     return {"schema_version": 1, "samples": samples, "steps": steps,
             "presentation": {"samples": {s["id"]: s["id"] + ".bam" for s in samples},
@@ -93,7 +93,7 @@ class FiveModulePlans(unittest.TestCase):
                         if step["workflow"] in {"contamination", "cpi", "cpin"}:
                             self.assertEqual(step["parameters"]["marker_type"], marker)
                     post = next(step for step in report["plan"]["steps"] if step["workflow"] == "cpin")
-                    self.assertEqual(post["parameters"]["scientific_settings"]["min_child_reads"], 5)
+                    self.assertEqual(post["parameters"]["scientific_settings"]["min_coverage"], 5)
 
     def test_each_incompatible_marker_role_producer_and_setting_fails(self):
         cases = []
@@ -107,7 +107,7 @@ class FiveModulePlans(unittest.TestCase):
         plan["steps"][-1]["inputs"]["trios"][0]["child"]["output"] = "dnp-tables"
         cases.append((plan, "plan.output_kind"))
         plan = plan_for()
-        plan["steps"][-1]["parameters"]["scientific_settings"] = {"min_child_reads": -1}
+        plan["steps"][-1]["parameters"]["scientific_settings"] = {"min_coverage": -1}
         cases.append((plan, "plan.parameter"))
         plan = plan_for()
         plan["steps"][-1]["parameters"]["scientific_settings"] = {"unknown_constant": 1}

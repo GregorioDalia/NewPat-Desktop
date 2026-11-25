@@ -3,7 +3,7 @@
 # in src/nipat_scientific/settings_data.json, shared by Python and R.
 # Inspect with: nipat settings
 # Export editable scientific configuration with: nipat settings --export PATH
-# Apply with: nipat --scientific-config PATH --set cpin.min_child_reads=3 ...
+# Apply with: nipat --scientific-config PATH --set cpin.min_coverage=20 ...
 
 [runtime]
 compose_service = "scientific"

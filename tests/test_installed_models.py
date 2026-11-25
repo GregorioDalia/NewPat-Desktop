@@ -60,12 +60,12 @@ class InstalledModelsTests(unittest.TestCase):
                        "chr1\t200\tA\tC\t100\t0\t0\t100\t1\t0\t0\t0\n" if include_zero else ""))
 
     def cpi(self):
-        self.settings("cpi")
+        self.settings("cpi", min_fetal_reads=2)
         self.write("output/Summary_FetalFraction_CPI.csv",
                    "Pair,N_sites_mother,N_sites_father,Median_fetal_fraction_raw,Median_fetal_fraction_percent,"
-                   "Max_logCPI,Min_logCPI,Median_logCPI,Mean_logCPI,CPI_medianFF,Error_constant,Min_fetal_reads,Marker_type\n"
-                   "MotherM-FatherF_SNPs,3,3,0.06,6,1.301,0.301,0.602,0.735,0.602,0.001,2,SNP\n"
-                   "MotherN-FatherN_SNPs,0,0,NA,NA,NA,NA,NA,NA,NA,0.001,2,SNP\n")
+                   "Max_logCPI,Min_logCPI,Median_logCPI,Mean_logCPI,CPI_medianFF,Error_constant,Min_fetal_reads,Min_fetal_percent,Marker_type\n"
+                   "MotherM-FatherF_SNPs,3,3,0.06,6,1.301,0.301,0.602,0.735,0.602,0.001,2,NA,SNP\n"
+                   "MotherN-FatherN_SNPs,0,0,NA,NA,NA,NA,NA,NA,NA,0.001,2,NA,SNP\n")
         header = "Iteration\tInfSites_mother\tInfSites_father\tCPI\tlog_CPI\tMismatch\tNotMismatch\tCutoff\n"
         self.write("output/curves/MotherM-FatherF_SNPs_panel_1.tsv", header +
                    "2\t3\t3\t20\t1.30102999566398\t0\t3\tALL\n"
@@ -78,31 +78,25 @@ class InstalledModelsTests(unittest.TestCase):
     def cpin(self):
         self.settings("cpin")
         identity = "MotherM-FatherF-ChildC_SNPs"
+        header = ("Trio Marker_type N_sites N_hom_hom N_hom_het N_het_hom N_het_het Matching_sites "
+                  "Mismatching_sites No_obligatory_allele_sites Maternal_incompatible_sites Log10_CPI CPI "
+                  "Mismatch_probability Min_coverage Include_hom_hom Include_hom_het Include_het_hom Include_het_het")
         self.write("output/Summary_Postnatal_CPI.txt",
-                   "Trio\tMarker_type\tAnalysis\tN_sites\tN_heterozygous_child_sites\tN_homozygous_child\tMatching_sites\t"
-                   "Mismatching_sites\tLog10_CPI\tCPI\tError_constant\tMin_child_reads\n" +
-                   identity + "\tSNP\theterozygous_child_sites\t2\t2\t0\t1\t1\t-2.50514997831991\t0.003125\t0.001\t2\n" +
-                   identity + "\tSNP\tall_compatible_sites\t3\t2\t1\t2\t1\t-2.28330122870355\t0.00520833333333333\t0.001\t2\n")
-        self.write(f"output/sites/{identity}_sites.tsv",
-                   "chr\tpos\tStatus\tPaternity_Index\tChild_support\tMismatch\tPaternal_transmission\tRequired_paternal_allele\n"
-                   "chr1\t100\teligible\t1.25\t5\tFALSE\t0.5\tALT\n"
-                   "chr1\t200\teligible\t0.0025\t6\tTRUE\t0\tALT\n"
-                   "chr1\t300\teligible\t1.66666666666667\t10\tFALSE\t1\tREF\n"
-                   "chr1\t400\tmother_child_incompatible\tNA\tNA\tNA\tNA\tNA\n"
-                   "chr1\t500\tmother_not_homozygous\tNA\tNA\tNA\tNA\tNA\n"
-                   "chr1\t600\tinsufficient_child_support\tNA\t1\tNA\tNA\tALT\n"
-                   "chr1\t700\tquality_filter\tNA\tNA\tNA\tNA\tNA\n"
-                   "chr1\t800\tquality_filter\tNA\t5\tNA\tNA\tALT\n"
-                   "chr1\t900\tfather_unassigned\tNA\t5\tNA\tNA\tALT\n")
-        header = "Min_child_reads\tThrough_min_child_reads\tN_sites\tLog10_CPI\tMatching_sites\tMismatching_sites\n"
-        self.write(f"output/curves/{identity}_heterozygous_child_sites_curve.tsv", header +
-                   "2\t5\t2\t-2.50514997831991\t1\t1\n6\t6\t1\t-2.60205999132796\t0\t1\n")
-        self.write(f"output/curves/{identity}_all_compatible_sites_curve.tsv", header +
-                   "2\t5\t3\t-2.28330122870355\t2\t1\n6\t6\t2\t-2.38021124171161\t1\t1\n"
-                   "7\t10\t1\t0.221848749616356\t1\t0\n")
-        for selection in ("heterozygous_child_sites", "all_compatible_sites"):
-            self.pdf(f"plots/{identity}_{selection}_CPIplot.pdf")
-        self.pdf("All_CPIplots.pdf")
+                   "\t".join(header.split()) + "\n" + identity +
+                   "\tSNP\t5\t1\t3\t0\t1\t2\t2\t1\t1\t-4.885361220031512\t0.00001302083333333333"
+                   "\t0.001\tNA\tTRUE\tTRUE\tTRUE\tTRUE\n")
+        self.write(f"output/{identity}_sites.txt",
+                   "chr\tpos\tStatus\tGenotype_combination\tPaternity_Index\tMismatch\tPaternal_transmission"
+                   "\tRequired_paternal_allele\tPaternity_status\n"
+                   "chr1\t100\teligible\thom_het\t1.25\tFALSE\t0.5\tALT\tmatch\n"
+                   "chr1\t200\teligible\thom_het\t0.0025\tTRUE\t0\tALT\tmismatch\n"
+                   "chr1\t300\teligible\thom_hom\t1.66666666666667\tFALSE\t1\tREF\tmatch\n"
+                   "chr1\t400\tmother_child_incompatible\tNA\tNA\tNA\tNA\tNA\tNA\n"
+                   "chr1\t500\teligible\thet_het\t1\tNA\tNA\tNA\tno_obligatory_allele\n"
+                   "chr1\t600\teligible\thom_het\t0.0025\tTRUE\t0\tALT\tmismatch\n"
+                   "chr1\t700\tquality_filter\tNA\tNA\tNA\tNA\tNA\tNA\n"
+                   "chr1\t800\tquality_filter\tNA\tNA\tNA\tNA\tNA\tNA\n"
+                   "chr1\t900\tfather_unassigned\thom_het\tNA\tNA\tNA\tALT\tNA\n")
 
     def mutate_table(self, name, row_index, column, value):
         path = self.run / "output" / name
@@ -114,15 +108,15 @@ class InstalledModelsTests(unittest.TestCase):
             writer.writeheader()
             writer.writerows(rows)
 
-    def test_matrix_covers_34_positive_and_three_negative_cases_without_modifying_sources(self):
+    def test_matrix_covers_44_positive_and_three_negative_cases_without_modifying_sources(self):
         fixtures = ROOT / "tests/fixtures"
         before = models.tree_hashes(fixtures / "five_modules")
         cases = models.build_cases(fixtures, self.root / "generated")
-        self.assertEqual(len(cases), 37)
-        self.assertEqual(len({case["id"] for case in cases}), 37)
+        self.assertEqual(len(cases), 47)
+        self.assertEqual(len({case["id"] for case in cases}), 47)
         self.assertEqual(Counter(case["category"] for case in cases),
-                         {"downstream-analytical": 16, "downstream-batch": 18, "invalid-input": 3})
-        self.assertEqual(sum(callable(case["validate"]) for case in cases), 34)
+                         {"downstream-analytical": 26, "downstream-batch": 18, "invalid-input": 3})
+        self.assertEqual(sum(callable(case["validate"]) for case in cases), 44)
         groups = {}
         for case in cases:
             self.assertTrue(callable(case["validate"]) or (case["validate"] is None and case["expect_failure"]))
@@ -169,7 +163,7 @@ class InstalledModelsTests(unittest.TestCase):
                 getattr(self, workflow)()
                 result = models.validate_model(self.run, workflow=workflow, marker="SNP")
                 self.assertTrue(result["scientific_sha256"])
-                self.assertEqual(result["summary_rows"], 1 if workflow == "contamination" else 2)
+                self.assertEqual(result["summary_rows"], 2 if workflow == "cpi" else 1)
                 json.dumps(result)
 
     def test_contamination_rejects_wrong_other_denominator_and_false_zero_sd(self):
@@ -201,7 +195,7 @@ class InstalledModelsTests(unittest.TestCase):
             models.validate_model(self.run, workflow="cpi", marker="SNP")
 
     def test_cpin_rejects_site_mismatch_or_wrong_exclusion(self):
-        name = "sites/MotherM-FatherF-ChildC_SNPs_sites.tsv"
+        name = "MotherM-FatherF-ChildC_SNPs_sites.txt"
         for row, column, value in ((1, "Paternity_Index", "1.25"), (6, "Status", "eligible"),
                                    (3, "Paternity_Index", "0"), (0, "Required_paternal_allele", "REF")):
             with self.subTest(column=column, row=row):
@@ -210,27 +204,39 @@ class InstalledModelsTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     models.validate_model(self.run, workflow="cpin", marker="SNP")
 
-    def test_cpin_rejects_curve_gap_and_duplicated_trio_selection(self):
+    def test_cpin_requires_one_scalar_per_trio_and_rejects_obsolete_curves(self):
         self.cpin()
-        self.mutate_table("curves/MotherM-FatherF-ChildC_SNPs_all_compatible_sites_curve.tsv",
-                          2, "Min_child_reads", "8")
-        with self.assertRaisesRegex(ValueError, "curve has gaps"):
-            models.validate_model(self.run, workflow="cpin", marker="SNP")
-        self.cpin()
-        self.mutate_table("Summary_Postnatal_CPI.txt", 1, "Analysis", "heterozygous_child_sites")
+        path = self.run / "output/Summary_Postnatal_CPI.txt"
+        text = path.read_text()
+        path.write_text(text + text.splitlines(keepends=True)[1])
         with self.assertRaisesRegex(ValueError, "duplicated"):
             models.validate_model(self.run, workflow="cpin", marker="SNP")
+        self.cpin()
+        self.write("output/curves/obsolete.tsv", "unexpected")
+        with self.assertRaisesRegex(ValueError, "Unexpected postnatal threshold curve"):
+            models.validate_model(self.run, workflow="cpin", marker="SNP")
+
+    def test_cpi_rejects_an_active_percent_reported_instead_of_na(self):
+        self.cpi()
+        self.mutate_table("Summary_FetalFraction_CPI.csv", 0, "Min_fetal_percent", "0")
+        with self.assertRaisesRegex(ValueError, "Min_fetal_percent"):
+            models.validate_model(self.run, workflow="cpi", marker="SNP")
 
     def test_settings_cannot_pass_just_because_both_candidate_records_agree(self):
         self.cpi()
-        self.settings("cpi", err_const_snp=.01)
+        self.settings("cpi", min_fetal_reads=2, err_const_snp=.01)
         with self.assertRaisesRegex(ValueError, "settings/err_const_snp"):
             models.validate_model(self.run, workflow="cpi", marker="SNP")
 
     def test_missing_or_truncated_pdf_is_not_scientific_success(self):
-        self.cpin()
-        self.write("output/All_CPIplots.pdf", b"%PDF-1.4\n")
+        self.cpi()
+        self.write("output/plots/All_CPIplots.pdf", b"%PDF-1.4\n")
         with self.assertRaisesRegex(ValueError, "incomplete analytical PDF"):
+            models.validate_model(self.run, workflow="cpi", marker="SNP")
+        self.run = self.root / "postnatal"
+        self.cpin()
+        self.pdf("All_CPIplots.pdf")
+        with self.assertRaisesRegex(ValueError, "unexpected analytical PDF"):
             models.validate_model(self.run, workflow="cpin", marker="SNP")
 
     def test_input_mutation_fails_before_validating_a_run(self):

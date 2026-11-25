@@ -102,6 +102,29 @@ class PreferencesTests(unittest.TestCase):
                 self.store.save(Preferences.from_dict({**saved.to_dict(), **fields}), baseline=saved)
         self.assertEqual(self.store.load(), saved)
 
+    def test_previous_postnatal_profiles_retain_compatible_settings(self):
+        legacy = {"cpin": {"site_selection": "other_allele", "min_child_reads": 7,
+                           "err_const_snp": .02}, "cpi": {"other_fraction_max": .10}}
+        self.write_document({"schema_version": 1, "scientific_settings": legacy,
+                             "parameter_profiles": {"Trio": {"scientific_settings": legacy, "execution": {}}}})
+        prefs = self.store.load()
+        self.assertEqual(prefs.scientific_settings["cpin"], {
+            "mismatch_probability_snp": .02, "include_hom_hom": False, "include_hom_het": True,
+            "include_het_hom": False, "include_het_het": False})
+        saved = prefs.parameter_profiles["Trio"]["scientific_settings"]
+        self.assertIsNone(saved["cpin"]["min_coverage"])
+        self.assertIsNone(saved["cpi"]["min_fetal_reads"])
+        self.assertTrue(saved["cpin"]["include_hom_het"])
+        self.assertFalse(saved["cpin"]["include_het_het"])
+        self.assertEqual(Preferences.from_dict(prefs.to_dict()), prefs)
+
+    def test_invalid_legacy_postnatal_profiles_are_rejected(self):
+        for parameters in ({"min_child_reads": True}, {"site_selection": "unknown"},
+                           {"site_selection": "both", "include_het_het": False},
+                           {"err_const_snp": .01, "mismatch_probability_snp": .02}):
+            with self.subTest(parameters=parameters), self.assertRaises(ValidationError):
+                Preferences.from_dict({"schema_version": 1, "scientific_settings": {"cpin": parameters}})
+
     def test_invalid_update_preferences_are_not_silently_enabled(self):
         for fields in ({"update_channel": "nightly"}, {"update_channel": None},
                        {"check_updates_on_startup": 1}, {"check_updates_on_startup": "false"}):

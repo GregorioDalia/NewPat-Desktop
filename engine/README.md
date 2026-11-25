@@ -34,7 +34,7 @@ Before running any workflow, the engine checks all five R sources against the bu
 | --- | --- |
 | `schema_version` | `1` |
 | `interface` | `native-r-v1` |
-| `workflow_interfaces` | `dnp-call-v1`, `snp-call-v2`, `contamination-v2`, `cpi-v2` and `cpin-v1` for their respective workflows |
+| `workflow_interfaces` | `dnp-call-v1`, `snp-call-v2`, `contamination-v2`, `cpi-v3` and `cpin-v2` for their respective workflows |
 | `preparation.interface` | `workflow-preparation-v1` |
 | `plan_execution.interface` | `workflow-plan-execution-v2` |
 | `plan_execution.workflows` | `dnp-call`, `snp-call`, `contamination`, `cpi`, `cpin` |
@@ -180,9 +180,9 @@ Pair labels and PDFs use `Mother<id>-Father<id>_DNPs` regardless of the input pr
 
 An `execute cpin` request uses `schema_version: 1`, `workflow: "cpin"`, a `samples` list with `path` and `name`, the `trios` selection, the three role prefixes, `popfreq`, `work_dir` and `out_dir`. Optional `markers` selects a panel with coordinates and REF/ALT alleles.
 
-`trios` is a comma-separated list of `mother:father:child` triples. Each role selects a distinct table through its prefix and identifier. Tables, the marker panel and population frequencies must use the same marker type, SNP or DNP. `scientific_settings` supplies validated overrides including `min_child_reads`, `site_selection` and mismatch constants.
+`trios` is a comma-separated list of `mother:father:child` triples. Each role selects a distinct table through its prefix and identifier. Tables, the marker panel and population frequencies must use the same marker type, SNP or DNP. `scientific_settings` supplies validated overrides including `min_coverage`, the four `include_*` genotype-combination flags and the two marker-specific mismatch probabilities.
 
-Outputs include `Summary_Postnatal_CPI.txt`, curves by trio and selection, per-site results, individual PDFs and `All_CPIplots.pdf`. See [Postnatal CPI preparation and trio identity](../docs/WORKFLOW_CONTRACT.md#postnatal-cpi-preparation-and-trio-identity) for the workflow-plan equivalent.
+The engine exports a single combined index per trio in `Summary_Postnatal_CPI.txt` and an audit of included and excluded sites in each `<Trio>_sites.txt`. See [Postnatal CPI preparation and trio identity](../docs/WORKFLOW_CONTRACT.md#postnatal-cpi-preparation-and-trio-identity) for the workflow-plan equivalent.
 
 ## Readable labels
 

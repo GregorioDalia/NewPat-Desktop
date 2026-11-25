@@ -1,4 +1,4 @@
-"""Installed CPIN parameter and bounded-curve checks, with no pytest dependency."""
+"""Installed postnatal CPI settings, genotype combinations and coverage boundaries."""
 
 import json
 import math
@@ -36,61 +36,95 @@ class NativeCPINParameterTests(unittest.TestCase):
 
     def test_parameter_effects_are_observed_in_native_snp_and_dnp_results(self):
         variants = (
-            ({"min_child_reads": 1}, [3, 4]),
-            ({"min_child_reads": 101}, [0, 0]),
-            ({"other_fraction_max": .11}, [3, 4]),
-            ({"heterozygous_max": .7}, [3, 4]),
-            ({"site_selection": "other_allele"}, [2]),
-            ({"site_selection": "all"}, [3]),
+            ({"min_coverage": 2}, 5),           # includes the child with total depth 2
+            ({"min_coverage": 3}, 4),
+            ({"min_coverage": 101}, 0),
+            ({"other_fraction_max": .11}, 6),
+            ({"heterozygous_max": .7}, 6),
+            ({"include_hom_hom": False}, 4),
+            ({"include_hom_het": False}, 2),
+            ({"include_het_het": False}, 4),
         )
         for marker in ("SNP", "DNP"):
-            for settings, counts in variants:
+            for settings, count in variants:
                 with self.subTest(marker=marker, settings=settings), tempfile.TemporaryDirectory() as temporary:
                     output, _ = self.execute(Path(temporary), marker, settings=settings)
-                    rows = native.table(output / "Summary_Postnatal_CPI.txt")
-                    self.assertEqual([int(row["N_sites"]) for row in rows], counts)
-                    self.assertEqual({row["Marker_type"] for row in rows}, {marker})
-                    if counts == [0, 0]:
-                        self.assertTrue(all(row["CPI"] == row["Log10_CPI"] == "NA" for row in rows))
-                        self.assertTrue(all(not native.table(path) for path in (output / "curves").iterdir()))
+                    row, = native.table(output / "Summary_Postnatal_CPI.txt")
+                    self.assertEqual(int(row["N_sites"]), count)
+                    self.assertEqual(row["Marker_type"], marker)
+                    if count == 0:
+                        self.assertEqual((row["CPI"], row["Log10_CPI"]), ("NA", "NA"))
+                    self.assertFalse((output / "curves").exists())
+                    self.assertFalse(any(output.rglob("*.pdf")))
 
-    def test_custom_mismatch_constants_change_the_scientific_formula(self):
+    def test_custom_mismatch_probabilities_change_the_scientific_formula(self):
         for marker in ("SNP", "DNP"):
             with self.subTest(marker=marker), tempfile.TemporaryDirectory() as temporary:
                 epsilon = .02
                 output, _ = self.execute(Path(temporary), marker,
-                                         settings={f"err_const_{marker.lower()}": epsilon})
-                rows = native.table(output / "Summary_Postnatal_CPI.txt")
-                for row, expected in zip(rows, (1.25 * epsilon / .4, 1.25 * epsilon / .4 / .6), strict=True):
-                    self.assertTrue(math.isclose(float(row["CPI"]), expected, rel_tol=1e-12))
-                    self.assertTrue(math.isclose(float(row["Log10_CPI"]), math.log10(expected), rel_tol=1e-12))
-                    self.assertEqual(float(row["Error_constant"]), epsilon)
+                                         settings={f"mismatch_probability_{marker.lower()}": epsilon})
+                row, = native.table(output / "Summary_Postnatal_CPI.txt")
+                expected = 1.25 * (epsilon / .4) ** 2 / .6
+                self.assertTrue(math.isclose(float(row["CPI"]), expected, rel_tol=1e-12))
+                self.assertAlmostEqual(float(row["Log10_CPI"]), math.log10(expected))
+                self.assertEqual(float(row["Mismatch_probability"]), epsilon)
 
     def test_native_cli_overrides_are_recorded_and_used(self):
         with tempfile.TemporaryDirectory() as temporary:
             output, document = self.execute(Path(temporary), "SNP", options=(
-                "--min_child_reads", "3", "--err_const_snp", ".02", "--site_selection", "all"))
-            self.assertEqual(document["parameters"]["min_child_reads"], 3)
-            self.assertEqual(document["parameters"]["err_const_snp"], .02)
-            self.assertEqual(document["parameters"]["site_selection"], "all")
-            rows = native.table(output / "Summary_Postnatal_CPI.txt")
-            self.assertEqual(len(rows), 1)
-            self.assertEqual(rows[0]["Analysis"], "all_compatible_sites")
-            self.assertEqual(rows[0]["Min_child_reads"], "3")
-            self.assertTrue(math.isclose(float(rows[0]["CPI"]), 1.25 * .02 / .4 / .6, rel_tol=1e-12))
+                "--min_coverage", "3", "--mismatch_probability_snp", ".02", "--include_het_het", "FALSE"))
+            self.assertEqual(document["parameters"]["min_coverage"], 3)
+            self.assertEqual(document["parameters"]["mismatch_probability_snp"], .02)
+            self.assertIs(document["parameters"]["include_het_het"], False)
+            row, = native.table(output / "Summary_Postnatal_CPI.txt")
+            self.assertEqual((row["Min_coverage"], row["N_sites"], row["Include_het_het"]), ("3", "3", "FALSE"))
+            self.assertTrue(math.isclose(float(row["CPI"]), 1.25 * .02 / .4 / .6, rel_tol=1e-12))
 
-    def test_billion_read_support_uses_two_intervals_with_exact_endpoints(self):
+    def test_billion_read_depth_yields_one_scalar_and_no_support_curve(self):
         for marker in ("SNP", "DNP"):
             with self.subTest(marker=marker), tempfile.TemporaryDirectory() as temporary:
                 output, _ = self.execute(Path(temporary), marker, huge_support=True)
-                curve = native.table(next((output / "curves").glob("*all_compatible*")))
-                self.assertEqual(len(curve), 2)
-                self.assertEqual(int(curve[0]["Min_child_reads"]), 2)
-                self.assertEqual(int(curve[0]["Through_min_child_reads"]), 50)
-                self.assertEqual(int(curve[1]["Min_child_reads"]), 51)
-                self.assertEqual(float(curve[1]["Through_min_child_reads"]), 1_000_000_000)
-                self.assertEqual(int(curve[1]["N_sites"]), 1)
-                self.assertTrue(math.isclose(float(curve[1]["Log10_CPI"]), math.log10(1 / .6), rel_tol=1e-12))
+                row, = native.table(output / "Summary_Postnatal_CPI.txt")
+                epsilon = .001 if marker == "SNP" else .0000892303778101497
+                self.assertTrue(math.isclose(float(row["CPI"]), 1.25 * (epsilon / .4)**2 / .6, rel_tol=1e-12))
+                self.assertFalse((output / "curves").exists())
+
+    def test_coverage_must_pass_separately_in_all_trio_members(self):
+        for role in ("mother", "father", "child"):
+            with self.subTest(role=role), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                inputs = root / "inputs"
+                inputs.mkdir()
+                header = "chr\tpos\tREF\tALT\tN_REF\tN_ALT\tN_Other\ttotal_count\n"
+                for who, stem in (("mother", "MotherM1"), ("father", "FatherF1"), ("child", "ChildC1")):
+                    # Locus 1 is just below the minimum for one person. Locus 2
+                    # reaches 10 reads only when its single Other read is counted.
+                    first = "9\t0\t0\t9" if who == role else "10\t0\t0\t10"
+                    (inputs / f"{stem}.txt").write_text(
+                        header + f"chr1\t1\tA\tG\t{first}\nchr1\t2\tA\tG\t9\t0\t1\t10\n")
+                (inputs / "population.txt").write_text(
+                    "chr\tpos\tRef_f.pop\tAlt_f.pop\nchr1\t1\t0.5\t0.5\nchr1\t2\t0.5\t0.5\n")
+                process, output = native.NativeREdgeCases.run_native(
+                    self, root, "cpin", inputs, settings={"min_coverage": 10})
+                self.assertEqual(process.returncode, 0, process.stderr)
+                row, = native.table(output / "Summary_Postnatal_CPI.txt")
+                self.assertEqual((row["N_sites"], float(row["CPI"])), ("1", 2.0))
+                sites = {site["pos"]: site for site in native.table(next(output.glob("*_sites.txt")))}
+                self.assertEqual(sites["1"]["Status"], "quality_filter")
+                self.assertEqual(sites["1"][f"Quality_pass_{role}"], "FALSE")
+                self.assertEqual(sites["2"]["Status"], "eligible")
+
+    def test_all_combinations_disabled_is_invalid(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            inputs = root / "inputs"
+            shutil.copytree(native.ROOT / "tests/fixtures/cpin/SNP", inputs)
+            options = tuple(value for group in ("hom_hom", "hom_het", "het_hom", "het_het")
+                            for value in (f"--include_{group}", "FALSE"))
+            process, output = native.NativeREdgeCases.run_native(self, root, "cpin", inputs, options)
+            self.assertNotEqual(process.returncode, 0)
+            self.assertIn("combination", process.stderr.lower())
+            self.assertFalse((output / "Summary_Postnatal_CPI.txt").exists())
 
 
 if __name__ == "__main__":

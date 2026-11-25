@@ -109,6 +109,34 @@ class PresentationTests(unittest.TestCase):
                 rows = list(csv.reader(handle, delimiter="\t"))
             self.assertEqual(rows, [["Sample", "pos", "N_REF"], ["<script>alert(1)<.pileup", "1", "010"]])
 
+    def test_postnatal_readable_tables_preserve_scalar_and_excluded_sites(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            work, output = root / "work", root / "output"
+            work.mkdir()
+            output.mkdir()
+            names = {"MotherM": "Madre A.txt", "FatherF": "Padre B.txt", "ChildC": "Figlio C.txt"}
+            request = {"workflow": "cpin", "work_dir": str(work), "out_dir": str(output),
+                       "samples": [{"name": key + ".txt"} for key in names],
+                       "trios": "M:F:C", "marker_type": "SNP",
+                       "mother_prefix": "Mother", "father_prefix": "Father", "child_prefix": "Child",
+                       "presentation": {"samples": names, "pairs": {"M:F:C": "Trio A"}}}
+            prepare_presentation(request, Path("/native.R"), [])
+            trio = "MotherM-FatherF-ChildC_SNPs"
+            config = json.loads((work / "presentation-config.json").read_text(encoding="utf-8"))
+            summary, sites = "Summary_Postnatal_CPI.txt", f"{trio}_sites.txt"
+            self.assertEqual(set(config["tables"]), {summary, sites})
+            self.assertEqual(config["plots"], {})
+            (output / summary).write_text(f"Trio\tCPI\tLog10_CPI\n{trio}\tNA\tNA\n", encoding="utf-8")
+            site_text = "pos\tStatus\tPaternity_Index\n15\tquality_filter\tNA\n"
+            (output / sites).write_text(site_text, encoding="utf-8")
+            report = finish_presentation(request, root)
+            self.assertEqual([entry["kind"] for entry in report["files"]], ["table", "table"])
+            displayed = output / "presentation"
+            self.assertEqual((displayed / summary).read_text(encoding="utf-8").splitlines()[1], "Trio A\tNA\tNA")
+            self.assertEqual((displayed / config["tables"][sites]["target"]).read_text(encoding="utf-8"), site_text)
+            self.assertIn("un unico CPI per trio", (root / report["index"]["path"]).read_text(encoding="utf-8"))
+
     def test_bad_late_row_discards_only_the_export_created_by_this_copy(self):
         with tempfile.TemporaryDirectory() as tmp:
             source, target = Path(tmp) / "source.tsv", Path(tmp) / "readable.tsv"
@@ -138,7 +166,7 @@ class PresentationTests(unittest.TestCase):
         self.assertIn("non misurano il picco", snp)
         self.assertIn("CPI_medianFF", _interpretation_notes("cpi"))
         self.assertIn("0,025 corrisponde al 2,5%", _interpretation_notes("contamination"))
-        for workflow in ("snp-call", "dnp-call", "cpi", "contamination"):
+        for workflow in ("snp-call", "dnp-call", "cpi", "cpin", "contamination"):
             self.assertIn("non equivale a zero", _interpretation_notes(workflow))
 
     def test_missing_plot_fails_visibly(self):

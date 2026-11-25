@@ -14,6 +14,74 @@ from test_revised_r_acceptance import acceptance, COMMIT, IMAGE, digest
 ROOT = Path(__file__).resolve().parents[2]
 
 
+class RevisedCpiReleaseTests(unittest.TestCase):
+    # Native output for two synthetic SNP trios in the serial qualification matrix.
+    header = ("Trio\tMarker_type\tN_sites\tN_hom_hom\tN_hom_het\tN_het_hom\tN_het_het"
+              "\tMatching_sites\tMismatching_sites\tNo_obligatory_allele_sites\tMaternal_incompatible_sites"
+              "\tLog10_CPI\tCPI\tMismatch_probability\tMin_coverage"
+              "\tInclude_hom_hom\tInclude_hom_het\tInclude_het_hom\tInclude_het_het\n")
+    values = ("\tSNP\t5\t1\t3\t0\t1\t2\t2\t1\t1\t-4.88536122003151\t1.30208333333333e-05"
+              "\t0.001\tNA\tTRUE\tTRUE\tTRUE\tTRUE\n")
+    first = "MotherM1-FatherF1-ChildC1_SNPs" + values
+    second = "MotherM2-FatherF2-ChildC2_SNPs" + values
+
+    def verify_postnatal(self, summary, *, reported=None):
+        raw = summary.encode()
+        name = "SNP-cpin-batch2-serial-capNone"
+        filename = "Summary_Postnatal_CPI.txt"
+        rows = list(csv.DictReader(io.StringIO(summary), delimiter="\t"))
+        case = {"name": name, "workflow": "cpin", "marker": "SNP", "batch_size": 2,
+                "rows": rows if reported is None else reported,
+                "output_sha256": {filename: digest(raw)}, "summary_sha256": digest(raw)}
+        archive = io.BytesIO()
+        with zipfile.ZipFile(archive, "w") as handle:
+            handle.writestr(f"reports/{name}/output/{filename}", raw)
+        acceptance.verify_analysis_summary(archive, "reports/five-module-qualification.json", case,
+                                           revised_cpi=acceptance.revised_cpi_contract("0.9.10"))
+
+    def test_accepts_native_scalar_bytes_and_rejects_misreported_rows(self):
+        summary = self.header + self.first + self.second
+        self.verify_postnatal(summary)
+        reported = list(csv.DictReader(io.StringIO(summary), delimiter="\t"))
+        reported[1]["CPI"] = "1"
+        with self.assertRaisesRegex(ValueError, "retained summary bytes"):
+            self.verify_postnatal(summary, reported=reported)
+
+    def test_retained_rows_require_each_requested_trio_once(self):
+        for data in (self.first, self.first + self.first, self.first + self.first + self.second + self.second):
+            with self.subTest(row_count=len(data.splitlines())), self.assertRaisesRegex(ValueError, "one row per"):
+                self.verify_postnatal(self.header + data)
+
+    def test_rejects_scalar_with_missing_scientific_fields_even_with_matching_digests(self):
+        for column in ("CPI", "Log10_CPI", "N_het_het", "No_obligatory_allele_sites",
+                       "Mismatch_probability", "Min_coverage", "Include_het_hom"):
+            rows = csv.DictReader(io.StringIO(self.header + self.first + self.second), delimiter="\t")
+            stream = io.StringIO()
+            writer = csv.DictWriter(stream, [key for key in rows.fieldnames if key != column],
+                                    delimiter="\t", extrasaction="ignore")
+            writer.writeheader()
+            writer.writerows(rows)
+            with self.subTest(column=column), self.assertRaisesRegex(ValueError, "columns are incomplete"):
+                self.verify_postnatal(stream.getvalue())
+
+    def test_releases_pin_the_correct_frozen_model_bytes(self):
+        versions = {"0.9.9": "9c2a8be60afcb944153710da6a61cd0559e2b4cf",
+                    "0.9.10": "97c4eb5f7a901d0435b950c3e2a52a8bd7eae9d4"}
+        for version, expected in versions.items():
+            with self.subTest(version=version):
+                commit, directory, hashes = acceptance.downstream_reference(version)
+                self.assertEqual(commit, expected)
+                manifest = json.loads((ROOT / directory / "manifest.json").read_bytes())
+                self.assertEqual((manifest["upstream_commit"], manifest["sha256"]), (expected, hashes))
+                self.assertEqual({path: digest((ROOT / directory / path).read_bytes()) for path in hashes}, hashes)
+                evidence = {"reference_source_commit": expected, "report_sha256": "d" * 64,
+                            "runtime_image": IMAGE, "report_path": "scientific/five-module-qualification.json"}
+                acceptance.validate_analysis_record(evidence, version)
+                other = next(commit for commit in versions.values() if commit != expected)
+                with self.assertRaisesRegex(ValueError, "frozen NEWPAT reference"):
+                    acceptance.validate_analysis_record({**evidence, "reference_source_commit": other}, version)
+
+
 class FiveModuleAcceptanceTests(unittest.TestCase):
     def setUp(self):
         self.legacy = legacy_tests.RevisedRAcceptanceTests()

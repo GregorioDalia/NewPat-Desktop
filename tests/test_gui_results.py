@@ -178,6 +178,42 @@ def test_cpi_log_scale_family_and_named_cutoff_curve_mapping(archive):
     assert summary_metrics(entries[0])["CPI_medianFF"] == "0.602"
 
 
+def test_postnatal_scalar_uses_recorded_log_bounds_and_links_included_and_excluded_sites(archive):
+    run = make_run(archive, "cpin", marker="SNP")
+    names = ("family_panel_1", "second", "third", "fourth", "fifth", "sixth")
+    logs = ("-3.0001", "-3", "0", "2", "2.0001", "NA")
+    columns = ["Trio", "Marker_type", "Log10_CPI", "CPI", "N_sites", "Matching_sites", "Mismatching_sites",
+               "No_obligatory_allele_sites", "Mismatch_probability"]
+    table(run / "output/Summary_Postnatal_CPI.txt", columns, [
+        [name, "SNP", log, "NA" if log == "NA" else str(10 ** float(log)),
+         0 if log == "NA" else 2, 1, 0, 1, 0.001] for name, log in zip(names, logs)])
+    families = []
+    for name in names:
+        relative = f"output/{name}_sites.txt"
+        table(run / relative, ["Genotype_combination", "Status", "Paternity_status"], [
+            ["het_het", "eligible", "no_obligatory_allele"], ["hom_hom", "combination_not_selected", "NA"]])
+        families.append({"trio": name, "native_trio": name, "sites": artifact(run, relative)})
+    settings = "output/scientific-settings.json"
+    write_json(run / settings, {"schema_version": 1, "workflow": "cpin",
+                                "parameters": {"log_cpi_lower": -3, "log_cpi_upper": 2}})
+    validation(run, "cpin", {"scientific-settings": artifact(run, settings), "cpin-trios": families})
+    store = ResultsStore(archive, language="en")
+    group = store.overview("example")["modules"][0]
+    assert group["summary_columns"]["Mismatch_probability"]["label"] == "Paternal mismatch weight"
+    entries = group["entries"]
+    assert [e["summary"]["guide_band"]["position"] for e in entries[:-1]] == [
+        "below", "at_lower", "between", "at_upper", "above"]
+    assert entries[-1]["summary"]["guide_band"] is None
+    assert summary_metrics(entries[-1])["CPI"] is None
+    for entry, name in zip(entries, names, strict=True):
+        assert entry["family_id"] == name and not entry["curve_file_ids"] and not entry["plot_file_ids"]
+        page = store.table("example", entry["site_file_id"])
+        assert page["file"]["name"] == f"{name}_sites.txt"
+        assert page["columns"][0]["values"]["het_het"] == "Heterozygous mother, heterozygous child"
+        assert page["columns"][1]["values"]["combination_not_selected"] == "Mother–child combination excluded"
+        assert page["columns"][2]["values"]["no_obligatory_allele"] == "No obligatory paternal allele"
+
+
 def test_cpin_selection_and_interval_endpoints_stay_separate(archive):
     run = make_run(archive, "cpin")
     name = "MotherM-FatherF-ChildC_DNPs"

@@ -22,7 +22,7 @@ The three BAMs in the complete plan test the links between modules. They do not 
 
 ## Run the historical suite
 
-Use `scripts/windows/test-installed-0850.ps1` in a non-elevated PowerShell session. Supply the full Git commit of the **test harness** with `-SourceCommit`. The wrapper pins the test manifest's checksum and verifies all four downloaded files. The target installation must be the identified 0.8.50 package in the `ready` state. It may include the local CPIN import fix below.
+Use `scripts/windows/test-installed-0850.ps1` in a non-elevated PowerShell session. Use `-SourceCommit a0bb9fa4b54d7a320d84bbcc16faf8b29ab3ffa5` to load the pinned historical test harness. The wrapper pins the test manifest's checksum and verifies all four downloaded files. The target installation must be the identified 0.8.50 package in the `ready` state. It may include the local CPIN import fix below.
 
 Each invocation creates a directory under `%LOCALAPPDATA%\NIPAT-Desktop\collaudi`. The suite generates BAMs from synthetic SAM inputs with installed tools. The terminal displays progress and the report is retained even when a check fails.
 

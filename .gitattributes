@@ -3,5 +3,7 @@
 scientific/SHA256SUMS text eol=lf
 *.sh text eol=lf
 scientific/vendor/** -whitespace
+# Keep exact upstream source bytes in the scientific comparison fixture.
+tests/reference_r/NEWPAT_20261125/**/*.R -whitespace
 # Preserve upstream license bytes and their recorded checksums.
 installer/macos/licenses/** -text -whitespace

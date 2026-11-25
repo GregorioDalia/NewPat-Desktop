@@ -202,8 +202,11 @@ def prepare_cpi(request: object) -> list[str]:
         "--pileup_dir", str(staged_dir), "--out_dir", str(out_dir),
         f"--pairs={pairs}", f"--mother_prefix={request['mother_prefix']}",
         f"--father_prefix={request['father_prefix']}", "--popfreq", str(popfreq),
-        "--err_const", str(error), "--min_fetal_reads", str(settings["min_fetal_reads"]),
+        "--err_const", str(error),
     ]
+    for key in ("min_fetal_reads", "min_fetal_percent"):
+        if settings[key] is not None:
+            arguments.extend(("--" + key, str(settings[key])))
     if maps:
         arguments.append("--cutoff_map=" + ",".join(maps))
     return arguments

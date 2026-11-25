@@ -1,0 +1,1 @@
+These unmodified public NEWPAT scripts are comparison inputs for the two CPI revisions and the unchanged contamination model. The manifest identifies the upstream commit and SHA-256 of each file. Operational scripts live under `scientific/vendor/NEWPAT`.

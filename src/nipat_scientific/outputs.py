@@ -7,6 +7,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
+import sys
 
 from nipat_scientific.errors import PlanExecutionError, ValidationError
 from nipat_scientific.files import (
@@ -14,7 +15,7 @@ from nipat_scientific.files import (
     require_dnp_input, table_rows, tabular_header,
 )
 from nipat_scientific.panels import read_dnp_list, read_snp_list
-from nipat_scientific.settings import normalize_settings, validate_settings_document
+from nipat_scientific.settings import GENOTYPE_COMBINATIONS, normalize_settings, validate_settings_document
 
 
 def _sha256(path: Path) -> str:
@@ -25,7 +26,7 @@ def _sha256(path: Path) -> str:
 _CPI_COLUMNS = {
     "Pair", "N_sites_mother", "N_sites_father", "Median_fetal_fraction_raw",
     "Median_fetal_fraction_percent", "Max_logCPI", "Min_logCPI",
-    "Median_logCPI", "Mean_logCPI", "CPI_medianFF", "Error_constant", "Min_fetal_reads", "Marker_type",
+    "Median_logCPI", "Mean_logCPI", "CPI_medianFF", "Error_constant", "Min_fetal_reads", "Min_fetal_percent", "Marker_type",
 }
 _SNP_COLUMNS = {
     "chr", "pos", "REF", "ALT", "N_REF", "N_ALT", "N_Other", "total_count", "ratio",
@@ -101,62 +102,150 @@ def _expected_settings(request: dict) -> dict:
 
 def _check_cpi_summary_settings(row: dict, request: dict, settings: dict, path: Path, number: int):
     marker = request.get("marker_type", "DNP")
-    threshold = "Min_child_reads" if request["workflow"] == "cpin" else "Min_fetal_reads"
-    if row["Marker_type"] != marker or nonnegative_integer(
-            row[threshold], path, number, threshold, positive=True) != settings[threshold.lower()]:
-        raise PlanExecutionError("execution.output", "CPI summary marker or read threshold differs from the request.")
+    if row["Marker_type"] != marker:
+        raise PlanExecutionError("execution.output", "CPI summary marker differs from the request.")
+    if request["workflow"] == "cpin":
+        numeric = {"Min_coverage": settings["min_coverage"],
+                   "Mismatch_probability": settings[f"mismatch_probability_{marker.lower()}"]}
+        for pair in GENOTYPE_COMBINATIONS:
+            if row[f"Include_{pair}"] != str(settings[f"include_{pair}"]).upper():
+                raise PlanExecutionError("execution.output", "Postnatal site selection differs from the request.")
+    else:
+        numeric = {"Min_fetal_reads": settings["min_fetal_reads"], "Min_fetal_percent": settings["min_fetal_percent"],
+                   "Error_constant": settings[f"err_const_{marker.lower()}"]}
+    for column, expected in numeric.items():
+        raw = row[column]
+        if expected is None:
+            agrees = raw == "NA"
+        else:
+            try:
+                agrees = math.isclose(float(raw), expected, rel_tol=1e-12)
+            except ValueError:
+                agrees = False
+        if not agrees:
+            raise PlanExecutionError("execution.output", f"{path.name}: row {number}, {column} differs from the request.")
+
+
+def _verify_postnatal_sites(path: Path, summary: dict, counts: dict) -> None:
+    """Reconcile the one trio estimate against its selected, eligible site rows."""
+    columns = {"Status", "Genotype_combination", "Paternity_status", "Paternity_Index", "Mismatch",
+               "Required_paternal_allele", "Paternal_transmission", "Ref_f.pop", "Alt_f.pop"}
+    observed = dict.fromkeys(counts, 0)
+
+    def site_logs():
+        for line, site in table_rows(path, columns, "Postnatal CPI sites"):
+            if site["Status"] == "mother_child_incompatible":
+                observed["Maternal_incompatible_sites"] += 1
+            if site["Status"] != "eligible":
+                if site["Paternity_Index"] != "NA" or site["Paternity_status"] != "NA":
+                    raise PlanExecutionError("execution.output", f"{path.name}: excluded site with PI at row {line}.")
+                continue
+            group, status = site["Genotype_combination"], site["Paternity_status"]
+            if group not in GENOTYPE_COMBINATIONS or summary[f"Include_{group}"] != "TRUE":
+                raise PlanExecutionError("execution.output", f"{path.name}: unexpected genotype group at row {line}.")
+            if group == "het_het":
+                valid = status == "no_obligatory_allele" and site["Mismatch"] == "NA"
+            else:
+                valid = (status, site["Mismatch"]) in {("match", "FALSE"), ("mismatch", "TRUE")}
+            if not valid:
+                raise PlanExecutionError("execution.output", f"{path.name}: inconsistent paternal status at row {line}.")
+            observed["N_sites"] += 1
+            observed["N_" + group] += 1
+            observed[{"match": "Matching_sites", "mismatch": "Mismatching_sites",
+                      "no_obligatory_allele": "No_obligatory_allele_sites"}[status]] += 1
+            try:
+                pi = float(site["Paternity_Index"])
+            except ValueError as exc:
+                raise PlanExecutionError("execution.output", f"{path.name}: invalid PI at row {line}.") from exc
+            if not pi > 0:
+                raise PlanExecutionError("execution.output", f"{path.name}: non-positive or missing PI at row {line}.")
+            if math.isfinite(pi):
+                yield math.log10(pi)
+                continue
+            # The native log sum preserves the finite estimate when the per-site
+            # ratio itself overflows. Reconstruct that term from its operands.
+            try:
+                if group == "het_het":
+                    weight = 1.0
+                    frequency = float(site["Ref_f.pop"]) + float(site["Alt_f.pop"])
+                else:
+                    allele = {"REF": "Ref_f.pop", "ALT": "Alt_f.pop"}[site["Required_paternal_allele"]]
+                    frequency = float(site[allele])
+                    weight = float(summary["Mismatch_probability"] if status == "mismatch" else site["Paternal_transmission"])
+                if not 0 < frequency <= 2 or not 0 < weight <= 1:
+                    raise ValueError
+                log_pi = math.log10(weight) - math.log10(frequency)
+                # The denominator in the table is itself rounded for export.
+                if log_pi < math.log10(sys.float_info.max) - 1e-12:
+                    raise ValueError
+                yield log_pi
+            except (KeyError, ValueError) as exc:
+                raise PlanExecutionError("execution.output", f"{path.name}: inconsistent overflowing PI at row {line}.") from exc
+
+    log_cpi = math.fsum(site_logs())
+    if counts != observed:
+        raise PlanExecutionError("execution.output", f"{path.name}: site counts differ from the trio summary.")
+    if not counts["N_sites"]:
+        if (summary["CPI"], summary["Log10_CPI"]) != ("NA", "NA"):
+            raise PlanExecutionError("execution.output", "Postnatal CPI without contributing sites.")
+        return
+    # The native text tables round individual floating-point values for export.
+    tolerance = 2e-14 * counts["N_sites"]
     try:
-        error = float(row["Error_constant"])
+        published = float(summary["Log10_CPI"])
+        raw = float(summary["CPI"])
     except ValueError as exc:
-        raise PlanExecutionError("execution.output", "Invalid CPI summary error constant.") from exc
-    if not math.isclose(error, settings[f"err_const_{marker.lower()}"], rel_tol=1e-12, abs_tol=0):
-        raise PlanExecutionError("execution.output", "CPI summary error constant differs from the request.")
+        raise PlanExecutionError("execution.output", "Invalid postnatal trio CPI.") from exc
+    if not math.isclose(published, log_cpi, abs_tol=tolerance, rel_tol=5e-14):
+        raise PlanExecutionError("execution.output", "Postnatal log10(CPI) disagrees with the eligible site indices.")
+    # A raw product can overflow or underflow while the log sum remains usable.
+    if raw == 0:
+        consistent = published <= math.log10(math.ulp(0.0)) - math.log10(2) + tolerance
+    elif raw == math.inf:
+        consistent = published >= math.log10(sys.float_info.max) - tolerance
+    elif math.isfinite(raw) and raw > 0:
+        quantization = math.log10(1 + math.ulp(raw) / raw)
+        consistent = math.isclose(math.log10(raw), published, abs_tol=max(quantization, tolerance), rel_tol=5e-14)
+    else:
+        consistent = False
+    if not consistent:
+        raise PlanExecutionError("execution.output", "Postnatal CPI and log10(CPI) disagree.")
 
 
 def _collect_cpin_outputs(step: dict, request: dict, root: Path, output_dir: Path) -> dict:
     summary = output_dir / "Summary_Postnatal_CPI.txt"
     summary_artifact = _artifact(summary, root, output_dir)
-    columns = {"Trio", "Marker_type", "Analysis", "N_sites", "N_heterozygous_child_sites",
-               "N_homozygous_child", "Matching_sites", "Mismatching_sites", "Log10_CPI", "CPI",
-               "Error_constant", "Min_child_reads"}
-    rows = [row for _, row in table_rows(summary, columns, "Postnatal CPI summary")]
+    count_columns = {"N_sites", "Matching_sites", "Mismatching_sites", "No_obligatory_allele_sites",
+                     "Maternal_incompatible_sites", *("N_" + pair for pair in GENOTYPE_COMBINATIONS)}
+    columns = count_columns | {"Trio", "Marker_type", "Log10_CPI", "CPI", "Mismatch_probability", "Min_coverage",
+                               *("Include_" + pair for pair in GENOTYPE_COMBINATIONS)}
     bindings = step.get("native_bindings")
     if bindings is None:
         _, bindings = _cpin_bindings(step)
-    selection = request.get("scientific_settings", {}).get("site_selection", "both")
-    analyses = {"other_allele": ["heterozygous_child_sites"], "all": ["all_compatible_sites"],
-                "both": ["heterozygous_child_sites", "all_compatible_sites"]}[selection]
-    expected = {(item["native_trio"], analysis) for item in bindings for analysis in analyses}
-    seen, warnings = set(), []
+    expected = {binding["native_trio"] for binding in bindings}
+    rows = {}
+    warnings = []
     settings = _expected_settings(request)
-    counts = {"N_sites", "N_heterozygous_child_sites", "N_homozygous_child", "Matching_sites", "Mismatching_sites", "Min_child_reads"}
-    for number, row in enumerate(rows, 2):
+    for number, row in table_rows(summary, columns, "Postnatal CPI summary"):
+        name = row["Trio"]
+        if name not in expected or name in rows:
+            raise PlanExecutionError("execution.output", "Unexpected or duplicate postnatal CPI trio row.")
         _check_cpi_summary_settings(row, request, settings, summary, number)
-        key = row["Trio"], row["Analysis"]
-        if key in seen:
-            raise PlanExecutionError("execution.output", "Duplicate postnatal CPI trio/analysis row.")
-        seen.add(key)
-        values = {column: nonnegative_integer(row[column], summary, number, column) for column in counts}
-        if values["Matching_sites"] + values["Mismatching_sites"] != values["N_sites"] or values["N_heterozygous_child_sites"] + values["N_homozygous_child"] != values["N_sites"]:
-            raise PlanExecutionError("execution.output", "Postnatal CPI site counts disagree.")
-        warnings.extend(_numeric_warnings(row, {"Log10_CPI", "CPI", "Error_constant"}, summary, number,
-                                         allow_missing=values["N_sites"] == 0))
-    if seen != expected:
-        raise PlanExecutionError("execution.output", "Postnatal CPI results do not match requested trios and analyses.")
+        counts = {key: nonnegative_integer(row[key], summary, number, key) for key in count_columns}
+        rows[name] = row, counts
+        warnings.extend(_numeric_warnings(row, {"Log10_CPI", "CPI"}, summary, number,
+                                         allow_missing=counts["N_sites"] == 0))
+    if rows.keys() != expected:
+        raise PlanExecutionError("execution.output", "Postnatal CPI results do not match the requested trios.")
     trios = []
     for binding in bindings:
         name = binding["native_trio"]
-        sites = output_dir / "sites" / f"{name}_sites.tsv"
-        _output_columns(sites, {"Status", "Paternity_Index", "Mismatch"})
-        analyses_artifacts = []
-        for analysis in analyses:
-            curve = output_dir / "curves" / f"{name}_{analysis}_curve.tsv"
-            _output_columns(curve, {"Min_child_reads", "Through_min_child_reads", "N_sites", "Log10_CPI", "Matching_sites", "Mismatching_sites"})
-            analyses_artifacts.append({"analysis": analysis, "curve": _artifact(curve, root, output_dir),
-                "plot": _pdf_artifact(output_dir / "plots" / f"{name}_{analysis}_CPIplot.pdf", root, output_dir)})
-        trios.append({**binding, "sites": _artifact(sites, root, output_dir), "analyses": analyses_artifacts})
-    return {"summary": summary_artifact, "cpin-trios": trios, "quality_warnings": warnings,
-            "combined-plot": _pdf_artifact(output_dir / "All_CPIplots.pdf", root, output_dir)}
+        path = output_dir / f"{name}_sites.txt"
+        artifact = _artifact(path, root, output_dir)
+        _verify_postnatal_sites(path, *rows[name])
+        trios.append({**binding, "sites": artifact})
+    return {"summary": summary_artifact, "cpin-trios": trios, "quality_warnings": warnings}
+
 
 def _pdf_artifact(path: Path, root: Path, output_dir: Path) -> dict:
     artifact = _artifact(path, root, output_dir)
@@ -226,12 +315,13 @@ def _prenatal_curve_support(curve: Path, summary: dict, cutoff: str) -> dict:
     """Validate the dense native curve and recover support for the reported estimate."""
     counts = ("InfSites_mother", "InfSites_father", "Mismatch", "NotMismatch")
     columns = {"Iteration", *counts, "CPI", "log_CPI", "Cutoff"}
-    minimum = int(float(summary["Min_fetal_reads"]))
+    reads = summary["Min_fetal_reads"]
+    minimum = 1 if reads == "NA" else int(float(reads))
     maternal = nonnegative_integer(summary["N_sites_mother"], curve, 1, "N_sites_mother")
     candidates = nonnegative_integer(summary["N_sites_father"], curve, 1, "N_sites_father")
     if candidates > maternal:
         raise PlanExecutionError("execution.output", f"{curve.name}: paternal candidates exceed maternal sites.")
-    support = {"minimum_fetal_reads": minimum, "paternal_candidates": candidates,
+    support = {"minimum_fetal_reads": None if reads == "NA" else minimum, "paternal_candidates": candidates,
                "paternal_used": 0, "missing_frequency": 0, "unassigned_father": 0,
                "median_fetal_reads": None, "paternal_used_at_median": 0}
     previous = previous_log = None
