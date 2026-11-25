@@ -56,6 +56,14 @@ files used by NewPat. Preserve these records when distributing a modified copy.
 
 ## Software supplied with the runtime
 
+The desktop client creates analysis PDFs offline using the MIT-licensed pdfmake
+0.3.15 browser build and its embedded Roboto fonts under the SIL Open Font
+License 1.1. The [asset manifest](src/nipat/gui/web/vendor/pdfmake/manifest.json)
+identifies the upstream archive and the exact distributed files.
+[pdfmake license](src/nipat/gui/web/vendor/pdfmake/pdfmake.LICENSE.txt) ·
+[Font license](src/nipat/gui/web/vendor/pdfmake/Roboto.OFL.txt) ·
+[Bundled component notices](src/nipat/gui/web/vendor/pdfmake/BUNDLED-NOTICES.txt)
+
 The desktop interface includes the following components:
 
 - **igv.js 3.8.9:** the unmodified browser bundle from

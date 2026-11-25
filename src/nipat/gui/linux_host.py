@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import threading
+from .host import smoke_probe_script, smoke_ready
 from .windows_host import allowed_navigation as _allowed_navigation
 
 _state = {}
@@ -99,9 +100,7 @@ def run_window(url, title="NewPat", on_close=None, *, smoke_test=False, smoke_re
         if result["closed"] or result["completed"] or result["pending"]:
             return False
         result["pending"] = True
-        code = "JSON.stringify({appReady:document.documentElement.dataset.nipatReady==='true'," \
-               "title:document.title,readyState:document.readyState,bodyText:document.body.innerText.slice(0,2000)," \
-               "width:innerWidth,height:innerHeight,userAgent:navigator.userAgent})"
+        code = smoke_probe_script()
 
         def received(web, task, *_args):
             if result["closed"]:
@@ -109,7 +108,7 @@ def run_window(url, title="NewPat", on_close=None, *, smoke_test=False, smoke_re
             try:
                 value = web.run_javascript_finish(task).get_js_value().to_string()
                 evidence = json.loads(value)
-                if not evidence.get("appReady"):
+                if not smoke_ready(evidence):
                     result["pending"] = False
                     timers.append(GLib.timeout_add(250, collect))
                     return

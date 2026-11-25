@@ -28,6 +28,8 @@ from typing import Callable
 from urllib.parse import unquote, urlsplit
 import uuid
 
+from .host import smoke_probe_script, smoke_ready
+
 HRESULT = C.c_int32
 ULONG = C.c_uint32
 DWORD = C.c_uint32
@@ -647,10 +649,7 @@ class _Window:
         self.smoke_requested = True
         handler = self._callback("49511172-cc67-4bca-9923-137112f4c4cc",
                                  (HRESULT, C.c_wchar_p), self._smoke_done)
-        code = "JSON.stringify({appReady:document.documentElement.dataset.nipatReady==='true'," \
-               "title:document.title,readyState:document.readyState," \
-               "userAgent:navigator.userAgent,nativeWebView:!!(window.chrome&&window.chrome.webview)," \
-               "bodyText:document.body.innerText.slice(0,2000),width:innerWidth,height:innerHeight})"
+        code = smoke_probe_script()
         _check(_call(self.webview, 29, (C.c_wchar_p, PTR), code, handler),
                "Verifica della finestra desktop")
 
@@ -659,7 +658,7 @@ class _Window:
         data = json.loads(encoded)
         if isinstance(data, str):
             data = json.loads(data)
-        if isinstance(data, dict) and not data.get("appReady"):
+        if isinstance(data, dict) and not smoke_ready(data):
             self.smoke_requested = False
             return
         if not isinstance(data, dict) or not data.get("nativeWebView") or not data.get("bodyText"):

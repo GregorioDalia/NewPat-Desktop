@@ -1,5 +1,6 @@
 """Native GUI distribution provenance and launcher preparation behavior."""
 from contextlib import contextmanager
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -25,6 +26,23 @@ LINUX = module("gui_linux_launch", "installer/linux/launch.py")
 
 
 class GuiDistributionTests(unittest.TestCase):
+    def test_pdf_renderer_fonts_and_notices_ship_with_verified_bytes(self):
+        directory = PROJECT / "src/nipat/gui/web/vendor/pdfmake"
+        manifest_path = directory / "manifest.json"
+        manifest = json.loads(manifest_path.read_bytes())
+        expected = {"pdfmake.min.js", "vfs_fonts.js", "pdfmake.LICENSE.txt",
+                    "Roboto.OFL.txt", "BUNDLED-NOTICES.txt"}
+        self.assertEqual(manifest["assets"].keys(), expected)
+        shipped = set((PROJECT / "distribution-files.txt").read_text(encoding="utf-8").splitlines())
+        self.assertIn(manifest_path.relative_to(PROJECT).as_posix(), shipped)
+        for name in expected:
+            with self.subTest(name=name):
+                path = directory / name
+                self.assertIn(path.relative_to(PROJECT).as_posix(), shipped)
+                data = path.read_bytes()
+                self.assertEqual({"bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()},
+                                 manifest["assets"][name])
+
     def observations(self):
         return [{"name": name, "status": "Valid", "subject": "CN=Microsoft, O=Microsoft Corporation, C=US",
                  "thumbprint": "A" * 40} for name in sorted(VERIFY.EXPECTED_BINARY_NAMES)]

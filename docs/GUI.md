@@ -43,6 +43,15 @@ NewPat checks the reference sequence against every row of its FAI and, for BGZF 
 
 In **Experiments and results**, search by experiment name, status or marker type. Open a result to see its summary, module tables, plots and original files. A paged table is a preview; export the original file to work with the complete rows and stored values. You can export a single file or a ZIP of the results.
 
+### Export a PDF report
+
+Open an experiment, choose **Export PDF report** and select the result. Each choice identifies the analysis and the sample, pair or trio. The marker type and prenatal panel distinguish results from the same family. Both formats use the values saved by that analysis and the current interface language.
+
+- **Summary report** fits on one A4 page. It identifies the samples being compared, gives the result in plain language and shows the main measurements.
+- **Detailed report** includes the underlying measurements, available charts, source information and relevant table excerpts. Use the original tables for all rows.
+
+Choose **Save PDF** to save a local copy. No internet connection or new analysis is required. For CPI, the report compares the stored index with the limits recorded for that result when available. A missing estimate is identified explicitly.
+
 Use **Open existing results** to add an existing run folder to the archive. NewPat records its location. **Remove from list** hides the entry and leaves its files on disk. You can register that folder again.
 
 If NewPat closes during calculation, reopen the application and check the run status. **Needs verification** means NewPat cannot determine whether the underlying process is still active. Wait for confirmation before relaunching or removing the entry. Completed output from one step may be available while the overall experiment is still incomplete. The [run guide](RUNS.md) explains how to inspect the runtime.

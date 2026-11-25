@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+import base64
+import binascii
 import json
 import logging
 import os
@@ -18,7 +20,7 @@ from nipat.branding import PRODUCT_NAME
 from nipat.errors import ValidationError
 from .host import native_host
 from .reference_downloads import ReferenceDownloads
-from .server import DesktopServer
+from .server import DesktopServer, MAX_RPC_BYTES
 from .service import GuiService
 
 
@@ -100,6 +102,54 @@ class DesktopApplication:
                 for path, relative in paths:
                     archive.write(path, relative)
         return {"path": str(destination), "files": len(paths)}
+
+    def report_cases(self, params):
+        from .analysis_report import report_case_options
+
+        return report_case_options(self.service._results(), params["run_id"])
+
+    def prepare_report(self, params):
+        from .analysis_report import build_report
+
+        kind = params.get("kind")
+        if kind not in ("summary", "detailed"):
+            raise ValidationError("Unknown report format.")
+        return build_report(self.service._results(), params["run_id"], params["case_id"],
+                            detailed=kind == "detailed")
+
+    def save_report(self, params):
+        english = params.get("language") == "en"
+        run_id, case_id, kind = params["run_id"], params["case_id"], params["kind"]
+        if not isinstance(case_id, str) or not re.fullmatch(r"[0-9a-f]{64}", case_id) or kind not in ("summary", "detailed"):
+            raise ValidationError("Invalid report selection." if english else "Selezione del rapporto non valida.")
+        store = self.service._results()
+        run = store._run(run_id)
+        encoded = params.get("data_base64")
+        invalid = "The PDF is incomplete." if english else "Il PDF è incompleto."
+        if not isinstance(encoded, str) or len(encoded) > MAX_RPC_BYTES - 4096:
+            raise ValidationError(invalid)
+        try:
+            content = base64.b64decode(encoded, validate=True)
+        except (ValueError, binascii.Error) as error:
+            raise ValidationError(invalid) from error
+        if not content.startswith(b"%PDF-") or not content.rstrip().endswith(b"%%EOF"):
+            raise ValidationError(invalid)
+        run_label = re.sub(r"[^\w.-]+", "_", run_id)[:64]
+        filename = f"NewPat_{run_label}_{case_id[:12]}_{kind}.pdf"
+        title = "Save the analysis report" if english else "Salva il rapporto di analisi"
+        choice = self.host.save_file(title, filename, [{"name": "PDF", "extensions": ["pdf"]}])
+        if not choice:
+            return {"cancelled": True}
+        destination = Path(choice).expanduser()
+        if destination.suffix.lower() != ".pdf" or destination.is_symlink():
+            raise ValidationError("Use a .pdf filename." if english else "Usa un nome con estensione .pdf.")
+        destination = destination.resolve()
+        if destination.is_relative_to(run) or destination.is_relative_to(store.root):
+            raise ValidationError("Save the report outside the experiment archive." if english else
+                                  "Salva il rapporto fuori dall’archivio degli esperimenti.")
+        with _export_destination(destination) as temporary:
+            temporary.write_bytes(content)
+        return {"path": str(destination), "name": destination.name}
 
     def save_examples(self, params):
         from .examples import save_example_data
@@ -229,6 +279,8 @@ class DesktopApplication:
                      "references.download_cancel": lambda p: self.reference_downloads.call("cancel", p),
                      "files.url": self.file_url, "files.open": self.file_url, "files.export": self.export_file,
                      "runs.export": self.export_run, "igv.prepare": self.prepare_igv,
+                     "reports.cases": self.report_cases, "reports.prepare": self.prepare_report,
+                     "reports.save": self.save_report,
                      "runs.open_directory": self.open_run_directory,
                      "diagnostics.export": self.export_diagnostics, "examples.save": self.save_examples,
                      "examples.demo": self.open_demo,

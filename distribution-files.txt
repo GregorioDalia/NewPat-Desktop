@@ -517,6 +517,7 @@ scripts/test_gui_macos_native.py
 scripts/test_gui_windows_native.py
 scripts/verify_gui_distribution.py
 src/nipat/gui/__init__.py
+src/nipat/gui/analysis_report.py
 src/nipat/gui/app.py
 src/nipat/gui/host.py
 src/nipat/gui/jobs.py
@@ -539,6 +540,7 @@ src/nipat/gui/web/i18n.js
 src/nipat/gui/web/igv-view.js
 src/nipat/gui/web/index.html
 src/nipat/gui/web/newpat-wordmark.svg
+src/nipat/gui/web/reports.js
 src/nipat/gui/web/style.css
 src/nipat/gui/web/vendor/README.md
 src/nipat/gui/web/vendor/igv.LICENSE.txt
@@ -560,6 +562,12 @@ src/nipat/gui/web/vendor/licenses/twobit-js.LICENSE.txt
 src/nipat/gui/web/vendor/licenses/vanilla-picker-2.12.1-LICENSE.md.txt
 src/nipat/gui/web/vendor/licenses/vanilla-picker-2.12.3-LICENSE.md.txt
 src/nipat/gui/web/vendor/manifest.json
+src/nipat/gui/web/vendor/pdfmake/BUNDLED-NOTICES.txt
+src/nipat/gui/web/vendor/pdfmake/Roboto.OFL.txt
+src/nipat/gui/web/vendor/pdfmake/manifest.json
+src/nipat/gui/web/vendor/pdfmake/pdfmake.LICENSE.txt
+src/nipat/gui/web/vendor/pdfmake/pdfmake.min.js
+src/nipat/gui/web/vendor/pdfmake/vfs_fonts.js
 src/nipat/gui/windows_host.py
 tests/test_gui_admission.py
 tests/test_gui_app.py

@@ -36,6 +36,8 @@ Nella cartella `synthetic-trio`, il `README.md` spiega come provare anche **Cont
 
 ## Per gli esperimenti successivi
 
+Per condividere un risultato, apri l’esperimento e scegli **Esporta report PDF**. Seleziona il campione o la famiglia, controlla marcatori e pannello, poi scegli **Report sintetico** per una pagina A4 oppure **Report dettagliato** per consultare anche grafici e dati di supporto. Premi **Salva PDF**. Entrambi i documenti usano i risultati già presenti sul PC.
+
 - **Riferimento.** Per BAM allineati a un genoma umano puoi registrare il FASTA locale con **Aggiungi FASTA locale**. Il download facoltativo da UCSC richiede Internet al primo utilizzo e fornisce hg19 o hg38. Controlla che sequenze e nomi dei cromosomi corrispondano al riferimento dei tuoi BAM. [Scelta del riferimento](GUI.md#choose-a-reference-genome)
 - **Stessi parametri su nuovi campioni.** In **Parametri → Salva come profilo**, assegna un nome alle impostazioni. In **Preferenze** puoi sceglierle come valori predefiniti per i nuovi esperimenti. Per riutilizzare anche i file di un esperimento usa **Ripeti**.
 - **Più esperimenti.** Puoi avviare altri esperimenti mentre il primo è in corso. In **Attività** ogni esperimento ha il proprio stato. Uno può rimanere **In attesa** finché si liberano CPU e memoria. Più esperimenti contemporanei possono impiegare più tempo sullo stesso computer.

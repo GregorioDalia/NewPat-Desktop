@@ -9,18 +9,22 @@ Recorded family results exercise prenatal curves, archived postnatal plots and t
 from __future__ import annotations
 
 import argparse
+import base64
 import csv
 from contextlib import ExitStack
 from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
+import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import time
 from threading import Event
 from unittest.mock import patch
+import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "src"), str(ROOT / "tests")]
@@ -42,6 +46,8 @@ class FixturePicker:
 
     def __init__(self):
         self.paths: list[Path] = []
+        self.report_path: Path | None = None
+        self.report_saves = 0
 
     def pick_files(self, _title, _filters, _multiple):
         return self.paths
@@ -50,7 +56,9 @@ class FixturePicker:
         return self.paths[0] if self.paths else None
 
     def save_file(self, _title, _name, _filters):
-        raise AssertionError("This verification does not export files through a native dialog")
+        assert _name.lower().endswith(".pdf"), _name
+        self.report_saves += 1
+        return self.report_path
 
 
 def write_json(path, value):
@@ -303,6 +311,69 @@ def verify_archive_pages(page, probe, service, methods, check):
     old_card.wait_for()
     check(search.input_value() == "sample-00" and page.locator("#archive-marker").input_value() == "SNP",
           "Returning from the result keeps the query, marker and matching old experiment")
+
+
+def verify_long_report_identifiers(page, model, check):
+    model["run_name"] = "E" * 600
+    model["subject"] = "F" * 600
+    for subject in model["subjects"]:
+        subject["value"] = "M" * 600
+    encoded = page.evaluate("model => window.NewPatReports.render(model, 'summary')", model)
+    content = base64.b64decode(encoded, validate=True)
+    check(content.startswith(b"%PDF-"), "Long sample and experiment identifiers produce a valid summary")
+    if shutil.which("pdftotext"):
+        bounds = ET.fromstring(subprocess.check_output(["pdftotext", "-bbox", "-", "-"], input=content))
+        pages = bounds.findall(".//{*}page")
+        check(len(pages) == 1 and abs(float(pages[0].get("width")) - 595.28) < 1
+              and abs(float(pages[0].get("height")) - 841.89) < 1,
+              "Summary with 600-character identifiers still fits one A4 page")
+        words = pages[0].findall(".//{*}word")
+        check(any("abbreviati" in (word.text or "") for word in words)
+              and all(float(word.get("xMax")) <= 558 for word in words),
+              "Summary explains abbreviations and all words stay within the right page margin")
+
+
+def verify_result_reports(page, picker, directory, evidence, check):
+    """Exercise both formats through the Results view, real RPC and a native-dialog fixture."""
+    page.locator('[data-action="choose-report"]').click()
+    case = page.locator("#report-case")
+    check(bool(case.input_value()) and "DNP" in case.locator("option:checked").inner_text(),
+          "The report picker identifies the selected result and marker")
+    dialog = page.get_by_role("dialog", name="Esporta report PDF")
+    chooser = directory / "report-selection.png"
+    dialog.screenshot(path=str(chooser))
+    evidence["screenshots"].append(chooser.name)
+    save = dialog.locator('[data-action="save-report"]')
+    with page.expect_response(lambda response: response.request.method == "POST"
+                              and response.request.post_data_json.get("method") == "reports.prepare") as prepared:
+        save.click()
+    dialog.locator('[data-action="save-report"]:enabled').wait_for()
+    check(picker.report_saves == 1 and dialog.is_visible(),
+          "Cancelling the native PDF destination preserves the selected result and format")
+    evidence["report_exports"] = []
+    for kind in ("summary", "detailed"):
+        if kind == "detailed":
+            page.locator('[data-action="choose-report"]').click()
+        dialog.locator("#report-" + kind).check()
+        path = directory / ("newpat-" + kind + ".pdf")
+        picker.report_path = path
+        save.click()
+        dialog.wait_for(state="detached")
+        content = path.read_bytes()
+        check(content.startswith(b"%PDF-") and b"%%EOF" in content[-1024:],
+              f"Native {kind} export saves a complete PDF")
+        record = {"file": path.name, "size": len(content)}
+        if shutil.which("pdfinfo") and shutil.which("pdftotext"):
+            info = subprocess.check_output(["pdfinfo", str(path)], text=True)
+            record["pages"] = int(re.search(r"(?m)^Pages:\s+(\d+)", info).group(1))
+            text = subprocess.check_output(["pdftotext", str(path), "-"]).decode("utf-8")
+            check("DNP" in text and "CPI" in text and re.search(r"\b10\b", text),
+                  f"The {kind} PDF contains the recorded CPI and marker as selectable text")
+            check(record["pages"] == 1 if kind == "summary" else record["pages"] >= 1,
+                  f"The {kind} PDF has the required page count")
+        evidence["report_exports"].append(record)
+    picker.report_path = None
+    verify_long_report_identifiers(page, prepared.value.json()["result"], check)
 
 
 def run_verification(report_path, executable):
@@ -603,6 +674,7 @@ def run_verification(report_path, executable):
                 page.locator('[data-action="open-run"][data-id="cpin-scalar-ui-fixture"]').click()
                 preview = page.locator('.outcome-preview[data-outcome="postnatal_cpi"]')
                 check(preview.locator("strong").inner_text() == "10", "Trio overview shows its recorded scalar CPI")
+                verify_result_reports(page, picker, report_path.parent, evidence, check)
                 page.locator('[role="tab"][data-module="cpin|DNP"]').click()
                 panel = page.locator('.outcome-panel[data-outcome="postnatal_cpi"]')
                 check(panel.locator('[data-outcome-value]').inner_text() == "10",

@@ -16,6 +16,10 @@ DNPcall and SNPcall now retain reads on supported contigs whose names contain `@
 
 The installation includes an offline synthetic trio with example alignments, indexed reference, panels, frequencies and count tables for both marker types. Choose **Environment and help → Open demo** to review and run a prefilled DNP/SNP experiment with those three samples. Use **Save example data** to copy the dataset to a local folder, then follow its README to check the five analyses on the trio. The separate timing workload runs both callers on a single BAM with 128 loci across four contigs. [First run in Italian](QUICKSTART_IT.md)
 
+### PDF reports for completed results
+
+Results can be saved as a one-page summary or a detailed PDF with the available charts and supporting measurements. Choose the sample or family and the specific analysis, marker and panel. NewPat creates the report locally in Italian or English. [Export a PDF report](GUI.md#export-a-pdf-report)
+
 ## Human reference genomes
 
 BAM experiments and IGV share a local reference catalog. Choose the FASTA used to align the BAMs, with panels in the same coordinates. Register an existing local FASTA or download UCSC hg19 or hg38 if it matches your inputs. The catalog also accepts custom references. The application verifies the downloaded archive and prepares the reference locally for offline reuse. The synthetic datasets include their own reference FASTAs. [Choosing a reference genome](GUI.md#choose-a-reference-genome)

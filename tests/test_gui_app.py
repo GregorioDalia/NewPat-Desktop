@@ -1,5 +1,6 @@
 from pathlib import Path
 from types import SimpleNamespace
+import base64
 import json
 import struct
 from unittest.mock import Mock
@@ -35,6 +36,7 @@ class FakeHost:
 def app(tmp_path):
     host = FakeHost()
     class Store:
+        root = tmp_path / "archive"
         def _run(self, run_id):
             return tmp_path / "run"
         def file_path(self, run_id, file_id):
@@ -56,6 +58,28 @@ def reference(tmp_path):
     fai = tmp_path / "reference.fa.fai"
     fai.write_text("chr1\t4\t6\t4\t5\n")
     return fasta, fai
+
+
+def test_pdf_export_uses_the_native_save_dialog_and_preserves_source(app, tmp_path):
+    pdf = b"%PDF-1.4\nreport\n%%EOF\n"
+    request = {"run_id": "run", "case_id": "a" * 64, "kind": "summary", "language": "en",
+               "data_base64": base64.b64encode(pdf).decode()}
+    assert app.call("reports.save", request) == {"cancelled": True}
+    target = tmp_path / "report.pdf"
+    app.host.save_file = Mock(return_value=target)
+    assert app.call("reports.save", request) == {"path": str(target), "name": "report.pdf"}
+    assert target.read_bytes() == pdf
+    assert app.host.save_file.call_args.args[1].endswith("_aaaaaaaaaaaa_summary.pdf")
+    for invalid in ("wrong!", base64.b64encode(b"%PDF-1.4\ntruncated").decode()):
+        with pytest.raises(ValidationError):
+            app.call("reports.save", {**request, "data_base64": invalid})
+    assert target.read_bytes() == pdf
+    assert app.host.save_file.call_count == 1
+    for protected in (tmp_path / "run/report.pdf", tmp_path / "archive/other/report.pdf", tmp_path / "run.cmd"):
+        app.host.save_file.return_value = protected
+        with pytest.raises(ValidationError):
+            app.call("reports.save", request)
+        assert not protected.exists()
 
 
 @pytest.mark.parametrize("outcome", [True, False, OSError("No browser available")])

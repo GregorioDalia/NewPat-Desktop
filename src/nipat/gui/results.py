@@ -1408,7 +1408,7 @@ class ResultsStore:
                             entry["summary"]["guide_band"] = _reported_cpi_band(
                                 row, guides.get(summary.get("step_id")), key[1], key[0])
                         group["entries"].append(entry)
-                    group["summary_truncated"] = count > _MAX_SUMMARY
+                    group["summary_truncated"] = group.get("summary_truncated", False) or count > _MAX_SUMMARY
                 except (OSError, ValueError) as exc:
                     group["warnings"].append(str(exc))
         return {"run_id": run_id, "modules": list(groups.values()), "warnings": context["warnings"],

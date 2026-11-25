@@ -16,6 +16,7 @@ import threading
 import time
 import uuid
 
+from .host import smoke_probe_script, smoke_ready
 from .windows_host import NativeHostError, allowed_navigation, normalize_filters
 
 PTR = C.c_void_p
@@ -360,10 +361,7 @@ class _Window:
     def _smoke_probe(self):
         self.smoke_requested = True
         c = self.cocoa
-        code = "JSON.stringify({appReady:document.documentElement.dataset.nipatReady==='true'," \
-               "title:document.title,readyState:document.readyState," \
-               "userAgent:navigator.userAgent,bodyText:document.body.innerText.slice(0,2000)," \
-               "width:innerWidth,height:innerHeight})"
+        code = smoke_probe_script()
         block = c.completion_block(self._smoke_done, self.fail)
         c.send(self.webview, "evaluateJavaScript:completionHandler:", None,
                (PTR, PTR), c.string(code), block)
@@ -374,7 +372,7 @@ class _Window:
             message = c.python_string(c.send(error, "localizedDescription"))
             raise NativeHostError("Verifica della finestra macOS non riuscita: " + message)
         data = json.loads(c.python_string(value))
-        if not data.get("appReady"):
+        if not smoke_ready(data):
             self.smoke_requested = False
             return
         if not data.get("bodyText") or not data.get("width") or not data.get("height"):
