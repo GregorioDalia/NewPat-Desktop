@@ -165,17 +165,19 @@ jobs:
       - name: Correctness-focused Python static checks
         run: python -m ruff check src engine scripts installer/linux .github/scripts
       - name: Python unit tests with branch coverage
+        id: python_tests
         run: |
           mkdir -p build/quality
           python -m coverage run -m pytest tests
       - name: Record branch coverage without an arbitrary percentage gate
-        if: always()
+        id: coverage_reports
+        if: ${{ !cancelled() && (steps.python_tests.outcome == 'success' || (steps.python_tests.outcome == 'failure' && hashFiles('.coverage') != '')) }}
         run: |
           python -m coverage json
           python -m coverage xml
           python -m coverage report > build/quality/coverage.txt
       - name: Retain quality baseline and missing branches
-        if: always()
+        if: ${{ !cancelled() && steps.coverage_reports.outcome == 'success' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: nipat-python-quality

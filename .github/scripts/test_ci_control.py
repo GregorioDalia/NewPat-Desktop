@@ -271,6 +271,20 @@ class RequiredGate(unittest.TestCase):
             self.assertNotIn("        if:", smoke_step)
         self.assertIn("needs.changes.outputs.caller_smoke == 'true'", workflow)
 
+    def test_linux_coverage_steps_require_their_producers(self):
+        workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/ci.yml").read_text()
+        linux = workflow.split("\n  linux-checks:\n", 1)[1].split("\n  windows-checks:\n", 1)[0]
+        steps = linux.split("      - name: ")
+        tests, = [step for step in steps if "coverage run -m pytest" in step]
+        reports, = [step for step in steps if "coverage json" in step]
+        upload, = [step for step in steps if "name: nipat-python-quality" in step]
+        self.assertIn("id: python_tests", tests)
+        self.assertIn("id: coverage_reports", reports)
+        self.assertIn("if: ${{ !cancelled() && (steps.python_tests.outcome == 'success' || "
+                      "(steps.python_tests.outcome == 'failure' && hashFiles('.coverage') != '')) }}", reports)
+        self.assertIn("if: ${{ !cancelled() && steps.coverage_reports.outcome == 'success' }}", upload)
+        self.assertIn("if-no-files-found: error", upload)
+
     def test_documentation_selection_does_not_hide_an_unexpected_scientific_result(self):
         results = self.results("false")
         results["scientific"]["result"] = "failure"

@@ -368,6 +368,7 @@ def verify_result_reports(page, picker, directory, evidence, check):
     check(picker.report_saves == 1 and dialog.is_visible(),
           "Cancelling the native PDF destination preserves the selected result and format")
     evidence["report_exports"] = []
+    source = None
     for kind in ("summary", "detailed"):
         if kind == "detailed":
             page.locator('[data-action="choose-report"]').click()
@@ -390,16 +391,12 @@ def verify_result_reports(page, picker, directory, evidence, check):
                 check("DNP" in text and "CPI" in text and re.search(r"\b10\b", text),
                       "Detailed PDF includes the recorded postnatal CPI and marker as selectable text")
                 source = " ".join(text.partition("Origine dei dati")[2].split())
-                page.get_by_role("tab", name="CPI postnatale", exact=True).click()
-                entry = page.locator("#result-entry option:checked").text_content()
-                check("Esperimenti e risultati" in source and "CPI postnatale" in source and entry in source
-                      and "Summary_Postnatal_CPI.txt" not in source and "Riferimento risultato" not in source,
-                      "Data sources identifies the actual archive tab and family option in operator language")
             check(record["pages"] == 1 if kind == "summary" else record["pages"] >= 1,
                   f"The {kind} PDF has the required page count")
         evidence["report_exports"].append(record)
     picker.report_path = None
     verify_long_report_identifiers(page, prepared.value.json()["result"]["results"][0], check)
+    return source
 
 
 def verify_grouped_reports(page, picker, directory, evidence, check):
@@ -748,16 +745,22 @@ def run_verification(report_path, executable):
                 page.locator('[data-action="open-run"][data-id="cpin-scalar-ui-fixture"]').click()
                 preview = page.locator('.outcome-preview[data-outcome="postnatal_cpi"]')
                 check(preview.locator("strong").inner_text() == "10", "Trio overview shows its recorded scalar CPI")
-                verify_result_reports(page, picker, report_path.parent, evidence, check)
-                page.locator('[role="tab"][data-module="cpin|DNP"]').click()
+                source = verify_result_reports(page, picker, report_path.parent, evidence, check)
+                page.get_by_role("tab", name="CPI postnatale", exact=True).click()
+                site_rows = page.locator(".result-table tbody tr")
+                site_rows.nth(1).get_by_role("cell", name="Filtro di qualità non superato", exact=True).wait_for()
+                if source is not None:
+                    entry = page.locator("#result-entry option:checked").text_content()
+                    check("Esperimenti e risultati" in source and "CPI postnatale" in source and entry in source
+                          and "Summary_Postnatal_CPI.txt" not in source and "Riferimento risultato" not in source,
+                          "Data sources identifies the actual archive tab and family option in operator language")
                 panel = page.locator('.outcome-panel[data-outcome="postnatal_cpi"]')
                 check(panel.locator('[data-outcome-value]').inner_text() == "10",
                       "Selected trio shows its raw CPI even when the log index is on a guide")
                 check(panel.locator('[data-band="at_upper"]').is_visible(),
                       "Postnatal log index equals the recorded upper guide for this experiment")
-                page.wait_for_selector('.result-table tbody tr')
-                check(page.locator('.result-table tbody tr').count() == 2 and
-                      page.locator('.interactive-curve').count() == 0,
+                check(site_rows.count() == 2 and site_rows.first.get_by_role("cell", name="Ammissibile", exact=True).is_visible()
+                      and page.locator('.interactive-curve').count() == 0,
                       "New postnatal output displays the eligible and excluded sites without a threshold curve")
                 check(probe.evaluate("NipatApp.state.table.rows.map(r=>r.Status)") == ["eligible", "quality_filter"],
                       "Displayed site audit preserves the included site and exclusion reason")
