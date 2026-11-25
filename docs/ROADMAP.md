@@ -25,3 +25,9 @@ The current CPI display highlights the reported log index against two numeric li
 Scientific reference implementations, analytical test cases and domain review serve different purposes. Record which comparison you performed and the evidence it supports. For an issue, include the software version, platform, expected behavior, observed behavior and the smallest input that reproduces it. The package acceptance process records which checks ran on an installer and which observations came from a physical device.
 
 [Scientific components](../scientific/README.md) · [Technical and domain validation](VALIDATION.md) · [Performance measurements](PERFORMANCE.md) · [Installer acceptance](INSTALLER_ACCEPTANCE.md)
+
+## Release requirement for 0.9.99: NewPat throughout the project
+
+Use NewPat consistently throughout the maintained project, including package names, imports, command names, configuration keys, environment variables, runtime paths, installers, tests and build workflows. Reorganize directories by responsibility and give them descriptive English names so a reader can locate the desktop interface, experiment management, scientific input preparation and analysis code directly. Update the [code guide](CODE_GUIDE.md) to match the delivered layout.
+
+Before release, search tracked file names, directory names and text case-insensitively for the former product name (NIPAT). Repeat the check on the installed file tree and generated package metadata. Resolve every occurrence in maintained code and delivery files. Verify a clean install and an upgrade from 0.9.10, including reopening an existing experiment and running an analysis, on each supported platform.
