@@ -1,5 +1,6 @@
-"""Keep package assertions strict for allele-bearing and coordinate-only panels."""
+"""Check the packaged prenatal CPI summary and staged marker panels."""
 
+import csv
 import importlib.util
 from pathlib import Path
 import sys
@@ -31,6 +32,33 @@ class CpiPackageStagingTests(unittest.TestCase):
 
     def check(self, *, include_alleles):
         self.helper.check_staging(self.root, {}, {"DNPpanel.txt": ((100, 200), include_alleles)})
+
+    def test_default_summary_records_inactive_percent_filter_with_and_without_a_panel(self):
+        pair = "MotherM-FatherF_DNPs"
+        plots = self.root / "output/plots"
+        plots.mkdir(parents=True)
+        for name in ("All_CPIplots.pdf", f"{pair}_CPIplot.pdf"):
+            (plots / name).write_bytes(b"%PDF-")
+        summary = self.root / "output/Summary_FetalFraction_CPI.csv"
+        for panel in (None, "Full"):
+            expected = {(pair, panel): self.helper.NO_SITES}
+            for percentage in ("NA", "0", None):
+                with self.subTest(panel=panel, percentage=percentage):
+                    row = {"Pair": pair, **self.helper.NO_SITES, "Marker_type": "DNP",
+                           "Error_constant": self.helper.DEFAULT_ERR_CONST, "Min_fetal_reads": 2}
+                    if panel is not None:
+                        row["Cutoff"] = panel
+                    if percentage is not None:
+                        row["Min_fetal_percent"] = percentage
+                    with summary.open("w", encoding="utf-8", newline="") as handle:
+                        writer = csv.DictWriter(handle, fieldnames=row)
+                        writer.writeheader()
+                        writer.writerow(row)
+                    if percentage == "NA":
+                        self.helper.check_summary(self.root, expected)
+                    else:
+                        with self.assertRaisesRegex(ValueError, "columns|Min_fetal_percent"):
+                            self.helper.check_summary(self.root, expected)
 
     def test_allele_bearing_output_preserves_schema_coordinates_and_alleles(self):
         records = read_position_panel(PROJECT / "tests/fixtures/cpi/DNP_list.txt")[:2]

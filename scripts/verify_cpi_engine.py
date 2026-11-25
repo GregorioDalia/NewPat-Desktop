@@ -43,7 +43,8 @@ def summary_rows(run: Path) -> tuple[list[str], list[dict[str, str]]]:
 def check_summary(run: Path, expected: dict[tuple[str, str | None], dict]) -> None:
     fields, rows = summary_rows(run)
     with_cutoff = any(label is not None for _, label in expected)
-    expected_fields = {"Pair", *EXPECTED_INFORMATIVE, "Error_constant", "Min_fetal_reads", "Marker_type"}
+    expected_fields = {"Pair", *EXPECTED_INFORMATIVE, "Error_constant", "Min_fetal_reads",
+                       "Min_fetal_percent", "Marker_type"}
     if with_cutoff:
         expected_fields.add("Cutoff")
     keys = [(row.get("Pair"), row.get("Cutoff")) for row in rows]
@@ -53,6 +54,8 @@ def check_summary(run: Path, expected: dict[tuple[str, str | None], dict]) -> No
         if row["Marker_type"] != "DNP":
             raise ValueError(f"Unexpected marker metadata in {run}: {row}.")
         check_number(row, "Min_fetal_reads", 2)
+        if row["Min_fetal_percent"] != "NA":
+            raise ValueError(f"{run}/{key}/Min_fetal_percent: expected NA, got {row['Min_fetal_percent']!r}.")
         check_number(row, "Error_constant", float(expected[key].get("Error_constant", DEFAULT_ERR_CONST)))
         for field, wanted in expected[key].items():
             if wanted == "NA":

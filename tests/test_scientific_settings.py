@@ -81,7 +81,7 @@ class ScientificSettingsTests(unittest.TestCase):
             root = Path(directory)
             with self.assertRaisesRegex(RuntimeError, "test"):
                 with settings_context("cpin", {"min_coverage": 5}, root / "outer") as value:
-                    saved = json.loads((root / "outer/effective-scientific-settings.json").read_text())
+                    saved = json.loads((root / "outer/effective-scientific-settings.json").read_text(encoding="utf-8"))
                     self.assertEqual(saved["parameters"], value)
                     self.assertEqual(saved["constants"], describe_settings("cpin")["constants"])
                     self.assertEqual(settings_from_environment("cpin")["min_coverage"], 5)
@@ -139,20 +139,20 @@ class ScientificSettingsTests(unittest.TestCase):
             work = Path(directory) / "work"
             with settings_context("cpi", {"min_fetal_reads": 1}, work):
                 target = work / "effective-scientific-settings.json"
-                original = target.read_text()
+                original = target.read_text(encoding="utf-8")
             for mutation in (lambda doc: doc.update(schema_version=True),
                              lambda doc: doc["parameters"].update(min_fetal_reads=True),
                              lambda doc: doc["parameters"].pop("min_fetal_reads"),
                              lambda doc: doc["constants"]["homozygous_transmission"].update(value=True)):
                 document = json.loads(original)
                 mutation(document)
-                target.write_text(json.dumps(document))
+                target.write_text(json.dumps(document), encoding="utf-8")
                 with self.assertRaises(ValidationError), settings_context("cpi", {"min_fetal_reads": 1}, work):
                     pass
                 with patch.dict(os.environ, {"NIPAT_SCIENTIFIC_SETTINGS": str(target)}):
                     with self.assertRaises(ValidationError):
                         settings_from_environment("cpi")
-                self.assertEqual(json.loads(target.read_text()), document)
+                self.assertEqual(json.loads(target.read_text(encoding="utf-8")), document)
 
     def test_existing_pileup_warns_about_unapplied_acquisition_overrides(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -167,7 +167,7 @@ class ScientificSettingsTests(unittest.TestCase):
                        "scientific_settings": {"min_base_quality": 25, "other_fraction_max": .2}}
             with redirect_stdout(io.StringIO()):
                 self.assertIsNone(prepare_snp(request).preparation_command)
-            warning = json.loads((root / "work/input-validation.json").read_text())["warnings"][0]
+            warning = json.loads((root / "work/input-validation.json").read_text(encoding="utf-8"))["warnings"][0]
             self.assertEqual(warning["code"], "input.existing_pileup_acquisition_settings")
             self.assertIn("min_base_quality", warning["message"])
             self.assertNotIn("other_fraction_max", warning["message"])
@@ -199,8 +199,8 @@ class ScientificSettingsTests(unittest.TestCase):
             with settings_context("cpi", {}, root / "work"):
                 subprocess.run(["Rscript", "-e", expression, str(helper), str(root / "output")],
                                capture_output=True, text=True, check=True)
-            original = json.loads((root / "work/effective-scientific-settings.json").read_text())
-            native = json.loads((root / "output/scientific-settings.json").read_text())
+            original = json.loads((root / "work/effective-scientific-settings.json").read_text(encoding="utf-8"))
+            native = json.loads((root / "output/scientific-settings.json").read_text(encoding="utf-8"))
             self.assertEqual(original["parameters"]["min_fetal_reads"], 2)
             self.assertEqual(native["parameters"]["min_fetal_reads"], 7)
             self.assertEqual(native["constants"], original["constants"])

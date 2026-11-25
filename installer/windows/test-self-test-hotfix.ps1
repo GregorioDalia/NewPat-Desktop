@@ -92,9 +92,9 @@ function Invoke-Hotfix([string] $App) {
     } finally { $process.Dispose() }
 }
 try {
-    $fixed = [IO.File]::ReadAllText((Join-Path $project 'scripts\verify_cpin_update.py')).Replace("`r`n", "`n")
-    $insertion = "# Embedded Python excludes the script directory from its default search path.`nsys.path.insert(0, str(Path(__file__).resolve().parent))`n`n"
-    $original = $fixed.Replace($insertion, '')
+    # The pinned installer recovery applies to the original v0.8.50 verifier.
+    $fixture = Join-Path $project 'tests\fixtures\windows_hotfix_0850\verify_cpin_update.py.txt'
+    $original = [IO.File]::ReadAllText($fixture, [Text.Encoding]::UTF8).Replace("`r`n", "`n")
     $fakePython = Join-Path $temporary 'python.exe'
     $source = Join-Path $temporary 'client.cs'
     Write-TestFile $source @'
