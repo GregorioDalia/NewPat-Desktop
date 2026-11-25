@@ -19,16 +19,15 @@ def request_at(root):
             "work_dir": str(root / "work"), "out_dir": str(root / "output")}
 
 
-def test_fetal_sex_plan_requires_two_dnp_tables_and_one_snp_table(tmp_path):
-    request = request_at(tmp_path)
+def test_fetal_sex_plan_requires_two_dnp_tables_and_one_snp_table():
     plan = {"schema_version": 1, "samples": [
-        {"id": key, "kind": "snp-table" if key == "y" else "dnp-table", "path": request[key]}
+        {"id": key, "kind": "snp-table" if key == "y" else "dnp-table", "path": f"/workspace/inputs/{key}.txt"}
         for key in ROLES], "steps": [{"id": "classification", "workflow": "fetal-sex",
                                      "inputs": {key: key for key in ROLES}, "parameters": {}}]}
     result = validate_plan(plan)
     assert result["plan"]["steps"] == plan["steps"]
     plan["steps"][0]["inputs"]["y"] = "autosomes"
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError, match="expected snp-table, got dnp-table"):
         validate_plan(plan)
 
 
