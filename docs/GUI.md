@@ -45,12 +45,13 @@ In **Experiments and results**, search by experiment name, status or marker type
 
 ### Export a PDF report
 
-Open an experiment, choose **Export PDF report** and select the result. Each choice identifies the analysis and the sample, pair or trio. The marker type and prenatal panel distinguish results from the same family. Both formats use the values saved by that analysis and the current interface language.
+Open an experiment and choose **Export PDF report**. Select the results to include by analysis, sample or family, marker and panel. NewPat appends each selection to one PDF in the order shown. Five selected results produce five separate summary pages in the same file.
 
-- **Summary report** fits on one A4 page. It identifies the samples being compared, gives the result in plain language and shows the main measurements.
-- **Detailed report** includes the underlying measurements, available charts, source information and relevant table excerpts. Use the original tables for all rows.
+- **Summary report** gives each selected result one A4 page, identifies its samples and explains the outcome in everyday language.
+- **Detailed report** starts each result on a fresh page and includes its recorded measurements, available graphs and source table excerpts. Each section takes the pages it needs. When NewPat can link an informative site to the archived marker, original BAM tracks and reference, the section can also include a local IGV view with genomic coordinates. Output tables alone cannot reconstruct aligned reads. Original tables in the archive contain all rows.
+- **Summary and details** places each result’s summary immediately before its detailed section.
 
-Choose **Save PDF** to save a local copy. No internet connection or new analysis is required. For CPI, the report compares the stored index with the limits recorded for that result when available. A missing estimate is identified explicitly.
+Choose **Save PDF** once. Reports use the local archive and the current interface language. The detailed CPI report retains the recorded index and the reference limits available for the run. The summary distinguishes evidence in favour of or against paternity, an inconclusive comparison and information missing from the archive. Genotype and contamination analyses report their own measurements.
 
 Use **Open existing results** to add an existing run folder to the archive. NewPat records its location. **Remove from list** hides the entry and leaves its files on disk. You can register that folder again.
 

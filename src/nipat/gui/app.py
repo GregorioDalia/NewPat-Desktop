@@ -4,6 +4,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 import base64
 import binascii
+import io
 import json
 import logging
 import os
@@ -40,7 +41,7 @@ class DesktopApplication:
     def __init__(self, layout=None, *, host=None, service=None, assets=None):
         self.host = host or native_host()
         self.service = service or GuiService(layout)
-        self.server = DesktopServer(self.call, assets=assets)
+        self.server = DesktopServer(self.call, assets=assets, pdf_export=self.save_report_stream)
         self.reference_downloads = ReferenceDownloads(lambda language: self.service.reference_catalog(language))
 
     def dialog(self, params):
@@ -109,21 +110,30 @@ class DesktopApplication:
         return report_case_options(self.service._results(), params["run_id"])
 
     def prepare_report(self, params):
-        from .analysis_report import build_report
+        from .report_bundle import build_bundle, selected_ids
 
         kind = params.get("kind")
-        if kind not in ("summary", "detailed"):
+        if kind not in ("summary", "detailed", "combined"):
             raise ValidationError("Unknown report format.")
-        return build_report(self.service._results(), params["run_id"], params["case_id"],
-                            detailed=kind == "detailed")
+        store = self.service._results()
+        ids = selected_ids(params, store.language == "en")
+        bundle = build_bundle(store, params["run_id"], ids, kind)
+        return bundle if "case_ids" in params or kind == "combined" else bundle["results"][0]
+
+    def report_igv(self, params):
+        from .report_bundle import selected_ids
+        from .report_igv import report_igv_views
+
+        store = self.service._results()
+        case_ids = selected_ids(params, store.language == "en")
+        views = report_igv_views(store, params["run_id"], case_ids, self.server.register)
+        return {"views": views} if "case_ids" in params else views[case_ids[0]]
 
     def save_report(self, params):
+        from .report_bundle import selected_ids
+
         english = params.get("language") == "en"
-        run_id, case_id, kind = params["run_id"], params["case_id"], params["kind"]
-        if not isinstance(case_id, str) or not re.fullmatch(r"[0-9a-f]{64}", case_id) or kind not in ("summary", "detailed"):
-            raise ValidationError("Invalid report selection." if english else "Selezione del rapporto non valida.")
-        store = self.service._results()
-        run = store._run(run_id)
+        ids = selected_ids(params, english)
         encoded = params.get("data_base64")
         invalid = "The PDF is incomplete." if english else "Il PDF è incompleto."
         if not isinstance(encoded, str) or len(encoded) > MAX_RPC_BYTES - 4096:
@@ -132,10 +142,28 @@ class DesktopApplication:
             content = base64.b64decode(encoded, validate=True)
         except (ValueError, binascii.Error) as error:
             raise ValidationError(invalid) from error
-        if not content.startswith(b"%PDF-") or not content.rstrip().endswith(b"%%EOF"):
-            raise ValidationError(invalid)
+        selection = ids[0] if len(ids) == 1 else "combined"
+        return self.save_report_stream({**params, "selection": selection}, io.BytesIO(content))
+
+    def save_report_stream(self, params, stream):
+        """Save one complete PDF. Large requests arrive spooled to disk by the transport."""
+        english = params.get("language") == "en"
+        run_id, selection, kind = params["run_id"], params["selection"], params["kind"]
+        if (kind not in ("summary", "detailed", "combined") or not isinstance(selection, str)
+                or (selection != "combined" and not re.fullmatch(r"[0-9a-f]{64}", selection))):
+            raise ValidationError("Invalid report selection." if english else "Selezione del rapporto non valida.")
+        store = self.service._results()
+        run = store._run(run_id)
+        size = stream.seek(0, os.SEEK_END)
+        stream.seek(max(0, size - 1024))
+        has_end = stream.read().rstrip().endswith(b"%%EOF")
+        stream.seek(0)
+        if not has_end or stream.read(5) != b"%PDF-":
+            raise ValidationError("The PDF is incomplete." if english else "Il PDF è incompleto.")
+        stream.seek(0)
         run_label = re.sub(r"[^\w.-]+", "_", run_id)[:64]
-        filename = f"NewPat_{run_label}_{case_id[:12]}_{kind}.pdf"
+        scope = selection[:12] if selection != "combined" else "selected"
+        filename = f"NewPat_{run_label}_{scope}_{kind}.pdf"
         title = "Save the analysis report" if english else "Salva il rapporto di analisi"
         choice = self.host.save_file(title, filename, [{"name": "PDF", "extensions": ["pdf"]}])
         if not choice:
@@ -148,7 +176,8 @@ class DesktopApplication:
             raise ValidationError("Save the report outside the experiment archive." if english else
                                   "Salva il rapporto fuori dall’archivio degli esperimenti.")
         with _export_destination(destination) as temporary:
-            temporary.write_bytes(content)
+            with temporary.open("wb") as output:
+                shutil.copyfileobj(stream, output, length=256 * 1024)
         return {"path": str(destination), "name": destination.name}
 
     def save_examples(self, params):
@@ -280,7 +309,7 @@ class DesktopApplication:
                      "files.url": self.file_url, "files.open": self.file_url, "files.export": self.export_file,
                      "runs.export": self.export_run, "igv.prepare": self.prepare_igv,
                      "reports.cases": self.report_cases, "reports.prepare": self.prepare_report,
-                     "reports.save": self.save_report,
+                     "reports.save": self.save_report, "reports.igv": self.report_igv,
                      "runs.open_directory": self.open_run_directory,
                      "diagnostics.export": self.export_diagnostics, "examples.save": self.save_examples,
                      "examples.demo": self.open_demo,

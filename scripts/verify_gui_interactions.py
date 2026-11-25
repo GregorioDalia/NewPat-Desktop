@@ -39,6 +39,9 @@ from nipat.gui.service import GuiService
 from nipat.paths import ProjectLayout
 from nipat.preferences import PreferencesStore
 from test_gui_igv import create_alignment_fixture
+from test_gui_report_igv_capture import verify_report_igv_capture
+from test_workflow_five_modules import plan_for
+from nipat_scientific.plan import validate_plan
 
 
 class FixturePicker:
@@ -163,6 +166,19 @@ def prepare_fixture(directory):
     output.parent.mkdir(parents=True)
     output.write_text("chr\tpos1\tpos2\tGT\ttotal_count\n1\t151\t152\t0/1\t20\n", encoding="utf-8")
     preserved = list(data.iterdir()) + [run / "run.json", run / "gui.json", output] + prepare_cpi_fixtures(layout)
+    plan = validate_plan(plan_for("DNP", called=False))["plan"]
+    grouped = layout.runs_dir / "grouped-ui-fixture"
+    steps = [{"id": step["id"], "workflow": step["workflow"]} for step in plan["steps"]]
+    write_json(grouped / "run.json", {"schema_version": 1, "workflow": "analysis", "status": "succeeded",
+               "run_name": "Grouped DNP", "parameters": {"plan": plan, "expected_steps": steps,
+               "sample_mapping": [{"sample_id": s["id"], "container_path": s["path"], "original_path": s["id"] + ".tsv"}
+                                  for s in plan["samples"]]}})
+    workflow = grouped / "output/workflow"
+    for step, source in (("prenatal", "cpi-curve-ui-fixture"), ("postnatal", "cpin-scalar-ui-fixture")):
+        shutil.copytree(layout.runs_dir / source / "output", workflow / "steps" / step / "output")
+    write_json(workflow / "workflow-state.json", {"schema_version": 1, "status": "succeeded",
+               "interface": "workflow-plan-execution-v2", "steps": [{**step, "status": "succeeded", "artifacts": {}} for step in steps]})
+    preserved.extend(path for path in grouped.rglob("*") if path.is_file())
     return service, job, selection, run, preserved
 
 
@@ -336,8 +352,9 @@ def verify_long_report_identifiers(page, model, check):
 def verify_result_reports(page, picker, directory, evidence, check):
     """Exercise both formats through the Results view, real RPC and a native-dialog fixture."""
     page.locator('[data-action="choose-report"]').click()
-    case = page.locator("#report-case")
-    check(bool(case.input_value()) and "DNP" in case.locator("option:checked").inner_text(),
+    case = page.locator('input[name="report-case"]:checked')
+    case.first.wait_for()
+    check(case.count() == 1 and "DNP" in case.locator("xpath=ancestor::fieldset[1]/legend").inner_text(),
           "The report picker identifies the selected result and marker")
     dialog = page.get_by_role("dialog", name="Esporta report PDF")
     chooser = directory / "report-selection.png"
@@ -367,13 +384,64 @@ def verify_result_reports(page, picker, directory, evidence, check):
             info = subprocess.check_output(["pdfinfo", str(path)], text=True)
             record["pages"] = int(re.search(r"(?m)^Pages:\s+(\d+)", info).group(1))
             text = subprocess.check_output(["pdftotext", str(path), "-"]).decode("utf-8")
-            check("DNP" in text and "CPI" in text and re.search(r"\b10\b", text),
-                  f"The {kind} PDF contains the recorded CPI and marker as selectable text")
+            if kind == "summary":
+                check("Esito inconcludente" in text, "Summary explains the inconclusive boundary result in plain language")
+            else:
+                check("DNP" in text and "CPI" in text and re.search(r"\b10\b", text),
+                      "Detailed PDF includes the recorded postnatal CPI and marker as selectable text")
             check(record["pages"] == 1 if kind == "summary" else record["pages"] >= 1,
                   f"The {kind} PDF has the required page count")
         evidence["report_exports"].append(record)
     picker.report_path = None
-    verify_long_report_identifiers(page, prepared.value.json()["result"], check)
+    verify_long_report_identifiers(page, prepared.value.json()["result"]["results"][0], check)
+
+
+def verify_grouped_reports(page, picker, directory, evidence, check):
+    page.locator('nav [data-view="archive"]').click()
+    page.locator('[data-action="open-run"][data-id="grouped-ui-fixture"]').click()
+    dialog = page.get_by_role("dialog", name="Esporta report PDF")
+    for kind in ("summary", "detailed", "combined"):
+        page.locator('[data-action="choose-report"]').click()
+        boxes = dialog.locator('input[name="report-case"]')
+        boxes.first.wait_for()
+        check(boxes.count() == 2 and all(box.is_checked() for box in boxes.all()),
+              f"The {kind} batch selection includes both prenatal and postnatal modules")
+        if kind == "summary":
+            dialog.get_by_text("Deseleziona tutti", exact=True).click()
+            dialog.locator('[data-action="save-report"]').click()
+            dialog.get_by_text("Seleziona almeno un risultato.", exact=True).wait_for()
+            dialog.get_by_text("Seleziona tutti", exact=True).click()
+            path = directory / "report-selections.png"
+            dialog.screenshot(path=str(path))
+            evidence["screenshots"].append(path.name)
+        dialog.locator("#report-" + kind).check()
+        before = picker.report_saves
+        target = directory / f"newpat-multiple-{kind}.pdf"
+        picker.report_path = target
+        with page.expect_response(lambda response: response.request.method == "POST"
+                                  and response.request.post_data_json.get("method") == "reports.prepare") as prepared:
+            dialog.locator('[data-action="save-report"]').click()
+        dialog.wait_for(state="detached")
+        check(target.read_bytes().startswith(b"%PDF-") and picker.report_saves == before + 1,
+              f"Two selected modules produce one {kind} file and one native save dialog")
+        record = {"file": target.name, "size": target.stat().st_size, "results": 2}
+        if shutil.which("pdftotext"):
+            pages = subprocess.check_output(["pdftotext", str(target), "-"]).decode().rstrip("\f\n").split("\f")
+            models = prepared.value.json()["result"]["results"]
+            modules = [model["module"] for model in models]
+            check(len(set(modules)) == 2 and all(module in "\n".join(pages) for module in modules),
+                  f"Both selected modules remain individually identifiable in the {kind} PDF")
+            if kind == "summary":
+                check(len(pages) == 2 and all(modules[i] in pages[i] for i in range(2)),
+                      "Each selected result gets its own single summary page in selection order")
+            elif kind == "combined":
+                for module in modules:
+                    sections = [p for p in pages if module in p]
+                    check(len(sections) >= 2 and "Sintesi" in sections[0],
+                          f"The {module} summary is followed by its own detailed section")
+            record["pages"] = len(pages)
+        evidence["report_exports"].append(record)
+    picker.report_path = None
 
 
 def run_verification(report_path, executable):
@@ -720,6 +788,8 @@ def run_verification(report_path, executable):
                 page.locator('[data-action="confirm-remove-run"]').click()
                 page.locator('[data-action="open-run"][data-id="archived-ui-fixture"]').wait_for(state="detached")
                 check(archived.is_dir() and digest_files(preserved) == before, "Remove from list preserves every source, index, result and metadata byte")
+                verify_grouped_reports(page, picker, report_path.parent, evidence, check)
+                verify_report_igv_capture(page, app, check)
                 verify_archive_pages(page, probe, service, methods, check)
                 check(not evidence["external_requests"], "All browser resources and genomic byte ranges stay on the local service")
                 check(not evidence["errors"], "No JavaScript exceptions or unexpected browser console errors")

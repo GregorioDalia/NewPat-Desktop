@@ -36,7 +36,7 @@ Nella cartella `synthetic-trio`, il `README.md` spiega come provare anche **Cont
 
 ## Per gli esperimenti successivi
 
-Per condividere un risultato, apri l’esperimento e scegli **Esporta report PDF**. Seleziona il campione o la famiglia, controlla marcatori e pannello, poi scegli **Report sintetico** per una pagina A4 oppure **Report dettagliato** per consultare anche grafici e dati di supporto. Premi **Salva PDF**. Entrambi i documenti usano i risultati già presenti sul PC.
+Per esportare i risultati, apri l’esperimento e scegli **Esporta report PDF**. Spunta le analisi da includere e controlla campione o famiglia, marcatori e pannello. Con **Report sintetico** ogni risultato ha una pagina propria. Con **Report dettagliato** ogni risultato inizia su una nuova pagina, con lo spazio necessario per grafici e tabelle. **Sintesi e dettagli** inserisce ogni sintesi subito prima dei relativi dettagli. Premi **Salva PDF** una volta. Ad esempio, selezionando DNP, contaminazione e CPI prenatale ottieni un unico PDF con tre sintesi consecutive.
 
 - **Riferimento.** Per BAM allineati a un genoma umano puoi registrare il FASTA locale con **Aggiungi FASTA locale**. Il download facoltativo da UCSC richiede Internet al primo utilizzo e fornisce hg19 o hg38. Controlla che sequenze e nomi dei cromosomi corrispondano al riferimento dei tuoi BAM. [Scelta del riferimento](GUI.md#choose-a-reference-genome)
 - **Stessi parametri su nuovi campioni.** In **Parametri → Salva come profilo**, assegna un nome alle impostazioni. In **Preferenze** puoi sceglierle come valori predefiniti per i nuovi esperimenti. Per riutilizzare anche i file di un esperimento usa **Ripeti**.

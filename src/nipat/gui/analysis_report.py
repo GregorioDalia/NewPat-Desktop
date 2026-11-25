@@ -8,18 +8,12 @@ import json
 import math
 from pathlib import PurePosixPath, PureWindowsPath
 
-from nipat.gui.results import FIELDS, MISSING, column_description
+from nipat.gui.report_charts import detail_charts, site_label
+from nipat.gui.results import FIELDS, MISSING, _signature, column_description
 
 
 _PREVIEW_ROWS = 8
 _MAX_CURVE_POINTS = 120
-_GUIDE_TEXT = {
-    "below": ("Il risultato è sotto il limite inferiore", "The result is below the lower limit"),
-    "at_lower": ("Il risultato coincide con il limite inferiore", "The result matches the lower limit"),
-    "between": ("Il risultato rientra nella fascia intermedia", "The result falls within the middle range"),
-    "at_upper": ("Il risultato coincide con il limite superiore", "The result matches the upper limit"),
-    "above": ("Il risultato supera il limite superiore", "The result is above the upper limit"),
-}
 
 
 def _text(language, it, en):
@@ -158,37 +152,75 @@ def _outcome(entry, module, language, *, concise):
         supports = {"cpi": ("N_sites_mother", "N_sites_father"), "cpin": ("N_sites",),
                     "contamination": ("informative_sites",)}.get(module, ())
         if any(_number(measures[k]["value"]) == 0 for k in supports):
-            return t("Risultato non disponibile", "Result unavailable"), t(
+            return "nonassessable", t("Risultato non disponibile", "Result unavailable"), t(
                 "Il numero di siti utilizzabili è insufficiente per questo confronto.",
                 "There are insufficient usable sites for this analysis.")
-        return t("Risultato non disponibile", "Result unavailable"), t(
+        return "nonassessable", t("Risultato non disponibile", "Result unavailable"), t(
             "I dati registrati per questa analisi non permettono di riportare una stima utilizzabile.",
             "The data recorded for this analysis do not provide a usable estimate.")
     if primary == "assigned":
         total = measures["site_count"]["value"]
-        return t(f"Genotipo determinato in {value} siti su {total}", f"Genotype determined at {value} of {total} sites"), t(
+        return "descriptive", t(f"Genotipo determinato in {value} siti su {total}", f"Genotype determined at {value} of {total} sites"), t(
             "Il genotipo descrive la combinazione di alleli osservata nel campione in una posizione del DNA.",
             "The genotype describes the combination of alleles observed in the sample at a position in its DNA.")
     if primary == "mean_contamination":
-        return t(f"Contaminazione media stimata: {value}", f"Estimated mean contamination: {value}"), t(
+        return "descriptive", t(f"Contaminazione media stimata: {value}", f"Estimated mean contamination: {value}"), t(
             "La stima si basa sulle letture inattese nei siti informativi del campione.",
             "The estimate uses unexpected reads at informative sites in this sample.")
     band = summary.get("guide_band")
-    if band:
-        explanation = (t("NewPat ha confrontato i marcatori del DNA fetale nel campione materno con quelli del presunto padre. ",
-                         "NewPat compared fetal DNA markers in the maternal sample with those of the alleged father. ") if module == "cpi" else
-                       t("NewPat ha confrontato i marcatori genetici della madre, del figlio e del presunto padre. ",
-                         "NewPat compared genetic markers from the mother, child and alleged father. "))
+    if not band:
+        return "nonassessable", t("Conclusione sulla paternità non disponibile", "Paternity conclusion unavailable"), t(
+            "NewPat ha calcolato un indice per questi campioni. Il risultato archiviato non fornisce i dati necessari per classificarlo.",
+            "NewPat calculated an index for these samples. The archived result lacks the information needed to classify it.")
+    position = band["position"]
+    log_value = Decimal(measures["CPI_medianFF" if module == "cpi" else "Log10_CPI"]["value"])
+    inconclusive = t("Esito inconcludente", "Inconclusive result")
+    plain_inconclusive = t("Per i campioni analizzati, il confronto del DNA non permette di confermare o escludere "
+                        "che l’uomo esaminato sia il padre.",
+                        "For these samples, the DNA comparison does not establish or rule out that the tested man is the father.")
+    # Prenatal reference lines are plot guides. Even outside them, the sign of
+    # the likelihood ratio can describe relative evidence, never prove parentage.
+    if position in {"at_lower", "at_upper"}:
+        category, title = "inconclusive", inconclusive
+        if concise:
+            explanation = plain_inconclusive
+        elif module == "cpi":
+            explanation = t("Il valore prenatale arrotondato coincide con un limite del grafico. "
+                            "Da questo valore non si può stabilire una conclusione sulla paternità.",
+                            "The rounded prenatal value falls on a plot boundary. "
+                            "This value does not settle the question of paternity.")
+        else:
+            explanation = t("Il risultato coincide con un limite della fascia inconcludente di questa analisi. "
+                            "Il confronto non permette di confermare o escludere la paternità.",
+                            "The result falls on the boundary of the inconclusive range for this analysis. "
+                            "It neither establishes nor excludes paternity.")
+    elif position == "between":
+        category, title = "inconclusive", inconclusive
+        explanation = plain_inconclusive
+    elif position == "above" and log_value > 0:
+        category, title = "favorable", t("Il confronto favorisce l’ipotesi di paternità", "The comparison favors paternity")
+        explanation = t("I dati genetici osservati sono più probabili se l’uomo esaminato è il padre che se il padre "
+                        "è un altro uomo non imparentato.", "The genetic findings are more likely if the tested man "
+                        "is the father than if another, unrelated man is the father.")
+    elif position == "below" and log_value < 0:
+        category, title = "unfavorable", t("Il confronto sfavorisce l’ipotesi di paternità", "The comparison weighs against paternity")
+        explanation = t("I dati genetici osservati sono più probabili se il padre è un altro uomo non imparentato "
+                        "che se l’uomo esaminato è il padre.", "The genetic findings are more likely if another, "
+                        "unrelated man is the father than if the tested man is the father.")
+    else:
+        # Valid user-defined guides may lie on the same side of zero. A
+        # negative log index can never favor paternity merely because it lies
+        # above a negative upper guide (and conversely for a positive one).
+        category, title = "inconclusive", inconclusive
+        explanation = plain_inconclusive if concise else t("Con i limiti scelti per questa analisi, il confronto non consente una conclusione sulla paternità.",
+                        "With the limits chosen for this analysis, the comparison does not settle the question of paternity.")
+    if not concise:
         low = _display(band["lower"], {}, language)
         high = _display(band["upper"], {}, language)
-        explanation += t(f"La fascia intermedia va da {low} a {high} sulla scala logaritmica dell’indice.",
-                         f"The middle range runs from {low} to {high} on the logarithmic index scale.")
-        if module == "cpi" and band["position"] in {"at_lower", "at_upper"}:
-            explanation += t(" Il confronto usa il valore arrotondato dal motore.", " The comparison uses the value rounded by the engine.")
-        return t(*_GUIDE_TEXT[band["position"]]), explanation
-    title = t("Indice di paternità combinato", "Combined paternity index") if primary == "CPI" else "log₁₀(CPI)"
-    return f"{title}: {value}", t("Il confronto con i limiti di riferimento non è disponibile per questo risultato.",
-                                    "A comparison with reference limits is unavailable for this result.")
+        guidance = (t("Guide grafiche prenatali", "Prenatal plot guides") if module == "cpi" else
+                    t("Limiti del confronto postnatale", "Postnatal comparison limits"))
+        explanation += f" {guidance} (log₁₀): {low}, {high}."
+    return category, title, explanation
 
 
 def _number(value):
@@ -202,6 +234,18 @@ def _number(value):
 def _chart(title, kind, x_label, y_label, data):
     return {"title": title, "kind": kind, "x_label": x_label, "y_label": y_label,
             "points": [{"label": str(label), "x": x, "y": y} for label, x, y in data]} if data else None
+
+
+def _detail_table(store, run_id, file_id, *, curve=False):
+    path, descriptor = store._file(run_id, file_id)
+    snapshot = _signature(path)
+    digest = descriptor.get("recorded_sha256")
+    if digest:
+        store.verify_count_table(path, digest)
+    table = store.curve(run_id, file_id) if curve else store.table(run_id, file_id, limit=_PREVIEW_ROWS)
+    if _signature(path) != snapshot:
+        raise ValueError("The archived report source changed while reading.")
+    return table
 
 
 def _details(store, run_id, case, entry, result):
@@ -224,10 +268,10 @@ def _details(store, run_id, case, entry, result):
         # Use the selection-specific native intervals, without plotting a new curve.
         if len(entry.get("curve_file_ids", [])) != 1:
             return
-        table = store.curve(run_id, entry["curve_file_ids"][0])
+        table = _detail_table(store, run_id, entry["curve_file_ids"][0], curve=True)
         keys = ("Min_child_reads", "Through_min_child_reads", "Log10_CPI", "N_sites")
     elif module == "cpi" and len(entry.get("curve_file_ids", [])) == 1:
-        curve = store.curve(run_id, entry["curve_file_ids"][0])
+        curve = _detail_table(store, run_id, entry["curve_file_ids"][0], curve=True)
         rows = curve["rows"]
         points = [(r.get("Iteration"), _number(r.get("Iteration")), _number(r.get("log_CPI"))) for r in rows]
         # Connecting points across an unavailable threshold would invent a curve segment.
@@ -250,7 +294,7 @@ def _details(store, run_id, case, entry, result):
         file_id = entry.get("site_file_id") if not module.endswith("-call") else entry["file_id"]
         if not file_id:
             return
-        table = store.table(run_id, file_id, limit=_PREVIEW_ROWS)
+        table = _detail_table(store, run_id, file_id)
         keys = ("chr", "pos1", "pos2", "pos", "GT", "total_count") if module.endswith("-call") else (
             ("chr", "pos1", "pos2", "pos", "contamination") if module == "contamination" else
             ("chr", "pos1", "pos2", "pos", "Status", "Paternity_Index"))
@@ -270,9 +314,9 @@ def _details(store, run_id, case, entry, result):
         for i, row in enumerate(rows):
             value = _number(row.get("contamination"))
             if value is not None and 0 <= value <= 1:
-                locus = ":".join(v for v in (row.get("chr"), row.get("pos") or row.get("pos1")) if v)
-                points.append((locus or str(i + 1), i, value * 100))
+                points.append((site_label(row, i + 1, lang == "en"), i, value * 100))
         result["chart"] = _chart(t("Contaminazione nei siti mostrati", "Contamination at the sites shown"), "bar", "", "%", points)
+    result["charts"] = detail_charts(module, table, lang, legacy_selection=bool(entry.get("analysis")))
 
 
 def build_report(store, run_id, case_id, *, detailed=False):
@@ -284,8 +328,16 @@ def build_report(store, run_id, case_id, *, detailed=False):
     if selected is None:
         raise ValueError(t("Seleziona un risultato completato. Aggiorna l’elenco se l’esperimento è cambiato.",
                            "Select a completed result. Refresh the list if the experiment has changed."))
+    return _build_selected_report(store, run_id, selected, store.get_run(run_id), detailed=detailed)
+
+
+def _build_selected_report(store, run_id, selected, record, *, detailed):
+    lang = store.language
+    def t(it, en):
+        return _text(lang, it, en)
+
     case, group, entry, source = selected
-    record = store.get_run(run_id)
+    case_id = case["id"]
     step_id = case["step_id"]
     if not any(s["id"] == step_id and s["status"] == "succeeded" for s in record["steps"]):
         raise ValueError(t("La fase selezionata non è completata.", "The selected step has not completed."))
@@ -298,13 +350,19 @@ def build_report(store, run_id, case_id, *, detailed=False):
     facts = {"cpi": ("CPI_medianFF", "paternal_used_at_median", "Median_fetal_fraction_percent"),
              "cpin": ("CPI", "Log10_CPI", "N_sites"), "contamination": ("mean_contamination", "informative_sites"),
              "dnp-call": ("assigned", "site_count", "unassigned"), "snp-call": ("assigned", "site_count", "unassigned")}
-    headline, explanation = _outcome(entry, case["module"], lang, concise=not detailed)
+    if not detailed and case["module"] in {"cpi", "cpin"}:
+        facts["cpi"] = ("paternal_used_at_median",)
+        facts["cpin"] = ("N_sites",)
+        for key in facts[case["module"]]:
+            if key in metrics:
+                metrics[key] = _pair(t("Posizioni del DNA confrontate", "DNA positions compared"), metrics[key]["value"])
+    category, headline, explanation = _outcome(entry, case["module"], lang, concise=not detailed)
     if record["status"] != "succeeded":
         explanation += t(" La fase selezionata è completata; l’esperimento nel suo insieme non risulta completato.",
                          " The selected step completed; the overall experiment is not recorded as completed.")
     result = {"language": lang, "case_id": case_id, "run_id": run_id, "run_name": _public_label(record["name"]), "date": record.get("finished_at") or "",
-              "version": record.get("version") or "", "module": group["label"], "marker": case["marker"],
-              "subject": case["subject"], "selection": case["selection"], "headline": headline, "explanation": explanation,
+              "version": record.get("version") or "", "workflow": case["module"], "module": group["label"], "marker": case["marker"],
+              "subject": case["subject"], "selection": case["selection"], "outcome_category": category, "headline": headline, "explanation": explanation,
               "facts": [metrics[k] for k in facts[case["module"]] if k in metrics], "metrics": [], "chart": None,
               "provenance": [], "table": None, "notes": []}
     family = next((f for f in record["families"] if f["id"] == entry.get("family_id") and f["step_id"] == step_id
@@ -344,4 +402,5 @@ def build_report(store, run_id, case_id, *, detailed=False):
     except (OSError, ValueError):
         result["notes"].append(t("Il dettaglio per sito o per soglia non è disponibile nell’archivio.",
                                  "Site or threshold details are unavailable in the archive."))
+    result["charts"] = ([result["chart"]] if result["chart"] else []) + result.get("charts", [])
     return result

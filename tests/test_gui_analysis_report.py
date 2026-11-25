@@ -52,9 +52,10 @@ def test_prenatal_case_has_its_own_guides_and_curve(tmp_path):
     first, second = report_cases(store, "example")
     assert first["id"] != second["id"] and "Selected" in first["label"]
     short = build_report(store, "example", first["id"])
-    assert short["headline"] == "Il risultato coincide con il limite superiore"
-    assert "arrotondato" in short["explanation"] and short["chart"] is None
+    assert short["headline"] == "Esito inconcludente"
+    assert "permette di confermare o escludere" in short["explanation"] and short["chart"] is None
     extended = build_report(store, "example", first["id"], detailed=True)
+    assert "arrotondato" in extended["explanation"]
     assert extended["chart"]["kind"] == "line"
     assert [p["y"] for p in extended["chart"]["points"]] == [0.0, 2.0]
     assert extended["table"]["rows"] == [["1", "0"], ["2", "2"]]
@@ -88,7 +89,7 @@ def test_postnatal_scalar_and_historical_site_selections(tmp_path, legacy):
     assert len(cases) == (2 if legacy else 1)
     report = build_report(store, "example", cases[0]["id"], detailed=True)
     assert report["facts"][0]["value"] == "8"
-    assert report["headline"] == ("Combined paternity index: 8" if legacy else "The result falls within the middle range")
+    assert report["headline"] == ("Paternity conclusion unavailable" if legacy else "Inconclusive result")
     if legacy:
         assert report["table"] is None
     else:
@@ -177,21 +178,55 @@ def test_large_summary_exposes_partial_list_without_blocking_visible_results(tmp
     assert result["subject"] == "first" and result["facts"][0]["value"] == "2 %"
 
 
-@pytest.mark.parametrize(("log_value", "expected_display"), [
-    ("0.903089986991944", "≈ 0,903"), ("3.9999998", "3,9999998"), ("4.0000002", "4,0000002"),
+@pytest.mark.parametrize(("log_value", "category"), [
+    ("0.903089986991944", "inconclusive"), ("3.9999998", "inconclusive"), ("4.0000002", "favorable"),
+    ("-4.0000002", "unfavorable"), ("-4", "inconclusive"), ("4", "inconclusive"),
 ])
-def test_short_report_abbreviates_measures_only_when_the_guide_comparison_is_preserved(tmp_path, log_value, expected_display):
+@pytest.mark.parametrize("lang", ["it", "en"])
+def test_short_postnatal_report_classifies_native_values_before_display_and_keeps_indices_in_details(tmp_path, log_value, category, lang):
     run = make_run(tmp_path, "cpin")
     settings = "output/scientific-settings.json"
     write_json(run / settings, {"schema_version": 1, "workflow": "cpin",
                                 "parameters": {"log_cpi_lower": -4, "log_cpi_upper": 4}})
     validation(run, "cpin", {"settings": artifact(run, settings)})
     table(run / "output/Summary_Postnatal_CPI.txt", ["Trio", "CPI", "Log10_CPI", "N_sites", "Mismatch_probability"],
-          [["T", "8", log_value, "123456", "0.001"]])
-    store = ResultsStore(tmp_path)
+          [["T", str(10 ** float(log_value)), log_value, "123456", "0.001"]])
+    store = ResultsStore(tmp_path, language=lang)
     (case,) = report_cases(store, "example")
     short = build_report(store, "example", case["id"])
-    assert [m["value"] for m in short["facts"]] == ["8", expected_display, "123456"]
+    assert short["workflow"] == "cpin" and short["outcome_category"] == category
+    assert [m["value"] for m in short["facts"]] == ["123456"]
+    assert "CPI" not in short["headline"] + short["explanation"]
+    if category == "inconclusive":
+        assert short["headline"] == ("Esito inconcludente" if lang == "it" else "Inconclusive result")
     detail = build_report(store, "example", case["id"], detailed=True)
-    assert detail["facts"][1]["value"] == log_value.replace(".", ",")
-    assert detail["headline"] == short["headline"]
+    assert detail["facts"][1]["value"] == (log_value.replace(".", ",") if lang == "it" else log_value)
+    assert detail["headline"] == short["headline"] and "log₁₀" in detail["explanation"]
+
+
+@pytest.mark.parametrize(("bounds", "estimate", "expected"), [
+    ((-4, 4), "4.001", "favorable"), ((-4, 4), "-4.001", "unfavorable"),
+    ((-3, -2), "-1", "inconclusive"), ((2, 3), "1", "inconclusive"), ((-3, -2), "0", "inconclusive"),
+    ((-7, 9), "6", "inconclusive"), ((-4, 4), "4.000", "inconclusive"),
+])
+def test_prenatal_plot_guides_never_reverse_the_direction_of_evidence_or_assert_parentage(tmp_path, bounds, estimate, expected):
+    run = make_run(tmp_path, "cpi")
+    settings = "output/scientific-settings.json"
+    write_json(run / settings, {"schema_version": 1, "workflow": "cpi",
+                                "parameters": {"log_cpi_lower": bounds[0], "log_cpi_upper": bounds[1]}})
+    validation(run, "cpi", {"settings": artifact(run, settings)})
+    table(run / "output/Summary_FetalFraction_CPI.csv",
+          ["Pair", "CPI_medianFF", "N_sites_mother", "N_sites_father"], [["family", estimate, 2, 2]])
+    store = ResultsStore(tmp_path, language="en")
+    (case,) = report_cases(store, "example")
+    report = build_report(store, "example", case["id"])
+    assert report["outcome_category"] == expected
+    assert "CPI" not in report["explanation"] and "confirmed" not in report["headline"]
+    if estimate == "4.000":
+        assert "rounded" not in report["explanation"]
+        assert "rounded prenatal value" in build_report(store, "example", case["id"], detailed=True)["explanation"]
+    # Modifying a settings file whose digest was archived invalidates the comparison.
+    write_json(run / settings, {"schema_version": 1, "workflow": "cpi",
+                                "parameters": {"log_cpi_lower": -0.1, "log_cpi_upper": 0.1}})
+    (new_case,) = report_cases(store, "example")
+    assert build_report(store, "example", new_case["id"])["outcome_category"] == "nonassessable"

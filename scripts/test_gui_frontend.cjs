@@ -103,27 +103,52 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
  await app.action('result-module',{module:'cpi|DNP'});check(element('main').innerHTML.includes('log₁₀(CPI) alla soglia mediana di letture fetali')&&element('main').innerHTML.includes('0,602'),'Prenatal CPI field remains logarithmic');await app.action('result-module',{module:'cpin|DNP'});check((element('main').innerHTML.match(/class="curve-line"/g)||[]).length===3,'Postnatal CPI curve has original three inclusive intervals');check(element('main').innerHTML.includes('Genotipo paterno non assegnato'),'Site exclusion reasons human-readable');
  app.state.tableSearch='father_unassigned';await app.loadTable(0);check(app.state.table.matched===1&&app.state.table.row_numbers[0]===1,'Search pagination preserves original row identity');await app.action('row-details',{file:'sites',row:'1'});check(element('modal-root').innerHTML.includes('Genotipo paterno non assegnato'),'Row details use original row offset');await app.action('open-file',{id:'plot'});check(element('modal-root').innerHTML.includes('<iframe class="pdf-preview"'),'PDF stays inside app dialog');await app.action('export-file',{id:'plot'});check(requests.at(-1).method==='files.export','Export handled by native scoped service');await app.action('export-run',{});check(requests.at(-1).method==='runs.export','Complete original output export available');
  const reportChoices=[
-  {id:'a',label:'Prenatal CPI · DNP · Family 1',file_id:'cpi-summary',row_number:0},
-  {id:'b',label:'Postnatal CPI · SNP · Family <2>',file_id:'other-summary',row_number:7}
+  {id:'a',label:'Prenatal CPI · DNP · Family 1',module:'cpi',marker:'DNP',file_id:'cpi-summary',row_number:0},
+  {id:'b',label:'Postnatal CPI · SNP · Family <2>',module:'cpin',marker:'SNP',file_id:'other-summary',row_number:7}
  ];
+ const reportBoxes=reportChoices.map(item=>({value:item.id,checked:true,focus(){}}));
+ element('report-cases').querySelectorAll=()=>reportBoxes;
  handlers['reports.cases']=()=>({cases:reportChoices,notes:['Limite <DNP>']});
- handlers['reports.prepare']=p=>({kind:p.kind,case:p.case_id});
- env.NewPatReports={render:async(model,kind)=>model.case+'-'+kind};
+ handlers['reports.prepare']=p=>({kind:p.kind,results:p.case_ids.map(id=>({case_id:id}))});
+ handlers['reports.igv']=()=>({views:{a:{available:true,site:'chr1:105',build:'hg38'},b:{available:false,reason:'Unverified BAM'}}});
+ env.NewPatReportIGV={capture:async()=>({image:'data:image/png;base64,IgV',locus:'chr1:100-150'})};
+ let reportModel;
+ env.NewPatReports={render:async(model,kind)=>{reportModel=model;return model.results.map(item=>item.case_id).join('-')+'-'+kind}};
  handlers['reports.save']=()=>({cancelled:true});
  await app.action('result-module',{module:''});
- check(element('main').innerHTML.includes('data-action="choose-report"'),'Archive overview offers both PDF formats');
+ check(element('main').innerHTML.includes('data-action="choose-report"'),'Archive overview offers PDF export');
  await app.action('choose-report',{});
  const reportDialog=element('modal-root'),reportRevision=reportDialog.innerHTML.match(/data-revision="(\d+)"/)[1];
  const reportData={run:'run-1',language:'it',revision:reportRevision};
- check(reportDialog.innerHTML.includes('Scegli un risultato')&&reportDialog.innerHTML.includes('Family &lt;2&gt;')&&
+ check((reportDialog.innerHTML.match(/name="report-case" value="\w+" checked/g)||[]).length===2&&reportDialog.innerHTML.includes('Family &lt;2&gt;')&&
        reportDialog.innerHTML.includes('Limite &lt;DNP&gt;')&&
-       reportDialog.innerHTML.includes('Risultato e significato in una pagina.')&&reportDialog.innerHTML.includes('Dati di supporto e grafici disponibili.'),
-       'Multiple results require a choice and identify both PDF formats');
- element('report-case').value='b';element('report-detailed').checked=true;
+       reportDialog.innerHTML.includes('Una pagina per ogni risultato selezionato.')&&reportDialog.innerHTML.includes('Dati di supporto e grafici disponibili.')&&
+       reportDialog.innerHTML.includes('Sintesi e dettagli'),'Overview selects all eligible module results and identifies three report formats');
+ await app.action('report-select',{scope:'none'});const prior=requests.length;await app.action('save-report',reportData);
+ check(requests.length===prior&&element('report-status').textContent.includes('Seleziona almeno'),'Empty selection asks for an explicit result');
+ await app.action('report-select',{scope:'all'});element('report-combined').checked=true;
  await app.action('save-report',reportData);
- check(requests.at(-2).method==='reports.prepare'&&requests.at(-2).params.case_id==='b'&&requests.at(-2).params.language==='it'&&
-       requests.at(-1).method==='reports.save'&&requests.at(-1).params.data_base64==='b-detailed'&&
-       reportDialog.innerHTML.includes('report-kind'),'Cancelling Save retains the chosen result and report type');
+ check(requests.at(-3).method==='reports.prepare'&&requests.at(-3).params.case_ids.join(',')==='a,b'&&requests.at(-3).params.language==='it'&&
+       requests.at(-2).method==='reports.igv'&&requests.at(-1).method==='reports.save'&&requests.at(-1).params.data_base64==='a-b-combined'&&
+       reportModel.results[0].igv.site==='chr1:105'&&reportModel.results[1].igv.reason==='Unverified BAM'&&
+       reportDialog.innerHTML.includes('report-kind'),'Single-save combined PDF keeps each case and IGV view associated after native cancellation');
+ element('report-combined').checked=false;
+ const fetchApi=env.fetch;
+ Object.assign(env,{Blob,atob,btoa,TextEncoder});
+ const largePdf=Buffer.from('%PDF-1.4\n'+' '.repeat(960000)+'\n%%EOF','utf8');
+ let binarySaveCount=0;
+ env.NewPatReports.render=async()=>largePdf.toString('base64');
+ env.fetch=async(url,options)=>{
+  if(url!=='../report-pdf')return fetchApi(url,options);
+  binarySaveCount++;
+  assert.equal(options.headers['Content-Type'],'application/pdf');
+  assert.deepEqual(JSON.parse(atob(options.headers['X-NewPat-Report'])),{run_id:'run-1',language:'it',kind:'summary',selection:'combined'});
+  assert.deepEqual(Buffer.from(await options.body.arrayBuffer()),largePdf);
+  return {ok:true,json:async()=>({result:{cancelled:true}})};
+ };
+ await app.action('save-report',reportData);
+ check(binarySaveCount===1,'Large multi-result PDF uses one binary upload without splitting the document');
+ env.fetch=fetchApi;
  let finishRendering;
  env.NewPatReports.render=()=>new Promise(resolve=>{finishRendering=resolve});
  const pendingReport=app.action('save-report',reportData);await tick();
@@ -138,10 +163,10 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
  await app.action('close-modal',{});
  handlers['reports.cases']=()=>({cases:reportChoices});
  await app.action('result-module',{module:'cpi|DNP'});await app.action('choose-report',{});
- check(reportDialog.innerHTML.includes('value="a" selected'),'A report opened from a module preselects the displayed result');
+ check(reportDialog.innerHTML.includes('value="a" checked')&&!reportDialog.innerHTML.includes('value="b" checked'),'A report opened from a module preselects only the displayed result');
  await app.action('close-modal',{});
  handlers['reports.cases']=()=>({cases:[reportChoices[1]]});await app.action('choose-report',{});
- check(reportDialog.innerHTML.includes('value="" selected')&&reportDialog.innerHTML.includes('value="b"'),
+ check(!reportDialog.innerHTML.includes('value="b" checked')&&reportDialog.innerHTML.includes('value="b"'),
        'An unavailable selected result requires an explicit switch to another eligible result');
  await app.action('close-modal',{});
  handlers['igv.about']=()=>({opened:true});

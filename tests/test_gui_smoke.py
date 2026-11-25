@@ -29,7 +29,7 @@ def test_application_forwards_native_smoke_and_screenshot(tmp_path, monkeypatch)
     def native_run(url, **options):
         seen.update(url=url, **options)
         return 0
-    monkeypatch.setattr(app, "DesktopServer", lambda dispatcher, *, assets: Server())
+    monkeypatch.setattr(app, "DesktopServer", lambda dispatcher, *, assets, pdf_export: Server())
     application = app.DesktopApplication(
         host=SimpleNamespace(run_window=native_run),
         service=SimpleNamespace(layout=SimpleNamespace(workspace_dir=tmp_path)),

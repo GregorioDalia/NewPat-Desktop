@@ -222,7 +222,7 @@ class LocalIGV:
                       f"Panel chromosome {name} is missing from BAM {path.name}. Check the reference and the panel.")
         return len(references)
 
-    def prepare(self, params):
+    def prepare(self, params, *, reference_cache=None, require_locus=False):
         reference = params.get("reference", {})
         if not isinstance(reference, dict):
             self.fail("Seleziona il riferimento e il suo indice.", "Select the reference and its index.")
@@ -243,7 +243,14 @@ class LocalIGV:
             gzi = self.local_file(reference.get("compressedIndex") or str(fasta) + ".gzi", "GZI")
         files = (fasta, fai, gzi) if gzi else (fasta, fai)
         identities = {p: input_stat_snapshot(p.stat()) for p in files}
-        actual = indexed_reference_identity(fasta, fai, gzi=gzi, language=self.language)
+        # A multi-case report may use the same multi-gigabyte reference many
+        # times. The cache lives for that request, keyed by every file's identity.
+        cache_key = tuple((p, tuple(stamp.items())) for p, stamp in identities.items())
+        actual = reference_cache.get(cache_key) if reference_cache is not None else None
+        if actual is None:
+            actual = indexed_reference_identity(fasta, fai, gzi=gzi, language=self.language)
+            if reference_cache is not None:
+                reference_cache[cache_key] = actual
         for key, digest in actual.items():
             expected = reference.get(key)
             if expected is None:
@@ -254,6 +261,7 @@ class LocalIGV:
                 self.fail("Il FASTA o il suo indice differisce da quello registrato. Ripristina i file originali.",
                           "The FASTA or its index differs from the recorded reference. Restore the original files.")
         locus = self.locus(params.get("locus"), chromosomes)
+        required_contigs = {locus.split(":", 1)[0]} if require_locus else set()
         if any(input_stat_snapshot(p.stat()) != identity for p, identity in identities.items()):
             self.fail("Il riferimento è cambiato durante il controllo.", "The reference changed during verification.")
         urls = {p: self.register_reference(p, expected_identity=identity)["url"] for p, identity in identities.items()}
@@ -307,7 +315,8 @@ class LocalIGV:
                     self.fail(f"Il file {index_path.name} non è un indice {index_path.suffix[1:].upper()} valido.",
                               f"{index_path.name} is not a valid {index_path.suffix[1:].upper()} index.")
             if fmt == "bam":
-                count = self.check_bam_reference(path, fasta, fai, lengths, exact_names=build in ("grch37", "grch38"))
+                count = self.check_bam_reference(path, fasta, fai, lengths, targets=required_contigs,
+                                                 exact_names=build in ("grch37", "grch38"))
                 if index_path and index_path.suffix.lower() == ".bai":
                     header = self._prefix(index_path, 8)
                     if (len(header) != 8 or struct.unpack("<i", header[4:])[0] != count

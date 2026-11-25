@@ -789,9 +789,35 @@ function render(){if(!state.boot)return;curveViews.clear();const existingIgv=sta
 function refreshPreservingInput(id){const inputElement=$(id),start=inputElement?.selectionStart,value=inputElement?.value;render();const next=$(id);if(next){next.focus();if(typeof start==='number'&&next.setSelectionRange)next.setSelectionRange(start,start)}}
 function humanError(error){let message=String(error?.message||error||t('operationError'));message=message.replace(/(Ref_f\.pop|Alt_f\.pop) deve essere finita tra 0 e 1\./g,(_,column)=>column+' '+t('frequencyError'));message=message.replace(/--(dnp|snp)-(contamination-panel|cpi-cutoffs|cpin-panel|popfreq|panel)/g,(_,marker,kind)=>({panel:t('panel'),popfreq:t('population'),'contamination-panel':t('contaminationPanel'),'cpi-cutoffs':t('cpiPanels'),'cpin-panel':t('cpinPanel')}[kind]+' '+marker.toUpperCase()));for(const key of Object.keys(L.fields).sort((a,b)=>b.length-a.length))message=message.replaceAll(key,L.field(key));message=message.replace(/\b(dnp-call|snp-call|contamination|cpin|cpi)\b/g,module=>moduleName(module));return message}
 function showError(error){const message=humanError(error);if(state.view==='new'){state.error=message;render()}else toast(message)}
-let modalRevision=0;
+let modalRevision=0,reportCaptureController=null;
 function modal(title,body,footer='',backAction=''){modalRevision++;if(!$('modal-root').innerHTML)previousFocus=document.activeElement;$('modal-root').innerHTML=`<div class="modal-backdrop" data-action="modal-backdrop"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="dialog-title"><header class="modal-header"><h2 id="dialog-title">${esc(title)}</h2>${backAction?button(t('back'),backAction,{},'small','back'):button(t('close'),'close-modal',{},'small','close')}</header><div class="modal-body">${body}</div>${footer?`<footer class="modal-footer">${footer}</footer>`:''}</section></div>`;$('modal-root').querySelector('button')?.focus()}
-function closeModal(){modalRevision++;$('modal-root').innerHTML='';state.modalTable=null;previousFocus?.focus?.();previousFocus=null}
+function closeModal(){modalRevision++;reportCaptureController?.abort();$('modal-root').innerHTML='';state.modalTable=null;previousFocus?.focus?.();previousFocus=null}
+function reportSelection(){
+ const field=$('report-cases');
+ return Array.from(field.querySelectorAll('input[name="report-case"]'));
+}
+function updateReportCount(){
+ const boxes=reportSelection();
+ const selected=boxes.filter(box=>box.checked).length;
+ $('report-count').textContent=t('reportSelected')+' '+format(selected,0)+' / '+format(boxes.length,0);
+ if(selected&&$('report-status').textContent===t('chooseReportResult'))$('report-status').textContent='';
+}
+function reportResultFields(cases,selected,includeAll){
+ const groups=new Map();
+ for(const item of cases){
+  const key=item.module+'|'+item.marker;
+  if(!groups.has(key))groups.set(key,[]);
+  groups.get(key).push(item);
+ }
+ const fields=Array.from(groups.values(),rows=>{
+  const first=rows[0],module=moduleName(first.module);
+  const title=first.marker&&!module.endsWith(' '+first.marker)?module+' · '+first.marker:module;
+  return `<fieldset class="report-group"><legend>${esc(title)}</legend>`+rows.map(item=>
+   `<label class="check-row"><input type="checkbox" name="report-case" value="${esc(item.id)}" ${includeAll||item.id===selected?.id?'checked':''}><span>${esc(item.label.startsWith(title+' · ')?item.label.slice(title.length+3):item.label)}</span></label>`).join('')+'</fieldset>';
+ }).join('');
+ const actions=cases.length>1?button(t('reportSelectAll'),'report-select',{scope:'all'},'quiet small')+button(t('reportSelectNone'),'report-select',{scope:'none'},'quiet small'):'';
+ return `<fieldset id="report-cases" class="choice-fieldset"><legend>${t('reportResult')}</legend><div class="actions report-select-actions">${actions}<span id="report-count" class="help" role="status"></span></div><div class="report-case-list">${fields}</div></fieldset>`;
+}
 async function chooseReport(){
  const runId=state.runId,language=L.language,version=runLoadVersion,entry=currentEntry();
  modal(t('exportReport'),`<p role="status">${t('loading')}</p>`);
@@ -805,37 +831,86 @@ async function chooseReport(){
  if(!result.cases.length){modal(t('exportReport'),`<p>${t('noReportResults')}</p>`+notes);return}
  const selected=entry&&result.cases.find(item=>item.file_id===entry.file_id&&(item.row_number??null)===(entry.row_number??null));
  if(entry&&!selected)notes=notice(t('reportEntryUnavailable'),'warning')+notes;
- const options=result.cases.map(item=>[item.id,item.label]);
- if(!selected&&(options.length>1||entry))options.unshift(['',t('chooseReportResult')]);
- const resultField=select(t('reportResult'),'report-case',options,selected?.id||options[0][0],'required');
+ const resultField=reportResultFields(result.cases,selected,!entry);
  const formatField=`<fieldset id="report-kind" class="choice-fieldset"><legend>${t('reportFormat')}</legend><div class="form-row">
   <label class="choice"><input id="report-summary" type="radio" name="report-kind" value="summary" checked><span><b>${t('summaryPdf')}</b><small>${t('summaryPdfHelp')}</small></span></label>
   <label class="choice"><input id="report-detailed" type="radio" name="report-kind" value="detailed"><span><b>${t('detailedPdf')}</b><small>${t('detailedPdfHelp')}</small></span></label>
+  <label class="choice"><input id="report-combined" type="radio" name="report-kind" value="combined"><span><b>${t('combinedPdf')}</b><small>${t('combinedPdfHelp')}</small></span></label>
  </div></fieldset>`;
  modal(t('exportReport'),notes+resultField+formatField,'<span id="report-status" class="help" role="status"></span>'+button(t('cancel'),'close-modal')+
   button(t('savePdf'),'save-report',{run:runId,language,revision:version},'primary','download'));
+ updateReportCount();
+}
+async function storeReportPdf(selection,pdf){
+ if(pdf.length<=1200000)return rpc('reports.save',{...selection,data_base64:pdf});
+ // Decode independently aligned groups to avoid a second full binary string in memory.
+ const parts=[];
+ for(let i=0;i<pdf.length;i+=65536){
+  const chunk=atob(pdf.slice(i,i+65536)),bytes=new Uint8Array(chunk.length);
+  for(let j=0;j<chunk.length;j++)bytes[j]=chunk.charCodeAt(j);
+  parts.push(bytes);
+ }
+ const {case_ids,...metadata}=selection;
+ metadata.selection=case_ids.length===1?case_ids[0]:'combined';
+ const encoded=new TextEncoder().encode(JSON.stringify(metadata));
+ const header=btoa(Array.from(encoded,byte=>String.fromCharCode(byte)).join(''));
+ const response=await fetch('../report-pdf',{method:'POST',credentials:'same-origin',headers:{
+  'Content-Type':'application/pdf','X-NewPat-Report':header},body:new Blob(parts,{type:'application/pdf'})});
+ const message=await response.json();
+ if(!response.ok||message.error)throw new Error(message.error?.message||t('connectionError'));
+ return message.result;
+}
+async function addReportIgv(bundle,selection,current,signal){
+ let views={};
+ try{
+  const response=await rpc('reports.igv',{run_id:selection.run_id,language:selection.language,case_ids:selection.case_ids});
+  views=response.views;
+ }catch{/* Archived results remain reportable when IGV inputs are unavailable. */}
+ for(const result of bundle.results){
+  if(!current())return;
+  const view=views?.[result.case_id];
+  const reason=[view?.reason||t('reportIgvUnavailable'),view?.site,view?.selection_note].filter(Boolean).join(' ');
+  result.igv={reason,site:view?.site||''};
+  if(!view?.available)continue;
+  try{
+   const capture=await window.NewPatReportIGV.capture(view,{language:selection.language,signal});
+   if(capture?.image)result.igv={...capture,site:view.site,build:view.build,
+    caption:[capture.caption,view.selection_note].filter(Boolean).join(' ')};
+  }catch{/* A viewer failure must not discard selected scientific results. */}
+ }
 }
 async function saveReport(data){
  const revision=modalRevision;
  const current=()=>revision===modalRevision&&state.view==='archive'&&state.runId===data.run&&runLoadVersion===Number(data.revision)&&L.language===data.language;
  if(!current())return;
- const field=$('report-case'),format=$('report-kind'),status=$('report-status');
+ const field=$('report-cases'),format=$('report-kind'),status=$('report-status');
  if(field.disabled)return;
- if(!field.value){field.reportValidity();return}
- const selection={run_id:data.run,language:data.language,case_id:field.value,kind:$('report-detailed').checked?'detailed':'summary'};
+ const boxes=reportSelection(),caseIds=boxes.filter(box=>box.checked).map(box=>box.value);
+ if(!caseIds.length){status.textContent=t('chooseReportResult');boxes[0]?.focus();return}
+ const kind=$('report-combined').checked?'combined':$('report-detailed').checked?'detailed':'summary';
+ const selection={run_id:data.run,language:data.language,case_ids:caseIds,kind};
+ const controller=new AbortController();
+ reportCaptureController=controller;
  field.disabled=true;
  format.disabled=true;
  status.textContent=t('preparingPdf');
  try{
   const model=await rpc('reports.prepare',selection);
   if(!current())return;
+  if(selection.kind!=='summary'){
+   await addReportIgv(model,selection,current,controller.signal);
+   if(!current())return;
+  }
   const pdf=await window.NewPatReports.render(model,selection.kind);
   if(!current())return;
   status.textContent='';
-  const result=await rpc('reports.save',{...selection,data_base64:pdf});
+  const result=await storeReportPdf(selection,pdf);
   if(current()&&!result.cancelled){closeModal();toast(t('reportSaved'))}
  }catch(error){if(current())throw error}
- finally{field.disabled=false;format.disabled=false;status.textContent=''}
+ finally{
+  if(reportCaptureController===controller)reportCaptureController=null;
+  field.disabled=false;format.disabled=false;status.textContent='';
+ }
 }
 async function loadRun(id,remember=true){const version=++runLoadVersion;++entryLoadVersion;++tableLoadVersion;const [run,overview,files]=await Promise.all([rpc('runs.get',{run_id:id}),rpc('runs.overview',{run_id:id}),rpc('runs.files',{run_id:id})]);if(version!==runLoadVersion)return;if(remember&&(state.view!=='archive'||state.runId!==id||!state.run))rememberPage();state.run=run;state.runId=id;state.overview=overview;state.files=files.files||files;state.runTab='results';state.module=null;state.table=null;state.curves=[];state.entry=0;state.view='archive';render();$('main').focus()}
 function fetchEntryCurves(entry){
@@ -971,6 +1046,11 @@ async function action(name,data,element){
  if(name==='open-file')return openFile(data.id);
  if(name==='export-file'){await rpc('files.export',{run_id:state.runId,file_id:data.id});return}
  if(name==='choose-report')return chooseReport();
+ if(name==='report-select'){
+  for(const box of reportSelection())box.checked=data.scope==='all';
+  updateReportCount();
+  return;
+ }
  if(name==='save-report')return saveReport(data);
  if(name==='export-run'){await rpc('runs.export',{run_id:state.runId});return}
  if(name==='open-run-directory'){await rpc('runs.open_directory',{run_id:data.id});return}
@@ -1075,6 +1155,7 @@ async function action(name,data,element){
  if(name==='igv-save'){const snapshot=await window.NipatIGV.exportSession(),sources=state.igv.loadedSources||state.igv;await rpc('igv.session.save',{session:{schema_version:1,reference:sources.reference,tracks:sources.tracks,locus:snapshot.locus||state.igv.locus,view:snapshot}});return}
 }
 function onValue(target){const value=target.type==='checkbox'?target.checked:target.value;
+ if(target.name==='report-case'){updateReportCount();return}
  if(target.dataset.referenceBuild)return chooseReferenceBuild(target.dataset.referenceBuild,value).catch(showError);
  if(target.dataset.referenceEntry)return selectReferenceEntry(target.dataset.referenceEntry,value).catch(showError);
  if(target.dataset.draft){state.draft[target.dataset.draft]=value;invalidate();if(target.dataset.draft==='caller')render();return}

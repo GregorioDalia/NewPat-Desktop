@@ -518,6 +518,9 @@ scripts/test_gui_windows_native.py
 scripts/verify_gui_distribution.py
 src/nipat/gui/__init__.py
 src/nipat/gui/analysis_report.py
+src/nipat/gui/report_bundle.py
+src/nipat/gui/report_charts.py
+src/nipat/gui/report_igv.py
 src/nipat/gui/app.py
 src/nipat/gui/host.py
 src/nipat/gui/jobs.py
@@ -540,6 +543,8 @@ src/nipat/gui/web/i18n.js
 src/nipat/gui/web/igv-view.js
 src/nipat/gui/web/index.html
 src/nipat/gui/web/newpat-wordmark.svg
+src/nipat/gui/web/report-igv.html
+src/nipat/gui/web/report-igv.js
 src/nipat/gui/web/reports.js
 src/nipat/gui/web/style.css
 src/nipat/gui/web/vendor/README.md
@@ -574,6 +579,11 @@ tests/test_gui_app.py
 tests/test_gui_distribution.py
 tests/test_gui_igv.py
 tests/test_gui_igv_adapter.cjs
+tests/test_gui_analysis_report.py
+tests/test_gui_report_bundle.py
+tests/test_gui_report_charts.py
+tests/test_gui_report_igv.py
+tests/test_gui_report_igv_capture.py
 tests/test_gui_macos_host.py
 tests/test_gui_results.py
 tests/test_gui_server.py

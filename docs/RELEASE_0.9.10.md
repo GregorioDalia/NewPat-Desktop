@@ -18,7 +18,7 @@ The installation includes an offline synthetic trio with example alignments, ind
 
 ### PDF reports for completed results
 
-Results can be saved as a one-page summary or a detailed PDF with the available charts and supporting measurements. Choose the sample or family and the specific analysis, marker and panel. NewPat creates the report locally in Italian or English. [Export a PDF report](GUI.md#export-a-pdf-report)
+Select one or more results from an experiment to export a single local PDF. The summary gives each result a full A4 page with a plain-language outcome. The detailed format appends the archived measurements, graphs and supporting tables for each selection. Both can also be saved together. Reports follow the interface language. [Export a PDF report](GUI.md#export-a-pdf-report)
 
 ## Human reference genomes
 
