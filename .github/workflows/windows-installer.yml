@@ -82,11 +82,6 @@ jobs:
       - name: Run shared Windows unit, installer and script checks
         shell: powershell
         run: ./.github/scripts/check_windows.ps1
-      - name: Verify official Microsoft desktop dependencies
-        shell: powershell
-        run: |
-          python scripts/verify_gui_distribution.py --signatures --report build/gui/windows-native-dependencies.json
-          if ($LASTEXITCODE -ne 0) { throw 'Native GUI dependency verification failed.' }
       - name: Retain native desktop dependency evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -565,17 +560,17 @@ jobs:
               --workspace "$RUNNER_TEMP/nipat-native-gui-workspace" \
               --report "$GITHUB_WORKSPACE/build/linux-output/linux-native-smoke.json" \
               --screenshot "$GITHUB_WORKSPACE/build/linux-output/linux-native-smoke.png"
-      - name: Fetch the exact published 0.7.2 upgrade baseline
+      - name: Fetch the published Ubuntu 0.9.9 upgrade baseline
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python .github/scripts/release_inputs.py --tag v0.7.2 --kind deb --output-dir build/upgrade-baseline
+        run: python .github/scripts/release_inputs.py --tag v0.9.9 --kind deb --output-dir build/upgrade-baseline
       - name: Upgrade the real previous package and preserve research data
         run: |
           package=(build/linux-output/*.deb)
           test "${#package[@]}" -eq 1
           set -o pipefail
           python scripts/verify_linux_upgrade.py \
-            --previous-package build/upgrade-baseline/nipat-desktop_0.7.2_amd64.deb \
+            --previous-package build/upgrade-baseline/nipat-desktop_0.9.9_amd64.deb \
             --package "${package[0]}" --manifest build/assets/installer-manifest.json \
             --work-dir "$RUNNER_TEMP/NIPAT Linux upgrade check" \
             --output build/linux-output/linux-upgrade-check.json --system-package-test \

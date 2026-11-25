@@ -4,6 +4,7 @@
 .gitattributes
 .github/RELEASE.md
 .github/scripts/ci_changes.py
+.github/scripts/native_evidence.py
 .github/scripts/publish_windows_release.py
 .github/scripts/release_acceptance.py
 .github/scripts/test_ci_changes.py

@@ -140,7 +140,8 @@ class OfficialDeliveryTests(unittest.TestCase):
         for verifier in ("verify_linux_dependencies.py", "verify_linux_installer.py", "verify_linux_upgrade.py",
                          "verify_installer_set.py", "verify_presentation.py", "verify_performance.py"):
             self.assertIn(verifier, workflow)
-        self.assertIn("--previous-package build/upgrade-baseline/nipat-desktop_0.7.2_amd64.deb", workflow)
+        self.assertIn("--tag v0.9.9 --kind deb --output-dir build/upgrade-baseline", workflow)
+        self.assertIn("--previous-package build/upgrade-baseline/nipat-desktop_0.9.9_amd64.deb", workflow)
         self.assertIn("--macos-arm64-dir build/macos-arm64 --macos-x86-64-dir build/macos-x86_64", workflow)
         self.assertNotIn("verify_experimental_installers.py", workflow)
         self.assertNotIn("contents: write", workflow)

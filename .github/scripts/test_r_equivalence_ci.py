@@ -87,6 +87,8 @@ class REquivalenceCI(unittest.TestCase):
         report = result.report({__name__, "missing_suite"})
         self.assertFalse(report["passed"])
         self.assertEqual(report["tests_run"], 2)
+        self.assertEqual(report["schema_version"], 2)
+        self.assertEqual(report["subcases_run"], 2)
         self.assertEqual(report["missing_oracle_modules"], ["missing_suite"])
         self.assertEqual([item["status"] for item in report["subcases"]], ["passed", "failed"])
         self.assertIn("3 != 2", report["failures"][0]["detail"])

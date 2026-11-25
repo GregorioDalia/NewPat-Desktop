@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import re
 import subprocess
 
 _SPEC = importlib.util.spec_from_file_location("nipat_upgrade_installation", Path(__file__).with_name("verify_linux_installer.py"))
@@ -19,15 +20,26 @@ BASELINE = {
     "file": "nipat-desktop_0.7.1_amd64.deb",
     "sha256": "4f0a43710ed92fe0299a182814c93ee6f215f43e00c9050a7cfc5e697846edd5",
 }
-CURRENT_BASELINE = {
+BASELINE_072 = {
     "version": "0.7.2", "source_commit": "5bc05e00c7e231f7f3d501ace91131dae3bd1458",
     "file": "nipat-desktop_0.7.2_amd64.deb",
     "sha256": "e623897ffa46698250b1ee32216b1ab392607b6f7e3082a1932a164ef4992675",
 }
+CURRENT_BASELINE = {
+    "version": "0.9.9", "source_commit": "adc659bd132cc24353e637f6430e3cc470e0a8f8",
+    "file": "nipat-desktop_0.9.9_amd64.deb",
+    "sha256": "b8bb9fb6c8305ab482d16310eb69414d7312060210950280e31683939d63f39f",
+}
 
 
 def baseline_for(version):
-    return CURRENT_BASELINE if tuple(int(part) for part in version.split(".")[:2]) >= (0, 8) else BASELINE
+    match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:(?:a|b|rc)\d+)?", version)
+    if not match:
+        raise ValueError(f"Invalid candidate version: {version}")
+    target = tuple(map(int, match.groups()))
+    if target >= (0, 9, 10):
+        return CURRENT_BASELINE
+    return BASELINE_072 if target >= (0, 8, 0) else BASELINE
 
 
 CHECKS = (
@@ -91,8 +103,9 @@ def verify(previous, candidate, manifest_path, work, output):
             else:
                 install.require(install.sha256(install.APP / ".distribution/installer-manifest.json")
                                 == evidence["installer_manifest_sha256"], "Installed candidate manifest mismatch.")
-            # The historical baseline predates the public newpat command.
-            command = install.LEGACY_COMMAND if package == previous else install.COMMAND
+            command = install.COMMAND
+            if package == previous and baseline["version"] in {"0.7.1", "0.7.2"}:
+                command = install.LEGACY_COMMAND
             install.run([command, "--setup"], environment=environment, cwd=work)
             state = json.loads(state_file.read_text())
             image = install.check_state(state, installed_manifest,

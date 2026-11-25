@@ -17,11 +17,13 @@ CI checks a development branch when it has an open pull request. Each update eva
 | Example change | Checks selected |
 | --- | --- |
 | Desktop stylesheet, web wordmark or translations | Linux client and browser tests, native Windows and macOS client checks |
+| Playwright test dependency (`.github/gui-test-requirements.txt`) | Linux browser interactions and focused Windows and macOS client checks |
 | Desktop reference registration, FASTA download or browser application logic | Client checks plus the DNP/SNP synthetic workflow |
 | Caller, scientific scripts, analysis plan, scheduler or runtime used by the calculations | Full scientific qualification, plus other affected layers |
 | An edit to a recognized guide | Linux documentation checks |
 | A new guide added to the installer file list (`distribution-files.txt`) | Linux and Windows checks, plus packaging checks |
 | An acceptance record only | Linux acceptance verification and the required gate |
+| Recognized guides and acceptance records together | Linux documentation and acceptance checks, with automatic publication reserved for an acceptance-only push to `main` |
 
 The classifier combines requirements for mixed changes. A graphical change added to a PR that already changes an algorithm still requires the scientific checks. A manual CI run selects all integration layers. Installer construction is a separate manual operation.
 
@@ -37,7 +39,7 @@ A change limited to `.github/release-acceptance/vVERSION.json` uses `acceptance`
 | Resources and performance | WSL/Lima configuration, previews and backups, interprocess locks, effective limits, observed workers, optional timing and input/output integrity. Shared runners do not enforce large-BAM performance thresholds. Exit code 137 alone cannot establish OOM. |
 | Presentation | Sample mapping, original names, HTML and TSV, canonical exports and PDF text. Manual usability tests cover rendering on the final device. |
 | Windows | Prerequisites, staged embedded Python, bootstrap, layout, repair/removal, Inno fixture and signature inventory. |
-| Ubuntu | APT dependencies, non-root analyses, reinstall/removal and update from the recorded 0.7.2 package. |
+| Ubuntu | APT dependencies, non-root analyses, reinstall/removal and, for the 0.9.10 installer, an upgrade from the published 0.9.9 DEB. |
 | macOS | Native Intel and ARM64 packages, launchers, Lima transport and configuration. Runtime tests on actual VMs require the separate jobs described below. |
 | Scientific engine | Five modules, composed workflows, synthetic BAMs, invalid inputs, numerical comparisons and original inputs preserved. Domain-researcher validation on real datasets is separate. |
 | Documentation | Repository Markdown links, assets and anchors are checked offline. External site availability and scientific claims need separate review. |
@@ -86,6 +88,7 @@ Reuse requires all of the following:
 - The same full Docker image ID, Linux OS and AMD64 architecture.
 - Verifiable checkout provenance, including the actual PR merge revision when applicable; a fork's CI cannot supply this evidence.
 - Successful run, scientific job and all seven checks in the same attempt.
+- For 0.9.10, a completed, passing `native-r.json` with the required test suites, no skipped tests and digests matching the suite sources and scientific manifest of the build. Schema 2 also records the number of subcases executed. The verifier compares that count with the retained results and checks the report format against the runner at the build commit.
 - Matching artifact identity, transport digest and every descriptor entry, including limits on paths, files and total size.
 
 Distinct commits may have the same tree. A documentation change normally changes the tree and invalidates reuse. Identical Dockerfiles alone do not establish identical images. The build restores verified reports with their original timestamps, results and image identity. `build/scientific-reuse/reuse.json` records reuse or fresh execution, the consumer and the original producer where applicable.

@@ -162,6 +162,29 @@ class RequiredGate(unittest.TestCase):
         results["linux-checks"]["result"] = "skipped"
         self.assertTrue(self.errors(results))
 
+    def test_records_with_guides_or_image_notices_require_every_selected_job(self):
+        for scope in ("guides", "image"):
+            results = self.results("false")
+            outputs = results["changes"]["outputs"]
+            outputs.update(documentation_scope=scope,
+                           acceptance_paths='[".github/release-acceptance/v0.9.7.json"]')
+            for job in ("linux-checks", "windows-checks", "macos-checks"):
+                results[job]["result"] = "skipped"
+            required = ["documentation", "acceptance"]
+            if scope == "image":
+                outputs["scientific"] = "true"
+                required.append("scientific")
+            for job in required:
+                results[job]["result"] = "success"
+            self.assertEqual(self.errors(results, "push", "refs/heads/main"), [])
+            for job in required:
+                for state in ("skipped", "failure", "cancelled", None):
+                    broken = copy.deepcopy(results)
+                    broken[job]["result"] = state
+                    self.assertTrue(self.errors(broken), (scope, job, state))
+            outputs["acceptance_only"] = "true"
+            self.assertTrue(self.errors(results, "push", "refs/heads/main"))
+
     def test_image_notices_cannot_pass_without_both_documentation_and_science(self):
         results = self.results("false")
         outputs = results["changes"]["outputs"]

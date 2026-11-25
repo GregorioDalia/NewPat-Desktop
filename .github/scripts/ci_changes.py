@@ -31,7 +31,7 @@ def is_documentation(path):
 PRESENTATION_FILES = {
     "src/nipat/gui/web/style.css", "src/nipat/gui/web/i18n.js",
     "src/nipat/gui/web/index.html", "src/nipat/gui/web/newpat-wordmark.svg",
-    "tests/test_gui_frontend.py",
+    "tests/test_gui_frontend.py", ".github/gui-test-requirements.txt",
 }
 CALLER_INTEGRATION_FILES = {
     "src/nipat/gui/web/app.js", "scripts/test_gui_frontend.cjs",
@@ -52,6 +52,7 @@ SCIENTIFIC_FILES = {
     ".github/scripts/ci_control.py", ".github/scripts/test_ci_control.py",
     ".github/scripts/test_r_equivalence_ci.py",
     ".github/scripts/check_native_r.py", ".github/scripts/qualification_evidence.py",
+    ".github/scripts/native_evidence.py", ".github/scripts/test_native_evidence.py",
     ".github/scripts/test_qualification_evidence.py", ".github/scripts/release_acceptance.py",
     ".github/scripts/test_release_acceptance.py",
     ".github/scripts/installer_science_wait.py", ".github/scripts/test_installer_science_wait.py",
@@ -171,8 +172,9 @@ def main():
     docs = "none"
     if paths and args.event != "workflow_dispatch":
         records = [path for path in paths if ACCEPTANCE_PATH.fullmatch(path)]
-        if all(is_documentation(path) or path in IMAGE_NOTICES for path in paths):
-            docs = "image" if IMAGE_NOTICES.intersection(paths) else "guides"
+        other_paths = set(paths).difference(records)
+        if other_paths and all(is_documentation(path) or path in IMAGE_NOTICES for path in other_paths):
+            docs = "image" if IMAGE_NOTICES.intersection(other_paths) else "guides"
     with args.output.open("a", encoding="utf-8") as handle:
         for name, selected in decision.items():
             handle.write(f"{name}={str(selected).lower()}\n")

@@ -16,6 +16,7 @@ import urllib.error
 import zipfile
 
 import scientific_reuse as reuse
+from test_native_evidence import native_fixture
 
 
 HEAD, TREE, BASE, MERGE = (letter * 40 for letter in "abcd")
@@ -45,7 +46,11 @@ class ScientificReuseTests(unittest.TestCase):
             digest = reuse.sha256(b"qualified summary\r\n")
             analysis_cases.append({"name": name, "workflow": workflow, "status": "passed",
                                    "summary_sha256": digest, "output_sha256": {filename: digest}})
+        paths, sources, report = native_fixture()
+        self.enterContext(patch.object(reuse.native_evidence, "git_native_test_paths", return_value=paths))
+        self.enterContext(patch.object(reuse.native_evidence, "git_source", side_effect=lambda commit, path: sources[path]))
         self.evidence.update({
+            reuse.native_evidence.REPORT_PATH: json.dumps(report).encode(),
             "nipat-validation/runs/self-test/run.json": b'{"status":"passed"}\n',
             "nipat-validation/runs/self-test/execution.log": b"PASS\n",
             "nipat-performance-check/artifacts/verification.json": json.dumps({
@@ -401,7 +406,27 @@ class ScientificReuseTests(unittest.TestCase):
     def test_missing_core_report_is_rejected_before_seal(self):
         del self.evidence[next(iter(reuse.REPORTS))]
         with self.assertRaisesRegex(ValueError, "report is missing"):
-            reuse.verify_required(self.evidence, IMAGE)
+            reuse.verify_required(self.evidence, IMAGE, HEAD)
+
+    def test_missing_or_failed_native_report_cannot_be_sealed_or_restored(self):
+        path = reuse.native_evidence.REPORT_PATH
+        with zipfile.ZipFile(self.bundle / reuse.ARCHIVE) as archive:
+            members = {name: archive.read(name) for name in archive.namelist()}
+        for raw in (None, b'{"passed":false,"status":"completed","tests_run":0}'):
+            with self.subTest(raw=raw):
+                edited = dict(members)
+                if raw is None:
+                    del edited[path]
+                else:
+                    edited[path] = raw
+                with self.assertRaisesRegex(ValueError, "Native R qualification"):
+                    reuse.verify_required(edited, IMAGE, HEAD)
+                # Even a self-consistent outer digest and inventory cannot rescue the wrong report.
+                self.record["entries"] = [{"path": name, "size": len(data), "sha256": reuse.sha256(data)}
+                                          for name, data in edited.items()]
+                self.write_remote(edited.items())
+                receipt = self.assert_miss()
+                self.assertIn("Native R qualification", receipt["candidates_checked"][0]["reason"])
 
     def test_existing_restore_roots_are_never_overwritten(self):
         target = self.consumer_temp / reuse.CHECK_DIRECTORIES[0]
@@ -483,12 +508,12 @@ class ScientificReuseTests(unittest.TestCase):
             data = dict(self.evidence)
             mutation(data)
             with self.assertRaisesRegex(ValueError, "summary is missing or differs"):
-                reuse.verify_required(data, IMAGE)
+                reuse.verify_required(data, IMAGE, HEAD)
         name = next(name for name, kind in reuse.REPORTS.items() if kind == "analyses")
         report = json.loads(self.evidence[name])
         report["results"] = report["results"][:1]
         with self.assertRaisesRegex(ValueError, "coverage is incomplete"):
-            reuse.verify_required(dict(self.evidence, **{name: json.dumps(report).encode()}), IMAGE)
+            reuse.verify_required(dict(self.evidence, **{name: json.dumps(report).encode()}), IMAGE, HEAD)
 
     def test_search_budget_is_global_and_falls_back_without_waiting_for_other_runs(self):
         calls = []

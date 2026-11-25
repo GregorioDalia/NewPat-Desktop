@@ -101,12 +101,25 @@ class ScientificSelection(unittest.TestCase):
         self.assertEqual(values["scientific"], "true")
         self.assertTrue(all(values[layer] == "false" for layer in ("client", "packaging", "runtime")))
 
-    def test_mixed_records_still_verify_acceptance_without_delegating_native_checks(self):
+    def test_guides_with_records_select_both_jobs_without_marking_a_publishable_push(self):
         record = ".github/release-acceptance/v0.9.7.json"
         self.write("docs/USER_GUIDE.md", "guide")
         self.write(record, "{}")
+        values = self.selection(event="push")
+        self.assertEqual(values["documentation_scope"], "guides")
+        self.assertTrue(all(values[layer] == "false" for layer in changes.LAYERS))
+        self.assertEqual(values["acceptance_only"], "false")
+        self.assertEqual(json.loads(values["acceptance_paths"]), [record])
+        self.write("LICENSE", "notice shipped in the image")
         values = self.selection()
+        self.assertEqual(values["documentation_scope"], "image")
+        self.assertEqual(values["scientific"], "true")
+        self.assertEqual(values["acceptance_only"], "false")
+        self.assertEqual(json.loads(values["acceptance_paths"]), [record])
+        self.write("scientific/panel.txt", "changed input")
+        values = self.selection(event="push")
         self.assertEqual(values["documentation_scope"], "none")
+        self.assertEqual(values["scientific"], "true")
         self.assertEqual(values["acceptance_only"], "false")
         self.assertEqual(json.loads(values["acceptance_paths"]), [record])
 
@@ -136,6 +149,7 @@ class ScientificSelection(unittest.TestCase):
 
     def test_scientific_validator_and_its_evidence_dependencies_request_real_execution(self):
         for path in (".github/scripts/check_native_r.py", ".github/scripts/qualification_evidence.py",
+                     ".github/scripts/native_evidence.py", ".github/scripts/test_native_evidence.py",
                      ".github/scripts/release_acceptance.py"):
             self.assertIn("scientific", changes.layers_for_path(path), path)
 
@@ -230,6 +244,27 @@ class ScientificSelection(unittest.TestCase):
 
     def test_manual_request_runs_scientific_checks_without_changes(self):
         self.assertTrue(changes.scientific_decision(self.base, self.base, force=True, repository=self.root)[0])
+
+    def test_playwright_pin_uses_focused_clients_and_the_real_linux_browser_check(self):
+        requirements = ".github/gui-test-requirements.txt"
+        self.write(requirements, "playwright==1.2.3")
+        values = self.selection()
+        self.assertEqual({name: values[name] for name in changes.LAYERS},
+                         dict(client="true", scientific="false", runtime="false", packaging="false"))
+        self.assertEqual((values["desktop_scope"], values["caller_smoke"], values["documentation_scope"]),
+                         ("focused", "false", "none"))
+        self.assertEqual(values["acceptance_only"], "false")
+        workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/ci.yml").read_text()
+        linux = workflow.split("\n  linux-checks:\n", 1)[1].split("\n  windows-checks:\n", 1)[0]
+        browser_step, = [step for step in linux.split("      - name: ") if requirements in step]
+        self.assertIn(f"python -m pip install -r {requirements}", browser_step)
+        self.assertIn("python scripts/verify_gui_interactions.py", browser_step)
+        self.assertNotIn("        if:", browser_step)
+        self.assertNotIn("continue-on-error:", browser_step)
+        self.write("installer/runtime/Dockerfile", "runtime update")
+        values = self.selection(event="push")
+        self.assertEqual((values["desktop_scope"], values["scientific"], values["runtime"]),
+                         ("standard", "true", "true"))
 
     def test_reviewed_desktop_inputs_cannot_expand_the_shortcut_to_other_gui_or_science(self):
         def selection(*paths, force=False):

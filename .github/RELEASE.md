@@ -49,7 +49,7 @@ To test a candidate on a Windows PC, enable `windows_zip_only` when dispatching 
 ### Platform evidence
 
 - **Windows.** `windows-client-check.json` tests the staged payload with its embedded Python, including complex paths. `windows-installer-fixture-check.json` exercises installation, upgrade and removal of a fixture compiled from the candidate Inno definition. `windows-trust-check.json` binds actual Authenticode observations to package bytes. Record execution of the production setup, a real WSL installation or Smart App Control on a physical system only when observed. Bootstrap, separately downloaded payload and complete local ZIP have distinct identities.
-- **Ubuntu.** Package checks cover APT installation, dependency resolution, non-root preparation and analysis, reinstall/removal, and preservation of user files. `linux-upgrade-check.json` binds a real upgrade from the 0.7.2 baseline to this candidate. A configured Actions runner and a clean physical desktop are different environments.
+- **Ubuntu.** Package checks cover APT installation, dependency resolution, non-root preparation and analysis, reinstall/removal, and preservation of user files. For the 0.9.10 candidate, `linux-upgrade-check.json` must show a successful upgrade from the published 0.9.9 DEB and identify its SHA-256. This test runs on the configured Actions runner.
 - **macOS.** Review native PKG, bundled Python, Lima, launcher and archive identity for each architecture. `qualify_macos_runtime` can request separate VM tests on appropriately equipped dedicated runners. Record an unexecuted architecture as `not-performed`. Checksum verification establishes file identity. It does not confer a Developer ID signature or notarization.
 
 ## 2. Review and record acceptance

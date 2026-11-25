@@ -109,7 +109,7 @@ def gate_errors(results, *, event_name, ref):
     except (TypeError, ValueError):
         records = []
         errors.append("unknown acceptance path selection")
-    if (metadata == "true" and not records) or (docs != "none" and records):
+    if metadata == "true" and not records:
         errors.append("inconsistent acceptance path selection")
     if event_name == "workflow_dispatch" and (
             docs != "none" or metadata != "false" or desktop != "standard" or smoke != "false"
@@ -127,12 +127,12 @@ def gate_errors(results, *, event_name, ref):
     else:
         if selected != "true":
             errors.append("unknown check-ownership decision")
-        expected = {"linux-checks": "success", "windows-checks": "success", "macos-checks": "success"}
+        desktop_jobs = ("linux-checks", "windows-checks", "macos-checks")
+        lightweight = docs != "none" or metadata == "true"
+        expected = dict.fromkeys(desktop_jobs, "skipped" if lightweight else "success")
         expected["acceptance"] = "success" if records else "skipped"
-        expected["documentation"] = "skipped"
-        if docs != "none" or metadata == "true":
-            expected = dict.fromkeys(expected, "skipped")
-            expected["documentation" if docs != "none" else "acceptance"] = "success"
+        expected["documentation"] = "success" if docs != "none" else "skipped"
+        if lightweight:
             if (any(outputs.get(layer) != "false" for layer in ("client", "runtime", "packaging"))
                     or outputs.get("scientific") != ("true" if docs == "image" else "false")):
                 errors.append("documentation or acceptance selection conflicts with changed application layers")

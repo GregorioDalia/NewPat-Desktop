@@ -27,6 +27,7 @@ import zlib
 
 from qualification_evidence import ALLOWED, MAX_ENTRIES, MAX_FILE, MAX_TOTAL, safe_name
 import release_acceptance as acceptance
+import native_evidence
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
@@ -83,7 +84,7 @@ def remaining_timeout(deadline=None, maximum=10):
 
 def error_reason(error):
     # Parser/network exceptions can contain signed URLs or untrusted values.
-    return str(error) if isinstance(error, ReuseMiss) else type(error).__name__
+    return str(error) if isinstance(error, (ReuseMiss, native_evidence.NativeEvidenceError)) else type(error).__name__
 
 
 def sha256(data):
@@ -161,7 +162,7 @@ def raw_evidence(runner_temp):
             yield name, data
 
 
-def verify_required(evidence, image):
+def verify_required(evidence, image, commit):
     require(all(f"{directory}/verification.log" in evidence for directory in CHECK_DIRECTORIES),
             "Scientific gate logs are incomplete")
     require(any(name.startswith("nipat-validation/runs/") and name.endswith("/run.json") for name in evidence)
@@ -171,6 +172,7 @@ def verify_required(evidence, image):
     require(isinstance(performance, dict) and performance.get("schema_version") == 1
             and performance.get("status") == "passed" and performance.get("image_id") == image["id"],
             "Performance qualification report is missing or belongs to another image")
+    native_evidence.verify_report(evidence.get(native_evidence.REPORT_PATH), commit)
     for name, kind in REPORTS.items():
         require(name in evidence, "Scientific qualification report is missing")
         report = json.loads(evidence[name])
@@ -256,7 +258,7 @@ def seal(image, output, runner_temp, runtime_archive=None):
     producer = producer_identity(source)
     identity = image_identity(image)
     evidence = dict(raw_evidence(runner_temp))
-    verify_required(evidence, identity)
+    verify_required(evidence, identity, source["commit"])
     require(checkout() == source, "Producer checkout changed while sealing")
     require(platform.python_version() == "3.12.10", "Scientific producer must use pinned Python 3.12.10")
     environment = host_environment()
@@ -496,7 +498,7 @@ def verify_bundle(artifact_zip, directory, run, source, image, fetch=fetch_json,
             "Scientific inventory is incomplete")
     expected = [{"path": name, "size": len(data), "sha256": sha256(data)} for name, data in evidence.items()]
     require(entries == expected, "Scientific inventory does not match raw evidence bytes")
-    verify_required(evidence, record["image"])
+    verify_required(evidence, record["image"], source["commit"])
     return record, evidence
 
 

@@ -17,13 +17,15 @@ Use a successful **Installers (review build)** with a passing `installer-require
 | `decision`, `scope`, `review` | Reviewed `accepted-for-research` decision, `pre-1.0-research` scope, reviewer, UTC date and HTTPS evidence. |
 | `observed_baseline` | Actual observed commit and evidence, labeled `historical-platform-evidence`. |
 | `observed_baseline.source_comparison_scope`, `reviewed_source_changes` | `reviewed-operative-changes-with-versioned-scientific-models-v1` and ordered path plus before/after hashes, using null for additions/removals. |
-| `qualification_evidence_sha256`, `linux_upgrade_check_sha256` | Permanent candidate evidence and actual Ubuntu upgrade from the 0.7.2 baseline. |
+| `qualification_evidence_sha256`, `linux_upgrade_check_sha256` | Permanent candidate evidence and the Ubuntu upgrade report. For 0.9.10 the starting package is the published 0.9.9 DEB. |
 | `macos_validation` | Separate `arm64` and `x86_64` results. Use `passed` with supporting HTTPS evidence or `not-performed` with an empty list. |
 | `scientific_equivalence` | Caller reference commit, report path, report digest and immutable image ID. |
 | `scientific_analysis_qualification` | Upstream NEWPAT commit, path/hash for `five-module-qualification.json` and the same immutable image ID. |
 | `deferred_desktop_scenarios`, `domain_validation` | Outstanding desktop scenarios and `pending-domain-researchers` status. |
 
-The caller report covers 17 cases against NIPAT 0.8.5 for DNP and SNPcall 2.0 for SNP. It compares exported tables, unrounded R values and plot checks, including serial/parallel rendering. The downstream report uses frozen NEWPAT commit `9c2a8be60afcb944153710da6a61cd0559e2b4cf`, independent analytical fixtures and explicit numerical tolerances. Its 86 R runs include 16 upstream comparisons and 54 batch runs for 2/3/5 families or samples, both marker types and serial/auto/two-worker configurations. Verify included sources, helpers, fixtures, sample identities, effective settings, preserved inputs and worker budgets. The aggregate result is in `scientific-equivalence-check.json`. The two report identities also appear in `release-provenance.json`.
+The caller report covers 17 cases against NIPAT 0.8.5 for DNP and SNPcall 2.0 for SNP. It compares exported tables, unrounded R values and plot checks, including serial/parallel rendering. For 0.9.10 the downstream report uses frozen NEWPAT commit `97c4eb5f7a901d0435b950c3e2a52a8bd7eae9d4`, independent analytical fixtures and explicit numerical tolerances. Its 86 R runs include 16 upstream comparisons and 54 batch runs for 2/3/5 families or samples, both marker types and serial/auto/two-worker configurations. Verify included sources, helpers, fixtures, sample identities, effective settings, preserved inputs and worker budgets. The aggregate result is in `scientific-equivalence-check.json`. The two report identities also appear in `release-provenance.json`.
+
+Starting with 0.9.10, acceptance also verifies the archived `native-r.json` against the suite sources and scientific manifest at the build commit. A missing report, an incomplete or failed suite, or mismatched source digests blocks acceptance.
 
 ## Recording desktop tests
 

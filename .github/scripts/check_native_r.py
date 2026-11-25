@@ -13,6 +13,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 PAYLOAD = Path("/opt/nipat")
+REPORT_SCHEMA_VERSION = 2
 
 
 # These suites exercise reads and mathematical expectations independently of the frozen R versions.
@@ -49,11 +50,12 @@ class EvidenceResult(unittest.TextTestResult):
         observed = {item["id"].split(".", 1)[0] for item in self.methods}
         missing = sorted(required_modules - observed)
         return {
-            "schema_version": 1,
+            "schema_version": REPORT_SCHEMA_VERSION,
             "passed": bool(self.testsRun and self.wasSuccessful() and not self.skipped
                            and not self.expectedFailures and not missing),
             "tests_run": self.testsRun,
             "methods": self.methods,
+            "subcases_run": len(self.subcases),
             "subcases": self.subcases,
             "missing_oracle_modules": missing,
             "failures": [{"id": test.id(), "detail": detail} for test, detail in self.failures],
@@ -70,7 +72,7 @@ def main():
     args = parser.parse_args()
     if args.report:
         # A failed prerequisite check must not leave a previous passing report in place.
-        args.report.write_text(json.dumps({"schema_version": 1, "passed": False,
+        args.report.write_text(json.dumps({"schema_version": REPORT_SCHEMA_VERSION, "passed": False,
                                            "status": "incomplete"}) + "\n", encoding="utf-8")
     # Host R can be incomplete and native unit tests then explicitly skip.
     # The packaged-image gate must instead fail missing tools/dependencies.

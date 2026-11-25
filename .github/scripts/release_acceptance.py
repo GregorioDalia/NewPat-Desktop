@@ -13,6 +13,8 @@ import subprocess
 import zipfile
 from urllib.parse import urlsplit
 
+import native_evidence
+
 SCENARIOS = {
     "windows_clean_wsl", "windows_stable_coexistence", "windows_reinstall_removal",
     "ubuntu_clean_dependencies", "ubuntu_existing_docker", "ubuntu_reinstall_removal",
@@ -1052,12 +1054,23 @@ def verify_scientific_equivalence(record, evidence_directory, manifest, read_sou
     require(archive.is_file() and not archive.is_symlink()
             and hashlib.sha256(archive.read_bytes()).hexdigest() == record["qualification_evidence_sha256"],
             "Scientific qualification archive differs from the accepted build")
+    commit = record["source_commit"]
+    native = None
     try:
         with zipfile.ZipFile(archive) as handle:
             matching = [entry for entry in handle.infolist() if entry.filename == evidence["report_path"]]
             require(len(matching) == 1 and 0 < matching[0].file_size <= 8 * 1024 * 1024,
                     "Missing, duplicate or oversized scientific equivalence report")
             raw = handle.read(matching[0])
+            if revised_cpi_contract(record["version"]):
+                members = [entry for entry in handle.infolist() if entry.filename.startswith("scientific/")
+                           and entry.filename.endswith("/" + native_evidence.REPORT_PATH)]
+                require(len(members) == 1 and 0 < members[0].file_size <= 8 * 1024 * 1024,
+                        "Missing, duplicate or oversized native R qualification report")
+                native_raw = handle.read(members[0])
+                native = native_evidence.verify_report(
+                    native_raw, commit, read_source=lambda path: read_source(commit, path))
+                native["report_sha256"] = hashlib.sha256(native_raw).hexdigest()
     except (OSError, zipfile.BadZipFile, KeyError) as error:
         raise ValueError("Cannot read retained scientific equivalence report") from error
     require(hashlib.sha256(raw).hexdigest() == evidence["report_sha256"],
@@ -1090,7 +1103,6 @@ def verify_scientific_equivalence(record, evidence_directory, manifest, read_sou
         require(isinstance(data, bytes), "Scientific equivalence requires exact source bytes")
         return data
 
-    commit = record["source_commit"]
     reference = report.get("reference")
     require(isinstance(reference, dict) and set(reference) == {
         "schema_version", "version", "source_commit", "source_tag", "files",
@@ -1220,6 +1232,7 @@ def verify_scientific_equivalence(record, evidence_directory, manifest, read_sou
     callers = (verify_caller_parallel_qualification(archive, evidence["runtime_image"])
                if measured_sample_contract(record["version"]) else None)
     return {"source_commit": commit, "reference_source_commit": R_REFERENCE_COMMIT,
+            **({"native_r_qualification": native} if native is not None else {}),
             **({"scientific_analysis_qualification": analysis} if analysis else {}),
             **({"caller_parallel_qualification": callers} if callers else {}),
             **({"snp_reference": SNP2_REFERENCE} if snp2 else {}),

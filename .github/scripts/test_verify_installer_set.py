@@ -515,6 +515,15 @@ class RealUpgradeEvidenceTests(unittest.TestCase):
             with self.subTest(key=key), self.assertRaises(ValueError):
                 self.verify(changed)
 
+    def test_0910_installer_set_rejects_a_successful_legacy_baseline_upgrade(self):
+        self.manifest["version"] = self.evidence["version"] = "0.9.10"
+        checker = VERIFY.load_module("upgrade_test_baseline", VERIFY.PROJECT / "scripts/verify_linux_upgrade.py")
+        self.evidence["previous"] = checker.baseline_for("0.9.9")
+        with self.assertRaisesRegex(ValueError, "Linux upgrade evidence mismatch"):
+            self.verify(self.evidence)
+        self.evidence["previous"] = checker.baseline_for("0.9.10")
+        self.verify(self.evidence)
+
     def test_rejects_missing_failed_and_nonboolean_checks_or_candidate_mismatch(self):
         for check in self.evidence["checks"]:
             for value in (False, 1, "true", None):

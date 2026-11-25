@@ -6,6 +6,7 @@ import io
 import json
 from pathlib import Path
 import unittest
+from unittest import mock
 import zipfile
 
 import test_revised_r_acceptance as legacy_tests
@@ -462,6 +463,7 @@ class FiveModuleAcceptanceTests(unittest.TestCase):
         self.write_reports()
         checked = self.verify()
         self.assertEqual(checked["caller_parallel_qualification"]["acquisitions_verified"], ["dnp-call", "snp-call"])
+        self.assertNotIn("native_r_qualification", checked)
         for version, expected in (("0.9.8", False), ("0.9.9", True), ("0.9.10", True)):
             self.assertEqual(acceptance.measured_sample_contract(version), expected)
         original = copy.deepcopy(self.report)
@@ -473,6 +475,29 @@ class FiveModuleAcceptanceTests(unittest.TestCase):
             self.write_reports()
             with self.subTest(field=field), self.assertRaisesRegex(ValueError, "measured workload"):
                 self.verify()
+
+    def test_0910_publication_requires_one_source_bound_native_report(self):
+        self.prepare_parallel_report()
+        self.record["version"] = self.manifest["version"] = "0.9.10"
+        self.record["scientific_analysis_qualification"]["reference_source_commit"] = acceptance.CPI_REFERENCE_COMMIT
+        archive = self.legacy.directory / "qualification-evidence.zip"
+        with self.assertRaisesRegex(ValueError, "Missing, duplicate or oversized native R"):
+            self.verify()
+
+        def add_report(prefix):
+            with zipfile.ZipFile(archive, "a") as handle:
+                handle.writestr(prefix + "/nipat-native-r-check/native-r.json",
+                                json.dumps({"status": "completed", "passed": False, "tests_run": 0}))
+            self.record["qualification_evidence_sha256"] = digest(archive.read_bytes())
+
+        add_report("scientific/_temp")
+        with mock.patch.object(acceptance.native_evidence, "git_native_test_paths", return_value=set()) as paths:
+            with self.assertRaisesRegex(ValueError, "Native R qualification did not complete successfully"):
+                self.verify()
+            paths.assert_called_once_with(self.record["source_commit"])
+        add_report("scientific/other-run")
+        with self.assertRaisesRegex(ValueError, "Missing, duplicate or oversized native R"):
+            self.verify()
 
     def test_099_rejects_partial_parallel_execution_or_changed_scientific_outputs(self):
         self.prepare_parallel_report()
