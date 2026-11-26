@@ -87,6 +87,8 @@ Supply maternal cell-free DNA and alleged-father count tables, pair assignments 
 
 Use `cpi.min_fetal_reads` for an absolute minimum count and `cpi.min_fetal_percent` for a percentage of maternal REF + ALT reads. When both are set a site must meet both. When neither is specified the minimum is two reads. A percentage alone starts the CPI curve at one read. [Prenatal settings and output](../scientific/vendor/NEWPAT/CPI_from_cffDNA/README.md)
 
+Set `cpi.min_coverage` to require a minimum total read count in each parent. The default has no minimum beyond positive coverage. The maximum fraction of Other reads is 0.10 by default and applies separately to each parent. Enable `cpi.include_homozygous_child` to include presumed homozygous fetal sites in the CPI. This experimental option is off by default. Its contribution is recorded separately and stays constant across the curve. Fetal fraction uses the putative heterozygous fetal sites. [Worked SNP and DNP examples](../tests/fixtures/prenatal_cpi/README.md)
+
 With the default prefixes, `--pairs A1:A1` selects `MotherA1.txt` and `FatherA1.txt` in the input directory. Separate multiple pairs with commas. For an individual CPI run, choose at most one panel-selection method: `--panel PATH`, repeated `--cutoff LABEL PATH`, or `--cutoff-map "LABEL=PATH,LABEL2=PATH2"`. Omitting these uses available sites. Repeated `--cutoff` arguments also work for paths containing commas or equals signs. `--err-const` accepts a finite run-specific error constant in (0, 1].
 
 ```powershell

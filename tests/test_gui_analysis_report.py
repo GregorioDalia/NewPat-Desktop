@@ -279,3 +279,37 @@ def test_prenatal_plot_guides_never_reverse_the_direction_of_evidence_or_assert_
                                 "parameters": {"log_cpi_lower": -0.1, "log_cpi_upper": 0.1}})
     (new_case,) = report_cases(store, "example")
     assert build_report(store, "example", new_case["id"])["outcome_category"] == "nonassessable"
+
+
+def test_revised_prenatal_pdf_uses_valid_sites_and_only_the_selected_hom_panel(tmp_path):
+    run = make_run(tmp_path, "cpi", marker="SNP")
+    settings = "output/scientific-settings.json"
+    write_json(run / settings, {"schema_version": 1, "workflow": "cpi",
+                                "parameters": {"log_cpi_lower": -4, "log_cpi_upper": 4}})
+    table(run / "output/Summary_FetalFraction_CPI.csv",
+          ["Pair", "Cutoff", "N_sites_mother", "N_sites_father", "CPI_medianFF", "Include_homozygous_child",
+           "Min_coverage", "N_sites_HET_child", "N_sites_HOM_child", "Log10_CPI_HET_child", "Log10_CPI_HOM_child"],
+          [["pair", panel, 1, 0, "-5", "TRUE", "NA", 0, 1, 0, "-5"] for panel in ("First", "Second")])
+    curves = []
+    for i, panel in enumerate(("First", "Second"), 1):
+        curve = f"output/curves/pair_panel_{i}.tsv"
+        sites = f"output/pair_panel_{i}_HOM_child_sites.txt"
+        table(run / curve, ["Iteration", "log_CPI", "InfSites_father", "NotMismatch", "Mismatch",
+                            "N_sites_HET_child", "N_sites_HOM_child"], [[2, -5, 1, 0, 1, 0, 1]])
+        table(run / sites, ["chr", "pos", "Paternal_allele", "Paternity_Index"], [["chr1", i * 10, "REF", "0.00001"]])
+        curves.append(artifact(run, curve, cutoff=panel, hom_sites=artifact(run, sites)))
+    validation(run, "cpi", {"cpi-pairs": [{"pair": "selection", "native_pair": "pair", "curves": curves}],
+                            "settings": artifact(run, settings)})
+    store = ResultsStore(tmp_path, language="en")
+    cases = report_cases(store, "example")
+    assert len(cases) == 2
+    for i, case in enumerate(cases, 1):
+        report = build_report(store, "example", case["id"], detailed=True)
+        assert report["outcome_category"] == "unfavorable"
+        assert "1 site contributed" in report["result_basis"]
+        assert report["tables"][1]["rows"] == [["chr1", str(i * 10), "REF", "0.00001"]]
+        assert [p["y"] for p in report["charts"][-1]["points"]] == [0, -5]
+        assert {"label": "Minimum coverage per individual", "value": "Off"} in report["metrics"]
+        assert any("experimental" in note for note in report["notes"])
+        short = build_report(store, "example", case["id"])
+        assert short["facts"] == [{"label": "DNA positions compared", "value": "1"}]

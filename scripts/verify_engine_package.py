@@ -167,7 +167,7 @@ def check_metadata(identifier: str) -> dict:
         raise ValueError("The engine lacks the complete SNPcall interface.")
     if description.get("workflow_interfaces", {}).get("dnp-call") != "dnp-call-v1":
         raise ValueError("The engine lacks the complete DNPcall interface.")
-    if description.get("workflow_interfaces", {}).get("cpi") != "cpi-v3":
+    if description.get("workflow_interfaces", {}).get("cpi") != "cpi-v4":
         raise ValueError("The engine lacks the complete CPI interface.")
     if description.get("workflow_interfaces", {}).get("cpin") != "cpin-v2":
         raise ValueError("The engine lacks the complete CPIN interface.")
@@ -724,14 +724,14 @@ def main() -> int:
         check_contamination_workflow(identifier, root)
         check_cpi_fixture(identifier, root)
         cpi_inputs = check_cpi_workflow(identifier, root, run_image=run_image, write_request=write_request)
-        check_cpi_client_without_host_scripts(identifier, root, cpi_inputs)
+        prenatal = check_cpi_client_without_host_scripts(identifier, root, cpi_inputs)
         check_contamination_client_without_host_scripts(identifier, root)
         check_cpin_workflow(identifier, root)
         fetal_sex = qualify_fetal_sex(identifier, root)
         composed = qualify_image(identifier, root / "five-module BAM workflow", run_container=run_container)
         report = {"status": "passed", "schema_version": 1, "runtime_image": identifier,
                   "acquisitions": acquisitions, "five_module_workflow": composed,
-                  "fetal_sex_examples": fetal_sex}
+                  "fetal_sex_examples": fetal_sex, "prenatal_examples": prenatal}
         evidence = root.parent / "caller-parallel-qualification.json"
         with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=evidence.parent, delete=False) as handle:
             json.dump(report, handle, indent=2)

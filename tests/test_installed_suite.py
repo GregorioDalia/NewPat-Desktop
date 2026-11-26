@@ -196,6 +196,22 @@ class InstalledSuiteTests(unittest.TestCase):
         probe({**original, "fetal-sex": {}})
         self.assertIn("fetal-sex", self.driver.report["modules"])
 
+    def test_published_prenatal_cases_check_both_markers_and_the_entire_curve(self):
+        with patch.object(sys, "path", [str(suite.HARNESS), *sys.path]):
+            import installed_models as models
+        fixture = self.driver.fixtures / "prenatal_cpi"
+        hashes = models.copy_prenatal_fixtures(ROOT / "tests/fixtures/prenatal_cpi", fixture)
+        self.assertEqual(len(hashes), 14)
+        for case, marker in zip(models.prenatal_example_cases(fixture), ("DNP", "SNP"), strict=True):
+            with self.subTest(marker=marker):
+                run = self.driver.runs / marker
+                shutil.copytree(fixture / "outputs" / marker, run / "output")
+                self.assertEqual(set(case["validate"](run)["output_sha256"]), set(models.prenatal_outputs(marker)))
+                curve = next((run / "output").glob("*_CPI_iterations.csv"))
+                curve.write_text(curve.read_text().replace("2,", "1,", 1))
+                with self.assertRaisesRegex(ValueError, "Iteration"):
+                    case["validate"](run)
+
     def test_published_fetal_sex_cases_validate_all_tables_and_pin_the_copy(self):
         with patch.object(sys, "path", [str(suite.HARNESS), *sys.path]):
             import installed_models as models

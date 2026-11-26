@@ -491,10 +491,10 @@
           },
           {
             "path": "src/nipat_scientific/settings_data.json",
-            "sha256": "9c72fe224c9a07f665d7067d4b4db4161b209acab85cccff9e1963125b066f44",
+            "sha256": "288538dd8057e235edcb0e6e12ccea610f1066fb536262be086191759777e03c",
             "source_lines": [
               1,
-              749
+              764
             ]
           }
         ]

@@ -111,7 +111,11 @@ FIELDS = {
     "Error_constant": ("Probabilità di errore utilizzata", "Error probability used"),
     "Min_fetal_reads": ("Letture fetali minime", "Minimum fetal reads"),
     "Min_fetal_percent": ("Percentuale minima di letture fetali", "Minimum fetal read percentage"),
-    "Min_coverage": ("Copertura minima per individuo", "Minimum coverage per trio member"),
+    "Min_coverage": ("Copertura minima per individuo", "Minimum coverage per individual"),
+    "Include_homozygous_child": ("Includi siti con feto presunto omozigote (sperimentale)", "Include presumed homozygous fetal sites (experimental)"),
+    "Paternal_allele": ("Allele paterno inferito", "Inferred paternal allele"),
+    "Father_genotype": ("Genotipo paterno", "Paternal genotype"),
+    "Allele_frequency": ("Frequenza dell’allele paterno inferito", "Frequency of the inferred paternal allele"),
     "Mismatch_probability": ("Peso del mismatch paterno", "Paternal mismatch weight"),
     "No_obligatory_allele_sites": ("Siti senza allele paterno obbligato", "Sites without an obligatory paternal allele"),
     "Maternal_incompatible_sites": ("Siti incompatibili tra madre e figlio", "Mother–child incompatible sites"),
@@ -167,6 +171,13 @@ GENOTYPE_COMBINATIONS = {
     "het_hom": ("Madre eterozigote, figlio omozigote", "Heterozygous mother, homozygous child"),
     "het_het": ("Madre eterozigote, figlio eterozigote", "Heterozygous mother, heterozygous child"),
 }
+for category in ("HET", "HOM"):
+    FIELDS.update({
+        f"N_sites_{category}_child": (f"Siti {category} con PI valido", f"{category} sites with a valid PI"),
+        f"Matching_{category}_child": (f"Siti {category} concordanti", f"Matching {category} sites"),
+        f"Mismatching_{category}_child": (f"Siti {category} discordanti", f"Mismatching {category} sites"),
+        f"Log10_CPI_{category}_child": (f"Contributo {category} al log₁₀(CPI)", f"{category} contribution to log₁₀(CPI)"),
+    })
 for combination, (italian, english) in GENOTYPE_COMBINATIONS.items():
     FIELDS["N_" + combination] = ("Siti · " + italian, "Sites · " + english)
     FIELDS["Include_" + combination] = ("Includi · " + italian, "Include · " + english)
@@ -185,9 +196,16 @@ def _translation(pair, language="it"):
     return pair[1 if language == "en" else 0]
 
 
-def column_description(key: str, *, language="it", samples: dict | None = None) -> dict:
+def column_description(key: str, *, language="it", samples: dict | None = None, headers=()) -> dict:
     """Describe a native column without changing its identifier or values."""
     label = FIELDS.get(key)
+    if "N_sites_HET_child" in headers:
+        if key == "NotMismatch":
+            label = ("Siti concordanti con PI valido", "Matching sites with a valid PI")
+        elif key == "Mismatch":
+            label = ("Siti discordanti con PI valido", "Mismatching sites with a valid PI")
+        elif key == "N_sites_father":
+            label = ("Siti paterni candidati per il gruppo HET", "Paternal candidate sites in the HET group")
     role = re.fullmatch(r"(.+)_(mother|father|child)", key)
     if label is None and role:
         base = column_description(role[1], language=language)["label"]
@@ -203,6 +221,8 @@ def column_description(key: str, *, language="it", samples: dict | None = None) 
         # intentional here, unlike implementation-variable names in input forms.
         label = (key, key)
     result = {"key": key, "label": _translation(label, language), "unit": None, "scale": 1}
+    if "Include_homozygous_child" in headers and key in {"Min_coverage", "Min_fetal_reads", "Min_fetal_percent"}:
+        result["values"] = {"NA": _translation(("Disattivato", "Off"), language)}
     if key in {"mean_contamination", "contamination", "sd_contamination"}:
         result.update(unit="punti %" if key == "sd_contamination" and language != "en" else
                       "percentage points" if key == "sd_contamination" else "%", scale=100,
@@ -217,7 +237,7 @@ def column_description(key: str, *, language="it", samples: dict | None = None) 
         result.update(unit="ln", description=_translation((
             "Somma di logaritmi naturali, non una probabilità normalizzata.",
             "Sum of natural logarithms, not a normalized probability."), language))
-    elif key in {"CPI_medianFF", "Log10_CPI", "log_CPI", "Max_logCPI", "Min_logCPI", "Median_logCPI", "Mean_logCPI"}:
+    elif key in {"CPI_medianFF", "Log10_CPI", "Log10_CPI_HET_child", "Log10_CPI_HOM_child", "log_CPI", "Max_logCPI", "Min_logCPI", "Median_logCPI", "Mean_logCPI"}:
         result["unit"] = "log10"
         if key == "CPI_medianFF":
             result["description"] = _translation((
@@ -276,11 +296,16 @@ def _cpi_guides(run, descriptor, workflow):
     return None
 
 
+def _prenatal_support_fields(row):
+    # Earlier summaries recorded candidate paternal sites; the revised model records contributing sites.
+    return ("N_sites_mother", "paternal_used_at_median" if "Include_homozygous_child" in row else "N_sites_father")
+
+
 def _reported_cpi_band(row, guides, marker, workflow):
     """Compare the published, rounded estimate, never an inferred unrounded CPI."""
     if guides is None or row.get("Marker_type", marker) != marker:
         return None
-    support = ("N_sites_mother", "N_sites_father") if workflow == "cpi" else ("N_sites",)
+    support = _prenatal_support_fields(row) if workflow == "cpi" else ("N_sites",)
     if not all(_read_count(row.get(key)) for key in support):
         return None
     try:
@@ -425,6 +450,10 @@ def _file_label_it(name):
             return label
     if name.startswith("contamination_"):
         return "Contaminazione per sito"
+    if name.endswith("_HOM_child_sites.txt"):
+        return "Siti con feto presunto omozigote"
+    if name.endswith("_CPI_iterations.csv"):
+        return "Contributi al CPI per soglia"
     if name.endswith(("_sites.tsv", "_sites.txt")):
         return "Siti inclusi ed esclusi"
     if _CPI_CURVE_NAME.search(name):
@@ -443,6 +472,8 @@ def _file_label(name, language="it"):
         "Riepilogo della contaminazione": "Contamination summary", "Frazione fetale e CPI": "Fetal fraction and CPI",
         "Riepilogo CPI postnatale": "Postnatal CPI summary", "Impostazioni scientifiche": "Scientific settings",
         "Tempo e memoria": "Time and memory", "Genotipi non assegnati": "Unassigned genotypes",
+        "Siti con feto presunto omozigote": "Presumed homozygous fetal sites",
+        "Contributi al CPI per soglia": "CPI contributions by threshold",
         "Tutti i grafici di paternità": "All paternity plots", "Provenienza dell’esperimento": "Experiment provenance",
         "Registro dell’esecuzione": "Execution log", "Configurazione dell’interfaccia": "Interface configuration",
         "Corrispondenza dei campioni": "Sample mapping", "Rapporto dell’esperimento": "Experiment report",
@@ -1235,7 +1266,7 @@ class ResultsStore:
         if descriptor.get("sample_id"):
             # SNP standalone summaries always name their one internal column sample_0001.
             sample_labels["sample_0001"] = descriptor.get("sample_label") or descriptor["sample_id"]
-        return {"file": descriptor, "columns": [column_description(k, language=self.language, samples=sample_labels) for k in columns],
+        return {"file": descriptor, "columns": [column_description(k, language=self.language, samples=sample_labels, headers=columns) for k in columns],
                 "rows": result, "row_numbers": row_numbers, "total": total, "matched": matched,
                 "offset": offset, "limit": limit, "has_more": offset + limit < matched}
 
@@ -1274,14 +1305,14 @@ class ResultsStore:
             raise ValueError(_translation(("La curva è cambiata durante la lettura. Aggiorna la pagina.",
                                            "The curve changed while reading. Refresh the page."), self.language))
         return {"file": descriptor,
-                "columns": [column_description(key, language=self.language) for key in columns],
+                "columns": [column_description(key, language=self.language, headers=columns) for key in columns],
                 "rows": rows, "row_numbers": list(range(len(rows))), "total": len(rows), "matched": len(rows),
                 "offset": 0, "limit": _MAX_CURVE_ROWS, "has_more": False,
                 "curve": {"x_key": x_key, "y_key": y_key, "through_key": through_key,
                           "interval_endpoints": "inclusive" if through_key else None}}
 
-    def _metric(self, key, value):
-        result = column_description(key, language=self.language)
+    def _metric(self, key, value, *, headers=()):
+        result = column_description(key, language=self.language, headers=headers)
         result["value"] = None if value is None or value in MISSING else value
         result["raw_value"] = value
         result["available"] = result["value"] is not None
@@ -1291,7 +1322,7 @@ class ResultsStore:
         # The original cell remains available in the detail table even when
         # an imported or incomplete archive contains an inconsistent estimate.
         value = row.get(key)
-        metric = self._metric(key, value)
+        metric = self._metric(key, value, headers=row)
         if not metric["available"]:
             return metric
         if key == "Fetal_sex":
@@ -1304,7 +1335,8 @@ class ResultsStore:
             if key in {"Ratio_A", "Ratio_B", "Ratio_C"}:
                 valid = (numeric.is_finite() or value == "Inf") and numeric >= 0
             elif key in {"N_A_sites", "N_X_sites", "N_Y_sites_used", "informative_sites", "N_sites_mother", "N_sites_father", "N_sites",
-                       "Matching_sites", "Mismatching_sites", "No_obligatory_allele_sites"}:
+                       "N_sites_HET_child", "N_sites_HOM_child", "paternal_used_at_median",
+                        "Matching_sites", "Mismatching_sites", "No_obligatory_allele_sites"}:
                 valid = _read_count(value) is not None
             elif key in {"mean_contamination", "sd_contamination"}:
                 count = _read_count(row.get("informative_sites"))
@@ -1312,7 +1344,7 @@ class ResultsStore:
                 valid = valid and 0 <= numeric <= 1 and count is not None and count >= minimum_sites
             elif key in {"CPI", "Log10_CPI", "CPI_medianFF", "Median_fetal_fraction_percent"}:
                 support = {"CPI": ("N_sites",), "Log10_CPI": ("N_sites",),
-                           "CPI_medianFF": ("N_sites_mother", "N_sites_father"),
+                           "CPI_medianFF": _prenatal_support_fields(row),
                            "Median_fetal_fraction_percent": ("N_sites_mother",)}[key]
                 # Some older summaries omit the count columns. A present entry
                 # must record positive support before we highlight its estimate.
@@ -1455,12 +1487,19 @@ class ResultsStore:
                                                         (key[0] != "cpi" or f.get("cutoff") == row.get("Cutoff"))]
                             entry["plot_file_ids"] = [f["id"] for f in related if f["kind"] == "pdf" and
                                                        (not analysis or f.get("analysis") == analysis)]
-                            site = next((f for f in related if f["name"].endswith(("_sites.tsv", "_sites.txt"))), None)
-                            entry["site_file_id"] = site["id"] if site else None
+                            sites = [f for f in related if f["name"].endswith(("_sites.tsv", "_sites.txt")) and
+                                     (key[0] != "cpi" or f["name"].endswith("_HOM_child_sites.txt") and
+                                      f.get("cutoff") == row.get("Cutoff"))]
+                            entry["site_file_id"] = sites[0]["id"] if len(sites) == 1 else None
                             if key[0] == "cpi":
                                 counts = [f["paternal_used_at_median"] for f in related
                                           if f["id"] in entry["curve_file_ids"] and "paternal_used_at_median" in f]
-                                if len(counts) == 1:
+                                if "Include_homozygous_child" in row:
+                                    het = _read_count(row.get("N_sites_HET_child"))
+                                    hom = _read_count(row.get("N_sites_HOM_child"))
+                                    if het is not None and hom is not None and row.get("CPI_medianFF") not in MISSING:
+                                        row["paternal_used_at_median"] = str(het + hom)
+                                elif len(counts) == 1:
                                     row["paternal_used_at_median"] = str(counts[0])
                             metric_keys = (["Median_fetal_fraction_percent", "CPI_medianFF", "N_sites_mother", "N_sites_father"]
                                            if key[0] == "cpi" else ["CPI", "Log10_CPI", "N_sites", "Matching_sites", "Mismatching_sites"])
@@ -1470,8 +1509,8 @@ class ResultsStore:
                             metric_keys.append("paternal_used_at_median")
                         if count == 1:
                             group.setdefault("summary_columns", {}).update(
-                                (k, column_description(k, language=self.language)) for k in row)
-                        entry["metrics"] = [self._metric(k, row.get(k)) for k in metric_keys]
+                                (k, column_description(k, language=self.language, headers=row)) for k in row)
+                        entry["metrics"] = [self._metric(k, row.get(k), headers=row) for k in metric_keys]
                         summary_keys = (("CPI_medianFF", *metric_keys[2:], "Median_fetal_fraction_percent")
                                         if key[0] == "cpi" else metric_keys)
                         entry["summary"] = {

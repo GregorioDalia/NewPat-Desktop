@@ -43,7 +43,7 @@ def engine_metadata():
             for name in ("dnp-call", "snp-call", "contamination", "cpi", "cpin", "fetal-sex")
         },
         "workflow_interfaces": {"contamination": "contamination-v2", "snp-call": "snp-call-v2",
-                                "dnp-call": "dnp-call-v1", "cpi": "cpi-v3", "cpin": "cpin-v2", "fetal-sex": "fetal-sex-v1"},
+                                "dnp-call": "dnp-call-v1", "cpi": "cpi-v4", "cpin": "cpin-v2", "fetal-sex": "fetal-sex-v1"},
         "preparation": {
             "interface": "workflow-preparation-v1",
             "file_sha256": {name: "d" * 64 for name in (
@@ -210,13 +210,13 @@ class BundledRunnerTests(unittest.TestCase):
         # The preceding image can run CPI alone, but cannot execute it as a
         # plan step. Reject it before starting even the upstream DNP analysis.
         legacy = self.plan_metadata()
-        self.assertEqual(legacy["workflow_interfaces"]["cpi"], "cpi-v3")
+        self.assertEqual(legacy["workflow_interfaces"]["cpi"], "cpi-v4")
         variants = [legacy]
         for key in ("workflow_interfaces", "preparation"):
             description = self.plan_metadata()
             description["plan_execution"]["workflows"].append("cpi")
             if key == "workflow_interfaces":
-                description[key]["cpi"] = "cpi-v1"
+                description[key]["cpi"] = "cpi-v3"
             else:
                 del description[key]["file_sha256"]["lib/nipat_scientific/cpi.py"]
             variants.append(description)

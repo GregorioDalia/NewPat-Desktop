@@ -40,11 +40,10 @@ NewPat uses the complete SNPcall 2.0 scientific core from NEWPAT commit
 `tests/reference_r/2.0/SNPcall.R` as the differential-test reference. NewPat's
 input adapters, resource scheduling and presentation changes are identified
 separately from that upstream source.
-The prenatal CPI update comes from NEWPAT commit
-`eabff16fa475433ead4d9110a21bf3e330d8ccc6`, and the postnatal CPI update from
-`97c4eb5f7a901d0435b950c3e2a52a8bd7eae9d4`. The latter snapshot also contains the
-unchanged Contamination reference. Unmodified scripts for the three modules
-are frozen in `tests/reference_r/NEWPAT_20261125`; operational copies add
+The candidate incorporates Letizia Pistacchia’s prenatal CPI revision from
+[NEWPAT snapshot c753afc](https://github.com/lpistacchia/NEWPAT/tree/c753afc4be62dfc0b81b8cb683a6e850516f5ffd/CPI_from_cffDNA).
+The corresponding prenatal, postnatal and Contamination reference scripts are
+frozen in `tests/reference_r/NEWPAT_20261126`. The operational copies add
 validated configuration, shared execution budgets and readable exports.
 
 The `GPL-3.0-or-later` grant for original NewPat material does not add an

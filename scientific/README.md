@@ -23,7 +23,7 @@ The full scientific qualification also compares the candidate with frozen script
 | --- | --- |
 | DNPcall | NIPAT 0.8.5 commit `eafadf7002a9c7d7c1b9af9ccafc47d698a059e5`, frozen in `tests/reference_r/0.8.5`. |
 | SNPcall | [Upstream SNPcall 2.0](https://github.com/lpistacchia/NEWPAT/tree/ce59f4beeeec710b1b42d425cb87d7aad729f71d/SNPcall), Git blob `7a2e01e94c9e278af52aa861646fec3b16df8b1c`. Local reference `tests/reference_r/2.0/SNPcall.R` has SHA-256 `855a96c897d1bcb8ce30b725baecfa739d01be323252da07554a63aa66965da4`. |
-| Contamination, prenatal and postnatal CPI | [NEWPAT snapshot](https://github.com/lpistacchia/NEWPAT/tree/97c4eb5f7a901d0435b950c3e2a52a8bd7eae9d4), frozen in `tests/reference_r/NEWPAT_20261125`, plus independent analytical expectations. The prenatal update was introduced in [eabff16](https://github.com/lpistacchia/NEWPAT/tree/eabff16fa475433ead4d9110a21bf3e330d8ccc6/CPI_from_cffDNA). |
+| Contamination, prenatal and postnatal CPI | [NEWPAT snapshot](https://github.com/lpistacchia/NEWPAT/tree/c753afc4be62dfc0b81b8cb683a6e850516f5ffd), frozen in `tests/reference_r/NEWPAT_20261126`, plus independent analytical expectations. The [20-marker prenatal examples](../tests/fixtures/prenatal_cpi/README.md) include expected results for both SNPs and DNPs. |
 
 The [R package manifest](../docker/scientific-runtime/r-packages.tsv) pins dependencies for image construction. Each run records verified engine hashes separately from the client identity.
 
@@ -53,7 +53,7 @@ This module accepts SNP coordinates (`chr,pos`) or DNP coordinates (`chr,pos1,po
 
 ## Prenatal CPI
 
-Inputs are explicit maternal cfDNA–father pairs, compatible SNP/DNP population frequencies and optional panels. Shared samples are read once. The module computes curves over exact intervals. Select a minimum fetal-read count, a percentage of maternal REF + ALT reads, or both. When neither is specified, the minimum is two reads. With percentage alone, the curve starts at one read. Active filters are inclusive and the marker type determines the error constant. Missing ancillary metadata does not exclude sites with valid scientific fields. Outputs include fetal fraction, log CPI, curve data and paginated PDFs.
+Inputs are explicit maternal cfDNA–father pairs, compatible SNP/DNP population frequencies and optional panels. Shared samples are read once. The module computes curves over exact intervals. Select a minimum fetal-read count, a percentage of maternal REF + ALT reads, or both. When neither is specified, the minimum is two reads. With percentage alone, the curve starts at one read. Active filters are inclusive and the marker type determines the error constant. Missing ancillary metadata does not exclude sites with valid scientific fields. Each parent must meet the selected coverage and Other-read limits. An experimental option includes presumed homozygous fetal sites in the CPI and records their contribution separately. Fetal fraction uses putative heterozygous fetal sites. Outputs include the fraction, log CPI, threshold series, HOM site table and paginated PDFs.
 
 ## Postnatal CPI
 

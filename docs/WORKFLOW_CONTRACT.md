@@ -191,7 +191,7 @@ R keeps its native pair IDs in the CSV and PDFs. The step state maps each declar
 | `panel` | One row per pair, with the normalized panel path in `Cutoff` |
 | `named` | One row per pair and label using the label declared in the plan |
 
-The script writes `Summary_FetalFraction_CPI.csv`, one PDF per pair and `All_CPIplots.pdf` in `plots`, and curves for each pair and panel in `curves`. The curves use intervals of equivalent thresholds. There is no per-site CPI table. The executor checks the summary columns, expected pair and cutoff combinations, and presence and PDF headers of required plots. An incomplete CSV, duplicate rows or missing plots prevent completion. These structural checks do not determine the biological plausibility of a value.
+The script writes `Summary_FetalFraction_CPI.csv`, one PDF per pair and `All_CPIplots.pdf` in `plots`, and curves for each pair and panel in `curves`. The curves use intervals of equivalent thresholds. Each pair and panel also exports a full threshold series in `*_CPI_iterations.csv` and the presumed homozygous fetal sites in `*_HOM_child_sites.txt`. For multiple panels the filenames include the one-based panel index. The executor checks the summary columns, expected pair and cutoff combinations, and presence and PDF headers of required plots. An incomplete CSV, duplicate rows or missing plots prevent completion. These structural checks do not determine the biological plausibility of a value.
 
 <a id="cpin-preparation-and-trio-identity"></a>
 

@@ -35,7 +35,7 @@ Before running any workflow, the engine checks all six R sources against the bun
 | --- | --- |
 | `schema_version` | `1` |
 | `interface` | `native-r-v1` |
-| `workflow_interfaces` | `dnp-call-v1`, `snp-call-v2`, `contamination-v2`, `cpi-v3`, `cpin-v2` and `fetal-sex-v1` for their respective workflows |
+| `workflow_interfaces` | `dnp-call-v1`, `snp-call-v2`, `contamination-v2`, `cpi-v4`, `cpin-v2` and `fetal-sex-v1` for their respective workflows |
 | `preparation.interface` | `workflow-preparation-v1` |
 | `plan_execution.interface` | `workflow-plan-execution-v2` |
 | `plan_execution.workflows` | `dnp-call`, `snp-call`, `contamination`, `cpi`, `cpin`, `fetal-sex` |
@@ -173,7 +173,7 @@ The CLI accepts repeated `--cutoff` arguments and `--cutoff-map`. An unlabeled p
 
 Labels cannot contain commas, equals signs or control characters. Internal cutoff paths cannot contain commas or equals signs because the R parser cannot encode them. The client uses aliases for host paths containing these characters. `err_const` must be finite and in `(0, 1]` for the selected marker type. Arguments are passed without a shell, preserving empty prefixes and values beginning with a hyphen.
 
-Pair labels and PDFs use `Mother<id>-Father<id>_DNPs` or `Mother<id>-Father<id>_SNPs`, according to the marker type, regardless of the input prefixes. Ambiguous sample names and pair output collisions, including case-only collisions, cause an error before staging. The request, prepared tables and panels remain in `work`. The engine writes `Summary_FetalFraction_CPI.csv` in `output`, one PDF per pair and `All_CPIplots.pdf` in `output/plots`, and iteration tables for each pair and cutoff in `output/curves`.
+Pair labels and PDFs use `Mother<id>-Father<id>_DNPs` or `Mother<id>-Father<id>_SNPs`, according to the marker type, regardless of the input prefixes. Ambiguous sample names and pair output collisions, including case-only collisions, cause an error before staging. The request, prepared tables and panels remain in `work`. The engine writes `Summary_FetalFraction_CPI.csv` in `output`, one PDF per pair and `All_CPIplots.pdf` in `output/plots`, and iteration tables for each pair and cutoff in `output/curves`. Each curve record also identifies the corresponding exported iterations CSV and HOM site audit table by path and digest. Multiple cutoffs use a one-based panel number in both filenames. The audit table can contain eligible HOM sites even when the absence of informative HET sites leaves the median estimate unavailable.
 
 <a id="cpin"></a>
 

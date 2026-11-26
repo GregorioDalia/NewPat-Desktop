@@ -70,8 +70,8 @@ threshold.
 
 `verify_five_modules.py` complements the caller gate with prenatal CPI, postnatal CPI and
 Contamination from both SNP and DNP count tables. Frozen original scripts from
-NEWPAT commit `97c4eb5f7a901d0435b950c3e2a52a8bd7eae9d4` are pinned separately
-under `tests/reference_r/NEWPAT_20261125`. Independent hand-derived fixtures
+NEWPAT commit `c753afc4be62dfc0b81b8cb683a6e850516f5ffd` are pinned separately
+under `tests/reference_r/NEWPAT_20261126`. Independent hand-derived fixtures
 verify counts, missing values, mismatch constants, prenatal CPI curves, the single postnatal
 trio result and its site-level contributions, the contamination denominator, optional zero
 inclusion, minimum support and unused NA metadata.

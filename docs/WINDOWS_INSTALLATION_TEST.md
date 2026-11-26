@@ -34,7 +34,7 @@ The PowerShell execution policy option applies only to the process used for the 
 
 ## Expected results
 
-For a build with fetal sex, the suite schedules 66 runs (60 positive cases and 6 expected input rejections), 9 reproducibility comparisons and 7 initial/final checks. A complete passing environment reports **82 PASS, 0 FAIL, 0 BLOCKED, 0 INTERRUPTED**. Earlier five-module installations retain the 64-run suite.
+For a build with fetal sex and the revised prenatal CPI model, the suite schedules 68 runs (62 positive cases and 6 expected input rejections), 9 reproducibility comparisons and 7 initial/final checks. A complete passing environment reports **84 PASS, 0 FAIL, 0 BLOCKED, 0 INTERRUPTED**. Earlier builds with fetal sex retain the 66-run suite, and five-module installations retain the 64-run suite.
 
 It verifies:
 

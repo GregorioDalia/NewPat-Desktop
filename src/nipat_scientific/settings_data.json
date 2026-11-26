@@ -439,6 +439,21 @@
           "minimum": 0,
           "exclusive_minimum": true,
           "maximum": 100
+        },
+        "min_coverage": {
+          "default": null,
+          "type": "integer",
+          "nullable": true,
+          "description": "Copertura minima totale (REF + ALT + Other) richiesta separatamente alla madre e al presunto padre. Lasciare vuoto per disattivare il filtro.",
+          "unit": "letture",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "include_homozygous_child": {
+          "default": false,
+          "type": "boolean",
+          "description": "Includi nel CPI i siti con madre e feto presunti omozigoti per lo stesso allele. Opzione sperimentale, disattivata per impostazione predefinita.",
+          "unit": null
         }
       },
       "constants": {

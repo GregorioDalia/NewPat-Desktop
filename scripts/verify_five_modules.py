@@ -28,7 +28,7 @@ import time
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / "src"))
 FIXTURE = PROJECT / "tests/fixtures/five_modules"
-REFERENCE = PROJECT / "tests/reference_r/NEWPAT_20261125"
+REFERENCE = PROJECT / "tests/reference_r/NEWPAT_20261126"
 SOURCES = {
     "cpin": "CPI_postnatal/Postnatal_CPI.R",
     "cpi": "CPI_from_cffDNA/cfDNA_CPI_estimator.R",
@@ -36,7 +36,7 @@ SOURCES = {
 }
 REFERENCE_SHA256 = {
     "CPI_postnatal/Postnatal_CPI.R": "611fd93c4606298e97174c5c7b55f9a34445b95389537c994b7f41ffa43a05e6",
-    "CPI_from_cffDNA/cfDNA_CPI_estimator.R": "263b517d37532b724f429b9ee883a64d748a8d5d2398444f2956d6eda3a2ac81",
+    "CPI_from_cffDNA/cfDNA_CPI_estimator.R": "b05e2889dbbca00777af1e0b24439f0e211c5c71edf309375c3d7e2e40c7be63",
     "contamination/detect_contamination.R": "afbbf20b937dfef356d0046e18ffff3d6746113ae771dd87745369b3e64081ca",
 }
 HELPERS = ("__init__.py", "errors.py", "settings.py", "settings.R", "settings_data.json",
@@ -181,7 +181,7 @@ def compare_tables(observed, expected):
 
 def verify_frozen_sources():
     manifest = json.loads((REFERENCE / "manifest.json").read_text())
-    require(manifest["upstream_commit"] == "97c4eb5f7a901d0435b950c3e2a52a8bd7eae9d4",
+    require(manifest["upstream_commit"] == "c753afc4be62dfc0b81b8cb683a6e850516f5ffd",
             "Unexpected upstream reference identity")
     require(manifest["sha256"] == REFERENCE_SHA256, "Immutable reference manifest altered")
     for name, expected in manifest["sha256"].items():
@@ -515,11 +515,15 @@ def qualify(destination, full=False, runtime=None):
                     actual = run_case(destination, case + "-candidate", workflow, marker, **variant)
                     results.append(actual)
                     compare_tables(actual["rows"], wanted["rows"])
-                    if workflow == "cpin":
-                        for row in actual["rows"]:
-                            sites = row["Trio"] + "_sites.txt"
-                            compare_tables(table(destination / actual["name"] / "output" / sites),
-                                           table(destination / wanted["name"] / "output" / sites))
+                    for row in actual["rows"]:
+                        tables = []
+                        if workflow == "cpin":
+                            tables = [row["Trio"] + "_sites.txt"]
+                        if workflow == "cpi":
+                            tables = [row["Pair"] + suffix for suffix in ("_CPI_iterations.csv", "_HOM_child_sites.txt")]
+                        for name in tables:
+                            compare_tables(table(destination / actual["name"] / "output" / name),
+                                           table(destination / wanted["name"] / "output" / name))
                     pairs.append(case)
                     comparison_evidence[case] = {"equal": True,
                         "candidate_sha256": actual["summary_sha256"],

@@ -21,23 +21,25 @@ _WINDOW_FLANK = 60
 
 def _site(store, case, group, entry, run):
     module, marker = case["module"], case["marker"]
-    if module == "cpi" or entry.get("analysis") or marker not in {"SNP", "DNP"}:
-        # A prenatal curve and legacy postnatal selections do not locate the
-        # subset's contributing variants. Never substitute another result.
+    if entry.get("analysis") or marker not in {"SNP", "DNP"}:
+        return None
+    if module == "cpi" and entry["row"].get("Include_homozygous_child") != "TRUE":
+        # Only the new HOM audit locates prenatal contributing variants.
         return None
     if module.endswith("-call"):
         file_id = case["file_id"]
     else:
-        count = "N_sites" if module == "cpin" else "informative_sites"
+        count = {"cpin": "N_sites", "cpi": "N_sites_HOM_child"}.get(module, "informative_sites")
         if not _read_count(entry.get("row", {}).get(count)):
             return None
         file_id = entry.get("site_file_id")
     sources = [f for f in group["files"] if f.get("canonical") and f.get("step_id") == case["step_id"]
                and f.get("marker") == marker and f.get("module") == module and f.get("kind") == "table"]
-    if module == "cpin":
+    if module in {"cpi", "cpin"}:
         sources = [f for f in sources if f.get("family_id") == entry.get("family_id")
                    and f.get("native_family") == entry.get("native_family")
-                   and f["name"].endswith(("_sites.txt", "_sites.tsv"))]
+                   and f["name"].endswith(("_sites.txt", "_sites.tsv"))
+                   and (module != "cpi" or f["name"].endswith("_HOM_child_sites.txt") and f.get("cutoff") == entry.get("cutoff"))]
     elif module == "contamination":
         sources = [f for f in sources if f.get("sample_id") == entry.get("sample_id")
                    and f.get("native_name") == entry["row"].get("individuo")
@@ -63,6 +65,13 @@ def _site(store, case, group, entry, run):
             continue
         if module == "cpin" and row.get("Status") != "eligible":
             continue
+        if module == "cpi":
+            try:
+                pi = float(row.get("Paternity_Index", ""))
+            except ValueError:
+                continue
+            if not math.isfinite(pi) or pi <= 0 or row.get("Mismatch") not in {"TRUE", "FALSE"}:
+                continue
         if module == "contamination":
             try:
                 fraction = float(row.get("contamination", ""))
@@ -75,8 +84,14 @@ def _site(store, case, group, entry, run):
             continue
         if marker == "DNP" and int(end) <= int(start):
             continue
-        preferred = (row.get("GT") in {"0/1", "1/1"} if module.endswith("-call") else
-                     fraction > 0 if module == "contamination" else row.get("Paternity_status") == "mismatch")
+        if module == "contamination":
+            preferred = fraction > 0
+        elif module == "cpi":
+            preferred = row.get("Mismatch") == "TRUE"
+        elif module == "cpin":
+            preferred = row.get("Paternity_status") == "mismatch"
+        else:
+            preferred = row.get("GT") in {"0/1", "1/1"}
         if selected is None or preferred:
             selected = (chrom, int(start), int(end), number, preferred)
         if preferred:
@@ -85,15 +100,16 @@ def _site(store, case, group, entry, run):
 
 
 def _sample_ids(case, entry, families):
-    if case["module"] != "cpin":
+    if case["module"] not in {"cpi", "cpin"}:
         return [entry.get("sample_id")] if entry.get("sample_id") else []
     matches = [f for f in families if f["step_id"] == case["step_id"] and f.get("module") == case["module"]
                and f.get("marker") == case["marker"] and f["id"] == entry.get("family_id")
                and f["native_id"] == entry.get("native_family")]
     if len(matches) != 1:
         return []
-    ids = [matches[0].get(role) for role in ("mother", "father", "child")]
-    return ids if all(ids) and len(set(ids)) == 3 else []
+    roles = ("mother", "father") if case["module"] == "cpi" else ("mother", "father", "child")
+    ids = [matches[0].get(role) for role in roles]
+    return ids if all(ids) and len(set(ids)) == len(ids) else []
 
 
 def _recorded_identity(path, evidence):
@@ -173,7 +189,8 @@ def report_igv_views(store, run_id, case_ids, register):
             site = f"{chrom}:{start}-{end}"
             reason = t("primo sito utilizzabile", "first usable site")
             if preferred:
-                reason = {"cpin": t("prima incompatibilità paterna registrata in un sito incluso",
+                reason = {"cpi": t("prima discordanza paterna tra i siti HOM inclusi", "first paternal mismatch among included HOM sites"),
+                          "cpin": t("prima incompatibilità paterna registrata in un sito incluso",
                                     "first recorded paternal mismatch at an included site"),
                           "contamination": t("prima stima per sito maggiore di zero", "first positive site estimate")
                           }.get(case["module"], t("primo genotipo con allele alternativo",

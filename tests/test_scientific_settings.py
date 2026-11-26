@@ -73,6 +73,8 @@ class ScientificSettingsTests(unittest.TestCase):
             ("cpin", {f"include_{pair}": False for pair in ("hom_hom", "hom_het", "het_hom", "het_het")}),
             ("cpi", {"min_fetal_percent": 0}), ("cpi", {"min_fetal_percent": 100.0001}),
             ("cpi", {"min_fetal_percent": True}), ("cpi", {"min_fetal_reads": 0}),
+            ("cpi", {"min_coverage": 0}), ("cpi", {"min_coverage": 1.5}),
+            ("cpi", {"include_homozygous_child": "FALSE"}),
             ("cpi", {"err_const_dnp": 0}), ("cpi", {"err_const_snp": math.inf}),
             ("snp-call", {"other_fraction_max": math.nan}),
             ("dnp-call", {"baq": 1}), ("dnp-call", {"baq": False, "redo_baq": True}),
@@ -195,6 +197,8 @@ class ScientificSettingsTests(unittest.TestCase):
                 override = {"other_fraction_max": .25}
                 if workflow == "fetal-sex":
                     override = {"max_other_fraction": .25, "include_zero_coverage_y": False}
+                if workflow == "cpi":
+                    override.update(min_coverage=12, include_homozygous_child=True)
                 if workflow == "cpin":
                     override.update(min_coverage=7, include_het_hom=False)
                 with self.subTest(workflow=workflow), settings_context(workflow, override, Path(directory) / workflow):

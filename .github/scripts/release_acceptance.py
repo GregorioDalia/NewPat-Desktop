@@ -42,11 +42,11 @@ ANALYSIS_REFERENCE_SHA256 = {
     "CPI_from_cffDNA/cfDNA_CPI_estimator.R": "8c8062b6110af7d957f152bb26539d72b22d7d90a26ebe251b27679c573d14f6",
     "contamination/detect_contamination.R": "e82a71b90dfc73982b350b719bcbeedbb20502b353a9d735c590dc14635d6d1d",
 }
-CPI_REFERENCE_COMMIT = "97c4eb5f7a901d0435b950c3e2a52a8bd7eae9d4"
-CPI_REFERENCE_ROOT = "tests/reference_r/NEWPAT_20261125"
+CPI_REFERENCE_COMMIT = "c753afc4be62dfc0b81b8cb683a6e850516f5ffd"
+CPI_REFERENCE_ROOT = "tests/reference_r/NEWPAT_20261126"
 CPI_REFERENCE_SHA256 = {
     "CPI_postnatal/Postnatal_CPI.R": "611fd93c4606298e97174c5c7b55f9a34445b95389537c994b7f41ffa43a05e6",
-    "CPI_from_cffDNA/cfDNA_CPI_estimator.R": "263b517d37532b724f429b9ee883a64d748a8d5d2398444f2956d6eda3a2ac81",
+    "CPI_from_cffDNA/cfDNA_CPI_estimator.R": "b05e2889dbbca00777af1e0b24439f0e211c5c71edf309375c3d7e2e40c7be63",
     "contamination/detect_contamination.R": "afbbf20b937dfef356d0046e18ffff3d6746113ae771dd87745369b3e64081ca"
 }
 FETAL_SEX_SOURCE = "scientific/vendor/NEWPAT/Fetal_sex/Fetal_sex.R"
@@ -767,7 +767,10 @@ def verify_analysis_summary(archive, report_path, case, revised_cpi):
             "Include_hom_hom", "Include_hom_het", "Include_het_hom", "Include_het_het",
         }
     if revised_cpi and workflow == "cpi":
-        required_columns |= {"Min_fetal_reads", "Min_fetal_percent"}
+        required_columns |= {"Min_fetal_reads", "Min_fetal_percent", "Include_homozygous_child", "Min_coverage",
+                             "Max_other_fraction", "N_sites_HET_child", "N_sites_HOM_child", "Matching_HET_child",
+                             "Mismatching_HET_child", "Matching_HOM_child", "Mismatching_HOM_child",
+                             "Log10_CPI_HET_child", "Log10_CPI_HOM_child"}
     require(all(required_columns <= set(row) for row in rows), "Downstream scientific summary columns are incomplete")
     if workflow == "cpin":
         selections = {"heterozygous_child_sites", "all_compatible_sites"}
@@ -996,6 +999,27 @@ def verify_fetal_sex_examples(report, source):
                     f"Fetal-sex example {name} {field} differs from the Git fixture")
 
 
+def verify_prenatal_examples(report, source):
+    examples = report.get("prenatal_examples")
+    require(isinstance(examples, dict) and set(examples) == {"DNP", "SNP"},
+            "Both published prenatal examples must be present")
+    for marker, tables in examples.items():
+        prefix = f"MotherA1-FatherA1_{marker}s"
+        names = {"Summary_FetalFraction_CPI.csv", f"{prefix}_CPI_iterations.csv", f"{prefix}_HOM_child_sites.txt"}
+        require(isinstance(tables, dict) and names == set(tables), "Missing prenatal example tables")
+        for name in names:
+            actual = tables[name]
+            require(isinstance(actual, str) and actual, "Empty prenatal example evidence")
+            expected = source(f"tests/fixtures/prenatal_cpi/outputs/{marker}/{name}").decode("utf-8")
+            separator = "," if name.endswith(".csv") else "\t"
+            wanted = csv.DictReader(io.StringIO(expected), delimiter=separator)
+            result = csv.DictReader(io.StringIO(actual), delimiter=separator)
+            observed_fields = result.fieldnames or []
+            require(set(wanted.fieldnames) <= set(observed_fields) and len(set(observed_fields)) == len(observed_fields),
+                    "Missing or duplicate prenatal example columns")
+            compare_analysis_rows(list(result), list(wanted))
+
+
 def verify_caller_parallel_qualification(archive, image, *, version, source):
     """Recheck the exact-image acquisition and composed SNP proofs from 0.9.9."""
     filename = "caller-parallel-qualification.json"
@@ -1058,7 +1082,9 @@ def verify_caller_parallel_qualification(archive, image, *, version, source):
     fetal_sex_checked = revised_cpi_contract(version)
     if fetal_sex_checked:
         verify_fetal_sex_examples(report, source)
-    return {**({"fetal_sex_examples_verified": sorted(report["fetal_sex_examples"])} if fetal_sex_checked else {}),
+        verify_prenatal_examples(report, source)
+    return {**({"fetal_sex_examples_verified": sorted(report["fetal_sex_examples"]),
+                "prenatal_examples_verified": sorted(report["prenatal_examples"])} if fetal_sex_checked else {}),
             "acquisitions_verified": sorted(acquisitions),
             "workflow_identical_tables": workflow["identical_scientific_tables"]}
 

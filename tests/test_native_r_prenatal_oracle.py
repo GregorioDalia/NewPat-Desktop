@@ -1,5 +1,6 @@
 """Independent rational-product oracles for both marker types and every fetal-support threshold."""
 
+import csv
 from fractions import Fraction
 import math
 from pathlib import Path
@@ -91,7 +92,7 @@ class PrenatalOracles(unittest.TestCase):
                 selected = [site for site in sites if site[1] >= threshold]
                 factors = [site[4] for site in selected if site[4] is not None]
                 mismatch_count = sum(site[3] == "mismatch" for site in selected)
-                non_mismatch = sum(site[3] in ("match", "unassigned") for site in selected)
+                non_mismatch = sum(site[3] == "match" for site in selected)
                 self.assertEqual(int(row["InfSites_mother"]), len(selected))
                 self.assertEqual(int(row["InfSites_father"]), len(factors))
                 self.assertEqual(int(row["Mismatch"]), mismatch_count)
@@ -266,3 +267,145 @@ class PrenatalOracles(unittest.TestCase):
                     self.assertAlmostEqual(float(curve[0]["CPI"]), 5)
                 else:
                     self.assertEqual(summary["CPI_medianFF"], "NA")
+
+    def assert_published_table(self, expected, actual, delimiter, *, allow_extra=False):
+        with expected.open(encoding="utf-8", newline="") as reference, actual.open(encoding="utf-8", newline="") as result:
+            oracle = csv.DictReader(reference, delimiter=delimiter)
+            observed = csv.DictReader(result, delimiter=delimiter)
+            if allow_extra:
+                self.assertTrue(set(oracle.fieldnames).issubset(observed.fieldnames), actual.name)
+            else:
+                self.assertEqual(set(oracle.fieldnames), set(observed.fieldnames), actual.name)
+            for index, (want, got) in enumerate(zip(oracle, observed, strict=True), start=1):
+                for column in oracle.fieldnames:
+                    message = f"{actual.name}, row {index}, {column}"
+                    try:
+                        numeric = float(want[column])
+                    except ValueError:
+                        self.assertEqual(got[column], want[column], message)
+                    else:
+                        self.assertTrue(math.isclose(float(got[column]), numeric, rel_tol=2e-12, abs_tol=0),
+                                        f"{message}: {got[column]} vs {want[column]}")
+
+    def test_published_twenty_marker_tables(self):
+        fixture = native.ROOT / "tests/fixtures/prenatal_cpi"
+        for marker in ("DNP", "SNP"):
+            with self.subTest(marker=marker), tempfile.TemporaryDirectory() as temp:
+                inputs = fixture / "inputs" / marker
+                expected = fixture / "outputs" / marker
+                run = Path(temp) / "run"
+                result = execute_workflow(
+                    "cpi", run, marker_type=marker, execution_mode="auto",
+                    samples=[{"path": str(inputs / name), "name": name} for name in ("MotherA1.txt", "FatherA1.txt")],
+                    pairs="A1:A1", mother_prefix="Mother", father_prefix="Father",
+                    popfreq=str(inputs / "population_frequencies.txt"), cutoff_mode="panel",
+                    cutoffs=[{"label": "", "path": str(inputs / "markers.txt")}])
+                self.assertEqual(result.returncode, 0, result.stderr)
+                output = run / "output"
+                pair = f"MotherA1-FatherA1_{marker}s"
+                for file, delimiter in (("Summary_FetalFraction_CPI.csv", ","),
+                                        (pair + "_CPI_iterations.csv", ","), (pair + "_HOM_child_sites.txt", "\t")):
+                    self.assert_published_table(expected / file, output / file, delimiter,
+                                                allow_extra=file == "Summary_FetalFraction_CPI.csv")
+                for name in (pair + "_CPIplot.pdf", "All_CPIplots.pdf"):
+                    self.assertTrue((output / "plots" / name).read_bytes().startswith(b"%PDF-"))
+
+    def test_hom_child_sites_coverage_other_and_median_support(self):
+        # A HET support of 4 has PI 5. The HET site with support 6 has an
+        # unassigned father. Therefore there is no HET contribution at threshold 5.
+        # The two permitted HOM sites give PI 2 and .001/.25. By construction
+        # site 4 is exactly at both depth and Other-fraction limits.
+        for marker in ("DNP", "SNP"):
+            with self.subTest(marker=marker), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                mother, father = root / "MotherM1.txt", root / "FatherF1.txt"
+                m = [(96, 4, 0), (94, 6, 0), (10, 0, 0), (0, 9, 1), (9, 0, 0), (10, 0, 0),
+                     (8, 0, 2), (10, 0, 0)]
+                f = [(0, 10, 0), (7, 3, 0), (9, 1, 0), (10, 0, 0), (10, 0, 0), (9, 0, 0),
+                     (10, 0, 0), (8, 0, 2)]
+                frequencies = [(.8, .2), (.5, .5), (.5, .5), (.75, .25)] + [(.5, .5)] * 4
+                write_calls(mother, marker, list(enumerate(m, 1)))
+                write_calls(father, marker, list(enumerate(f, 1)))
+                pop = root / "pop.tsv"
+                write_table(pop, (*coordinate_header(marker), "Ref_f.pop", "Alt_f.pop"),
+                            ((*coordinate(marker, i), *freq) for i, freq in enumerate(frequencies, 1)))
+                for index, (enabled, other_max, hom_ids) in enumerate((
+                    (False, .1, []), (True, .1, [3, 4]), (True, .2, [3, 4, 7, 8]),
+                )):
+                    with self.subTest(enabled=enabled, max_other=other_max):
+                        run = root / f"run_{index}"
+                        settings = {"include_homozygous_child": enabled, "min_coverage": 10,
+                                    "other_fraction_max": other_max, f"err_const_{marker.lower()}": .001}
+                        result = execute_workflow(
+                            "cpi", run, marker_type=marker, samples=[{"path": str(p), "name": p.name} for p in (mother, father)],
+                            pairs="M1:F1", mother_prefix="Mother", father_prefix="Father",
+                            popfreq=str(pop), cutoff_mode="all", cutoffs=[], scientific_settings=settings)
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        output = run / "output"
+                        summary, = native.table(output / "Summary_FetalFraction_CPI.csv", ",")
+                        self.assertEqual(summary["Include_homozygous_child"], str(enabled).upper())
+                        self.assertEqual(summary["Min_coverage"], "10")
+                        self.assertEqual(float(summary["Max_other_fraction"]), other_max)
+                        self.assertEqual(float(summary["Median_fetal_fraction_percent"]), 10)
+                        self.assertEqual(summary["N_sites_HET_child"], "0")
+                        self.assertEqual(int(summary["N_sites_HOM_child"]), len(hom_ids))
+                        hom = native.table(next(output.glob("*_HOM_child_sites.txt")))
+                        key = "pos" if marker == "SNP" else "pos1"
+                        by_locus = {int(h[key]) // 10: h for h in hom}
+                        self.assertEqual(len(hom), len(hom_ids))
+                        self.assertEqual(set(by_locus), set(hom_ids))
+                        for locus in hom_ids:
+                            h = by_locus[locus]
+                            self.assertEqual(h["Mismatch"], "TRUE" if locus == 4 else "FALSE")
+                            self.assertAlmostEqual(float(h["Paternity_Index"]), .004 if locus == 4 else 2)
+                        hom_pi = math.prod(.004 if locus == 4 else 2 for locus in hom_ids)
+                        if hom_ids:
+                            self.assertAlmostEqual(float(summary["CPI_medianFF"]), round(math.log10(hom_pi), 3))
+                        else:
+                            self.assertEqual(summary["CPI_medianFF"], "NA")
+                        rows = native.table(next(output.glob("*_CPI_iterations.csv")), ",")
+                        self.assertEqual([int(r["Iteration"]) for r in rows], [2, 3, 4, 5, 6])
+                        for row in rows:
+                            het_match = int(int(row["Iteration"]) <= 4)
+                            self.assertEqual(int(row["NotMismatch"]), het_match + len(hom_ids) - int(enabled))
+                            self.assertEqual(int(row["Mismatch"]), int(enabled))
+                            self.assertEqual(int(row["InfSites_father"]), het_match + len(hom_ids))
+                            self.assertAlmostEqual(float(row["Log10_CPI_HOM_child"]), math.log10(hom_pi))
+                            if het_match or hom_ids:
+                                self.assertAlmostEqual(float(row["CPI"]), (5 if het_match else 1) * hom_pi)
+                            else:
+                                self.assertEqual(row["CPI"], "NA")
+
+    def test_hom_only_panel_keeps_site_audit_without_a_median_fetal_fraction(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            mother, father, population = (root / name for name in ("MotherM.txt", "FatherF.txt", "freq.tsv"))
+            write_calls(mother, "SNP", [(1, (96, 4, 0)), (2, (20, 0, 0))])
+            write_calls(father, "SNP", [(1, (0, 20, 0)), (2, (20, 0, 0))])
+            markers = [coordinate("SNP", locus) for locus in (1, 2)]
+            write_table(population, ("chr", "pos", "Ref_f.pop", "Alt_f.pop"), [(*m, .75, .25) for m in markers])
+            cutoffs = []
+            for label, site in zip(("het", "hom"), markers, strict=True):
+                panel = root / f"{label}.tsv"
+                write_table(panel, ("chr", "pos", "REF", "ALT"), [(*site, "A", "T")])
+                cutoffs.append({"label": label, "path": str(panel)})
+            run = root / "run"
+            result = execute_workflow(
+                "cpi", run, marker_type="SNP", execution_mode="auto",
+                samples=[{"path": str(p), "name": p.name} for p in (mother, father)],
+                pairs="M:F", mother_prefix="Mother", father_prefix="Father", popfreq=str(population),
+                cutoff_mode="named", cutoffs=cutoffs, scientific_settings={"include_homozygous_child": True})
+            self.assertEqual(result.returncode, 0, result.stderr)
+            output = run / "output"
+            het, hom = native.table(output / "Summary_FetalFraction_CPI.csv", ",")
+            self.assertEqual((het["Cutoff"], hom["Cutoff"]), ("het", "hom"))
+            self.assertEqual((het["N_sites_HET_child"], het["N_sites_HOM_child"]), ("1", "0"))
+            self.assertEqual((hom["N_sites_HET_child"], hom["N_sites_HOM_child"]), ("0", "1"))
+            for column in ("Median_fetal_fraction_raw", "CPI_medianFF", "Log10_CPI_HET_child"):
+                self.assertEqual(hom[column], "NA", column)
+            self.assertAlmostEqual(float(hom["Log10_CPI_HOM_child"]), round(math.log10(4 / 3), 3))
+            self.assertEqual(native.table(output / "MotherM-FatherF_SNPs_panel_2_CPI_iterations.csv", ","), [])
+            self.assertEqual(native.table(output / "MotherM-FatherF_SNPs_panel_1_HOM_child_sites.txt"), [])
+            only_site, = native.table(output / "MotherM-FatherF_SNPs_panel_2_HOM_child_sites.txt")
+            self.assertEqual((only_site["pos"], only_site["Mismatch"]), ("20", "FALSE"))
+            self.assertAlmostEqual(float(only_site["Paternity_Index"]), 4 / 3)

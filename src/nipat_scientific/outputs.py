@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+from itertools import zip_longest
 import json
 import math
 from pathlib import Path
@@ -23,7 +24,12 @@ def _sha256(path: Path) -> str:
         return hashlib.file_digest(handle, "sha256").hexdigest()
 
 
+_CHILD_COUNTS = {f"{field}_{group}_child" for group in ("HET", "HOM") for field in ("N_sites", "Matching", "Mismatching")}
+_CHILD_LOGS = {"Log10_CPI_HET_child", "Log10_CPI_HOM_child"}
+_CPI_ITERATIONS = {"Iteration", "InfSites_mother", "InfSites_father", "Mismatch", "NotMismatch",
+                   "CPI", "log_CPI", *_CHILD_COUNTS, *_CHILD_LOGS}
 _CPI_COLUMNS = {
+    "Include_homozygous_child", "Min_coverage", "Max_other_fraction", *_CHILD_COUNTS, *_CHILD_LOGS,
     "Pair", "N_sites_mother", "N_sites_father", "Median_fetal_fraction_raw",
     "Median_fetal_fraction_percent", "Max_logCPI", "Min_logCPI",
     "Median_logCPI", "Mean_logCPI", "CPI_medianFF", "Error_constant", "Min_fetal_reads", "Min_fetal_percent", "Marker_type",
@@ -111,7 +117,10 @@ def _check_cpi_summary_settings(row: dict, request: dict, settings: dict, path: 
             if row[f"Include_{pair}"] != str(settings[f"include_{pair}"]).upper():
                 raise PlanExecutionError("execution.output", "Postnatal site selection differs from the request.")
     else:
-        numeric = {"Min_fetal_reads": settings["min_fetal_reads"], "Min_fetal_percent": settings["min_fetal_percent"],
+        if row["Include_homozygous_child"] != str(settings["include_homozygous_child"]).upper():
+            raise PlanExecutionError("execution.output", "Prenatal HOM site selection differs from the request.")
+        numeric = {"Min_coverage": settings["min_coverage"], "Max_other_fraction": settings["other_fraction_max"],
+                   "Min_fetal_reads": settings["min_fetal_reads"], "Min_fetal_percent": settings["min_fetal_percent"],
                    "Error_constant": settings[f"err_const_{marker.lower()}"]}
     for column, expected in numeric.items():
         raw = row[column]
@@ -311,10 +320,51 @@ def _dnp_genotypes(output_dir: Path, root: Path, sample_names: list[str], loci: 
     return artifact, genotypes
 
 
-def _prenatal_curve_support(curve: Path, summary: dict, cutoff: str) -> dict:
-    """Validate the dense native curve and recover support for the reported estimate."""
-    counts = ("InfSites_mother", "InfSites_father", "Mismatch", "NotMismatch")
-    columns = {"Iteration", *counts, "CPI", "log_CPI", "Cutoff"}
+def _summary_agrees(reported: str, estimate: float | None) -> bool:
+    if estimate is None:
+        return reported == "NA"
+    try:
+        return math.isclose(float(reported), estimate, abs_tol=0.000500000001, rel_tol=5e-15)
+    except ValueError:
+        return False
+
+
+def _prenatal_hom_sites(path: Path, summary: dict) -> tuple[int, int, float]:
+    """Check the fixed HOM contribution independently of the number of HET iterations."""
+    coordinates = {"pos1", "pos2"} if summary["Marker_type"] == "DNP" else {"pos"}
+    columns = {"chr", *coordinates, "Paternal_allele", "Father_genotype", "Mismatch", "Paternity_Index"}
+    sites = mismatches = 0
+
+    def site_logs():
+        nonlocal sites, mismatches
+        for line, row in table_rows(path, columns, "Prenatal HOM sites"):
+            try:
+                pi = float(row["Paternity_Index"])
+            except ValueError as exc:
+                raise PlanExecutionError("execution.output", f"{path.name}: invalid PI at row {line}.") from exc
+            mismatch = row["Father_genotype"] not in {"HET", row["Paternal_allele"]}
+            if (not math.isfinite(pi) or pi <= 0 or row["Paternal_allele"] not in {"REF", "ALT"}
+                    or row["Father_genotype"] not in {"REF", "HET", "ALT"}
+                    or row["Mismatch"] != str(mismatch).upper()):
+                raise PlanExecutionError("execution.output", f"{path.name}: invalid HOM site at row {line}.")
+            sites += 1
+            mismatches += int(mismatch)
+            yield math.log10(pi)
+
+    log_hom = math.fsum(site_logs())
+    for key, value in (("N_sites_HOM_child", sites), ("Mismatching_HOM_child", mismatches),
+                       ("Matching_HOM_child", sites - mismatches)):
+        if nonnegative_integer(summary[key], path, 1, key) != value:
+            raise PlanExecutionError("execution.output", f"{path.name}: HOM audit differs from the summary: {key}.")
+    if ((sites and summary["Include_homozygous_child"] != "TRUE")
+            or not _summary_agrees(summary["Log10_CPI_HOM_child"], log_hom)):
+        raise PlanExecutionError("execution.output", f"{path.name}: unexpected HOM contribution.")
+    return sites, mismatches, log_hom
+
+
+def _prenatal_curve_support(curve: Path, iterations: Path, hom_path: Path, summary: dict, cutoff: str) -> dict:
+    """Reconcile the exported HET and HOM contributions with their dense curve and site table."""
+    hom, hom_mismatch, hom_log = _prenatal_hom_sites(hom_path, summary)
     reads = summary["Min_fetal_reads"]
     minimum = 1 if reads == "NA" else int(float(reads))
     maternal = nonnegative_integer(summary["N_sites_mother"], curve, 1, "N_sites_mother")
@@ -325,61 +375,69 @@ def _prenatal_curve_support(curve: Path, summary: dict, cutoff: str) -> dict:
                "paternal_used": 0, "missing_frequency": 0, "unassigned_father": 0,
                "median_fetal_reads": None, "paternal_used_at_median": 0}
     previous = previous_log = None
+    maternal_hom = 0
     lower = upper = None
-    for offset, (number, row) in enumerate(table_rows(curve, columns, "Prenatal CPI curve")):
-        threshold = nonnegative_integer(row["Iteration"], curve, number, "Iteration")
-        values = tuple(nonnegative_integer(row[key], curve, number, key) for key in counts)
-        mother, father, mismatch, no_mismatch = values
-        with_frequency = mismatch + no_mismatch
-        if (threshold != minimum + offset or row["Cutoff"] != cutoff or mother == 0
-                or not mismatch <= father <= with_frequency <= min(mother, candidates)
-                or (previous is not None and any(now > before for now, before in zip(values, previous)))):
-            raise PlanExecutionError("execution.output", f"{curve.name}: inconsistent counts, cutoff or threshold at row {number}.")
+    rows = table_rows(curve, _CPI_ITERATIONS | {"Cutoff", "HET_with_frequency"}, "Prenatal CPI curve")
+    exported = table_rows(iterations, _CPI_ITERATIONS, "Prenatal CPI iterations", delimiter=",")
+    for offset, (internal, external) in enumerate(zip_longest(rows, exported)):
+        if internal is None or external is None:
+            raise PlanExecutionError("execution.output", f"{iterations.name}: number of iterations differs from the curve.")
+        number, row = internal
+        if any(external[1][key] != row[key] for key in _CPI_ITERATIONS):
+            raise PlanExecutionError("execution.output", f"{iterations.name}: iteration differs from curve at row {number}.")
+        counts = {key: nonnegative_integer(row[key], curve, number, key) for key in
+                  (*_CHILD_COUNTS, "InfSites_mother", "InfSites_father", "Mismatch", "NotMismatch", "Iteration", "HET_with_frequency")}
+        threshold, mother, father = (counts[key] for key in ("Iteration", "InfSites_mother", "InfSites_father"))
+        het, matching, mismatch = (counts[key] for key in ("N_sites_HET_child", "Matching_HET_child", "Mismatching_HET_child"))
+        with_frequency = counts["HET_with_frequency"]
         if previous is None:
-            if mother != maternal:
-                raise PlanExecutionError("execution.output", f"{curve.name}: maternal count differs from summary.")
+            # The native curve counts both maternal classes, but its threshold median uses HET only.
+            maternal_hom = mother - maternal
             support.update(paternal_used=father, missing_frequency=candidates - with_frequency,
-                           unassigned_father=with_frequency - father)
-        log_value = None
-        if father:
-            try:
-                raw, log_value = float(row["CPI"]), float(row["log_CPI"])
-            except ValueError as exc:
-                raise PlanExecutionError("execution.output", f"{curve.name}: invalid CPI at row {number}.") from exc
-            # Exponentiation may legitimately underflow to zero or overflow to Inf.
-            if math.isnan(raw) or raw < 0 or not math.isfinite(log_value):
-                raise PlanExecutionError("execution.output", f"{curve.name}: invalid CPI at row {number}.")
-        elif (row["CPI"], row["log_CPI"]) != ("NA", "NA"):
-            raise PlanExecutionError("execution.output", f"{curve.name}: CPI without a contributing site at row {number}.")
+                           unassigned_father=with_frequency - het)
+        remaining = mother - maternal_hom
+        monotone = (mother, father, matching, mismatch, with_frequency)
+        if (threshold != minimum + offset or row["Cutoff"] != cutoff or remaining <= 0
+                or hom > maternal_hom or (maternal_hom and summary["Include_homozygous_child"] != "TRUE")
+                or not het <= with_frequency <= min(remaining, candidates) or het != mismatch + matching
+                or father != het + hom or counts["N_sites_HOM_child"] != hom or counts["Mismatching_HOM_child"] != hom_mismatch
+                or counts["Matching_HOM_child"] != hom - hom_mismatch or counts["Mismatch"] != mismatch + hom_mismatch
+                or counts["NotMismatch"] != father - counts["Mismatch"]
+                or (previous is not None and any(now > old for now, old in zip(monotone, previous)))):
+            raise PlanExecutionError("execution.output", f"{curve.name}: inconsistent counts, cutoff or threshold at row {number}.")
+        try:
+            het_log, recorded_hom = float(row["Log10_CPI_HET_child"]), float(row["Log10_CPI_HOM_child"])
+            log_value = float(row["log_CPI"]) if father else None
+            raw = float(row["CPI"]) if father else None
+        except ValueError as exc:
+            raise PlanExecutionError("execution.output", f"{curve.name}: invalid CPI at row {number}.") from exc
+        if (not math.isfinite(het_log) or not math.isclose(recorded_hom, hom_log, abs_tol=1e-10, rel_tol=1e-12)
+                or (not het and het_log != 0)
+                or (father and (math.isnan(raw) or raw < 0 or not math.isfinite(log_value)
+                                or not math.isclose(log_value, het_log + recorded_hom, abs_tol=1e-10, rel_tol=1e-12)))
+                or (not father and (row["CPI"], row["log_CPI"]) != ("NA", "NA"))):
+            raise PlanExecutionError("execution.output", f"{curve.name}: invalid CPI components at row {number}.")
         if previous is not None and father == previous[1] and log_value != previous_log:
             raise PlanExecutionError("execution.output", f"{curve.name}: log CPI changed with the same contributing sites at row {number}.")
-        # Site support is an integer. Its two central observations are the last
-        # thresholds retaining respectively more than and at least half the loci.
-        if 2 * mother > maternal:
-            lower = threshold, father, log_value
-        if 2 * mother >= maternal:
-            upper = threshold, father, log_value
-        previous, previous_log = values, log_value
+        entry = (threshold, father, log_value, het, matching, mismatch, het_log)
+        if 2 * remaining > maternal:
+            lower = entry
+        if 2 * remaining >= maternal:
+            upper = entry
+        previous, previous_log = monotone, log_value
     if maternal and lower is None:
         raise PlanExecutionError("execution.output", f"{curve.name}: missing curve for informative maternal sites.")
-    median_log = None
+    median_log = het_log = None
+    het = matching = mismatch = 0
     if lower is not None:
         middle = round((lower[0] + upper[0]) / 2)
-        # With even N there are no loci with support between the central two.
-        # Above the lower endpoint every row through the upper one has the same sites.
-        _, used, median_log = lower if middle == lower[0] else upper
+        _, used, median_log, het, matching, mismatch, het_log = lower if middle == lower[0] else upper
         support.update(median_fetal_reads=middle, paternal_used_at_median=used)
-    reported = summary["CPI_medianFF"]
-    if median_log is None:
-        agrees = reported == "NA"
-    else:
-        try:
-            # R publishes the summary rounded to three decimals; the curve retains
-            # the unrounded log with R's usual text serialization precision.
-            agrees = math.isclose(float(reported), median_log, abs_tol=0.000500000001, rel_tol=5e-15)
-        except ValueError:
-            agrees = False
-    if not agrees:
+    for key, value in (("N_sites_HET_child", het), ("Matching_HET_child", matching), ("Mismatching_HET_child", mismatch)):
+        if nonnegative_integer(summary[key], curve, 1, key) != value:
+            raise PlanExecutionError("execution.output", f"{curve.name}: HET count differs from summary: {key}.")
+    if (not _summary_agrees(summary["CPI_medianFF"], median_log)
+            or not _summary_agrees(summary["Log10_CPI_HET_child"], het_log)):
         raise PlanExecutionError("execution.output", f"{curve.name}: median-threshold log CPI differs from the summary.")
     return support
 
@@ -422,6 +480,7 @@ def _collect_cpi_outputs(step: dict, request: dict, root: Path, output_dir: Path
         raise PlanExecutionError("execution.output", "CPI plots do not match the declared pair identities.")
     curves = output_dir / "curves"
     expected_curves = set()
+    expected_audits = set()
     pairs = []
     for pair in bindings:
         curves_for_pair = []
@@ -431,8 +490,13 @@ def _collect_cpi_outputs(step: dict, request: dict, root: Path, output_dir: Path
             curve_artifact = _artifact(curve, root, output_dir)
             number = found[(pair["native_pair"], cutoff)]
             row = rows[number - 1]
-            support = _prenatal_curve_support(curve, row, cutoff if cutoff is not None else "ALL")
-            curves_for_pair.append({"cutoff": cutoff, "prenatal_support": support, **curve_artifact})
+            stem = pair["native_pair"] + (f"_panel_{index}" if len(cutoffs) > 1 else "")
+            iterations = output_dir / f"{stem}_CPI_iterations.csv"
+            hom_sites = output_dir / f"{stem}_HOM_child_sites.txt"
+            audits = {"iterations": _artifact(iterations, root, output_dir), "hom_sites": _artifact(hom_sites, root, output_dir)}
+            expected_audits.update((iterations.name, hom_sites.name))
+            support = _prenatal_curve_support(curve, iterations, hom_sites, row, cutoff if cutoff is not None else "ALL")
+            curves_for_pair.append({"cutoff": cutoff, "prenatal_support": support, **curve_artifact, **audits})
             context = {"Pair": pair["native_pair"], "Cutoff": cutoff or "ALL"}
             for field, reason in (("missing_frequency", "no population frequency"),
                                   ("unassigned_father", "unassigned paternal genotype")):
@@ -452,6 +516,9 @@ def _collect_cpi_outputs(step: dict, request: dict, root: Path, output_dir: Path
             "plot": _pdf_artifact(plots / f"{pair['native_pair']}_CPIplot.pdf", root, output_dir),
             "curves": curves_for_pair,
         })
+    audits_found = {path.name for suffix in ("*_CPI_iterations.csv", "*_HOM_child_sites.txt") for path in output_dir.glob(suffix)}
+    if audits_found != expected_audits:
+        raise PlanExecutionError("execution.output", "CPI audit tables do not match the declared pairs and cutoffs.")
     if {path.name for path in curves.glob("*.tsv")} != expected_curves:
         raise PlanExecutionError("execution.output", "CPI curves do not match the declared pairs and cutoffs.")
     return {"summary": artifact, "cpi-pairs": pairs, "quality_warnings": warnings,

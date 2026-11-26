@@ -18,7 +18,7 @@ from nipat.execution.runner import DockerComposeRunner
 from nipat.execution.workflows import Workflows
 from nipat.paths import ProjectLayout
 from verify_contamination_update import check_bundled_run
-from verify_cpi_update import EXPECTED_INFORMATIVE, INFORMATIVE_PAIR, NO_SITES_PAIR, check_number
+from verify_cpi_update import EXPECTED_INFORMATIVE, INFORMATIVE_PAIR, NO_SITES_PAIR, check_number, verify_prenatal_examples
 from verify_input_modes import EXPECTED_FIRST_TWO
 
 
@@ -44,7 +44,10 @@ def check_summary(run: Path, expected: dict[tuple[str, str | None], dict]) -> No
     fields, rows = summary_rows(run)
     with_cutoff = any(label is not None for _, label in expected)
     expected_fields = {"Pair", *EXPECTED_INFORMATIVE, "Error_constant", "Min_fetal_reads",
-                       "Min_fetal_percent", "Marker_type"}
+                       "Min_fetal_percent", "Marker_type", "Include_homozygous_child", "Min_coverage",
+                       "Max_other_fraction", "N_sites_HET_child", "N_sites_HOM_child", "Matching_HET_child",
+                       "Mismatching_HET_child", "Matching_HOM_child", "Mismatching_HOM_child",
+                       "Log10_CPI_HET_child", "Log10_CPI_HOM_child"}
     if with_cutoff:
         expected_fields.add("Cutoff")
     keys = [(row.get("Pair"), row.get("Cutoff")) for row in rows]
@@ -186,7 +189,7 @@ def check_cpi_workflow(identifier: str, root: Path, *, run_image, write_request)
     return inputs
 
 
-def check_cpi_client_without_host_scripts(identifier: str, root: Path, inputs: Path) -> None:
+def check_cpi_client_without_host_scripts(identifier: str, root: Path, inputs: Path) -> dict:
     project = root / "CPI client without scientific sources"
     project.mkdir()
     shutil.copyfile(PROJECT / "compose.yaml", project / "compose.yaml")
@@ -214,6 +217,8 @@ def check_cpi_client_without_host_scripts(identifier: str, root: Path, inputs: P
             "mother_prefix": "Mother", "father_prefix": "Father",
             "popfreq": originals_dir / "population.tsv", "err_const": DEFAULT_ERR_CONST,
         }
+        prenatal = verify_prenatal_examples(workflow, layout, PROJECT / "tests/fixtures/prenatal_cpi",
+                                           root / "prenatal reference files", run_prefix="published-prenatal")
         all_sites = workflow.cpi(**arguments, run_name="complete-cpi-all")
         single = workflow.cpi(**arguments, panel=originals_dir / "full.txt", run_name="complete-cpi-panel")
         named = workflow.cpi(
@@ -246,6 +251,7 @@ def check_cpi_client_without_host_scripts(identifier: str, root: Path, inputs: P
         raise ValueError("The CPI source-free application directory was unexpectedly populated.")
     print("PASS: CLI CPI ALL/panel/repeated-cutoff/native-map modes without host scientific sources; "
           "custom/empty prefixes, reused samples, parameter-sensitive results and isolated mounts.", flush=True)
+    return prenatal
 
 
 def mismatch_expected(error: str, pairs: tuple[str, ...]) -> dict:

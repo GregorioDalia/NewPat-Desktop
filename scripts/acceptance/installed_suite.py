@@ -261,6 +261,9 @@ class Suite:
             raise ValueError("Catalogo scientifico installato incompleto.")
         if "fetal-sex" not in modules and (self.app / "tests/fixtures/fetal_sex").exists():
             raise ValueError("Modulo fetal-sex assente dal catalogo dell'installazione con esempi fetal-sex.")
+        self.report["revised_prenatal"] = "include_homozygous_child" in modules["cpi"].get("parameters", {})
+        if not self.report["revised_prenatal"] and (self.app / "tests/fixtures/prenatal_cpi").exists():
+            raise ValueError("Modello CPI prenatale assente dal catalogo dell'installazione con esempi aggiornati.")
         self.report["modules"] = sorted(modules)
         return result
 
@@ -490,7 +493,13 @@ class Suite:
             self.generated.mkdir()
             import installed_models
             import installed_workflows
-            self.cases.extend(installed_models.build_cases(self.fixtures, self.generated))
+            self.cases.extend(installed_models.build_cases(self.fixtures, self.generated,
+                                                          revised_prenatal=self.report["revised_prenatal"]))
+            if self.report["revised_prenatal"]:
+                prenatal = self.fixtures / "prenatal_cpi"
+                hashes = installed_models.copy_prenatal_fixtures(self.app / "tests/fixtures/prenatal_cpi", prenatal)
+                self.report["fixture_sha256"].update({"prenatal_cpi/" + name: value for name, value in hashes.items()})
+                self.cases.extend(installed_models.prenatal_example_cases(prenatal))
             fetal_sex = None
             if "fetal-sex" in self.report["modules"]:
                 fetal_sex = self.fixtures / "fetal_sex"

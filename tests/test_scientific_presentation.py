@@ -109,6 +109,26 @@ class PresentationTests(unittest.TestCase):
                 rows = list(csv.reader(handle, delimiter="\t"))
             self.assertEqual(rows, [["Sample", "pos", "N_REF"], ["<script>alert(1)<.pileup", "1", "010"]])
 
+    def test_prenatal_readable_audits_keep_each_pair_and_panel_distinct(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work, output = Path(tmp) / "work", Path(tmp) / "output"
+            work.mkdir()
+            output.mkdir()
+            names = {"MotherM": "Madre.txt", "FatherF": "Padre.txt"}
+            request = {"workflow": "cpi", "work_dir": str(work), "out_dir": str(output),
+                       "samples": [{"name": key + ".txt"} for key in names], "pairs": "M:F",
+                       "cutoff_mode": "named", "cutoffs": [{"label": "Full"}, {"label": "Subset"}],
+                       "mother_prefix": "Mother", "father_prefix": "Father", "marker_type": "SNP",
+                       "presentation": {"samples": names, "pairs": {"M:F": "Famiglia A"}}}
+            prepare_presentation(request, Path("/native.R"), [])
+            native = "MotherM-FatherF_SNPs"
+            readable = _filename("Famiglia A", native)
+            config = json.loads((work / "presentation-config.json").read_text(encoding="utf-8"))
+            for panel in ("_panel_1", "_panel_2"):
+                for suffix in ("_HOM_child_sites.txt", "_CPI_iterations.csv"):
+                    table = config["tables"][native + panel + suffix]
+                    self.assertEqual(table["target"], readable + panel + suffix)
+
     def test_postnatal_readable_tables_preserve_scalar_and_excluded_sites(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

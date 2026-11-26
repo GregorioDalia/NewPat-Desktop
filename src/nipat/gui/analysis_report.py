@@ -35,6 +35,8 @@ def _public_label(value):
 
 
 def _display(value, description, language, *, concise=False, guides=None):
+    if value == "NA" and "NA" in description.get("values", {}):
+        return description["values"]["NA"]
     if value is None or value in MISSING:
         return _text(language, "Non disponibile", "Unavailable")
     if value in description.get("values", {}):
@@ -152,6 +154,18 @@ def _result_basis(case, entry, language):
                             f"the summary records {maternal_sites} in the maternal sample.")
                           if maternal is not None else
                           t("il numero di siti informativi materni non è disponibile.", "the maternal informative site count is unavailable."))
+        if "Include_homozygous_child" in entry["row"]:
+            if used is None:
+                return t("La coppia non ha una stima utilizzabile alla soglia mediana di letture fetali.",
+                         "The pair has no usable estimate at the median fetal read threshold.")
+            het = _read_count(entry["row"].get("N_sites_HET_child"))
+            hom = _read_count(entry["row"].get("N_sites_HOM_child"))
+            return t(f"Il confronto alla soglia mediana di letture fetali si basa su {sites(used)}. "
+                     f"Di questi, {het} rientrano nel gruppo con feto presunto eterozigote (HET) e {hom} "
+                     "nel gruppo con feto presunto omozigote (HOM). Ogni sito conteggiato ha un indice di paternità valido.",
+                     f"At the median fetal read threshold, {sites(used)} contributed to the pair’s CPI. "
+                     f"The counts for the presumed heterozygous (HET) and homozygous (HOM) fetal groups are {het} and {hom}, respectively. "
+                     "Each counted site has a valid paternity index.")
         if used is not None:
             paternal_basis = t(f"Alla soglia mediana di letture fetali, il confronto ha utilizzato {sites(used)} del campione paterno.",
                                f"At the median fetal read threshold, the comparison used {sites(used)} from the paternal sample.")
@@ -368,6 +382,43 @@ def _detail_table(store, run_id, file_id, *, curve=False):
     return table
 
 
+def _prenatal_components(store, run_id, entry, result):
+    """Read the two recorded contributions at the reported median threshold and its panel-specific site table."""
+    row = entry["row"]
+    lang = store.language
+    def t(it, en):
+        return _text(lang, it, en)
+    points = [(category, i, _number(row.get(f"Log10_CPI_{category}_child")))
+              for i, category in enumerate(("HET", "HOM"))]
+    if _number(row.get("CPI_medianFF")) is not None and all(value is not None for _, _, value in points):
+        chart = _chart(t("Contributi al CPI alla soglia mediana", "CPI contributions at the median threshold"),
+                       "bar", "", "log₁₀(CPI)", points)
+        chart["caption"] = t("HET indica i siti con feto presunto eterozigote. HOM indica quelli con feto presunto omozigote. "
+                             "Quando attivo, il contributo HOM è costante a tutte le soglie.",
+                             "HET denotes presumed heterozygous fetal sites. HOM denotes presumed homozygous fetal sites. "
+                             "When enabled, the HOM contribution is constant across thresholds.")
+        result.setdefault("charts", []).append(chart)
+    if row.get("Include_homozygous_child") != "TRUE":
+        return
+    result["notes"].append(t("L’analisi comprende la modalità sperimentale per i siti con feto presunto omozigote.",
+                             "The analysis used the experimental option for presumed homozygous fetal sites."))
+    if not entry.get("site_file_id"):
+        result["notes"].append(t("Tabella dei siti HOM non disponibile per la coppia e il pannello selezionati.",
+                                 "HOM site table unavailable for the selected pair and panel."))
+        return
+    table = _detail_table(store, run_id, entry["site_file_id"])
+    columns = {col["key"]: col for col in table["columns"]}
+    keys = [key for key in ("chr", "pos", "pos1", "pos2", "Paternal_allele", "Paternity_Index") if key in columns]
+    if "Paternity_Index" not in keys:
+        raise ValueError("Missing site PI.")
+    result["tables"] = [result["table"]] if result["table"] else []
+    result["tables"].append({
+        "title": table["file"]["label"], "columns": [columns[k]["label"] for k in keys],
+        "rows": [[_display(row[k], columns[k], lang) for k in keys] for row in table["rows"]],
+        "note": t(f"Righe mostrate: {len(table['rows'])} di {table['total']}.",
+                  f"Rows shown: {len(table['rows'])} of {table['total']}.")})
+
+
 def _details(store, run_id, case, entry, result):
     lang = store.language
     def t(it, en):
@@ -441,8 +492,12 @@ def _details(store, run_id, case, entry, result):
             result["notes"].append(t("La curva contiene soglie o valori non utilizzabili. Consulta la tabella originale.",
                                      "The curve contains unavailable thresholds or values. See the original table."))
         table = curve
-        keys = ("Iteration", "log_CPI", "InfSites_mother", "InfSites_father")
+        keys = (("Iteration", "log_CPI", "N_sites_HET_child", "N_sites_HOM_child")
+                if "Include_homozygous_child" in entry["row"] else
+                ("Iteration", "log_CPI", "InfSites_mother", "InfSites_father"))
     else:
+        if module == "cpi":
+            return
         file_id = entry.get("site_file_id") if not module.endswith("-call") else entry["file_id"]
         if not file_id:
             return
@@ -541,7 +596,7 @@ def _build_selected_report(store, run_id, selected, record, *, detailed):
     result["archive_entry"] = _archive_entry(entry, lang)
     for k, value in entry.get("row", {}).items():
         if k in FIELDS and k not in metrics and k not in {"Trio", "Pair", "Analysis", "Cutoff", "Marker_type", "individuo"}:
-            column = column_description(k, language=lang)
+            column = column_description(k, language=lang, headers=entry["row"])
             metrics[k] = _pair(column["label"], _display(value, column, lang))
     result["metrics"] = list(metrics.values())
     if group["warnings"] or any(w.get("step_id") in (None, "", step_id) for w in record["warnings"]):
@@ -549,6 +604,8 @@ def _build_selected_report(store, run_id, selected, record, *, detailed):
                                  "The experiment contains warnings. Review the step details in NewPat."))
     try:
         _details(store, run_id, case, entry, result)
+        if case["module"] == "cpi" and "Include_homozygous_child" in entry["row"]:
+            _prenatal_components(store, run_id, entry, result)
     except (OSError, ValueError):
         result["notes"].append(t("Il dettaglio per sito o per soglia non è disponibile nell’archivio.",
                                  "Site or threshold details are unavailable in the archive."))

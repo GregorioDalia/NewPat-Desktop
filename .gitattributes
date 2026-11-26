@@ -4,9 +4,11 @@ scientific/SHA256SUMS text eol=lf
 *.sh text eol=lf
 scientific/vendor/** -whitespace
 # Keep exact upstream source bytes in the scientific comparison fixture.
-tests/reference_r/NEWPAT_20261125/**/*.R -whitespace
+tests/reference_r/NEWPAT_20261126/**/*.R -whitespace
 # Preserve upstream license bytes and their recorded checksums.
 installer/macos/licenses/** -text -whitespace
 # Keep the offline PDF renderer, fonts and notices byte-identical in each installer.
 src/nipat/gui/web/vendor/pdfmake/** -text -whitespace
 tests/fixtures/fetal_sex/**/*.txt text eol=lf
+tests/fixtures/prenatal_cpi/**/*.csv text eol=lf
+tests/fixtures/prenatal_cpi/**/*.txt text eol=lf

@@ -5,7 +5,7 @@
 
 # NewPat
 
-NewPat is a desktop application for research on genetic markers and parentage. It calls genotypes at sites in a supplied SNP or DNP panel, estimates contamination, and calculates prenatal and postnatal combined paternity indices. Researchers can configure an experiment in the desktop window, inspect the reads in the integrated IGV viewer, and export the tables and plots.
+NewPat is a desktop application for research on genetic markers and parentage. It calls genotypes at sites in a supplied SNP or DNP panel, estimates contamination and fetal sex, and calculates prenatal and postnatal combined paternity indices. Researchers can configure an experiment in the desktop window, inspect the reads in the integrated IGV viewer, and export the tables and plots.
 
 Analyses run on your computer. NewPat packages R and samtools with the scientific engine. After you prepare the runtime, you can analyze local files offline. A command-line interface supports scripted runs using the same inputs and settings.
 
@@ -29,7 +29,7 @@ This guide describes **0.9.10**. The release notes record its status and changes
 | **DNPcall** | One or more BAMs, an indexed reference FASTA, and a double nucleotide polymorphism (DNP) panel | Allele counts and genotypes per sample, summary tables and plots |
 | **SNPcall** | A single nucleotide polymorphism (SNP) panel, plus a BAM with an indexed FASTA or a pileup with base qualities and read names | Allele counts, genotype likelihoods, genotypes, indel statistics and plots |
 | **Contamination** | SNP or DNP count tables and a matching coordinate panel | Per-site contamination estimates and a summary per sample |
-| **Prenatal CPI** | Count tables for maternal cell-free DNA and the alleged father, sample pairings, and population allele frequencies | Fetal fraction estimates, combined paternity index (CPI), tables and plots |
+| **Prenatal CPI** | Count tables for maternal cell-free DNA and the alleged father, sample pairings, and population allele frequencies | Fetal fraction and CPI, a curve across read thresholds, and separate contributions from putative heterozygous and optional homozygous fetal sites |
 | **Postnatal CPI** | Mother, alleged father and child count tables, sample trios, and population allele frequencies | One CPI per trio, its base-10 logarithm and a table of included and excluded sites |
 | **Fetal sex** | Autosomal DNP, X DNP and Y SNP count tables from the same maternal cfDNA sample | F, M or Undetermined, three ratios and three site tables |
 

@@ -67,7 +67,7 @@ class RevisedCpiReleaseTests(unittest.TestCase):
 
     def test_releases_pin_the_correct_frozen_model_bytes(self):
         versions = {"0.9.9": "9c2a8be60afcb944153710da6a61cd0559e2b4cf",
-                    "0.9.10": "97c4eb5f7a901d0435b950c3e2a52a8bd7eae9d4"}
+                    "0.9.10": "c753afc4be62dfc0b81b8cb683a6e850516f5ffd"}
         for version, expected in versions.items():
             with self.subTest(version=version):
                 commit, directory, hashes = acceptance.downstream_reference(version)
@@ -499,7 +499,18 @@ class FiveModuleAcceptanceTests(unittest.TestCase):
                                 "input_sha256": {p.name: digest(p.read_bytes()) for p in inputs},
                                 "output_sha256": {p.name: digest(p.read_bytes()) for p in outputs}}
         report["fetal_sex_examples"] = examples
+        with self.assertRaisesRegex(ValueError, "Both published prenatal examples"):
+            verify()
+        folder = ROOT / "tests/fixtures/prenatal_cpi/outputs"
+        report["prenatal_examples"] = {marker: {p.name: p.read_text() for p in (folder / marker).iterdir()}
+                                       for marker in ("DNP", "SNP")}
         self.assertEqual(verify()["fetal_sex_examples_verified"], sorted(examples))
+        filename = "MotherA1-FatherA1_SNPs_CPI_iterations.csv"
+        actual = report["prenatal_examples"]["SNP"][filename]
+        report["prenatal_examples"]["SNP"][filename] = actual.replace("2,", "1,", 1)
+        with self.assertRaisesRegex(ValueError, "numerical results differ"):
+            verify()
+        report["prenatal_examples"]["SNP"][filename] = actual
         for key, value in (("call", "F"), ("sample", "Female_fetus_autosomes"),
                            ("input_sha256", examples["Female_fetus"]["input_sha256"]),
                            ("output_sha256", {})):

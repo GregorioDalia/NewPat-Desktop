@@ -87,6 +87,10 @@ def fetal_sex_inputs(fixture, sample):
 def copy_fetal_sex_fixtures(source, destination):
     paths = [path for sample in FETAL_SEX_EXAMPLES for path in fetal_sex_inputs(source, sample)]
     paths.extend(source / "outputs" / sample / name for sample in FETAL_SEX_EXAMPLES for name in FETAL_SEX_OUTPUTS)
+    return copy_reference_files(source, destination, paths, FETAL_SEX_FIXTURE_DIGEST)
+
+
+def copy_reference_files(source, destination, paths, expected_digest):
     hashes = {}
     for path in paths:
         relative = path.relative_to(source)
@@ -96,7 +100,7 @@ def copy_fetal_sex_fixtures(source, destination):
         shutil.copyfile(path, target)
         hashes[relative.as_posix()] = file_hash(target)
     fingerprint = hashlib.sha256(json.dumps(hashes, sort_keys=True).encode("ascii")).hexdigest()
-    require(fingerprint == FETAL_SEX_FIXTURE_DIGEST, "Fetal-sex reference cases differ from the published examples")
+    require(fingerprint == expected_digest, "Reference cases differ from the published examples")
     return hashes
 
 
@@ -121,7 +125,59 @@ def fetal_sex_cases(fixture):
     return cases
 
 
-def settings_expected(workflow, minimum, percent, coverage, include_hom_het, include_zero):
+PRENATAL_FIXTURE_DIGEST = "e8cec0cf076d6c44825447cf3179f2e8ec32a4cc11da9ba68914671053e39608"
+PRENATAL_INPUTS = ("MotherA1.txt", "FatherA1.txt", "population_frequencies.txt", "markers.txt")
+
+
+def prenatal_outputs(marker):
+    pair = f"MotherA1-FatherA1_{marker}s"
+    return (SUMMARY["cpi"], pair + "_CPI_iterations.csv", pair + "_HOM_child_sites.txt")
+
+
+def copy_prenatal_fixtures(source, destination):
+    paths = [source / section / marker / name
+             for marker in ("DNP", "SNP")
+             for section, names in (("inputs", PRENATAL_INPUTS), ("outputs", prenatal_outputs(marker)))
+             for name in names]
+    return copy_reference_files(source, destination, paths, PRENATAL_FIXTURE_DIGEST)
+
+
+def check_prenatal_example(run, fixture, marker):
+    expected_dir = fixture / "outputs" / marker
+    observed = {}
+    for name in prenatal_outputs(marker):
+        reference = expected_dir / name
+        with reference.open(encoding="utf-8", newline="") as stream:
+            reader = csv.DictReader(stream, delimiter="," if name.endswith(".csv") else "\t")
+            fields, expected_rows = set(reader.fieldnames), list(reader)
+        result = run / "output" / name
+        actual = table(result, fields)
+        require(len(actual) == len(expected_rows), f"Wrong number of rows: {marker}/{name}")
+        for index, (row, expected) in enumerate(zip(actual, expected_rows), 1):
+            for key, value in expected.items():
+                if row[key] == value:
+                    continue
+                try:
+                    wanted = float(value)
+                except ValueError as exc:
+                    raise ValueError(f"Wrong {marker}/{name} row {index}: {key}") from exc
+                number(row[key], wanted, f"{marker}/{name} row {index}: {key}")
+        observed[name] = file_hash(result)
+    return {"marker": marker, "output_sha256": observed}
+
+
+def prenatal_example_cases(fixture):
+    cases = []
+    for marker in ("DNP", "SNP"):
+        inputs = fixture / "inputs" / marker
+        cases.append({"id": "prenatal-cpi-" + marker.lower(), "category": "model", "mode": "auto",
+                      "args": ["cpi", "--input-dir", inputs, "--pairs", "A1:A1", "--popfreq",
+                               inputs / "population_frequencies.txt", "--panel", inputs / "markers.txt"],
+                      "validate": partial(check_prenatal_example, fixture=fixture, marker=marker)})
+    return cases
+
+
+def settings_expected(workflow, minimum, percent, coverage, include_hom_het, include_zero, *, revised_prenatal=True):
     """Explicit model defaults; observed settings never define the oracle."""
     if workflow == "contamination":
         return ({"other_fraction_max": .1, "homozygous_ref_min": .9,
@@ -133,6 +189,8 @@ def settings_expected(workflow, minimum, percent, coverage, include_hom_het, inc
     parameters = dict(COMMON_PARAMETERS)
     constants = dict(COMMON_CONSTANTS)
     if workflow == "cpi":
+        if revised_prenatal:
+            parameters.update(include_homozygous_child=False, min_coverage=None)
         parameters.update(min_fetal_reads=minimum, min_fetal_percent=percent,
                           err_const_snp=EPSILON["SNP"], err_const_dnp=EPSILON["DNP"])
         constants["fetal_fraction_formula"] = "median(2 * fetal_reads/(N_REF+N_ALT))"
@@ -144,8 +202,9 @@ def settings_expected(workflow, minimum, percent, coverage, include_hom_het, inc
     return parameters, constants
 
 
-def check_settings(run, workflow, minimum, percent, coverage, include_hom_het, include_zero):
-    parameters, constants = settings_expected(workflow, minimum, percent, coverage, include_hom_het, include_zero)
+def check_settings(run, workflow, minimum, percent, coverage, include_hom_het, include_zero, *, revised_prenatal=True):
+    parameters, constants = settings_expected(workflow, minimum, percent, coverage, include_hom_het, include_zero,
+                                              revised_prenatal=revised_prenatal)
     for path in (run / "work/effective-scientific-settings.json", run / "output/scientific-settings.json"):
         record = json.loads(path.read_text(encoding="utf-8-sig"))
         require(record.get("schema_version") == 1 and record.get("workflow") == workflow,
@@ -356,9 +415,11 @@ def check_contamination(output: Path, marker: str, include_zero: bool, families:
 
 def validate_model(run: Path, *, workflow: str, marker: str, families: int = 1,
                    minimum: int | None = 2, percent: float | None = None, coverage: int | None = None,
-                   include_hom_het: bool = True, include_zero: bool = True, mismatch: bool = False) -> dict:
+                   include_hom_het: bool = True, include_zero: bool = True, mismatch: bool = False,
+                   revised_prenatal: bool = True) -> dict:
     output = run / "output"
-    check_settings(run, workflow, minimum, percent, coverage, include_hom_het, include_zero)
+    check_settings(run, workflow, minimum, percent, coverage, include_hom_het, include_zero,
+                   revised_prenatal=revised_prenatal)
     if workflow == "cpi":
         count = check_cpi(output, marker, minimum, families, mismatch, percent)
     elif workflow == "cpin":
@@ -378,7 +439,7 @@ def validate_case(run: Path, *, inputs: Path, original: dict, **options) -> dict
     return validate_model(run, **options)
 
 
-def build_cases(fixtures: Path, generated: Path) -> list[dict]:
+def build_cases(fixtures: Path, generated: Path, *, revised_prenatal=True) -> list[dict]:
     """Create analytical and batch cases plus precise input rejections."""
     cases = []
     generated.mkdir(parents=True, exist_ok=True)
@@ -428,7 +489,7 @@ def build_cases(fixtures: Path, generated: Path) -> list[dict]:
                       "validate": partial(validate_case, inputs=inputs, original=tree_hashes(inputs),
                                           workflow=workflow, marker=marker, families=families,
                                           minimum=minimum, percent=percent, coverage=coverage, include_hom_het=include_hom_het,
-                                          include_zero=include_zero, mismatch=mismatch),
+                                          include_zero=include_zero, mismatch=mismatch, revised_prenatal=revised_prenatal),
                       **({"compare_group": f"models-{marker.lower()}-{workflow}-batch3"} if families > 1 else {})})
 
     for marker in ("SNP", "DNP"):

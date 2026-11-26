@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-# Prenatal CPI model from NEWPAT eabff16, including absolute and percentage fetal-read filters.
+# Prenatal CPI model from NEWPAT 867a446, including maternal/fetal HOM sites and coverage filters.
 # Reuse invariant CPI calculations and identical threshold selections; retain every output row.
 # NewPat schedules independent pairs, cutoffs or threshold intervals within one
 # worker budget and retains the order of the scientific reductions.
@@ -39,6 +39,9 @@ parser$add_argument("--err_const_snp", default=NULL)
 parser$add_argument("--err_const_dnp", default=NULL)
 parser$add_argument("--min_fetal_reads", type="double", default=NULL)
 parser$add_argument("--min_fetal_percent", type="double", default=NULL)
+parser$add_argument("--include_homozygous_child", choices=c("TRUE", "FALSE"), default=NULL)
+parser$add_argument("--min_coverage", type="double", default=NULL)
+parser$add_argument("--max_other_fraction", type="double", default=NULL)
 args <- parser$parse_args()
 args$err_const_snp <- if (is.null(args$err_const_snp)) nipat_cfg$err_const_snp else args$err_const_snp
 args$err_const_dnp <- if (is.null(args$err_const_dnp)) nipat_cfg$err_const_dnp else args$err_const_dnp
@@ -61,6 +64,18 @@ if (!is.null(min_fetal_reads)) {
 if (!is.null(min_fetal_percent) && (!is.finite(min_fetal_percent) ||
     min_fetal_percent <= 0 || min_fetal_percent > 100))
   stop("--min_fetal_percent must be a finite number in (0, 100]")
+if (!is.null(args$include_homozygous_child))
+  nipat_cfg$include_homozygous_child <- args$include_homozygous_child == "TRUE"
+if (!is.null(args$min_coverage)) nipat_cfg$min_coverage <- args$min_coverage
+if (!is.null(args$max_other_fraction)) nipat_cfg$other_fraction_max <- args$max_other_fraction
+min_coverage <- nipat_cfg$min_coverage
+if (!is.null(min_coverage) && (!is.finite(min_coverage) || min_coverage < 1 ||
+    min_coverage != floor(min_coverage) || min_coverage > .Machine$integer.max))
+  stop("--min_coverage must be a positive integer within the R integer range")
+if (!is.null(min_coverage)) nipat_cfg$min_coverage <- as.integer(min_coverage)
+if (!is.finite(nipat_cfg$other_fraction_max) || nipat_cfg$other_fraction_max < 0 ||
+    nipat_cfg$other_fraction_max > 1) stop("--max_other_fraction must be between 0 and 1")
+coverage_floor <- if (is.null(min_coverage)) 0 else min_coverage
 curve_start <- if (is.null(min_fetal_reads)) 1L else min_fetal_reads
 message("Minimum fetal reads: ", if (is.null(min_fetal_reads)) "NULL" else min_fetal_reads)
 message("Minimum fetal-read percentage: ",
@@ -356,122 +371,104 @@ run_CPI_iteration <- function(madre_df, padre_df, dnp_list, cutoff_label, err_co
   }
 
   madre_info <- compute_madre_info(madre)
+  madre_hom <- madre[FALSE, , drop=FALSE]
+  if (nipat_cfg$include_homozygous_child) {
+    madre_hom <- dplyr::filter(madre, (Ref_mother > 0 & Alt_mother == 0) |
+                                     (Alt_mother > 0 & Ref_mother == 0))
+  }
+
+  # The allele needed from the father is maternal for HOM and non-maternal for HET.
+  calculate_PI <- function(mother_sites, child_type) {
+    maternal_ref <- mother_sites$ratio_Ref_mother >= nipat_cfg$homozygous_ref_min
+    requires_ref <- if (child_type == "HOM") maternal_ref else !maternal_ref
+    mother_sites$Paternal_allele <- ifelse(requires_ref, "REF", "ALT")
+    mother_sites %>%
+      dplyr::inner_join(padre, by=site_columns) %>%
+      dplyr::inner_join(PopFreqDNPs, by=site_columns) %>%
+      dplyr::mutate(
+        Allele_frequency = ifelse(Paternal_allele == "REF", Ref_f.pop, Alt_f.pop),
+        Father_genotype = dplyr::case_when(
+          ratio_Ref_father >= nipat_cfg$homozygous_ref_min ~ "REF",
+          ratio_Ref_father <= nipat_cfg$homozygous_alt_max ~ "ALT",
+          between(ratio_Ref_father, nipat_cfg$heterozygous_min, nipat_cfg$heterozygous_max) ~ "HET",
+          TRUE ~ NA_character_
+        ),
+        Mismatch = Father_genotype != "HET" & Father_genotype != Paternal_allele,
+        Paternity_Index = dplyr::case_when(
+          Father_genotype == Paternal_allele ~ 1 / Allele_frequency,
+          Father_genotype == "HET" ~ 0.5 / Allele_frequency,
+          Mismatch ~ err_const / Allele_frequency,
+          TRUE ~ NA_real_
+        )
+      )
+  }
+  valid_PI <- function(sites) dplyr::filter(sites, is.finite(Paternity_Index), Paternity_Index > 0)
+
+  pi_hom <- valid_PI(calculate_PI(madre_hom, "HOM"))
+  hom_count <- nrow(pi_hom)
+  hom_mismatches <- sum(pi_hom$Mismatch)
+  log_hom <- sum(log10(pi_hom$Paternity_Index))
+  het_candidates <- calculate_PI(madre_info, "HET")
+  candidate_reads <- het_candidates$fetal_reads
+  pi_het <- valid_PI(het_candidates)
+  rm(het_candidates)
+  log_pi <- log10(pi_het$Paternity_Index)
+  het_reads <- pi_het$fetal_reads
+  het_mismatch <- pi_het$Mismatch
+  rm(pi_het)
   max_fetal <- suppressWarnings(max(madre_info$fetal_reads, na.rm=TRUE))
-  if (!is.finite(max_fetal) || max_fetal < curve_start) {
-    empty <- data.frame(Iteration=integer(), InfSites_mother=integer(),
-      InfSites_father=integer(), CPI=double(), log_CPI=double(), Mismatch=integer(),
-      NotMismatch=integer(), Cutoff=character())
-    return(list(results=empty, madre_info=madre_info))
+
+  # An empty threshold sequence still exports column headers and all qualifying HOM sites.
+  iterations <- if (is.finite(max_fetal) && max_fetal >= curve_start) {
+    seq.int(curve_start, max_fetal)
+  } else integer()
+  by_interval <- matrix(numeric(), nrow=0L, ncol=5L,
+    dimnames=list(NULL, c("mother", "het", "mismatch", "log_het", "candidates")))
+  interval_lengths <- integer()
+  if (length(iterations)) {
+    # Thresholds between two observed read counts select the same sites. Sum in
+    # input order once per interval and restore all rows for curves and medians.
+    interval_starts <- sort(unique(c(1L, floor(madre_info$fetal_reads) - curve_start + 2L)))
+    interval_starts <- interval_starts[interval_starts <= length(iterations)]
+    interval_lengths <- diff(c(interval_starts, length(iterations) + 1))
+    interval_count <- length(interval_starts)
+    compute_interval <- function(index) {
+      threshold <- iterations[interval_starts[index]]
+      selected <- het_reads >= threshold
+      het_count <- sum(selected)
+      mismatches <- sum(het_mismatch[selected])
+      c(mother=sum(madre_info$fetal_reads >= threshold) + nrow(madre_hom), het=het_count,
+        mismatch=mismatches, log_het=sum(log_pi[selected]), candidates=sum(candidate_reads >= threshold))
+    }
+    interval_workers <- nipat_parallel_workers(interval_count)
+    chunk_size <- if (interval_workers == 1L) interval_count else ceiling(interval_count / (4L * interval_workers))
+    chunks <- split(seq_along(interval_starts), ceiling(seq_along(interval_starts) / chunk_size))
+    values <- nipat_parallel_lapply(chunks, function(indices) {
+      do.call(rbind, lapply(indices, compute_interval))
+    }, label="cpi-thresholds", workers=interval_workers)
+    by_interval <- do.call(rbind, values)
   }
-
-  ## Carry the maternal row identity through joins rather than relying on the
-  ## joined fetal_reads name, which population metadata may also contain.
-  row_id <- ".nipat_cpi_maternal_row"
-  input_names <- c(names(madre_info), names(padre), names(PopFreqDNPs))
-  while (row_id %in% input_names) row_id <- paste0(row_id, "_")
-  madre_indexed <- madre_info
-  madre_indexed[[row_id]] <- seq_len(nrow(madre_indexed))
-
-  df_merged <- dplyr::inner_join(madre_indexed, padre, by=site_columns) %>%
-    dplyr::mutate(threshold = dplyr::case_when(
-      ratio_Ref_mother >= nipat_cfg$homozygous_ref_min & Alt_father >= 0 ~ "informative",
-      ratio_Ref_mother <= nipat_cfg$homozygous_alt_max & Ref_father >= 0 ~ "informative",
-      TRUE ~ "non informative"
-    )) %>%
-    dplyr::inner_join(PopFreqDNPs, by=site_columns) %>%
-    dplyr::mutate(dplyr::across(c(Ref_f.pop,Alt_f.pop), as.numeric))
-
-  informative_all <- df_merged %>% dplyr::filter(threshold=="informative")
-  PI_all <- informative_all %>%
-    dplyr::mutate(log10_PI = dplyr::case_when(
-      ratio_Ref_mother >= nipat_cfg$homozygous_ref_min & ratio_Ref_father <= nipat_cfg$homozygous_alt_max ~ log10(1) - log10(Alt_f.pop),
-      ratio_Ref_mother >= nipat_cfg$homozygous_ref_min & between(ratio_Ref_father,nipat_cfg$heterozygous_min,nipat_cfg$heterozygous_max) ~ log10(0.5) - log10(Alt_f.pop),
-      ratio_Ref_mother >= nipat_cfg$homozygous_ref_min & ratio_Ref_father >= nipat_cfg$homozygous_ref_min ~ log10(err_const) - log10(Alt_f.pop),
-      ratio_Ref_mother <= nipat_cfg$homozygous_alt_max & ratio_Ref_father <= nipat_cfg$homozygous_alt_max ~ log10(err_const) - log10(Ref_f.pop),
-      ratio_Ref_mother <= nipat_cfg$homozygous_alt_max & between(ratio_Ref_father,nipat_cfg$heterozygous_min,nipat_cfg$heterozygous_max) ~ log10(0.5) - log10(Ref_f.pop),
-      ratio_Ref_mother <= nipat_cfg$homozygous_alt_max & ratio_Ref_father >= nipat_cfg$homozygous_ref_min ~ log10(1) - log10(Ref_f.pop),
-      TRUE ~ NA_real_
-    )) %>% tidyr::drop_na()
-
-  ## Population metadata is projected out before joins; irrelevant NA cannot remove sites.
-  ## The added row identity is always present and has no missing values.
-  pi_fetal_reads <- madre_info$fetal_reads[PI_all[[row_id]]]
-  informative_fetal_reads <- madre_info$fetal_reads[informative_all[[row_id]]]
-  mismatch <- (informative_all$ratio_Ref_mother >= nipat_cfg$homozygous_ref_min &
-                 informative_all$ratio_Ref_father >= nipat_cfg$homozygous_ref_min) |
-    (informative_all$ratio_Ref_mother <= nipat_cfg$homozygous_alt_max &
-       informative_all$ratio_Ref_father <= nipat_cfg$homozygous_alt_max)
-
-  iterations <- seq.int(curve_start, max_fetal)
-  ## A locus with f fetal reads disappears at threshold floor(f) + 1.
-  ## Index 1 corresponds to curve_start; disappearance has index
-  ## floor(f) - curve_start + 2. All joined rows originate from these maternal loci, so their
-  ## PI and mismatch selections are constant between the same boundaries.
-  ## Keep every threshold in the final table: its repetitions affect the
-  ## summary statistics, median-threshold lookup and plots.
-  interval_starts <- sort(unique(c(1L, floor(madre_info$fetal_reads) - curve_start + 2L)))
-  interval_starts <- interval_starts[interval_starts <= length(iterations)]
-  interval_lengths <- diff(c(interval_starts, length(iterations) + 1))
-  interval_count <- length(interval_starts)
-  log_pi <- PI_all$log10_PI
-
-  mother_counts <- integer(interval_count)
-  father_counts <- integer(interval_count)
-  cpi_values <- numeric(interval_count)
-  log_cpi_values <- numeric(interval_count)
-  mismatch_counts <- integer(interval_count)
-  matching_counts <- integer(interval_count)
-
-  compute_interval <- function(interval_index) {
-    i <- iterations[interval_starts[interval_index]]
-    mother_count <- sum(madre_info$fetal_reads >= i)
-    pi_selected <- pi_fetal_reads >= i
-    father_count <- sum(pi_selected)
-
-    # The logarithm remains representable even if the raw CPI overflows
-    # or underflows. Zero informative paternal loci retain an unknown result.
-    log_CPI_val <- if (father_count) sum(log_pi[pi_selected]) else NA_real_
-    CPI_val <- 10^log_CPI_val
-
-    informative_selected <- informative_fetal_reads >= i
-    n_mismatch <- sum(mismatch[informative_selected])
-    list(mother = mother_count, father = father_count, cpi = CPI_val,
-         log_cpi = log_CPI_val, mismatch = n_mismatch,
-         matching = sum(informative_selected) - n_mismatch)
-  }
-  interval_workers <- nipat_parallel_workers(interval_count)
-  # Fork at most a few contiguous chunks per worker, not one process for every
-  # threshold interval. The interval order inside each chunk is unchanged.
-  chunk_size <- max(1L, ceiling(interval_count / (4L * interval_workers)))
-  if (interval_workers == 1L) chunk_size <- interval_count
-  interval_chunks <- split(seq_along(interval_starts),
-                           ceiling(seq_along(interval_starts) / chunk_size))
-  chunk_values <- nipat_parallel_lapply(interval_chunks, function(indices) {
-    lapply(indices, compute_interval)
-  }, label = "cpi-thresholds", workers = interval_workers)
-  interval_values <- unname(unlist(chunk_values, recursive = FALSE))
-  # Assign into the original typed vectors in input order. Each product and
-  # each sum above still processes exactly the original ordered observations.
-  for (interval_index in seq_along(interval_values)) {
-    value <- interval_values[[interval_index]]
-    mother_counts[interval_index] <- value$mother
-    father_counts[interval_index] <- value$father
-    cpi_values[interval_index] <- value$cpi
-    log_cpi_values[interval_index] <- value$log_cpi
-    mismatch_counts[interval_index] <- value$mismatch
-    matching_counts[interval_index] <- value$matching
-  }
+  het_count <- as.integer(by_interval[, "het"])
+  mismatches <- as.integer(by_interval[, "mismatch"])
+  matches <- het_count - mismatches
+  log_total <- by_interval[, "log_het"] + log_hom
+  log_total[het_count + hom_count == 0L] <- NA_real_
+  expand <- function(x) rep(x, interval_lengths)
   results <- data.frame(
     Iteration=iterations,
-    InfSites_mother=rep(mother_counts, interval_lengths),
-    InfSites_father=rep(father_counts, interval_lengths),
-    CPI=rep(cpi_values, interval_lengths),
-    log_CPI=rep(log_cpi_values, interval_lengths),
-    Mismatch=rep(mismatch_counts, interval_lengths),
-    NotMismatch=rep(matching_counts, interval_lengths),
-    Cutoff=cutoff_label
+    InfSites_mother=expand(as.integer(by_interval[, "mother"])),
+    InfSites_father=expand(het_count + hom_count),
+    CPI=expand(10^log_total), log_CPI=expand(log_total),
+    Mismatch=expand(mismatches + hom_mismatches),
+    NotMismatch=expand(matches + hom_count - hom_mismatches),
+    N_sites_HET_child=expand(het_count), N_sites_HOM_child=rep(hom_count, length(iterations)),
+    Matching_HET_child=expand(matches), Mismatching_HET_child=expand(mismatches),
+    Matching_HOM_child=rep(hom_count - hom_mismatches, length(iterations)),
+    Mismatching_HOM_child=rep(hom_mismatches, length(iterations)),
+    Log10_CPI_HET_child=expand(by_interval[, "log_het"]), Log10_CPI_HOM_child=rep(log_hom, length(iterations)),
+    HET_with_frequency=expand(as.integer(by_interval[, "candidates"])), Cutoff=rep(cutoff_label, length(iterations))
   )
-  return(list(results=results, madre_info=madre_info))
+  list(results=results, madre_info=madre_info, pi_hom=pi_hom, log_hom=log_hom)
 }
 
 ## get logCPI at iteration closest to target (median fetal reads)
@@ -574,12 +571,12 @@ plot_CPI <- function(df, cutoff_label, pair_name,
   # Counts and log likelihood ratios have different units. Separate aligned
   # panels keep the original values and avoid negative/fractional site axes.
   sites_plot <- ggplot(df, aes(x = Iteration)) +
-    geom_line(aes(y = NotMismatch, colour = "Sites without a recorded mismatch")) +
-    geom_point(aes(y = NotMismatch, colour = "Sites without a recorded mismatch"), size = 1) +
+    geom_line(aes(y = NotMismatch, colour = "Matching sites")) +
+    geom_point(aes(y = NotMismatch, colour = "Matching sites"), size = 1) +
     geom_line(aes(y = Mismatch, colour = "Mismatching sites"), linetype = "dashed") +
     geom_point(aes(y = Mismatch, colour = "Mismatching sites"), size = 1) +
-    scale_colour_manual(name = NULL, values = c("Sites without a recorded mismatch" = "#008A38", "Mismatching sites" = "#C46B00")) +
-    scale_y_continuous(name = "Paternal candidate sites with a population frequency", limits = c(0, NA), breaks = nipat_integer_breaks) +
+    scale_colour_manual(name = NULL, values = c("Matching sites" = "#008A38", "Mismatching sites" = "#C46B00")) +
+    scale_y_continuous(name = "Sites contributing a paternity index", limits = c(0, NA), breaks = nipat_integer_breaks) +
     scale_x_continuous(name = "Minimum number of fetal reads considered", breaks = ticks,
       limits = c(curve_start, max(curve_start + 1, max_iter)), expand = expansion(mult = c(0.02, 0.02))) +
     theme_bw(base_size = 9) +
@@ -616,7 +613,8 @@ process_pair <- function(i) {
         Error_mother = N_Other,
         ratio_Ref_mother = N_REF / (N_REF + N_ALT),
         total_count = total_count
-      ) %>% dplyr::filter(Error_mother/total_count <= nipat_cfg$other_fraction_max)
+      ) %>% dplyr::filter(total_count > 0, total_count >= coverage_floor,
+                          Error_mother/total_count <= nipat_cfg$other_fraction_max)
     pair_cache$mother <- madre
     pair_cache$mother_path <- mother_path
   } else {
@@ -638,7 +636,8 @@ process_pair <- function(i) {
       dplyr::mutate(
         Ref_father = ifelse(ratio_Ref_father < nipat_cfg$homozygous_alt_max, 0, Ref_father),
         Alt_father = ifelse(ratio_Ref_father > nipat_cfg$homozygous_ref_min, 0, Alt_father)
-      ) %>% dplyr::filter(Error_father/total_count <= nipat_cfg$other_fraction_max)
+      ) %>% dplyr::filter(total_count > 0, total_count >= coverage_floor,
+                          Error_father/total_count <= nipat_cfg$other_fraction_max)
     pair_cache$father <- padre
     pair_cache$father_path <- father_path
   } else {
@@ -684,6 +683,9 @@ process_pair <- function(i) {
     med_cpi <- ifelse(length(all_cpi_vals)==0, NA, median(all_cpi_vals))
     mean_cpi <- ifelse(length(all_cpi_vals)==0, NA, mean(all_cpi_vals))
 
+    median_index <- if (nrow(res) && is.finite(target_i)) which.min(abs(res$Iteration - target_i)) else NA_integer_
+    median_value <- function(column) res[[column]][median_index]
+
     summary_row <- data.frame(Pair=pair_name)
     if (has_cutoffs) summary_row$Cutoff <- cutoff_label
     summary_row <- cbind(summary_row, data.frame(
@@ -696,12 +698,23 @@ process_pair <- function(i) {
       Median_logCPI = round(med_cpi,3),
       Mean_logCPI = round(mean_cpi,3),
       CPI_medianFF = round(cpi_at_med,3),
+      Include_homozygous_child = nipat_cfg$include_homozygous_child,
+      Min_coverage = if (is.null(min_coverage)) NA_integer_ else min_coverage,
+      Max_other_fraction = nipat_cfg$other_fraction_max,
+      N_sites_HET_child = if (n_sites_mother == 0) 0L else median_value("N_sites_HET_child"),
+      N_sites_HOM_child = nrow(out$pi_hom),
+      Matching_HET_child = if (n_sites_mother == 0) 0L else median_value("Matching_HET_child"),
+      Mismatching_HET_child = if (n_sites_mother == 0) 0L else median_value("Mismatching_HET_child"),
+      Matching_HOM_child = sum(!out$pi_hom$Mismatch),
+      Mismatching_HOM_child = sum(out$pi_hom$Mismatch),
+      Log10_CPI_HET_child = round(median_value("Log10_CPI_HET_child"), 3),
+      Log10_CPI_HOM_child = round(out$log_hom, 3),
       Error_constant = err_const,
       Min_fetal_reads = if (is.null(min_fetal_reads)) NA_integer_ else min_fetal_reads,
       Min_fetal_percent = if (is.null(min_fetal_percent)) NA_real_ else min_fetal_percent,
       Marker_type = marker
     ))
-    list(label = cutoff_label, plot_data = res, summary = summary_row,
+    list(label = cutoff_label, plot_data = res, summary = summary_row, hom_sites=out$pi_hom,
          cfDNA_percent = cfDNA_percent, cpi_at_med = cpi_at_med, median_reads=target_i)
   }, label = "cpi-cutoffs")
   list(pair_name = pair_name, cutoffs = cutoff_results)
@@ -728,6 +741,11 @@ for (i in seq_along(pair_results)) {
     dir.create(curve_dir, showWarnings=FALSE)
     write.table(cutoff_result$plot_data,
       file.path(curve_dir, paste0(pair_name, "_panel_", k, ".tsv")),
+      sep="\t", quote=FALSE, row.names=FALSE, na="NA")
+    prefix <- if (nrow(cutoff_df) == 1L) pair_name else paste0(pair_name, "_panel_", k)
+    write.csv(cutoff_result$plot_data[, !names(cutoff_result$plot_data) %in% c("Cutoff", "HET_with_frequency"), drop=FALSE],
+      file.path(args$out_dir, paste0(prefix, "_CPI_iterations.csv")), row.names=FALSE)
+    write.table(cutoff_result$hom_sites, file.path(args$out_dir, paste0(prefix, "_HOM_child_sites.txt")),
       sep="\t", quote=FALSE, row.names=FALSE, na="NA")
     summary_index <- (i - 1L) * nrow(cutoff_df) + k
     fetal_fraction_rows[[summary_index]] <- cutoff_result$summary

@@ -782,10 +782,10 @@
       },
       "evidence": {
         "path": "src/nipat_scientific/settings_data.json",
-        "sha256": "9c72fe224c9a07f665d7067d4b4db4161b209acab85cccff9e1963125b066f44",
+        "sha256": "288538dd8057e235edcb0e6e12ccea610f1066fb536262be086191759777e03c",
         "source_lines": [
           1,
-          749
+          764
         ],
         "dependencies": [
           {
@@ -859,7 +859,7 @@
               112,
               133
             ],
-            "sha256": "34781cb5994c850c102c17ab5d41aa365e217f117d46c2c3ae7939677571873b"
+            "sha256": "9b45ccfbc9c2d10a6d8983e34f7754a3cbfe1a0f1fcc98a1f38f80f8905eb601"
           },
           {
             "path": "src/nipat/execution/runner.py",
@@ -867,7 +867,7 @@
               205,
               230
             ],
-            "sha256": "34781cb5994c850c102c17ab5d41aa365e217f117d46c2c3ae7939677571873b"
+            "sha256": "9b45ccfbc9c2d10a6d8983e34f7754a3cbfe1a0f1fcc98a1f38f80f8905eb601"
           },
           {
             "path": "src/nipat/gui/jobs.py",
@@ -907,7 +907,7 @@
               225,
               228
             ],
-            "sha256": "34781cb5994c850c102c17ab5d41aa365e217f117d46c2c3ae7939677571873b"
+            "sha256": "9b45ccfbc9c2d10a6d8983e34f7754a3cbfe1a0f1fcc98a1f38f80f8905eb601"
           }
         ]
       }

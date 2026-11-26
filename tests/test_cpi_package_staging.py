@@ -45,7 +45,11 @@ class CpiPackageStagingTests(unittest.TestCase):
             for percentage in ("NA", "0", None):
                 with self.subTest(panel=panel, percentage=percentage):
                     row = {"Pair": pair, **self.helper.NO_SITES, "Marker_type": "DNP",
-                           "Error_constant": self.helper.DEFAULT_ERR_CONST, "Min_fetal_reads": 2}
+                           "Error_constant": self.helper.DEFAULT_ERR_CONST, "Min_fetal_reads": 2,
+                           "Include_homozygous_child": "FALSE", "Min_coverage": "NA", "Max_other_fraction": 0.1,
+                           "N_sites_HET_child": 0, "N_sites_HOM_child": 0, "Matching_HET_child": 0,
+                           "Mismatching_HET_child": 0, "Matching_HOM_child": 0, "Mismatching_HOM_child": 0,
+                           "Log10_CPI_HET_child": "NA", "Log10_CPI_HOM_child": 0}
                     if panel is not None:
                         row["Cutoff"] = panel
                     if percentage is not None:

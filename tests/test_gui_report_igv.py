@@ -137,3 +137,26 @@ def test_prenatal_iterations_are_never_used_as_coordinates(tmp_path):
                                          "curves": [artifact(run, relative, cutoff="panel")]}]})
     (case,) = report_cases(store, "example")
     assert "site" not in view(case["id"]) and not registered
+
+
+def test_prenatal_hom_igv_reads_the_selected_panel_and_both_parental_tracks(tmp_path):
+    run, _, store, view, _ = sources(tmp_path, "cpi", "SNP")
+    table(run / "output/Summary_FetalFraction_CPI.csv", ["Pair", "Cutoff", "CPI_medianFF", "N_sites_mother", "N_sites_father",
+          "Include_homozygous_child", "N_sites_HET_child", "N_sites_HOM_child"],
+          [["pair", label, 1, 1, 1, "TRUE", 1, 1] for label in ("A", "B")])
+    curves = []
+    for i, label in enumerate(("A", "B"), 1):
+        sites = f"output/pair_panel_{i}_HOM_child_sites.txt"
+        curve = f"output/curves/pair_panel_{i}.tsv"
+        table(run / sites, ["chr", "pos", "Paternity_Index", "Mismatch"], [["1", i, 0.25, "TRUE"]])
+        table(run / curve, ["Iteration", "log_CPI"], [[1, 1]])
+        curves.append(artifact(run, curve, cutoff=label, hom_sites=artifact(run, sites)))
+    validation(run, "cpi", {"cpi-pairs": [{"pair": "parents", "native_pair": "pair", "curves": curves,
+                "mother": {"sample": "Mother"}, "father": {"sample": "Father"}}]})
+    a, b = report_cases(store, "example")
+    results = view(a["id"], b["id"])["views"]
+    for i, case in enumerate((a, b), 1):
+        result = results[case["id"]]
+        assert result["available"] and result["site"] == f"1:{i}-{i}"
+        assert result["samples"] == ["Mother", "Father"]
+        assert "among included HOM sites" in result["selection_note"]

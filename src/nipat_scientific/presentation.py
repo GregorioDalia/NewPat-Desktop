@@ -199,7 +199,12 @@ def prepare_presentation(request: dict, script: Path, arguments: list[str]) -> l
         # The original summary retains its exact numbers and row order.
         for source in ("Summary_FetalFraction_CPI.csv",):
             export(source, source)
+        panels = len(request.get("cutoffs", [])) if request["cutoff_mode"] == "named" else 1
         for identity, label in pairs.items():
+            for index in range(1, panels + 1):
+                panel = f"_panel_{index}" if panels > 1 else ""
+                for suffix in ("_CPI_iterations.csv", "_HOM_child_sites.txt"):
+                    export(f"{identity}{panel}{suffix}", f"{_filename(label, identity)}{panel}{suffix}")
             export(f"plots/{identity}_CPIplot.pdf", f"{_filename(label, identity)}_CPI.pdf", kind="plot")
         export("plots/All_CPIplots.pdf", "All_CPIplots.pdf", kind="plot")
     config = {
