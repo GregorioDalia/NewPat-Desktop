@@ -16,8 +16,10 @@ import os
 from pathlib import Path
 import platform
 import re
+import stat
 import subprocess
 import sys
+import tempfile
 import time
 import unicodedata
 import uuid
@@ -252,8 +254,86 @@ class LimaRuntime:
         except (KeyError, TypeError, ValueError, AttributeError) as exc:
             raise RuntimeExecutionError("Configurazione o stato della VM Lima non verificabile; nessuna modifica eseguita.") from exc
 
+    def _missing_instance_owner(self) -> bool:
+        """A dangling link is not an absent ownership record or a fresh installation."""
+        if (self.instance_dir.resolve() != self.instance_dir or self.directory.resolve() != self.directory
+                or self.owner_path.is_symlink()):
+            raise ValidationError("Percorso della VM o del registro di proprietà non valido: verificare i collegamenti simbolici.")
+        return self.instance_dir.exists() and not self.owner_path.exists()
+
+    def _check_recovery_paths(self) -> None:
+        # Before invoking Lima (which also writes setup.log) or opening the runtime lock,
+        # ensure that only ordinary files and directories in this account can be touched.
+        config = self.instance_dir / "lima.yaml"
+        if (self.executable != self.project.parent / "lima/bin/limactl" or not config.is_file()):
+            raise ValidationError(f"VM {INSTANCE} non gestita o eseguibile Lima non incluso in NewPat.")
+        files = (config, self.directory / "lima.yaml", self.directory / "setup.log",
+                 self.directory / "operation.lock", self.state_path)
+        paths = set(files)
+        for directory in (config.parent, self.directory):
+            while directory != self.home:
+                paths.add(directory)
+                directory = directory.parent
+        paths.add(self.home)
+        for path in paths:
+            try:
+                item = path.lstat()
+            except FileNotFoundError:
+                continue
+            if path in files:
+                valid_type = stat.S_ISREG(item.st_mode) and item.st_nlink == 1
+            else:
+                valid_type = stat.S_ISDIR(item.st_mode)
+            if item.st_uid != os.getuid() or item.st_mode & 0o022 or not valid_type:
+                raise ValidationError(f"Percorso del ripristino Lima non sicuro: {path}")
+
+    def _preserve_stopped_instance(self) -> None:
+        if (os.environ.get("NIPAT_RUNTIME_MAINTENANCE") != "1"
+                or os.environ.get("NIPAT_LAUNCHER_PID") != str(os.getppid())):
+            raise ValidationError("La VM non gestita richiede il ripristino esclusivo. Chiudere le sessioni e riaprire NewPat.")
+        self._check_recovery_paths()
+        config = self.instance_dir / "lima.yaml"
+        before = config.stat()
+        original_instance = self.instance_dir.stat()
+        info = self._instance_info()
+        actual = info["config"]
+        params = actual.get("param")
+        provisions = actual.get("provision")
+        # The token alone does not establish origin without owner.json. Recognize
+        # the exact provisioning script used by previous NewPat distributions too.
+        if (info.get("dir") != str(self.instance_dir) or info.get("status") != "Stopped"
+                or info.get("errors") or info.get("protected") or info.get("hostAgentPID") or info.get("driverPID")
+                or info.get("additionalDisks") or actual.get("additionalDisks") or actual.get("vmType") != "vz"
+                or not isinstance(params, dict) or not re.fullmatch(r"[0-9a-f]{32}", str(params.get("NipatOwner", "")))
+                or not isinstance(provisions, list) or not any(
+                    isinstance(step, dict) and step.get("mode") == "system"
+                    and isinstance(step.get("script"), str) and step["script"].rstrip("\n") == _PROVISION.rstrip("\n")
+                    for step in provisions)):
+            raise ValidationError(f"VM {INSTANCE} senza owner.json: stato o configurazione NewPat non verificabili. "
+                                  "Per il recupero occorre una VM NewPat arrestata e non protetta.")
+        self._check_recovery_paths()
+        after = config.stat()
+        if (not self._missing_instance_owner() or not os.path.samestat(original_instance, self.instance_dir.stat())
+                or not os.path.samestat(before, after)
+                or before.st_ctime_ns != after.st_ctime_ns):
+            raise ValidationError("La configurazione Lima è cambiata durante il ripristino. Riaprire NewPat.")
+        # A single rename preserves all guest disk data. No copy/delete fallback on EXDEV.
+        backup = Path(tempfile.mkdtemp(prefix="recovered-nipat-", dir=self.lima_home.parent))
+        saved = backup / INSTANCE
+        try:
+            self.instance_dir.rename(saved)
+        except OSError:
+            backup.rmdir()
+            raise
+        message = f"VM precedente conservata in {saved}. NewPat prepara una nuova VM dedicata."
+        print(message, flush=True)
+        with (self.directory / "setup.log").open("a", encoding="utf-8") as log:
+            log.write(message + "\n")
+
     def requires_mount_repair(self) -> bool:
         """Read-only preflight used before selecting the launcher's activity lease."""
+        if self._missing_instance_owner():
+            return True
         if not self.instance_dir.exists():
             return False
         owner = self._assert_owned()
@@ -499,10 +579,11 @@ class LimaRuntime:
 
     def prepare(self, extra_mounts: list[Path] | None = None) -> dict:
         manifest = read_manifest(self.project)
+        if self._missing_instance_owner():
+            self._check_recovery_paths()
         self._host_check(manifest)
         with self.lock():
-            if self.instance_dir.exists() and not self.owner_path.exists():
-                raise ValidationError(f"Esiste già una VM {INSTANCE} non gestita da NewPat: nessuna modifica eseguita.")
+            missing_owner = self._missing_instance_owner()
             owner = self._owner() if self.owner_path.exists() else {
                 "channel": CHANNEL, "instance": INSTANCE, "lima_home": str(self.lima_home),
                 "token": uuid.uuid4().hex, "mounts": self.default_mounts(),
@@ -514,6 +595,8 @@ class LimaRuntime:
                     raise ValidationError("Condividere una cartella esistente specifica, non la radice del sistema.")
                 if not self._covers(additions, path):
                     additions.append({"location": str(path), "mountPoint": str(path), "writable": True})
+            if missing_owner:
+                self._preserve_stopped_instance()
             if self.instance_dir.exists():
                 self._assert_owned()
                 changed = any(not self._covers(owner["mounts"], Path(item["location"])) for item in additions)
