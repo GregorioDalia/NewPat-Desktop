@@ -68,11 +68,15 @@ def test_run_export_only_copies_allowlisted_metadata_and_logs(layout, tmp_path):
     put(run, "output/workflow/workflow-state.json", '{"status":"failed","snp_summary":{"clinical":"DO NOT EXPORT"}}')
     put(run, "output/workflow/steps/dnp/command.log", "DNP error\n")
     put(run, "output/workflow/steps/dnp/work/input-validation.json", '{"status":"validated"}')
+    for prefix in ("work/", "output/workflow/steps/dnp/work/"):
+        put(run, prefix + "dnp-block-progress.json", '{"completed_groups":2,"planned_groups":5}')
     put(run, "output/workflow/steps/dnp/output/genotypes.tsv", "PRIVATE GENOTYPES")
     put(run, "work/pileup.txt", "PRIVATE READS")
     result = diagnostics.write_bundle(tmp_path / "support.zip", layout, resources={}, run_dir=run)
     content = read_bundle(result["path"])
     assert content["experiment/output/workflow/steps/dnp/command.log"] == b"DNP error\n"
+    for prefix in ("work/", "output/workflow/steps/dnp/work/"):
+        assert json.loads(content["experiment/" + prefix + "dnp-block-progress.json"])["completed_groups"] == 2
     assert "snp_summary" not in json.loads(content["experiment/output/workflow/workflow-state.json"])
     all_bytes = b"".join(content.values())
     for secret in (b"PRIVATE GENOTYPES", b"PRIVATE READS", b"OMIT DETAILED SAMPLING", b"DO NOT EXPORT"):

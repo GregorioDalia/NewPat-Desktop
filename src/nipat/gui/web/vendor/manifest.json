@@ -8,8 +8,8 @@
   "npm_integrity": "sha512-d+m5gPeMc8k1K9TaLP11WCKW5JXtyXxAbrcBgSPP1XEQrHBhijD4l3+ZJ1VH79JGzDJnfqf9DicljjSinMZO9g==",
   "assets": {
     "README.md": {
-      "bytes": 1832,
-      "sha256": "deb0defb8b7fd9415723b0c020ee177abc091d386fec619a0f9b91f40e6e2233"
+      "bytes": 1834,
+      "sha256": "4f424ba0f63fcc95bd7500e89675d2742e025d0462021bfdbf574da846a17eeb"
     },
     "igv.LICENSE.txt": {
       "bytes": 1147,

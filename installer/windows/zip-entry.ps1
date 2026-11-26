@@ -17,7 +17,7 @@ try {
     }
     if ($Mode -ceq 'resume') {
         if (-not (Test-Path -LiteralPath (Join-Path $root 'pending.json'))) {
-            Write-Host 'Nessuna preparazione ZIP in attesa. Aprire 2_AVVIA.cmd nella cartella NIPAT.'
+            Write-Host 'Nessuna preparazione ZIP in attesa. Aprire 2_LAUNCH.cmd nella cartella NIPAT.'
             Read-Host 'Premere Invio per chiudere' | Out-Null
             exit 0
         }
@@ -38,7 +38,7 @@ try {
         (New-Object -ComObject WScript.Shell).Popup($_.Exception.Message, 0, 'NewPat - avvio non riuscito', 16) | Out-Null
         exit 1
     }
-    Write-Host 'Aprire 1_COMPLETA_PREPARAZIONE.cmd nella cartella NIPAT oppure eseguire nuovamente 1_INSTALLA.cmd dal pacchetto estratto.'
+    Write-Host 'Aprire 1_RESUME_SETUP.cmd nella cartella NIPAT oppure eseguire nuovamente 1_INSTALL.cmd dal pacchetto estratto.'
     Read-Host 'Premere Invio per chiudere' | Out-Null
     exit 1
 }

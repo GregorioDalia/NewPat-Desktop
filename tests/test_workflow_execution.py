@@ -120,7 +120,12 @@ class WorkflowExecutionTests(unittest.TestCase):
             ]
             columns = ["Pair", "N_sites_mother", "N_sites_father", "Median_fetal_fraction_raw",
                        "Median_fetal_fraction_percent", "Max_logCPI", "Min_logCPI",
-                       "Median_logCPI", "Mean_logCPI", "CPI_medianFF", "Error_constant", "Min_fetal_reads", "Marker_type"]
+                       "Median_logCPI", "Mean_logCPI", "CPI_medianFF", "Error_constant", "Min_fetal_reads", "Min_fetal_percent", "Marker_type"]
+            child_counts = [f"{key}_{group}_child" for group in ("HET", "HOM") for key in ("N_sites", "Matching", "Mismatching")]
+            child_logs = ["Log10_CPI_HET_child", "Log10_CPI_HOM_child"]
+            iteration_fields = ["Iteration", "InfSites_mother", "InfSites_father", "CPI", "log_CPI", "Mismatch",
+                                "NotMismatch", *child_counts, *child_logs]
+            columns.extend(["Include_homozygous_child", "Min_coverage", "Max_other_fraction", *child_counts, *child_logs])
             if cutoff_argument is not None:
                 columns.insert(1, "Cutoff")
             plots = output / "plots"
@@ -135,13 +140,19 @@ class WorkflowExecutionTests(unittest.TestCase):
                     native_pair = f"Mother{mother}-Father{father}_DNPs"
                     for index, cutoff in enumerate(cutoffs, 1):
                         (curves / f"{native_pair}_panel_{index}.tsv").write_text(
-                            "Iteration\tInfSites_mother\tInfSites_father\tCPI\tlog_CPI\tMismatch\tNotMismatch\tCutoff\n",
-                            encoding="utf-8",
-                        )
+                            "\t".join([*iteration_fields, "Cutoff", "HET_with_frequency"]) + "\n", encoding="utf-8")
+                        stem = native_pair + (f"_panel_{index}" if len(cutoffs) > 1 else "")
+                        (output / f"{stem}_CPI_iterations.csv").write_text(",".join(iteration_fields) + "\n")
+                        (output / f"{stem}_HOM_child_sites.txt").write_text(
+                            "chr\tpos1\tpos2\tPaternal_allele\tFather_genotype\tMismatch\tPaternity_Index\n")
                         row = {name: "NA" for name in columns}
+                        row.update(dict.fromkeys(child_counts, "0"))
+                        row.update(Include_homozygous_child="FALSE", Min_coverage="NA", Max_other_fraction="0.1",
+                                   Log10_CPI_HOM_child="0")
                         row.update(Pair=native_pair, N_sites_mother="0", N_sites_father="0",
                                    Error_constant=str(settings["err_const_dnp"]),
-                                   Min_fetal_reads=str(settings["min_fetal_reads"]), Marker_type="DNP")
+                                   Min_fetal_reads=settings["min_fetal_reads"] or "NA",
+                                   Min_fetal_percent=settings["min_fetal_percent"] or "NA", Marker_type="DNP")
                         if cutoff is not None:
                             row["Cutoff"] = cutoff
                         writer.writerow(row)
@@ -308,6 +319,44 @@ class WorkflowExecutionTests(unittest.TestCase):
         self.assertEqual(result, self.saved())
         self.assertEqual(handlers, {sig: signal.getsignal(sig) for sig in handlers})
 
+    def test_stop_during_plan_index_preserves_step_outcomes_and_finalizes_state(self):
+        from nipat_scientific.presentation import finish_plan_presentation
+
+        self.plan["presentation"] = {"samples": {"donor_a": "A.bam", "donor_b": "B.bam"}, "pairs": {}}
+        for sig, child_exit in ((signal.SIGTERM, 0), (signal.SIGINT, 0), (signal.SIGTERM, 12)):
+            with self.subTest(sig=sig, child_exit=child_exit):
+                self.run = self.root / f"final-{sig}-{child_exit}"
+                escaped = []
+                def outer_handler(signum, _frame):
+                    escaped.append(signum)
+                previous = signal.signal(sig, outer_handler)
+                def stop_during_index(*args, **kwargs):
+                    signal.raise_signal(sig)
+                    return finish_plan_presentation(*args, **kwargs)
+                try:
+                    # The fixture R command produces canonical outputs. Exercise
+                    # the real top-level index without requiring R to plot copies.
+                    with patch("nipat_scientific.executor.step_presentation", return_value=None), \
+                            patch("nipat_scientific.executor.finish_plan_presentation", new=stop_during_index):
+                        result = self.execute(self.fake_r if not child_exit else lambda *_: child_exit)
+                    self.assertIs(signal.getsignal(sig), outer_handler)
+                finally:
+                    signal.signal(sig, previous)
+                self.assertEqual(escaped, [])
+                status = "failed" if child_exit else "cancelled"
+                self.assertEqual((result["status"], result["exit_code"]), (status, child_exit or 128 + sig))
+                self.assertEqual(result, self.saved())
+                self.assertIsNotNone(result["finished_utc"])
+                self.assertEqual([row["status"] for row in result["steps"]],
+                                 ["failed", "blocked"] if child_exit else ["succeeded", "succeeded"])
+                index = self.run / result["presentation"]["index"]["path"]
+                self.assertIn(f"Stato: {status}", index.read_text(encoding="utf-8"))
+                if child_exit:
+                    self.assertEqual(result["error"]["code"], "execution.process")
+                else:
+                    table = result["steps"][0]["artifacts"]["dnp-tables"][0]
+                    self.assertEqual(hashlib.sha256((self.run / table["path"]).read_bytes()).hexdigest(), table["sha256"])
+
     def test_signal_cancellation_wins_over_child_zero_exit(self):
         def cancel(command, cwd, log_path):
             self.fake_r(command, cwd, log_path)
@@ -318,6 +367,18 @@ class WorkflowExecutionTests(unittest.TestCase):
         self.assertEqual(result["exit_code"], 143)
         self.assertEqual([s["status"] for s in result["steps"]], ["cancelled", "blocked"])
         self.assertEqual(len(self.calls), 1)
+
+    def test_interrupted_summary_is_cancelled_even_when_the_plotter_returns_a_failure(self):
+        def cancel_plotter(*_args):
+            signal.raise_signal(signal.SIGTERM)
+            raise PlanExecutionError("execution.process", "SNP summary rendering failed (exit 143)")
+
+        with patch("nipat_scientific.snp_summary.finalize_snp_summaries", side_effect=cancel_plotter):
+            result = self.execute()
+        self.assertEqual(result["status"], "cancelled")
+        self.assertEqual(result["exit_code"], 128 + signal.SIGTERM)
+        self.assertTrue(all(step["status"] == "succeeded" for step in result["steps"]))
+        self.assertEqual(self.saved(), result)
 
     def test_unsupported_directory_fsync_does_not_break_host_backed_runs(self):
         actual_fsync = os.fsync
@@ -432,6 +493,13 @@ class WorkflowExecutionTests(unittest.TestCase):
         self.assertEqual([pair["native_pair"] for pair in pairs],
                          ["Mothers0001-Fathers0002_DNPs", "Mothers0003-Fathers0002_DNPs"])
         self.assertEqual([entry["cutoff"] for entry in pairs[0]["summary_rows"]], ["Full", "Subset"])
+        for pair in pairs:
+            for index, curve in enumerate(pair["curves"], 1):
+                for field, suffix in (("hom_sites", "_HOM_child_sites.txt"), ("iterations", "_CPI_iterations.csv")):
+                    entry = curve[field]
+                    table = self.run / entry["path"]
+                    self.assertEqual(table.name, f"{pair['native_pair']}_panel_{index}{suffix}")
+                    self.assertEqual(entry["sha256"], hashlib.sha256(table.read_bytes()).hexdigest())
         for original, staged in (("Father_original.txt", "Mothers0001.txt"),
                                  ("Mother_original.txt", "Fathers0002.txt"),
                                  ("unclassified sample.txt", "Mothers0003.txt")):
@@ -500,7 +568,8 @@ class WorkflowExecutionTests(unittest.TestCase):
     def test_cpi_missing_outputs_or_wrong_pair_cutoff_are_not_success(self):
         for mutation in ("summary_missing", "settings_missing", "pair_missing", "combined_missing", "wrong_pair", "wrong_cutoff",
                          "wrong_marker", "wrong_read_threshold", "wrong_error_constant",
-                         "duplicate_row", "missing_column", "invalid_pdf", "unexpected_pdf", "outside_pdf"):
+                         "duplicate_row", "missing_column", "invalid_pdf", "unexpected_pdf", "outside_pdf",
+                         "missing_hom_audit", "extra_iteration", "invalid_hom_summary"):
             with self.subTest(mutation=mutation):
                 self.run = self.root / f"cpi_{mutation}"
                 self.add_cpi(imported=True, mode="named")
@@ -512,12 +581,18 @@ class WorkflowExecutionTests(unittest.TestCase):
                     plot = plots / "Mothers0001-Fathers0002_DNPs_CPIplot.pdf"
                     if mutation == "summary_missing":
                         summary.unlink()
+                    elif mutation == "missing_hom_audit":
+                        next(output.glob("*_HOM_child_sites.txt")).unlink()
+                    elif mutation == "extra_iteration":
+                        audit = next(output.glob("*_CPI_iterations.csv"))
+                        audit.write_text(audit.read_text() * 2)
                     elif mutation == "settings_missing":
                         (output / "scientific-settings.json").unlink()
-                    elif mutation in {"wrong_marker", "wrong_read_threshold", "wrong_error_constant"}:
+                    elif mutation in {"wrong_marker", "wrong_read_threshold", "wrong_error_constant", "invalid_hom_summary"}:
                         column, replacement = {"wrong_marker": ("Marker_type", "SNP"),
                             "wrong_read_threshold": ("Min_fetal_reads", "999"),
-                            "wrong_error_constant": ("Error_constant", "0.5")}[mutation]
+                            "wrong_error_constant": ("Error_constant", "0.5"),
+                            "invalid_hom_summary": ("N_sites_HOM_child", "1")}[mutation]
                         with summary.open(newline="") as stream:
                             reader = csv.DictReader(stream)
                             fieldnames, rows = reader.fieldnames, list(reader)

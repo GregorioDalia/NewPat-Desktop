@@ -12,7 +12,7 @@ import os
 from pathlib import Path, PureWindowsPath
 from urllib.parse import quote
 
-from nipat.execution.tracking import read_run_metadata, read_run_status, workflow_steps
+from nipat.execution.tracking import WORKFLOW_STEPS, read_run_metadata, read_run_status, workflow_steps
 
 
 _MAX_JSON = 32 * 1024 * 1024
@@ -28,7 +28,7 @@ _PARAMETERS = {"reference": "Genoma di riferimento", "panel": "Pannello", "snp_p
                "popfreq": "Frequenze di popolazione", "err_const": "Costante di errore",
                "cutoff_mode": "Selezione dei siti CPI", "cutoffs": "Pannelli CPI",
                "mother_prefix": "Prefisso materno", "father_prefix": "Prefisso paterno", "child_prefix": "Prefisso del figlio",
-               "trios": "Trii CPIN", "caller": "Caller selezionato", "analyses": "Analisi successive richieste",
+               "trios": "Trii CPI postnatale", "caller": "Caller selezionato", "analyses": "Analisi successive richieste",
                "analyses_by_marker": "Analisi successive per ramo attivo",
                "scientific_settings_requested": "Parametri scientifici richiesti",
                "scientific_settings_effective": "Parametri scientifici del piano",
@@ -110,7 +110,7 @@ def _family_section(metadata: dict, samples: list[dict[str, str]]) -> str:
         return ""
     return ("<h2>Famiglie e ruoli dichiarati</h2>"
             "<p>Le associazioni sono quelle richieste nel piano. Il cfDNA materno del CPI prenatale "
-            "e il campione madre del CPIN postnatale sono riportati separatamente.</p>" +
+            "e il campione madre del CPI postnatale sono riportati separatamente.</p>" +
             _table(["Fase", "Marcatori", "Famiglia", "Ruolo", "Identificativo", "Nome originale"], rows))
 
 
@@ -504,14 +504,25 @@ def write_run_report(run_dir: Path) -> dict:
             ["Checksum degli input", options.get("input_hashes")],
         ])])
         if modern_parallel:
-            body.extend(["<h3>Modalità e blocchi richiesti</h3>", _table(["Impostazione", "Valore"], [
+            workflow = metadata.get("workflow")
+            has_dnp = workflow == "dnp-call" or (
+                isinstance(workflow, str) and "dnp-call" in WORKFLOW_STEPS.get(workflow, {}).values()
+            ) or (workflow == "analysis" and isinstance(parameters, dict)
+                  and parameters.get("caller") in ("dnp", "both"))
+            limits = [
                 ["Modalità di esecuzione", {"auto": "Automatica", "serial": "Seriale"}.get(
                     options.get("execution_mode"), options.get("execution_mode"))],
                 ["Massimo di processi di calcolo", options.get("max_workers") or "Scelta automatica entro le risorse disponibili"],
-                ["Dimensione obiettivo dei blocchi DNP (MiB)", options.get("dnp_block_mib")],
-                ["Massimo di loci per blocco DNP", options.get("dnp_block_loci")],
-            ]), "<p>I MiB del blocco descrivono l'input grezzo, non la RAM occupata dal processo. "
-                "La modalità seriale usa un processo di calcolo alla volta, anche se il massimo richiesto è maggiore.</p>"])
+            ]
+            if has_dnp:
+                limits.extend([
+                    ["Dimensione obiettivo dei blocchi DNP (MiB)", options.get("dnp_block_mib")],
+                    ["Massimo di loci per blocco DNP", options.get("dnp_block_loci")],
+                ])
+            body.extend(["<h3>Modalità di calcolo richiesta</h3>", _table(["Impostazione", "Valore"], limits)])
+            if has_dnp:
+                body.append("<p>I MiB del blocco descrivono l'input grezzo, non la RAM occupata dal processo.</p>")
+            body.append("<p>La modalità seriale usa un processo di calcolo alla volta, anche se il massimo richiesto è maggiore.</p>")
     body.append(_scientific_settings_section(run_dir))
     body.append(_parallel_section(run_dir, metadata))
     commands = metadata.get("commands")
@@ -554,6 +565,11 @@ def write_run_report(run_dir: Path) -> dict:
             "th{background:#eef5f8}pre{white-space:pre-wrap;overflow-wrap:anywhere;margin:0;font:inherit}"
             "a{color:#125b83}</style><body>" + "\n".join(body) + "</body></html>\n")
     _write_exclusive(mapping, tsv.getvalue())
-    _write_exclusive(summary, page)
+    try:
+        _write_exclusive(summary, page)
+    except BaseException:
+        # This call created the map exclusively. Leave both exports retryable.
+        mapping.unlink(missing_ok=True)
+        raise
     return {"schema_version": 1, "summary": summary.name, "sample_map": mapping.name,
             "files": [summary.name, mapping.name]}

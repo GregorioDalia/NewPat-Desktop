@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import re
+import subprocess
 import threading
 import uuid
 
@@ -25,7 +26,7 @@ from nipat.gui.plan import prepare_analysis
 from nipat.paths import ProjectLayout
 from nipat.preferences import Preferences, PreferencesStore
 from nipat.resources import ResourceManager
-from nipat.scientific_options import effective_config
+from nipat.scientific_options import effective_config, migrate_saved_settings
 from nipat_scientific.catalog import load_catalog
 from nipat_scientific.settings import describe_settings
 
@@ -77,8 +78,8 @@ class GuiService:
             "ui.get": self.ui_get, "ui.save": self.ui_save,
             "plan.preview": self.plan_preview, "analysis.start": self.analysis_start,
             "jobs.list": self.jobs.list, "jobs.get": self.jobs.get, "jobs.logs": self.jobs.logs,
-            "jobs.cancel": self.jobs.cancel, "jobs.active": self.jobs.active,
-            "close_status": self.jobs.active, "run.reuse": self.run_reuse,
+            "jobs.cancel": self.jobs.cancel, "jobs.active": self.jobs.active, "jobs.remove": self.job_remove,
+            "jobs.result_id": self.job_result_id, "close_status": self.jobs.active, "run.reuse": self.run_reuse,
             "run.prepare": self.run_prepare, "runs.remove": self.run_remove,
             "run.igv": self.run_igv,
             "resources.get": self.resources_get, "resources.preview": self.resources_preview,
@@ -86,7 +87,7 @@ class GuiService:
             "installation.get": self.installation_get,
             "installation.maintain": self.installation_maintain,
             "updates.check": self.updates_check, "updates.download": self.updates_download,
-            "updates.install": self.updates_install,
+            "updates.install": self.updates_install, "updates.reveal": self.updates_reveal,
         }
         if method in handlers:
             return handlers[method](**params)
@@ -175,10 +176,15 @@ class GuiService:
             temporary.unlink(missing_ok=True)
         return value
 
+    def reference_catalog(self, language: str):
+        from nipat.gui.references import ReferenceCatalog
+        return ReferenceCatalog(self.preferences_store.path.with_name("references.json"), language=language)
+
     def plan_preview(self, draft: dict) -> dict:
         preferences = self.preferences_store.load()
-        prepared = prepare_analysis(draft, preferences.effective_layout(self.base_layout),
-                                    preferences, language=self.ui_get()["language"])
+        language = self.ui_get()["language"]
+        prepared = prepare_analysis(draft, preferences.effective_layout(self.base_layout), preferences,
+                                    language=language, reference_catalog=self.reference_catalog(language))
         token = uuid.uuid4().hex
         with self._lock:
             self._plans[token] = prepared
@@ -193,6 +199,21 @@ class GuiService:
             raise ValidationError("Il riepilogo non è più disponibile. Verificare di nuovo l’esperimento.")
         return self.jobs.start(prepared)
 
+    def _derived_name(self, base, module=None):
+        italian, english = {None: ("nuova analisi", "new analysis"), "contamination": ("contaminazione", "contamination"),
+                            "cpi": ("CPI prenatale", "Prenatal CPI"), "cpin": ("CPI postnatale", "Postnatal CPI"),
+                            "fetal-sex": ("sesso fetale", "fetal sex")}[module]
+        suffix = " · " + (english if self.ui_get()["language"] == "en" else italian)
+        # Generated names must fit the same 120-character field as typed names.
+        return str(base)[:120 - len(suffix)].rstrip() + suffix
+
+    @staticmethod
+    def _requested_execution(metadata):
+        admission = metadata.get("concurrent_execution")
+        if isinstance(admission, dict) and isinstance(admission.get("requested_options"), dict):
+            return admission["requested_options"]
+        return metadata.get("execution_options", {})
+
     def run_reuse(self, run_id: str) -> dict:
         run = self._results().get_run(run_id)
         draft = run.get("draft")
@@ -201,9 +222,13 @@ class GuiService:
             draft = gui.get("draft")
         if isinstance(draft, dict):
             draft = deepcopy(draft)
-            draft["name"] = str(draft.get("name", run_id)) + " · nuova analisi"
+            if "scientific_settings" in draft:
+                draft["scientific_settings"] = migrate_saved_settings(draft["scientific_settings"])
+            draft["name"] = self._derived_name(draft.get("name", run_id))
             return draft
         metadata = self._results().metadata(run_id)
+        if metadata.get("workflow") == "fetal-sex":
+            return self.run_prepare(run_id, "fetal-sex")
         if metadata.get("workflow") != "analysis":
             raise ValidationError("Per questo esperimento precedente creare una nuova analisi e selezionare i file. I risultati restano consultabili.")
         try:
@@ -213,37 +238,53 @@ class GuiService:
 
     def run_remove(self, run_id: str) -> dict:
         store = self._results()
+        if store.forget_missing_import(run_id):
+            return {"removed": True, "run_id": run_id, "outputs_preserved": True}
         path, metadata = store._metadata(run_id)
-        observation = self.run_observer.inspect(path, metadata)
-        if not observation.get("can_remove"):
+        finished = self.jobs.finished_for(path)
+        if finished is None and not self.run_observer.inspect(path, metadata).get("can_remove"):
             english = self.ui_get()["language"] == "en"
             raise ValidationError("This experiment may still be active. Wait until its status can be verified before removing it from the list."
                                   if english else "L’esperimento potrebbe essere ancora attivo. Attendi che il suo stato sia verificabile prima di rimuoverlo dalla lista.")
-        return store.remove_run(run_id)
+        result = store.remove_run(run_id)
+        if finished is not None:
+            self.jobs.discard(finished)
+        return result
+
+    def job_result_id(self, job_id: str) -> dict:
+        job = self.jobs.get(job_id)
+        if not job["run_id"]:
+            raise ValidationError("I risultati dell’esperimento non sono ancora disponibili.")
+        path = Path(job["results_root"]) / job["run_id"]
+        return {"run_id": self._results().session_run_id(path)}
+
+    def job_remove(self, job_id: str) -> dict:
+        job = self.jobs.get(job_id)
+        if not job["finished_at"]:
+            raise ValidationError("Attendere la fine dell’esperimento prima di rimuovere la scheda.")
+        archive_id = None
+        if job["run_id"]:
+            # The session owns both paths. The archive preference may have changed
+            # since this run finished, or a startup failure may predate run.json.
+            path = Path(job["results_root"]) / job["run_id"]
+            if (path / "run.json").is_file():
+                store = self._results()
+                archive_id = store.identifier_for_path(path)
+                store.hide_path(path)
+        self.jobs.discard(job_id)
+        return {"removed": True, "run_id": job["run_id"], "archive_id": archive_id, "outputs_preserved": True}
 
     def run_igv(self, run_id: str, locus: str | None = None) -> dict:
         """Select recorded reference/BAM sources, preserving every original file."""
-        store = self._results()
-        run = store.get_run(run_id)
-        draft = run.get("draft")
-        if not isinstance(draft, dict):
-            metadata = store.metadata(run_id)
-            try:
-                draft = self._draft_from_legacy(metadata) if metadata.get("workflow") == "analysis" else {}
-            except (KeyError, TypeError, ValueError):
-                draft = {}
+        reference, tracks = self._results().igv_sources(run_id)
         english = self.ui_get()["language"] == "en"
-        reference = draft.get("reference")
-        tracks = [{"name": sample.get("id") or Path(sample["path"]).name, "path": sample["path"]}
-                  for sample in draft.get("samples", [])
-                  if isinstance(sample, dict) and sample.get("kind") == "bam" and sample.get("path")]
-        if not isinstance(reference, str) or not reference or not tracks:
+        if not reference.get("fasta") or not tracks:
             raise ValidationError("This experiment has no recorded FASTA reference and BAM inputs. Select the files in IGV."
                                   if english else "Questo esperimento non contiene i collegamenti a un riferimento FASTA e a file BAM. Seleziona i file nella pagina IGV.")
         if locus is not None and (not isinstance(locus, str) or len(locus) > 300
                 or not re.fullmatch(r"[A-Za-z0-9_.-]+(?::[0-9,]+(?:-[0-9,]+)?)?", locus)):
             raise ValidationError("Invalid genomic coordinates." if english else "Coordinate genomiche non valide.")
-        return {"reference": {"fasta": reference, "index": ""}, "tracks": tracks, "locus": locus or "all"}
+        return {"reference": reference, "tracks": tracks, "locus": locus or "all"}
 
     def run_prepare(self, run_id: str, module: str) -> dict:
         """Prepare only one new consumer using recorded counts, never call again.
@@ -252,8 +293,8 @@ class GuiService:
         mapping. Imported count inputs retain their explicit biological IDs.
         Missing family roles/population resources stay empty for user selection.
         """
-        if module not in {"contamination", "cpi", "cpin"}:
-            raise ValidationError("Scegliere contaminazione, CPI prenatale o CPIN postnatale.")
+        if module not in {"contamination", "cpi", "cpin", "fetal-sex"}:
+            raise ValidationError("Scegliere un modulo disponibile per le tabelle di conteggi.")
         store = self._results()
         run, metadata = store.get_run(run_id), store.metadata(run_id)
         parameters = metadata.get("parameters", {})
@@ -264,39 +305,49 @@ class GuiService:
             except (KeyError, TypeError, ValueError):
                 source = {}
         source = deepcopy(source)
+        if module == "fetal-sex":
+            # Generic DNP and SNP outputs do not identify the required chromosome roles.
+            settings = source.get("scientific_settings", parameters.get("scientific_settings_effective", {}))
+            recorded = parameters.get("fetal_sex") or {}
+            fetal = source.get("fetal_sex") or {"id": recorded.get("sample_id", ""),
+                                                **{role: recorded.get(role, "") for role in ("autosomes", "x", "y")}}
+            return {"name": self._derived_name(run.get("name") or run_id, module),
+                    "caller": "tables", "samples": [], "fetal_sex": fetal,
+                    "scientific_settings": effective_config(migrate_saved_settings(settings)),
+                    "execution": source.get("execution", self._requested_execution(metadata))}
         mapping = {row["sample_id"]: row.get("biological_id", row["sample_id"])
                    for row in parameters.get("sample_mapping", [])
                    if isinstance(row, dict) and isinstance(row.get("sample_id"), str)}
-        successful = {step["id"] for step in run.get("steps", []) if step.get("status") == "succeeded"}
+        successful = {step["id"] for step in run.get("steps", [])
+                      if step.get("status") == "succeeded" and step.get("module") in {"dnp-call", "snp-call"}}
         samples = {}
-        for file in store.files(run_id):
-            marker = file.get("marker")
-            if (marker not in {"DNP", "SNP"} or file.get("module") != marker.lower() + "-call"
-                    or not file.get("canonical") or file.get("step_id") not in successful
-                    or not (file["name"].startswith("full_output_") or file["name"] == "SNPcall_output.txt")):
-                continue
-            recorded_id = file.get("sample_id")
-            identifier = mapping.get(recorded_id)
+        for marker, recorded_id, path in store.caller_count_tables(run_id, successful, mapping):
+            identifier = mapping[recorded_id]
             if not identifier:
-                continue  # Never infer biological identity from output filenames.
+                continue
             key = (marker, identifier)
             if key in samples:
                 raise ValidationError("Più tabelle corrispondono allo stesso campione. Selezionare esplicitamente i file in un nuovo esperimento.")
-            samples[key] = {"id": identifier, "path": str(store.file_path(run_id, file["id"])),
-                            "kind": marker.lower() + "-table"}
+            samples[key] = {"id": identifier, "path": str(path), "kind": marker.lower() + "-table"}
         # A tables-only/mixed experiment may already contain original counts,
         # without any caller-owned output. These paths were recorded as inputs.
+        evidence = {Path(item["path"]): item for item in metadata.get("inputs", [])
+                    if isinstance(item, dict) and isinstance(item.get("path"), str)}
         for row in source.get("samples", []):
             if not isinstance(row, dict) or row.get("kind") not in {"dnp-table", "snp-table"}:
                 continue
             marker, identifier = row["kind"][:3].upper(), row.get("id")
             path = Path(row.get("path", "")).expanduser()
-            if not isinstance(identifier, str) or not path.is_absolute() or not path.is_file():
+            if not isinstance(identifier, str) or not path.is_absolute():
                 continue
+            store.require_count_table(path)
+            path = path.resolve()
             key = (marker, identifier)
-            if key in samples and Path(samples[key]["path"]).resolve() != path.resolve():
+            if key in samples and Path(samples[key]["path"]) != path:
                 raise ValidationError("Conteggi ambigui per un campione. Selezionare esplicitamente i file in un nuovo esperimento.")
-            samples[key] = {"id": identifier, "path": str(path.resolve()), "kind": row["kind"]}
+            recorded = evidence.get(path, {})
+            store.verify_count_table(path, recorded.get("sha256"), recorded.get("size_bytes"))
+            samples[key] = {"id": identifier, "path": str(path), "kind": row["kind"]}
         if not samples:
             raise ValidationError("Non sono disponibili conteggi completi associati ai campioni. Creare un nuovo esperimento da tabelle esistenti e selezionare i file; i calcoli precedenti non saranno ripetuti.")
         markers = {marker for marker, _identifier in samples}
@@ -329,31 +380,37 @@ class GuiService:
                     row = {"id": family["id"], **{role: family[role] for role in roles}}
                     if row not in families[module]:
                         families[module].append(row)
-        suffix = {"contamination": "contaminazione", "cpi": "CPI", "cpin": "CPIN"}[module]
         settings = source.get("scientific_settings", parameters.get("scientific_settings_effective", {}))
-        return {"name": str(run.get("name") or run_id)[:130] + " · " + suffix,
+        return {"name": self._derived_name(run.get("name") or run_id, module),
                 "caller": "tables", "samples": list(samples.values()), "reference": None,
                 "branches": {marker: [module] if marker in markers else [] for marker in ("DNP", "SNP")},
                 "resources": resources, "families": families,
-                "scientific_settings": effective_config(settings),
-                "execution": source.get("execution", metadata.get("execution_options", {}))}
+                "scientific_settings": effective_config(migrate_saved_settings(settings)),
+                "execution": source.get("execution", self._requested_execution(metadata))}
 
-    @staticmethod
-    def _draft_from_legacy(metadata: dict) -> dict:
+    def _draft_from_legacy(self, metadata: dict) -> dict:
         p = metadata["parameters"]
         plan = p["plan"]
         mounts = {item["container_path"]: item["host_path"] for item in metadata["input_mounts"]}
         mapping = {item["sample_id"]: item for item in p["sample_mapping"]}
-        samples = [{"id": mapping[s["id"]].get("biological_id", s["id"]),
-                    "path": mapping[s["id"]]["original_path"], "kind": s["kind"]}
-                   for s in plan["samples"]]
-        draft = {"name": str(metadata.get("run_name", "Esperimento")) + " · nuova analisi",
+        samples = []
+        for sample in plan["samples"]:
+            row = mapping[sample["id"]]
+            if not row.get("fetal_sex_role") or row.get("shared_fetal_sex_table"):
+                samples.append({"id": row.get("biological_id", sample["id"]),
+                                "path": row["original_path"], "kind": sample["kind"]})
+        draft = {"name": self._derived_name(metadata.get("run_name", "NewPat")),
                  "caller": p["caller"], "samples": samples, "branches": p["analyses_by_marker"],
                  "resources": {"DNP": {}, "SNP": {}}, "families": {"cpi": [], "cpin": []},
-                 "scientific_settings": p.get("scientific_settings_effective", {}),
-                 "execution": metadata.get("execution_options", {})}
+                 "scientific_settings": migrate_saved_settings(p.get("scientific_settings_effective", {})),
+                 "execution": self._requested_execution(metadata)}
         for step in plan["steps"]:
             workflow, inputs, parameters = step["workflow"], step["inputs"], step["parameters"]
+            if workflow == "fetal-sex":
+                recorded = p["fetal_sex"]
+                draft["fetal_sex"] = {"id": recorded["sample_id"],
+                                      **{role: recorded[role] for role in ("autosomes", "x", "y")}}
+                continue
             marker = "DNP" if workflow == "dnp-call" else "SNP" if workflow == "snp-call" else parameters["marker_type"]
             resource = draft["resources"][marker]
             if workflow in {"dnp-call", "snp-call"}:
@@ -464,15 +521,31 @@ class GuiService:
         return {"offer_id": offer_id, "status": "verified", "path": str(downloaded),
                 "offer": asdict(offer)}
 
-    def updates_install(self, offer_id: str, confirmed: bool = False) -> dict:
-        if confirmed is not True:
-            raise ValidationError("Confermare l’installazione dell’aggiornamento verificato.")
-        if self.jobs.active()["active"]:
-            raise ValidationError("Attendere il termine dell’analisi prima dell’aggiornamento.")
+    def _downloaded_update(self, offer_id: str):
         with self._lock:
             selected, downloaded = self._update_offers.get(offer_id), self._downloads.get(offer_id)
         if selected is None or downloaded is None:
             raise ValidationError("Scaricare e verificare l’aggiornamento prima di installarlo.")
+        return selected[1], downloaded
+
+    def updates_reveal(self, offer_id: str) -> dict:
+        offer, downloaded = self._downloaded_update(offer_id)
+        if not offer.asset.platform.startswith("darwin-") or not downloaded.is_file():
+            raise ValidationError("Il pacchetto macOS scaricato non è disponibile.")
+        try:
+            subprocess.run(["/usr/bin/open", "-R", str(downloaded)], check=True, timeout=15)
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise ValidationError("Impossibile mostrare il pacchetto nel Finder.") from exc
+        return {"status": "revealed"}
+
+    def updates_install(self, offer_id: str, confirmed: bool = False) -> dict:
+        if confirmed is not True:
+            raise ValidationError("Confermare l’installazione dell’aggiornamento verificato.")
+        offer, downloaded = self._downloaded_update(offer_id)
+        if offer.asset.platform.startswith("darwin-"):
+            return {"status": "manual_install", "path": str(downloaded), "close_required": False}
+        if self.jobs.active()["active"]:
+            raise ValidationError("Attendere il termine dell’analisi prima dell’aggiornamento.")
         from nipat.update_handoff import begin_update
-        result = begin_update(selected[1], downloaded, self.layout.project_dir)
+        result = begin_update(offer, downloaded, self.layout.project_dir)
         return {"status": "handoff_started" if result else "not_started", "close_required": bool(result)}

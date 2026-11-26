@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nipat-desktop"
-version = "0.9.9"
+version = "0.9.10"
 description = "NewPat desktop application for local scientific workflows"
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -32,7 +32,7 @@ license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md", "scientific/vendor/*/LICEN
 where = ["src"]
 
 [tool.setuptools.package-data]
-"nipat.gui" = ["web/*", "web/vendor/*", "web/vendor/licenses/*", "native/windows/*", "native/windows/x64/*"]
+"nipat.gui" = ["web/*", "web/vendor/*", "web/vendor/licenses/*", "web/vendor/pdfmake/*", "native/windows/*", "native/windows/x64/*"]
 nipat_scientific = ["catalog_data/*.json", "*.R", "settings_data.json"]
 
 [tool.pytest.ini_options]

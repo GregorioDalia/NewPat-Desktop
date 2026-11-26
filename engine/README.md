@@ -2,7 +2,7 @@
 
 The NewPat image installs the engine in `/opt/nipat/engine`, the R scripts in `/opt/nipat/scientific` and the preparation library in `/opt/nipat/lib/nipat_scientific`. The engine runs independently of the working directory, client source tree and desktop installation directory. Its Python code uses the standard library. The image supplies R, samtools and their dependencies.
 
-This document describes the engine interface inside the container. The [desktop CLI and guided menu](../docs/GUIDA_UTILIZZO.md) prepare requests and mounts and record run metadata for ordinary use.
+This document describes the engine interface inside the container. The [desktop CLI and guided menu](../docs/USER_GUIDE.md) prepare requests and mounts and record run metadata for ordinary use.
 
 ## Commands and identity
 
@@ -17,6 +17,7 @@ python3 /opt/nipat/engine/main.py execute snp-call --request /run/work/request.j
 python3 /opt/nipat/engine/main.py execute contamination --request /run/work/request.json
 python3 /opt/nipat/engine/main.py execute cpi --request /run/work/request.json
 python3 /opt/nipat/engine/main.py execute cpin --request /run/work/request.json
+python3 /opt/nipat/engine/main.py execute fetal-sex --request /run/work/request.json
 ```
 
 `execute` validates the request, prepares the input files and starts the R program. Use `run` for a direct call with native R arguments.
@@ -28,31 +29,31 @@ python3 /opt/nipat/engine/main.py run snp-call -- \
 
 `run` passes the arguments following the workflow name directly to R and removes an optional leading `--`. It skips the input preparation performed by `execute`.
 
-Before running any workflow, the engine checks all five R sources against the bundled scientific manifest. `describe --json` returns the following contract.
+Before running any workflow, the engine checks all six R sources against the bundled scientific manifest. `describe --json` returns the following contract.
 
 | Field | Value or meaning |
 | --- | --- |
 | `schema_version` | `1` |
 | `interface` | `native-r-v1` |
-| `workflow_interfaces` | `dnp-call-v1`, `snp-call-v2`, `contamination-v2`, `cpi-v2` and `cpin-v1` for their respective workflows |
+| `workflow_interfaces` | `dnp-call-v1`, `snp-call-v2`, `contamination-v2`, `cpi-v4`, `cpin-v2` and `fetal-sex-v1` for their respective workflows |
 | `preparation.interface` | `workflow-preparation-v1` |
 | `plan_execution.interface` | `workflow-plan-execution-v2` |
-| `plan_execution.workflows` | `dnp-call`, `snp-call`, `contamination`, `cpi`, `cpin` |
+| `plan_execution.workflows` | `dnp-call`, `snp-call`, `contamination`, `cpi`, `cpin`, `fetal-sex` |
 | `scientific_settings.interface` | `scientific-settings-v1`, with a shared registry and effective values per step |
 | `plan_execution.scheduling` | `dependency-order-with-bounded-independent-snp` |
 | `plan_execution.resume` | `false` |
-| Scientific identity | Manifest hash and path/hash of each of the five R scripts |
+| Scientific identity | Manifest hash and path/hash of each of the six R scripts |
 | `preparation.file_sha256` | Hashes of the engine entry point, shared preparation modules, R presentation adapter and JSON catalog records |
 
 Verification rejects missing modules and paths outside the bundle. The preparation hashes identify bytes installed in the image. The engine also checks each R hash against the manifest. Build evidence and run metadata supply the release commit, distributed archive and image ID.
 
 `execute` validates the inputs and results and handles signals during scientific execution. Verification and startup errors return exit code 2. For SNPcall from BAM, the engine also forwards signals to samtools and only starts R after successful preparation. The image supplies the dependencies before the engine runs.
 
-`catalog` exposes the bilingual scientific catalog and checks its correspondence with the R sources in the image. `validate-plan` reads JSON and returns the canonical plan and dependency order without reading sample files, creating outputs or invoking R or samtools. See the [workflow plan contract](../docs/WORKFLOW_CONTRACT.md) and [scientific catalog](../docs/CATALOGO_SCIENTIFICO.md).
+`catalog` exposes the bilingual scientific catalog and checks its correspondence with the R sources in the image. `validate-plan` reads JSON and returns the canonical plan and dependency order without reading sample files, creating outputs or invoking R or samtools. See the [workflow plan contract](../docs/WORKFLOW_CONTRACT.md) and [scientific catalog](../docs/SCIENTIFIC_CATALOG.md).
 
 `execute-plan` validates and executes a plan in a new destination. It prints the outcome and the path to `workflow-state.json`. With `--json`, it writes the full JSON report to stdout and progress messages to stderr. The exit code reflects the plan outcome in either mode.
 
-The engine supports DNPcall, SNPcall, Contamination, prenatal CPI and postnatal CPIN. Both callers produce typed count tables that feed any of the three downstream modules. A downstream step uses either SNP or DNP tables. CPI selects explicit pairs and CPIN explicit trios. Dependencies determine step order. Ready independent SNP steps share a bounded process budget, including in mixed plans. The policy admits one outer sample when memory demand is unknown. Nested sample workers use serial R pools. Users can request serial execution.
+Both callers produce typed count tables for contamination, prenatal CPI and postnatal CPI. Each of those steps uses either SNP or DNP tables. Prenatal CPI selects explicit pairs and postnatal CPI explicit trios. Fetal sex uses three role-specific tables for one maternal sample. Dependencies determine step order. Ready independent SNP steps share a bounded process budget, including in mixed plans. The policy admits one outer sample when memory demand is unknown. Nested sample workers use serial R pools. Users can request serial execution.
 
 Each step keeps its request, prepared files, results and log. The engine maintains the overall state in `workflow-state.json`, coordinates the sequence, and forwards interruptions to the scientific process group. Errors and interruptions prevent later steps from starting. A retry uses a new destination.
 
@@ -134,7 +135,9 @@ Existing staging files, a nonempty output directory or existing `mpileup.txt` an
 
 DNPcall passes its effective process budget to the pileup acquisition helper. If the helper fails, R stops the analysis. `work/dnp-pileup.json` records the strategy and processes. The engine checks the required result tables before recording success. See the [DNPcall acquisition paths](../scientific/README.md#dnpcall).
 
-## CPI
+<a id="cpi"></a>
+
+## Prenatal CPI
 
 ```json
 {
@@ -170,15 +173,21 @@ The CLI accepts repeated `--cutoff` arguments and `--cutoff-map`. An unlabeled p
 
 Labels cannot contain commas, equals signs or control characters. Internal cutoff paths cannot contain commas or equals signs because the R parser cannot encode them. The client uses aliases for host paths containing these characters. `err_const` must be finite and in `(0, 1]` for the selected marker type. Arguments are passed without a shell, preserving empty prefixes and values beginning with a hyphen.
 
-Pair labels and PDFs use `Mother<id>-Father<id>_DNPs` regardless of the input prefixes. Ambiguous sample names and pair output collisions, including case-only collisions, cause an error before staging. The request, prepared tables and panels remain in `work`. The engine writes `Summary_FetalFraction_CPI.csv` in `output`, one PDF per pair and `All_CPIplots.pdf` in `output/plots`, and iteration tables for each pair and cutoff in `output/curves`.
+Pair labels and PDFs use `Mother<id>-Father<id>_DNPs` or `Mother<id>-Father<id>_SNPs`, according to the marker type, regardless of the input prefixes. Ambiguous sample names and pair output collisions, including case-only collisions, cause an error before staging. The request, prepared tables and panels remain in `work`. The engine writes `Summary_FetalFraction_CPI.csv` in `output`, one PDF per pair and `All_CPIplots.pdf` in `output/plots`, and iteration tables for each pair and cutoff in `output/curves`. Each curve record also identifies the corresponding exported iterations CSV and HOM site audit table by path and digest. Multiple cutoffs use a one-based panel number in both filenames. The audit table can contain eligible HOM sites even when the absence of informative HET sites leaves the median estimate unavailable.
 
-## CPIN
+<a id="cpin"></a>
+
+## Postnatal CPI
 
 An `execute cpin` request uses `schema_version: 1`, `workflow: "cpin"`, a `samples` list with `path` and `name`, the `trios` selection, the three role prefixes, `popfreq`, `work_dir` and `out_dir`. Optional `markers` selects a panel with coordinates and REF/ALT alleles.
 
-`trios` is a comma-separated list of `mother:father:child` triples. Each role selects a distinct table through its prefix and identifier. Tables, the marker panel and population frequencies must use the same marker type, SNP or DNP. `scientific_settings` supplies validated overrides including `min_child_reads`, `site_selection` and mismatch constants.
+`trios` is a comma-separated list of `mother:father:child` triples. Each role selects a distinct table through its prefix and identifier. Tables, the marker panel and population frequencies must use the same marker type, SNP or DNP. `scientific_settings` supplies validated overrides including `min_coverage`, the four `include_*` genotype-combination flags and the two marker-specific mismatch probabilities.
 
-Outputs include `Summary_Postnatal_CPI.txt`, curves by trio and selection, per-site results, individual PDFs and `All_CPIplots.pdf`. See [CPIN preparation and trio identity](../docs/WORKFLOW_CONTRACT.md#cpin-preparation-and-trio-identity) for the workflow-plan equivalent.
+The engine exports a single combined index per trio in `Summary_Postnatal_CPI.txt` and an audit of included and excluded sites in each `<Trio>_sites.txt`. See [Postnatal CPI preparation and trio identity](../docs/WORKFLOW_CONTRACT.md#postnatal-cpi-preparation-and-trio-identity) for the workflow-plan equivalent.
+
+## Fetal sex
+
+An `execute fetal-sex` request uses `schema_version: 1`, `workflow: "fetal-sex"`, and absolute paths for `autosomes` (DNP), `x` (DNP), `y` (SNP), `work_dir` and `out_dir`. The three input tables belong to the same maternal cfDNA sample. The summary takes its sample label from the autosomal filename. The optional `scientific_settings` object overrides the source defaults. Each completed run exports `Fetal_sex_summary.txt`, `Autosomal_informative_sites.txt`, `X_informative_sites.txt` and `Y_sites.txt`. [Reference inputs and expected outputs](../tests/fixtures/fetal_sex/README.md)
 
 ## Readable labels
 
@@ -188,4 +197,4 @@ The engine runs the scientific scripts identified by the manifest and creates re
 
 When names coincide, the engine adds a distinguishing identifier. Export filenames follow filesystem restrictions and may be shortened. The mapping retains the complete original name. CSV/TSV labels that spreadsheet software might interpret as formulas are protected as text. Scientific values are preserved.
 
-The [user guide](../docs/GUIDA_UTILIZZO.md) covers scientific configuration and desktop workflows. The engine validates overrides before staging and records effective parameters for every step.
+The [user guide](../docs/USER_GUIDE.md) covers scientific configuration and desktop workflows. The engine validates overrides before staging and records effective parameters for every step.

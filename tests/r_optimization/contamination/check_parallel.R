@@ -1,7 +1,5 @@
 #!/usr/bin/env Rscript
-# Exact current-model comparison: frozen NEWPAT 9c2a8be is the oracle.
-# The former 0.8.5 oracle used a different denominator; HEAD already rejected
-# this test's NA-count fixture before 0.9.5. Invalid counts are negative cases.
+# Compare serial and parallel results with the frozen upstream contamination model.
 arguments <- commandArgs(trailingOnly = TRUE)
 if (length(arguments) != 1L) stop("Expected one repository root argument")
 repository <- normalizePath(arguments[[1L]], mustWork = TRUE)

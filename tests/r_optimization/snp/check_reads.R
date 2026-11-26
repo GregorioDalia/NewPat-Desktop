@@ -32,7 +32,7 @@ panel <- function(positions = 50L, chromosome = "chr1") {
 }
 names_100 <- paste(sprintf("read_%03d", seq_len(100L)), collapse = ",")
 base_cases <- list(
-  ordinary = list(panel(), window(50L, ".,gT", "a,B,r@skip,shared")),
+  ordinary = list(panel(), window(50L, ".,gT", "a,B,read,shared")),
   shared_distant_windows = list(panel(c(50L, 120L)), c(
     window(50L, "..GG", "a,b,c,shared"), window(120L, "GG..", "a,b,c,shared"))),
   shared_overlapping_windows = list(panel(c(50L, 51L)),
@@ -54,12 +54,11 @@ base_cases <- list(
   absent_panel_locus = list(panel(c(50L, 120L)), window(50L, "..GG", "a,b,c,d")),
   off_panel_observations = list(panel(), c(window(50L, "..GG", "a,b,c,d"),
     window(120L, "TTTT", "a,b,c,d"))),
+  only_off_panel = list(panel(c(120L, 50L)), window(300L, "..GG", "a,b,c,d")),
   optional_columns = list(panel(), vapply(49:51, function(p)
     row(p, "..GG", "a,b,c,d", extra = c("unused text", 123, "NA")), "")),
   numeric_qnames = list(panel(chromosome = "1"),
     window(50L, "..G", "100,101,102", chromosome = "1")),
-  coordinate_at = list(panel(chromosome = "chr@1"),
-    window(50L, ".G", "a,b", chromosome = "chr@1")),
   empty_qname = list(panel(), window(50L, ".G.", "a,,b")),
   missing_qname = list(panel(), window(50L, ".", "NA")),
   whitespace_qname = list(panel(), window(50L, ".G", "read name,b")),
@@ -117,6 +116,26 @@ stopifnot(results$center_and_flank_indels$N_REF == 1L,
           results$center_and_flank_indels$N_ALT == 1L,
           results$center_and_flank_indels$reads_discarded_for_indels == 2L,
           results$center_and_flank_indels$ratio_reads_discarded_for_indels == 2 / 5)
+# A contig/read name is metadata. Renaming it must preserve all scientific values;
+# the frozen upstream mishandles these names, so use its ordinary-name result.
+for (name in c("shared_overlapping_windows", "center_and_flank_indels")) {
+  for (chromosome in c("chr@1", "chr|1")) {
+    expected <- results[[name]]
+    expected$chr <- chromosome
+    snplist <- file.path(root, "renamed.tsv")
+    pileup <- file.path(root, "renamed.pileup")
+    target <- base_cases[[name]][[1L]]
+    target$chr <- chromosome
+    write.table(target, snplist, sep = "\t", quote = FALSE, row.names = FALSE)
+    reads <- sub("^chr1", chromosome, base_cases[[name]][[2L]])
+    reads <- sub("shared1", "shared@1", reads, fixed = TRUE)
+    writeLines(reads, pileup)
+    for (configuration in configurations) {
+      Sys.setenv(NIPAT_EXECUTION_MODE = configuration[[1L]], NIPAT_MAX_WORKERS = configuration[[2L]])
+      stopifnot(identical(candidate$call_sample(pileup, snplist), expected))
+    }
+  }
+}
 # Empty whole-sample input uses the upstream worker fallback, including NA
 # indel statistics; the upstream call_sample itself never receives this input.
 empty <- file.path(root, "empty.pileup")

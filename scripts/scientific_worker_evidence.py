@@ -17,7 +17,8 @@ def _digest(path: Path) -> str:
 
 
 def verify_parallel_execution(directory: Path, *, mode: str, cap: int | None,
-                              require_parallel: bool, require_overlap: bool = True) -> dict:
+                              require_parallel: bool, require_overlap: bool = True,
+                              admission_only: bool = False) -> dict:
     """Require real scientific worker events, concurrency and respected limits.
 
     A requested pool size alone is not evidence that a workflow used it. Each
@@ -40,37 +41,43 @@ def verify_parallel_execution(directory: Path, *, mode: str, cap: int | None,
         raise ValueError("Parallel qualification has no worker plans")
     for plan in plans:
         workers, tasks = plan.get("workers"), plan.get("tasks")
-        if (not isinstance(workers, int) or not isinstance(tasks, int) or tasks < 0
+        if (type(workers) is not int or type(tasks) is not int or tasks < 0
                 or not 1 <= workers <= max(1, tasks) or plan.get("mode") != mode):
             raise ValueError("Invalid effective scientific worker count")
         cpu, memory = plan.get("cpu_limit"), plan.get("memory_worker_limit")
-        if (not isinstance(cpu, (int, float)) or not math.isfinite(cpu) or cpu <= 0
-                or not isinstance(memory, (int, float)) or memory < 1
+        if (type(cpu) not in (int, float) or not math.isfinite(cpu) or cpu <= 0
+                or type(memory) not in (int, float) or not math.isfinite(memory) or memory < 1
                 or workers > math.ceil(cpu) or workers > memory
                 or (cap is not None and workers > cap)):
             raise ValueError("Scientific worker plan exceeded CPU, memory or requested process budget")
         if mode == "serial" and workers != 1:
             raise ValueError("Serial scientific execution created a parallel plan")
     budget_fields = ("workers", "tasks", "mode", "cpu_limit", "memory_worker_limit")
-    declared = {
-        (plan.get("coordinator_pid"), plan.get("label"), *(plan.get(name) for name in budget_fields))
-        for plan in plans
-    }
+    current_plans = {}
+    completed = set()
     pending = {}
     intervals = []
-    for event in sorted(events, key=lambda item: item.get("observed_at_unix", -1)):
+    for sequence, event in enumerate(sorted(events, key=lambda item: item.get("observed_at_unix", -1))):
+        owner = (event.get("coordinator_pid"), event.get("label"))
+        signature = tuple(event.get(name) for name in budget_fields)
+        if event.get("event") == "plan":
+            current_plans[owner] = (sequence, signature)
+            continue
         if event.get("event") not in {"task-start", "task-end"}:
             continue
         pid, coordinator = event.get("pid"), event.get("coordinator_pid")
         stamp, index = event.get("observed_at_unix"), event.get("task_index")
         if (not isinstance(pid, int) or not isinstance(coordinator, int)
                 or not isinstance(stamp, (int, float)) or not math.isfinite(stamp)
-                or not isinstance(index, int)):
+                or type(index) is not int):
             raise ValueError("Invalid observed scientific task identity or time")
-        key = (coordinator, pid, event.get("label"), index)
-        budget_key = (coordinator, event.get("label"), *(event.get(name) for name in budget_fields))
-        if budget_key not in declared:
+        plan = current_plans.get(owner)
+        if plan is None or signature != plan[1]:
             raise ValueError("Scientific worker task has no matching resource plan")
+        task = (plan[0], index)
+        key = (task, pid)
+        if not 1 <= index <= event["tasks"]:
+            raise ValueError("Scientific task index is outside its resource plan")
         if event["event"] == "task-start":
             if key in pending:
                 raise ValueError("Scientific worker task starts twice without ending")
@@ -80,6 +87,9 @@ def verify_parallel_execution(directory: Path, *, mode: str, cap: int | None,
                 raise ValueError("Scientific worker task has no matching start")
             if event.get("outcome") != "succeeded":
                 raise ValueError("Scientific worker task did not succeed")
+            if task in completed:
+                raise ValueError("Scientific worker task completed twice in the same invocation")
+            completed.add(task)
             started, workers = pending.pop(key)
             if workers != event["workers"]:
                 raise ValueError("Scientific worker task changed its resource plan")
@@ -129,6 +139,14 @@ def verify_parallel_execution(directory: Path, *, mode: str, cap: int | None,
         raise ValueError("Scientific parallel qualification did not observe two actual child workers")
     if require_parallel and require_overlap and not overlap:
         raise ValueError("Scientific parallel qualification did not observe two simultaneous child workers")
+    # The same stage can be invoked more than once (e.g. one cutoff per family).
+    # Every invocation promises one result for each one-based task index.
+    # A single-worker SNP admission hands execution to the inner sample runner.
+    if admission_only and (len(events) != 1 or plans[0]["workers"] != 1 or require_parallel):
+        raise ValueError("Expected only a single-worker admission plan")
+    expected_tasks = 0 if admission_only else sum(plan["tasks"] for plan in plans)
+    if len(completed) != expected_tasks:
+        raise ValueError("Scientific worker evidence has missing completed tasks")
     return {"event_sha256": {path.name: _digest(path) for path in files},
             "observed_child_pids": child_pids, "simultaneous_child_workers": overlap,
             "maximum_planned_workers": maximum_planned,

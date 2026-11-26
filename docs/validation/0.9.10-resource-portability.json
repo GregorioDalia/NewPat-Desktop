@@ -1,0 +1,895 @@
+{
+  "baseline_strategy_comparison": {
+    "source": "4c01a3680026f986c9a922d610ab88141a878672",
+    "source_files_sha256": {
+      "src/nipat_scientific/parallel.R": "4902b20a9d29a82777274777c8a365ef7d1da48974392292e514cf682d87cf9b",
+      "src/nipat_scientific/dnp_blocks.R": "1f280311cd665adc46b6d762395780a8290582907036e0a76a9c882011483a90",
+      "src/nipat_scientific/dnp_pileup.py": "0e3eddc8ebd1f776762c994b0d8b91f9a0debce7665f9a0c757ea140fb1360f9",
+      "scientific/vendor/DNPcall/DNPcall.R": "880b52f8644c60d5133341ec8212ba20c1eee14789121ca8634a081537c7e1e1"
+    },
+    "runtime": "Released Linux AMD64 0.9.9 runtime userspace, samtools 1.21, R 4.4.2. Production execute-plan, DNP-only. The 8192 MiB scheduler capacity is simulated; there is no cgroup RAM limit here. Four CPU affinity cores 4–7 for both sequential runs. One observation per strategy, native PSS sampled ~0.5 s, not whole-container/kernel peak. No macOS native timing.",
+    "input": "Nine distinct files, byte-identical copies of fixed 406315-byte timing BAM, each 128 loci at depth 1000, counts 600/400/0 and GT 0/1 expected. Four short contigs; sparse full-chromosome region restriction is unexercised. All nine native outputs and all-genotypes summary verified against the preceding baseline and directly across A/B.",
+    "comparison": "Both runs pass NIPAT_MAX_WORKERS=4, NIPAT_CPU_LIMIT=4 and NIPAT_MEMORY_LIMIT_MIB=8192. Ordinary sets NIPAT_DNP_SMALL_ARM_GUEST=0; guest sets it to 1. The explicit ceiling overrides the macOS two-worker default, so reported gains compare implemented processing strategies at matching ceiling.",
+    "observations": {
+      "ordinary": {
+        "workflow_seconds": 98.915,
+        "dnp_seconds": 98.901,
+        "dnp_R_block_processing_wall_seconds": 72.308,
+        "R_acquisition_seconds": 12.203,
+        "R_index_seconds": 2.784,
+        "summed_read_seconds": 229.187,
+        "summed_compute_seconds": 38.011,
+        "samtools_peak_concurrency": 1,
+        "target_contigs": 4,
+        "pileup_bytes": 109337840,
+        "pileup_output_strategy": null,
+        "dnp_R_planned_workers": 4,
+        "dnp_R_observed_concurrent_workers": 4,
+        "dnp_R_logical_sample_blocks": 45,
+        "scheduler_tasks": 45,
+        "block_reads": 45,
+        "logical_bytes_read": 984040560,
+        "DNP_phase_peak_sampled_process_tree_PSS_MiB": 930.825,
+        "process_tree_swap_PSS_KiB": 0,
+        "dnp_individual_native_output_sha256": "af4ad1fcfe1db05dc3438d79d4937dbf6a524177e5a1cce5a1a065f96ff256f4",
+        "all_genotypes_summary_sha256": "14e1824f6f51af02c31923c8fbf4eca9c29b74d2e7316d2231edbad0189560be",
+        "verified_samples": 9,
+        "verified_loci_per_sample": 128,
+        "all_progress_groups_complete": true,
+        "worker_plan": {
+          "mode": "auto",
+          "max_workers": 4,
+          "cpu_limit": 4,
+          "worker_ceiling": 4,
+          "memory_capacity_mib": 8192,
+          "memory_budget_mib": 6553,
+          "workers": 4,
+          "reason": "fixed-capacity-task-budget"
+        },
+        "affinity": [
+          4,
+          5,
+          6,
+          7
+        ]
+      },
+      "guest": {
+        "workflow_seconds": 40.456,
+        "dnp_seconds": 40.444,
+        "dnp_R_block_processing_wall_seconds": 14.572,
+        "R_acquisition_seconds": 11.588,
+        "R_index_seconds": 2.888,
+        "summed_read_seconds": 8.401,
+        "summed_compute_seconds": 37.817,
+        "samtools_peak_concurrency": 1,
+        "target_contigs": 4,
+        "pileup_bytes": 109337840,
+        "pileup_output_strategy": "direct-dictionary-order",
+        "dnp_R_planned_workers": 4,
+        "dnp_R_observed_concurrent_workers": 4,
+        "dnp_R_logical_sample_blocks": 54,
+        "scheduler_tasks": 18,
+        "block_reads": 18,
+        "logical_bytes_read": 328013520,
+        "DNP_phase_peak_sampled_process_tree_PSS_MiB": 933.546,
+        "process_tree_swap_PSS_KiB": 0,
+        "dnp_individual_native_output_sha256": "af4ad1fcfe1db05dc3438d79d4937dbf6a524177e5a1cce5a1a065f96ff256f4",
+        "all_genotypes_summary_sha256": "14e1824f6f51af02c31923c8fbf4eca9c29b74d2e7316d2231edbad0189560be",
+        "verified_samples": 9,
+        "verified_loci_per_sample": 128,
+        "all_progress_groups_complete": true,
+        "worker_plan": {
+          "mode": "auto",
+          "max_workers": 4,
+          "cpu_limit": 4,
+          "worker_ceiling": 4,
+          "memory_capacity_mib": 8192,
+          "memory_budget_mib": 6553,
+          "workers": 4,
+          "reason": "fixed-capacity-task-budget"
+        },
+        "affinity": [
+          4,
+          5,
+          6,
+          7
+        ]
+      }
+    }
+  },
+  "portable_resource_planner": {
+    "format": 1,
+    "baseline_commit": "4c01a3680026f986c9a922d610ab88141a878672",
+    "executed_source_sha256": {
+      "src/nipat/execution/runner.py": "fc1305f32e8682df9acc855d4db8e764246fb81988fbc9448295ed0f2392bc4d",
+      "src/nipat_scientific/dnp_blocks.R": "aac8bf10d5283046aa2c71f7283eaa54cc2c15ab65bd9ef1e7c1a036a2a92266",
+      "src/nipat_scientific/parallel.R": "ab2a6298ddfe171a26d3a6dd3b2731bbd2d3fa6c174c2ca1b526d2752f5853ea",
+      "src/nipat_scientific/dnp_pileup.py": "c7fc375c91075e0295903abaa66ad0f3e09531291b593edb8e6e6e49eaff52a9"
+    },
+    "compose": {
+      "description": "Real Compose generation with mocked platform facts. WSL backend and the other client identities are unit simulations, not a Windows execution. Capacities and explicit overrides must match the frozen checkout.",
+      "cases_per_revision": 672,
+      "new_backend_flags_counts": {
+        "ordinary": 504,
+        "native_linux_amd64_io": 84,
+        "lima_arm64_io": 84
+      }
+    },
+    "r_grid": {
+      "unique_scenarios_per_policy": 756,
+      "source_sets": [
+        "frozen ordinary backend",
+        "frozen Lima ARM host <= 8 GiB",
+        "current WSL/ordinary",
+        "current Linux AMD64",
+        "current Lima ARM64"
+      ],
+      "input": "Acquisition: 22 contigs at five reference lengths, 1/2/9 BAM, unknown and 2048/3905/4096/4097/6144/8192/15858/32768 MiB, 1/4/8/32 CPUs. R blocks: 844 uniform loci, 474497291 logical bytes per BAM, same RAM/CPU/count combinations, automatic or explicit max_workers=4. Fixed 192 MiB synthetic RSS. Actual production R planning functions; no throughput inferred. Verified pool CPU and modelled memory bounds for parallel allocations, ordered 844 loci, conserved data bytes, serial fallback on unknown RAM; single allocation may intrinsically exceed available memory.",
+      "comparison": {
+        "windows": {
+          "acquisition": {
+            "cases": 540,
+            "different_plans": 0,
+            "different_worker_count": 0
+          },
+          "blocks": {
+            "cases": 216,
+            "different_plans": 0,
+            "different_worker_count": 0
+          }
+        },
+        "native": {
+          "acquisition": {
+            "cases": 540,
+            "different_plans": 15,
+            "different_worker_count": 15
+          },
+          "blocks": {
+            "cases": 216,
+            "different_plans": 106,
+            "different_worker_count": 72
+          }
+        },
+        "arm": {
+          "acquisition": {
+            "cases": 540,
+            "different_plans": 15,
+            "different_worker_count": 15
+          },
+          "blocks": {
+            "cases": 216,
+            "different_plans": 84,
+            "different_worker_count": 54
+          }
+        }
+      },
+      "result_matrix_sha256": {
+        "windows_acquisition": "07c597c41872324b772d94c8328a9f7ec1df6c9d285930338bf490f1bff39aa9",
+        "windows_blocks": "c31f36c0b65245581cd9c62955601521a442f7e70f02007aa2d6a2dbce8fa60b",
+        "legacy-ordinary_acquisition": "07c597c41872324b772d94c8328a9f7ec1df6c9d285930338bf490f1bff39aa9",
+        "legacy-ordinary_blocks": "c31f36c0b65245581cd9c62955601521a442f7e70f02007aa2d6a2dbce8fa60b",
+        "native_acquisition": "3d00159fec1ae6c91f9a41cf4f3556864446ba014d72b398a2010a3417ea2c10",
+        "native_blocks": "a1cb62b0f4cfc44daf50a3e8a8b98402091b858b1731594f20c4d9a601c141db",
+        "arm_acquisition": "3d00159fec1ae6c91f9a41cf4f3556864446ba014d72b398a2010a3417ea2c10",
+        "arm_blocks": "b442683349cfe148358a499d397ffdabee770581a81c14a83415e8ed5e46052a",
+        "legacy-small_acquisition": "07c597c41872324b772d94c8328a9f7ec1df6c9d285930338bf490f1bff39aa9",
+        "legacy-small_blocks": "39d58283345c24c19824a2b11840f8b7c615921c0b92241c24e5197430476e21"
+      },
+      "effective_arm_capacity_sweep": {
+        "input": "8 vCPU, 1 BAM, 844 loci, 474497291 raw bytes and 192 MiB coordinator RSS. Old_plan is the constrained ARM algorithm before fixing block fragmentation; frozen 4c01a36 gave identical plans at 4096/4097 MiB.",
+        "results": [
+          {
+            "capacity_mib": 700,
+            "old_plan": {
+              "workers": 1,
+              "blocks": 844
+            },
+            "new_plan": {
+              "workers": 1,
+              "blocks": 844
+            }
+          },
+          {
+            "capacity_mib": 2048,
+            "old_plan": {
+              "workers": 2,
+              "blocks": 106
+            },
+            "new_plan": {
+              "workers": 1,
+              "blocks": 24
+            }
+          },
+          {
+            "capacity_mib": 3905,
+            "old_plan": {
+              "workers": 2,
+              "blocks": 23
+            },
+            "new_plan": {
+              "workers": 2,
+              "blocks": 23
+            }
+          },
+          {
+            "capacity_mib": 4096,
+            "old_plan": {
+              "workers": 2,
+              "blocks": 22
+            },
+            "new_plan": {
+              "workers": 2,
+              "blocks": 22
+            }
+          },
+          {
+            "capacity_mib": 4097,
+            "old_plan": {
+              "workers": 5,
+              "blocks": 844
+            },
+            "new_plan": {
+              "workers": 2,
+              "blocks": 22
+            }
+          },
+          {
+            "capacity_mib": 5120,
+            "old_plan": {
+              "workers": 7,
+              "blocks": 844
+            },
+            "new_plan": {
+              "workers": 2,
+              "blocks": 16
+            }
+          },
+          {
+            "capacity_mib": 6144,
+            "old_plan": {
+              "workers": 3,
+              "blocks": 21
+            },
+            "new_plan": {
+              "workers": 3,
+              "blocks": 21
+            }
+          },
+          {
+            "capacity_mib": 7168,
+            "old_plan": {
+              "workers": 3,
+              "blocks": 17
+            },
+            "new_plan": {
+              "workers": 3,
+              "blocks": 17
+            }
+          },
+          {
+            "capacity_mib": 8192,
+            "old_plan": {
+              "workers": 4,
+              "blocks": 21
+            },
+            "new_plan": {
+              "workers": 4,
+              "blocks": 21
+            }
+          }
+        ]
+      }
+    },
+    "reference_boundary": {
+      "description": "Linux, production DNP acquisition, synthetic: two 251658241-bp contigs, 20 loci each at depth 1300; summed samtools RSS sampled (not whole cgroup).",
+      "runs": [
+        {
+          "workers": 1,
+          "observed": 1,
+          "peak_samtools_rss_mib": 243.2,
+          "peak_single_rss_mib": 243.2,
+          "rows": 40,
+          "depth": 1300,
+          "bases": 251658241,
+          "output_sha256": "450fcba9da16f1a9d7aa39739e7e9246d04b50a0f8e25615c3e906d1d8ce26d1"
+        },
+        {
+          "workers": 2,
+          "observed": 2,
+          "peak_samtools_rss_mib": 486.4,
+          "peak_single_rss_mib": 243.3,
+          "rows": 40,
+          "depth": 1300,
+          "bases": 251658241,
+          "output_sha256": "450fcba9da16f1a9d7aa39739e7e9246d04b50a0f8e25615c3e906d1d8ce26d1"
+        }
+      ]
+    },
+    "qualification": {
+      "physical_windows_0.9.9": {
+        "revision": "adc659bd132cc24353e637f6430e3cc470e0a8f8",
+        "archive_sha256": "0604aabdd1629294e6bc4c1b7028a79e22fbbd08b25597371c0ad8757f1a1247",
+        "cpu": 32,
+        "memory_mib": 15858,
+        "repetitions": 3,
+        "tables_verified_each": 6,
+        "median_kernel_peak_mib": 3977.2,
+        "median_workflow_s": 195.688,
+        "median_dnp_acquisition_s": 72.705,
+        "samtools": 5,
+        "r_workers": 7
+      },
+      "synthetic_single_bam_windows_profile": {
+        "actual_execution": "R planner with reconstructed Windows allocator and raw size, Linux runtime",
+        "input_loci": 844,
+        "pileup_bytes": 474497291,
+        "cpu": 32,
+        "memory_mib": 15858,
+        "r_workers": 7,
+        "blocks": 18
+      },
+      "synthetic_single_bam_linux_execution": {
+        "test": "Actual bundled runtime userspace on Linux AMD64 (R 4.4.2/samtools 1.21). 128 loci on four contigs, depth 1000, 600 REF / 400 ALT / 0 other, all GT 0/1. SHA-256 compared to stored reference; per-locus counts checked. Configured memory is a scheduler setting, not a kernel hard limit. One observation per setting under concurrent unrelated load; wall-time observations cannot establish performance gains. PSS sampled approximately every 0.5 s includes worker processes, not whole-container/kernel memory.",
+        "runs": {
+          "frozen-one": {
+            "capacity_mib": 3905,
+            "dnp_seconds": 10.594,
+            "tasks": 2,
+            "r_workers": 2,
+            "samtools": 2,
+            "native_single_table_sha256": "af4ad1fcfe1db05dc3438d79d4937dbf6a524177e5a1cce5a1a065f96ff256f4",
+            "native_summary_sha256": "59a9f874625e7630622d60537f6715c0b7eaf93737240417a77609f4dc95f6ed",
+            "sampled_tree_pss_mib": 598.94
+          },
+          "final-one": {
+            "capacity_mib": 3905,
+            "dnp_seconds": 8.639,
+            "tasks": 2,
+            "r_workers": 2,
+            "samtools": 2,
+            "native_single_table_sha256": "af4ad1fcfe1db05dc3438d79d4937dbf6a524177e5a1cce5a1a065f96ff256f4",
+            "native_summary_sha256": "59a9f874625e7630622d60537f6715c0b7eaf93737240417a77609f4dc95f6ed",
+            "sampled_tree_pss_mib": 598.59
+          },
+          "frozen-700": {
+            "capacity_mib": 700,
+            "dnp_seconds": 10.404,
+            "tasks": 2,
+            "r_workers": 1,
+            "samtools": 1,
+            "native_single_table_sha256": "af4ad1fcfe1db05dc3438d79d4937dbf6a524177e5a1cce5a1a065f96ff256f4",
+            "native_summary_sha256": "59a9f874625e7630622d60537f6715c0b7eaf93737240417a77609f4dc95f6ed",
+            "sampled_tree_pss_mib": 283.61
+          },
+          "final-700": {
+            "capacity_mib": 700,
+            "dnp_seconds": 39.031,
+            "tasks": 128,
+            "r_workers": 1,
+            "samtools": 1,
+            "native_single_table_sha256": "af4ad1fcfe1db05dc3438d79d4937dbf6a524177e5a1cce5a1a065f96ff256f4",
+            "native_summary_sha256": "59a9f874625e7630622d60537f6715c0b7eaf93737240417a77609f4dc95f6ed",
+            "sampled_tree_pss_mib": 177.84
+          }
+        }
+      }
+    }
+  },
+  "workflow_comparisons": {
+    "baseline": "4c01a3680026f986c9a922d610ab88141a878672",
+    "measured_candidate_sha256": {
+      "src/nipat/execution/runner.py": "fc1305f32e8682df9acc855d4db8e764246fb81988fbc9448295ed0f2392bc4d",
+      "src/nipat_scientific/parallel.R": "ab2a6298ddfe171a26d3a6dd3b2731bbd2d3fa6c174c2ca1b526d2752f5853ea",
+      "src/nipat_scientific/dnp_blocks.R": "8b1683d30bd59d05b6786acedf23e9a684cff8511d4ff1e46fec93fb8206f3fe",
+      "src/nipat_scientific/dnp_pileup.py": "c7fc375c91075e0295903abaa66ad0f3e09531291b593edb8e6e6e49eaff52a9",
+      "src/nipat_scientific/snp_parallel.py": "8f8affdd5314d9e1fa4153bdfe511790ffbe9d8efd5da97ea64ac2aff8484d99",
+      "src/nipat_scientific/snp_summary.py": "9fc4a597202a4f182762fa982eba1ccb1072b614146f98b42773d86f7962194d"
+    },
+    "runtime": "Official 0.9.9 Linux AMD64 userspace, pinned sets of four simulated VM CPUs, R 4.4.2 and samtools 1.21. Single observations per case, no macOS/Windows native execution, RAM is the fixed scheduler input without cgroup enforcement. Candidate uses production client Compose profile from a controlled host/transport snapshot plus scientific execute-plan.",
+    "fixture": "Stock timing fixture, 128 sites, depth 1000; distinct IDs and exact file copies for cardinality. Independent local checks compare every native per-sample DNP/SNP output and summary, byte-for-byte, plus native merged SNP genotype sample/oracle mapping. PSS sampled from Linux process tree, ~0.5 s.",
+    "small_baseline": "Archived full DNP+SNP at same CPU/memory inputs with small Lima flag. Baseline 1 used 4c01a36 engine hashes. Archived 2 and 9 preceded final singleton-only reader guard; multisample code path was identical. 8-GiB baseline is a newly executed snapshot of exact 4c01a36.",
+    "cases": {
+      "port-small-1": {
+        "baseline": {
+          "workflow_wall_seconds": 16.714,
+          "snp_caller_window_seconds": 7.978,
+          "snp_steps": 1,
+          "observed_overlapping_snp_sample_steps": 1,
+          "observed_samtools_per_snp_step": [
+            4
+          ],
+          "peak_sampled_process_tree_pss_mib": 614.09,
+          "verified_native_calls_and_summary_files": 4,
+          "snp_merged_genotypes_sha256": null,
+          "dnp_step_seconds": 8.726,
+          "dnp_block_seconds": 2.952,
+          "dnp_observed_workers": 2,
+          "dnp_worker_budget": 2,
+          "dnp_reads": 2,
+          "dnp_logical_bytes": 12157168,
+          "dnp_samtools_workers": 2
+        },
+        "candidate": {
+          "workflow_wall_seconds": 16.074,
+          "snp_caller_window_seconds": 8.303,
+          "snp_steps": 1,
+          "observed_overlapping_snp_sample_steps": 1,
+          "observed_samtools_per_snp_step": [
+            4
+          ],
+          "peak_sampled_process_tree_pss_mib": 643.48,
+          "verified_native_calls_and_summary_files": 4,
+          "snp_merged_genotypes_sha256": null,
+          "dnp_step_seconds": 7.762,
+          "dnp_block_seconds": 2.62,
+          "dnp_observed_workers": 2,
+          "dnp_worker_budget": 2,
+          "dnp_reads": 2,
+          "dnp_logical_bytes": 12157168,
+          "dnp_samtools_workers": 2,
+          "compose_dnp_flags": [
+            "NIPAT_DNP_LIMA_ARM64",
+            "NIPAT_DNP_OPTIMIZED_IO"
+          ],
+          "compose_effective_capacity_mib": 3905
+        }
+      },
+      "port-small-2": {
+        "baseline": {
+          "workflow_wall_seconds": 31.809,
+          "snp_caller_window_seconds": 15.722,
+          "snp_steps": 2,
+          "observed_overlapping_snp_sample_steps": 1,
+          "observed_samtools_per_snp_step": [
+            4
+          ],
+          "peak_sampled_process_tree_pss_mib": 646.24,
+          "verified_native_calls_and_summary_files": 7,
+          "snp_merged_genotypes_sha256": "f3907470d4a3e71899cc463ce5c34578953074fadf351819d6ea6a3f7b06ab05",
+          "dnp_step_seconds": 13.467,
+          "dnp_block_seconds": 4.323,
+          "dnp_observed_workers": 2,
+          "dnp_worker_budget": 2,
+          "dnp_reads": 2,
+          "dnp_logical_bytes": 24304752,
+          "dnp_samtools_workers": 1,
+          "snp_cpu_budget": 1,
+          "snp_input_estimates_mib": [
+            1535
+          ]
+        },
+        "candidate": {
+          "workflow_wall_seconds": 33.28,
+          "snp_caller_window_seconds": 16.829,
+          "snp_steps": 2,
+          "observed_overlapping_snp_sample_steps": 1,
+          "observed_samtools_per_snp_step": [
+            4
+          ],
+          "peak_sampled_process_tree_pss_mib": 649.25,
+          "verified_native_calls_and_summary_files": 7,
+          "snp_merged_genotypes_sha256": "f3907470d4a3e71899cc463ce5c34578953074fadf351819d6ea6a3f7b06ab05",
+          "dnp_step_seconds": 13.671,
+          "dnp_block_seconds": 4.525,
+          "dnp_observed_workers": 2,
+          "dnp_worker_budget": 2,
+          "dnp_reads": 2,
+          "dnp_logical_bytes": 24304752,
+          "dnp_samtools_workers": 1,
+          "snp_cpu_budget": 1,
+          "snp_input_estimates_mib": [
+            1535
+          ],
+          "compose_dnp_flags": [
+            "NIPAT_DNP_LIMA_ARM64",
+            "NIPAT_DNP_OPTIMIZED_IO"
+          ],
+          "compose_effective_capacity_mib": 3905
+        }
+      },
+      "port-small-9": {
+        "baseline": {
+          "workflow_wall_seconds": 133.125,
+          "snp_caller_window_seconds": 77.193,
+          "snp_steps": 9,
+          "observed_overlapping_snp_sample_steps": 1,
+          "observed_samtools_per_snp_step": [
+            4
+          ],
+          "peak_sampled_process_tree_pss_mib": 653.55,
+          "verified_native_calls_and_summary_files": 28,
+          "snp_merged_genotypes_sha256": "d772c038124d74352586cb6fa2a6c964a60da562e56da4866be2df92aefc5601",
+          "dnp_step_seconds": 51.463,
+          "dnp_block_seconds": 24.677,
+          "dnp_observed_workers": 2,
+          "dnp_worker_budget": 2,
+          "dnp_reads": 21,
+          "dnp_logical_bytes": 328013520,
+          "dnp_samtools_workers": 1,
+          "snp_cpu_budget": 1,
+          "snp_input_estimates_mib": [
+            1535
+          ]
+        },
+        "candidate": {
+          "workflow_wall_seconds": 133.425,
+          "snp_caller_window_seconds": 76.224,
+          "snp_steps": 9,
+          "observed_overlapping_snp_sample_steps": 1,
+          "observed_samtools_per_snp_step": [
+            4
+          ],
+          "peak_sampled_process_tree_pss_mib": 667.81,
+          "verified_native_calls_and_summary_files": 28,
+          "snp_merged_genotypes_sha256": "d772c038124d74352586cb6fa2a6c964a60da562e56da4866be2df92aefc5601",
+          "dnp_step_seconds": 52.716,
+          "dnp_block_seconds": 26.006,
+          "dnp_observed_workers": 2,
+          "dnp_worker_budget": 2,
+          "dnp_reads": 21,
+          "dnp_logical_bytes": 328013520,
+          "dnp_samtools_workers": 1,
+          "snp_cpu_budget": 1,
+          "snp_input_estimates_mib": [
+            1535
+          ],
+          "compose_dnp_flags": [
+            "NIPAT_DNP_LIMA_ARM64",
+            "NIPAT_DNP_OPTIMIZED_IO"
+          ],
+          "compose_effective_capacity_mib": 3905
+        }
+      },
+      "port-big-1": {
+        "baseline": {
+          "workflow_wall_seconds": 16.71,
+          "snp_caller_window_seconds": 7.378,
+          "snp_steps": 1,
+          "observed_overlapping_snp_sample_steps": 1,
+          "observed_samtools_per_snp_step": [
+            4
+          ],
+          "peak_sampled_process_tree_pss_mib": 603.04,
+          "verified_native_calls_and_summary_files": 4,
+          "snp_merged_genotypes_sha256": null,
+          "dnp_step_seconds": 9.314,
+          "dnp_block_seconds": 2.832,
+          "dnp_observed_workers": 2,
+          "dnp_worker_budget": 2,
+          "dnp_reads": 2,
+          "dnp_logical_bytes": 12157168,
+          "dnp_samtools_workers": 2
+        },
+        "candidate": {
+          "workflow_wall_seconds": 18.741,
+          "snp_caller_window_seconds": 10.163,
+          "snp_steps": 1,
+          "observed_overlapping_snp_sample_steps": 1,
+          "observed_samtools_per_snp_step": [
+            4
+          ],
+          "peak_sampled_process_tree_pss_mib": 614.58,
+          "verified_native_calls_and_summary_files": 4,
+          "snp_merged_genotypes_sha256": null,
+          "dnp_step_seconds": 8.568,
+          "dnp_block_seconds": 3.03,
+          "dnp_observed_workers": 2,
+          "dnp_worker_budget": 2,
+          "dnp_reads": 2,
+          "dnp_logical_bytes": 12157168,
+          "dnp_samtools_workers": 2,
+          "compose_dnp_flags": [
+            "NIPAT_DNP_LIMA_ARM64",
+            "NIPAT_DNP_OPTIMIZED_IO"
+          ],
+          "compose_effective_capacity_mib": 8192
+        }
+      },
+      "port-big-2": {
+        "baseline": {
+          "workflow_wall_seconds": 23.82,
+          "snp_caller_window_seconds": 9.614,
+          "snp_steps": 2,
+          "observed_overlapping_snp_sample_steps": 2,
+          "observed_samtools_per_snp_step": [
+            null
+          ],
+          "peak_sampled_process_tree_pss_mib": 1129.7,
+          "verified_native_calls_and_summary_files": 7,
+          "snp_merged_genotypes_sha256": "f3907470d4a3e71899cc463ce5c34578953074fadf351819d6ea6a3f7b06ab05",
+          "dnp_step_seconds": 11.184,
+          "dnp_block_seconds": 3.279,
+          "dnp_observed_workers": 4,
+          "dnp_worker_budget": 4,
+          "dnp_reads": 4,
+          "dnp_logical_bytes": 48609504,
+          "dnp_samtools_workers": 2,
+          "snp_cpu_budget": 2,
+          "snp_input_estimates_mib": [
+            1535
+          ]
+        },
+        "candidate": {
+          "workflow_wall_seconds": 23.564,
+          "snp_caller_window_seconds": 9.44,
+          "snp_steps": 2,
+          "observed_overlapping_snp_sample_steps": 2,
+          "observed_samtools_per_snp_step": [
+            null
+          ],
+          "peak_sampled_process_tree_pss_mib": 1107.62,
+          "verified_native_calls_and_summary_files": 7,
+          "snp_merged_genotypes_sha256": "f3907470d4a3e71899cc463ce5c34578953074fadf351819d6ea6a3f7b06ab05",
+          "dnp_step_seconds": 11.383,
+          "dnp_block_seconds": 3.013,
+          "dnp_observed_workers": 4,
+          "dnp_worker_budget": 4,
+          "dnp_reads": 4,
+          "dnp_logical_bytes": 48609504,
+          "dnp_samtools_workers": 2,
+          "snp_cpu_budget": 2,
+          "snp_input_estimates_mib": [
+            1535
+          ],
+          "compose_dnp_flags": [
+            "NIPAT_DNP_LIMA_ARM64",
+            "NIPAT_DNP_OPTIMIZED_IO"
+          ],
+          "compose_effective_capacity_mib": 8192
+        }
+      },
+      "port-big-9": {
+        "baseline": {
+          "workflow_wall_seconds": 141.515,
+          "snp_caller_window_seconds": 28.707,
+          "snp_steps": 9,
+          "observed_overlapping_snp_sample_steps": 4,
+          "observed_samtools_per_snp_step": [
+            null
+          ],
+          "peak_sampled_process_tree_pss_mib": 1232.5,
+          "verified_native_calls_and_summary_files": 28,
+          "snp_merged_genotypes_sha256": "d772c038124d74352586cb6fa2a6c964a60da562e56da4866be2df92aefc5601",
+          "dnp_step_seconds": 108.172,
+          "dnp_block_seconds": 80.121,
+          "dnp_observed_workers": 4,
+          "dnp_worker_budget": 4,
+          "dnp_reads": 45,
+          "dnp_logical_bytes": 984040560,
+          "dnp_samtools_workers": 1,
+          "snp_cpu_budget": 4,
+          "snp_input_estimates_mib": [
+            1535
+          ]
+        },
+        "candidate": {
+          "workflow_wall_seconds": 72.359,
+          "snp_caller_window_seconds": 28.889,
+          "snp_steps": 9,
+          "observed_overlapping_snp_sample_steps": 4,
+          "observed_samtools_per_snp_step": [
+            null
+          ],
+          "peak_sampled_process_tree_pss_mib": 1425.24,
+          "verified_native_calls_and_summary_files": 28,
+          "snp_merged_genotypes_sha256": "d772c038124d74352586cb6fa2a6c964a60da562e56da4866be2df92aefc5601",
+          "dnp_step_seconds": 39.079,
+          "dnp_block_seconds": 13.098,
+          "dnp_observed_workers": 4,
+          "dnp_worker_budget": 4,
+          "dnp_reads": 18,
+          "dnp_logical_bytes": 328013520,
+          "dnp_samtools_workers": 1,
+          "snp_cpu_budget": 4,
+          "snp_input_estimates_mib": [
+            1535
+          ],
+          "compose_dnp_flags": [
+            "NIPAT_DNP_LIMA_ARM64",
+            "NIPAT_DNP_OPTIMIZED_IO"
+          ],
+          "compose_effective_capacity_mib": 8192
+        }
+      },
+      "port-windows-1": {
+        "baseline": {
+          "workflow_wall_seconds": 16.71,
+          "snp_caller_window_seconds": 7.378,
+          "snp_steps": 1,
+          "observed_overlapping_snp_sample_steps": 1,
+          "observed_samtools_per_snp_step": [
+            4
+          ],
+          "peak_sampled_process_tree_pss_mib": 603.04,
+          "verified_native_calls_and_summary_files": 4,
+          "snp_merged_genotypes_sha256": null,
+          "dnp_step_seconds": 9.314,
+          "dnp_block_seconds": 2.832,
+          "dnp_observed_workers": 2,
+          "dnp_worker_budget": 2,
+          "dnp_reads": 2,
+          "dnp_logical_bytes": 12157168,
+          "dnp_samtools_workers": 2
+        },
+        "candidate": {
+          "workflow_wall_seconds": 16.765,
+          "snp_caller_window_seconds": 8.613,
+          "snp_steps": 1,
+          "observed_overlapping_snp_sample_steps": 1,
+          "observed_samtools_per_snp_step": [
+            4
+          ],
+          "peak_sampled_process_tree_pss_mib": 625.3,
+          "verified_native_calls_and_summary_files": 4,
+          "snp_merged_genotypes_sha256": null,
+          "dnp_step_seconds": 8.14,
+          "dnp_block_seconds": 2.988,
+          "dnp_observed_workers": 2,
+          "dnp_worker_budget": 2,
+          "dnp_reads": 2,
+          "dnp_logical_bytes": 12157168,
+          "dnp_samtools_workers": 2,
+          "compose_dnp_flags": [],
+          "compose_effective_capacity_mib": 8192
+        }
+      },
+      "port-distinct-9": {
+        "baseline": {
+          "workflow_wall_seconds": 23.529,
+          "snp_caller_window_seconds": 9.926,
+          "snp_steps": 9,
+          "observed_overlapping_snp_sample_steps": 3,
+          "observed_samtools_per_snp_step": [
+            null
+          ],
+          "peak_sampled_process_tree_pss_mib": 576.24,
+          "verified_native_calls_and_summary_files": 28,
+          "snp_merged_genotypes_sha256": "418711be5c210fc76dc50f4ef30b65d28c6e72abe856c338b4351b2a93e3a8da",
+          "dnp_step_seconds": 11.61,
+          "dnp_block_seconds": 1.473,
+          "dnp_observed_workers": 2,
+          "dnp_worker_budget": 2,
+          "dnp_reads": 3,
+          "dnp_logical_bytes": 753864,
+          "dnp_samtools_workers": 1,
+          "snp_cpu_budget": 3,
+          "snp_input_estimates_mib": [
+            792,
+            794,
+            796,
+            799,
+            801,
+            803,
+            805,
+            808,
+            810
+          ]
+        },
+        "candidate": {
+          "workflow_wall_seconds": 23.516,
+          "snp_caller_window_seconds": 10.431,
+          "snp_steps": 9,
+          "observed_overlapping_snp_sample_steps": 4,
+          "observed_samtools_per_snp_step": [
+            null
+          ],
+          "peak_sampled_process_tree_pss_mib": 747.19,
+          "verified_native_calls_and_summary_files": 28,
+          "snp_merged_genotypes_sha256": "418711be5c210fc76dc50f4ef30b65d28c6e72abe856c338b4351b2a93e3a8da",
+          "dnp_step_seconds": 11.397,
+          "dnp_block_seconds": 0.909,
+          "dnp_observed_workers": 4,
+          "dnp_worker_budget": 4,
+          "dnp_reads": 5,
+          "dnp_logical_bytes": 1256440,
+          "dnp_samtools_workers": 1,
+          "snp_cpu_budget": 4,
+          "snp_input_estimates_mib": [
+            792,
+            794,
+            796,
+            799,
+            801,
+            803,
+            805,
+            808,
+            810
+          ],
+          "compose_dnp_flags": [
+            "NIPAT_DNP_OPTIMIZED_IO"
+          ],
+          "compose_effective_capacity_mib": 8192
+        }
+      },
+      "port-mixed": {
+        "baseline": {
+          "workflow_wall_seconds": 21.477,
+          "snp_caller_window_seconds": 19.304,
+          "snp_steps": 3,
+          "observed_overlapping_snp_sample_steps": 1,
+          "observed_samtools_per_snp_step": [
+            null,
+            4
+          ],
+          "peak_sampled_process_tree_pss_mib": 537.59,
+          "verified_native_calls_and_summary_files": 6,
+          "snp_merged_genotypes_sha256": "ba22973b63f9f379fd7b214c4e2892a0cced29a548de687d7721e28ca4cd49bc",
+          "snp_cpu_budget": 1,
+          "snp_input_estimates_mib": [
+            null
+          ]
+        },
+        "candidate": {
+          "workflow_wall_seconds": 18.669,
+          "snp_caller_window_seconds": 15.678,
+          "snp_steps": 3,
+          "observed_overlapping_snp_sample_steps": 2,
+          "observed_samtools_per_snp_step": [
+            null
+          ],
+          "peak_sampled_process_tree_pss_mib": 609.0,
+          "verified_native_calls_and_summary_files": 6,
+          "snp_merged_genotypes_sha256": "ba22973b63f9f379fd7b214c4e2892a0cced29a548de687d7721e28ca4cd49bc",
+          "snp_cpu_budget": 2,
+          "snp_input_estimates_mib": [
+            null,
+            808,
+            846
+          ],
+          "unknown_large_runs_exclusively": true,
+          "admission_charges_mib": [
+            null,
+            808,
+            846
+          ],
+          "compose_dnp_flags": [
+            "NIPAT_DNP_LIMA_ARM64",
+            "NIPAT_DNP_OPTIMIZED_IO"
+          ],
+          "compose_effective_capacity_mib": 3905
+        }
+      }
+    },
+    "subsequent_grain_guard": {
+      "dnp_blocks_sha256": "aac8bf10d5283046aa2c71f7283eaa54cc2c15ab65bd9ef1e7c1a036a2a92266",
+      "change": "The later optimized-I/O planner skips an additional one-byte lane estimate when the remaining capacity is less than two full blocks. This branch is unreachable for the measured 8192 MiB workload, and the unchanged ordinary branch remains active for Windows.",
+      "final_small_two_bam": {
+        "workflow_wall_seconds": 32.085,
+        "snp_caller_window_seconds": 15.957,
+        "snp_steps": 2,
+        "observed_overlapping_snp_sample_steps": 1,
+        "observed_samtools_per_snp_step": [
+          4
+        ],
+        "peak_sampled_process_tree_pss_mib": 669.91,
+        "verified_native_calls_and_summary_files": 7,
+        "snp_merged_genotypes_sha256": "f3907470d4a3e71899cc463ce5c34578953074fadf351819d6ea6a3f7b06ab05",
+        "dnp_step_seconds": 13.6,
+        "dnp_block_seconds": 4.753,
+        "dnp_observed_workers": 2,
+        "dnp_worker_budget": 2,
+        "dnp_reads": 2,
+        "dnp_logical_bytes": 24304752,
+        "dnp_samtools_workers": 1,
+        "snp_cpu_budget": 1,
+        "snp_input_estimates_mib": [
+          1535
+        ],
+        "compose_dnp_flags": [
+          "NIPAT_DNP_LIMA_ARM64",
+          "NIPAT_DNP_OPTIMIZED_IO"
+        ],
+        "compose_effective_capacity_mib": 3905
+      },
+      "verified_budget_target_parity": {
+        "combinations": 2700,
+        "criteria": "Executed both shipped R planner implementations for requested 32 MiB blocks, 1/2/9 BAM coarse task counts 2/4/36, four CPUs, 64..512 MiB coordinator RSS in 2-MiB increments, and each measured host/capacity combination: Lima ARM 3905/8192 MiB, Linux native 8192 and WSL 8192. Every selected block-byte target was exactly equal. Other capacities and profiles can intentionally select a different target, including 4097 MiB."
+      }
+    },
+    "comparison_notes": {
+      "distinct9": "The nine-distinct genotype check uses a stored 3905 MiB scientific oracle against a native-Linux 8192 MiB candidate. This is an identity/label-order test; its wall times are not a matched comparison.",
+      "windows": "The generated WSL/Windows profile was executed with the native Linux scientific runtime; the matching 8192 MiB ordinary baseline had the same inactive DNP flags.",
+      "mixed": "One unindexed 128k-read depth-1000 timing BAM plus two indexed deterministic subsets (6400 reads depth 50, 12800 reads depth 100) on the same 128-locus SNP panel. Both builds ran the same plan at 3905 MiB. The unknown memory sample runs on its own and the distinct reduced files can overlap."
+    }
+  }
+}

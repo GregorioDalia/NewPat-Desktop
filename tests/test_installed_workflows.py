@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -193,6 +194,45 @@ class InstalledWorkflowTests(unittest.TestCase):
                 self.write_table(path, rows)
                 with self.assertRaises(AssertionError):
                     workflows.check_dnp(run, FIXTURES)
+
+    def test_dnp_aggregate_alleles_match_the_caller_fixture(self):
+        run = self.dnp_output()
+        path = run / "output/summary/output_AllGenotypes.txt"
+        for field in ("REF", "ALT"):
+            with self.subTest(field=field):
+                rows = workflows.table(path)
+                rows[0][field] = "ZZ"
+                self.write_table(path, rows)
+                with self.assertRaisesRegex(AssertionError, "alleli"):
+                    workflows.check_dnp(run, FIXTURES)
+                self.dnp_output()
+
+    def test_snp_batch_checks_aggregate_alleles_and_both_summary_plots(self):
+        expected = FIXTURES / "snp_engine/expected.tsv"
+        samples = ["one", "two"]
+        plan = {"steps": [{"id": sample, "workflow": "snp-call", "inputs": {"sample": sample}} for sample in samples]}
+        for sample in samples:
+            self.write(self.root / "steps" / sample / "output/SNPcall_output.txt", expected.read_bytes())
+        rows = [{**{key: row[key] for key in ("chr", "pos", "REF", "ALT")},
+                 **{f"GT_{sample}": row["GT"] for sample in samples}} for row in workflows.table(expected)]
+        summary = self.write_table(self.root / "batch/merged_genotypes.tsv", rows)
+        plots = [{"path": f"batch/{name}.pdf"} for name in ("Unassigned_genotypes", "SNPs_covered_UpSet_plot")]
+        for plot in plots:
+            self.write(self.root / plot["path"], b"%PDF-1.4\n")
+        group = {"samples": samples, "genotypes": {"path": "batch/merged_genotypes.tsv"}, "plots": plots}
+        with patch.object(workflows, "check_plan", return_value=(self.root, plan, {"snp_summary": [group]})):
+            self.assertEqual(workflows.check_snp_plan(self.root, expected, 2)["snp_samples"], 2)
+            for invalid in ([], plots[:1], plots[:1] * 2, plots + plots[:1]):
+                with self.subTest(plots=invalid):
+                    group["plots"] = invalid
+                    with self.assertRaisesRegex(AssertionError, "grafici"):
+                        workflows.check_snp_plan(self.root, expected, 2)
+            group["plots"] = plots
+            for field in ("REF", "ALT"):
+                with self.subTest(field=field):
+                    self.write_table(summary, [{**rows[0], field: "N"}, *rows[1:]])
+                    with self.assertRaisesRegex(AssertionError, "alleli"):
+                        workflows.check_snp_plan(self.root, expected, 2)
 
     def plan_output(self):
         parent = self.root / "plan"

@@ -6,11 +6,13 @@ import argparse
 import csv
 import math
 import sys
+import tempfile
 from pathlib import Path
 
 # Embedded Python excludes the script directory from its default search path.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from acceptance.installed_models import check_prenatal_example, copy_prenatal_fixtures, prenatal_outputs
 from nipat.errors import NipatError, ValidationError
 from nipat.execution.runner import DockerComposeRunner
 from nipat.execution.workflows import Workflows
@@ -88,6 +90,22 @@ def check_outputs(run_dir: Path, expected_cutoff: str) -> None:
                 raise ValidationError(f"PDF mancante o non valido: {pdf}")
 
 
+def verify_prenatal_examples(workflow, layout, fixture, scratch, *, run_prefix=None):
+    """Replay both 20-marker upstream examples through the installed client and engine."""
+    copy_prenatal_fixtures(fixture, scratch)
+    evidence = {}
+    for marker in ("DNP", "SNP"):
+        inputs = scratch / "inputs" / marker
+        run = workflow.cpi(input_dir=inputs, pairs="A1:A1", mother_prefix="Mother", father_prefix="Father",
+                           popfreq=inputs / "population_frequencies.txt", panel=inputs / "markers.txt",
+                           run_name=f"{run_prefix}-{marker.lower()}" if run_prefix else None)
+        check_bundled_run(run, layout, workflow="cpi")
+        check_prenatal_example(run, scratch, marker)
+        evidence[marker] = {name: (run / "output" / name).read_text(encoding="utf-8")
+                            for name in prenatal_outputs(marker)}
+    return evidence
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-name", help="nome opzionale di una nuova esecuzione")
@@ -115,6 +133,9 @@ def main() -> int:
         cutoff = str(layout.container_path(run_dir / "work" / "DNPpanel.txt"))
         check_outputs(run_dir, cutoff)
         check_bundled_run(run_dir, layout, workflow="cpi")
+        with tempfile.TemporaryDirectory(prefix="prenatal-cpi-", dir=layout.data_dir) as scratch:
+            verify_prenatal_examples(workflow, layout, layout.project_dir / "tests/fixtures/prenatal_cpi",
+                                     Path(scratch), run_prefix=args.run_name)
     except (NipatError, OSError) as exc:
         print(f"Verifica CPI fallita: {exc}", file=sys.stderr)
         return 1

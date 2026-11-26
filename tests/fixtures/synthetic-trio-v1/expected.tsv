@@ -1,0 +1,19 @@
+marker	sample	chr	pos	pos2	REF	ALT	N_REF	N_ALT	N_Other	total_count	GT
+dnp	mother	chrDnpSynthetic	50	51	AC	GT	96	4	0	100	0/0
+dnp	mother	chrDnpSynthetic	140	141	TA	CG	96	4	0	100	0/0
+dnp	mother	chrDnpSynthetic	230	231	GC	AT	96	4	0	100	0/0
+dnp	father	chrDnpSynthetic	50	51	AC	GT	50	50	0	100	0/1
+dnp	father	chrDnpSynthetic	140	141	TA	CG	50	50	0	100	0/1
+dnp	father	chrDnpSynthetic	230	231	GC	AT	50	50	0	100	0/1
+dnp	child	chrDnpSynthetic	50	51	AC	GT	50	50	0	100	0/1
+dnp	child	chrDnpSynthetic	140	141	TA	CG	50	50	0	100	0/1
+dnp	child	chrDnpSynthetic	230	231	GC	AT	50	50	0	100	0/1
+snp	mother	chrDnpSynthetic	50		A	G	96	4	0	100	0/0
+snp	mother	chrDnpSynthetic	140		T	C	96	4	0	100	0/0
+snp	mother	chrDnpSynthetic	230		G	A	96	4	0	100	0/0
+snp	father	chrDnpSynthetic	50		A	G	50	50	0	100	0/1
+snp	father	chrDnpSynthetic	140		T	C	50	50	0	100	0/1
+snp	father	chrDnpSynthetic	230		G	A	50	50	0	100	0/1
+snp	child	chrDnpSynthetic	50		A	G	50	50	0	100	0/1
+snp	child	chrDnpSynthetic	140		T	C	50	50	0	100	0/1
+snp	child	chrDnpSynthetic	230		G	A	50	50	0	100	0/1

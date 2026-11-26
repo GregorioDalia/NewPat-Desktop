@@ -122,7 +122,7 @@ function Write-NipatZipOwnership([string] $Directory, [string] $Role) {
 }
 
 function Set-NipatZipShortcuts([string] $Root, [string] $Project) {
-    # Keep the diagnostic CMD entrypoints for compatibility. The normal app
+    # Keep diagnostic CMD entrypoints alongside the app shortcut. The normal app
     # shortcut hides the bridge and opens the console-free Python host.
     Assert-NipatZipRoot $Root
     $launchProject = $Project
@@ -136,18 +136,33 @@ function Set-NipatZipShortcuts([string] $Root, [string] $Project) {
             (Split-Path -Parent $targetProject) -ine (Join-Path $Root 'versions')) {
             throw 'Destinazione del launcher ZIP non valida.'
         }
-        $name = if ($mode -ceq 'launch') { '2_AVVIA.cmd' } else { '1_COMPLETA_PREPARAZIONE.cmd' }
+        $name = if ($mode -ceq 'launch') { '2_LAUNCH.cmd' } else { '1_RESUME_SETUP.cmd' }
         $path = Join-Path $Root $name
         Assert-NipatActivityPathWithoutLinks $path
         $lines = @('@echo off', 'setlocal DisableDelayedExpansion',
             ('"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0versions\' + $folder + '\installer\windows\zip-entry.ps1" -Mode ' + $mode),
             'exit /b %ERRORLEVEL%')
+        $contents = ($lines -join "`r`n") + "`r`n"
         $temporary = Join-Path $Root ('.launcher-' + [Guid]::NewGuid().ToString('N') + '.cmd')
         try {
-            [IO.File]::WriteAllText($temporary, (($lines -join "`r`n") + "`r`n"), [Text.Encoding]::ASCII)
+            [IO.File]::WriteAllText($temporary, $contents, [Text.Encoding]::ASCII)
             if ([IO.File]::Exists($path)) { [IO.File]::Replace($temporary, $path, [NullString]::Value) }
             else { [IO.File]::Move($temporary, $path) }
         } finally { if ([IO.File]::Exists($temporary)) { [IO.File]::Delete($temporary) } }
+        # The previous version generated these exact wrappers. Preserve custom
+        # scripts and defer cleanup until the replacement installation is ready.
+        $oldName = if ($mode -ceq 'launch') { '2_AVVIA.cmd' } else { '1_COMPLETA_PREPARAZIONE.cmd' }
+        $oldPath = Join-Path $Root $oldName
+        if (-not (Test-Path -LiteralPath (Join-Path $Root 'pending.json')) -and
+            (Test-Path -LiteralPath $oldPath -PathType Leaf)) {
+            Assert-NipatActivityPathWithoutLinks $oldPath
+            $ownedWrapper = '\A' + [regex]::Escape($contents).Replace([regex]::Escape($folder),
+                '[0-9]+\.[0-9]+\.[0-9]+-[a-f0-9]{40}') + '\z'
+            if ((Get-Item -LiteralPath $oldPath).Length -lt 2048 -and
+                [IO.File]::ReadAllText($oldPath) -cmatch $ownedWrapper) {
+                [IO.File]::Delete($oldPath)
+            }
+        }
     }
     $shortcutProject = if (Test-Path -LiteralPath (Join-Path $Root 'pending.json')) { $Project } else { $launchProject }
     $shortcuts = @((Join-Path $Root 'NewPat.lnk'))

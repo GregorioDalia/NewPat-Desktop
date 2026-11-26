@@ -31,25 +31,26 @@ def engine_metadata():
         },
         "scientific_validation": {
             "interface": "scientific-validation-v1",
-            "input_workflows": ["dnp-call", "snp-call", "contamination", "cpi", "cpin"],
-            "output_workflows": ["dnp-call", "snp-call", "contamination", "cpi", "cpin"],
+            "input_workflows": ["dnp-call", "snp-call", "contamination", "cpi", "cpin", "fetal-sex"],
+            "output_workflows": ["dnp-call", "snp-call", "contamination", "cpi", "cpin", "fetal-sex"],
             "snp_alleles": "uppercase-working-copy",
         },
         "scientific_settings": {"interface": "scientific-settings-v1",
-                                "workflows": ["dnp-call", "snp-call", "contamination", "cpi", "cpin"]},
+                                "workflows": ["dnp-call", "snp-call", "contamination", "cpi", "cpin", "fetal-sex"]},
         "manifest": {"path": "scientific/SHA256SUMS", "sha256": "b" * 64},
         "workflows": {
             name: {"script": f"scientific/vendor/{name}/main.R", "sha256": "c" * 64}
-            for name in ("dnp-call", "snp-call", "contamination", "cpi", "cpin")
+            for name in ("dnp-call", "snp-call", "contamination", "cpi", "cpin", "fetal-sex")
         },
         "workflow_interfaces": {"contamination": "contamination-v2", "snp-call": "snp-call-v2",
-                                "dnp-call": "dnp-call-v1", "cpi": "cpi-v2", "cpin": "cpin-v1"},
+                                "dnp-call": "dnp-call-v1", "cpi": "cpi-v4", "cpin": "cpin-v2", "fetal-sex": "fetal-sex-v1"},
         "preparation": {
             "interface": "workflow-preparation-v1",
             "file_sha256": {name: "d" * 64 for name in (
                 "engine/main.py", "lib/nipat_scientific/__init__.py",
                 "lib/nipat_scientific/errors.py", "lib/nipat_scientific/panels.py",
                 "lib/nipat_scientific/files.py", "lib/nipat_scientific/contamination.py",
+                "lib/nipat_scientific/fetal_sex.py",
                 "lib/nipat_scientific/snp.py", "lib/nipat_scientific/dnp.py",
                 "lib/nipat_scientific/cpi.py", "lib/nipat_scientific/cpin.py",
                 "lib/nipat_scientific/settings.py", "lib/nipat_scientific/settings.R",
@@ -77,6 +78,16 @@ class BundledRunnerTests(unittest.TestCase):
                 del description["preparation"]["file_sha256"]["lib/nipat_scientific/settings_data.json"]
             with self.subTest(mutation=mutation), self.assertRaises(RuntimeExecutionError):
                 DockerComposeRunner._validate_engine_description(description)
+
+    def test_optional_desktop_step_budget_requires_its_hashed_module(self):
+        description = engine_metadata()
+        validate = DockerComposeRunner._validate_engine_description
+        self.assertEqual(validate(description), description)
+        description["desktop_scheduling"] = "step-budget-v1"
+        with self.assertRaises(RuntimeExecutionError):
+            validate(description)
+        description["preparation"]["file_sha256"]["lib/nipat_scientific/desktop_scheduling.py"] = "f" * 64
+        self.assertEqual(validate(description), description)
 
     def test_image_missing_original_name_presentation_is_rejected(self):
         for source in ("presentation.py", "presentation.R"):
@@ -199,13 +210,13 @@ class BundledRunnerTests(unittest.TestCase):
         # The preceding image can run CPI alone, but cannot execute it as a
         # plan step. Reject it before starting even the upstream DNP analysis.
         legacy = self.plan_metadata()
-        self.assertEqual(legacy["workflow_interfaces"]["cpi"], "cpi-v2")
+        self.assertEqual(legacy["workflow_interfaces"]["cpi"], "cpi-v4")
         variants = [legacy]
         for key in ("workflow_interfaces", "preparation"):
             description = self.plan_metadata()
             description["plan_execution"]["workflows"].append("cpi")
             if key == "workflow_interfaces":
-                description[key]["cpi"] = "cpi-v1"
+                description[key]["cpi"] = "cpi-v3"
             else:
                 del description[key]["file_sha256"]["lib/nipat_scientific/cpi.py"]
             variants.append(description)
@@ -366,7 +377,7 @@ class BundledRunnerTests(unittest.TestCase):
         self.assertNotIn("non confermato", self.stdout.getvalue())
 
     def test_doctor_rejects_each_missing_or_wrong_workflow_contract(self):
-        for workflow in ("dnp-call", "snp-call", "contamination", "cpi", "cpin"):
+        for workflow in ("dnp-call", "snp-call", "contamination", "cpi", "cpin", "fetal-sex"):
             for value in (None, "incompatible-v2"):
                 description = engine_metadata()
                 if value is None:
@@ -376,7 +387,7 @@ class BundledRunnerTests(unittest.TestCase):
                 with self.subTest(workflow=workflow, value=value), redirect_stdout(self.stdout), patch(
                     "nipat.execution.runner.shutil.which", return_value="docker",
                 ), patch.object(self.runner, "_capture", side_effect=["Compose v2", *self.captured(description)]):
-                    with self.assertRaisesRegex(RuntimeExecutionError, "cinque workflow"):
+                    with self.assertRaisesRegex(RuntimeExecutionError, "moduli scientifici"):
                         self.runner.doctor(check_runtime=True)
                 self.assertIsNone(self.runner._image_id)
 
@@ -504,7 +515,7 @@ class BundledRunnerTests(unittest.TestCase):
                 self.assertEqual(record["bundled_workflow"], workflow)
                 self.assertEqual(record["runtime"]["image_id"], IMAGE_ID)
                 self.assertEqual(record["runtime"]["engine"]["workflow_interfaces"][workflow],
-                                 f"{workflow}-v{2 if workflow in {'snp-call', 'cpi'} else 1}")
+                                 engine_metadata()["workflow_interfaces"][workflow])
                 self.assertEqual(record["source"]["role"], "client")
                 service = json.loads((run / "work/engine-compose.json").read_text(encoding="utf-8"))[
                     "services"]["scientific"]
@@ -536,7 +547,7 @@ class BundledRunnerTests(unittest.TestCase):
                         self.runner, "_capture", side_effect=self.captured(description),
                     ), patch("nipat.execution.runner.subprocess.Popen") as popen:
                         with self.assertRaisesRegex(RuntimeExecutionError,
-                                                    f"contratto {label}.*{workflow}-v{2 if workflow in {'snp-call', 'cpi'} else 1}"):
+                                                    f"contratto {label}.*{engine_metadata()['workflow_interfaces'][workflow]}"):
                             with context:
                                 self.fail(f"An incompatible image must not execute {label}.")
                     popen.assert_not_called()

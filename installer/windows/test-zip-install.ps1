@@ -106,7 +106,8 @@ try {
         'installer/windows/bootstrap-common.ps1', 'installer/windows/activity-lock.ps1',
         'installer/windows/repair-installation.ps1', 'installer/windows/install-profile.ps1',
         'installer/windows/install-layout.ps1', 'installer/windows/install-profile.json',
-        'src/nipat/windows_install_activity.py', 'scripts/windows/common.ps1', 'src/nipat/__init__.py')
+        'src/nipat/windows_install_activity.py', 'scripts/windows/common.ps1', 'src/nipat/__init__.py',
+        'assets/branding/nipat-icon.ico')
     foreach ($relative in $relativeFiles) {
         $target = Join-Path $app $relative
         [IO.Directory]::CreateDirectory((Split-Path -Parent $target)) | Out-Null
@@ -140,7 +141,7 @@ if ($env:NIPAT_ZIP_FIXTURE_PHASE -ceq 'awaiting_reboot') { exit 3010 }
 exit 1
 '@ | Set-Content -LiteralPath (Join-Path $app 'installer/windows/bootstrap.ps1') -Encoding UTF8
     $powershell = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
-    Write-FixtureManifest $app $assets '0.8.99' ('a' * 40)
+    Write-FixtureManifest $app $assets '0.9.9' ('a' * 40)
     $env:NIPAT_ZIP_FIXTURE_PHASE = 'awaiting_reboot'
     & $powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $app 'installer/windows/install-zip.ps1') -BundleDirectory $bundle
     Assert-Test ($LASTEXITCODE -eq 3010) 'first ZIP installation returns reboot code'
@@ -154,9 +155,9 @@ exit 1
     Assert-Test ($LASTEXITCODE -eq 0) 'installed resume completes without extracted bundle'
     [IO.Directory]::Move(($app + '-removed'), $app)
     [IO.Directory]::Move(($assets + '-removed'), $assets)
-    Assert-Test ((Read-NipatZipPointer $root).version -ceq '0.8.99') 'first ready installation activated'
+    Assert-Test ((Read-NipatZipPointer $root).version -ceq '0.9.9') 'first ready installation activated'
     Assert-Test ((Get-NipatZipRoot (Read-NipatZipPointer $root).app_dir) -ceq $root) 'local root persisted in installed marker'
-    foreach ($launcher in @('2_AVVIA.cmd', '1_COMPLETA_PREPARAZIONE.cmd', 'NewPat.lnk')) {
+    foreach ($launcher in @('2_LAUNCH.cmd', '1_RESUME_SETUP.cmd', 'NewPat.lnk')) {
         Assert-Test (Test-Path -LiteralPath (Join-Path $root $launcher)) ("local launcher created: $launcher")
     }
     $appShortcut = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path $root 'NewPat.lnk'))
@@ -175,6 +176,26 @@ exit 1
     $unrelated.Save()
     Set-NipatZipShortcuts $root (Read-NipatZipPointer $root).app_dir
     Assert-Test (Test-Path -LiteralPath $legacyShortcut) 'unrelated legacy shortcut retained'
+    # Reproduce the wrapper emitted by the published v0.9.9 zip-common.ps1.
+    # Write it after testing the shortcuts, so only the upgrade can remove it.
+    $oldLauncher = Join-Path $root '2_AVVIA.cmd'
+    $oldResume = Join-Path $root '1_COMPLETA_PREPARAZIONE.cmd'
+    $oldFolder = Split-Path -Leaf (Read-NipatZipPointer $root).app_dir
+    $oldLines = @('@echo off', 'setlocal DisableDelayedExpansion',
+        ('"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0versions\' + $oldFolder + '\installer\windows\zip-entry.ps1" -Mode launch'),
+        'exit /b %ERRORLEVEL%')
+    [IO.File]::WriteAllText($oldLauncher, (($oldLines -join "`r`n") + "`r`n"), [Text.Encoding]::ASCII)
+    [IO.File]::WriteAllText($oldResume, 'echo custom action')
+    Remove-Item -LiteralPath (Join-Path $root '2_LAUNCH.cmd'), (Join-Path $root '1_RESUME_SETUP.cmd')
+    $history = Join-Path $root 'runs\previous-analysis'
+    Write-NipatJsonAtomic (Join-Path $history 'run.json') ([ordered]@{
+        schema_version = 1; run_name = 'previous-analysis'; run_id = 'a' * 32; workflow = 'analysis'; status = 'interrupted'
+    })
+    [IO.Directory]::CreateDirectory((Join-Path $history 'output')) | Out-Null
+    $previousOutput = Join-Path $history 'output\partial.tsv'
+    [IO.File]::WriteAllText($previousOutput, "chr`tpos`r`nchr1`t100`r`n")
+    $historyHash = (Get-FileHash -LiteralPath (Join-Path $history 'run.json')).Hash
+    $outputHash = (Get-FileHash -LiteralPath $previousOutput).Hash
     [IO.Directory]::CreateDirectory((Join-Path $root 'data')) | Out-Null
     [IO.File]::WriteAllText((Join-Path $root 'data\preserve.txt'), 'research data')
     $bundle = Join-Path $temporary 'next separate extraction'
@@ -183,20 +204,31 @@ exit 1
     Copy-Item -LiteralPath $assets -Destination (Join-Path $bundle 'assets') -Recurse
     $app = Join-Path $bundle 'app'
     $assets = Join-Path $bundle 'assets'
-    Write-FixtureManifest $app $assets '0.9.0' ('b' * 40)
+    Write-FixtureManifest $app $assets '0.9.10' ('b' * 40)
     $env:NIPAT_ZIP_FIXTURE_PHASE = 'failed'
     & $powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $app 'installer/windows/install-zip.ps1') -BundleDirectory $bundle -InstallRoot $root
     Assert-Test ($LASTEXITCODE -eq 1) 'failed upgrade reported as failure'
-    Assert-Test ((Read-NipatZipPointer $root).version -ceq '0.8.99') 'failed upgrade retains previous active version'
-    Assert-Test ((Get-Content -LiteralPath (Join-Path $root '2_AVVIA.cmd') -Raw).Contains('0.8.99-' + ('a' * 40))) 'failed upgrade launcher retains previous worker'
+    Assert-Test ((Read-NipatZipPointer $root).version -ceq '0.9.9') 'failed upgrade retains previous active version'
+    Assert-Test ((Get-Content -LiteralPath (Join-Path $root '2_LAUNCH.cmd') -Raw).Contains('0.9.9-' + ('a' * 40))) 'failed upgrade launcher retains previous worker'
+    Assert-Test (Test-Path -LiteralPath $oldLauncher -PathType Leaf) 'failed upgrade retains the working 0.9.9 launcher'
     Assert-Test (-not (Test-Path -LiteralPath (Join-Path $bundle 'NIPAT'))) 'update extraction does not create another installation'
     $pending = Read-NipatZipPointer $root 'pending.json'
     $env:NIPAT_ZIP_FIXTURE_PHASE = 'ready'
     & $powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $pending.app_dir 'installer/windows/install-zip.ps1') -Resume
-    Assert-Test ($LASTEXITCODE -eq 0 -and (Read-NipatZipPointer $root).version -ceq '0.9.0') 'successful upgrade activates the new app directory'
-    Assert-Test ((Get-Content -LiteralPath (Join-Path $root '2_AVVIA.cmd') -Raw).Contains('0.9.0-' + ('b' * 40))) 'successful upgrade refreshes local launcher'
+    Assert-Test ($LASTEXITCODE -eq 0 -and (Read-NipatZipPointer $root).version -ceq '0.9.10') 'successful upgrade activates the new app directory'
+    Assert-Test (-not (Test-Path -LiteralPath $oldLauncher)) 'owned Italian entry point removed'
+    Assert-Test ([IO.File]::ReadAllText($oldResume) -ceq 'echo custom action') 'custom command preserved'
+    Assert-Test ((Get-Content -LiteralPath (Join-Path $root '2_LAUNCH.cmd') -Raw).Contains('0.9.10-' + ('b' * 40))) 'successful upgrade refreshes local launcher'
     $appShortcut = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path $root 'NewPat.lnk'))
-    Assert-Test ($appShortcut.Arguments.Contains('0.9.0-' + ('b' * 40))) 'app shortcut follows the activated version'
+    Assert-Test ($appShortcut.Arguments.Contains('0.9.10-' + ('b' * 40))) 'app shortcut follows the activated version'
+    $activated = (Read-NipatZipPointer $root).app_dir
+    $icon = Join-Path $activated 'assets\branding\nipat-icon.ico'
+    $shortcutIcon = ($appShortcut.IconLocation -replace ',\s*0$', '').Trim('"')
+    Assert-Test ($shortcutIcon -ieq $icon -and (Test-Path -LiteralPath $icon -PathType Leaf)) 'shortcut uses the icon in the activated installation'
+    $layout = Read-NipatInstallLayout $activated
+    Assert-Test ($layout.runs_dir -ieq (Join-Path $root 'runs') -and $layout.data_dir -ieq (Join-Path $root 'data')) 'candidate still opens the historical results and inputs directories'
+    Assert-Test ((Get-FileHash -LiteralPath (Join-Path $history 'run.json')).Hash -ceq $historyHash) 'upgrade retains the interrupted experiment record byte for byte'
+    Assert-Test ((Get-FileHash -LiteralPath $previousOutput).Hash -ceq $outputHash) 'upgrade retains the existing scientific output byte for byte'
     Assert-Test ([IO.File]::ReadAllText((Join-Path $root 'data\preserve.txt')) -ceq 'research data') 'update retains research data'
 } finally {
     $env:LOCALAPPDATA = $oldLocal

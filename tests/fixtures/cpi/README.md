@@ -3,8 +3,8 @@
 These are invented counts and coordinates, not genomic observations or a real
 population-frequency panel. They exercise the CPI integration using an explicit
 analytical reference. They are not an evaluation of the method on real samples.
-The separate script `scripts/verify_cpi_update.py` runs the unchanged upstream R
-implementation through NIPAT and checks the emitted CSV and PDF presence.
+The separate script `scripts/verify_cpi_update.py` runs NewPat’s packaged prenatal CPI
+implementation and checks the emitted CSV and PDF presence.
 
 ## Informative pair
 
@@ -50,8 +50,8 @@ or an infinite value. This is a valid no-information outcome.
 
 One invocation creates a fresh run outside the repository and verifies exactly
 these two CSV rows, the generated cutoff-panel path, and the PDF signatures of
-both pair plots and `All_CPIplots.pdf`. It does not compare PDF bytes, inspect
-plot appearance, or verify individual curve points that are not exported to CSV.
+both pair plots and `All_CPIplots.pdf`. This check covers summary values and PDF signatures.
+The downstream qualification also checks exported curve tables.
 No BAM or reference genome is required. The runtime image must provide the
 complete `cpi-v1` interface and its R dependencies.
 The check also verifies the image-owned code metadata and isolated mounts.

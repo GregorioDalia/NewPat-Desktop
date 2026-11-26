@@ -142,7 +142,7 @@ def test_bam_reference_dictionary_must_be_compatible(local_igv, tmp_path, chromo
 def test_mitochondrial_mismatch_reports_both_files_indexes_and_lengths(local_igv, tmp_path, language):
     local_igv.language = language
     fasta = tmp_path / "genome.fa"
-    fasta.write_text(">chrM\nACGT\n", encoding="ascii")
+    fasta.write_bytes(b">chrM\nACGT\n")
     Path(str(fasta) + ".fai").write_text("chrM\t4\t6\t4\t5\n", encoding="ascii")
     bam = _bam(tmp_path, name="patient", chromosome="chrM", length=5)
     with pytest.raises(ValidationError) as caught:
@@ -181,6 +181,58 @@ def test_reference_alias_and_region_bounds(local_igv, tmp_path):
     assert local_igv.prepare({**params, "locus": ["X", "1:2"]})["locus"] == ["X", "1:2"]
 
 
+@pytest.mark.parametrize("build", ["grch37", "grch38"])
+def test_named_reference_requires_matching_bam_contig_names(local_igv, tmp_path, build):
+    fasta = _reference(tmp_path)
+    reference = {"fasta": str(fasta), "build": build}
+    bam = _bam(tmp_path, chromosome="chr1")
+    with pytest.raises(ValidationError, match="BAM usa chr1.*FASTA usa 1"):
+        local_igv.prepare({"reference": reference, "tracks": [{"path": str(bam)}]})
+    bam = _bam(tmp_path, chromosome="1")
+    prepared = local_igv.prepare({"reference": reference, "tracks": [{"path": str(bam)}], "locus": "chr1:1"})
+    assert prepared["sources"]["reference"]["build"] == build
+    assert prepared["locus"] == "1:1"
+
+
+def test_named_reference_allows_targeted_bam_if_panel_chromosomes_are_present(local_igv, tmp_path):
+    fasta, bam = _reference(tmp_path), _bam(tmp_path)
+    index = Path(str(fasta) + ".fai")
+    lengths = {"1": 4, "X": 4}
+    assert local_igv.check_bam_reference(bam, fasta, index, lengths, exact_names=True, targets={"1"}) == 1
+    with pytest.raises(ValidationError, match="X del pannello manca nel BAM"):
+        local_igv.check_bam_reference(bam, fasta, index, lengths, exact_names=True, targets={"1", "X"})
+
+
+def test_recorded_igv_reference_checks_and_preserves_fai_digest(local_igv, tmp_path):
+    fasta = _reference(tmp_path)
+    index = Path(str(fasta) + ".fai")
+    digest = hashlib.sha256(index.read_bytes()).hexdigest()
+    reference = {"fasta": str(fasta), "index": str(index), "index_sha256": digest}
+    assert local_igv.prepare({"reference": reference})["sources"]["reference"] == {
+        **reference, "fasta_sha256": hashlib.sha256(fasta.read_bytes()).hexdigest()}
+
+    # A syntactically valid replacement FAI can still describe a different reference.
+    index.write_text("1\t4\t3\t4\t5\nY\t4\t11\t4\t5\n", encoding="ascii")
+    with pytest.raises(ValidationError, match="differisce"):
+        local_igv.prepare({"reference": reference})
+    with pytest.raises(ValidationError, match="SHA-256"):
+        local_igv.prepare({"reference": {**reference, "index_sha256": "invalid"}})
+
+
+def test_bgzf_reference_requires_and_registers_compressed_index(local_igv, tmp_path):
+    plain = _reference(tmp_path)
+    fasta = tmp_path / "reference.fa.bgzf"
+    fasta.write_bytes(_bgzf(plain.read_bytes()) + _bgzf(b""))
+    shutil.copyfile(str(plain) + ".fai", str(fasta) + ".fai")
+    with pytest.raises(ValidationError, match="GZI"):
+        local_igv.prepare({"reference": {"fasta": str(fasta)}})
+    gzi = Path(str(fasta) + ".gzi")
+    gzi.write_bytes(struct.pack("<Q", 0))
+    prepared = local_igv.prepare({"reference": {"fasta": str(fasta)}})
+    assert prepared["sources"]["reference"]["compressedIndex"] == str(gzi)
+    assert "compressedIndexURL" in prepared["reference"]
+
+
 def test_bounded_index_line_does_not_read_entire_invalid_file(local_igv, tmp_path):
     fasta = _reference(tmp_path)
     Path(str(fasta) + ".fai").write_bytes(b"a" * 9000)
@@ -198,7 +250,7 @@ def create_alignment_fixture(directory):
     directory.mkdir(parents=True, exist_ok=True)
     sequence = "ACGT" * 250
     fasta = directory / "synthetic-reference.fa"
-    fasta.write_text(f">1\n{sequence}\n>X\n{sequence}\n", encoding="ascii")
+    fasta.write_text(f">1\n{sequence}\n>X\n{sequence}\n", encoding="ascii", newline="\n")
     Path(str(fasta) + ".fai").write_text("1\t1000\t3\t1000\t1001\nX\t1000\t1007\t1000\t1001\n", encoding="ascii")
     text = b"@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:1\tLN:1000\n@SQ\tSN:X\tLN:1000\n"
     header = b"BAM\x01" + struct.pack("<i", len(text)) + text + struct.pack("<i", 2)
@@ -255,3 +307,49 @@ def test_real_alignment_fixture_has_indexed_records_and_matching_dictionary(loca
     assert len(reads) == 20
     assert reads[0] == (0, 101, "qa_read_01") and reads[-1] == (0, 177, "qa_read_20")
     assert offset == len(data)
+
+
+def test_archived_fasta_same_layout_rejected_and_legacy_disclosed(local_igv, tmp_path):
+    from nipat.gui.results import ResultsStore
+    from nipat.gui.references import ReferenceCatalog
+
+    fasta = _reference(tmp_path)
+    ref = ReferenceCatalog(tmp_path / "catalog.json").register("custom", fasta)
+    root = tmp_path / "runs"
+    run = root / "archived"
+    run.mkdir(parents=True)
+    (run / "run.json").write_text(json.dumps({"schema_version": 1, "workflow": "dnp-call",
+                                             "status": "succeeded", "parameters": {}}))
+    recorded = {k: ref[k] for k in ("fasta", "index", "build", "fasta_sha256", "index_sha256")}
+    draft = {"reference": str(fasta), "samples": [], "reference_genome": recorded}
+    gui = run / "gui.json"
+    gui.write_text(json.dumps({"schema_version": 1, "draft": draft}))
+    store = ResultsStore(root)
+    selection, _ = store.igv_sources("archived")
+    assert "historical_identity_incomplete" not in selection
+    fasta.write_bytes(fasta.read_bytes().replace(b"ACGT", b"TTTT"))
+    with pytest.raises(ValidationError, match="differisce"):
+        local_igv.prepare({"reference": selection})
+    del recorded["fasta_sha256"]
+    gui.write_text(json.dumps({"schema_version": 1, "draft": draft}))
+    old, _ = store.igv_sources("archived")
+    reopened = local_igv.prepare({"reference": old})["sources"]["reference"]
+    assert reopened["historical_identity_incomplete"] is True
+
+
+def test_archived_bgzf_rejects_valid_but_replaced_gzi(local_igv, tmp_path):
+    from nipat.gui.references import ReferenceCatalog
+
+    plain = _reference(tmp_path)
+    first = _bgzf(plain.read_bytes())
+    fasta = tmp_path / "reference.fa.bgzf"
+    fasta.write_bytes(first + _bgzf(b""))
+    shutil.copyfile(str(plain) + ".fai", str(fasta) + ".fai")
+    gzi = Path(str(fasta) + ".gzi")
+    gzi.write_bytes(struct.pack("<Q", 0))
+    entry = ReferenceCatalog(tmp_path / "catalog.json").register("custom", fasta)
+    selection = {k: entry[k] for k in ("fasta", "index", "fasta_sha256", "index_sha256", "gzi_sha256")}
+    assert local_igv.prepare({"reference": selection})["sources"]["reference"]["gzi_sha256"] == selection["gzi_sha256"]
+    gzi.write_bytes(struct.pack("<QQQ", 1, len(first), plain.stat().st_size))
+    with pytest.raises(ValidationError, match="differisce"):
+        local_igv.prepare({"reference": selection})

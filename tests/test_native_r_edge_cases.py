@@ -15,6 +15,9 @@ import subprocess
 import tempfile
 import unittest
 
+from nipat_scientific.errors import PlanExecutionError
+from nipat_scientific.outputs import validate_standalone_outputs
+
 from native_r_helpers import NATIVE_R_AVAILABLE, NATIVE_R_REASON
 
 
@@ -76,13 +79,13 @@ class NativeREdgeCases(unittest.TestCase):
                     process, output = self.run_native(root, "cpin", inputs)
                     self.assertEqual(process.returncode, 0, process.stderr)
                     summaries = table(output / "Summary_Postnatal_CPI.txt")
-                    self.assertEqual(len(summaries), 2)
+                    self.assertEqual(len(summaries), 1)
                     for row in summaries:
                         self.assertEqual((row["N_sites"], row["CPI"], row["Log10_CPI"]), ("0", "NA", "NA"))
-                    sites = table(next((output / "sites").glob("*.tsv")))
+                    sites = table(next(output.glob("*_sites.txt")))
                     expected = "quality_filter" if case == "uncovered_child" else "missing_call"
                     self.assertEqual({row["Status"] for row in sites}, {expected} if case != "empty_trio" else set())
-                    self.assertTrue(all(not table(path) for path in (output / "curves").iterdir()))
+                    self.assertFalse((output / "curves").exists())
 
     def test_cpi_empty_and_uncovered_samples_preserve_invalid_total_errors(self):
         for marker in ("SNP", "DNP"):
@@ -115,6 +118,40 @@ class NativeREdgeCases(unittest.TestCase):
                         self.assertEqual(summaries[0]["N_sites_father"], "0")
                         self.assertEqual(summaries[0]["Mean_logCPI"], "NA")
 
+    def test_prenatal_exclusions_and_curve_validation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            inputs = root / "inputs"
+            inputs.mkdir()
+            header = "chr\tpos\tREF\tALT\tN_REF\tN_ALT\tN_Other\ttotal_count\n"
+            (inputs / "MotherM1.txt").write_text(header + "".join(
+                f"1\t{i}\tA\tG\t{100-alt}\t{alt}\t0\t100\n" for i, alt in enumerate((2, 3, 5), 1)))
+            (inputs / "FatherF1.txt").write_text(header + "".join(
+                f"1\t{i}\tA\tG\t{ref}\t{100-ref}\t0\t100\n" for i, ref in enumerate((0, 80, 0), 1)))
+            (inputs / "population.txt").write_text(
+                "chr\tpos\tRef_f.pop\tAlt_f.pop\n1\t1\t0.8\t0.2\n1\t2\t0.6\t0.4\n")
+            process, output = self.run_native(root, "cpi", inputs)
+            self.assertEqual(process.returncode, 0, process.stderr)
+            request = {"workflow": "cpi", "marker_type": "SNP", "pairs": "M1:F1", "cutoffs": [],
+                       "cutoff_mode": "all", "work_dir": str(root / "work"), "out_dir": str(output)}
+            artifacts = validate_standalone_outputs(request)
+            self.assertEqual({w["code"] for w in artifacts["quality_warnings"]},
+                             {"output.cpi_missing_frequency", "output.cpi_unassigned_father"})
+            support = artifacts["cpi-pairs"][0]["curves"][0]["prenatal_support"]
+            self.assertEqual(support, {"minimum_fetal_reads": 2, "paternal_candidates": 3, "paternal_used": 1,
+                                       "missing_frequency": 1, "unassigned_father": 1,
+                                       "median_fetal_reads": 3, "paternal_used_at_median": 0})
+            summary = table(output / "Summary_FetalFraction_CPI.csv", ",")[0]
+            self.assertEqual((summary["N_sites_father"], summary["Max_logCPI"], summary["CPI_medianFF"]),
+                             ("3", "0.699", "NA"))
+            curve = next((output / "curves").glob("*.tsv"))
+            lines = curve.read_text().splitlines(keepends=True)
+            for damaged in (lines[:1], lines[:1] + lines[2:], lines[:2] + lines[1:],
+                            [line.replace("0.698970004336019", "text") for line in lines]):
+                curve.write_text("".join(damaged))
+                with self.assertRaises(PlanExecutionError):
+                    validate_standalone_outputs(request)
+
     def test_cpi_log_stays_finite_outside_the_raw_product_range(self):
         for loci, father, expected in ((400, (0, 100), 400.0),
                                        (200, (100, 0), 200 * math.log10(0.002))):
@@ -139,6 +176,18 @@ class NativeREdgeCases(unittest.TestCase):
                     self.assertEqual(float(row["CPI"]), math.inf if loci == 400 else 0.0)
                 summary = table(output / "Summary_FetalFraction_CPI.csv", ",")[0]
                 self.assertAlmostEqual(float(summary["CPI_medianFF"]), expected, places=3)
+                request = {"workflow": "cpi", "marker_type": "SNP", "pairs": "M1:F1", "cutoffs": [],
+                           "cutoff_mode": "all", "work_dir": str(root / "work"), "out_dir": str(output)}
+                self.assertEqual(validate_standalone_outputs(request)["quality_warnings"], [])
+                # Raw Inf/zero is legitimate here, but the reported log must agree with the curve.
+                summary_path = output / "Summary_FetalFraction_CPI.csv"
+                summary["CPI_medianFF"] = str(float(summary["CPI_medianFF"]) + 0.01)
+                with summary_path.open("w", newline="") as stream:
+                    writer = csv.DictWriter(stream, fieldnames=summary)
+                    writer.writeheader()
+                    writer.writerow(summary)
+                with self.assertRaisesRegex(PlanExecutionError, "median-threshold"):
+                    validate_standalone_outputs(request)
 
     def test_downstream_joins_preserve_numeric_looking_contigs(self):
         for workflow in ("cpi", "cpin"):
@@ -183,13 +232,19 @@ class NativeREdgeCases(unittest.TestCase):
                     else:
                         self.assertEqual(process.returncode, 0, process.stderr)
                         summaries = table(output / "Summary_Postnatal_CPI.txt")
-                        self.assertEqual([row["N_sites"] for row in summaries], ["2", "3"])
+                        self.assertEqual([row["N_sites"] for row in summaries], ["5"])
                         for row in summaries:
-                            expected = math.log10(0.5) + math.log10(float(row["Error_constant"]))
+                            # Two mismatches, one heterozygous father, one matching
+                            # homozygous father and one het/het PI = 1/(2*f).
+                            expected = 2 * math.log10(0.5) + 2 * math.log10(float(row["Mismatch_probability"]))
                             expected -= int(row["N_sites"]) * math.log10(float(frequency))
                             self.assertAlmostEqual(float(row["Log10_CPI"]), expected, places=10)
-                        for path in (output / "curves").iterdir():
-                            self.assertTrue(all(math.isfinite(float(row["Log10_CPI"])) for row in table(path)))
+                        # A per-site PI may also overflow. The desktop artifact validator
+                        # must still accept the finite logarithm of the complete product.
+                        request = {"workflow": "cpin", "marker_type": marker, "trios": "M1:F1:C1",
+                                   "work_dir": str(root / "work"), "out_dir": str(output)}
+                        result = validate_standalone_outputs(request)
+                        self.assertEqual(len(result["cpin-trios"]), 1)
 
 
 if __name__ == "__main__":

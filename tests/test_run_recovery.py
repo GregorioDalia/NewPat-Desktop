@@ -5,7 +5,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import PropertyMock, patch
 
 from nipat.cli import main
 from nipat.errors import ValidationError
@@ -144,6 +144,22 @@ class RunRecoveryTests(unittest.TestCase):
         inspect.assert_not_called()
         self.assertFalse(report["backend_matches"])
         self.assertEqual(report["containers"][0]["state"], "identity_mismatch")
+
+    def test_lima_recovery_requires_the_recorded_home_and_instance(self):
+        current = {"backend": "lima", "lima_home": "/newpat/lima", "lima_instance": "newpat"}
+        with patch.object(DockerTransport, "metadata", new_callable=PropertyMock, return_value=current), \
+                patch("nipat.execution.recovery.subprocess.run", return_value=self.answer()) as inspect:
+            for recorded in (current | {"lima_home": "/another/lima"},
+                             current | {"lima_instance": "another"}):
+                self.record["transport"] = recorded
+                self.save_record()
+                report = self.runner.reconcile_run(self.run)
+                self.assertFalse(report["backend_matches"])
+                inspect.assert_not_called()
+            self.record["transport"] = current
+            self.save_record()
+            self.assertTrue(self.runner.reconcile_run(self.run)["backend_matches"])
+            inspect.assert_called_once()
 
     def test_absent_and_unreachable_are_distinct(self):
         for error, state in (("Error: No such container: test", "absent"),

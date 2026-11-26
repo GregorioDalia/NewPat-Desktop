@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import csv
+import math
 import json
 from pathlib import Path
 import tempfile
@@ -149,44 +150,53 @@ class ScientificOutputTests(unittest.TestCase):
     def test_cpin_summary_and_provenance_must_match_requested_settings(self):
         from nipat_scientific.settings import normalize_settings, describe_settings
         request = {"workflow": "cpin", "trios": "M:F:C", "marker_type": "SNP",
-            "scientific_settings": {"min_child_reads": 5, "err_const_snp": 0.02},
+            "scientific_settings": {"min_coverage": 5, "mismatch_probability_snp": 0.02},
             "work_dir": str(self.root / "work"), "out_dir": str(self.output)}
         effective = normalize_settings("cpin", request["scientific_settings"])
         sidecar = self.output / "scientific-settings.json"
         sidecar.write_text(json.dumps({"schema_version": 1, "workflow": "cpin", "parameters": effective,
             "constants": describe_settings("cpin")["constants"]}))
         native = "MotherM-FatherF-ChildC_SNPs"
-        columns = ["Trio", "Marker_type", "Analysis", "N_sites", "N_heterozygous_child_sites",
-            "N_homozygous_child", "Matching_sites", "Mismatching_sites", "Log10_CPI", "CPI",
-            "Error_constant", "Min_child_reads"]
-        rows = [dict(zip(columns, [native, "SNP", analysis, "1", "1", "0", "1", "0", "0", "1", "0.02", "5"]))
-                for analysis in ("heterozygous_child_sites", "all_compatible_sites")]
+        row = {"Trio": native, "Marker_type": "SNP", "N_sites": 2, "N_hom_hom": 0, "N_hom_het": 1,
+               "N_het_hom": 0, "N_het_het": 1, "Matching_sites": 1, "Mismatching_sites": 0,
+               "No_obligatory_allele_sites": 1, "Maternal_incompatible_sites": 1, "Log10_CPI": math.log10(2),
+               "CPI": 2, "Mismatch_probability": 0.02, "Min_coverage": 5,
+               **{f"Include_{pair}": "TRUE" for pair in ("hom_hom", "hom_het", "het_hom", "het_het")}}
         summary = self.output / "Summary_Postnatal_CPI.txt"
 
-        def write_rows(values):
+        def write_rows(*values):
             with summary.open("w", newline="") as stream:
-                writer = csv.DictWriter(stream, fieldnames=columns, delimiter="\t")
+                writer = csv.DictWriter(stream, fieldnames=list(row), delimiter="\t")
                 writer.writeheader()
                 writer.writerows(values)
 
-        write_rows(rows)
-        for name in ("sites", "curves", "plots"):
-            (self.output / name).mkdir()
-        (self.output / "sites" / f"{native}_sites.tsv").write_text("Status\tPaternity_Index\tMismatch\nvalid\t1\tFALSE\n")
-        for row in rows:
-            (self.output / "curves" / f"{native}_{row['Analysis']}_curve.tsv").write_text(
-                "Min_child_reads\tThrough_min_child_reads\tN_sites\tLog10_CPI\tMatching_sites\tMismatching_sites\n5\t5\t1\t0\t1\t0\n")
-            (self.output / "plots" / f"{native}_{row['Analysis']}_CPIplot.pdf").write_bytes(b"%PDF-1.7 fixture")
-        (self.output / "All_CPIplots.pdf").write_bytes(b"%PDF-1.7 fixture")
-        self.assertIn("scientific-settings", validate_standalone_outputs(request))
-        for field, value in (("Marker_type", "DNP"), ("Min_child_reads", "2"),
-                             ("Error_constant", "0.001"), ("Error_constant", "NaN")):
-            changed = copy.deepcopy(rows)
-            changed[0][field] = value
-            write_rows(changed)
-            with self.subTest(field=field, value=value), self.assertRaises(PlanExecutionError):
+        write_rows(row)
+        sites = self.output / f"{native}_sites.txt"
+        table = ("Status\tGenotype_combination\tPaternity_status\tPaternity_Index\tMismatch"
+                 "\tRequired_paternal_allele\tPaternal_transmission\tRef_f.pop\tAlt_f.pop\n"
+                 "eligible\thom_het\tmatch\t2\tFALSE\tREF\t1\t0.5\t0.5\n"
+                 "eligible\thet_het\tno_obligatory_allele\t1\tNA\tNA\tNA\t0.5\t0.5\n"
+                 "mother_child_incompatible\tNA\tNA\tNA\tNA\tNA\tNA\t0.5\t0.5\n")
+        sites.write_text(table)
+        artifacts = validate_standalone_outputs(request)
+        self.assertIn("scientific-settings", artifacts)
+        self.assertEqual(artifacts["cpin-trios"][0]["sites"]["path"], f"output/{native}_sites.txt")
+        self.assertNotIn("combined-plot", artifacts)
+        for field, value in (("Marker_type", "DNP"), ("Min_coverage", "NA"), ("Mismatch_probability", 0.001),
+                             ("Include_het_het", "FALSE"), ("N_het_het", 2), ("Log10_CPI", .45), ("CPI", 3)):
+            write_rows({**row, field: value})
+            with self.subTest(field=field), self.assertRaises(PlanExecutionError):
                 validate_standalone_outputs(request)
-        write_rows(rows)
+        write_rows(row, row)
+        with self.assertRaisesRegex(PlanExecutionError, "duplicate"):
+            validate_standalone_outputs(request)
+        write_rows(row)
+        for changed in (table.replace("no_obligatory_allele", "mismatch"), table.replace("match\t2", "match\t4"),
+                        table.replace("NA\tNA\tNA\tNA", "NA\tNA\t1\tNA")):
+            sites.write_text(changed)
+            with self.assertRaises(PlanExecutionError):
+                validate_standalone_outputs(request)
+        sites.write_text(table)
         sidecar.unlink()
         with self.assertRaisesRegex(PlanExecutionError, "scientific-settings.json"):
             validate_standalone_outputs(request)

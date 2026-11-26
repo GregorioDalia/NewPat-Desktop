@@ -31,9 +31,9 @@ class NativeAppVerificationTests(unittest.TestCase):
     def invoke(self, **options):
         return VERIFY.verify(self.app, Path(sys.executable), self.workspace, self.report, self.png, **options)
 
-    def produce(self, ready=True):
+    def produce(self, ready=True, pdf="passed"):
         self.report.write_text(json.dumps({"status": "passed", "nativeWebView": True,
-                                           "appReady": ready, "host": "native-test"}))
+                                           "appReady": ready, "pdfExport": pdf, "host": "native-test"}))
         self.png.write_bytes(b"\x89PNG\r\n\x1a\n")
 
     def test_isolates_user_preferences_and_uses_actual_packaged_entrypoint(self):
@@ -49,6 +49,7 @@ class NativeAppVerificationTests(unittest.TestCase):
         self.assertEqual(environment["NIPAT_SETTINGS_FILE"], str(self.workspace / "preferences.json"))
         self.assertEqual(environment["NIPAT_DATA_DIR"], str(self.workspace / "data"))
         self.assertNotIn("PYTHONPATH", environment)
+        self.assertEqual(environment["NIPAT_GUI_VERIFY_PDF"], "1")
         self.assertEqual(json.loads(self.report.read_text())["scope"], "packaged-native-application")
 
     def test_source_smoke_has_distinct_scope_without_claiming_packaged_validation(self):
@@ -60,6 +61,11 @@ class NativeAppVerificationTests(unittest.TestCase):
     def test_title_or_fixture_readiness_cannot_qualify_the_full_app(self):
         with patch.object(VERIFY.subprocess, "run", side_effect=lambda *_a, **_k: self.produce(False)):
             with self.assertRaisesRegex(ValueError, "application.*readiness"):
+                self.invoke()
+
+    def test_ready_app_without_completed_native_pdf_export_is_rejected(self):
+        with patch.object(VERIFY.subprocess, "run", side_effect=lambda *_a, **_k: self.produce(pdf=None)):
+            with self.assertRaisesRegex(ValueError, "generate a PDF"):
                 self.invoke()
 
     def test_failed_native_child_cannot_publish_success(self):

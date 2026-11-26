@@ -1,25 +1,28 @@
 """Asynchronous desktop jobs around the existing runner, with owned cancellation."""
 from __future__ import annotations
 
-from collections import deque
-from contextlib import contextmanager
+from collections import OrderedDict, deque
+from contextlib import contextmanager, nullcontext
 from copy import deepcopy
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import datetime, timezone
 import json
 from itertools import islice
 from pathlib import Path
+import subprocess
 import threading
 import time
 import uuid
 
-from nipat.errors import ValidationError
+from nipat.errors import RuntimeExecutionError, ValidationError
 from nipat.execution.progress import ProgressSnapshot
 from nipat.execution.recovery import reconcile_run
 from nipat.execution.runner import DockerComposeRunner
 from nipat.execution.tracking import read_run_status
 from nipat.execution.workflows import Workflows
+from nipat.gui.admission import DesktopAdmission, DesktopStepScheduler
 from nipat.gui.plan import PreparedAnalysis
+from nipat.processes import background_process_options
 
 _TERMINAL = {"succeeded", "failed", "interrupted", "planned"}
 
@@ -29,7 +32,7 @@ def _now() -> str:
 
 
 class Job:
-    def __init__(self, prepared: PreparedAnalysis):
+    def __init__(self, prepared: PreparedAnalysis, manager: JobManager | None = None):
         self.id = uuid.uuid4().hex
         self.prepared = prepared
         self.name = prepared.draft["name"]
@@ -44,16 +47,28 @@ class Job:
         self.log_revision = 0
         self.events = deque(maxlen=5)
         self.event_revision = 0
-        self.sample_labels = tuple(dict.fromkeys(sample["id"] for sample in prepared.draft["samples"]))
+        labels = [sample["id"] for sample in prepared.draft.get("samples", [])]
+        if prepared.draft.get("fetal_sex"):
+            labels.append(prepared.draft["fetal_sex"]["id"])
+        self.sample_labels = tuple(dict.fromkeys(labels))
         self.cancel_event = threading.Event()
         self.done = threading.Event()
         self.lock = threading.RLock()
         self.runner = None
         self.thread = None
+        self._manager = manager
+
+    def admission_ready(self) -> None:
+        if self._manager is not None:
+            self._manager.preparation_finished(self.id)
+
+    def queued_siblings(self) -> int:
+        return self._manager.waiting_to_prepare() if self._manager is not None else 0
 
     def snapshot(self, *, include_logs=True) -> dict:
         with self.lock:
-            return {"id": self.id, "name": self.name, "status": self.status,
+            status = "finalizing" if self.status in _TERMINAL and not self.done.is_set() else self.status
+            return {"id": self.id, "name": self.name, "status": status,
                     "created_at": self.created_at, "finished_at": self.finished_at,
                     "run_id": self.run_dir.name if self.run_dir else None,
                     "results_root": str(self.prepared.layout.runs_dir),
@@ -91,20 +106,60 @@ class Job:
     def outcome(self, outcome) -> None:
         with self.lock:
             self.run_dir = Path(outcome.run_dir)
-            # Do not label successful execution until the runner has returned.
-            if outcome.status != "succeeded":
-                self.status = outcome.status
+            self.status = outcome.status
 
 
 class GuiRunner(DockerComposeRunner):
+    _startup_lock = threading.Lock()
+
     def __init__(self, prepared: PreparedAnalysis, job: Job):
         self.job = job
         super().__init__(prepared.layout, options=prepared.execution,
                          progress_callback=job.progressed, run_finished_callback=job.outcome)
 
+        self._admission = DesktopAdmission(self._transport.metadata, job.id)
+        self._step_scheduler = None
+
+    def _project_idle(self, job_id):
+        # Docker Compose labels scientific containers with our unique project.
+        # Exited containers no longer consume the running quota.
+        command = ["docker", "ps", "--all", "--quiet", "--filter",
+                   "label=com.docker.compose.project=nipat-" + job_id]
+        for status in ("created", "running", "restarting", "paused", "removing"):
+            command.extend(["--filter", "status=" + status])
+        environment = self._environment()
+        try:
+            result = subprocess.run(self._transport.command(command, environment), env=environment,
+                                    stdin=subprocess.DEVNULL, capture_output=True, check=True,
+                                    timeout=8, **background_process_options())
+        except (OSError, subprocess.SubprocessError) as exc:
+            message = ("Cannot confirm that the previous experiment has stopped. Check the runtime and retry."
+                       if self.job.prepared.language == "en" else
+                       "Impossibile verificare l’arresto dell’esperimento precedente. Controlla il runtime e riprova.")
+            raise RuntimeExecutionError(message) from exc
+        return not result.stdout.strip()
+
     def _cancel_point(self) -> None:
         if self.job.cancel_event.is_set():
             raise KeyboardInterrupt("Analisi annullata dall’utente.")
+
+    def _base_command(self):
+        # Compose project-scoped operations must never treat another run's
+        # scientific container as an orphan, even with custom Compose settings.
+        return [*super()._base_command(), "--project-name", "nipat-" + self.job.id]
+
+    def _ensure_backend(self) -> None:
+        if self.dry_run or self._backend_ready or self._transport.backend == "native":
+            return super()._ensure_backend()
+        # WSL and Lima startup helpers take bounded, exclusive runtime locks.
+        # Wait locally for other GUI startups; release before scientific work.
+        while not self._startup_lock.acquire(timeout=0.2):
+            self._cancel_point()
+        try:
+            self._cancel_point()
+            super()._ensure_backend()
+        finally:
+            self._startup_lock.release()
 
     def _write(self, text, *, terminal=True, log=True):
         self.job.log(text)
@@ -128,16 +183,74 @@ class GuiRunner(DockerComposeRunner):
         return result
 
     def _describe_bundled_engine(self):
+        self._step_scheduler = None
         self._cancel_point()
         self._preparation_progress("verifying-engine")
         result = super()._describe_bundled_engine()
         self._cancel_point()
+        if (self._bundled_workflow == "workflow-plan-all" and self._record is not None
+                and result.get("desktop_scheduling") == DesktopStepScheduler.interface):
+            data = self._record.data
+            assigned = data["concurrent_execution"]
+            if assigned["assigned_cpus"] is not None and assigned["assigned_memory_mib"] is not None:
+                directory = self._record.run_dir / "work" / "desktop-scheduling"
+                directory.mkdir()
+                self._step_scheduler = DesktopStepScheduler(
+                    self._admission, directory, data["resource_snapshot"], self.options,
+                    queued=self.job.queued_siblings, runtime_idle=self._project_idle,
+                )
+                assigned["step_scheduling"] = {"interface": DesktopStepScheduler.interface,
+                                               "grants": "work/desktop-scheduling/grants.jsonl"}
         return result
+
+    def _record_resource_snapshot(self):
+        super()._record_resource_snapshot()
+        if self.dry_run or self._record is None:
+            return
+        from nipat.resources import fixed_execution_budget
+
+        data = self._record.data
+        snapshot = data["resource_snapshot"]
+        capacity = fixed_execution_budget(snapshot)
+        cpu, memory = capacity["cpu_limit"], capacity["memory_capacity_mib"]
+        requested = self.options
+        waiting = False
+        while True:
+            self._cancel_point()
+            allocation = self._admission.try_admit(cpu, memory, requested, self._project_idle,
+                                                   queued=self.job.queued_siblings())
+            if allocation is not None:
+                break
+            if not waiting:
+                self._preparation_progress("waiting-for-resources")
+                waiting = True
+            self.job.cancel_event.wait(0.3)
+        self.job.admission_ready()
+        if allocation.participants > 1:
+            self.options = replace(requested, cpus=allocation.cpus, memory_mb=allocation.memory_mib)
+        data["concurrent_execution"] = {"participants_at_admission": allocation.participants,
+                                        "requested_options": requested.as_dict(),
+                                        "assigned_cpus": allocation.cpus,
+                                        "assigned_memory_mib": allocation.memory_mib,
+                                        "waited": waiting}
+        data["execution_options"] = self.options.as_dict()
+        snapshot["container"] = {"memory_mib": self.options.memory_mb, "cpus": self.options.cpus}
+        data["resource_budget"] = fixed_execution_budget(snapshot, self.options)
+        self._record.save()
 
     def _hash_progress(self, path, completed, total):
         self._cancel_point()
         self._preparation_progress("checking-inputs", completed, total)
         super()._hash_progress(path, completed, total)
+
+    def _finalize_status(self, record, status):
+        # The last input hash is still cancellable. Once a terminal result is
+        # chosen, reject later stop requests while its report is being written.
+        with self.job.lock:
+            if status in {"planned", "succeeded"}:
+                self._cancel_point()
+            super()._finalize_status(record, status)
+            self.job.status = "finalizing"
 
     @contextmanager
     def record_run(self, run_dir, *args, **kwargs):
@@ -150,20 +263,36 @@ class GuiRunner(DockerComposeRunner):
         with (Path(run_dir) / "gui.json").open("x", encoding="utf-8", newline="\n") as stream:
             json.dump(gui, stream, ensure_ascii=False, allow_nan=False, indent=2)
             stream.write("\n")
-        with super().record_run(run_dir, *args, **kwargs) as record:
+        registration = nullcontext() if self.dry_run else self._admission.registration()
+        with registration, super().record_run(run_dir, *args, **kwargs) as record:
             self._cancel_point()
+            self.job.prepared.assert_inputs_unchanged()
             yield record
             self._cancel_point()
 
     def run(self, *args, **kwargs):
         self._cancel_point()
+        observer = nullcontext()
+        if self._step_scheduler is not None:
+            def report_error(exc):
+                prefix = ("Desktop step scheduling interrupted" if self.job.prepared.language == "en"
+                          else "Coordinamento delle risorse tra i passi interrotto")
+                self._write(f"{prefix}: {exc}\n")
+            observer = self._step_scheduler.observing(report_error)
         try:
-            result = super().run(*args, **kwargs)
+            with observer:
+                result = super().run(*args, **kwargs)
         except Exception:
             # Stopping the positively identified container unblocks stdout. Keep
             # the same interrupted status as the CLI's KeyboardInterrupt path.
             self._cancel_point()
             raise
+        finally:
+            if self._record is not None and self._record.data.get("commands"):
+                stage = self._record.data["commands"][-1]
+                cleanup = stage.get("container_cleanup", {}).get("status")
+                if stage.get("started_at") and cleanup not in {"removed", "stopped", "absent"}:
+                    self._admission.unconfirmed_cleanup = True
         self._cancel_point()
         return result
 
@@ -175,6 +304,9 @@ class JobManager:
         self._workflows_factory = workflows_factory
         self._reconcile = reconcile
         self._jobs: dict[str, Job] = {}
+        self._pending: OrderedDict[str, Job] = OrderedDict()
+        self._preparing: set[str] = set()
+        self._finished: OrderedDict[str, None] = OrderedDict()
         self._lock = threading.RLock()
 
     def list(self, include_logs: bool = True) -> list[dict]:
@@ -210,23 +342,76 @@ class JobManager:
     def start(self, prepared: PreparedAnalysis) -> dict:
         prepared.assert_inputs_unchanged()
         with self._lock:
-            if self.active()["active"]:
-                raise ValidationError("È già in corso un’analisi. Attendere o annullarla prima di avviarne un’altra.")
             # Keep completed observations bounded; persisted run.json is the archive.
-            if len(self._jobs) >= 100:
-                oldest = next(iter(self._jobs))
-                del self._jobs[oldest]
-            job = Job(prepared)
+            while len(self._jobs) >= 100 and self._finished:
+                job_id, _ = self._finished.popitem(last=False)
+                del self._jobs[job_id]
+            job = Job(prepared, self)
+            job.status = "queued"
             self._jobs[job.id] = job
+            self._pending[job.id] = job
+            self._dispatch()
+        return job.snapshot()
+
+    def waiting_to_prepare(self) -> int:
+        with self._lock:
+            return len(self._pending)
+
+    def preparation_finished(self, job_id: str) -> None:
+        with self._lock:
+            self._preparing.discard(job_id)
+            self._dispatch()
+
+    def _dispatch(self) -> None:
+        # Only two supervisors at a time may hash inputs or wait for initial
+        # admission. Once admitted, a calculation frees its preparation slot.
+        # Scientific concurrency is governed separately by the runtime budget.
+        while self._pending and len(self._preparing) < 2:
+            job_id, job = self._pending.popitem(last=False)
             job.thread = threading.Thread(target=self._execute, args=(job,),
                                           name="nipat-analysis-" + job.id[:8], daemon=False)
-            job.thread.start()
-        return job.snapshot()
+            self._preparing.add(job_id)
+            try:
+                job.thread.start()
+            except RuntimeError as exc:
+                job.thread = None
+                self._preparing.discard(job_id)
+                if any(other.thread is not None and not other.done.is_set() for other in self._jobs.values()):
+                    self._pending[job_id] = job
+                    self._pending.move_to_end(job_id, last=False)
+                    return  # Retry on the next admission or completion.
+                with job.lock:
+                    job.status = "failed"
+                    job.error = str(exc)
+                    self._mark_finished(job)
+
+    def _mark_finished(self, job: Job) -> None:
+        # Called with both the manager and job locks held.
+        job.finished_at = _now()
+        self._finished[job.id] = None
+        job.done.set()
+
+    def finished_for(self, path: Path) -> str | None:
+        with self._lock:
+            return next((job.id for job in self._jobs.values()
+                         if job.done.is_set() and job.run_dir == path), None)
+
+    def discard(self, job_id: str) -> None:
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is not None:
+                if not job.done.is_set():
+                    raise ValidationError("Attendere la fine dell’esperimento prima di rimuovere la scheda.")
+                self._finished.pop(job_id, None)
+                del self._jobs[job_id]
 
     def _execute(self, job: Job) -> None:
         try:
             if job.cancel_event.is_set():
                 raise KeyboardInterrupt("Analisi annullata prima dell’avvio.")
+            with job.lock:
+                if not job.cancel_event.is_set():
+                    job.status = "starting"
             job.progressed(ProgressSnapshot(
                 status="starting", elapsed_seconds=time.monotonic() - job.started_monotonic,
                 phase="checking-inputs", sample_ids=()))
@@ -234,12 +419,14 @@ class JobManager:
             runner = self._runner_factory(job.prepared, job)
             with job.lock:
                 job.runner = runner
+                if job.cancel_event.is_set():
+                    raise KeyboardInterrupt("Analisi annullata prima dell’avvio.")
                 job.status = "running"
             workflows = self._workflows_factory(job.prepared.layout, runner,
                                                 job.prepared.scientific_settings)
             stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
             run_dir = workflows.analyze(caller=job.prepared.draft["caller"], analyses=[],
-                                        run_name=f"analisi-{stamp}-{job.id[:8]}",
+                                        run_name=f"analysis-{stamp}-{job.id[:8]}",
                                         **deepcopy(job.prepared.inputs))
             with job.lock:
                 job.run_dir = Path(run_dir)
@@ -256,16 +443,24 @@ class JobManager:
                 job.status = "failed"
                 job.error = str(exc) or type(exc).__name__
         finally:
-            with job.lock:
-                if job.runner is not None and job.runner.last_run_dir is not None:
-                    job.run_dir = job.runner.last_run_dir
-                job.finished_at = _now()
-            job.done.set()
+            with self._lock:
+                with job.lock:
+                    if job.runner is not None and job.runner.last_run_dir is not None:
+                        job.run_dir = job.runner.last_run_dir
+                    self._mark_finished(job)
+                self.preparation_finished(job.id)
 
     def cancel(self, job_id: str) -> dict:
-        job = self._get(job_id)
+        with self._lock:
+            job = self._get(job_id)
+            if self._pending.pop(job_id, None) is not None:
+                with job.lock:
+                    job.cancel_event.set()
+                    job.status = "interrupted"
+                    self._mark_finished(job)
+                return job.snapshot()
         with job.lock:
-            if job.status in _TERMINAL:
+            if job.status == "finalizing" or job.status in _TERMINAL:
                 return job.snapshot()
             if job.cancel_event.is_set():
                 return job.snapshot()

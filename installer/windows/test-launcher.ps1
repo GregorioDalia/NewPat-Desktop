@@ -104,9 +104,7 @@ function Invoke-TestLauncher([string] $Executable, [string[]] $Arguments = @(), 
             throw 'Launcher did not return within 20 seconds; possible unwanted pause.'
         }
         if ($BatchFile -and $process.ExitCode -eq 0) {
-            # GUI launch now detaches a windowed Python process. Wait for its
-            # atomic fixture record, rather than treating the bridge's exit as
-            # evidence that the child has already finished writing it.
+            # The launcher can exit before the detached GUI writes its record.
             $limit = [DateTime]::UtcNow.AddSeconds(10)
             while (-not (Test-Path -LiteralPath $script:CapturePath) -and [DateTime]::UtcNow -lt $limit) {
                 Start-Sleep -Milliseconds 20
@@ -142,8 +140,8 @@ try {
     $executable = Join-Path $app 'NIPAT.exe'
     Copy-Item -LiteralPath $source -Destination $executable
     $project = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $guidedCommand = Join-Path $app '2_AVVIA.cmd'
-    Copy-Item -LiteralPath (Join-Path $project '2_AVVIA.cmd') -Destination $guidedCommand
+    $guidedCommand = Join-Path $app '2_LAUNCH.cmd'
+    Copy-Item -LiteralPath (Join-Path $project '2_LAUNCH.cmd') -Destination $guidedCommand
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'launch.ps1') -Destination (Join-Path $app 'installer\windows\launch.ps1')
     $runner = Join-Path $app 'scripts\windows\run.ps1'
     @'
@@ -472,10 +470,10 @@ class FixturePython {
         $state | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $statePath -Encoding UTF8
         $result = Invoke-TestLauncher -Executable $executable -Environment $environment
         Assert-Test ($result.ExitCode -ne 0 -and -not (Test-Path -LiteralPath $script:CapturePath)) ("phase $phase does not authorize an analysis")
-        Assert-Test ($result.Output -match 'completa preparazione') 'incomplete installation directs the user to the setup shortcut'
+        Assert-Test ($result.Output -match 'Resume Setup') 'incomplete installation directs the user to the setup shortcut'
         $result = Invoke-TestLauncher -Executable $guidedCommand -BatchFile -Environment $environment
         Assert-Test ($result.ExitCode -ne 0 -and -not (Test-Path -LiteralPath $script:CapturePath)) ("guided command rejects phase $phase before Python")
-        Assert-Test ($result.Output -match 'completa preparazione') 'guided command preserves setup recovery guidance'
+        Assert-Test ($result.Output -match 'Resume Setup') 'guided command preserves setup recovery guidance'
     }
     $state.phase = 'ready'
     $state.source_commit = '1' * 40
@@ -500,7 +498,7 @@ class FixturePython {
     Remove-Item -LiteralPath $pythonPath
     $result = Invoke-TestLauncher -Executable $executable -Environment $environment
     Assert-Test ($result.ExitCode -ne 0 -and -not (Test-Path -LiteralPath $script:CapturePath)) 'missing packaged Python does not start analysis'
-    Assert-Test ($result.Output -match 'completa preparazione') 'missing packaged Python offers the setup shortcut'
+    Assert-Test ($result.Output -match 'Resume Setup') 'missing packaged Python offers the setup shortcut'
     Copy-Item -LiteralPath $fakePython -Destination $pythonPath
 
     # Setup dispatches installed packages to the WSL bootstrap and preserves a

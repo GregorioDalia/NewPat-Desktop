@@ -1,1 +1,1 @@
-"""Native desktop presentation layer for the existing NIPAT scientific engine."""
+"""NewPat desktop windows, local services and result views."""

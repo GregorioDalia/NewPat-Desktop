@@ -18,10 +18,10 @@ def built(tmp_path):
     stage, assets, output = tmp_path / "stage", tmp_path / "assets", tmp_path / "output"
     app = stage / "app"
     assets.mkdir()
-    manifest = {"version": "0.8.99", "source_commit": "a" * 40,
+    manifest = {"version": "0.9.10", "source_commit": "a" * 40,
                 "source_sha256": {}, "assets": {}}
-    content = {"2_AVVIA.cmd": b"echo launcher\n"}
-    content.update({name: (ROOT / name).read_bytes() for name in payload.zip_support.ROOT_FILES.values()})
+    content = {"2_LAUNCH.cmd": b"echo launcher\n"}
+    content.update({name: (ROOT / name).read_bytes() for name in payload.zip_support.root_files(manifest["version"]).values()})
     manifest["source_sha256"] = {name: hashlib.sha256(data).hexdigest() for name, data in content.items()}
     for role in ("rootfs", "scientific_image"):
         data = role.encode()
@@ -46,9 +46,9 @@ def test_payload_is_distinct_and_round_trips(built, tmp_path):
     destination = tmp_path / "NIPAT payload è & files"
     assert payload.verify(package, manifest, inventory, extract_to=destination) == record
     assert record["distribution"] == "windows-bootstrap-payload"
-    assert record["file"] == "NIPAT-0.8.99-Windows-payload.zip"
-    assert (destination / "app/2_AVVIA.cmd").read_bytes() == b"echo launcher\n"
-    assert not (destination / "1_INSTALLA.cmd").exists()
+    assert record["file"] == "NIPAT-0.9.10-Windows-payload.zip"
+    assert (destination / "app/2_LAUNCH.cmd").read_bytes() == b"echo launcher\n"
+    assert not (destination / "1_INSTALL.cmd").exists()
     assert (destination / "assets/rootfs.tar.gz").is_file()
 
 
@@ -63,7 +63,7 @@ def test_invalid_payload_never_creates_destination(built, tmp_path, change):
             data = source.read(info)
             target.writestr(info, data + b"changed" if change == "tampered" else data)
         if change in {"extra", "outer_zip_launcher", "traversal"}:
-            target.writestr({"extra": "app/unknown.exe", "outer_zip_launcher": "1_INSTALLA.cmd",
+            target.writestr({"extra": "app/unknown.exe", "outer_zip_launcher": "1_INSTALL.cmd",
                              "traversal": "../escape"}[change], b"unsafe")
     destination = tmp_path / "not-created"
     with pytest.raises(ValueError):

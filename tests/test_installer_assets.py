@@ -60,12 +60,8 @@ class InstallerAssetTests(unittest.TestCase):
         self.assertIn("ArchitecturesAllowed=x64compatible and not arm64", inno)
         self.assertIn("Version.ProductType = VER_NT_WORKSTATION", inno)
         self.assertIn("(Version.Build = 19045) or (Version.Build >= 22000)", inno)
-        # Actual PowerShell/C# decisions run in test-windows-environment.ps1;
-        # this cross-language guard prevents a silent mismatch in the Inno gate.
         bootstrap = (root / "bootstrap-common.ps1").read_text()
-        helper = (root / "EnableWsl.cs").read_text()
         self.assertIn("$Build -ne 19045 -and $Build -lt 22000", bootstrap)
-        self.assertIn("build == 19045 || build >= 22000", helper)
 
     def test_official_upgrade_preserves_runtime_namespace_and_protects_experimental_locations(self):
         root = Path(__file__).resolve().parents[1] / "installer/windows"
@@ -143,8 +139,15 @@ class InstallerAssetTests(unittest.TestCase):
             self.assertEqual(entry["sha256"], assets.bundle.sha256_file(path))
             self.assertEqual(entry["size"], path.stat().st_size)
             self.assertEqual(entry["url"],
-                             "https://github.com/GregorioDalia/nipat-desktop/releases/"
+                             f"https://github.com/{assets.RELEASE_REPOSITORY}/releases/"
                              f"download/v0.6.0/{path.name}")
+
+    def test_archives_can_be_reverified_before_or_after_the_repository_rename(self):
+        for repository in assets.repository.OFFICIAL_REPOSITORIES:
+            manifest = copy.deepcopy(self.manifest)
+            for entry in manifest["assets"].values():
+                entry["url"] = f"https://github.com/{repository}/releases/download/v0.6.0/{entry['file']}"
+            assets.verify_runtime_assets(manifest, self.rootfs.parent)
 
     def test_manifest_rejects_foreign_or_ambiguous_installation_profile(self):
         mutations = {

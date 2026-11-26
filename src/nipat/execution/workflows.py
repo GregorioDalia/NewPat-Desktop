@@ -779,17 +779,19 @@ class Workflows:
 
     def analyze(self, *, caller: str, analyses: list[str], run_name: str | None = None,
                 **inputs) -> Path:
-        """Any subset of Contamination, CPI and CPIN, independently for SNP/DNP."""
-        from nipat.execution.analysis_plan import build_analysis_plan
+        """Any subset of Contamination, prenatal CPI and postnatal CPI, independently for SNP/DNP."""
+        from nipat.execution.analysis_plan import build_analysis_plan, fetal_sex_metadata
         plan, mounts, input_files, mapping, branch_analyses = build_analysis_plan(
             layout=self.layout, caller=caller, analyses=analyses, **inputs)
         plan = self._validate_plan(plan)["plan"]
+        sex_tables = [item for item in mapping if "fetal_sex_role" in item]
         run_dir = self.layout.new_run_dir("analysis", run_name)
         with self._record_run(
             run_dir, workflow="analysis", inputs=input_files, mounts=mounts,
             bundled_workflow="workflow-plan-all", parameters={
                 "caller": caller, "analyses": analyses,
                 "analyses_by_marker": branch_analyses,
+                **({"fetal_sex": fetal_sex_metadata(sex_tables)} if sex_tables else {}),
                 "sample_mapping": mapping,
                 "expected_steps": _expected_steps(plan), "plan": plan},
         ):
@@ -802,12 +804,34 @@ class Workflows:
                 working_dir=self.layout.container_path(run_dir / "work"))
         return run_dir
 
+    def fetal_sex(self, *, autosomes: Path, x: Path, y: Path, run_name: str | None = None) -> Path:
+        """Analyze three region-specific calling tables from one maternal cfDNA sample."""
+        from nipat.execution.analysis_plan import bind_fetal_sex_tables, fetal_sex_metadata
+
+        mounts = InputMounts(self.layout)
+        mapping = bind_fetal_sex_tables(mounts, autosomes, x, y)
+        run_dir = self.layout.new_run_dir("fetal-sex", run_name)
+        with self._record_run(run_dir, workflow="fetal-sex", bundled_workflow="fetal-sex", mounts=mounts,
+                              inputs=[Path(item["original_path"]) for item in mapping],
+                              parameters={"fetal_sex": fetal_sex_metadata(mapping), "sample_mapping": mapping}):
+            request_file = run_dir / "work" / "engine-request.json"
+            self._write_request(request_file, {
+                "schema_version": 1, "workflow": "fetal-sex",
+                **{item["fetal_sex_role"]: item["container_path"] for item in mapping},
+                "work_dir": str(self.layout.container_path(run_dir / "work")),
+                "out_dir": str(self.layout.container_path(run_dir / "output")),
+            })
+            self.runner.run(["python3", "/opt/nipat/engine/main.py", "execute", "fetal-sex",
+                             "--request", self.layout.container_path(request_file)],
+                            working_dir=self.layout.container_path(run_dir / "work"))
+        return run_dir
+
     def cpin(self, *, input_dir: Path, trios: str, mother_prefix: str = "Mother",
              father_prefix: str = "Father", child_prefix: str = "Child",
              popfreq: Path, panel: Path | None = None, run_name: str | None = None) -> Path:
         from nipat_scientific.cpin import normalize_trios
-        input_dir = require_directory(input_dir, "Directory input CPIN")
-        popfreq = require_file(popfreq, "Frequenze di popolazione CPIN")
+        input_dir = require_directory(input_dir, "Directory input CPI postnatale")
+        popfreq = require_file(popfreq, "Frequenze di popolazione CPI postnatale")
         marker_type = detect_marker_type(popfreq)
         require_population_frequencies(popfreq, marker_type)
         trios, names = normalize_trios(trios, mother_prefix, father_prefix, child_prefix)
@@ -815,20 +839,20 @@ class Workflows:
         frequency_target = mounts.bind_file(popfreq, target=INPUT_ROOT / "population.tsv")
         input_files, samples, mapping = [popfreq], [], []
         for number, name in enumerate(names, 1):
-            source = require_file(input_dir / name, "Tabella campione CPIN")
+            source = require_file(input_dir / name, "Tabella campione CPI postnatale")
             require_count_input(source, marker_type)
             if any(source.samefile(previous) for previous in input_files[1:]):
-                raise ValidationError("La stessa tabella fisica non puo' rappresentare campioni CPIN distinti.")
+                raise ValidationError("La stessa tabella fisica non puo' rappresentare campioni CPI postnatale distinti.")
             target = mounts.bind_file(source, target=INPUT_ROOT / "cpin" / f"sample_{number:04d}.txt")
             input_files.append(source)
             samples.append({"path": str(target), "name": name})
             mapping.append({"sample_id": Path(name).stem, "original_path": str(source), "container_path": str(target)})
         marker_target = None
         if panel is not None:
-            panel = require_file(panel, "Pannello CPIN")
+            panel = require_file(panel, "Pannello CPI postnatale")
             records = read_position_panel(panel, marker_type)
             if any(not record.reference or not record.alternative for record in records):
-                raise ValidationError("Il pannello CPIN richiede anche gli alleli REF e ALT.")
+                raise ValidationError("Il pannello CPI postnatale richiede anche gli alleli REF e ALT.")
             input_files.append(panel)
             marker_target = mounts.bind_file(panel, target=INPUT_ROOT / "cpin-markers.tsv")
         run_dir = self.layout.new_run_dir("cpin", run_name)

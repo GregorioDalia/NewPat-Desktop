@@ -68,12 +68,12 @@ threshold.
 
 ## Downstream models
 
-`verify_five_modules.py` complements the caller gate with CPI, CPIN and
+`verify_five_modules.py` complements the caller gate with prenatal CPI, postnatal CPI and
 Contamination from both SNP and DNP count tables. Frozen original scripts from
-NEWPAT commit `9c2a8be60afcb944153710da6a61cd0559e2b4cf` are pinned separately
-under `tests/reference_r/NEWPAT_20261113`. Independent hand-derived fixtures
-verify counts, missing values, mismatch constants, full CPI curves, compact
-CPIN threshold intervals, the contamination denominator, optional zero
+NEWPAT commit `c753afc4be62dfc0b81b8cb683a6e850516f5ffd` are pinned separately
+under `tests/reference_r/NEWPAT_20261126`. Independent hand-derived fixtures
+verify counts, missing values, mismatch constants, prenatal CPI curves, the single postnatal
+trio result and its site-level contributions, the contamination denominator, optional zero
 inclusion, minimum support and unused NA metadata.
 
 The full matrix also checks 2/3/5 prenatal pairs, postnatal trios and

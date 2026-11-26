@@ -2,6 +2,7 @@
 from __future__ import annotations
 from contextlib import contextmanager
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -59,10 +60,11 @@ def main():
     threading.Thread(target=read_end, name="NIPAT-preparation-control", daemon=True).start()
     with tempfile.TemporaryDirectory(prefix="nipat-startup-") as directory:
         assets = Path(directory)
+        shutil.copyfile(Path(__file__).with_name("web") / "newpat-wordmark.svg", assets / "newpat-wordmark.svg")
         content = """<!doctype html><html lang="it"><meta charset="utf-8"><title>NewPat</title><style>
-        body{font:17px/1.6 'Segoe UI',sans-serif;background:#f6f6f2;color:#263431;margin:0;display:grid;place-items:center;height:100vh}
-        main{max-width:680px;padding:50px}h1{font-size:28px;font-weight:500}progress{width:100%;accent-color:#456c63;margin-top:24px}
-        small{color:#56645f} </style><main><h1>""" + html.escape(title) + "</h1><p>" + html.escape(message) + "</p><progress aria-label=\"Preparazione\"></progress><p><small>Il primo avvio può richiedere alcuni minuti. Il calcolo dei campioni non è ancora iniziato.</small></p></main></html>"
+        body{font:15px/1.55 -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:#f6f7f8;color:#26342f;margin:0;display:grid;place-items:center;height:100vh}
+        main{max-width:680px;padding:32px}h1{font-size:28px;font-weight:600}progress{width:100%;accent-color:#2f6b5b;margin-top:24px}
+        small{color:#64706b} </style><main><img src="newpat-wordmark.svg" alt="NewPat" width="142" height="33"><h1>""" + html.escape(title) + "</h1><p>" + html.escape(message) + "</p><progress aria-label=\"Preparazione\"></progress><p><small>Il primo avvio può richiedere alcuni minuti. Il calcolo dei campioni non è ancora iniziato.</small></p></main></html>"
         (assets / "index.html").write_text(content, encoding="utf-8")
         with DesktopServer(lambda *_: None, assets=assets) as server:
             if finished.is_set():

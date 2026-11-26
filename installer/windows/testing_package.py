@@ -6,10 +6,20 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import sys
 import zipfile
 
-SOURCES = {"INSTALLA-NewPat-TESTING.cmd": "testing-install.cmd",
-           "install-testing.ps1": "install-testing.ps1", "LEGGIMI.txt": "testing-readme.txt"}
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
+from nipat.branding import windows_complete_filename, windows_package_generation, windows_testing_filename
+
+
+def sources(version):
+    if windows_package_generation(version) == 1:
+        return {"INSTALLA-NewPat-TESTING.cmd": "testing-install.cmd", "LEGGIMI.txt": "testing-readme.txt",
+                "install-testing.ps1": "install-testing.ps1"}
+    return {"INSTALL-NewPat-Testing.cmd": "testing-install.cmd", "README.txt": "testing-readme.txt",
+            "install-testing.ps1": "install-testing.ps1", "install-profile.ps1": "install-profile.ps1",
+            "install-layout.ps1": "install-layout.ps1"}
 
 
 def digest(path):
@@ -20,7 +30,7 @@ def digest(path):
 def filename(version):
     if not re.fullmatch(r"0\.9\.[0-9]+(?:(?:a|b|rc)[0-9]+)?", version):
         raise ValueError("Testing entrypoints require a 0.9 release")
-    return f"NIPAT-{version}-Testing-installazione.zip"
+    return windows_testing_filename(version)
 
 
 def metadata(output, manifest):
@@ -30,7 +40,7 @@ def metadata(output, manifest):
         raise ValueError("Invalid testing source commit")
     value = {"schema_version": 1, "channel": "testing", "version": version,
              "source_commit": manifest["source_commit"]}
-    for role, name in {"complete_zip": f"NIPAT-{version}-Windows-completo.zip",
+    for role, name in {"complete_zip": windows_complete_filename(version),
                        "payload": f"NIPAT-{version}-Windows-payload.zip",
                        "setup": "NIPAT-Setup.exe"}.items():
         path = output / name
@@ -39,7 +49,7 @@ def metadata(output, manifest):
 
 
 def expected_contents(source, output, manifest):
-    result = {name: (source / relative).read_bytes() for name, relative in SOURCES.items()}
+    result = {name: (source / relative).read_bytes() for name, relative in sources(manifest["version"]).items()}
     result["testing-release.json"] = (json.dumps(metadata(output, manifest), indent=2) + "\n").encode()
     return result
 

@@ -554,6 +554,7 @@ runpy.run_path(str(script), run_name="__main__")
             ('verify_cpi_update.py', '--run-name'),
             ('verify_contamination_update.py', '--run-name'),
             ('verify_cpin_update.py', '--run-name'),
+            ('verify_fetal_sex_update.py', '--run-name'),
             ('verify_input_modes.py', '--fixture-parent'),
         )
         with tempfile.TemporaryDirectory() as directory:

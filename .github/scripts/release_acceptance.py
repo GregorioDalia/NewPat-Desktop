@@ -13,6 +13,8 @@ import subprocess
 import zipfile
 from urllib.parse import urlsplit
 
+import native_evidence
+
 SCENARIOS = {
     "windows_clean_wsl", "windows_stable_coexistence", "windows_reinstall_removal",
     "ubuntu_clean_dependencies", "ubuntu_existing_docker", "ubuntu_reinstall_removal",
@@ -40,6 +42,14 @@ ANALYSIS_REFERENCE_SHA256 = {
     "CPI_from_cffDNA/cfDNA_CPI_estimator.R": "8c8062b6110af7d957f152bb26539d72b22d7d90a26ebe251b27679c573d14f6",
     "contamination/detect_contamination.R": "e82a71b90dfc73982b350b719bcbeedbb20502b353a9d735c590dc14635d6d1d",
 }
+CPI_REFERENCE_COMMIT = "c753afc4be62dfc0b81b8cb683a6e850516f5ffd"
+CPI_REFERENCE_ROOT = "tests/reference_r/NEWPAT_20261126"
+CPI_REFERENCE_SHA256 = {
+    "CPI_postnatal/Postnatal_CPI.R": "611fd93c4606298e97174c5c7b55f9a34445b95389537c994b7f41ffa43a05e6",
+    "CPI_from_cffDNA/cfDNA_CPI_estimator.R": "b05e2889dbbca00777af1e0b24439f0e211c5c71edf309375c3d7e2e40c7be63",
+    "contamination/detect_contamination.R": "afbbf20b937dfef356d0046e18ffff3d6746113ae771dd87745369b3e64081ca"
+}
+FETAL_SEX_SOURCE = "scientific/vendor/NEWPAT/Fetal_sex/Fetal_sex.R"
 CPIN_SOURCE = "scientific/vendor/NEWPAT/CPI_postnatal/Postnatal_CPI.R"
 ANALYSIS_HELPERS = ("__init__.py", "errors.py", "settings.py", "settings.R", "settings_data.json", "parallel.R", "plots.R")
 CALLER_SUPPORTING_SOURCES = tuple("src/nipat_scientific/" + name for name in (
@@ -106,10 +116,16 @@ BASELINE_OBSERVATIONS = {
 }
 WORKFLOW_BASELINE_OBSERVATIONS = BASELINE_OBSERVATIONS | {"automatic_workflow_sample_analysis"}
 REVIEWABLE_CLIENT_PREFIXES = ("src/nipat/", "installer/windows/", "installer/linux/", "scripts/", "tests/")
-REVIEWABLE_CLIENT_FILES = {"pyproject.toml", "1_SETUP.cmd", "2_AVVIA.cmd", "nipat.cmd"}
+REVIEWABLE_CLIENT_FILES = {"pyproject.toml", "1_SETUP.cmd", "nipat.cmd"}
 NEWPAT_BRANDING_FILES = {
     "assets/branding/build_assets.py", "assets/branding/nipat-logo-dark.svg",
     "assets/branding/nipat-logo.svg", "assets/branding/nipat-symbol.svg", "newpat.cmd",
+}
+SYNTHETIC_TRIO_FILES = {"examples/newpat-synthetic-trio.zip", "examples/newpat-synthetic-trio.zip.sha256"}
+INTRECCIO_BRANDING_FILES = {
+    "assets/branding/newpat-app-icon.svg", "assets/branding/newpat-app-icon-small.svg",
+    "assets/branding/nipat-icon.ico", "assets/branding/nipat-icon.png",
+    "assets/branding/newpat-icon-small.png",
 }
 REVIEWABLE_OPERATIVE_PREFIXES = (
     "src/", "engine/", "installer/", "scripts/", "tests/", "docker/", "config/",
@@ -178,6 +194,17 @@ def audited_r_contract(version):
 def snp2_contract(version):
     match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:(?:a|b|rc)[0-9]+)?", version or "")
     return bool(match and tuple(map(int, match.groups())) >= (0, 8, 30))
+
+
+def revised_cpi_contract(version):
+    match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:(?:a|b|rc)\d+)?", version or "")
+    return bool(match and tuple(map(int, match.groups())) >= (0, 9, 10))
+
+
+def downstream_reference(version):
+    if revised_cpi_contract(version):
+        return CPI_REFERENCE_COMMIT, CPI_REFERENCE_ROOT, CPI_REFERENCE_SHA256
+    return ANALYSIS_REFERENCE_COMMIT, ANALYSIS_REFERENCE_ROOT, ANALYSIS_REFERENCE_SHA256
 
 
 def five_module_contract(version):
@@ -273,17 +300,28 @@ def verify_multibam_variants(case):
                     "Multi-BAM deterministic repeat is missing")
 
 
-def reviewable_path(path, *, reliability=False, multiplatform=False, revised_r=False, version=None):
-    # The 0.9.5 rename reviews only these distributed branding inputs. Their
-    # exact before/after hashes remain mandatory; other assets stay protected.
-    if revised_r and path in NEWPAT_BRANDING_FILES:
+def reviewable_path(path, *, reliability=False, multiplatform=False, revised_r=False, version=None,
+                    removed=False):
+    if path in {"2_AVVIA.cmd", "2_LAUNCH.cmd"}:
+        match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:(?:a|b|rc)\d+)?", version or "")
+        english_launcher = match and tuple(map(int, match.groups())) >= (0, 9, 10)
+        if path == "2_AVVIA.cmd":
+            return not english_launcher or removed
+        return bool(english_launcher)
+    # Permit the listed artwork, examples and scheduling report from their introduction; exact before/after
+    # hashes still belong to the reviewed source delta.
+    if revised_r and path in (NEWPAT_BRANDING_FILES | INTRECCIO_BRANDING_FILES | SYNTHETIC_TRIO_FILES
+                              | {"docs/validation/0.9.10-desktop-scheduling.json"}):
         match = re.fullmatch(r"([0-9]+)\.([0-9]+)\.([0-9]+)(?:(?:a|b|rc)[0-9]+)?", version or "")
-        if match and tuple(map(int, match.groups())) >= (0, 9, 5):
+        minimum = (0, 9, 5) if path in NEWPAT_BRANDING_FILES else (0, 9, 10)
+        if match and tuple(map(int, match.groups())) >= minimum:
             return True
     # This known development report is distributed as readable provenance. It
     # does not qualify the image; schema 7 still requires fresh installed-image
-    # evidence. Keep every other non-Markdown document outside the exception.
+    # evidence. Other reports require their own version-scoped exception.
     if revised_r and five_module_contract(version) and path == "docs/validation/0.8.50-development.json":
+        return True
+    if revised_r and revised_cpi_contract(version) and path == FETAL_SEX_SOURCE:
         return True
     if revised_r and five_module_contract(version) and path == CPIN_SOURCE:
         return True
@@ -375,7 +413,7 @@ def template(installer_set, run_id):
             record["schema_version"] = 7
             record["observed_baseline"]["source_comparison_scope"] = FIVE_MODULE_SOURCE_SCOPE
             record["scientific_analysis_qualification"] = {
-                "reference_source_commit": ANALYSIS_REFERENCE_COMMIT,
+                "reference_source_commit": downstream_reference(fields["version"])[0],
                 "report_path": "", "report_sha256": "", "runtime_image": "",
             }
         if explicit_publication_contract(fields["version"]):
@@ -553,7 +591,7 @@ def validate_research(record, version, commit, run_id, installer_set=None):
     if revised_r:
         validate_scientific_record(record["scientific_equivalence"])
     if five_modules:
-        validate_analysis_record(record["scientific_analysis_qualification"])
+        validate_analysis_record(record["scientific_analysis_qualification"], version)
         require(record["scientific_equivalence"]["runtime_image"] ==
                 record["scientific_analysis_qualification"]["runtime_image"],
                 "All five modules must be qualified in the same packaged image")
@@ -570,7 +608,7 @@ def validate_research(record, version, commit, run_id, installer_set=None):
                     and "\\" not in path and not any(character.isspace() for character in path)
                     and PurePosixPath(path).suffix.casefold() != ".md"
                     and reviewable_path(path, reliability=reliability, multiplatform=multiplatform,
-                                        revised_r=revised_r, version=version),
+                                        revised_r=revised_r, version=version, removed=item["after_sha256"] is None),
                     ("Only known scientific scripts and explicit operative sources can be reviewed" if revised_r
                      else "Only operative source changes outside protected vendored R can be reviewed" if multiplatform
                      else "Only explicit non-R operative source changes can be reviewed" if reliability
@@ -618,12 +656,12 @@ def validate_scientific_record(evidence):
             "Scientific equivalence requires an immutable runtime image ID")
 
 
-def validate_analysis_record(evidence):
+def validate_analysis_record(evidence, version):
     require(isinstance(evidence, dict) and set(evidence) == {
         "reference_source_commit", "report_path", "report_sha256", "runtime_image",
     }, "Invalid downstream scientific qualification record fields")
-    require(evidence["reference_source_commit"] == ANALYSIS_REFERENCE_COMMIT,
-            "Updated analyses require the frozen NEWPAT 20261113 reference")
+    require(evidence["reference_source_commit"] == downstream_reference(version)[0],
+            "Downstream analyses require the frozen NEWPAT reference for this release")
     require(safe_evidence_path(evidence["report_path"])
             and evidence["report_path"].startswith("scientific/")
             and PurePosixPath(evidence["report_path"]).name == "five-module-qualification.json",
@@ -693,7 +731,7 @@ def compare_analysis_rows(actual, expected):
                         "Downstream scientific numerical results differ")
 
 
-def verify_analysis_summary(archive, report_path, case):
+def verify_analysis_summary(archive, report_path, case, revised_cpi):
     workflow, marker, size = case["workflow"], case["marker"], case["batch_size"]
     filename = {"cpin": "Summary_Postnatal_CPI.txt", "cpi": "Summary_FetalFraction_CPI.csv",
                 "contamination": "contamination_summary.txt"}[workflow]
@@ -721,15 +759,32 @@ def verify_analysis_summary(archive, report_path, case):
                 "Mean_logCPI", "CPI_medianFF", "Error_constant"},
         "contamination": {"individuo", "informative_sites", "mean_contamination", "sd_contamination"},
     }[workflow]
+    if revised_cpi and workflow == "cpin":
+        required_columns = {
+            "Trio", "Marker_type", "N_sites", "N_hom_hom", "N_hom_het", "N_het_hom", "N_het_het",
+            "Matching_sites", "Mismatching_sites", "No_obligatory_allele_sites", "Maternal_incompatible_sites",
+            "Log10_CPI", "CPI", "Mismatch_probability", "Min_coverage",
+            "Include_hom_hom", "Include_hom_het", "Include_het_hom", "Include_het_het",
+        }
+    if revised_cpi and workflow == "cpi":
+        required_columns |= {"Min_fetal_reads", "Min_fetal_percent", "Include_homozygous_child", "Min_coverage",
+                             "Max_other_fraction", "N_sites_HET_child", "N_sites_HOM_child", "Matching_HET_child",
+                             "Mismatching_HET_child", "Matching_HOM_child", "Mismatching_HOM_child",
+                             "Log10_CPI_HET_child", "Log10_CPI_HOM_child"}
     require(all(required_columns <= set(row) for row in rows), "Downstream scientific summary columns are incomplete")
     if workflow == "cpin":
         selections = {"heterozygous_child_sites", "all_compatible_sites"}
         trios = ([f"MotherM-FatherF-ChildC_{marker}s"] if size == 1 else
                  [f"MotherM{i}-FatherF{i}-ChildC{i}_{marker}s" for i in range(1, size + 1)])
-        identities = {(row.get("Trio"), row.get("Analysis")) for row in rows}
-        require(len(rows) == 2 * size and identities == {(trio, selection) for trio in trios for selection in selections}
-                and all(row.get("Marker_type") == marker for row in rows),
-                "CPIN summary must contain each expected trio and selection exactly once")
+        if revised_cpi:
+            require(len(rows) == size and {row.get("Trio") for row in rows} == set(trios)
+                    and all(row.get("Marker_type") == marker for row in rows),
+                    "Postnatal summary must contain one row per expected trio")
+        else:
+            identities = {(row.get("Trio"), row.get("Analysis")) for row in rows}
+            require(len(rows) == 2 * size and identities == {(trio, selection) for trio in trios for selection in selections}
+                    and all(row.get("Marker_type") == marker for row in rows),
+                    "CPIN summary must contain each expected trio and selection exactly once")
     elif workflow == "cpi":
         pairs = ([f"MotherM-FatherF_{marker}s", f"MotherN-FatherN_{marker}s"] if size == 1 else
                  [f"MotherM{i}-FatherF{i}_{marker}s" for i in range(1, size + 1)])
@@ -743,7 +798,10 @@ def verify_analysis_summary(archive, report_path, case):
 def verify_analysis_qualification(record, evidence_directory, read_source):
     """Validate updated models separately; never relabel changed science as old equivalence."""
     evidence = record["scientific_analysis_qualification"]
-    validate_analysis_record(evidence)
+    version = record["version"]
+    validate_analysis_record(evidence, version)
+    reference_commit, reference_root, source_hashes = downstream_reference(version)
+    revised_cpi = revised_cpi_contract(version)
     archive = Path(evidence_directory) / "qualification-evidence.zip"
     require(archive.is_file() and not archive.is_symlink()
             and hashlib.sha256(archive.read_bytes()).hexdigest() == record["qualification_evidence_sha256"],
@@ -784,7 +842,7 @@ def verify_analysis_qualification(record, evidence_directory, read_source):
             and runtime.get("image_id") == evidence["runtime_image"],
             "Local R evidence cannot qualify the packaged scientific image")
     installed = {"scientific/vendor/NEWPAT/" + name: "scientific/vendor/NEWPAT/" + name
-                 for name in ANALYSIS_REFERENCE_SHA256}
+                 for name in source_hashes}
     installed.update({"lib/nipat_scientific/" + name: "src/nipat_scientific/" + name
                       for name in ANALYSIS_HELPERS})
     require(runtime.get("candidate_and_helper_sha256") == {
@@ -795,12 +853,12 @@ def verify_analysis_qualification(record, evidence_directory, read_source):
             hashlib.sha256(source("scripts/verify_five_modules.py")).hexdigest(),
             "Downstream qualification used a different verifier")
     reference = {"repository": "https://github.com/lpistacchia/NEWPAT",
-                 "upstream_commit": ANALYSIS_REFERENCE_COMMIT, "sha256": ANALYSIS_REFERENCE_SHA256}
+                 "upstream_commit": reference_commit, "sha256": source_hashes}
     require(report.get("upstream_reference") == reference
-            and json.loads(source(ANALYSIS_REFERENCE_ROOT + "/manifest.json")) == reference,
+            and json.loads(source(reference_root + "/manifest.json")) == reference,
             "Downstream qualification uses a different immutable upstream reference")
-    for path, digest in ANALYSIS_REFERENCE_SHA256.items():
-        require(hashlib.sha256(source(ANALYSIS_REFERENCE_ROOT + "/" + path)).hexdigest() == digest,
+    for path, digest in source_hashes.items():
+        require(hashlib.sha256(source(reference_root + "/" + path)).hexdigest() == digest,
                 "Frozen downstream reference bytes were modified")
     fixtures = report.get("fixture_sha256")
     hashes(fixtures, "fixture")
@@ -833,14 +891,18 @@ def verify_analysis_qualification(record, evidence_directory, read_source):
         for field in ("input_sha256", "output_sha256", "log_sha256"):
             hashes(case.get(field), field)
         require(valid_digest(case.get("summary_sha256")), "Missing downstream summary digest")
-        verify_analysis_summary(archive, evidence["report_path"], case)
+        verify_analysis_summary(archive, evidence["report_path"], case, revised_cpi)
         if not candidate:
             require(case.get("worker_evidence") is None and case.get("scientific_settings") is None,
                     "The independent reference cannot use candidate settings or worker helpers")
             continue
         parameters = {key: value["default"] for key, value in registry[workflow]["parameters"].items()}
-        parameters[{"cpin": "min_child_reads", "cpi": "min_fetal_reads", "contamination": "include_zero"}[workflow]] = (
-            variant["include_zero"] if workflow == "contamination" else variant["minimum"])
+        if workflow == "cpi":
+            parameters["min_fetal_reads"] = variant["minimum"]
+        elif workflow == "contamination":
+            parameters["include_zero"] = variant["include_zero"]
+        elif not revised_cpi:
+            parameters["min_child_reads"] = variant["minimum"]
         settings = {"schema_version": 1, "workflow": workflow, "parameters": parameters,
                     "constants": registry[workflow]["constants"]}
         require(case.get("settings_match") is True and same_scientific_values(case.get("scientific_settings"), settings),
@@ -911,13 +973,54 @@ def verify_analysis_qualification(record, evidence_directory, read_source):
                     compare_analysis_rows(by_name[f"{prefix}-auto-cap{cap}"]["rows"],
                                           by_name[f"{prefix}-serial-capNone"]["rows"])
     return {"report_sha256": evidence["report_sha256"], "runtime_image": evidence["runtime_image"],
-            "reference_source_commit": ANALYSIS_REFERENCE_COMMIT,
+            "reference_source_commit": reference_commit,
             "executions_verified": len(results), "reference_comparisons_verified": len(comparisons),
             "batch_executions_verified": sum("-batch" in name for name in expected),
             "scope": "synthetic-independent-oracles-and-upstream-models", "domain_validation_claimed": False}
 
 
-def verify_caller_parallel_qualification(archive, image):
+def verify_fetal_sex_examples(report, source):
+    """Compare the two source-free client results with the exact candidate's reference tables."""
+    examples = report.get("fetal_sex_examples")
+    cases = {"Female_fetus": "F", "Male_fetus": "M"}
+    require(isinstance(examples, dict) and set(examples) == set(cases),
+            "Both source-free fetal-sex examples must be present")
+    root = "tests/fixtures/fetal_sex"
+    outputs = ("Fetal_sex_summary.txt", "Autosomal_informative_sites.txt", "X_informative_sites.txt", "Y_sites.txt")
+    for name, sex in cases.items():
+        case = examples[name]
+        require(isinstance(case, dict) and case.get("sample") == name + "_autosomes" and case.get("call") == sex,
+                "Fetal-sex example has the wrong call or maternal sample")
+        names = [f"{name}_{suffix}.txt" for suffix in ("autosomes", "X", "Y")]
+        for field, directory, required in (("input_sha256", f"{root}/inputs", names),
+                                           ("output_sha256", f"{root}/outputs/{name}", outputs)):
+            require(case.get(field) == {filename: hashlib.sha256(source(f"{directory}/{filename}")).hexdigest()
+                                        for filename in required},
+                    f"Fetal-sex example {name} {field} differs from the Git fixture")
+
+
+def verify_prenatal_examples(report, source):
+    examples = report.get("prenatal_examples")
+    require(isinstance(examples, dict) and set(examples) == {"DNP", "SNP"},
+            "Both published prenatal examples must be present")
+    for marker, tables in examples.items():
+        prefix = f"MotherA1-FatherA1_{marker}s"
+        names = {"Summary_FetalFraction_CPI.csv", f"{prefix}_CPI_iterations.csv", f"{prefix}_HOM_child_sites.txt"}
+        require(isinstance(tables, dict) and names == set(tables), "Missing prenatal example tables")
+        for name in names:
+            actual = tables[name]
+            require(isinstance(actual, str) and actual, "Empty prenatal example evidence")
+            expected = source(f"tests/fixtures/prenatal_cpi/outputs/{marker}/{name}").decode("utf-8")
+            separator = "," if name.endswith(".csv") else "\t"
+            wanted = csv.DictReader(io.StringIO(expected), delimiter=separator)
+            result = csv.DictReader(io.StringIO(actual), delimiter=separator)
+            observed_fields = result.fieldnames or []
+            require(set(wanted.fieldnames) <= set(observed_fields) and len(set(observed_fields)) == len(observed_fields),
+                    "Missing or duplicate prenatal example columns")
+            compare_analysis_rows(list(result), list(wanted))
+
+
+def verify_caller_parallel_qualification(archive, image, *, version, source):
     """Recheck the exact-image acquisition and composed SNP proofs from 0.9.9."""
     filename = "caller-parallel-qualification.json"
     with zipfile.ZipFile(archive) as handle:
@@ -976,7 +1079,13 @@ def verify_caller_parallel_qualification(archive, image):
                 and all(isinstance(worker, dict) and worker.get("maximum_planned_workers") == 1
                         and worker.get("observed_child_pids") == [] for worker in inner.values()),
                 "SNP workflow multiplied its shared parallel budget inside a sample")
-    return {"acquisitions_verified": sorted(acquisitions),
+    fetal_sex_checked = revised_cpi_contract(version)
+    if fetal_sex_checked:
+        verify_fetal_sex_examples(report, source)
+        verify_prenatal_examples(report, source)
+    return {**({"fetal_sex_examples_verified": sorted(report["fetal_sex_examples"]),
+                "prenatal_examples_verified": sorted(report["prenatal_examples"])} if fetal_sex_checked else {}),
+            "acquisitions_verified": sorted(acquisitions),
             "workflow_identical_tables": workflow["identical_scientific_tables"]}
 
 
@@ -998,12 +1107,23 @@ def verify_scientific_equivalence(record, evidence_directory, manifest, read_sou
     require(archive.is_file() and not archive.is_symlink()
             and hashlib.sha256(archive.read_bytes()).hexdigest() == record["qualification_evidence_sha256"],
             "Scientific qualification archive differs from the accepted build")
+    commit = record["source_commit"]
+    native = None
     try:
         with zipfile.ZipFile(archive) as handle:
             matching = [entry for entry in handle.infolist() if entry.filename == evidence["report_path"]]
             require(len(matching) == 1 and 0 < matching[0].file_size <= 8 * 1024 * 1024,
                     "Missing, duplicate or oversized scientific equivalence report")
             raw = handle.read(matching[0])
+            if revised_cpi_contract(record["version"]):
+                members = [entry for entry in handle.infolist() if entry.filename.startswith("scientific/")
+                           and entry.filename.endswith("/" + native_evidence.REPORT_PATH)]
+                require(len(members) == 1 and 0 < members[0].file_size <= 8 * 1024 * 1024,
+                        "Missing, duplicate or oversized native R qualification report")
+                native_raw = handle.read(members[0])
+                native = native_evidence.verify_report(
+                    native_raw, commit, read_source=lambda path: read_source(commit, path))
+                native["report_sha256"] = hashlib.sha256(native_raw).hexdigest()
     except (OSError, zipfile.BadZipFile, KeyError) as error:
         raise ValueError("Cannot read retained scientific equivalence report") from error
     require(hashlib.sha256(raw).hexdigest() == evidence["report_sha256"],
@@ -1036,7 +1156,6 @@ def verify_scientific_equivalence(record, evidence_directory, manifest, read_sou
         require(isinstance(data, bytes), "Scientific equivalence requires exact source bytes")
         return data
 
-    commit = record["source_commit"]
     reference = report.get("reference")
     require(isinstance(reference, dict) and set(reference) == {
         "schema_version", "version", "source_commit", "source_tag", "files",
@@ -1082,6 +1201,8 @@ def verify_scientific_equivalence(record, evidence_directory, manifest, read_sou
     candidate_hashes = {path: hashlib.sha256(source(commit, path)).hexdigest() for path in workflows}
     all_hashes = {path: hashlib.sha256(source(commit, path)).hexdigest()
                   for path in set(R_WORKFLOWS) | ({CPIN_SOURCE} if five_modules else set())}
+    if revised_cpi_contract(record["version"]):
+        all_hashes[FETAL_SEX_SOURCE] = hashlib.sha256(source(commit, FETAL_SEX_SOURCE)).hexdigest()
     require(report.get("candidate_r_sha256") == candidate_hashes,
             "Scientific equivalence was performed on different candidate R sources")
     try:
@@ -1163,9 +1284,11 @@ def verify_scientific_equivalence(record, evidence_directory, manifest, read_sou
                 hashlib.sha256(source(commit, helper["path"])).hexdigest(),
                 "Scientific focused comparison failed or used different test sources")
     analysis = verify_analysis_qualification(record, evidence_directory, read_source) if five_modules else None
-    callers = (verify_caller_parallel_qualification(archive, evidence["runtime_image"])
+    callers = (verify_caller_parallel_qualification(archive, evidence["runtime_image"],
+                                                   version=record["version"], source=lambda path: source(commit, path))
                if measured_sample_contract(record["version"]) else None)
     return {"source_commit": commit, "reference_source_commit": R_REFERENCE_COMMIT,
+            **({"native_r_qualification": native} if native is not None else {}),
             **({"scientific_analysis_qualification": analysis} if analysis else {}),
             **({"caller_parallel_qualification": callers} if callers else {}),
             **({"snp_reference": SNP2_REFERENCE} if snp2 else {}),
@@ -1173,6 +1296,27 @@ def verify_scientific_equivalence(record, evidence_directory, manifest, read_sou
             "candidate_r_sha256": candidate_hashes, "cases_verified": len(cases),
             "focused_scripts_verified": len(helpers), "pdfs_verified": plots_verified,
             "scope": "synthetic-equivalence-only", "domain_validation_claimed": False}
+
+
+def operative_inventory(data):
+    try:
+        lines = data.decode("utf-8").splitlines()
+    except UnicodeError as error:
+        raise ValueError("Invalid source inventory encoding") from error
+    paths = set()
+    for line in lines:
+        value = line.strip()
+        if not value or value.startswith("#"):
+            continue
+        path = PurePosixPath(value)
+        require(not path.is_absolute() and path.as_posix() == value and ".." not in path.parts
+                and "\\" not in value and value not in paths, "Invalid or duplicate source inventory path")
+        paths.add(value)
+    require("distribution-files.txt" in paths and REQUIRED_OPERATIVE_PATHS <= paths,
+            "Source inventory omits required operative inputs")
+    return {path for path in paths if path != "distribution-files.txt"
+            and not path.startswith(".github/") and PurePosixPath(path).suffix.casefold() != ".md"}
+
 
 def verify_baseline(record, read_source):
     """Compare operative source bytes; this does not assert installer or image identity.
@@ -1214,26 +1358,8 @@ def verify_baseline(record, read_source):
         require(isinstance(result, bytes), "Source equivalence requires exact file bytes")
         return result
 
-    def inventory(commit):
-        try:
-            lines = read(commit, "distribution-files.txt").decode("utf-8").splitlines()
-        except UnicodeError as error:
-            raise ValueError("Invalid source inventory encoding") from error
-        paths = set()
-        for line in lines:
-            value = line.strip()
-            if not value or value.startswith("#"):
-                continue
-            path = PurePosixPath(value)
-            require(not path.is_absolute() and path.as_posix() == value and ".." not in path.parts
-                    and "\\" not in value and value not in paths, "Invalid or duplicate source inventory path")
-            paths.add(value)
-        require("distribution-files.txt" in paths and REQUIRED_OPERATIVE_PATHS <= paths,
-                "Source inventory omits required operative inputs")
-        return {path for path in paths if path != "distribution-files.txt"
-                and not path.startswith(".github/") and PurePosixPath(path).suffix.casefold() != ".md"}
-
-    before, after = inventory(baseline), inventory(candidate)
+    before = operative_inventory(read(baseline, "distribution-files.txt"))
+    after = operative_inventory(read(candidate, "distribution-files.txt"))
     if reviewed_delta:
         changes = []
         unchanged = 0
@@ -1244,7 +1370,7 @@ def verify_baseline(record, read_source):
                 unchanged += 1
                 continue
             require(reviewable_path(path, reliability=reliability, multiplatform=multiplatform,
-                                    revised_r=revised_r, version=record["version"]),
+                                    revised_r=revised_r, version=record["version"], removed=new is None),
                     f"Protected scientific or runtime source differs: {path}")
             changes.append({"path": path,
                             "before_sha256": hashlib.sha256(old).hexdigest() if old is not None else None,

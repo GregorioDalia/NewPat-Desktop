@@ -8,6 +8,7 @@ as arbitrary filesystem paths in URLs.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import base64
 import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
@@ -15,12 +16,15 @@ import mimetypes
 from pathlib import Path
 import re
 import secrets
+import tempfile
 import threading
 from urllib.parse import unquote, urlsplit
 
 from nipat.errors import NipatError
+from nipat.execution.tracking import input_stat_snapshot
 
 MAX_RPC_BYTES = 2 * 1024 * 1024
+MAX_PDF_BYTES = 512 * 1024 * 1024
 CSP = (
     "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; "
     "style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:; "
@@ -35,6 +39,7 @@ class LocalResource:
     mime: str
     name: str
     attachment: bool = False
+    expected_identity: dict | None = None
 
 
 def _reject_nonfinite_json(value):
@@ -74,7 +79,7 @@ def byte_range(value: str | None, size: int) -> tuple[int, int] | None:
 
 
 class DesktopServer:
-    def __init__(self, dispatcher, *, assets: Path | None = None):
+    def __init__(self, dispatcher, *, assets: Path | None = None, pdf_export=None):
         self.dispatcher = dispatcher
         self.assets = (assets or Path(__file__).with_name("web")).resolve()
         self.token = secrets.token_urlsafe(32)
@@ -163,6 +168,9 @@ class DesktopServer:
                     with resource.path.open("rb") as stream:
                         import os
                         info = os.fstat(stream.fileno())
+                        if resource.expected_identity is not None and input_stat_snapshot(info) != resource.expected_identity:
+                            self._json(409, {"error": "The selected file changed. Reopen the reference."})
+                            return
                         size = info.st_size
                         try:
                             selected = byte_range(self.headers.get("Range"), size)
@@ -192,14 +200,47 @@ class DesktopServer:
                 except (BrokenPipeError, ConnectionResetError, TimeoutError):
                     pass
 
+            def _receive_pdf(self):
+                self.close_connection = True
+                if self.headers.get_content_type() != "application/pdf":
+                    self._json(415, {"error": {"message": "PDF required."}})
+                    return
+                try:
+                    length = int(self.headers.get("Content-Length", "0"))
+                    if not 0 < length <= MAX_PDF_BYTES:
+                        self._json(413, {"error": {"message": "PDF exceeds 512 MiB."}})
+                        return
+                    header = self.headers.get("X-NewPat-Report", "")
+                    if len(header) > 8192:
+                        raise ValueError("Invalid report metadata.")
+                    params = json.loads(base64.b64decode(header, validate=True))
+                    if (not isinstance(params, dict) or set(params) != {"language", "run_id", "kind", "selection"}
+                            or not all(isinstance(v, str) for v in params.values())):
+                        raise ValueError("Invalid report metadata.")
+                    with tempfile.TemporaryFile() as stream:
+                        while length:
+                            chunk = self.rfile.read(min(length, 256 * 1024))
+                            if not chunk:
+                                raise ValueError("Incomplete PDF.")
+                            stream.write(chunk)
+                            length -= len(chunk)
+                        result = pdf_export(params, stream)
+                    self._json(200, {"result": result})
+                except (NipatError, ValueError, KeyError, OSError) as exc:
+                    self._json(400, {"error": {"message": str(exc)}})
+
             def do_POST(self):
-                if self._path() != "api":
+                route = self._path()
+                if route != "api" and (route != "report-pdf" or pdf_export is None):
                     self.close_connection = True
                     self._json(404, {"error": "Not found"})
                     return
                 if self.headers.get("Origin") != owner.origin:
                     self.close_connection = True
                     self._json(403, {"error": "Origin rejected"})
+                    return
+                if route == "report-pdf":
+                    self._receive_pdf()
                     return
                 if self.headers.get("Content-Type", "").split(";")[0].strip() != "application/json":
                     self.close_connection = True
@@ -243,14 +284,14 @@ class DesktopServer:
         self.url = self.base_url + "web/index.html"
         self.thread = threading.Thread(target=self.httpd.serve_forever, name="NIPAT-local-ui", daemon=True)
 
-    def register(self, path: Path | str, *, mime: str | None = None, attachment=False) -> dict:
+    def register(self, path: Path | str, *, mime: str | None = None, attachment=False, expected_identity=None) -> dict:
         path = Path(path).expanduser().resolve(strict=True)
         if not path.is_file():
             raise ValueError("Seleziona un file, non una cartella.")
         file_id = secrets.token_urlsafe(24)
         guessed = mime or mimetypes.guess_type(path.name)[0] or "application/octet-stream"
         with self._resource_lock:
-            self.resources[file_id] = LocalResource(path, guessed, path.name, attachment)
+            self.resources[file_id] = LocalResource(path, guessed, path.name, attachment, expected_identity)
         return {"url": self.base_url + "resources/" + file_id, "name": path.name,
                 "mime": guessed, "size": path.stat().st_size}
 

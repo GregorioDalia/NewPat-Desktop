@@ -6,19 +6,77 @@ const events={},elements=new Map(),requests=[],checks=[];let dialogPaths=[],jobs
 function element(id){if(!elements.has(id))elements.set(id,{id,innerHTML:'',textContent:'',value:'',checked:false,style:{},dataset:{},classList:{add(){},remove(){}},focus(){document.activeElement=this},querySelector(){return element('modal-button')},querySelectorAll(){return[]},setSelectionRange(){},replaceWith(){},appendChild(){},remove(){}});return elements.get(id)}
 const document={getElementById:element,documentElement:{lang:'it',dataset:{}},activeElement:null,querySelectorAll(){return[]},addEventListener(type,cb){(events[type]??=[]).push(cb)}};
 const files=[{id:'calling',name:'SNPcall_output.txt',kind:'table',label:'Conteggi e genotipi',module:'snp-call',marker:'SNP',sample_id:'A',sample_label:'A',canonical:true,size_bytes:300,relative_path:'output/SNPcall_output.txt'},{id:'cpi-summary',name:'Summary_FetalFraction_CPI.csv',kind:'table',label:'CPI prenatale',module:'cpi',marker:'DNP',canonical:true,size_bytes:200,relative_path:'output/Summary_FetalFraction_CPI.csv'},{id:'curve',name:'curve.tsv',kind:'table',label:'Curva',module:'cpin',marker:'DNP',canonical:true,size_bytes:100,relative_path:'output/curve.tsv'},{id:'sites',name:'sites.tsv',kind:'table',label:'Siti',module:'cpin',marker:'DNP',canonical:true,size_bytes:200,relative_path:'output/sites.tsv'},{id:'plot',name:'plot.pdf',kind:'pdf',label:'Grafico',module:'cpin',marker:'DNP',canonical:true,size_bytes:400,relative_path:'output/plot.pdf'}];
-const tables={calling:{columns:[{key:'chr',label:'Cromosoma'},{key:'pos',label:'Posizione'},{key:'GT',label:'Genotipo'},{key:'total_count',label:'Letture'}],rows:[{chr:'chr1',pos:'50',GT:'NA',total_count:'0'},{chr:'chr1',pos:'100',GT:'0/1',total_count:'12'}]},curve:{columns:[{key:'Min_child_reads',label:'Letture minime'},{key:'Through_min_child_reads',label:'Fino a'},{key:'Log10_CPI',label:'log₁₀(CPI)'},{key:'N_sites',label:'Siti'}],rows:[{Min_child_reads:'2',Through_min_child_reads:'5',Log10_CPI:'-3.33278849686833',N_sites:'3'},{Min_child_reads:'6',Through_min_child_reads:'6',Log10_CPI:'-3.42969850987639',N_sites:'2'},{Min_child_reads:'7',Through_min_child_reads:'10',Log10_CPI:'0.221848749616356',N_sites:'1'}]},sites:{columns:[{key:'chr',label:'Cromosoma'},{key:'pos1',label:'Posizione'},{key:'Status',label:'Ammissibilità',values:{eligible:'Ammissibile',father_unassigned:'Genotipo paterno non assegnato'}},{key:'GT_child',label:'Genotipo figlio'},{key:'Paternity_Index',label:'Indice del sito'}],rows:[{chr:'chr1',pos1:'100',Status:'eligible',GT_child:'0/1',Paternity_Index:'1.25'},{chr:'chr1',pos1:'200',Status:'father_unassigned',GT_child:'0/1',Paternity_Index:'NA'}]},'cpi-summary':{columns:[{key:'CPI_medianFF',label:'log₁₀(CPI) alla frazione fetale mediana',unit:'log10'}],rows:[{CPI_medianFF:'0.602'}]}};
+const tables={calling:{columns:[{key:'chr',label:'Cromosoma'},{key:'pos',label:'Posizione'},{key:'GT',label:'Genotipo'},{key:'total_count',label:'Letture'}],rows:[{chr:'chr1',pos:'50',GT:'NA',total_count:'0'},{chr:'chr1',pos:'100',GT:'0/1',total_count:'12'}]},curve:{columns:[{key:'Min_child_reads',label:'Letture minime'},{key:'Through_min_child_reads',label:'Fino a'},{key:'Log10_CPI',label:'log₁₀(CPI)'},{key:'N_sites',label:'Siti'}],rows:[{Min_child_reads:'2',Through_min_child_reads:'5',Log10_CPI:'-3.33278849686833',N_sites:'3'},{Min_child_reads:'6',Through_min_child_reads:'6',Log10_CPI:'-3.42969850987639',N_sites:'2'},{Min_child_reads:'7',Through_min_child_reads:'10',Log10_CPI:'0.221848749616356',N_sites:'1'}]},sites:{columns:[{key:'chr',label:'Cromosoma'},{key:'pos1',label:'Posizione'},{key:'Status',label:'Ammissibilità',values:{eligible:'Ammissibile',father_unassigned:'Genotipo paterno non assegnato'}},{key:'GT_child',label:'Genotipo figlio'},{key:'Paternity_Index',label:'Indice del sito'}],rows:[{chr:'chr1',pos1:'100',Status:'eligible',GT_child:'0/1',Paternity_Index:'1.25'},{chr:'chr1',pos1:'200',Status:'father_unassigned',GT_child:'0/1',Paternity_Index:'NA'}]},'cpi-summary':{columns:[{key:'CPI_medianFF',label:'log₁₀(CPI) alla soglia mediana di letture fetali',unit:'log10'}],rows:[{CPI_medianFF:'0.602'}]}};
 const run={id:'run-1',name:'Famiglia α <test>',status:'succeeded',workflow:'analysis',version:'0.8.99',started_at:'2026-11-15T10:00:00Z',finished_at:'2026-11-15T10:01:00Z',can_remove:true,has_igv_inputs:true,samples:[{id:'A',label:'A',filename:'a.bam',path:'C:\\samples\\a.bam'}],modules:['snp-call','cpi','cpin'],markers:['DNP','SNP'],settings:[{module:'snp-call',marker:'SNP',document:{parameters:{max_depth:0}}}],warnings:[]};
-const overview={modules:[{module:'snp-call',marker:'SNP',status:'succeeded',files:files.filter(f=>f.module==='snp-call'),entries:[{label:'A',sample_id:'A',file_id:'calling',genotype_counts:{'0/1':1,unassigned:1},metrics:[{key:'assigned',label:'Genotipi assegnati',value:'1',available:true,scale:1}]}]},{module:'cpi',marker:'DNP',status:'succeeded',files:files.filter(f=>f.module==='cpi'),entries:[{family_id:'F',label:'Mother / Father',file_id:'cpi-summary',row:{CPI_medianFF:'0.602'},metrics:[{key:'Median_fetal_fraction_percent',label:'Frazione fetale mediana',value:'6',available:true,scale:1,unit:'%'},{key:'CPI_medianFF',label:'log₁₀(CPI) alla frazione fetale mediana',value:'0.602',available:true,scale:1,unit:'log10'}],curve_file_ids:[]}]},{module:'cpin',marker:'DNP',status:'succeeded',files:files.filter(f=>f.module==='cpin'),entries:[{family_id:'F',label:'Mother / Father / Child',analysis:'all_compatible_sites',file_id:'cpi-summary',site_file_id:'sites',curve_file_ids:['curve'],metrics:[{key:'CPI',label:'CPI',value:'0.00046474155109453',available:true},{key:'N_sites',label:'Siti inclusi',value:'3',available:true}]}]}]};
+const overview={modules:[{module:'snp-call',marker:'SNP',status:'succeeded',files:files.filter(f=>f.module==='snp-call'),entries:[{label:'A',sample_id:'A',file_id:'calling',genotype_counts:{'0/1':1,unassigned:1},metrics:[{key:'assigned',label:'Genotipi assegnati',value:'1',available:true,scale:1}]}]},{module:'cpi',marker:'DNP',status:'succeeded',files:files.filter(f=>f.module==='cpi'),entries:[{family_id:'F',label:'Mother / Father',file_id:'cpi-summary',row_number:0,row:{CPI_medianFF:'0.602'},metrics:[{key:'Median_fetal_fraction_percent',label:'Frazione fetale mediana',value:'6',available:true,scale:1,unit:'%'},{key:'CPI_medianFF',label:'log₁₀(CPI) alla soglia mediana di letture fetali',value:'0.602',available:true,scale:1,unit:'log10'}],curve_file_ids:[]}]},{module:'cpin',marker:'DNP',status:'succeeded',files:files.filter(f=>f.module==='cpin'),entries:[{family_id:'F',label:'Mother / Father / Child',analysis:'all_compatible_sites',file_id:'cpi-summary',site_file_id:'sites',curve_file_ids:['curve'],metrics:[{key:'CPI',label:'CPI',value:'0.00046474155109453',available:true},{key:'N_sites',label:'Siti inclusi',value:'3',available:true}]}]}]};
 const boot={version:'0.9.0',settings,preferences:{data_dir:null,runs_dir:null,workflows:{},update_channel:'stable',check_updates_on_startup:false,execution:{},scientific_settings:{}},layout:{data_dir:'/data',runs_dir:'/runs',project_dir:'/project'},ui:{language:'it',reduce_motion:false},jobs:[]};
-const handlers={bootstrap:()=>boot,'runs.list':()=>({runs:[run],total:1}),'runs.get':()=>run,'runs.overview':()=>overview,'runs.files':()=>files,'runs.table':p=>{const base=tables[p.file_id];assert(base,'Unknown table fixture');const rows=base.rows.map((row,i)=>({row,i})).filter(x=>!p.query||JSON.stringify(x.row).toLowerCase().includes(p.query.toLowerCase()));const offset=p.offset||0,limit=p.limit||100,chosen=rows.slice(offset,offset+limit);return {file:files.find(f=>f.id===p.file_id),columns:base.columns,rows:chosen.map(x=>x.row),row_numbers:chosen.map(x=>x.i),total:base.rows.length,matched:rows.length,offset,limit,has_more:offset+limit<rows.length}},'dialog.open':()=>({paths:dialogPaths}),'plan.preview':p=>({preview_id:'preview-1',steps:[{id:'snp_0001',workflow:'snp-call'}],samples:p.draft.samples,effective_settings:p.draft.scientific_settings}),'analysis.start':()=>{const job={id:'job-1',name:'Analysis',status:'running',run_id:'run-1',progress:{phase:'pileup',workflow:'snp-call',completed:2,total:4,unit:'sites'},logs:[]};jobs.push(job);return job},'jobs.list':()=>jobs,'jobs.cancel':p=>{jobs[0].status='interrupted';return jobs[0]},'ui.save':p=>p.preferences,'preferences.save':p=>p.preferences,'files.url':()=>({url:'http://127.0.0.1:1234/token/result/plot',mime:'application/pdf'}),'files.export':()=>({saved:true}),'runs.export':()=>({saved:true}),'runs.import':()=>({imported:['run-1'],count:1}),'run.reuse':()=>({name:'Copy',caller:'snp',samples:[{id:'A',path:'/a.bam',kind:'bam'}],branches:{DNP:[],SNP:[]},reference:'/ref.fa',resources:{DNP:{},SNP:{panel:'/panel.tsv'}},families:{cpi:[],cpin:[]},scientific_settings:Object.fromEntries(Object.entries(settings.workflows).map(([m,w])=>[m,Object.fromEntries(Object.entries(w.parameters).map(([k,p])=>[k,p.default]))])),execution:{execution_mode:'auto'}}),'resources.get':()=>({host:{memory_mib:16000,cpus:8},runtime:{configured:{memory_mib:8192,cpus:4},effective:{memory_mib:8192,cpus:4}},container:{},backend:'wsl',warnings:[]}),'resources.preview':p=>({preview_id:'resource-1',before:{memory_mib:8192,cpus:4},after:p,affected_running:[],warnings:[]}),'resources.apply':()=>({status:'saved'}),'installation.get':()=>({runtimes:[],cache:[],backups:[],warnings:[],recovery:{recoverable:false}}),'environment.check':()=>({status:'passed',logs:['ready']}),'updates.check':()=>({status:'available',offer_id:'offer-1',message:'0.9.1 available',offer:{version:'0.9.1',channel:'testing'}}),'updates.download':()=>({status:'verified'}),'updates.install':()=>({close_required:true}),'app.close':()=>({closing:true}),'runs.remove':p=>({removed:true,run_id:p.run_id,outputs_preserved:true}),'run.igv':p=>({reference:{fasta:'/ref.fa',index:''},tracks:[{name:'A',path:'/a.bam'}],locus:p.locus||'all'}),'igv.prepare':p=>({chromosomes:[{name:'chr1',length:1000000},{name:'X',length:100000}],sources:{reference:{fasta:p.reference.fasta,index:p.reference.index||p.reference.fasta+'.fai'},tracks:p.tracks.map(track=>({...track,index:track.index||track.path+'.bai'}))},reference:{fastaURL:'http://127.0.0.1:1234/token/ref',indexURL:'http://127.0.0.1:1234/token/index'},tracks:[],locus:p.locus}),'igv.session.save':()=>({saved:true})};
+const handlers={bootstrap:()=>boot,'runs.list':p=>({runs:[run],offset:p.offset,total:1,archive_total:1}),'runs.get':()=>run,'runs.overview':()=>overview,'runs.files':()=>files,'runs.table':p=>{const base=tables[p.file_id];assert(base,'Unknown table fixture');const rows=base.rows.map((row,i)=>({row,i})).filter(x=>!p.query||JSON.stringify(x.row).toLowerCase().includes(p.query.toLowerCase()));const offset=p.offset||0,limit=p.limit||100,chosen=rows.slice(offset,offset+limit);return {file:files.find(f=>f.id===p.file_id),columns:base.columns,rows:chosen.map(x=>x.row),row_numbers:chosen.map(x=>x.i),total:base.rows.length,matched:rows.length,offset,limit,has_more:offset+limit<rows.length}},'dialog.open':()=>({paths:dialogPaths}),'plan.preview':p=>({preview_id:'preview-1',steps:[{id:'snp_0001',workflow:'snp-call'}],samples:p.draft.samples,effective_settings:p.draft.scientific_settings}),'analysis.start':()=>{const job={id:'job-1',name:'Analysis',status:'running',run_id:'run-1',progress:{phase:'pileup',workflow:'snp-call',completed:2,total:4,unit:'sites'},logs:[]};jobs.push(job);return job},'jobs.list':()=>jobs,'jobs.cancel':p=>{jobs[0].status='interrupted';return jobs[0]},'ui.save':p=>p.preferences,'preferences.save':p=>p.preferences,'files.url':()=>({url:'http://127.0.0.1:1234/token/result/plot',mime:'application/pdf'}),'files.export':()=>({saved:true}),'runs.export':()=>({saved:true}),'runs.import':()=>({imported:['run-1'],count:1}),'run.reuse':()=>({name:'Copy',caller:'snp',samples:[{id:'A',path:'/a.bam',kind:'bam'}],branches:{DNP:[],SNP:[]},reference:'/ref.fa',resources:{DNP:{},SNP:{panel:'/panel.tsv'}},families:{cpi:[],cpin:[]},scientific_settings:Object.fromEntries(Object.entries(settings.workflows).map(([m,w])=>[m,Object.fromEntries(Object.entries(w.parameters).map(([k,p])=>[k,p.default]))])),execution:{execution_mode:'auto'}}),'resources.get':()=>({host:{memory_mib:16000,cpus:8},runtime:{configured:{memory_mib:8192,cpus:4},effective:{memory_mib:8192,cpus:4}},container:{},backend:'wsl',warnings:[]}),'resources.preview':p=>({preview_id:'resource-1',before:{memory_mib:8192,cpus:4},after:p,affected_running:[],warnings:[]}),'resources.apply':()=>({status:'saved'}),'installation.get':()=>({runtimes:[],cache:[],backups:[],warnings:[],recovery:{recoverable:false}}),'environment.check':()=>({status:'passed',logs:['ready']}),'updates.check':()=>({status:'available',offer_id:'offer-1',message:'0.9.1 available',offer:{version:'0.9.1',channel:'testing'}}),'updates.download':()=>({status:'verified'}),'updates.install':()=>({close_required:true}),'app.close':()=>({closing:true}),'runs.remove':p=>({removed:true,run_id:p.run_id,outputs_preserved:true}),'run.igv':p=>({reference:{fasta:'/ref.fa',index:''},tracks:[{name:'A',path:'/a.bam'}],locus:p.locus||'all'}),'igv.prepare':p=>({chromosomes:[{name:'chr1',length:1000000},{name:'X',length:100000}],sources:{reference:{...p.reference,index:p.reference.index||p.reference.fasta+'.fai'},tracks:p.tracks.map(track=>({...track,index:track.index||track.path+'.bai'}))},reference:{fastaURL:'http://127.0.0.1:1234/token/ref',indexURL:'http://127.0.0.1:1234/token/index'},tracks:[],locus:p.locus}),'igv.session.save':()=>({saved:true})};
+let referenceTestEntries=[],transferTestState={status:'idle'};
+handlers['references.list']=()=>({entries:referenceTestEntries});
+handlers['references.download_status']=()=>transferTestState;
+handlers['references.resolve']=({id})=>({entry:referenceTestEntries.find(e=>e.id===id)});
 handlers['runs.curve']=p=>handlers['runs.table']({...p,offset:0,limit:20000});
 const env={console,document,Intl,URL,AbortController,location:{href:'http://127.0.0.1:1234/token/web/index.html',origin:'http://127.0.0.1:1234'},setTimeout:()=>1,clearTimeout(){},fetch:async(url,options)=>{assert.equal(url,'../api');const body=JSON.parse(options.body);requests.push(body);const fn=handlers[body.method];assert(fn,'Unexpected RPC '+body.method);return{ok:true,json:async()=>({id:body.id,result:fn(body.params)})}},NipatIGV:{dispose(){navigationCallback=null},getNavigation(){return {locus:env.locus||'all',chromosome:env.locus&&env.locus!=='all'?env.locus.split(':')[0]:'all',chromosomes:[{name:'chr1',length:1000000},{name:'X',length:100000}],canBack:!!env.locus,canZoom:!!env.locus&&env.locus!=='all',wholeGenome:!env.locus||env.locus==='all'}},onNavigation(callback){navigationCallback=callback;callback(this.getNavigation());return()=>{navigationCallback=null}},async wholeGenome(){await this.search('all')},async back(){await this.search('chr1:100-200')},async zoomIn(){await this.search('chr1:125-175')},async zoomOut(){await this.search('chr1:50-250')},setLanguage(){},resize(){},async mount(node,config){env.viewer={node,config}},async search(locus){env.locus=locus;navigationCallback?.(this.getNavigation())},async exportSession(){return {locus:'chr1:100-200',tracks:[]}}}};env.window=env;vm.createContext(env);vm.runInContext(fs.readFileSync(path.join(web,'i18n.js'),'utf8'),env);vm.runInContext(fs.readFileSync(path.join(web,'app.js'),'utf8'),env);
 const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(condition,label)=>{assert(condition,label);checks.push(label)};
 (async()=>{
  await tick();await tick();const app=env.NipatApp;
+ const recent=app.state.recentRuns;
+ for(const entries of [recent,[]]){
+  app.state.recentRuns=entries;app.render();
+  check((element('main').innerHTML.match(/data-view="new"/g)||[]).length===1,'Populated and empty overview have one primary creation action');
+ }
+ app.state.recentRuns=recent;app.render();
  check(app.state.boot.version==='0.9.0','Bootstrap uses actual version');check(element('main').innerHTML.includes('Famiglia α &lt;test&gt;'),'Archive name HTML escaped');check(app.state.draft.samples.length===0,'No embedded demonstration samples');
  for(const view of ['home','new','activity','archive','catalog','settings','environment','igv']){await app.navigate(view);check(element('main').innerHTML.length>300,'Render '+view)}
- const expectedCounts=Object.values(settings.workflows).reduce((a,w)=>a+Object.keys(w.parameters).length,0);app.state.catalogModule='all';app.state.catalogType='parameters';await app.navigate('catalog');check((element('main').innerHTML.match(/class="parameter-row"/g)||[]).length===expectedCounts,'Every scientific parameter is accessible');check(!element('main').innerHTML.includes('<h3>other_fraction_max'),'No implementation key as parameter heading');app.state.catalogType='constants';app.render();check((element('main').innerHTML.match(/class="parameter-row"/g)||[]).length===52,'Every model constant is accessible');check(element('main').innerHTML.includes('<mfrac>')&&!element('main').innerHTML.includes('<mo><</mo>'),'Formulae rendered as valid escaped MathML fragments');
+ const pickBuild=(scope,value)=>app.onValue({dataset:{referenceBuild:scope},type:'select-one',value});
+ const pickEntry=(scope,value)=>app.onValue({dataset:{referenceEntry:scope},type:'select-one',value});
+ const reference=(build,label)=>({id:build+'-'+label,build,label,fasta:'/ref/'+label+'.fa',index:'/ref/'+label+'.fa.fai',index_sha256:'a'.repeat(64),naming:'chr',available:true});
+ const hg19=reference('grch37','hg19'),hg38=reference('grch38','hg38'),b37=reference('grch37','b37');
+ await app.navigate('new');app.state.draft.samples=[{kind:'bam',id:'test',path:'/samples/test.bam'}];
+ check(app.renderNew().includes('GRCh37 / hg19')&&app.renderNew().includes('GRCh38 / hg38'),'New experiments offer both assemblies on a fresh install');
+ await pickBuild('new','grch37');
+ check(!app.state.draft.reference&&app.renderNew().includes('Scarica da UCSC hg19')&&!requests.some(r=>r.method==='references.download'),'Choosing an unavailable assembly offers a local FASTA or explicit download');
+ handlers['references.register']=()=>({cancelled:true});await app.action('reference-register',{scope:'new',build:'grch37'});
+ check(!app.state.draft.reference,'Cancelling the assembly picker preserves the empty selection');
+ handlers['references.register']=()=>{referenceTestEntries.push(hg19);return {entry:hg19}};
+ await app.action('reference-register',{scope:'new',build:'grch37'});
+ check(app.submittedDraft().reference===hg19.fasta&&app.submittedDraft().reference_id===hg19.id,'A registered reference applies its file identity and actual FASTA to the experiment');
+ await pickBuild('new','grch38');handlers['references.download']=()=>transferTestState={status:'downloading',received_bytes:64,total_bytes:100};
+ await app.action('reference-download',{scope:'new',build:'grch38'});
+ check(app.renderNew().includes('data-action="reference-cancel"')&&requests.at(-1).params.build==='grch38','Explicit transfer has progress and cancellation for the correct assembly');
+ handlers['references.download_cancel']=()=>transferTestState={status:'cancelled'};
+ await app.action('reference-cancel',{scope:'new',build:'grch38'});
+ check(!app.state.draft.reference&&!app.renderNew().includes('data-action="reference-cancel"'),'Cancelled transfer does not attach a partial reference');
+ await app.action('reference-download',{scope:'new',build:'grch38'});
+ referenceTestEntries.push(hg38);transferTestState={status:'ready',entry:hg38};await app.poll();
+ check(app.state.draft.reference===hg38.fasta&&app.state.draft.reference_id===hg38.id,'Completed explicit transfer applies to its still-current choice');
+ referenceTestEntries.push(b37);await app.navigate('igv');await pickBuild('igv','grch37');
+ check(!app.state.igv.reference.fasta&&app.renderIGV().includes(b37.fasta)&&app.renderIGV().includes(hg19.fasta),'Multiple FASTA variants for one assembly require choosing a concrete file');
+ await pickEntry('igv',b37.id);await app.action('igv-load',{});
+ check(requests.findLast(r=>r.method==='igv.prepare').params.reference.build==='grch37'&&app.state.igv.reference.index_sha256===b37.index_sha256&&app.state.igv.reference.fasta===b37.fasta,'IGV loads the chosen exact variant with assembly, file and index');
+ await pickBuild('igv','file');dialogPaths=['/manual.fa'];await app.action('choose-path',{key:'igv-reference.fasta',filter:'igv-reference'});
+ check(!app.state.igv.reference.build&&!app.state.igv.reference.index_sha256&&app.state.igv.reference.fasta==='/manual.fa','A direct user file clears the previous registered build');
+ await app.action('new-experiment',{});check(!app.state.draft.reference&&!app.state.draft.reference_id,'New experiments have no silently preselected file');
+ const expectedCounts=Object.values(settings.workflows).reduce((a,w)=>a+Object.keys(w.parameters).length,0);app.state.catalogModule='all';app.state.catalogType='parameters';await app.navigate('catalog');check((element('main').innerHTML.match(/class="parameter-row"/g)||[]).length===expectedCounts,'Every scientific parameter is accessible');check(!element('main').innerHTML.includes('<h3>other_fraction_max'),'No implementation key as parameter heading');app.state.catalogType='constants';app.render();check((element('main').innerHTML.match(/class="parameter-row"/g)||[]).length===Object.values(settings.workflows).reduce((n,w)=>n+Object.keys(w.constants).length,0),'Every model constant is accessible');check(element('main').innerHTML.includes('<mfrac>')&&!element('main').innerHTML.includes('<mo><</mo>'),'Formulae rendered as valid escaped MathML fragments');
+ check(element('main').innerHTML.includes('Vincolo sui dati di ingresso')&&element('main').innerHTML.includes('zero è escluso'),'Population frequency domain identifies the table constraint and its reason');
+ for(const [language,label,description] of [
+  ['it','Risultato non disponibile (NA)','Nelle tabelle, NA indica che il programma non ha potuto determinare il valore.'],
+  ['en','Unavailable result (NA)','In the tables, NA means the program could not determine the value.'],
+ ]){
+  env.NipatI18n.setLanguage(language);
+  app.state.catalogModule='dnp-call';app.state.catalogSearch='(NA)';app.render();
+  const glossary=element('main').innerHTML;
+  check(glossary.includes(`<h3>${label}</h3><p>${description}</p></div>`),'The DNP glossary explains the literal table marker once in '+language);
+  check((glossary.match(/class="parameter-row"/g)||[]).length===1,'The literal marker can be searched in '+language);
+ }
+ env.NipatI18n.setLanguage('it');app.state.catalogModule='all';app.state.catalogSearch='';app.render();
+ check(app.constantValue('cpi','population_frequencies',{}).includes('<mn>0</mn><mo>&lt;</mo><mi>p</mi><mo>≤</mo><mn>1</mn>'),'CPI domain excludes zero and includes one');
+ const prenatalFilter={dataset:{parameter:'cpi|min_fetal_percent|draft'},type:'number',value:'2.5'};
+ app.onValue(prenatalFilter);
+ check(app.state.draft.scientific_settings.cpi.min_fetal_reads===null&&app.state.draft.scientific_settings.cpi.min_fetal_percent===2.5,'A percentage-only prenatal filter leaves the absolute field unset');
+ await app.action('new-experiment',{});
+ check(app.choiceLabel('both')==='Entrambe le selezioni di siti'&&app.choiceLabel('other_allele')==='Siti con figlio eterozigote','Postnatal selection describes sites independently of caller markers');
+ check(app.range({minimum:0,maximum:1,exclusive_minimum:true})==='> 0 · ≤ 1','Parameter bounds distinguish exclusive and inclusive limits');
  await app.navigate('new');app.onValue({dataset:{draft:'name'},type:'text',value:'My experiment'});dialogPaths=['/samples/Ion Sample.bam'];await app.action('add-samples',{});check(app.state.draft.samples[0].id==='Ion_Sample','Sample IDs derived safely');app.onValue({dataset:{draft:'caller'},type:'radio',value:'snp'});check(app.selectedModules().join(',')==='snp-call','Only requested SNP caller selected');app.onValue({dataset:{branch:'SNP|contamination'},type:'checkbox',checked:true});check(app.selectedModules().join(',')==='snp-call,contamination','Independent downstream analysis selection');app.onValue({dataset:{branch:'SNP|contamination'},type:'checkbox',checked:false});check(!app.selectedModules().includes('contamination'),'Unselected analysis removed');
  await app.action('step',{index:'3'});await app.action('validate-plan',{});const previewRequest=requests.find(r=>r.method==='plan.preview');check(previewRequest.params.draft.caller==='snp'&&previewRequest.params.draft.branches.SNP.length===0,'Preview passes exact independent plan');app.onValue({dataset:{parameter:'snp-call|max_depth|draft'},type:'number',value:'123'});check(!app.state.preview,'Changing a parameter invalidates reviewed plan');const previewOnStart=handlers['plan.preview'];
  handlers['plan.preview']=()=>Promise.reject(new Error('Missing panel.tsv'));
@@ -29,10 +87,88 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
  check(app.renderNew().includes('aria-busy="true"')&&app.renderNew().includes('check-spinner'),'Single-click start immediately shows its pending check');
  await app.action('start-analysis',{});passPreflight();await launch;handlers['plan.preview']=previewOnStart;
  check(requests.slice(beforeStart).map(r=>r.method).filter(m=>m==='plan.preview'||m==='analysis.start').join(',')==='plan.preview,analysis.start','Repeated clicks share one validated launch');
- check(app.state.view==='activity'&&requests.some(r=>r.method==='analysis.start'&&r.params.preview_id==='preview-1'),'Execution requires reviewed preview token');check(app.jobProgress(jobs[0])===50,'Observed phase progress, no fabricated overall completion');await app.action('confirm-cancel-job',{id:'job-1'});check(jobs[0].status==='interrupted','Cancel reaches actual job service');
+ check(app.state.view==='activity'&&requests.some(r=>r.method==='analysis.start'&&r.params.preview_id==='preview-1'),'Execution requires reviewed preview token');check(app.jobProgress(jobs[0])===50,'Observed phase progress, no fabricated overall completion');
+ check(app.renderNew().includes('condividono CPU, memoria e disco')&&app.renderNew().includes('Il calcolo attende'),'Additional launches explain shared resources and waiting');
+ const previousJobs=app.state.jobs;
+ app.state.jobs=[...Array.from({length:5},(_,i)=>({id:'queued-'+i,name:'Pending '+i,status:'queued'})),
+  {id:'capacity',name:'Waiting for capacity',status:'running',progress:{phase:'waiting-for-resources'}},jobs[0]];
+ const activityWithQueue=app.renderActivity();
+ check((activityWithQueue.match(/data-job-status="queued"/g)||[]).length===6&&activityWithQueue.includes('Esperimenti in attesa'),'Activity groups queued experiments and capacity waiters');
+ check((activityWithQueue.match(/role="progressbar"/g)||[]).length===1&&activityWithQueue.includes('In attesa della verifica degli input'),'Only calculating experiments show a progress bar');
+ check((activityWithQueue.match(/data-action="cancel-job"/g)||[]).length===7,'Every queued or running experiment has its own stop control');
+ app.state.jobs=previousJobs;
+ await app.action('confirm-cancel-job',{id:'job-1'});check(jobs[0].status==='interrupted','Cancel reaches actual job service');
+ check(app.renderActivity().includes('Terminati in questa sessione')&&app.renderActivity().includes('data-action="remove-job"')&&!app.renderActivity().includes('data-action="cancel-job"'),'Interrupted card is dismissible in finished activity');
  await app.loadRun('run-1');check(element('main').innerHTML.includes('Analisi non eseguita'),'Unexecuted modules explicitly identified');await app.action('result-module',{module:'snp-call|SNP'});check(element('main').innerHTML.includes('Non disponibile')&&element('main').innerHTML.includes('0'),'NA and zero remain distinct');check(app.metricValue({value:'0.025',scale:100,unit:'%'})==='2,5 %','Percent conversion occurs once');check(app.metricValue({value:'0.0353553390593274',scale:100,unit:'punti %'}).includes('punti %'),'SD carries percentage-point unit');check(app.metricValue({value:null,scale:100})==='Non disponibile','Missing metric not coerced to zero');
- await app.action('result-module',{module:'cpi|DNP'});check(element('main').innerHTML.includes('log₁₀(CPI) alla frazione fetale mediana')&&element('main').innerHTML.includes('0,602'),'Prenatal CPI field remains logarithmic');await app.action('result-module',{module:'cpin|DNP'});check((element('main').innerHTML.match(/class="curve-line"/g)||[]).length===3,'CPIN curve has original three inclusive intervals');check(element('main').innerHTML.includes('Genotipo paterno non assegnato'),'Site exclusion reasons human-readable');
+ await app.action('result-module',{module:'cpi|DNP'});check(element('main').innerHTML.includes('log₁₀(CPI) alla soglia mediana di letture fetali')&&element('main').innerHTML.includes('0,602'),'Prenatal CPI field remains logarithmic');await app.action('result-module',{module:'cpin|DNP'});check((element('main').innerHTML.match(/class="curve-line"/g)||[]).length===3,'Postnatal CPI curve has original three inclusive intervals');check(element('main').innerHTML.includes('Genotipo paterno non assegnato'),'Site exclusion reasons human-readable');
  app.state.tableSearch='father_unassigned';await app.loadTable(0);check(app.state.table.matched===1&&app.state.table.row_numbers[0]===1,'Search pagination preserves original row identity');await app.action('row-details',{file:'sites',row:'1'});check(element('modal-root').innerHTML.includes('Genotipo paterno non assegnato'),'Row details use original row offset');await app.action('open-file',{id:'plot'});check(element('modal-root').innerHTML.includes('<iframe class="pdf-preview"'),'PDF stays inside app dialog');await app.action('export-file',{id:'plot'});check(requests.at(-1).method==='files.export','Export handled by native scoped service');await app.action('export-run',{});check(requests.at(-1).method==='runs.export','Complete original output export available');
+ const reportChoices=[
+  {id:'a',label:'Prenatal CPI · DNP · Family 1',module:'cpi',marker:'DNP',file_id:'cpi-summary',row_number:0},
+  {id:'b',label:'Postnatal CPI · SNP · Family <2>',module:'cpin',marker:'SNP',file_id:'other-summary',row_number:7}
+ ];
+ const reportBoxes=reportChoices.map(item=>({value:item.id,checked:true,focus(){}}));
+ element('report-cases').querySelectorAll=()=>reportBoxes;
+ handlers['reports.cases']=()=>({cases:reportChoices,notes:['Limite <DNP>']});
+ handlers['reports.prepare']=p=>({kind:p.kind,results:p.case_ids.map(id=>({case_id:id}))});
+ handlers['reports.igv']=()=>({views:{a:{available:true,site:'chr1:105',build:'hg38'},b:{available:false,reason:'Unverified BAM'}}});
+ env.NewPatReportIGV={capture:async()=>({image:'data:image/png;base64,IgV',locus:'chr1:100-150'})};
+ let reportModel;
+ env.NewPatReports={render:async(model,kind)=>{reportModel=model;return model.results.map(item=>item.case_id).join('-')+'-'+kind}};
+ handlers['reports.save']=()=>({cancelled:true});
+ await app.action('result-module',{module:''});
+ check(element('main').innerHTML.includes('data-action="choose-report"'),'Archive overview offers PDF export');
+ await app.action('choose-report',{});
+ const reportDialog=element('modal-root'),reportRevision=reportDialog.innerHTML.match(/data-revision="(\d+)"/)[1];
+ const reportData={run:'run-1',language:'it',revision:reportRevision};
+ check((reportDialog.innerHTML.match(/name="report-case" value="\w+" checked/g)||[]).length===2&&reportDialog.innerHTML.includes('Family &lt;2&gt;')&&
+       reportDialog.innerHTML.includes('Limite &lt;DNP&gt;')&&
+       reportDialog.innerHTML.includes('Una pagina per ogni risultato selezionato.')&&reportDialog.innerHTML.includes('Dati di supporto e grafici disponibili.')&&
+       reportDialog.innerHTML.includes('Sintesi e dettagli'),'Overview selects all eligible module results and identifies three report formats');
+ await app.action('report-select',{scope:'none'});const prior=requests.length;await app.action('save-report',reportData);
+ check(requests.length===prior&&element('report-status').textContent.includes('Seleziona almeno'),'Empty selection asks for an explicit result');
+ await app.action('report-select',{scope:'all'});element('report-combined').checked=true;
+ await app.action('save-report',reportData);
+ check(requests.at(-3).method==='reports.prepare'&&requests.at(-3).params.case_ids.join(',')==='a,b'&&requests.at(-3).params.language==='it'&&
+       requests.at(-2).method==='reports.igv'&&requests.at(-1).method==='reports.save'&&requests.at(-1).params.data_base64==='a-b-combined'&&
+       reportModel.results[0].igv.site==='chr1:105'&&reportModel.results[1].igv.reason==='Unverified BAM'&&
+       reportDialog.innerHTML.includes('report-kind'),'Single-save combined PDF keeps each case and IGV view associated after native cancellation');
+ element('report-combined').checked=false;
+ const fetchApi=env.fetch;
+ Object.assign(env,{Blob,atob,btoa,TextEncoder});
+ const largePdf=Buffer.from('%PDF-1.4\n'+' '.repeat(960000)+'\n%%EOF','utf8');
+ let binarySaveCount=0;
+ env.NewPatReports.render=async()=>largePdf.toString('base64');
+ env.fetch=async(url,options)=>{
+  if(url!=='../report-pdf')return fetchApi(url,options);
+  binarySaveCount++;
+  assert.equal(options.headers['Content-Type'],'application/pdf');
+  assert.deepEqual(JSON.parse(atob(options.headers['X-NewPat-Report'])),{run_id:'run-1',language:'it',kind:'summary',selection:'combined'});
+  assert.deepEqual(Buffer.from(await options.body.arrayBuffer()),largePdf);
+  return {ok:true,json:async()=>({result:{cancelled:true}})};
+ };
+ await app.action('save-report',reportData);
+ check(binarySaveCount===1,'Large multi-result PDF uses one binary upload without splitting the document');
+ env.fetch=fetchApi;
+ let finishRendering;
+ env.NewPatReports.render=()=>new Promise(resolve=>{finishRendering=resolve});
+ const pendingReport=app.action('save-report',reportData);await tick();
+ const callsBefore=requests.length;await app.action('save-report',reportData);
+ check(requests.length===callsBefore,'A repeated export cannot prepare a second PDF');
+ await app.action('close-modal',{});finishRendering('abandoned');await pendingReport;
+ check(requests.length===callsBefore&&!reportDialog.innerHTML,'Closing the chooser while rendering cannot open the native save dialog');
+ handlers['reports.cases']=()=>({cases:[],notes:['Limite <SNP>']});await app.action('choose-report',{});
+ check(!reportDialog.innerHTML.includes('data-action="save-report"')&&reportDialog.innerHTML.includes('Nessun risultato')&&
+       reportDialog.innerHTML.includes('Limite &lt;SNP&gt;'),
+       'An archived experiment without reportable results cannot save an empty report');
+ await app.action('close-modal',{});
+ handlers['reports.cases']=()=>({cases:reportChoices});
+ await app.action('result-module',{module:'cpi|DNP'});await app.action('choose-report',{});
+ check(reportDialog.innerHTML.includes('value="a" checked')&&!reportDialog.innerHTML.includes('value="b" checked'),'A report opened from a module preselects only the displayed result');
+ await app.action('close-modal',{});
+ handlers['reports.cases']=()=>({cases:[reportChoices[1]]});await app.action('choose-report',{});
+ check(!reportDialog.innerHTML.includes('value="b" checked')&&reportDialog.innerHTML.includes('value="b"'),
+       'An unavailable selected result requires an explicit switch to another eligible result');
+ await app.action('close-modal',{});
  handlers['igv.about']=()=>({opened:true});
  await app.navigate('igv');
  check(/class="igv-title"><h1>Visualizzatore IGV<\/h1><button[^>]+data-action="igv-about"/.test(element('main').innerHTML),'IGV guide button sits next to viewer heading');
@@ -41,29 +177,119 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
  handlers['igv.about']=()=>({opened:false});
  await assert.rejects(app.action('igv-about',{}),/browser predefinito/);
  await app.changeLanguage('en');check(env.NipatI18n.language==='en'&&requests.some(r=>r.method==='ui.save'&&r.params.preferences.language==='en'),'Language choice persisted');await app.navigate('new');check(element('main').innerHTML.includes('Add samples')&&!element('main').innerHTML.includes('Aggiungi campioni'),'Main workflow translated to English');
+ check(app.choiceLabel('both')==='Both site selections'&&env.NipatI18n.t('frequencyDomain').includes('zero is excluded'),'English scientific labels carry the same meaning');
  app.onValue({dataset:{field:'source'},type:'select-one',value:'tables'});check(app.state.draft.caller==='tables'&&app.state.draft.samples.length===0,'Tables path excludes raw input calling');app.state.sampleKind='dnp-table';dialogPaths=['/counts/A.txt'];await app.action('add-samples',{});app.onValue({dataset:{branch:'DNP|cpin'},type:'checkbox',checked:true});check(app.selectedModules().join(',')==='cpin','Tables-only CPIN does not run DNP or SNP');
  await app.navigate('settings');await app.action('save-preferences',{});check(requests.some(r=>r.method==='preferences.save'&&r.params.baseline),'Preferences save uses concurrency baseline');await app.navigate('environment');app.state.runtimeMemory=4096;app.state.runtimeCpus=2;await app.action('preview-resources',{});check(!requests.some(r=>r.method==='resources.apply'),'Resource preview makes no mutation');await app.action('apply-resources',{});check(requests.at(-2).method==='resources.apply'&&requests.at(-2).params.confirmed,'Resources apply only confirmed preview');await app.action('check-updates',{});await app.action('download-update',{});await app.action('confirm-install-update',{});check(requests.at(-1).method==='app.close','Successful install handoff requests native close');
+ const previousCheck=handlers['updates.check'],previousDownload=handlers['updates.download'],previousLanguage=env.NipatI18n.language;
+ for(const [language,architecture,caption] of [['it','arm64','Mostra nel Finder'],['en','x86_64','Show in Finder']]){
+  env.NipatI18n.setLanguage(language);
+  handlers['updates.check']=()=>({status:'available',offer_id:architecture,offer:{version:'0.9.11',channel:'stable',asset:{platform:'darwin-'+architecture}}});
+  handlers['updates.download']=()=>({status:'verified',path:'/Users/A & B/Library/Caches/NewPat-'+architecture+'.pkg'});
+  handlers['updates.reveal']=()=>({status:'revealed'});
+  const before=requests.length;
+  await app.action('check-updates',{});await app.action('download-update',{});
+  const update=element('main').innerHTML;
+  check(update.includes('A &amp; B/Library/Caches/NewPat-'+architecture+'.pkg')&&update.includes(caption)&&!update.includes('data-action="install-update"'),'Verified Mac package and manual action in '+language);
+  await app.action('reveal-update',{});
+  check(requests.at(-1).method==='updates.reveal'&&requests.at(-1).params.offer_id===architecture,'Finder receives only the selected offer');
+  check(!requests.slice(before).some(r=>r.method==='updates.install'||r.method==='app.close'),'Mac manual installation keeps the application open');
+ }
+ handlers['updates.check']=previousCheck;handlers['updates.download']=previousDownload;delete handlers['updates.reveal'];env.NipatI18n.setLanguage(previousLanguage);
  await app.navigate('igv');app.state.igv.reference={fasta:'/ref.fa',index:'/ref.fa.fai'};app.state.igv.tracks=[{name:'Sample',path:'/a.bam',index:'/a.bam.bai'}];await app.action('igv-load',{});check(env.viewer&&requests.some(r=>r.method==='igv.prepare'&&r.params.reference.fasta==='/ref.fa'),'IGV registers real local source paths');app.state.igv.locus='chr1:100-200';await app.action('igv-search',{});check(env.locus==='chr1:100-200','Locus search reaches embedded IGV');app.state.igv.reference.fasta='/unapplied.fa';await app.action('igv-save',{});check(!JSON.stringify(requests.at(-1).params).includes('/token/'),'Saved IGV session contains no ephemeral capability URL');check(requests.at(-1).params.session.reference.fasta==='/ref.fa','IGV session saves the displayed sources, not unapplied form edits');
 
  // Regression coverage for real service contracts and stale asynchronous responses.
  check(document.documentElement.dataset.nipatReady==='true','Native readiness set only after successful boot');
  const sparse=app.normalizeDraft({caller:'snp',samples:[{id:'A',path:'/a.pileup',kind:'snp-pileup'}],branches:{SNP:[]},scientific_settings:{'snp-call':{max_depth:7}}});
- check(Array.isArray(sparse.branches.DNP)&&sparse.scientific_settings.cpin.min_child_reads!==undefined&&sparse.scientific_settings['snp-call'].max_depth===7,'Legacy reuse normalized without losing recorded overrides');
+ check(Array.isArray(sparse.branches.DNP)&&sparse.scientific_settings.cpin.min_coverage===null&&sparse.scientific_settings['snp-call'].max_depth===7,'Legacy reuse normalized without losing recorded overrides');
  app.state.draft=sparse;app.state.draft.reference='/hidden.fa';app.state.draft.branches.DNP=['cpin'];app.state.draft.families.cpin=[{id:'hidden'}];const clean=app.submittedDraft();check(clean.reference===null&&clean.branches.DNP.length===0&&clean.families.cpin.length===0,'Hidden reference branches and families omitted from submitted plan');
  check(app.resultCell('123456789',{key:'pos'})==='123456789'&&app.resultCell('00123',{key:'sample_id'})==='00123','Genomic coordinates and identifiers retain exact original digits');
  const malformed={...tables.curve,rows:[{Min_child_reads:'2',Through_min_child_reads:'</title><foreignObject>injected',Log10_CPI:'1'}]};check(!app.curveChart(malformed).includes('foreignObject'),'Malformed curve endpoint cannot inject SVG markup');
- const originalList=handlers['runs.list'];const manyRuns=Array.from({length:1003},(_,i)=>({...run,id:'archive-'+i,name:'Archived '+i}));handlers['runs.list']=p=>({runs:manyRuns.slice(p.offset,p.offset+p.limit),has_more:p.offset+p.limit<manyRuns.length,total:manyRuns.length});await app.loadRuns();check(app.state.runs.length===1003,'Archive retrieves entries beyond first server page');app.state.view='archive';app.state.run=null;app.state.archiveSearch='Archived 1002';app.render();check(element('main').innerHTML.includes('Archived 1002'),'Archive search reaches older records');app.state.archiveSearch='';app.render();check((element('main').innerHTML.match(/data-action="open-run"/g)||[]).length===25,'Archive renders bounded readable pages');handlers['runs.list']=originalList;await app.loadRuns();
+ const originalList=handlers['runs.list'];
+ const manyRuns=Array.from({length:1003},(_,i)=>({
+  ...run,id:'archive-'+i,name:'Archived '+i,status:i%2?'failed':'succeeded',
+  markers:[i%3?'DNP':'SNP'],samples:[{id:'sample-'+i,label:i===1002?'Oldest sample':'Sample '+i}]
+ }));
+ const listCalls=[];
+ const listPage=params=>{
+  listCalls.push(params);
+  const matches=manyRuns.filter(row=>(!params.run_id||row.id===params.run_id)&&(!params.status||row.status===params.status)
+   &&(!params.marker||row.markers.includes(params.marker))
+   &&(!params.query||[row.id,row.name,row.started_at,row.samples[0].label,row.samples[0].id].join(' ').toLowerCase().includes(params.query.toLowerCase())));
+  return {runs:matches.slice(params.offset,params.offset+params.limit),offset:params.offset,limit:params.limit,
+   total:matches.length,archive_total:manyRuns.length,has_more:params.offset+params.limit<matches.length};
+ };
+ handlers['runs.list']=listPage;
+ await app.navigate('home');
+ check(listCalls.length===1&&listCalls[0].limit===5&&app.state.recentRuns.length===5,'Home requests exactly five recent cards in one call');
+ await app.navigate('archive');
+ check(listCalls.length===2&&listCalls[1].limit===25&&app.state.archiveListing.total===1003,'Archive requests a single 25-card page with the full result count');
+ await app.action('archive-page',{page:40});
+ check(listCalls.at(-1).offset===1000&&app.state.archiveListing.runs.length===3&&element('archive-results').innerHTML.includes('1,001–1,003 / 1,003'),'Last archive page reports its actual range and total');
+ const originalTimer=env.setTimeout,originalClear=env.clearTimeout;
+ let pendingSearch;
+ env.setTimeout=(fn,ms)=>{if(ms===200){pendingSearch=fn;return 42}return 1};
+ env.clearTimeout=id=>{if(id===42)pendingSearch=null};
+ const typeQuery=value=>events.input[0]({target:{value,dataset:{search:'archive'}}});
+ typeQuery('Old');typeQuery('Oldest sample');
+ check(listCalls.length===3,'Typing a search does not request intermediate pages');
+ await pendingSearch();await tick();
+ check(listCalls.length===4&&listCalls.at(-1).offset===0&&listCalls.at(-1).query==='Oldest sample'&&element('archive-results').innerHTML.includes('Archived 1002'),'Search resets the page and finds an old sample across the entire archive');
+ const setFilter=(field,value)=>app.onValue({dataset:{field},value,type:'select-one'});
+ await setFilter('archiveMarker','DNP');
+ check(listCalls.at(-1).marker==='DNP'&&element('archive-results').innerHTML.includes('No experiments match'),'No matches with an active filter is distinct from an empty archive');
+ await setFilter('archiveMarker','SNP');await setFilter('archiveStatus','succeeded');
+ check(listCalls.at(-1).query==='Oldest sample'&&listCalls.at(-1).status==='succeeded'&&listCalls.at(-1).marker==='SNP'&&app.state.archiveListing.runs[0].id==='archive-1002','Marker and status filters combine with the sample query on the server');
+ const filterBeforeLanguage=listCalls.length;
+ await app.changeLanguage('it');await app.changeLanguage('en');
+ check(listCalls.length===filterBeforeLanguage+2&&listCalls.at(-1).query==='Oldest sample'&&app.state.archiveListing.runs[0].id==='archive-1002','A language change reloads the visible page under the existing filters');
+ handlers['runs.list']=p=>({...listPage(p),checking_status:true});
+ await setFilter('archiveStatus','interrupted');
+ handlers['runs.list']=listPage;manyRuns[1002].status='interrupted';
+ await app.poll();
+ check(app.state.archiveListing.runs[0]?.id==='archive-1002','An invisible run that becomes interrupted can enter an initially empty status-filtered page');
+ manyRuns[1002].status='succeeded';await setFilter('archiveStatus','succeeded');
+ let resolveOldArchive;
+ handlers['runs.list']=p=>p.query==='delayed'?new Promise(resolve=>{resolveOldArchive=()=>resolve(listPage(p))}):listPage(p);
+ typeQuery('delayed');const delayedSearch=pendingSearch();await tick();
+ typeQuery('sample-1002');await pendingSearch();
+ resolveOldArchive();await delayedSearch;
+ check(app.state.archiveListing.runs[0].id==='archive-1002','A late search response cannot replace a more recent match');
+ typeQuery('delayed');const leavingSearch=pendingSearch();await tick();
+ await app.navigate('home');resolveOldArchive();await leavingSearch;
+ check(app.state.recentRuns.length===5&&app.state.recentRuns[0].id==='archive-0'&&element('main').innerHTML.includes('Archived 0'),'A stale archive response cannot overwrite recent Home cards');
+ handlers['runs.list']=listPage;env.setTimeout=originalTimer;env.clearTimeout=originalClear;
+ app.state.archiveSearch='';app.state.archiveMarker='all';app.state.archiveStatus='all';
+ await app.navigate('archive');
+ const getHistory=handlers['runs.get'];handlers['runs.get']=p=>({...run,id:p.run_id});
+ await app.loadRun('archive-1002');await app.loadRun('archive-0');await app.action('page-back',{});
+ check(listCalls.at(-1).limit===1&&listCalls.at(-1).run_id==='archive-1002'&&app.state.run?.id==='archive-1002','Back restores an older run by exact archive ID without fetching intervening pages');
+ await app.loadRun('archive-0');
+ const hiddenHistory=manyRuns.pop();
+ await app.action('page-back',{});
+ check(listCalls.at(-1).run_id==='archive-1002'&&!app.state.run,'A run removed from the archive by another window stays hidden on Back');
+ manyRuns.push(hiddenHistory);handlers['runs.get']=getHistory;
+ await app.action('archive-page',{page:40});
+ manyRuns.splice(1000);const beforeShrink=listCalls.length;
+ await app.loadRuns();app.render();
+ check(listCalls.length===beforeShrink+2&&listCalls.at(-1).offset===975&&app.state.archivePage===39&&element('main').innerHTML.includes('976–1,000 / 1,000'),'Removing the last page returns the archive to its new last page');
+ manyRuns.splice(0);await app.loadRuns();app.render();
+ check(app.state.archivePage===0&&element('main').innerHTML.includes('No experiments yet'),'Removing every record resets pagination and shows the empty archive');
+ handlers['runs.list']=()=>Promise.reject(new Error('Try again'));
+ await assert.rejects(app.action('archive-page',{page:0}));
+ check(element('archive-results').innerHTML.includes('data-action="archive-page"')&&element('archive-results').innerHTML.includes('role="alert"'),'A failed archive request provides an in-place retry');
+ handlers['runs.list']=originalList;await app.action('archive-page',{page:0});
+ check(app.state.archiveListing.runs[0].id==='run-1','Retry reloads the same archive page');
  await app.loadRun('run-1');await app.action('result-module',{module:'snp-call|SNP'});const originalTable=handlers['runs.table'];let resolveOld;handlers['runs.table']=p=>p.query==='delayed'?new Promise(resolve=>{resolveOld=()=>resolve(originalTable({...p,query:''}))}):originalTable(p);app.state.tableSearch='delayed';const oldTable=app.loadTable(0);await tick();await app.action('result-module',{module:'cpin|DNP'});resolveOld();await oldTable;check(app.state.table.file.id==='sites','Delayed previous sample table cannot overwrite current module');handlers['runs.table']=originalTable;
- const originalReuse=handlers['run.reuse'];handlers['run.reuse']=()=>({name:'Historical',caller:'snp',samples:[{id:'A',path:'/a.pileup',kind:'snp-pileup'}],branches:{SNP:[]},scientific_settings:{'snp-call':{max_depth:7}}});await app.action('reuse-run',{});check(app.state.draft.branches.DNP.length===0&&app.state.draft.scientific_settings.cpin.min_child_reads!==undefined,'Reuse action normalizes sparse actual legacy response');handlers['run.reuse']=originalReuse;
+ const originalReuse=handlers['run.reuse'];handlers['run.reuse']=()=>({name:'Historical',caller:'snp',samples:[{id:'A',path:'/a.pileup',kind:'snp-pileup'}],branches:{SNP:[]},scientific_settings:{'snp-call':{max_depth:7}}});await app.action('reuse-run',{});check(app.state.draft.branches.DNP.length===0&&app.state.draft.scientific_settings.cpin.min_coverage===null,'Reuse action normalizes sparse actual legacy response');handlers['run.reuse']=originalReuse;
 
  const savedRun=app.state.run,savedOverview=app.state.overview;app.state.run={...run,execution:{cpus:2,memory_mb:4096,execution_mode:'serial'},settings:[{module:'snp-call',marker:'SNP',document:{parameters:{excluded_flags:1796,max_depth:0},constants:{ploidy:3,phred_error_probability:settings.workflows['snp-call'].constants.phred_error_probability.value}}}]};app.state.runTab='parameters';const recorded=app.renderRun();check(recorded.includes('Unmapped')&&recorded.includes('Secondary alignments')&&!recorded.includes('1796'),'Historical excluded read categories are human-readable');check(recorded.includes('4096')&&recorded.includes('Memory limit')&&recorded.includes('>3</div>'),'Archived execution and historical constant values displayed unchanged');check(recorded.includes('<math'),'Unchanged historical scientific formula uses mathematical typesetting');
  app.state.runTab='results';app.state.module=null;app.state.overview={modules:[{module:'cpin',marker:'DNP',status:'running',entries:[],files:[]}]};const pending=app.renderRun();check(!pending.includes('Results available')&&pending.includes('Running'),'Pending declared module does not imply available results');app.state.run=savedRun;app.state.overview=savedOverview;
  check(app.curveChart({...tables.curve,has_more:true,total:2000}).includes('first 3'),'Partial scientific chart explicitly identifies truncation');
  const originalPreview=handlers['plan.preview'];let resolvePreview;handlers['plan.preview']=p=>new Promise(resolve=>{resolvePreview=()=>resolve(originalPreview(p))});const stalePreview=app.action('validate-plan',{});await tick();app.onValue({dataset:{draft:'name'},type:'text',value:'Changed while checking'});resolvePreview();await stalePreview;check(app.state.preview===null,'Editing during validation cannot activate a stale plan');handlers['plan.preview']=originalPreview;
 
- handlers['run.prepare']=p=>({name:'Additional analysis',caller:'tables',samples:[{id:'A',path:'/completed/counts.txt',kind:'dnp-table'}],branches:{DNP:[p.module]},families:{cpin:[{id:'F',mother:'A',father:'B',child:'C'}]},scientific_settings:{cpin:{min_child_reads:6}}});await app.action('prepare-module',{module:'cpin'});check(app.state.draft.caller==='tables'&&app.selectedModules().join(',')==='cpin'&&app.state.step===1,'Additional analysis consumes existing counts without rerunning callers or prior modules');check(app.state.draft.scientific_settings.cpin.min_child_reads===6&&app.state.source==='tables','Additional analysis preserves recorded settings and exposes family assignments');
+ handlers['run.prepare']=p=>({name:'Additional analysis',caller:'tables',samples:[{id:'A',path:'/completed/counts.txt',kind:'dnp-table'}],branches:{DNP:[p.module]},families:{cpin:[{id:'F',mother:'A',father:'B',child:'C'}]},scientific_settings:{cpin:{min_coverage:6}}});await app.action('prepare-module',{module:'cpin'});check(app.state.draft.caller==='tables'&&app.selectedModules().join(',')==='cpin'&&app.state.step===1,'Additional analysis consumes existing counts without rerunning callers or prior modules');check(app.state.draft.scientific_settings.cpin.min_coverage===6&&app.state.source==='tables','Additional analysis preserves recorded settings and exposes family assignments');
 
- // 0.9.1 usability and lifecycle regressions.
+ // Activity updates preserve progress indicators and fetch logs only while they are open.
  const noProgress={id:'initial',name:'Initial',status:'running',created_at:'2026-11-15T12:00:00Z',finished_at:'2026-11-15T12:02:03Z',progress:null,logs:[]};
  app.state.jobs=[noProgress];const initialProgress=app.renderActivity();
  check(/progress-track indeterminate/.test(initialProgress)&&!/<span style="width:0%"><\/span>/.test(initialProgress),'Unknown progress renders a visible indeterminate band without inline zero width');
@@ -98,9 +324,20 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
  check(app.rowLocus({chr:'1',start:'0',end:'100'})===null&&app.rowLocus({chr:'1',pos:'0'})===null,'Unknown coordinate conventions and invalid zero positions are not guessed');
  await app.loadRun('run-1');check(element('main').innerHTML.includes('Run again')&&element('main').innerHTML.includes('Remove from list'),'Run actions are immediately visible');
  await app.action('result-module',{module:'snp-call|SNP'});check(element('main').innerHTML.includes('data-action="run-igv"'),'Coordinate-bearing result rows link to IGV when source inputs are recorded');
+ handlers['jobs.result_id']=params=>{check(params.job_id==='old-job','Activity resolves the selected session job');return {run_id:'imported-original'}};
+ await app.action('open-run',{job:'old-job',id:'same-basename'});
+ check(requests.some(r=>r.method==='runs.get'&&r.params.run_id==='imported-original')&&!requests.some(r=>r.method==='runs.get'&&r.params.run_id==='same-basename'),'Opening an Activity card uses its registered archive ID after switching result folders');
+ await app.loadRun('run-1');
  const originalGet=handlers['runs.get'],originalOverview=handlers['runs.overview'];app.state.run={...run,status:'running'};app.state.runTab='provenance';app.state.module=null;
  handlers['runs.get']=()=>({...run,status:'interrupted',status_note:'Previous process ended.'});handlers['runs.overview']=()=>({...overview});await app.refreshOpenedRun();
- check(app.state.run.status==='interrupted'&&app.state.runTab==='provenance'&&element('main').innerHTML.includes('Previous process ended.'),'Open result view refreshes stale status without resetting its selected tab');handlers['runs.get']=originalGet;handlers['runs.overview']=originalOverview;
+ check(app.state.run.status==='interrupted'&&app.state.runTab==='provenance'&&element('main').innerHTML.includes('Previous process ended.'),'Open result view refreshes stale status without resetting its selected tab');
+ app.state.run={...run,status:'running'};app.render();
+ await app.action('row-details',{file:'sites',row:'1'});
+ const openDetails=element('modal-root').innerHTML;
+ await app.poll();
+ check(openDetails.includes('role="dialog"')&&element('modal-root').innerHTML===openDetails,'The live result dialog stays open when its experiment finishes');
+ await app.action('close-modal',{});await app.poll();
+ check(app.state.run.status==='interrupted'&&app.state.runTab==='provenance'&&element('main').innerHTML.includes('Previous process ended.'),'Closing details after completion shows the terminal result in the selected tab');handlers['runs.get']=originalGet;handlers['runs.overview']=originalOverview;
  await app.action('remove-run',{id:'run-1'});check(element('modal-root').innerHTML.includes('input files will remain'),'Removal confirmation clearly preserves results and source files');await app.action('confirm-remove-run',{id:'run-1'});check(requests.some(r=>r.method==='runs.remove'&&r.params.run_id==='run-1')&&app.state.run===null,'Confirmed removal reaches backend and clears selected experiment');
  await app.loadRun('run-1');await app.action('run-igv',{locus:'chr1:100-102'});check(app.state.view==='igv'&&app.state.igv.loaded&&requests.some(r=>r.method==='run.igv'&&r.params.locus==='chr1:100-102'),'Result action opens existing reference/sample in embedded viewer');
  check(env.viewer.config.locus==='chr1:50-152','Result display margin is applied after reference coordinates are validated');
@@ -110,7 +347,7 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
  dialogPaths=['/sample.bam.bai'];await app.action('choose-path',{key:'igv-track.0.index',filter:'bai'});check(requests.at(-1).params.filters[0].extensions.join(',')==='bai,csi','BAM index picker offers only BAM index formats');
  const html=fs.readFileSync(path.join(web,'index.html'),'utf8');check(!/(?:src|href)=["']https?:/.test(html),'All frontend scripts/styles packaged offline');check(!fs.readFileSync(path.join(web,'app.js'),'utf8').includes('window.open('),'No external-browser launch in frontend');
 
- // NewPat 0.9.5: explicit fresh starts, scoped diagnostics and honest viewer guidance.
+ // A new experiment starts from saved defaults after any previous job outcome.
  const savedPreferences=JSON.parse(JSON.stringify(app.state.preferences)),savedBaseline=JSON.parse(JSON.stringify(app.state.baseline));
  app.state.preferences.scientific_settings={'snp-call':{max_depth:250}};app.state.preferences.execution={max_workers:2};await app.action('save-preferences',{});
  app.state.preferences.scientific_settings['snp-call'].max_depth=999;app.state.preferences.execution.max_workers=7;
@@ -124,6 +361,34 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
   check(app.state.draft.scientific_settings['snp-call'].max_depth===250&&app.state.draft.execution.max_workers===2,'New experiment retains saved defaults, not last run or unsaved overrides after '+status);
  }
  app.state.preferences=savedPreferences;app.state.baseline=savedBaseline;await app.action('navigate',{view:'new'});
+ // Named profiles contain scientific and execution settings, and never the experiment inputs.
+ const personalDepth=app.state.draft.scientific_settings['snp-call'].max_depth;
+ const profileName='Profilo <A>';
+ app.state.preferences.runs_dir='/unsaved';
+ app.state.draft.samples=[{id:'P',kind:'bam',path:'/private/P.bam'}];
+ app.state.draft.scientific_settings['snp-call'].max_depth=117;
+ app.state.draft.execution.performance_diagnostics=true;
+ await app.action('new-profile',{});element('profile-name').value=profileName;
+ await app.action('save-profile',{});
+ let profile=app.state.baseline.parameter_profiles[profileName];
+ check(profile.scientific_settings['snp-call'].max_depth===117&&!('performance_diagnostics' in profile.execution)&&!JSON.stringify(profile).includes('/private'),'Profile saves only scientific and execution settings');
+ check(app.state.preferences.runs_dir==='/unsaved'&&app.state.baseline.runs_dir!=='/unsaved','Saving a profile preserves unrelated unsaved preferences without persisting them');
+ app.state.draft.scientific_settings['snp-call'].max_depth=200;
+ await app.action('apply-profile',{});
+ check(app.state.draft.scientific_settings['snp-call'].max_depth===117&&app.state.draft.execution.performance_diagnostics&&app.state.draft.samples[0].id==='P','Applying a profile preserves the current experiment and resets its parameters');
+ app.state.draft.scientific_settings['snp-call'].max_depth=201;
+ await app.action('new-profile',{});element('profile-name').value=profileName;
+ await app.action('save-profile',{});
+ check(element('modal-root').innerHTML.includes('confirm-save-profile')&&profile.scientific_settings['snp-call'].max_depth===117,'Saving an existing name requires confirmation before replacement');
+ await app.action('confirm-save-profile',{name:profileName});
+ app.onValue({dataset:{preference:'default_profile'},type:'select-one',value:profileName});
+ await app.action('save-preferences',{});await app.action('new-experiment',{});
+ check(app.state.draft.scientific_settings['snp-call'].max_depth===201&&!app.state.draft.execution.performance_diagnostics&&!app.state.draft.samples.length,'New experiment uses the designated profile without old samples');
+ check(app.normalizeDraft({scientific_settings:{}}).scientific_settings['snp-call'].max_depth===personalDepth,'Reopening a legacy draft does not apply a subsequently designated profile');
+ await app.action('remove-profile',{name:profileName});
+ check(element('modal-root').innerHTML.includes('confirm-remove-profile')&&element('modal-root').innerHTML.includes('&lt;A&gt;'),'Deletion confirmation escapes the profile name');
+ await app.action('confirm-remove-profile',{name:profileName});
+ check(!app.state.baseline.default_profile&&app.blankDraft().scientific_settings['snp-call'].max_depth===personalDepth&&app.state.draft.scientific_settings['snp-call'].max_depth===201,'Deleting the default profile restores personal defaults for future experiments only');
  const defer=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no});return{promise,resolve,reject}};
  const originalDialog=handlers['dialog.open'];
  for(const picker of ['samples','reference','resource.DNP.panel']){
@@ -209,9 +474,182 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
  await app.action('curve-page',{id:'prenatal',page:'1'});check(element('main').innerHTML.includes('1,001–1,005 / 1,005')&&(element('main').innerHTML.match(/data-curve-point=/g)||[]).length===10,'Remaining thresholds are available on the next page for both plots');
  check(element('main').innerHTML.includes('data-action="export-file"')&&element('main').innerHTML.includes('data-action="open-file"'),'Interactive plots retain original table access and exports');
  handlers['runs.curve']=()=>Promise.reject(new Error('Curve exceeds the display limit; open original PDF.'));await app.action('result-module',{module:'cpi|DNP'});
- check(element('main').innerHTML.includes('Curve exceeds the display limit')&&element('main').innerHTML.includes('log₁₀(CPI) alla frazione fetale mediana')&&element('main').innerHTML.includes('0.6'),'Unavailable interactive curve shows its reason while the summary remains accessible');
+ check(element('main').innerHTML.includes('Curve exceeds the display limit')&&element('main').innerHTML.includes('log₁₀(CPI) alla soglia mediana di letture fetali')&&element('main').innerHTML.includes('0.6'),'Unavailable interactive curve shows its reason while the summary remains accessible');
  handlers['runs.curve']=originalCurves;overview.modules[1].entries[0].curve_file_ids=originalCpiCurveIds;
+ // Page navigation is independent of IGV's genomic region history.
+ await app.navigate('home');check(element('page-back').hidden,'Back control hidden at the workspace root');
+ await app.navigate('archive');await app.loadRun('run-1');
+ const snpGroup=overview.modules[0];app.state.overview={modules:[snpGroup]};app.render();
+ check((element('main').innerHTML.match(/class="module-card"/g)||[]).length===1&&element('main').innerHTML.includes('data-module="snp-call|SNP"'),'Only the executed SNP caller is a result card');
+ await app.action('result-module',{module:'snp-call|SNP'});app.state.tableSearch='0/1';await app.loadTable(0);
+ await app.changeLanguage('it');
+ check(app.state.module==='snp-call|SNP'&&app.state.tableSearch==='0/1'&&app.state.table.matched===1,'Changing language preserves the exact filtered SNP result');
+ await app.action('open-file',{id:'calling'});await app.action('row-details',{file:'calling',row:'1'});
+ check(element('modal-root').innerHTML.includes('data-action="back-to-table"'),'Site opened from original table has a route back to that table');
+ await app.action('back-to-table',{});check(app.state.modalTable.file.id==='calling'&&element('modal-root').innerHTML.includes('class="table result-table"'),'Original table remains open at the same page');
+ await app.action('run-igv',{locus:'chr1:100-100'});await app.action('page-back',{});
+ check(app.state.view==='archive'&&app.state.module==='snp-call|SNP'&&app.state.tableSearch==='0/1'&&app.state.table.matched===1&&app.state.modalTable.file.id==='calling','Back from IGV restores the selected SNP module, filtered sites and source table');
+ await app.action('close-modal',{});await app.action('page-back',{});check(app.state.run?.id==='run-1'&&app.state.module===null,'Back from module returns to this experiment overview');
+ await app.action('page-back',{});check(app.state.view==='archive'&&!app.state.run,'Back from overview returns to the archive list');
+ await app.action('page-back',{});check(app.state.view==='home','Back from archive returns to workspace');
+ await app.action('navigate',{view:'new'});const wizard=app.state.draft;wizard.name='Draft to keep';wizard.samples=[{id:'A',kind:'snp-pileup',path:'/reads.txt'}];wizard.caller='snp';await app.action('step',{index:2});
+ await app.navigate('settings');await app.action('edit-defaults',{});app.state.catalogSearch='deliberately unmatched';await app.action('page-back',{});await app.action('page-back',{});
+ check(app.renderNew().includes('data-parameter="snp-call|other_fraction_max|draft"'),'Catalog search leaves wizard parameters visible');
+ check(app.state.draft===wizard&&app.state.step===2&&!app.renderNew().includes('data-execution="dnp_block_mib|draft"'),'Returning to the wizard preserves its SNP draft and omits inapplicable DNP-only execution settings');
+ await app.action('page-back',{});check(app.state.step===1&&app.state.draft.name==='Draft to keep','Back within the wizard keeps sample inputs intact');
  for(const [key,pair] of Object.entries(env.NipatI18n.strings))check(pair.length===2&&pair.every(x=>typeof x==='string'&&x.length),'Translation pair '+key);
  const listBeforeFailure=handlers['runs.list'];handlers['runs.list']=()=>{throw new Error('Archive unavailable')};await app.boot();check(!document.documentElement.dataset.nipatReady&&element('main').innerHTML.includes('Impossibile caricare'),'Failed initial archive load cannot report native app readiness');handlers['runs.list']=listBeforeFailure;await app.boot();check(document.documentElement.dataset.nipatReady==='true','Retry bootstrap restores readiness only after successful render');
+ await app.navigate('environment');
+ for(const lang of ['it','en']){
+  await app.changeLanguage(lang);
+  const it=lang==='it';
+  check(element('main').innerHTML.includes(it?'Salva dati di esempio':'Save example data'),'Offline example action in '+lang);
+  handlers['examples.save']=()=>({path:'/output/<folder>/synthetic-trio'});
+  await app.action('save-example-data',{});
+  check(requests.at(-1).method==='examples.save'&&requests.at(-1).params.language===lang&&element('modal-root').innerHTML.includes('/output/&lt;folder&gt;/synthetic-trio'),'Example extraction reports the escaped destination in '+lang);
+  await app.action('close-modal',{});
+  handlers['examples.save']=()=>({cancelled:true});await app.action('save-example-data',{});
+  check(!element('modal-root').innerHTML,'Cancel leaves the chooser without a success message in '+lang);
+  const describe=(key,value,label=key,extra={})=>({key,value,label,available:value!=null,...extra});
+  const selectOutcome=(module,kind,metrics,extra={})=>{
+   const marker=module==='snp-call'?'SNP':'DNP';
+   const entry={label:'Family <1>',summary:{kind,step_status:'succeeded',metrics,...extra}};
+   app.state.run=run;app.state.runTab='results';app.state.entry=0;app.state.table=null;app.state.curves=[];
+   app.state.overview={modules:[{module,marker,status:'succeeded',files:[],entries:[entry]}]};
+   app.state.module=module+'|'+marker;
+   return app.renderRun();
+  };
+  const gt=app.resultCell('0/1',{key:'GT'},true),expectedLabel=it?'Eterozigote':'Heterozygous';
+  check(gt.includes('class="locus-genotype"')&&gt.includes('>0/1</span> '+expectedLabel),'Site detail shows the recorded genotype and meaning '+lang);
+  check(!app.resultCell('NA',{key:'GT'}).includes('locus-genotype'),'Missing site call cannot look assigned '+lang);
+  check(app.resultCell('-Inf',{key:'GL0'})==='-Inf'&&app.resultCell('NA',{key:'GL0'}).includes(it?'Non disponibile':'Not available'),
+        'An impossible genotype retains its negative-infinite log likelihood; an unavailable likelihood is labelled separately '+lang);
+  const precise=selectOutcome('cpi','prenatal_cpi',[describe('CPI_medianFF','4.0001')],{guide_band:{lower:'-4',upper:'4',position:'above'}});
+  check(precise.includes(it?'>4,0001<':'>4.0001<')&&precise.includes('data-band="above"'),'Preserve additional precision in historical summaries '+lang);
+  const bounds={lower:'-2',upper:'7'};
+  for(const [value,position] of [['-2.001','below'],['-2','at_lower'],['0','between'],['7','at_upper'],['7.001','above']]){
+   const html=selectOutcome('cpi','prenatal_cpi',[describe('CPI_medianFF',value)],{guide_band:{...bounds,position}});
+   check(html.includes('data-band="'+position+'"')&&html.includes('(-2, 7)'),'Prenatal band and archived custom limits '+lang+' '+position);
+   const rounded=position==='at_lower'||position==='at_upper';
+   check(html.includes(it?'arrotonda a tre decimali':'rounds to three decimal places')===rounded,'Rounding caveat only for a reported boundary '+lang+' '+position);
+   if(value==='0')check(html.includes(it?'>0,000<':'>0.000<'),'Prenatal zero remains numeric '+lang);
+  }
+  const noBand=selectOutcome('cpi','prenatal_cpi',[describe('CPI_medianFF','4')],{guide_band:null});
+  check(!noBand.includes('data-band=')&&noBand.includes(it?'>4,000<':'>4.000<'),'Historical result without archived limits keeps only its numeric value '+lang);
+  const none=it?'Non disponibile':'Not available';
+  const missing=selectOutcome('cpi','prenatal_cpi',[describe('CPI_medianFF',null)]);
+  check(missing.toLowerCase().includes(none.toLowerCase())&&!missing.includes('data-band='),'Missing prenatal output is distinct from zero '+lang);
+  for(const module of ['dnp-call','snp-call']){
+   const metrics=[describe('assigned','3'),describe('site_count','5'),describe('unassigned','2')];
+   const caller=selectOutcome(module,'genotypes',metrics);
+   check(caller.includes('>3 / 5<')&&caller.includes(it?'Siti con genotipo assegnato':'Sites with an assigned genotype')&&!caller.includes('data-band='),'Caller identifies per-sample genotypes '+lang+' '+module);
+   const partial=selectOutcome(module,'genotypes',metrics,{step_status:'interrupted'});
+   check(partial.includes(it?'Analisi incompleta':'Analysis incomplete')&&!partial.includes('>3 / 5<'),'Interrupted table cannot look complete '+lang+' '+module);
+  }
+  const postnatal=selectOutcome('cpin','postnatal_cpi',[describe('CPI','0.00355037213631891'),describe('Log10_CPI','-2.45')]);
+  check(postnatal.includes(it?'0,00355037213631891':'0.00355037213631891')&&!postnatal.includes('data-band='),'Preserve postnatal linear index precision without prenatal guides '+lang);
+  const scalar=selectOutcome('cpin','postnatal_cpi',[describe('CPI','10000'),describe('Log10_CPI','4')],{guide_band:{lower:'-4',upper:'4',position:'at_upper'}});
+  check(scalar.includes('data-band="at_upper"')&&scalar.includes(it?'Intervallo di riferimento':'Reference interval')&&!scalar.includes(it?'arrotonda a tre decimali':'rounds to three decimal places'),'The scalar result band uses recorded bounds without rounding the postnatal log index '+lang);
+  const overflow=selectOutcome('cpin','postnatal_cpi',[describe('CPI',null),describe('Log10_CPI','400')],{guide_band:{lower:'-4',upper:'4',position:'above'}});
+  check(overflow.includes('>400<')&&overflow.includes('data-band="above"'),'A finite log estimate remains prominent when the linear CPI overflows '+lang);
+  const mean=describe('mean_contamination','0.025',it?'Contaminazione media':'Mean contamination',{unit:'%',scale:100});
+  const contamination=selectOutcome('contamination','contamination',[mean,describe('informative_sites','12')]);
+  check(contamination.includes(it?'Contaminazione media':'Mean contamination')&&contamination.includes(it?'>2,5 %<':'>2.5 %<'),'Contamination is a mean displayed as a percentage '+lang);
+  const entries=app.state.overview.modules[0].entries;
+  for(const label of ['Family 2','Family 3','Family 4'])entries.push({...entries[0],label});
+  app.state.module=null;
+  const cards=app.renderRun();
+  check((cards.match(/class="outcome-preview"/g)||[]).length===3&&cards.includes('Family &lt;1&gt;')&&cards.includes('Family 3')&&!cards.includes('Family 4')&&cards.includes(it?'Altri risultati nella scheda di analisi':'More results in the analysis tab'),'Module cards show named subjects and link to additional entries '+lang);
+ }
+ // Verify the plan that crosses the RPC boundary when the user starts a family analysis.
+ const pair = {id: 'pair', mother: 'M', father: 'F'};
+ const trio = {id: 'trio', mother: 'M', father: 'F', child: 'C'};
+ const resources = marker => ({
+  panel: marker+'.tsv', popfreq: marker+'-freq.tsv', contamination_panel: marker+'-contamination.tsv',
+  cpi_cutoffs: [{label: 'cutoff', path: marker+'-cutoff.tsv'}], cpin_panel: marker+'-post.tsv'
+ });
+ for (const caller of ['both', 'snp']) {
+  await app.action('navigate', {view: 'new'});
+  Object.assign(app.state.draft, {
+   name: 'Families', caller, samples: ['M','F','C'].map(id=>({id, kind:'bam', path:'/bam/'+id+'.bam'})),
+   reference: '/ref/family.fa', reference_id: 'registered-fasta',
+   families: {cpi:[pair], cpin:[trio]}, branches: {DNP:['cpi'], SNP:['cpin','contamination']},
+   resources: {DNP:resources('DNP'), SNP:resources('SNP')}
+  });
+  handlers['plan.preview'] = params => ({...originalPreview(params), preview_id:'families-'+caller});
+  const offset = requests.length;
+  await app.action('start-analysis', {});
+  const familyCalls = requests.slice(offset).filter(r=>['plan.preview','analysis.start'].includes(r.method));
+  assert.deepEqual(familyCalls.map(r=>r.method), ['plan.preview', 'analysis.start']);
+  assert.deepEqual(familyCalls[1].params, {preview_id:'families-'+caller});
+  const sent = familyCalls[0].params.draft;
+  const dnpIncluded = caller === 'both';
+  assert.deepEqual(sent.families, {cpi:dnpIncluded?[pair]:[], cpin:[trio]});
+  assert.deepEqual(sent.branches, {DNP:dnpIncluded?['cpi']:[], SNP:['cpin','contamination']});
+  assert.deepEqual(sent.resources.DNP, dnpIncluded ? {
+   panel:'DNP.tsv', popfreq:'DNP-freq.tsv', cpi_cutoffs:[{label:'cutoff', path:'DNP-cutoff.tsv'}]
+  } : {});
+  assert.deepEqual(sent.resources.SNP, {
+   panel:'SNP.tsv', popfreq:'SNP-freq.tsv', contamination_panel:'SNP-contamination.tsv', cpin_panel:'SNP-post.tsv'
+  });
+  check(sent.reference === '/ref/family.fa' && sent.reference_id === 'registered-fasta',
+        'Family analysis submits its registered FASTA and selected resources for '+caller);
+ }
+ handlers['plan.preview'] = originalPreview;
+ // A reviewable demo uses the real preview/start boundary and explicit factory settings.
+ const scientificDefaults=Object.fromEntries(Object.entries(settings.workflows).map(([module,workflow])=>
+  [module,Object.fromEntries(Object.entries(workflow.parameters).map(([key,param])=>[key,param.default]))]));
+ const demoDraft={
+  name:'DNP and SNP demo',caller:'both',reference:'/demo/reference/synthetic.fa',
+  samples:['mother','father','child'].map(id=>({id,kind:'bam',path:'/demo/alignments/'+id+'.bam'})),
+  branches:{DNP:[],SNP:[]},resources:{DNP:{panel:'/demo/panels/dnp.tsv'},SNP:{panel:'/demo/panels/snp.tsv'}},
+  families:{cpi:[],cpin:[]},scientific_settings:scientificDefaults,
+  execution:{execution_mode:'auto',max_workers:null,cpus:null,memory_mb:null,pids_limit:null,dnp_block_mib:32,dnp_block_loci:64,input_hashes:'auto',performance_diagnostics:false}
+ };
+ app.state.baseline.execution={max_workers:11,performance_diagnostics:true};
+ app.state.baseline.scientific_settings={'snp-call':{max_depth:17}};
+ const personalDefaults=JSON.stringify(app.state.baseline);
+ handlers['examples.demo']=()=>({draft:demoDraft});
+ handlers['plan.preview']=p=>({preview_id:'demo-validated',steps:[],samples:p.draft.samples});
+ for(const lang of ['it','en']){
+  await app.changeLanguage(lang);
+  await app.action('new-experiment',{});
+  const personal=app.state.draft;
+  app.onValue({dataset:{draft:'name'},type:'text',value:'Keep my draft'});
+  await app.navigate('environment');
+  const expected=lang==='it'?'Risultati attesi della demo':'Expected demo results';
+  const section=element('main').innerHTML;
+  check(section.includes(lang==='it'?'Apri demo':'Open demo')&&section.includes(expected)&&section.includes('96')&&section.includes('50'),'Demo entry and reference counts are available outside the experiment '+lang);
+  const reqStart=requests.length;
+  await app.action('open-demo',{});
+  check(requests.length===reqStart&&element('modal-root').innerHTML.includes('confirm-open-demo'),'Opening demo asks before replacing a personal draft '+lang);
+  await app.action('close-modal',{});
+  check(app.state.draft===personal&&personal.name==='Keep my draft','Cancelling keeps the draft '+lang);
+  await app.action('open-demo',{});
+  await app.action('confirm-open-demo',{});
+  const opened=requests.slice(reqStart);
+  check(opened.some(r=>r.method==='examples.demo'&&r.params.language===lang)&&opened.some(r=>r.method==='plan.preview')&&!opened.some(r=>r.method==='analysis.start'),'Demo validates and awaits explicit Start '+lang);
+  check(app.state.view==='new'&&app.state.step===3&&app.state.preview.preview_id==='demo-validated'&&element('main').innerHTML.includes(expected),'Demo opens the ordinary reviewed wizard '+lang);
+  check(app.submittedDraft().samples.map(s=>s.id).join(',')==='mother,father,child'&&app.activeMarkers().join(',')==='DNP,SNP'&&JSON.stringify(app.state.baseline)===personalDefaults,'Demo settings and synthetic files leave saved preferences untouched '+lang);
+  check(app.state.draft.scientific_settings['snp-call'].max_depth===scientificDefaults['snp-call'].max_depth&&app.state.draft.execution.max_workers===null&&!app.state.draft.execution.performance_diagnostics,'Demo bypasses personal overrides '+lang);
+  if(lang==='it'){
+   await app.action('start-analysis',{});
+   check(requests.some(r=>r.method==='analysis.start'&&r.params.preview_id==='demo-validated'),'Explicit Start submits the approved demo plan');
+  }else{
+   app.onValue({dataset:{draft:'caller'},type:'select-one',value:'snp'});
+   check(app.state.preview===null&&!app.renderNew().includes(expected),'Changing the template invalidates its preview and expected-count panel');
+  }
+ }
+ await app.action('new-experiment',{});
+ const pristine=app.state.draft;
+ await app.navigate('environment');
+ handlers['plan.preview']=()=>Promise.reject(new Error('Demo reference unavailable'));
+ await assert.rejects(app.action('open-demo',{}),/Demo reference unavailable/);
+ check(app.state.draft===pristine&&app.state.view==='environment','Failed demo preparation preserves the existing draft and page');
+ const demoWait=defer();
+ handlers['plan.preview']=()=>demoWait.promise;
+ const lateDemo=app.action('open-demo',{});await tick();await app.navigate('home');
+ demoWait.resolve({preview_id:'late'});await lateDemo;
+ check(app.state.view==='home'&&app.state.draft===pristine&&app.state.preview===null,'Late demo validation cannot redirect a user who navigated away');
  console.log(JSON.stringify({status:'passed',assertions:checks.length,rpcCalls:requests.length,scope:'Frontend state/RPC/markup; native rendering tested separately'}));
 })().catch(error=>{console.error(error);process.exitCode=1});

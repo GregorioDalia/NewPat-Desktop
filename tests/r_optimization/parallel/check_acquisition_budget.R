@@ -6,7 +6,7 @@ root <- normalizePath(commandArgs(trailingOnly = TRUE)[[1L]], mustWork = TRUE)
 
 main <- function() {
   variables <- c("NIPAT_EXECUTION_MODE", "NIPAT_MAX_WORKERS", "NIPAT_PARALLEL_CHILD",
-                 "NIPAT_TEST_FAIL_ACQUISITION")
+                 "NIPAT_TEST_FAIL_ACQUISITION", "NIPAT_DNP_OPTIMIZED_IO")
   previous <- Sys.getenv(variables, unset = NA_character_)
   on.exit(for (name in names(previous)) {
     if (is.na(previous[[name]])) Sys.unsetenv(name) else
@@ -65,6 +65,8 @@ main <- function() {
     list(name = "pair-at-budget", mode = "auto", maximum = "4"),
     list(name = "pair-over-budget", mode = "auto", maximum = "4"),
     list(name = "larger-worker", mode = "auto", maximum = "4"),
+    list(name = "larger-pair-at-budget", mode = "auto", maximum = "4", optimized = TRUE),
+    list(name = "larger-pair-over-budget", mode = "auto", maximum = "4", optimized = TRUE),
     list(name = "pair-only", mode = "auto", maximum = "4"),
     list(name = "one-cpu", mode = "auto", maximum = "4"),
     list(name = "unknown-reference", mode = "auto", maximum = "4"),
@@ -88,7 +90,8 @@ main <- function() {
     work <- file.path(directory, configuration$name)
     dir.create(work)
     setwd(work)
-    Sys.setenv(NIPAT_EXECUTION_MODE = configuration$mode,
+    Sys.setenv(NIPAT_DNP_OPTIMIZED_IO = if (isTRUE(configuration$optimized)) "1" else "0",
+               NIPAT_EXECUTION_MODE = configuration$mode,
                NIPAT_MAX_WORKERS = configuration$maximum)
     if (configuration$name == "failure") Sys.setenv(NIPAT_TEST_FAIL_ACQUISITION = "1")
     Sys.unsetenv("NIPAT_PARALLEL_CHILD")
@@ -99,7 +102,8 @@ main <- function() {
     # Exercise both measured capacities deterministically, including on CI
     # runners with a smaller allocation. The policy consumes the real R budget.
     limited <- configuration$name %in% c("limited", "multi-limited", "pair-at-budget", "pair-over-budget",
-                                         "larger-worker", "pair-only", "one-cpu", "unknown-reference")
+                                         "larger-worker", "larger-pair-at-budget", "larger-pair-over-budget",
+                                         "pair-only", "one-cpu", "unknown-reference")
     cpus <- if (configuration$name == "one-cpu") 1L else if (limited) 4L else 32L
     memory <- if (configuration$name == "pair-only") 6200L else if (limited) 3905L else 15858L
     environment$nipat_parallel_capacity <- function() list(
@@ -107,7 +111,8 @@ main <- function() {
       memory_capacity_mib = memory, memory_reserve_fraction = 0.20,
       interface = "nipat-fixed-resources-v1", source = "assigned-capacity-at-run-start")
     environment$nipat_parallel_rss_mib <- function() switch(configuration$name,
-      "pair-at-budget" = 244, "pair-over-budget" = 245, 125)
+      "pair-at-budget" = 244, "pair-over-budget" = 245,
+      "larger-pair-at-budget" = 234, "larger-pair-over-budget" = 235, 125)
     chromosomes <- if (configuration$name == "one-chromosome") "chr1" else paste0("chr", 1:6)
     environment$r_DNPlist <- data.frame(chr = rep(chromosomes, 2L))
     samples <- if (is.null(configuration$samples)) 1L else configuration$samples
@@ -127,7 +132,8 @@ main <- function() {
     writeLines(bam_names, environment$bamlist)
     writeLines(c(">chr1", "ACGT"), environment$reference)
     longest <- switch(configuration$name, "large-reference" = 3000000000,
-                      "larger-worker" = 253000000, 249250621)
+                      "larger-worker" = 253000000, "larger-pair-at-budget" = 240 * 1024^2 + 1,
+                      "larger-pair-over-budget" = 240 * 1024^2 + 1, 249250621)
     writeLines(paste(chromosomes, format(longest, scientific = FALSE), 6, 80, 81, sep = "\t"),
                paste0(environment$reference, ".fai"))
     if (configuration$name == "unknown-reference") unlink(paste0(environment$reference, ".fai"))
@@ -157,7 +163,7 @@ main <- function() {
       }
       if (.Platform$OS.type != "windows") {
         expected <- switch(configuration$name, "capable" = 5L, "maximum-two" = 2L,
-                           "limited" = 2L, "pair-at-budget" = 2L, "pair-only" = 2L,
+                           "limited" = 2L, "pair-at-budget" = 2L, "pair-only" = 2L, "larger-pair-at-budget" = 2L,
                            "multi-bam" = 5L, "multi-capped" = 2L, "three-bams" = 3L, 1L)
         stopifnot(evidence$budget$workers == expected)
         if (configuration$name %in% c("multi-bam", "multi-limited", "three-bams", "eight-bams")) {

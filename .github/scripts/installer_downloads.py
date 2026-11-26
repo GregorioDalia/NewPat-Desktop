@@ -35,6 +35,14 @@ def main():
             output.write(f"{label}: `{filename}` in artifact `{artifact}`.\n\nSHA-256: `{digest}`\n\n")
         output.write("The original build artifacts contain the installers and their verification reports; available for 14 days. Published releases provide the individual installers directly.\n\n")
         output.write("Candidate build only. Native macOS package checks do not qualify Lima/Rosetta execution. Observed desktop checks are recorded separately before publication.\n")
+        template_url = os.environ.get("ACCEPTANCE_TEMPLATE_URL")
+        if template_url:
+            output.write("\n## Release review\n\n")
+            output.write(f"NewPat {record['version']}, source `{record['source_commit']}`, "
+                         f"build `{os.environ['GITHUB_RUN_ID']}`, attempt `{os.environ['GITHUB_RUN_ATTEMPT']}`.\n\n")
+            output.write(f"[Download the pending acceptance template]({template_url}). "
+                         "Review the package and scientific evidence, then record the decision and publication channel "
+                         f"in `.github/release-acceptance/v{record['version']}.json`.\n")
 
 
 if __name__ == "__main__":

@@ -19,22 +19,71 @@ nipat_parallel_number <- function(path) {
   if (length(value) && is.finite(value) && value >= 0) value else Inf
 }
 
+# Translate the process's hierarchy path through the mount's filesystem root.
+# A bind mount can expose only a subtree; stop at its root when checking ancestors.
+nipat_parallel_cgroup_paths <- function(mount, root, member) {
+  if (!startsWith(member, "/") || any(strsplit(member, "/", fixed = TRUE)[[1L]] == "..")) return(character())
+  prefix <- if (root == "/") "/" else paste0(root, "/")
+  if (member == root) return(mount)
+  if (!startsWith(member, prefix)) return(character())
+  relative <- substring(member, nchar(prefix) + 1L)
+  path <- mount
+  paths <- mount
+  for (directory in strsplit(relative, "/", fixed = TRUE)[[1L]]) {
+    path <- file.path(path, directory)
+    paths <- c(paths, path)
+  }
+  paths
+}
+
 nipat_parallel_cgroups <- function() {
-  root <- "/sys/fs/cgroup"
-  paths <- root
-  line <- grep("^0::", nipat_parallel_lines("/proc/self/cgroup"), value = TRUE)
-  if (length(line)) {
-    relative <- sub("^0::/?", "", line[[1L]])
-    # Container namespaces commonly expose the current cgroup directly at root.
-    if (nzchar(relative) && !any(strsplit(relative, "/", fixed = TRUE)[[1L]] == "..")) {
-      path <- file.path(root, relative)
-      while (startsWith(path, paste0(root, "/"))) {
-        paths <- c(paths, path)
-        path <- dirname(path)
-      }
+  base <- "/sys/fs/cgroup"
+  defaults <- list(unified = base, cpu = file.path(base, "cpu"),
+                   memory = file.path(base, "memory"), pids = file.path(base, "pids"))
+  members <- list()
+  lines <- nipat_parallel_lines("/proc/self/cgroup")
+  for (fields in regmatches(lines, regexec("^[0-9]+:([^:]*):(/.*)$", lines))) {
+    if (!length(fields)) next
+    controllers <- if (nzchar(fields[2L])) strsplit(fields[2L], ",", fixed = TRUE)[[1L]] else "unified"
+    for (controller in intersect(controllers, names(defaults))) members[[controller]] <- fields[3L]
+  }
+  mounts <- grep(" - cgroup2? ", nipat_parallel_lines("/proc/self/mountinfo"), value = TRUE)
+  if (!length(mounts)) {
+    # Older/restricted procfs installations may expose only the usual controller paths.
+    paths <- defaults
+    for (controller in names(members)) {
+      paths[[controller]] <- unique(c(defaults[[controller]], nipat_parallel_cgroup_paths(
+        defaults[[controller]], "/", members[[controller]])))
+    }
+    return(paths)
+  }
+
+  paths <- list()
+  mounted <- character()
+  for (line in mounts) {
+    parts <- strsplit(line, " - ", fixed = TRUE)[[1L]]
+    before <- strsplit(parts[1L], " ", fixed = TRUE)[[1L]]
+    after <- strsplit(parts[2L], " ", fixed = TRUE)[[1L]]
+    if (length(before) < 6L || length(after) < 3L) next
+    # mountinfo escapes whitespace and backslashes even for valid cgroup names.
+    names_on_disk <- before[4:5]
+    names_on_disk <- gsub("\\040", " ", names_on_disk, fixed = TRUE)
+    names_on_disk <- gsub("\\011", "\t", names_on_disk, fixed = TRUE)
+    names_on_disk <- gsub("\\012", "\n", names_on_disk, fixed = TRUE)
+    names_on_disk <- gsub("\\134", "\\", names_on_disk, fixed = TRUE)
+    controllers <- if (after[1L] == "cgroup2") "unified" else strsplit(after[3L], ",", fixed = TRUE)[[1L]]
+    controllers <- intersect(controllers, names(defaults))
+    mounted <- union(mounted, controllers)
+    for (controller in intersect(controllers, names(members))) {
+      hierarchy <- nipat_parallel_cgroup_paths(names_on_disk[2L], names_on_disk[1L], members[[controller]])
+      paths[[controller]] <- unique(c(paths[[controller]], hierarchy))
     }
   }
-  unique(paths)
+  if (length(members)) mounted <- intersect(mounted, names(members))
+  # If a known controller is visible but its membership cannot be mapped,
+  # host capacity alone is insufficient evidence for a parallel pool.
+  paths$unresolved <- length(setdiff(mounted, names(paths)[lengths(paths) > 0L])) > 0L
+  paths
 }
 
 # Capacity is captured once per scientific coordinator. The desktop supplies
@@ -65,8 +114,8 @@ nipat_parallel_capacity <- function() {
   cgroups <- nipat_parallel_cgroups()
   total <- grep("^MemTotal:", nipat_parallel_lines("/proc/meminfo"), value = TRUE)
   memory <- if (length(total)) suppressWarnings(as.numeric(strsplit(trimws(total[[1L]]), "[[:space:]]+")[[1L]][2L]) / 1024) else NA_real_
-  process_ceiling <- Inf
-  for (path in cgroups) {
+  process_ceiling <- if (isTRUE(cgroups$unresolved)) 1L else Inf
+  for (path in cgroups$unified) {
     text <- nipat_parallel_lines(file.path(path, "cpu.max"))
     if (length(text)) {
       numbers <- suppressWarnings(as.numeric(strsplit(trimws(text[[1L]]), "[[:space:]]+")[[1L]]))
@@ -76,16 +125,22 @@ nipat_parallel_capacity <- function() {
     }
     limit <- nipat_parallel_number(file.path(path, "memory.max"))
     if (is.finite(limit)) memory <- min(memory, limit / 1024^2, na.rm = TRUE)
+  }
+  for (path in cgroups$cpu) {
+    quota <- nipat_parallel_number(file.path(path, "cpu.cfs_quota_us"))
+    period <- nipat_parallel_number(file.path(path, "cpu.cfs_period_us"))
+    if (is.finite(quota) && is.finite(period) && quota > 0 && period > 0) cpu <- min(cpu, quota / period)
+  }
+  for (path in cgroups$memory) {
+    limit <- nipat_parallel_number(file.path(path, "memory.limit_in_bytes"))
+    # A v1 sentinel above the signed-address range is not an assigned capacity.
+    if (is.finite(limit) && limit < 2^60) memory <- min(memory, limit / 1024^2, na.rm = TRUE)
+  }
+  for (path in c(cgroups$unified, cgroups$pids)) {
     pids <- nipat_parallel_number(file.path(path, "pids.max"))
     used <- nipat_parallel_number(file.path(path, "pids.current"))
     if (is.finite(pids) && is.finite(used)) process_ceiling <- min(process_ceiling, max(1, pids - used - 4))
   }
-  quota <- nipat_parallel_number("/sys/fs/cgroup/cpu/cpu.cfs_quota_us")
-  period <- nipat_parallel_number("/sys/fs/cgroup/cpu/cpu.cfs_period_us")
-  if (is.finite(quota) && is.finite(period) && quota > 0 && period > 0) cpu <- min(cpu, quota / period)
-  limit <- nipat_parallel_number("/sys/fs/cgroup/memory/memory.limit_in_bytes")
-  # A v1 sentinel above the signed-address range is not an assigned capacity.
-  if (is.finite(limit) && limit < 2^60) memory <- min(memory, limit / 1024^2, na.rm = TRUE)
   explicit_memory <- nipat_parallel_positive(Sys.getenv("NIPAT_MEMORY_LIMIT_MIB"),
                                               "NIPAT_MEMORY_LIMIT_MIB", Inf)
   if (is.finite(explicit_memory)) memory <- min(memory, explicit_memory, na.rm = TRUE)
@@ -116,7 +171,7 @@ nipat_parallel_capacity <- function() {
       memory <- min(memory, fixed_memory, na.rm = TRUE)
     }
     reserve <- value$memory_reserve_fraction
-    source <- "assigned-capacity-at-run-start"
+    source <- if (identical(value$basis, "assigned-capacity-at-step-boundary")) value$basis else "assigned-capacity-at-run-start"
     source_version <- value$source_version
   }
   if (!is.finite(memory) || memory <= 0) {

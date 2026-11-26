@@ -41,8 +41,7 @@ class FiveModuleQualificationTests(unittest.TestCase):
                 self.assertFalse(qualification.same_settings(actual, expected))
 
     def test_same_number_of_rows_cannot_hide_missing_family_or_sample_identities(self):
-        cpin_rows = [{"Trio": "MotherM1-FatherF1-ChildC1_SNPs", "Analysis": selection}
-                     for selection in ("heterozygous_child_sites", "all_compatible_sites")] * 2
+        cpin_rows = [{"Trio": "MotherM1-FatherF1-ChildC1_SNPs"}] * 2
         cpi_rows = [{"Pair": "MotherM1-FatherF1_SNPs"}] * 2
         contamination_rows = [{"individuo": "Sample1"}] * 2
         for check, rows, kwargs in (
@@ -187,6 +186,21 @@ class FiveModuleQualificationTests(unittest.TestCase):
         self.assertEqual(result["observed_child_pids"], [11, 12])
         self.assertEqual(result["phase_plans"][0]["reason"], "workload-not-observed")
 
+    def test_unmeasured_cpu_or_memory_limit_cannot_qualify_a_worker_budget(self):
+        base = {"workers": 1, "tasks": 1, "label": "sample", "mode": "serial",
+                "cpu_limit": 4, "memory_worker_limit": 4, "coordinator_pid": 10, "pid": 10}
+        for field in ("cpu_limit", "memory_worker_limit"):
+            for value in (float("nan"), float("inf"), True, None):
+                with self.subTest(field=field, value=value):
+                    plan = {**base, field: value}
+                    events = [{**plan, "event": kind, "observed_at_unix": stamp,
+                               "task_index": 1, "outcome": "succeeded"}
+                              for stamp, kind in enumerate(("plan", "task-start", "task-end"))]
+                    (self.tmp_path / "worker.jsonl").write_text(
+                        "".join(json.dumps(event) + "\n" for event in events))
+                    with self.assertRaisesRegex(AssertionError, "CPU/memory"):
+                        qualification.check_worker_limits(self.tmp_path, 1)
+
     def test_worker_gate_rejects_repeated_completed_task_and_undeclared_plan(self):
         plan = {"event": "plan", "workers": 1, "tasks": 2, "cpu_limit": 4,
                 "memory_worker_limit": 4, "observed_at_unix": 0, "coordinator_pid": 10,
@@ -223,3 +237,18 @@ class FiveModuleQualificationTests(unittest.TestCase):
         result = qualification.check_worker_limits(self.tmp_path, 1)
         self.assertEqual(result["completed_worker_tasks"], 4)
         self.assertEqual(result["observed_peak_workers"], 1)
+
+    def test_reused_label_cannot_admit_workers_from_a_previous_larger_plan(self):
+        base = {"coordinator_pid": 10, "label": "cutoffs", "tasks": 2,
+                "cpu_limit": 4, "memory_worker_limit": 4, "mode": "auto"}
+        events = []
+        for start, workers in ((0, 2), (10, 1)):
+            events.append({**base, "event": "plan", "observed_at_unix": start, "workers": workers})
+            for offset, (kind, index) in enumerate((
+                ("task-start", 1), ("task-start", 2), ("task-end", 1), ("task-end", 2)
+            ), 1):
+                events.append({**base, "event": kind, "task_index": index, "pid": 10 + index,
+                               "workers": 2, "outcome": "succeeded", "observed_at_unix": start + offset})
+        (self.tmp_path / "worker.jsonl").write_text("".join(json.dumps(item) + "\n" for item in events))
+        with self.assertRaisesRegex(AssertionError, "no matching resource plan"):
+            qualification.check_worker_limits(self.tmp_path, 2)

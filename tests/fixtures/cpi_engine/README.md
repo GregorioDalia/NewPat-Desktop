@@ -25,7 +25,7 @@ so `CPI_medianFF` is the log10 CPI at threshold 2.
   median round to −2.048, and `CPI_medianFF` rounds to −2.699.
 - At `e = 0.1`, they are −0.698970 and −0.397940; their mean and median round to
   −0.548, and `CPI_medianFF` rounds to −0.699.
-- The mathematical boundary `e = 0` would give CPI zero. The updated model
+- The mathematical boundary `e = 0` would give CPI zero. The model
   requires `0 < e <= 1`, so the packaged check rejects zero before execution.
 
 The image check runs both valid settings through the public client workflow and

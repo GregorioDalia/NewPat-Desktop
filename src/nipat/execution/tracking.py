@@ -33,7 +33,8 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _snapshot(stat) -> dict[str, int]:
+def input_stat_snapshot(stat) -> dict[str, int]:
+    """Record the file identity and change indicators from one stat call."""
     return {"size_bytes": stat.st_size, "mtime_ns": stat.st_mtime_ns,
             "ctime_ns": stat.st_ctime_ns, "device": stat.st_dev, "inode": stat.st_ino}
 
@@ -45,7 +46,7 @@ def file_evidence(
     path = path.resolve()
     stat = path.stat()
     evidence: dict[str, Any] = {
-        "path": str(path), **_snapshot(stat), "recorded_at": utc_now(),
+        "path": str(path), **input_stat_snapshot(stat), "recorded_at": utc_now(),
     }
     if mode not in {"auto", "full"}:
         raise ValidationError("Modalita di checksum degli input non valida.")
@@ -67,7 +68,7 @@ def file_evidence(
         evidence["hash_note"] = (
             "Not hashed: input exceeds 16 MiB; size/mtime are metadata, not content identity."
         )
-    if _snapshot(path.stat()) != _snapshot(stat):
+    if input_stat_snapshot(path.stat()) != input_stat_snapshot(stat):
         raise ValidationError(f"Input modificato durante la raccolta della provenienza: {path}")
     return evidence
 
@@ -78,7 +79,7 @@ def verify_input_evidence(
     """Re-read hashed inputs; metadata-only records cannot prove content identity."""
     path = Path(evidence["path"])
     try:
-        current = _snapshot(path.stat())
+        current = input_stat_snapshot(path.stat())
         if any(current[key] != evidence.get(key) for key in current):
             raise ValidationError(f"Input modificato dopo la preparazione: {path}")
         if evidence.get("sha256") is not None:
@@ -167,7 +168,7 @@ def read_run_metadata(run_dir: Path, relative: str = "run.json", *,
     return metadata
 
 
-def workflow_steps(metadata: dict) -> list[dict]:
+def workflow_steps(metadata: dict, *, include_markers: bool = False) -> list[dict]:
     """Accept only preset-owned IDs and complete, ordered per-sample SNP mappings."""
     workflow = metadata["workflow"]
     expected = [{"id": step_id, "workflow": kind}
@@ -197,6 +198,11 @@ def workflow_steps(metadata: dict) -> list[dict]:
             source = sources[sample["id"]]
             if source.get("container_path") != sample["path"] or not isinstance(source.get("original_path"), str):
                 raise ValueError("Percorsi registrati non coerenti con il piano")
+        if include_markers:
+            for item, step in zip(expected, plan["steps"]):
+                # Normalization infers downstream marker types from typed table
+                # references, including archived plans without an explicit type.
+                item["marker"] = step["parameters"].get("marker_type")
         return expected
     has_snp = workflow == "snp-batch" or parameters.get("snp_panel") is not None
     if supplied is None and not has_snp:

@@ -22,7 +22,7 @@ def same_source_ci(run, commit):
             and run.get("status") in {"in_progress", "completed"}
             and run.get("conclusion") in {None, "success"}
             and repo.get("full_name") == head.get("full_name") == science.REPOSITORY
-            and science.positive(repo.get("id")) and repo["id"] == head.get("id")
+            and repo.get("id") == head.get("id") == int(science.REPOSITORY_ID)
             and science.positive(run.get("id")) and science.positive(run.get("run_attempt")))
 
 
@@ -111,7 +111,7 @@ def producer_finished(receipt, *, fetch=science.fetch_json, clock=time.monotonic
                     return False
             science.validate_run(run)
             return True
-    except (OSError, ValueError, KeyError, TypeError, AttributeError, RuntimeError) as error:
+    except science.LOOKUP_ERRORS as error:
         # Keep API messages and authentication details out of public logs.
         print(f"Optional wait unavailable ({type(error).__name__}). Running installer checks.", flush=True)
     return False

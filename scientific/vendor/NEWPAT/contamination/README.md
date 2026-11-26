@@ -10,7 +10,7 @@ Run this command with the configured NewPat CLI from the root of the NewPat repo
 newpat contamination --input scientific/vendor/NEWPAT/contamination/examples/inputs/sample1.txt --input scientific/vendor/NEWPAT/contamination/examples/inputs/sample2.txt --panel scientific/vendor/NEWPAT/contamination/examples/inputs/DNPpanel.txt
 ```
 
-For your own directory containing only calling-output tables, use `--input-dir` to select them recursively. Keep the output and panel outside that directory. Both SNP and DNP files must have the corresponding coordinate columns and `N_REF`, `N_ALT`, `N_Other`. Use one marker type per analysis. SNP coordinates are `chr,pos`; DNP coordinates are `chr,pos1,pos2`. [Bundled inputs](examples/inputs) · [Synthetic checks and expected results](../../../../tests/fixtures/contamination/README.md) · [User guide](../../../../docs/GUIDA_UTILIZZO.md)
+For your own directory containing only calling-output tables, use `--input-dir` to select them recursively. Keep the output and panel outside that directory. Both SNP and DNP files must have the corresponding coordinate columns and `N_REF`, `N_ALT`, `N_Other`. Use one marker type per analysis. SNP coordinates are `chr,pos`; DNP coordinates are `chr,pos1,pos2`. [Bundled inputs](examples/inputs) · [Synthetic checks and expected results](../../../../tests/fixtures/contamination/README.md) · [User guide](../../../../docs/USER_GUIDE.md)
 
 ## Calculation and settings
 

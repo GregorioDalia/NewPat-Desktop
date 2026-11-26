@@ -51,7 +51,7 @@ def resource_lines(snapshot: dict) -> list[str]:
         lines.append("L'ambiente è fermo: le risorse effettive saranno verificabili quando sarà avviato.")
     for warning in snapshot.get("warnings", []):
         if backend == "wsl" and warning == "RAM e CPU della VM WSL sono condivise da tutte le distribuzioni WSL2 dell'utente.":
-            continue  # Already explained above, including non-NIPAT distributions.
+            continue  # The WSL explanation above already covers all distributions.
         lines.append(str(warning))
     return lines
 

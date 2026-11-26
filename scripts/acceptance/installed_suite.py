@@ -168,7 +168,7 @@ class Suite:
                        "expected_installation": {"version": installation_version, "source_commit": installation_commit},
                        "started_utc": utc(), "harness_source_commit": commit,
                        "status": "RUNNING", "app_dir": str(self.app), "session": str(self.session),
-                       "scope": "Cinque moduli, oracoli analitici indipendenti e workflow sintetici sul client installato.",
+                       "scope": "Moduli del client installato, oracoli numerici e workflow sintetici.",
                        "limits": ["Le fixture non sono campioni biologici reali.",
                                   "La parita fra modi verifica la riproducibilita; gli oracoli numerici sono controlli separati.",
                                   "Il collaudo non certifica ogni possibile input o una validazione clinica."],
@@ -252,6 +252,21 @@ class Suite:
                              f"{diagnostic or 'nessun messaggio restituito'}. Log: {result['stderr']}")
         return result
 
+    def probe_scientific_modules(self):
+        result = self.probe("settings", ["settings", "--json"])
+        settings = json.loads(log_text(result["stdout"]))
+        modules = settings["modules"]
+        if (not isinstance(modules, dict) or set(modules) != set(settings["effective"])
+                or not {"dnp-call", "snp-call", "contamination", "cpi", "cpin"}.issubset(modules)):
+            raise ValueError("Catalogo scientifico installato incompleto.")
+        if "fetal-sex" not in modules and (self.app / "tests/fixtures/fetal_sex").exists():
+            raise ValueError("Modulo fetal-sex assente dal catalogo dell'installazione con esempi fetal-sex.")
+        self.report["revised_prenatal"] = "include_homozygous_child" in modules["cpi"].get("parameters", {})
+        if not self.report["revised_prenatal"] and (self.app / "tests/fixtures/prenatal_cpi").exists():
+            raise ValueError("Modello CPI prenatale assente dal catalogo dell'installazione con esempi aggiornati.")
+        self.report["modules"] = sorted(modules)
+        return result
+
     def preflight(self):
         if sys.platform != "win32":
             raise ValueError("Questo collaudo va eseguito sul PC Windows con NIPAT installato.")
@@ -280,9 +295,6 @@ class Suite:
             ".runtime/installer/state.json", ".runtime/backend.json", ".runtime/install-layout.json",
             "scripts/verify_cpin_update.py", "scripts/windows/run.ps1", "scripts/windows/common.ps1",
             "release.json")]
-        self.identity_paths.append(Path(os.environ["LOCALAPPDATA"]) / "NIPAT-Desktop/preferences.json")
-        self.identity_before = snapshot(self.identity_paths)
-        self.report["installation_file_sha256"] = self.identity_before
         self.report["host"] = {"platform": sys.platform, "python": sys.version,
                                "processor_count": os.cpu_count()}
         self.report["harness_sha256"] = {name: digest(HARNESS / name) for name in
@@ -293,6 +305,13 @@ class Suite:
                                 NIPAT_DATA_DIR=str(self.inputs), NIPAT_RUNS_DIR=str(self.runs),
                                 NIPAT_WORKSPACE_DIR=str(self.session))
         return self.report["installation"]
+
+    def snapshot_installation(self):
+        # Resolve the path using the installed client's own channel and environment.
+        from nipat.preferences import preferences_path
+        self.identity_paths.append(preferences_path())
+        self.identity_before = snapshot(self.identity_paths)
+        self.report["installation_file_sha256"] = self.identity_before
 
     def samtools(self, arguments):
         self.preparation_number += 1
@@ -465,18 +484,31 @@ class Suite:
             os.environ.clear()
             os.environ.update(self.environment)
             lease.enter_context(activity_session(project_dir=self.app))
+            self.snapshot_installation()
             self.transport = DockerTransport.from_environment()
             self.check("ambiente-scientifico", lambda: self.probe("doctor", ["doctor", "--runtime"]), fatal=True)
-            self.check("parametri-scientifici", lambda: self.probe("settings", ["settings", "--json"]), fatal=True)
+            self.check("parametri-scientifici", self.probe_scientific_modules, fatal=True)
             self.check("risorse-disponibili", lambda: self.probe("resources", ["resources", "inspect", "--json"]))
             self.report["fixture_sha256"] = extract_fixtures(HARNESS / "fixtures.json", self.fixtures)
             self.generated.mkdir()
             import installed_models
             import installed_workflows
-            self.cases.extend(installed_models.build_cases(self.fixtures, self.generated))
+            self.cases.extend(installed_models.build_cases(self.fixtures, self.generated,
+                                                          revised_prenatal=self.report["revised_prenatal"]))
+            if self.report["revised_prenatal"]:
+                prenatal = self.fixtures / "prenatal_cpi"
+                hashes = installed_models.copy_prenatal_fixtures(self.app / "tests/fixtures/prenatal_cpi", prenatal)
+                self.report["fixture_sha256"].update({"prenatal_cpi/" + name: value for name, value in hashes.items()})
+                self.cases.extend(installed_models.prenatal_example_cases(prenatal))
+            fetal_sex = None
+            if "fetal-sex" in self.report["modules"]:
+                fetal_sex = self.fixtures / "fetal_sex"
+                hashes = installed_models.copy_fetal_sex_fixtures(self.app / "tests/fixtures/fetal_sex", fetal_sex)
+                self.report["fixture_sha256"].update({"fetal_sex/" + name: value for name, value in hashes.items()})
+                self.cases.extend(installed_models.fetal_sex_cases(fetal_sex))
             try:
                 metadata = installed_workflows.prepare_inputs(self.fixtures, self.generated, self.samtools)
-                self.cases.extend(installed_workflows.build_cases(self.fixtures, self.generated, metadata))
+                self.cases.extend(installed_workflows.build_cases(self.fixtures, self.generated, metadata, fetal_sex=fetal_sex))
             except SuiteStopped:
                 raise
             except Exception as exc:

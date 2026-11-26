@@ -178,7 +178,7 @@ def check_count_panel(path: Path) -> None:
 class WorkflowForm:
     """Retain values in memory; no run is created until the caller executes it."""
 
-    TITLES = {"1": "DNPcall", "2": "SNPcall", "3": "Contamination", "4": "CPI"}
+    TITLES = {"1": "DNPcall", "2": "SNPcall", "3": "Contamination", "4": "CPI", "f": "Sesso fetale"}
 
     def __init__(self, choice: str, ui: Any, layout: ProjectLayout, err_const: float,
                  *, defaults: dict[str, Any] | None = None):
@@ -203,6 +203,10 @@ class WorkflowForm:
                        if values.get("mode") == "2" else [Field("bams", "BAM", "files")])
             result += [Field("reference", "File FASTA di riferimento", "file", check=check_reference),
                        Field("panel", "Pannello DNP", "file", check=read_dnp_list)]
+        elif self.choice == "f":
+            result = [Field("autosomes", "Tabella DNP autosomica del cfDNA materno", "file"),
+                      Field("x", "Tabella DNP del cromosoma X dello stesso campione", "file"),
+                      Field("y", "Tabella SNP del cromosoma Y dello stesso campione", "file")]
         elif self.choice == "2":
             result = [Field("mode", "Input SNPcall", "choice", "1", options=(
                 ("1", "BAM e riferimento", "Preparazione automatica del pileup"),
@@ -248,6 +252,9 @@ class WorkflowForm:
     def _guide(self, field: Field, default: str = "") -> None:
         """Keep instructions beside the input they describe, including retries."""
         guides = {
+            "autosomes": "Selezionare i conteggi DNP autosomici di un campione di cfDNA materno.",
+            "x": "Selezionare i conteggi DNP dei marcatori X validati per specificità.",
+            "y": "Selezionare i conteggi SNP dei marcatori Y validati per specificità.",
             "bams": "Selezionare uno o piu' file BAM: incollare un percorso per volta e premere Invio.",
             "bam": "Incollare il percorso di un singolo file BAM. NewPat preparera' il pileup per SNPcall.",
             "bamlist": "Scegliere un file di testo con un percorso BAM per riga, senza intestazione. I percorsi nella lista sono relativi alla cartella della lista stessa, oppure completi.",
@@ -259,7 +266,7 @@ class WorkflowForm:
             "father_prefix": "Il nome del file e' prefisso + identificativo paterno + .txt. Esempio: Father + A1 diventa FatherA1.txt. :vuoto elimina il prefisso.",
             "popfreq": "Scegliere la tabella delle frequenze di popolazione, separata da tabulazioni, con coordinate chr/pos (SNP) oppure chr/pos1/pos2 (DNP), Ref_f.pop e Alt_f.pop.",
             "cutoffs": "Per ciascun gruppo di siti inserire prima un'etichetta, poi il percorso del file di coordinate. Esempio di etichetta: pannello_A. Non usare virgole o '=' nell'etichetta.",
-            "cutoff_file": "Scegliere il file di coordinate per l'etichetta appena inserita: colonne chr, pos1, pos2, oppure un pannello DNP a cinque colonne.",
+            "cutoff_file": "Scegliere il file di coordinate per l'etichetta appena inserita: chr, pos per SNP oppure chr, pos1, pos2 per DNP. Il pannello può anche includere REF e ALT.",
             "cutoff_map": "Inserire etichetta=percorso, separando i gruppi con una virgola. Esempio: pannello_A=panels/a.txt,pannello_B=panels/b.txt. I file devono contenere le coordinate dello stesso tipo SNP/DNP delle tabelle.",
             "err_const": "Lasciare vuoto per usare la costante SNP o DNP dei parametri scientifici. Un valore esplicito sovrascrive la costante del tipo di marcatori selezionato per questa analisi.",
             "run_name": "Il nome identifica una nuova cartella di esecuzione. Le cartelle gia' esistenti non vengono sovrascritte.",
@@ -269,10 +276,10 @@ class WorkflowForm:
             text = {
                 "1": "Scegliere come fornire i BAM: inserire i percorsi uno per volta oppure usare un file che li elenca. In seguito saranno richiesti FASTA e pannello DNP.",
                 "2": "Scegliere BAM e riferimento per preparare il pileup, oppure un pileup gia' disponibile. In entrambe le modalita' serve una lista SNP.",
-                "3": "Scegliere singole tabelle dei campioni oppure una cartella da esaminare. In seguito sara' richiesto il pannello DNP.",
+                "3": "Scegliere singole tabelle dei campioni oppure una cartella da esaminare. In seguito sarà richiesto il pannello SNP o DNP corrispondente alle tabelle.",
             }[self.choice]
         elif field.key == "input_dir":
-            text = ("Scegliere la cartella delle tabelle dei campioni: saranno cercati file TXT e TSV anche nelle sottocartelle. Sono richieste le colonne chr, pos1, pos2, N_REF, N_ALT, N_Other; ratio e' facoltativa."
+            text = ("Scegliere la cartella delle tabelle dei campioni: saranno cercati file TXT e TSV anche nelle sottocartelle. Sono richieste le colonne chr, pos (SNP) oppure pos1 e pos2 (DNP), N_REF, N_ALT, N_Other; ratio e' facoltativa."
                     if self.choice == "3" else
                     "Scegliere la cartella delle tabelle cfDNA materno e presunto padre. I file devono chiamarsi prefisso + identificativo + .txt, per esempio MotherA1.txt e FatherA1.txt. Coppie e prefissi saranno richiesti nei passaggi successivi.")
         elif field.key == "panel":
@@ -311,7 +318,7 @@ class WorkflowForm:
         elif field.key == "cutoff_mode":
             detail = {
                 "0": "Non occorre fornire un file di coordinate aggiuntivo.",
-                "1": "E' richiesto il percorso di un pannello di coordinate DNP.",
+                "1": "È richiesto il pannello di coordinate corrispondente ai marcatori analizzati.",
                 "2": "Ogni etichetta identifica un file di coordinate.",
                 "3": "Le associazioni etichetta=percorso sono separate da virgole.",
             }[answer]
@@ -467,8 +474,10 @@ class WorkflowForm:
 
     def collect(self, start: int = 0, *, single: bool = False) -> None:
         index = start
-        while index < len(self.fields()):
+        while True:
             fields = self.fields()
+            if index >= len(fields):
+                return
             field = fields[index]
             self.ui.heading(f"{self.title} / {index + 1} di {len(fields)} / {field.label}")
             try:
@@ -479,16 +488,11 @@ class WorkflowForm:
                 index -= 1
                 continue
             if single:
-                # A changed input mode may reveal fields that were not collected.
-                for missing in self.fields():
-                    if missing.key not in self.values:
-                        self.ui.heading(f"{self.title} / {missing.label}")
-                        try:
-                            self.values[missing.key] = self._read(missing)
-                        except Back:
-                            return self.collect(self.fields().index(missing) - 1, single=True)
-                return
-            index += 1
+                # One newly revealed choice can itself reveal more inputs.
+                active = self.fields()
+                index = next((i for i, item in enumerate(active) if item.key not in self.values), len(active))
+            else:
+                index += 1
 
     @staticmethod
     def format_value(value: Any) -> str:
@@ -628,6 +632,8 @@ class WorkflowForm:
     def arguments(self) -> dict[str, Any]:
         v = self.values
         common = {"run_name": v["run_name"]}
+        if self.choice == "f":
+            return {**common, "autosomes": v["autosomes"], "x": v["x"], "y": v["y"]}
         if self.choice == "1":
             return {**common, "bams": v["bams"] if v["mode"] == "1" else None,
                     "bamlist": v["bamlist"] if v["mode"] == "2" else None,

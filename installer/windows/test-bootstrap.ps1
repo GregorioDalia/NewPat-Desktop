@@ -35,6 +35,30 @@ try {
     Write-NipatJsonAtomic $manifestPath $manifest
     $parsed = Read-NipatInstallerManifest $manifestPath
     Assert-Test ($parsed.release_tag -ceq ('v' + $candidateVersion)) 'accept valid release manifest'
+    foreach ($asset in $manifest.assets.Values) {
+        $asset.url = $asset.url.Replace('GregorioDalia/nipat-desktop', 'GregorioDalia/NewPat-Desktop')
+    }
+    Write-NipatJsonAtomic $manifestPath $manifest
+    $renamed = Read-NipatInstallerManifest $manifestPath
+    Assert-Test ($renamed.assets.rootfs.url.Contains('/GregorioDalia/NewPat-Desktop/')) 'accept the official renamed repository'
+
+    function Invoke-RestMethod {
+        param($Method, $Uri, $Headers, $TimeoutSec, $MaximumRedirection)
+        if ($Uri -cne 'https://api.github.com/repositories/1307623649') { throw 'Unexpected repository lookup.' }
+        return $script:fixtureRepo
+    }
+    try {
+        foreach ($slug in (Get-NipatOfficialRepositories)) {
+            $script:fixtureRepo = @{id = 1307623649; full_name = $slug}
+            Assert-Test ((Get-NipatOnlineRepository) -ceq ('https://github.com/' + $slug)) 'resolve the official repository by ID'
+        }
+        $script:fixtureRepo = @{id = 1; full_name = 'GregorioDalia/NewPat-Desktop'}
+        Assert-Rejected { Get-NipatOnlineRepository } 'reject a reused repository slug'
+        $script:fixtureRepo = @{id = 1307623649; full_name = 'another/NewPat-Desktop'}
+        Assert-Rejected { Get-NipatOnlineRepository } 'reject a foreign repository name'
+    } finally {
+        Remove-Item Function:Invoke-RestMethod
+    }
     $profile = Get-NipatInstallationProfile
     Assert-Test ($profile.display_name -ceq 'NewPat') 'new install display uses NewPat'
     $legacyProfile = $profile | ConvertTo-Json | ConvertFrom-Json

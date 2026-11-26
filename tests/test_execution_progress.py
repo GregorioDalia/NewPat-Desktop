@@ -132,7 +132,7 @@ class ProgressReaderTests(unittest.TestCase):
         state = ProgressSnapshot("running", 61, "r-execution", ("sample_0001",),
                                  workflow="dnp-call", step_id="internal_dnp_one")
         for workflow, label in (("dnp-call", "DNPcall"), ("snp-call", "SNPcall"),
-                                ("contamination", "Contamination"), ("cpi", "CPI")):
+                                ("contamination", "Contamination"), ("cpi", "CPI prenatale")):
             renderer(replace(state, workflow=workflow))
             self.assertTrue(lines[-1].startswith(label + ": Calcolo R"))
         self.assertEqual(len(lines), 4)

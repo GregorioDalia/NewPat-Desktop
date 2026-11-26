@@ -21,7 +21,7 @@ EXPECTED_SITES = {
     ("chr1", "200", "201"): (0.0, 0.0),
     ("chr1", "300", "301"): (0.95, 0.05),
     ("chr1", "400", "401"): (0.05, 0.05),
-    # The new denominator includes Other: 11 / 111 <= 0.1 retains this site.
+    # The denominator includes Other: 11 / 111 <= 0.1 retains this site.
     ("chr1", "700", "701"): (0.95, 0.05),
 }
 EXPECTED_SD = math.sqrt(0.00075)
@@ -114,7 +114,7 @@ def check_bundled_run(run_dir: Path, layout: ProjectLayout, *, workflow: str = "
     runtime = record["runtime"]
     engine = runtime.get("engine", {})
     interfaces = {"dnp-call": "dnp-call-v1", "snp-call": "snp-call-v2",
-                  "contamination": "contamination-v2", "cpi": "cpi-v2", "cpin": "cpin-v1"}
+                  "contamination": "contamination-v2", "cpi": "cpi-v4", "cpin": "cpin-v2", "fetal-sex": "fetal-sex-v1"}
     if (record["status"] != "succeeded" or record["source"].get("role") != "client"
             or record.get("workflow") != workflow
             or engine.get("workflow_interfaces", {}) != interfaces
@@ -125,13 +125,15 @@ def check_bundled_run(run_dir: Path, layout: ProjectLayout, *, workflow: str = "
     required = {"engine/main.py", *(f"lib/nipat_scientific/{name}.py" for name in (
         "__init__", "errors", "panels", "files", "contamination", "snp", "snp_summary", "snp_parallel", "dnp", "cpi",
         "catalog", "plan", "executor", "outputs", "presentation", "performance",
-        "scratch", "dnp_pileup", "progress", "parallel", "cpin", "settings",
+        "scratch", "dnp_pileup", "progress", "parallel", "cpin", "fetal_sex", "settings",
     )), "lib/nipat_scientific/presentation.R", "lib/nipat_scientific/progress.R",
         "lib/nipat_scientific/dnp_blocks.R", "lib/nipat_scientific/parallel.R", "lib/nipat_scientific/plots.R",
         "lib/nipat_scientific/settings.R", "lib/nipat_scientific/settings_data.json",
         *(f"lib/nipat_scientific/catalog_data/{name}.json" for name in (
-        "dnp-call", "snp-call", "contamination", "cpi", "cpin",
+        "dnp-call", "snp-call", "contamination", "cpi", "cpin", "fetal-sex",
     ))}
+    if engine.get("desktop_scheduling") == "step-budget-v1":
+        required.add("lib/nipat_scientific/desktop_scheduling.py")
     if set(hashes) != required or any(not re.fullmatch(r"[0-9a-f]{64}", digest) for digest in hashes.values()):
         raise ValidationError("Hash del codice di preparazione incompleti o non validi.")
     commands = record["commands"]

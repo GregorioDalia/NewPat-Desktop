@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "package": "pdfmake",
+  "version": "0.3.15",
+  "license": "MIT",
+  "source": "https://github.com/bpampuch/pdfmake/tree/9c0d9c96a21e20b278547380a1ec9d9e6cb4b89a",
+  "npm": "https://registry.npmjs.org/pdfmake/-/pdfmake-0.3.15.tgz",
+  "npm_integrity": "sha512-szzvtHyDEf8N/ZSPKy2t41fCiGnZgwaFXdZqAl6MhBj3O5l36/MDEq4GJRjIojdvgC2ICb3lrSO5LDDhuf3njg==",
+  "fonts": {
+    "family": "Roboto",
+    "license": "OFL-1.1",
+    "license_source": "https://github.com/googlefonts/roboto-classic/blob/5166f3d07889bf7d3732fb72e09623d7e52f862b/OFL.txt"
+  },
+  "assets": {
+    "BUNDLED-NOTICES.txt": {
+      "bytes": 43768,
+      "sha256": "96def4577398c7bc66bc595c2eb883e59269a52fc29c8c4e48c4bec38693b06e"
+    },
+    "Roboto.OFL.txt": {
+      "bytes": 4394,
+      "sha256": "061402327a96aadb0bfb694a960ed289ecd38d383e396243831ab81feb109c41"
+    },
+    "pdfmake.LICENSE.txt": {
+      "bytes": 1113,
+      "sha256": "ab919430421c2e244dbb8694d70916eae16235b75c0ea07e9a6c67cd4265c954"
+    },
+    "pdfmake.min.js": {
+      "bytes": 880700,
+      "sha256": "a3453acc05b244d2a9264d1231abf7e53f869c56a834553046be56a514a7e0f6"
+    },
+    "vfs_fonts.js": {
+      "bytes": 854773,
+      "sha256": "f3db5ac36ce8c9a6a3f55d5d00c2a0e21a3d7698db149dff22f4e670ffcfd5c4"
+    }
+  }
+}

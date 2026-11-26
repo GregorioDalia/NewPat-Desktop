@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -30,11 +31,10 @@ class InstalledSuiteTests(unittest.TestCase):
                                                 "installed_workflows.py", "fixtures.json"})
         for name, expected in document["files"].items():
             self.assertEqual(suite.digest(directory / name), expected, name)
-        for filename in ("test-installed-0850.ps1", "test-installed.ps1"):
-            wrapper = (ROOT / "scripts/windows" / filename).read_text(encoding="utf-8")
-            expected = re.search(r"\$ExpectedManifestSha256 = '([a-f0-9]{64})'", wrapper)
-            self.assertIsNotNone(expected)
-            self.assertEqual(expected.group(1), suite.digest(manifest))
+        wrapper = (ROOT / "scripts/windows/test-installed.ps1").read_text(encoding="utf-8")
+        expected = re.search(r"\$ExpectedManifestSha256 = '([a-f0-9]{64})'", wrapper)
+        self.assertIsNotNone(expected)
+        self.assertEqual(expected.group(1), suite.digest(manifest))
 
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
@@ -80,6 +80,25 @@ class InstalledSuiteTests(unittest.TestCase):
         self.assertLess(command.index("--scientific-config"), command.index("cpi"))
         self.assertEqual(Path(command[command.index("-File") + 1]),
                          self.app.resolve() / "scripts/windows/run.ps1")
+
+    def test_integrity_observes_the_selected_zip_installations_preferences(self):
+        installation = self.root.resolve() / "local-zip"
+        project = installation / "versions" / ("0.9.10-" + "a" * 40)
+        self.write(installation / "installation.json",
+                   {"schema_version": 1, "product": "nipat-desktop", "installation_method": "zip"})
+        self.write(project / ".runtime" / "zip-install.json",
+                   {"schema_version": 1, "installation_method": "zip", "root": str(installation)})
+        preferences = installation / "preferences.json"
+        self.write(preferences, {"profile": "before"})
+        with patch.object(suite.sys, "platform", "win32"), patch.dict(
+            os.environ, {"NIPAT_PROJECT_DIR": str(project), "LOCALAPPDATA": str(installation.parent),
+                         "NIPAT_SETTINGS_FILE": ""}
+        ):
+            self.driver.snapshot_installation()
+        self.assertIn(str(preferences), self.driver.identity_before)
+        self.write(preferences, {"profile": "after"})
+        self.driver.integrity()
+        self.assertEqual(self.driver.report["checks"][-1]["status"], "FAIL")
 
     def test_installed_release_identity_is_explicit_and_mismatches_fail_before_science(self):
         version, commit = "0.8.60", "c" * 40
@@ -159,9 +178,74 @@ class InstalledSuiteTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         document = json.loads(result.stdout)
-        expected = {"dnp-call", "snp-call", "contamination", "cpi", "cpin"}
+        expected = {"dnp-call", "snp-call", "contamination", "cpi", "cpin", "fetal-sex"}
         self.assertEqual(set(document["modules"]), expected)
         self.assertEqual(set(document["effective"]), expected)
+
+    def test_settings_select_sixth_module_only_on_capable_installations(self):
+        original = dict.fromkeys(("dnp-call", "snp-call", "contamination", "cpi", "cpin"), {})
+        def probe(modules):
+            payload = json.dumps({"modules": modules, "effective": modules})
+            with patch.object(self.driver, "probe", return_value=self.process_result(stdout=payload, code=0)):
+                self.driver.probe_scientific_modules()
+        probe(original)
+        self.assertNotIn("fetal-sex", self.driver.report["modules"])
+        (self.app / "tests/fixtures/fetal_sex").mkdir(parents=True)
+        with self.assertRaisesRegex(ValueError, "fetal-sex"):
+            probe(original)
+        probe({**original, "fetal-sex": {}})
+        self.assertIn("fetal-sex", self.driver.report["modules"])
+
+    def test_published_prenatal_cases_check_both_markers_and_the_entire_curve(self):
+        with patch.object(sys, "path", [str(suite.HARNESS), *sys.path]):
+            import installed_models as models
+        fixture = self.driver.fixtures / "prenatal_cpi"
+        hashes = models.copy_prenatal_fixtures(ROOT / "tests/fixtures/prenatal_cpi", fixture)
+        self.assertEqual(len(hashes), 14)
+        for case, marker in zip(models.prenatal_example_cases(fixture), ("DNP", "SNP"), strict=True):
+            with self.subTest(marker=marker):
+                run = self.driver.runs / marker
+                shutil.copytree(fixture / "outputs" / marker, run / "output")
+                self.assertEqual(set(case["validate"](run)["output_sha256"]), set(models.prenatal_outputs(marker)))
+                curve = next((run / "output").glob("*_CPI_iterations.csv"))
+                curve.write_text(curve.read_text().replace("2,", "1,", 1))
+                with self.assertRaisesRegex(ValueError, "Iteration"):
+                    case["validate"](run)
+
+    def test_published_fetal_sex_cases_validate_all_tables_and_pin_the_copy(self):
+        with patch.object(sys, "path", [str(suite.HARNESS), *sys.path]):
+            import installed_models as models
+            import installed_workflows as workflows
+        source = ROOT / "tests/fixtures/fetal_sex"
+        fixture = self.driver.fixtures / "fetal_sex"
+        hashes = models.copy_fetal_sex_fixtures(source, fixture)
+        self.assertEqual(len(hashes), 14)
+        cases = models.fetal_sex_cases(fixture)
+        self.assertEqual([case["mode"] for case in cases], ["auto", "auto"])
+        for case, sample, call in zip(cases, ("Female_fetus", "Male_fetus"), ("F", "M"), strict=True):
+            run = self.driver.runs / sample
+            shutil.copytree(fixture / "outputs" / sample, run / "output")
+            self.assertEqual(case["args"][2::2], models.fetal_sex_inputs(fixture, sample))
+            self.assertEqual(case["validate"](run)["fetal_sex"], call)
+            for name in models.FETAL_SEX_OUTPUTS:
+                with self.subTest(case=sample, table=name):
+                    output = run / "output" / name
+                    output.write_bytes(output.read_bytes() + b"altered")
+                    with self.assertRaisesRegex(ValueError, re.escape(name)):
+                        case["validate"](run)
+                    shutil.copyfile(fixture / "outputs" / sample / name, output)
+        metadata = {"combined": self.root, "positive": self.root,
+                    "bams": [self.root / f"sample{i}.bam" for i in range(3)],
+                    "pileups": [self.root / f"sample{i}.pileup" for i in range(3)]}
+        combined = workflows.build_cases(self.driver.fixtures, self.driver.generated, metadata, fetal_sex=fixture)
+        six = [case for case in combined if case.get("compare_group") == "all-six"]
+        self.assertEqual({case["mode"] for case in six}, {"serial", "auto", "cap2"})
+        for case in six:
+            self.assertEqual(case["args"][-5:], ["--fetal-sex", "maternal_cfDNA",
+                             *models.fetal_sex_inputs(fixture, "Female_fetus")])
+        shutil.copyfile(fixture / "outputs/Female_fetus/Y_sites.txt", fixture / "outputs/Male_fetus/Y_sites.txt")
+        with self.assertRaisesRegex(ValueError, "differ from the published"):
+            models.copy_fetal_sex_fixtures(fixture, self.driver.generated)
 
     def test_probe_failure_surfaces_the_actual_diagnostic_in_the_report_error(self):
         for stdout, stderr, expected in (("", "Specific CLI rejection", "Specific CLI rejection"),

@@ -209,22 +209,24 @@ def exercise_client(app: Path, work: Path, manifest: dict) -> None:
         help_text = invoke(f"self-test-{script.stem}", ["--help"], script=script)
         require("--help" in help_text, f"Packaged self-test help is missing: {filename}")
     catalog = json.loads(invoke("catalog", ["parameters", "--json"]))
-    require(set(catalog["workflows"]) ==
-            {"dnp-call", "snp-call", "contamination", "cpi", "cpin"}, "Incomplete packaged scientific catalog.")
+    modules = {"dnp-call", "snp-call", "contamination", "cpi", "cpin"}
+    if version and tuple(map(int, version.groups())) >= (0, 9, 10):
+        modules.add("fetal-sex")
+    require(set(catalog["workflows"]) == modules, "Incomplete packaged scientific catalog.")
     settings_path = work / "scientific-settings.json"
     settings = json.loads(invoke("settings", ["settings", "--json", "--export", settings_path]))
     require(set(settings["effective"]) == set(catalog["workflows"]) and
             read_json(settings_path) == settings["effective"] and settings["modules"]["cpin"]["constants"],
             "Packaged scientific settings/defaults/constants are incomplete.")
     configured = json.loads(invoke("configured-settings", ["--scientific-config", settings_path,
-                               "--set", "cpin.min_child_reads=4", "settings", "cpin", "--json"]))
-    require(configured["effective"]["cpin"]["min_child_reads"] == 4 and
-            configured["modules"]["cpin"]["parameters"]["min_child_reads"]["default"] ==
-            settings["effective"]["cpin"]["min_child_reads"], "Scientific settings override/default separation failed.")
+                               "--set", "cpin.min_coverage=4", "settings", "cpin", "--json"]))
+    require(configured["effective"]["cpin"]["min_coverage"] == 4 and
+            configured["modules"]["cpin"]["parameters"]["min_coverage"]["default"] ==
+            settings["effective"]["cpin"]["min_coverage"], "Scientific settings override/default separation failed.")
     menu = invoke("wizard", ["--dry-run", "wizard"], "w\n0\n0\n")
     require(all(label in menu for label in ("Workflow automatici", "DNPcall -> Contamination",
-            "DNPcall -> CPI", "DNPcall -> Contamination e CPI", "SNPcall su piu' campioni",
-            "CPIN / CPI postnatale", "Workflow completo", "Analisi singole", "Configurazione e strumenti", "Ctrl+C")),
+            "DNPcall -> CPI", "DNPcall -> Contamination e CPI prenatale", "SNPcall su piu' campioni",
+            "CPI postnatale", "Workflow completo", "Analisi singole", "Configurazione e strumenti", "Ctrl+C")),
             "Packaged workflow menu is incomplete.")
     cancelled = invoke("wizard-cancellation", ["--dry-run", "wizard"],
                        "7\n6\n1\n:annulla\nW\n1\n1\n:annulla\n5\n1\n2\n:annulla\n0\n")
@@ -257,7 +259,7 @@ def exercise_client(app: Path, work: Path, manifest: dict) -> None:
     for marker in ("SNP", "DNP"):
         directory = packaged_fixtures / marker
         name = "cpin-" + marker.lower()
-        invoke(name, ["--dry-run", "--scientific-config", settings_path, "--set", "cpin.min_child_reads=4",
+        invoke(name, ["--dry-run", "--scientific-config", settings_path, "--set", "cpin.min_coverage=4",
                       "cpin", "--input-dir", directory, "--trios", "M1:F1:C1",
                       "--popfreq", directory / "population.txt", "--panel", directory / "markers.tsv", "--run-name", name])
         run = work / "runs" / name
@@ -267,7 +269,7 @@ def exercise_client(app: Path, work: Path, manifest: dict) -> None:
                 record.get("workflow") == "cpin", "CPIN dry-run must not claim scientific success.")
         require(request["workflow"] == "cpin" and request["trios"] == "M1:F1:C1" and
                 {sample["name"] for sample in request["samples"]} == {"MotherM1.txt", "FatherF1.txt", "ChildC1.txt"} and
-                request["scientific_settings"]["min_child_reads"] == 4 and request["markers"] is not None,
+                request["scientific_settings"]["min_coverage"] == 4 and request["markers"] is not None,
                 "CPIN native request lost roles, panel or scientific settings.")
         volumes = read_json(run / "work/engine-compose.json")["services"]["scientific"]["volumes"]
         require(all(any(mount["target"] == sample["path"] and mount.get("read_only") is True for mount in volumes)
@@ -278,7 +280,7 @@ def exercise_client(app: Path, work: Path, manifest: dict) -> None:
                    ("Father", paths["father.bam"]), ("Child", paths["child.bam"])]
     selected = [part for identity, path in all_samples for part in ("--sample", identity, path)]
     name = "all-five-modules"
-    invoke(name, ["--dry-run", "--set", "cpin.min_child_reads=3", "workflow", "analyze", "--caller", "both",
+    invoke(name, ["--dry-run", "--set", "cpin.min_coverage=3", "workflow", "analyze", "--caller", "both",
                   "--analyses", "contamination,cpi,cpin", *selected, "--reference", paths["reference.fa"],
                   "--dnp-panel", paths["dnp.tsv"], "--snp-panel", paths["snp.tsv"],
                   "--dnp-popfreq", paths["population.tsv"], "--snp-popfreq", paths["snp-population.tsv"],
@@ -301,7 +303,7 @@ def exercise_client(app: Path, work: Path, manifest: dict) -> None:
                 pair["father"]["sample"] == "Father" and trio["id"] == "Postnatal" and
                 [trio[role]["sample"] for role in ("mother", "father", "child")] == ["Mother", "Father", "Child"] and
                 all(trio[role]["output"] == marker + "-tables" for role in ("mother", "father", "child")) and
-                steps[marker + "_cpin"]["parameters"]["scientific_settings"]["min_child_reads"] == 3,
+                steps[marker + "_cpin"]["parameters"]["scientific_settings"]["min_coverage"] == 3,
                 "Generic family roles, typed outputs or settings changed.")
     require(hashes == {path: digest(path) for path in original_files}, "Original inputs were changed.")
 
@@ -329,7 +331,7 @@ def main() -> None:
               "version": manifest["version"], "source_commit": manifest["source_commit"],
               "installer_manifest_sha256": digest(app / ".distribution/installer-manifest.json"),
               "application_inventory_sha256": digest(app / ".distribution/application-files.json"),
-              "entrypoint_sha256": digest(app / "2_AVVIA.cmd"), "installer_sha256": digest(args.installer),
+              "entrypoint_sha256": digest(app / "2_LAUNCH.cmd"), "installer_sha256": digest(args.installer),
               "python_version": "3.12.10", "scientific_execution": False, "wsl_execution": False,
               "checks": {name: True for name in CHECKS}}
     args.output.parent.mkdir(parents=True, exist_ok=True)

@@ -4,12 +4,16 @@ import argparse
 import hashlib
 import json
 import os
+import sys
 from pathlib import Path
 import re
 import urllib.parse
 import urllib.request
 
-REPOSITORY = "GregorioDalia/nipat-desktop"
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
+from nipat.repository import OFFICIAL_REPOSITORIES, REPOSITORY_ID, REPOSITORY_INFO_URL, build_repository
+
+REPOSITORY = build_repository()
 MAX_BYTES = 2 * 1024**3
 
 
@@ -34,17 +38,17 @@ class RestrictedRedirect(urllib.request.HTTPRedirectHandler):
         return super().redirect_request(request, fp, code, msg, headers, newurl)
 
 
-def fetch_json(url):
+def fetch_json(url, *, repository=REPOSITORY):
     require(allowed_url(url), "Invalid release metadata URL")
     request = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json",
                                                  "User-Agent": "nipat-ci-evidence"})
     parsed = urllib.parse.urlsplit(url)
     token = os.environ.get("GH_TOKEN", "")
-    if (token and parsed.scheme == "https" and parsed.netloc == "api.github.com"
+    if (token and repository in OFFICIAL_REPOSITORIES and parsed.scheme == "https" and parsed.netloc == "api.github.com"
             and not parsed.query and not parsed.fragment
-            and re.fullmatch(
-                rf"/repos/{re.escape(REPOSITORY)}/releases/(?:latest|tags/v[0-9]+\.[0-9]+\.[0-9]+(?:(?:a|b|rc)[0-9]+)?)",
-                parsed.path)):
+            and (url == REPOSITORY_INFO_URL or re.fullmatch(
+                rf"/repos/{re.escape(repository)}/releases/(?:latest|tags/v[0-9]+\.[0-9]+\.[0-9]+(?:(?:a|b|rc)[0-9]+)?)",
+                parsed.path))):
         # Authenticate only this repository's metadata request. urllib excludes
         # unredirected headers when following even an approved-host redirect.
         request.add_unredirected_header("Authorization", f"Bearer {token}")
@@ -52,6 +56,15 @@ def fetch_json(url):
         data = response.read(4 * 1024 * 1024 + 1)
     require(len(data) <= 4 * 1024 * 1024, "Release metadata is too large")
     return json.loads(data)
+
+
+def official_release(suffix):
+    info = fetch_json(REPOSITORY_INFO_URL)
+    repository = info.get("full_name")
+    require(info.get("id") == int(REPOSITORY_ID) and repository in OFFICIAL_REPOSITORIES,
+            "Release source differs from the official repository identity")
+    return repository, fetch_json(f"https://api.github.com/repos/{repository}/releases/{suffix}",
+                                  repository=repository)
 
 
 def checked_download(url, destination, expected_hash, expected_size, *, maximum=MAX_BYTES):
@@ -83,7 +96,7 @@ def release_inputs(tag, kinds, output):
     require(tag == "latest" or re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+(?:(?:a|b|rc)[0-9]+)?", tag),
             "Invalid release tag")
     suffix = "latest" if tag == "latest" else "tags/" + tag
-    release = fetch_json(f"https://api.github.com/repos/{REPOSITORY}/releases/{suffix}")
+    repository, release = official_release(suffix)
     require(not release.get("draft") and isinstance(release.get("assets"), list), "Published release required")
     resolved_tag = release["tag_name"]
     require(isinstance(resolved_tag, str) and re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+(?:(?:a|b|rc)[0-9]+)?", resolved_tag),
@@ -98,8 +111,9 @@ def release_inputs(tag, kinds, output):
         api_digest = record.get("digest", "")
         require(isinstance(api_digest, str) and re.fullmatch(r"sha256:[0-9a-f]{64}", api_digest),
                 "GitHub did not provide the exact asset digest")
-        url = f"https://github.com/{REPOSITORY}/releases/download/{resolved_tag}/{name}"
-        require(record["browser_download_url"] == url, "Release asset URL mismatch")
+        url = record["browser_download_url"]
+        require(url == f"https://github.com/{repository}/releases/download/{resolved_tag}/{name}",
+                "Release asset URL mismatch")
         if expected is not None:
             require(expected["sha256"] == api_digest[7:] and expected["size"] == record["size"],
                     "Manifest and GitHub asset identities differ")
@@ -123,7 +137,7 @@ def release_inputs(tag, kinds, output):
             record = manifest["assets"][kind]
             downloaded[kind] = download(record["file"], record)
     (output / "release-inputs.json").write_text(json.dumps({
-        "schema_version": 1, "repository": REPOSITORY, "tag": resolved_tag,
+        "schema_version": 1, "repository": repository, "repository_id": int(REPOSITORY_ID), "tag": resolved_tag,
         "release_id": release["id"], "source_commit": manifest["source_commit"],
         "files": {kind: {"file": path.name, "sha256": assets[path.name]["digest"][7:],
                          "size": assets[path.name]["size"]} for kind, path in downloaded.items()},

@@ -16,6 +16,7 @@ import threading
 import time
 import uuid
 
+from .host import smoke_probe_script, smoke_ready
 from .windows_host import NativeHostError, allowed_navigation, normalize_filters
 
 PTR = C.c_void_p
@@ -152,6 +153,7 @@ class _Window:
         self.closed = False
         self.error = None
         self.tasks = queue.Queue()
+        self.tasks_lock = threading.Lock()
         self.thread_id = threading.get_ident()
         self.pool = c.allocate("NSAutoreleasePool")
         self.app = c.send(c.cls("NSApplication"), "sharedApplication")
@@ -195,9 +197,16 @@ class _Window:
             raise NativeHostError("La finestra desktop è stata chiusa.")
         if threading.get_ident() == self.thread_id:
             return function()
+        return self._queue_task(function).result()
+
+    def _queue_task(self, function):
         future = concurrent.futures.Future()
-        self.tasks.put((future, function))
-        return future.result()
+        with self.tasks_lock:
+            if self.closed:
+                future.set_exception(NativeHostError("La finestra desktop è stata chiusa."))
+            else:
+                self.tasks.put((future, function))
+        return future
 
     def fail(self, exc):
         self.error = exc
@@ -207,8 +216,7 @@ class _Window:
             if threading.get_ident() == self.thread_id:
                 self.cocoa.send(self.window, "close", None)
             else:
-                future = concurrent.futures.Future()
-                self.tasks.put((future, lambda: self.cocoa.send(self.window, "close", None)))
+                self._queue_task(lambda: self.cocoa.send(self.window, "close", None))
 
     def _tick(self, _timer):
         while True:
@@ -233,16 +241,21 @@ class _Window:
     def _should_close(self, _window):
         return bool(self.error or not self.on_close or self.on_close() is not False)
 
-    def _will_close(self, _notification):
-        if self.closed:
-            return
-        self.closed = True
+    def _close_tasks(self):
+        with self.tasks_lock:
+            if self.closed:
+                return False
+            self.closed = True
         while True:
             try:
                 future, _ = self.tasks.get_nowait()
                 future.set_exception(NativeHostError("La finestra desktop è stata chiusa."))
             except queue.Empty:
-                break
+                return True
+
+    def _will_close(self, _notification):
+        if not self._close_tasks():
+            return
         c = self.cocoa
         c.send(self.app, "stop:", None, (PTR,), None)
         # stop: called from a timer or WebKit completion does not wake run's
@@ -316,7 +329,7 @@ class _Window:
         c.send(self.window, "setMinSize:", None, (CGSize,), CGSize(860, 600))
         c.send(self.window, "setDelegate:", None, (PTR,), self.delegate)
         configuration = c.allocate("WKWebViewConfiguration")
-        # Native preferences/results are persisted by NIPAT. Web content has an
+        # The desktop app stores preferences and results. Web content has an
         # ephemeral cache, so no genomic paths leak into a shared Safari profile.
         store = c.send(c.cls("WKWebsiteDataStore"), "nonPersistentDataStore")
         c.send(configuration, "setWebsiteDataStore:", None, (PTR,), store)
@@ -348,10 +361,7 @@ class _Window:
     def _smoke_probe(self):
         self.smoke_requested = True
         c = self.cocoa
-        code = "JSON.stringify({appReady:document.documentElement.dataset.nipatReady==='true'," \
-               "title:document.title,readyState:document.readyState," \
-               "userAgent:navigator.userAgent,bodyText:document.body.innerText.slice(0,2000)," \
-               "width:innerWidth,height:innerHeight})"
+        code = smoke_probe_script()
         block = c.completion_block(self._smoke_done, self.fail)
         c.send(self.webview, "evaluateJavaScript:completionHandler:", None,
                (PTR, PTR), c.string(code), block)
@@ -362,7 +372,7 @@ class _Window:
             message = c.python_string(c.send(error, "localizedDescription"))
             raise NativeHostError("Verifica della finestra macOS non riuscita: " + message)
         data = json.loads(c.python_string(value))
-        if not data.get("appReady"):
+        if not smoke_ready(data):
             self.smoke_requested = False
             return
         if not data.get("bodyText") or not data.get("width") or not data.get("height"):
@@ -457,7 +467,7 @@ class _Window:
                 raise NativeHostError(str(self.error)) from self.error
             return 0
         finally:
-            self.closed = True
+            self._close_tasks()
             if self.timer:
                 c.send(self.timer, "invalidate", None)
                 c.send(self.timer, "release", None)

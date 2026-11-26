@@ -424,6 +424,13 @@ class FrozenInstallerFixtureTests(unittest.TestCase):
                 "bootstrap_marker", "display_version_matches_payload", "resume_archives_cached"), True),
         }
         VERIFY.verify_windows_installer_fixture(evidence, manifest)
+        current_manifest = dict(manifest, version="0.9.10")
+        with self.assertRaisesRegex(ValueError, "fixture is incomplete"):
+            VERIFY.verify_windows_installer_fixture(evidence, current_manifest)
+        current = copy.deepcopy(evidence)
+        for older, newer in (("0.8.99", "0.9.10"), ("0.9.0", "0.9.11")):
+            current["checks"]["installed_" + newer] = current["checks"].pop("installed_" + older)
+        VERIFY.verify_windows_installer_fixture(current, current_manifest)
         for key in evidence["checks"]:
             for value in (None, False, 1):
                 changed = copy.deepcopy(evidence)
@@ -507,6 +514,15 @@ class RealUpgradeEvidenceTests(unittest.TestCase):
             changed["previous"][key] = value
             with self.subTest(key=key), self.assertRaises(ValueError):
                 self.verify(changed)
+
+    def test_0910_installer_set_rejects_a_successful_legacy_baseline_upgrade(self):
+        self.manifest["version"] = self.evidence["version"] = "0.9.10"
+        checker = VERIFY.load_module("upgrade_test_baseline", VERIFY.PROJECT / "scripts/verify_linux_upgrade.py")
+        self.evidence["previous"] = checker.baseline_for("0.9.9")
+        with self.assertRaisesRegex(ValueError, "Linux upgrade evidence mismatch"):
+            self.verify(self.evidence)
+        self.evidence["previous"] = checker.baseline_for("0.9.10")
+        self.verify(self.evidence)
 
     def test_rejects_missing_failed_and_nonboolean_checks_or_candidate_mismatch(self):
         for check in self.evidence["checks"]:

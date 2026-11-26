@@ -70,7 +70,8 @@ class LinuxInstallationEvidenceTests(unittest.TestCase):
         }
         for version in ("0.9.0", nipat.__version__):
             with self.subTest(version=version):
-                self.assertEqual(set(check.checks_for_version(version)), expected)
+                self.assertEqual(set(check.checks_for_version(version)),
+                                 expected | ({"fetal_sex_example"} if version == nipat.__version__ else set()))
 
     def test_all_five_workflows_must_have_successful_run_records(self):
         for workflow in ("dnp-call", "snp-call", "contamination", "cpi", "cpin"):
@@ -149,8 +150,10 @@ class InstalledAutomaticPlanEvidenceTests(unittest.TestCase):
         contamination["summary"] = self.table("steps/contamination/output/summary.txt", [
             {"individuo": f"table_{number:04d}", "informative_DNPs": "2", "mean_contamination": "0", "sd_contamination": "0"}
             for number in (1, 2)])
-        contamination["contamination-tables"] = [self.table(f"steps/contamination/output/table{number}.txt", [
-            {"pos1": str(position), "contamination": "0"} for position in (50, 230)]) for number in (1, 2)]
+        contamination["contamination-tables"] = [
+            {"sample": f"sample_{number:04d}", **self.table(f"steps/contamination/output/table{number}.txt", [
+                {"pos1": str(position), "contamination": "0"} for position in (50, 230)])}
+            for number in (1, 2)]
         cpi = steps["cpi"]["artifacts"]
         native = "Mothers0001-Fathers0002_DNPs"
         cpi["summary"] = self.table("steps/cpi/output/Summary_FetalFraction_CPI.csv", [{
@@ -198,6 +201,18 @@ class InstalledAutomaticPlanEvidenceTests(unittest.TestCase):
 
     def test_complete_installed_plan_evidence_matches_expected_identity_and_numbers(self):
         self.verify()
+
+    def test_missing_or_repeated_contamination_artifact_is_not_accepted(self):
+        artifacts = next(step["artifacts"] for step in self.state["steps"] if step["id"] == "contamination")
+        first, second = artifacts["contamination-tables"]
+        for case, tables in (
+            ("missing", []),
+            ("repeated sample", [first, {**second, "sample": first["sample"]}]),
+            ("repeated file", [first, {**first, "sample": second["sample"]}]),
+        ):
+            with self.subTest(case=case), self.assertRaisesRegex(RuntimeError, "Contamination table"):
+                artifacts["contamination-tables"] = tables
+                self.verify()
 
     def current_snp2_outputs(self):
         self.manifest["version"] = "0.8.30"

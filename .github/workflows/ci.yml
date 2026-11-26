@@ -12,8 +12,9 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: ci-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}
-  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
+  # Each main push covers its own before..after interval, including rapid successive merges.
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   changes:
@@ -26,6 +27,8 @@ jobs:
       acceptance_only: ${{ steps.select.outputs.acceptance_only }}
       acceptance_paths: ${{ steps.select.outputs.acceptance_paths }}
       documentation_scope: ${{ steps.select.outputs.documentation_scope }}
+      desktop_scope: ${{ steps.select.outputs.desktop_scope }}
+      caller_smoke: ${{ steps.select.outputs.caller_smoke }}
       client: ${{ steps.select.outputs.client }}
       scientific: ${{ steps.select.outputs.scientific }}
       runtime: ${{ steps.select.outputs.runtime }}
@@ -73,6 +76,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ACCEPTANCE_PATHS: ${{ needs.changes.outputs.acceptance_paths }}
         run: python .github/scripts/acceptance_ci.py
+      - name: Verified acceptance-only push from ${{ github.event.before }}
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.acceptance_only == 'true'
+        run: echo "All acceptance records in the main push were verified."
 
   documentation:
     needs: changes
@@ -121,7 +127,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             python3-gi gir1.2-gtk-3.0 gir1.2-webkit2-4.1 \
-            python3-cairo python3-gi-cairo xvfb xauth dbus-x11
+            python3-cairo python3-gi-cairo xvfb xauth dbus-x11 poppler-utils
       - name: Exercise the source application in native GTK
         # This fails before runtime/package builds; package smoke checks remain separate.
         timeout-minutes: 5
@@ -159,17 +165,19 @@ jobs:
       - name: Correctness-focused Python static checks
         run: python -m ruff check src engine scripts installer/linux .github/scripts
       - name: Python unit tests with branch coverage
+        id: python_tests
         run: |
           mkdir -p build/quality
           python -m coverage run -m pytest tests
       - name: Record branch coverage without an arbitrary percentage gate
-        if: always()
+        id: coverage_reports
+        if: ${{ !cancelled() && (steps.python_tests.outcome == 'success' || (steps.python_tests.outcome == 'failure' && hashFiles('.coverage') != '')) }}
         run: |
           python -m coverage json
           python -m coverage xml
           python -m coverage report > build/quality/coverage.txt
       - name: Retain quality baseline and missing branches
-        if: always()
+        if: ${{ !cancelled() && steps.coverage_reports.outcome == 'success' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: nipat-python-quality
@@ -233,9 +241,11 @@ jobs:
           if-no-files-found: ignore
       - name: Run shared Windows unit, installer and launcher checks
         shell: powershell
-        run: ./.github/scripts/check_windows.ps1
+        env:
+          DESKTOP_SCOPE: ${{ needs.changes.outputs.desktop_scope }}
+        run: ./.github/scripts/check_windows.ps1 -DesktopOnly:($env:DESKTOP_SCOPE -eq 'focused')
       - name: Retain compiled installer fixture results, including failures
-        if: always()
+        if: always() && needs.changes.outputs.desktop_scope != 'focused'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: nipat-windows-installer-fixture
@@ -287,8 +297,11 @@ jobs:
       - name: Check native client and packaging contracts (no guest VM)
         env:
           EXPECTED_ARCHITECTURE: ${{ matrix.architecture }}
+          DESKTOP_SCOPE: ${{ needs.changes.outputs.desktop_scope }}
         run: |
-          python .github/scripts/check_macos.py --output build/macos-client-check.json
+          options=()
+          if [[ "$DESKTOP_SCOPE" == focused ]]; then options+=(--desktop-only); fi
+          python .github/scripts/check_macos.py --output build/macos-client-check.json "${options[@]}"
       - name: Retain bounded client evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -315,9 +328,24 @@ jobs:
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.12.10'
+      - name: Prepare scientific presentation tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends poppler-utils
+      - name: Check the merged pull request for matching scientific evidence
+        id: scientific_reuse
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.ref_protected
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python .github/scripts/scientific_reuse.py restore --promote-image \
+            --image "$NIPAT_RUNTIME_IMAGE" --output-dir build/scientific-reuse \
+            --runner-temp "$RUNNER_TEMP" --output "$GITHUB_OUTPUT"
       - name: Set up Buildx
+        if: steps.scientific_reuse.outputs.reused != 'true'
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
       - name: Build scientific runtime using the dependency cache
+        if: steps.scientific_reuse.outputs.reused != 'true'
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
@@ -329,24 +357,13 @@ jobs:
           provenance: false
           cache-from: type=gha,version=2,scope=nipat-scientific-linux-amd64
           cache-to: type=gha,version=2,scope=nipat-scientific-linux-amd64,mode=max,ignore-error=true
+      - name: Exercise the desktop caller plan with the bundled synthetic trio
+        run: python .github/scripts/verify_caller_smoke.py --image "$NIPAT_RUNTIME_IMAGE"
       - name: Verify distribution notices in the built image
         run: |
           set -o pipefail
           sha256sum LICENSE THIRD_PARTY_NOTICES.md |
             docker run --rm -i --network=none --workdir /opt/nipat --entrypoint sha256sum "$NIPAT_RUNTIME_IMAGE" --check -
-      - name: Prepare scientific presentation tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends poppler-utils
-      - name: Check the merged pull request for matching scientific evidence
-        id: scientific_reuse
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.ref_protected
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          python .github/scripts/scientific_reuse.py restore \
-            --image "$NIPAT_RUNTIME_IMAGE" --output-dir build/scientific-reuse \
-            --runner-temp "$RUNNER_TEMP" --output "$GITHUB_OUTPUT"
       - name: Verify bundled scientific scripts without host sources
         if: steps.scientific_reuse.outputs.reused != 'true'
         env:
@@ -390,7 +407,9 @@ jobs:
           docker run --rm --network=none --cpus=4 --memory=8g \
             --mount "type=bind,source=$GITHUB_WORKSPACE,target=/qualification,readonly" \
             --workdir /qualification --env PYTHONPATH=/opt/nipat/lib:/qualification/src \
+            --mount "type=bind,source=$TMPDIR,target=/evidence" \
             --entrypoint python3 "$NIPAT_RUNTIME_IMAGE" /qualification/.github/scripts/check_native_r.py \
+            --report /evidence/native-r.json \
             2>&1 | tee "$TMPDIR/verification.log"
       - name: Verify updated CPI Contamination and CPIN models
         if: steps.scientific_reuse.outputs.reused != 'true'
@@ -408,15 +427,24 @@ jobs:
           mkdir -p "$TMPDIR"
           set -o pipefail
           python scripts/verify_r_equivalence.py --image "$NIPAT_RUNTIME_IMAGE" --output-dir "$TMPDIR/artifacts" 2>&1 | tee "$TMPDIR/verification.log"
+      - name: Export qualified scientific Docker image
+        id: scientific_image_export
+        if: steps.scientific_reuse.outputs.reused != 'true' && github.repository_id == '1307623649' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        continue-on-error: true
+        run: |
+          image_id=$(docker image inspect --format '{{.Id}}' "$NIPAT_RUNTIME_IMAGE")
+          docker image save --output "$RUNNER_TEMP/scientific-runtime.tar.partial" "$image_id"
+          mv "$RUNNER_TEMP/scientific-runtime.tar.partial" "$RUNNER_TEMP/scientific-runtime.tar"
       - name: Seal successful scientific qualification for exact-image reuse
-        if: steps.scientific_reuse.outputs.reused != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        if: steps.scientific_reuse.outputs.reused != 'true' && github.repository_id == '1307623649' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         id: scientific_qualification
         run: |
           python .github/scripts/scientific_reuse.py seal \
-            --image "$NIPAT_RUNTIME_IMAGE" --output-dir build/scientific-qualification
+            --image "$NIPAT_RUNTIME_IMAGE" --output-dir build/scientific-qualification \
+            --runtime-archive "$RUNNER_TEMP/scientific-runtime.tar"
           echo "source_tree=$(git rev-parse 'HEAD^{tree}')" >> "$GITHUB_OUTPUT"
       - name: Retain reusable scientific qualification
-        if: steps.scientific_reuse.outputs.reused != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        if: steps.scientific_reuse.outputs.reused != 'true' && github.repository_id == '1307623649' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         # A failed/cancelled check never produces reusable evidence. Attempts
         # have separate immutable artifacts; ordinary diagnostics remain below.
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -424,6 +452,16 @@ jobs:
           name: nipat-scientific-qualification-${{ github.run_attempt }}-${{ steps.scientific_qualification.outputs.source_tree }}
           path: build/scientific-qualification/
           retention-days: 14
+          if-no-files-found: error
+      - name: Retain qualified scientific Docker image
+        if: steps.scientific_qualification.outcome == 'success' && steps.scientific_image_export.outcome == 'success'
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nipat-scientific-image-${{ github.run_attempt }}-${{ steps.scientific_qualification.outputs.source_tree }}
+          path: ${{ runner.temp }}/scientific-runtime.tar
+          retention-days: 3
+          compression-level: 1
           if-no-files-found: error
       - name: Retain scientific diagnostics
         if: always()
@@ -442,6 +480,39 @@ jobs:
             build/scientific-reuse/reuse.json
           retention-days: 14
           if-no-files-found: ignore
+
+  caller-smoke:
+    needs: changes
+    if: needs.changes.outputs.run_checks == 'true' && needs.changes.outputs.caller_smoke == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      PYTHONPATH: src
+      NIPAT_RUNTIME_IMAGE: nipat-scientific-runtime:ci-test
+    steps:
+      - name: Checkout desktop and synthetic inputs
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12.10'
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+      - name: Load the scientific runtime for the two callers
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: docker/scientific-runtime/Dockerfile
+          platforms: linux/amd64
+          tags: ${{ env.NIPAT_RUNTIME_IMAGE }}
+          load: true
+          pull: true
+          provenance: false
+          cache-from: type=gha,version=2,scope=nipat-scientific-linux-amd64
+      - name: Verify the desktop caller plan and expected counts
+        run: python .github/scripts/verify_caller_smoke.py --image "$NIPAT_RUNTIME_IMAGE"
 
   runtime:
     needs: [changes, linux-checks, windows-checks]
@@ -503,7 +574,7 @@ jobs:
     # A delegated branch push cannot satisfy the protected PR/main context.
     name: ${{ github.event_name == 'push' && github.ref != 'refs/heads/main' && 'branch-required' || 'required' }}
     if: always()
-    needs: [changes, documentation, linux-checks, windows-checks, macos-checks, scientific, runtime, packaging, acceptance]
+    needs: [changes, documentation, linux-checks, windows-checks, macos-checks, scientific, caller-smoke, runtime, packaging, acceptance]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

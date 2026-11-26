@@ -353,7 +353,7 @@ def make_dnp_block_inputs(inputs: Path, image: str) -> None:
             add("0001", chromosome, 30, quality="5")
             add("large-coordinate", chromosome, 99970)
             for start in (220, 410, 590):
-                for number, name in enumerate(("shared", "shared2", "001", "1", "z", "A", "r_12", "r@excluded")):
+                for number, name in enumerate(("shared", "shared2", "001", "1", "z", "A", "r_12", "r+8")):
                     bases = list(sequence[start - 1:start + 89])
                     if number % 3 == 1:
                         position = start + 30
@@ -423,7 +423,7 @@ def make_inputs(root: Path, image: str) -> Path:
     for sample in ("A", "B", "Quality"):
         records = ["@HD\tVN:1.6\tSO:coordinate", f"@SQ\tSN:chrDnpSynthetic\tLN:{len(sequence)}"]
         for start, covered in ((20, (50, 52)), (110, (140,)), (200, (230,))):
-            for index, name in enumerate(("a", "A", "z", "Z", "r-1", "r.2", "r_3", "r@skip")):
+            for index, name in enumerate(("a", "A", "z", "Z", "r-1", "r.2", "r_3", "r+7")):
                 bases = list(sequence[start - 1:start + 79])
                 for position in covered:
                     if (index + (sample == "B")) % 3 == 1:
@@ -453,7 +453,7 @@ def make_inputs(root: Path, image: str) -> Path:
                     f"/inputs/{sample}.sam"], inputs=dnp, results=dnp)
     run(image, ["samtools", "faidx", "/results/reference.fa"], inputs=dnp, results=dnp)
 
-    names = ["a", "A", "z", "Z", "r-1", "r.2", "r@skip", "shared"]
+    names = ["a", "A", "z", "Z", "r-1", "r.2", "r+7", "shared"]
     lines = []
     for center, ref, alt in ((50, "A", "G"), (120, "C", "T")):
         for position in (center - 1, center, center + 1):
@@ -480,8 +480,7 @@ def make_inputs(root: Path, image: str) -> Path:
     (inputs / "snp/pileup-empty.txt").write_text("", encoding="utf-8")
     write_tsv(inputs / "snp/overlap-panel.tsv", ("chr", "pos", "ref", "alt"),
               [("chrSynthetic", 50, "A", "G"), ("chrSynthetic", 51, "A", "T")])
-    # The same reads span two overlapping windows: each must remain attached
-    # to its SNP rather than being combined globally by QNAME as in 0.8.5.
+    # Reads spanning two SNP windows must be grouped by both SNP and QNAME.
     overlap = [f"chrSynthetic\t{position}\tA\t4\t{bases}\tI?5I\tshared,ref,alt,other\n"
                for position, bases in ((49, "...."), (50, ".GGT"), (51, "T.TG"), (52, "...."))]
     (inputs / "snp/pileup-overlap.txt").write_text("".join(overlap), encoding="utf-8")
@@ -646,11 +645,6 @@ def verify(root: Path, image: str) -> dict:
         raise ValueError("Both invariant caller models must pass real parallel qualification")
     helpers = []
     for helper in sorted((PROJECT / "tests/r_optimization").glob("*/check_*.R")):
-        if helper.parent.name == "cpi":
-            # This old-model equality check cannot qualify updated CPI science.
-            # Contamination now uses its frozen NEWPAT oracle and proves loaded
-            # inner parallelism under serial unobserved sample admission.
-            continue
         relative = helper.relative_to(PROJECT)
         log = root / f"{helper.parent.name}-{helper.stem}.log"
         run(image, ["Rscript", f"/repo/{relative.as_posix()}", "/repo"],

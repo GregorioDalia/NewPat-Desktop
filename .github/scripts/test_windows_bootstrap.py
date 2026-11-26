@@ -73,10 +73,10 @@ class BootstrapTests(unittest.TestCase):
              "browser_download_url": "https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.8.99/" + name}
             for name, data in records.items()]}
         class Fetcher:
-            REPOSITORY = "GregorioDalia/nipat-desktop"
             @staticmethod
-            def fetch_json(url):
-                return metadata
+            def official_release(suffix):
+                assert suffix == "latest"
+                return "GregorioDalia/nipat-desktop", metadata
             @staticmethod
             def checked_download(url, destination, expected_hash, expected_size, *, maximum):
                 data = records[url.rsplit("/", 1)[-1]]

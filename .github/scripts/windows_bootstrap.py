@@ -12,7 +12,7 @@ import tempfile
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
-BOOTSTRAP_VERSION = "1.1.0"
+BOOTSTRAP_VERSION = "1.2.0"
 BOOTSTRAP_SOURCES = (
     "installer/windows/NIPAT.iss", "installer/windows/bootstrap-profile.iss",
     "installer/windows/bootstrap_download.py", "LICENSE", "assets/branding/nipat-icon.ico",
@@ -103,7 +103,7 @@ def reuse(stage, output, *, fetcher=None):
     """Reuse only the latest official EXE with the identical complete bootstrap input set."""
     expected = verify_stage(stage)
     release = fetcher or load_module("bootstrap_release_inputs", ROOT / ".github/scripts/release_inputs.py")
-    metadata = release.fetch_json(f"https://api.github.com/repos/{release.REPOSITORY}/releases/latest")
+    repository, metadata = release.official_release("latest")
     require(metadata.get("draft") is False and metadata.get("prerelease") is False,
             "Bootstrap reuse requires a stable public release")
     tag = metadata.get("tag_name", "")
@@ -116,9 +116,9 @@ def reuse(stage, output, *, fetcher=None):
     def download(name, destination, maximum):
         asset = assets[name]
         checksum = asset.get("digest", "")
-        url = f"https://github.com/{release.REPOSITORY}/releases/download/{tag}/{name}"
+        url = asset.get("browser_download_url")
         require(isinstance(checksum, str) and re.fullmatch(r"sha256:[a-f0-9]{64}", checksum)
-                and asset.get("browser_download_url") == url,
+                and url == f"https://github.com/{repository}/releases/download/{tag}/{name}",
                 "Baseline asset identity is invalid")
         return release.checked_download(url, destination, checksum[7:], asset["size"], maximum=maximum)
 

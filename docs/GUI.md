@@ -2,33 +2,91 @@
 
 Use NewPat to set up an experiment, follow its progress, read results and inspect alignments. Choose the British or Italian flag in the top bar to switch between English and Italian. NewPat remembers this choice when you reopen the application. The labels below use English.
 
+## Try the shared example
+
+Open **Environment and help → Open demo**. If you have an edited draft, NewPat asks before replacing it. The **Review** step opens with three indexed BAMs, a synthetic FASTA and both marker panels already selected. Expand **Expected demo results**, then choose **Start experiment**. All inputs are included and the analysis runs locally. [Guida rapida in italiano](QUICKSTART_IT.md)
+
+When **Activity** shows **Completed**, open **Experiments and results**, select the demo, then open **Results → DNP** and **Results → SNP**. Select each sample. In both analyses the table should have three sites per sample, with 100 reads per site. For `mother`, expect 96 REF and 4 ALT. For `father` and `child`, expect 50 REF and 50 ALT each. The guided demo runs just these two analyses.
+
+To try contamination and the two CPI analyses, select **Environment and help → Save example data**. Pick a writable parent folder and follow the README inside the new `synthetic-trio` directory. It provides the family assignments, marker-specific files and expected outputs for the five analyses supported by the trio. The separate `timing/` workload has four contigs and 128 loci for comparing DNP and SNP timings on different computers. The same inputs are available in the [example ZIP](../examples/newpat-synthetic-trio.zip).
+
 ## Set up an experiment
 
 1. Choose **New experiment** and give the experiment a name. Select the starting material (BAM files, SNP pileups or existing count tables). For BAM inputs, supply the reference FASTA, the marker panel for each caller and a sample ID for each file.
-2. Select the analyses. Contamination, prenatal CPI and postnatal CPIN can each use a caller's count tables. For parentage analyses, identify each sample's role in its pair or trio and select population frequencies for the marker type.
+2. Select the analyses. Contamination, prenatal CPI and postnatal CPI can each use a caller's count tables. For parentage analyses, identify each sample's role in its pair or trio and select population frequencies for the marker type.
 3. Review the scientific parameters, sample list, execution settings and destination. Select **Record performance diagnostics** if you need timing and resource measurements. Choose **Start experiment** once. NewPat checks the configuration and runtime and starts the analysis when the checks pass. If a check fails, use the displayed message to correct the problem before trying again.
 4. Open **Activity** to see the current phase, the sample when available, and the elapsed time. Recent activity lists changes as they happen. Expand **Technical log** for detailed messages. The DNA animation shows activity while the engine prepares. When a phase has measurable progress, the percentage refers to that phase. Stopping an analysis can take time while its processes exit.
 
-**New experiment** starts with the defaults in Preferences. **Run again** opens a fresh draft with an existing run's input files and settings. Review those paths before starting it. See the [input and command reference](GUIDA_UTILIZZO.md) for panel formats and sample roles.
+For fetal sex alone, choose **New experiment → Fetal sex from three count tables**. Enter the maternal sample name and select its three files: autosomal DNP counts, chromosome X DNP counts and chromosome Y SNP counts. Use X and Y markers previously validated for specificity. To include this estimate alongside another analysis, select **Fetal sex** in the analyses step and supply the same three files. You can try this with either [worked example](../tests/fixtures/fetal_sex/README.md).
+
+**New experiment** starts with the defaults in Preferences. **Run again** opens a fresh draft with an existing run's input files and settings. Review those paths before starting it. See the [input and command reference](USER_GUIDE.md) for panel formats and sample roles.
+
+You can submit another experiment while one is running. Each has its own progress, stop control and output directory. A desktop session prepares up to two experiments at once. Others appear as **Queued** and can be cancelled from **Activity**. When inputs are ready, NewPat starts the calculation once both CPU and memory are available. An experiment can also wait specifically for those resources.
+
+Desktop sessions of the same user share capacity on the same runtime. Experiments submitted together can start side by side. If a running experiment already uses the full budget, a compatible engine can share it when the current analysis step or group of SNP samples finishes. A single long step can therefore delay the next experiment. Each calculation keeps its current workers until they finish. With unknown capacity, one experiment calculates at a time with a single worker. Concurrent experiments share storage bandwidth, and CLI runs and other applications can affect elapsed time.
+
+Under **Parameters → Experiment resources**, you can set CPU, memory and worker limits for a run and save them in a profile. Finished and interrupted jobs move to **Finished this session**. **Remove from list** clears the card and its archive listing while preserving the files.
+
+In the **Parameters** step, save a named profile to reuse your scientific settings and execution limits. Select and apply a profile to change those values on the current draft. Sample files, reference, panels and family roles belong to the experiment. You can replace or remove a saved profile and choose a default for new experiments in **Preferences**.
+
+## Choose a reference genome
+
+For BAM experiments and the **IGV viewer**, choose **GRCh37 / hg19**, **GRCh38 / hg38**, or a custom local reference. Use the exact FASTA used for alignment and panels designed for its coordinates. The analysis records the selected file. When reopening an experiment, IGV uses the reference recorded for that run.
+
+- **Use a local FASTA.** Select the build and register your local FASTA. For an uncompressed FASTA, NewPat can create a missing `.fai` beside it in a writable folder. A BGZF-compressed FASTA requires the matching `.fai` and `.gzi`. Keep the FASTA at its registered path so future experiments can reuse it. You can keep more than one file for the same assembly family. Use a custom reference for the bundled synthetic data or a reference with a different sequence dictionary.
+- **Obtain a standard reference.** Choose the build and start its UCSC download. The download screen reports progress. After verification and indexing, the reference is available locally for both experiments and IGV. Allow about 1 GB of network traffic and at least 4.5 GB of free disk space per build for preparation. With the reference installed, subsequent selections work offline.
+- **Check the variant.** The downloadable presets are the UCSC initial hg19 and hg38 FASTA releases with `chr`-prefixed names. A BAM aligned against a numbered-contig GRCh37 FASTA, for example, should use that file. The original hg19 mitochondrial sequence also differs from the GRC GRCh37 sequence. Choosing a build preserves input coordinates. [UCSC assembly conventions](https://genome.ucsc.edu/FAQ/FAQreleases.html) · [UCSC hg19 downloads](https://hgdownload.soe.ucsc.edu/goldenPath/hg19/bigZips/initial/) · [UCSC hg38 downloads](https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/initial/)
+
+NewPat verifies the full contents of a registered FASTA and its indexes when you select it or validate an experiment that uses it. Opening the picker uses a shorter check for large FASTAs. If NewPat reports a changed reference, confirm that the FASTA and indexes belong together and register them again. References saved by an earlier preview with file metadata alone need one new registration to record their content digests.
+
+NewPat checks the reference sequence against every row of its FAI and, for BGZF files, the block offsets in its GZI. New desktop BAM experiments record SHA-256 fingerprints for these files. Opening IGV from an experiment verifies the selected files against the recorded fingerprints. Older experiments can use fingerprints in their input manifest. If some are missing, IGV displays a warning. Choosing a different reference manually opens a separate selection.
 
 ## Find or reopen results
 
 In **Experiments and results**, search by experiment name, status or marker type. Open a result to see its summary, module tables, plots and original files. A paged table is a preview; export the original file to work with the complete rows and stored values. You can export a single file or a ZIP of the results.
 
+### Export a PDF report
+
+Open an experiment and choose **Export PDF report**. Select the results to include by analysis, sample or family, marker and panel. NewPat appends each selection to one PDF in the order shown. Five selected results produce five separate summary pages in the same file.
+
+- **Summary report** gives each selected result one A4 page, identifies its samples and explains the outcome in everyday language.
+- **Detailed report** starts each result on a fresh page and includes its recorded measurements, available graphs and source table excerpts. Each section takes the pages it needs. When NewPat can link an informative site to the archived marker, original BAM tracks and reference, the section can also include a local IGV view with genomic coordinates. Output tables alone cannot reconstruct aligned reads. Original tables in the archive contain all rows.
+- **Summary and details** places each result’s summary immediately before its detailed section.
+
+Choose **Save PDF** once. Reports use the local archive and the current interface language. The detailed CPI report retains the recorded index and the reference limits available for the run. The summary distinguishes evidence in favour of or against paternity, an inconclusive comparison and information missing from the archive. Genotype and contamination analyses report their own measurements.
+
 Use **Open existing results** to add an existing run folder to the archive. NewPat records its location. **Remove from list** hides the entry and leaves its files on disk. You can register that folder again.
 
-If NewPat closes during calculation, reopen the application and check the run status. **Needs verification** means NewPat cannot determine whether the underlying process is still active. Wait for confirmation before relaunching or removing the entry. Completed output from one step may be available while the overall experiment is still incomplete. The [run guide](ESECUZIONI.md) explains how to inspect the runtime.
+If NewPat closes during calculation, reopen the application and check the run status. **Needs verification** means NewPat cannot determine whether the underlying process is still active. Wait for confirmation before relaunching or removing the entry. Completed output from one step may be available while the overall experiment is still incomplete. The [run guide](RUNS.md) explains how to inspect the runtime.
 
-## Read CPI and CPIN plots
+<a id="read-cpi-and-cpin-plots"></a>
+
+## Read the result summary
+
+Select the marker branch and the sample, pair or trio in **Experiments and results**. The summary describes the selected analysis. Keep different panels or site selections separate when comparing estimates.
+
+| Analysis | Summary |
+| --- | --- |
+| DNP and SNP genotyping | Called and unassigned genotypes for the selected sample. The original tables identify calls as `0/0`, `0/1`, `1/1` or `NA`. In the tables, `NA` means the program could not determine the value. These modules produce the inputs for the parentage analyses. |
+| Prenatal CPI | The reported log₁₀(CPI) at the median fetal allele support for that pair and panel (`CPI_medianFF`). It differs from the median of the CPI curve. When the two original plot guides are available, the summary locates the reported point below, between, above or on them. The default guides are −4 and +4. R rounds this CSV value to three decimals, so a point displayed on a guide may have been rounded from either side. The source script provides a curve and the underlying values. It does not issue a categorical parentage finding. |
+| Postnatal CPI | One CPI and log₁₀(CPI) for the selected trio, with its contributing site count. Open the per-site table to inspect quality filters, genotype combinations and PI values. When no sites qualify, both index fields are unavailable. For a supported estimate, the reference band compares the recorded log₁₀(CPI) with the two saved numeric limits. A value exactly on a limit is marked as such. |
+| Contamination | Mean contamination and number of informative sites for the selected sample. An unavailable estimate is distinct from a measured zero. |
+| Fetal sex | Female, male or undetermined for the selected maternal sample. The thresholds are preliminary. The detailed report shows the three ratios, the thresholds used and the underlying site tables. |
+
+The default lower and upper limits are −4 and +4. You can change the two numbers before a run. An exact boundary is shown separately. These indicators describe the position of the reported index and do not assign a parentage verdict.
+
+## Read prenatal and archived postnatal CPI plots
+
+New postnatal experiments return a scalar and site table. Older experiments may include threshold plots from the previous postnatal model.
 
 Hover over a point or click it to see the original table values. With the keyboard, press **Tab** to focus the plot, use the arrow keys to move through the points on the page, **Home** or **End** to reach its ends, and **Esc** to dismiss the details.
 
 | Result | Horizontal axis | Index series | Site counts |
 | --- | --- | --- | --- |
 | Prenatal CPI | `Iteration`, the minimum fetal read count | `log_CPI`, already on a base-10 logarithmic scale | `NotMismatch` and `Mismatch` |
-| Postnatal CPIN | Inclusive interval from `Min_child_reads` to `Through_min_child_reads` | `Log10_CPI`, already on a base-10 logarithmic scale | `N_sites`, `Matching_sites` and `Mismatching_sites` |
+| Archived postnatal curves | Inclusive interval from `Min_child_reads` to `Through_min_child_reads` | `Log10_CPI`, already on a base-10 logarithmic scale | `N_sites`, `Matching_sites` and `Mismatching_sites` |
 
-The separate views give the index and counts their own panels. The combined view shows log CPI in black, matching sites in green and mismatching sites with a dashed orange line. Read the index on the left axis and counts on the right. Total postnatal site counts remain available in the separate view and point details.
+The separate views give the index and counts their own panels. The combined view shows log CPI in black and recorded mismatches with a dashed orange line. For the revised prenatal model, the green series counts matching sites with a valid paternal index and the orange series counts mismatching sites with a valid index. The HET and HOM counts identify the contributors in each group. Older prenatal curves can include candidates with an unassigned paternal genotype in `NotMismatch`; their `InfSites_father` column gives the actual number contributing. For postnatal CPI, the green series shows `Matching_sites`. Read the index on the left axis and counts on the right. Total postnatal site counts remain available in the separate view and point details.
 
 Prenatal lines connect consecutive integer thresholds with recorded values. Postnatal segments show values that apply across the stated interval. The postnatal count axis uses a linear transformation of the counts to fit the log CPI display range; point details always show the original counts. The plot uses stored guide values when available and identifies when it uses the observed range. The scale is shared across pages. Missing or invalid values remain available in the original table.
 

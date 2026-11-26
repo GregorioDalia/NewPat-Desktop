@@ -23,7 +23,7 @@ def sha(data):
 
 @pytest.fixture
 def package(tmp_path, request):
-    version = getattr(request, "param", "0.8.99")
+    version = getattr(request, "param", "0.9.10")
     app = tmp_path / "stage/app"
     assets = tmp_path / "assets"
     assets.mkdir()
@@ -34,7 +34,7 @@ def package(tmp_path, request):
         (assets / (key + ".tar.gz")).write_bytes(data)
         manifest["assets"][key] = {"file": key + ".tar.gz", "sha256": sha(data), "size": len(data)}
     files = {"src/nipat/__init__.py": ('__version__ = "' + version + '"\n').encode()}
-    files.update({path: (ROOT / path).read_bytes() for path in ZIP.ROOT_FILES.values()})
+    files.update({path: (ROOT / path).read_bytes() for path in ZIP.root_files(version).values()})
     manifest["source_sha256"] = {name: sha(data) for name, data in files.items()}
     files[".distribution/installer-manifest.json"] = json.dumps(manifest).encode()
     files[".distribution/python-3.12.10-embed-amd64.zip"] = b"embedded Python fixture"
@@ -54,11 +54,19 @@ def test_complete_offline_payload_round_trip(package, tmp_path):
     path, manifest, inventory, record = package
     destination = tmp_path / "Extracted & è"
     assert ZIP.verify(path, manifest, inventory, extract_to=destination) == record
-    assert (destination / "1_INSTALLA.cmd").read_bytes() == (ROOT / "installer/windows/zip-install.cmd").read_bytes()
+    assert (destination / "1_INSTALL.cmd").read_bytes() == (ROOT / "installer/windows/zip-install.cmd").read_bytes()
     assert (destination / "app/.distribution/python-3.12.10-embed-amd64.zip").is_file()
     assert all((destination / "assets" / item["file"]).is_file() for item in manifest["assets"].values())
     with pytest.raises(FileExistsError):
         ZIP.verify(path, manifest, inventory, extract_to=destination)
+
+
+@pytest.mark.parametrize("package", ["0.9.9"], indirect=True)
+def test_published_099_layout_uses_legacy_members(package):
+    path, manifest, inventory, record = package
+    with zipfile.ZipFile(path) as archive:
+        assert set(item for item in archive.namelist() if "/" not in item) == {"1_INSTALLA.cmd", "LEGGIMI.txt"}
+    assert ZIP.verify(path, manifest, inventory) == record
 
 
 @pytest.mark.parametrize("mutation", ["extra", "missing", "modified", "duplicate", "case", "traversal", "link"])
@@ -74,7 +82,7 @@ def test_invalid_archive_never_extracts(package, tmp_path, mutation):
                 data += b"changed"
             target.writestr(info, data)
         if mutation in {"extra", "traversal", "case", "duplicate"}:
-            name = {"extra": "unexpected.exe", "traversal": "../escaped", "case": "1_installa.cmd", "duplicate": "1_INSTALLA.cmd"}[mutation]
+            name = {"extra": "unexpected.exe", "traversal": "../escaped", "case": "1_install.cmd", "duplicate": "1_INSTALL.cmd"}[mutation]
             target.writestr(name, b"unreviewed")
         if mutation == "link":
             info = zipfile.ZipInfo("link")

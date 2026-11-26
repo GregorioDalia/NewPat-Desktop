@@ -28,7 +28,7 @@ DIRECTORY = "nipat-desktop"
 SOCKET = "unix:///var/run/docker.sock"
 IMAGE_ID = re.compile(r"sha256:[0-9a-f]{64}\Z")
 DIGEST = re.compile(r"[0-9a-f]{64}\Z")
-GUIDE = "docs/INSTALLATORE_LINUX.md"
+GUIDE = "docs/LINUX_INSTALLER.md"
 SETUP_CHECK_TIMEOUTS = {"doctor": 300, "self-test": 1800}
 CLI_CODE = (
     "import sys; sys.path.insert(0, sys.argv.pop(1)); "

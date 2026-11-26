@@ -1,8 +1,7 @@
 """Observe abandoned desktop runs without rewriting scientific provenance.
 
-The existing cross-process analysis/resource lock protects the observation from
-mistaking a live client (including 0.9.0) for a crashed one. Runtime inspection is
-read-only and inconclusive evidence never becomes an interrupted/successful run.
+The shared execution lock distinguishes live clients from abandoned runs.
+Read-only inspection leaves the recorded status intact when evidence is inconclusive.
 """
 from __future__ import annotations
 
@@ -50,14 +49,16 @@ class RunObserver:
         recorded = read_run_status(path, metadata)
         if self._owned(path):
             return self._result(recorded, recorded, "active", can_remove=False)
+        if recorded not in _ACTIVE:
+            # Removing a recorded terminal run hides its card only. An unrelated
+            # run may hold the shared execution lock while we update the registry.
+            return self._result(recorded, recorded, can_remove=recorded != "unreadable")
         try:
             # Probe only: keeping this exclusive lock during Docker inspection
             # could make an unrelated newly started analysis fail to acquire its
             # shared lock. Run paths are immutable and every re-run has a new ID.
             with self.guard():
                 pass
-            if recorded not in _ACTIVE:
-                return self._result(recorded, recorded, can_remove=recorded != "unreadable")
             layout = self.layout()
             # Imported experiments may belong to another computer/backend.
             # The core refuses cross-backend observations, and no source file

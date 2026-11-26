@@ -1,4 +1,4 @@
-"""Inspect recorded containers and stop only positively identified NIPAT runs.
+"""Inspect recorded containers and stop only those owned by the selected run.
 
 Inspection never rewrites the original run status. It is not scientific resume.
 """
@@ -85,7 +85,7 @@ def _reconcile_record(runner, run_dir: Path, record: dict, status: str, *, stop:
     transport = record.get("transport", {})
     current = runner._transport.metadata
     backend_matches = isinstance(transport, dict) and all(
-        transport.get(key) == current.get(key) for key in ("backend", "wsl_distro")
+        transport.get(key) == current.get(key) for key in ("backend", "wsl_distro", "lima_home", "lima_instance")
     )
     report = {
         "run_dir": str(run_dir), "run_name": record.get("run_name", run_dir.name),

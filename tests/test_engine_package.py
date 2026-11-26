@@ -68,17 +68,17 @@ class EnginePackageTests(unittest.TestCase):
         self.assertEqual(set(metadata["workflows"]), set(engine.SCRIPT_PATHS))
         self.assertEqual(metadata["workflow_interfaces"], {
             "contamination": "contamination-v2", "snp-call": "snp-call-v2", "dnp-call": "dnp-call-v1",
-            "cpi": "cpi-v2", "cpin": "cpin-v1",
+            "cpi": "cpi-v4", "cpin": "cpin-v2", "fetal-sex": "fetal-sex-v1",
         })
         self.assertEqual(metadata["plan_execution"], {
             "interface": "workflow-plan-execution-v2", "schema_version": 1,
-            "workflows": ["dnp-call", "snp-call", "contamination", "cpi", "cpin"], "scheduling": "dependency-order-with-bounded-independent-snp", "resume": False,
+            "workflows": ["dnp-call", "snp-call", "contamination", "cpi", "cpin", "fetal-sex"], "scheduling": "dependency-order-with-bounded-independent-snp", "resume": False,
         })
         self.assertEqual(metadata["preparation"]["interface"], "workflow-preparation-v1")
         self.assertEqual(metadata["scientific_validation"], {
             "interface": "scientific-validation-v1",
-            "input_workflows": ["dnp-call", "snp-call", "contamination", "cpi", "cpin"],
-            "output_workflows": ["dnp-call", "snp-call", "contamination", "cpi", "cpin"],
+            "input_workflows": ["dnp-call", "snp-call", "contamination", "cpi", "cpin", "fetal-sex"],
+            "output_workflows": ["dnp-call", "snp-call", "contamination", "cpi", "cpin", "fetal-sex"],
             "snp_alleles": "uppercase-working-copy",
             "snp_model": "SNPcall-2.0", "snp_output_columns": 17,
             "snp_panel_formats": ["chr-pos-ref-alt", "legacy-chr:pos-ref-alt"],
@@ -96,6 +96,7 @@ class EnginePackageTests(unittest.TestCase):
         self.assertIn("lib/nipat_scientific/catalog.py", hashes)
         self.assertIn("lib/nipat_scientific/plan.py", hashes)
         self.assertIn("lib/nipat_scientific/executor.py", hashes)
+        self.assertIn("lib/nipat_scientific/desktop_scheduling.py", hashes)
         for workflow in engine.SCRIPT_PATHS:
             self.assertIn(f"lib/nipat_scientific/catalog_data/{workflow}.json", hashes)
         for relative, digest in hashes.items():
@@ -168,6 +169,21 @@ class EnginePackageTests(unittest.TestCase):
         (run / "run.json").write_text(json.dumps(record), encoding="utf-8")
         with self.assertRaisesRegex(ValidationError, "preparazione"):
             helper.check_bundled_run(run, layout)
+
+    def test_rejected_snp_inputs_must_not_reach_the_bundled_r_caller(self):
+        with patch.object(sys, "path", [str(PROJECT_ROOT / "scripts"), *sys.path]):
+            import verify_engine_package as verifier
+        output = self.root / "output"
+        output.mkdir()
+        verifier.check_snp_rejected_before_r("samtools failed", output)
+        source = (self.root / "scientific" / engine.SCRIPT_PATHS["snp-call"]).read_text(encoding="utf-8")
+        marker = ">> SNPcall 2.0 started"
+        self.assertIn(f'cat("{marker}\\n")', source)
+        with self.assertRaisesRegex(ValueError, "reached R"):
+            verifier.check_snp_rejected_before_r(f"engine\n{marker}\nerror", output)
+        (output / "partial.tsv").touch()
+        with self.assertRaisesRegex(ValueError, "output"):
+            verifier.check_snp_rejected_before_r("samtools failed", output)
 
     def test_snp_plan_accepts_anonymous_scratch_without_relaxing_input_isolation(self):
         from nipat.paths import ProjectLayout

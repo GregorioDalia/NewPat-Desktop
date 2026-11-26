@@ -1,0 +1,5 @@
+# Keep indexed FASTA offsets and the published checksums identical on every platform.
+* text=auto eol=lf
+*.bam -text -eol
+*.bai -text -eol
+*.zip -text -eol

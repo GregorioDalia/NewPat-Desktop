@@ -8,6 +8,7 @@ explicit identifier columns/headers. Numeric values and native files are intact.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import csv
 import hashlib
 import html
@@ -18,6 +19,10 @@ import unicodedata
 from urllib.parse import quote
 
 from nipat_scientific.errors import PlanExecutionError, ValidationError
+
+
+_MODULE_LABELS = {"dnp-call": "DNPcall", "snp-call": "SNPcall", "contamination": "Contamination",
+                  "cpi": "CPI prenatale", "cpin": "CPI postnatale", "fetal-sex": "Sesso fetale"}
 
 
 def _label(value: object, *, basename: bool) -> str:
@@ -46,6 +51,8 @@ def validate_request_presentation(request: dict) -> dict | None:
         workflow = request["workflow"]
         if workflow == "dnp-call":
             sample_ids = {sample["sample_id"] for sample in request["samples"]}
+        elif workflow == "fetal-sex":
+            sample_ids = {"autosomes", "x", "y"}
         elif workflow == "snp-call":
             sample_ids = {"sample_0001"}
         else:
@@ -79,7 +86,7 @@ def _unique_labels(labels: dict[str, str]) -> dict[str, str]:
 def _filename(label: str, identity: str) -> str:
     # Restrict portable filenames, preserve Unicode in labels and in the map.
     stem = unicodedata.normalize("NFC", label)
-    stem = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", stem).strip(" .") or "campione"
+    stem = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", stem).strip(" .") or "sample"
     while len(stem.encode("utf-8")) > 135:
         stem = stem[:-1]
     token = re.sub(r"[^A-Za-z0-9_-]", "_", identity)[:40] or "sample"
@@ -94,13 +101,12 @@ def _pair_map(request: dict, samples: dict[str, str], pairs: dict[str, str]) -> 
     if workflow not in {"cpi", "cpin"}:
         return labels
     roles = ("mother", "father") if workflow == "cpi" else ("mother", "father", "child")
-    role_labels = {"mother": "Madre", "father": "Padre", "child": "Figlio"}
     marker = request.get("marker_type", "DNP")
     for family in request["pairs" if workflow == "cpi" else "trios"].split(","):
         values = [part.strip() for part in family.split(":")]
         identity = ":".join(values)
         native = "-".join(role.title() + value for role, value in zip(roles, values, strict=True)) + f"_{marker}s"
-        description = " | ".join(f"{role_labels[role]}: {samples[request[role + '_prefix'] + value]}"
+        description = " | ".join(f"{role.title()}: {samples[request[role + '_prefix'] + value]}"
                                  for role, value in zip(roles, values, strict=True))
         labels[native] = pairs.get(identity, description)
     return _unique_labels(labels)
@@ -120,18 +126,19 @@ def step_presentation(plan: dict, step: dict, request: dict, bindings: list[dict
                     for number, identity in enumerate(step["inputs"]["samples"], 1)}
     elif workflow == "snp-call":
         selected = {"sample_0001": labels[step["inputs"]["sample"]]}
+    elif workflow == "fetal-sex":
+        selected = {role: labels[identity] for role, identity in step["inputs"].items()}
     elif workflow == "contamination":
         selected = {f"table_{number:04d}": labels[reference["sample"]]
                     for number, reference in enumerate(step["inputs"]["samples"], 1)}
     else:
         roles = ("mother", "father") if workflow == "cpi" else ("mother", "father", "child")
-        role_labels = {"mother": "Madre", "father": "Padre", "child": "Figlio"}
         for binding in bindings:
             description = []
             for role, native in zip(roles, binding["native_selection"].split(":"), strict=True):
                 name = labels[binding[role]["sample"]]
                 selected[role.title() + native] = name
-                description.append(f"{role_labels[role]}: {name}")
+                description.append(f"{role.title()}: {name}")
             identity = binding["pair" if workflow == "cpi" else "trio"]
             pair_labels[binding["native_selection"]] = value["pairs"].get(identity, identity + " — " + " | ".join(description))
     return {"samples": selected, "pairs": pair_labels}
@@ -180,23 +187,24 @@ def prepare_presentation(request: dict, script: Path, arguments: list[str]) -> l
         export("contamination_summary.txt", "Contamination_summary.txt")
         for identity, label in samples.items():
             export(f"contamination_{identity}.txt", f"{_filename(label, identity)}_Contamination.txt", sample=identity)
+    elif workflow == "fetal-sex":
+        from nipat_scientific.fetal_sex import SUMMARY, SITE_TABLES
+        for name in (SUMMARY, *SITE_TABLES.values()):
+            export(name, name)
     elif workflow == "cpin":
         export("Summary_Postnatal_CPI.txt", "Summary_Postnatal_CPI.txt")
-        selection = request.get("scientific_settings", {}).get("site_selection", "both")
-        analyses = {"other_allele": ["heterozygous_child_sites"], "all": ["all_compatible_sites"],
-                    "both": ["heterozygous_child_sites", "all_compatible_sites"]}[selection]
         for identity, label in pairs.items():
-            stem = _filename(label, identity)
-            export(f"sites/{identity}_sites.tsv", f"{stem}_sites.tsv")
-            for analysis in analyses:
-                export(f"curves/{identity}_{analysis}_curve.tsv", f"{stem}_{analysis}_curve.tsv")
-                export(f"plots/{identity}_{analysis}_CPIplot.pdf", f"{stem}_{analysis}_CPI.pdf", kind="plot")
-        export("All_CPIplots.pdf", "All_CPIplots.pdf", kind="plot")
+            export(f"{identity}_sites.txt", f"{_filename(label, identity)}_sites.txt")
     else:
         # The original summary retains its exact numbers and row order.
         for source in ("Summary_FetalFraction_CPI.csv",):
             export(source, source)
+        panels = len(request.get("cutoffs", [])) if request["cutoff_mode"] == "named" else 1
         for identity, label in pairs.items():
+            for index in range(1, panels + 1):
+                panel = f"_panel_{index}" if panels > 1 else ""
+                for suffix in ("_CPI_iterations.csv", "_HOM_child_sites.txt"):
+                    export(f"{identity}{panel}{suffix}", f"{_filename(label, identity)}{panel}{suffix}")
             export(f"plots/{identity}_CPIplot.pdf", f"{_filename(label, identity)}_CPI.pdf", kind="plot")
         export("plots/All_CPIplots.pdf", "All_CPIplots.pdf", kind="plot")
     config = {
@@ -211,33 +219,42 @@ def prepare_presentation(request: dict, script: Path, arguments: list[str]) -> l
         handle.write("\n")
     for identity, label in samples.items():
         print(f"NIPAT campione {identity}: {label}", flush=True)
+    if workflow == "fetal-sex":
+        # All outputs are tables. Python makes the readable copies after the native script exits.
+        return ["Rscript", str(script), *arguments]
     return ["Rscript", str(Path(__file__).with_suffix(".R")), *arguments]
 
 
 def _copy_table(source: Path, target: Path, replacements: dict[str, str], *, sample: str | None = None) -> None:
     delimiter = "," if source.suffix == ".csv" else "\t"
-    with source.open(encoding="utf-8-sig", newline="") as handle:
-        rows = list(csv.reader(handle, delimiter=delimiter, strict=True))
-    if not rows:
-        raise PlanExecutionError("presentation.table", f"Tabella senza intestazione: {source.name}")
-    original_headers = rows[0][:]
-    identity_columns = {index for index, header in enumerate(original_headers) if header in {"Pair", "Trio", "individuo", "sample"}}
-    rows[0] = [_spreadsheet_label(replacements.get(header, header)) if header.startswith("GT_") else header
-               for header in original_headers]
-    for row in rows[1:]:
-        if len(row) != len(original_headers):
-            raise PlanExecutionError("presentation.table", f"Tabella non rettangolare: {source.name}")
-        for index in identity_columns:
-            row[index] = (_spreadsheet_label(replacements[row[index]])
-                          if row[index] in replacements else row[index])
-    if sample is not None:
-        if "Sample" in original_headers:
+    with source.open(encoding="utf-8-sig", newline="") as source_stream:
+        reader = csv.reader(source_stream, delimiter=delimiter, strict=True)
+        headers = next(reader, None)
+        if headers is None:
+            raise PlanExecutionError("presentation.table", f"Tabella senza intestazione: {source.name}")
+        if sample is not None and "Sample" in headers:
             raise PlanExecutionError("presentation.table", "La tabella scientifica contiene già una colonna Sample.")
-        rows[0].insert(0, "Sample")
-        for row in rows[1:]:
-            row.insert(0, _spreadsheet_label(sample))
-    with target.open("x", encoding="utf-8", newline="") as handle:
-        csv.writer(handle, delimiter=delimiter, lineterminator="\n").writerows(rows)
+        identity_columns = [index for index, header in enumerate(headers)
+                            if header in {"Pair", "Trio", "individuo", "sample"}]
+        output_headers = [_spreadsheet_label(replacements.get(header, header)) if header.startswith("GT_") else header
+                          for header in headers]
+        sample_prefix = [] if sample is None else [_spreadsheet_label(sample)]
+        destination = target.open("x", encoding="utf-8", newline="")
+        try:
+            with destination:
+                writer = csv.writer(destination, delimiter=delimiter, lineterminator="\n")
+                writer.writerow((["Sample"] if sample_prefix else []) + output_headers)
+                for row in reader:
+                    if len(row) != len(headers):
+                        raise PlanExecutionError("presentation.table", f"Tabella non rettangolare: {source.name}")
+                    for index in identity_columns:
+                        if row[index] in replacements:
+                            row[index] = _spreadsheet_label(replacements[row[index]])
+                    writer.writerow(sample_prefix + row)
+        except BaseException:
+            # An invalid late row or interrupted copy must not leave an apparent export.
+            target.unlink(missing_ok=True)
+            raise
 
 
 def _spreadsheet_label(value: str) -> str:
@@ -245,10 +262,14 @@ def _spreadsheet_label(value: str) -> str:
     return "'" + value if value.lstrip().startswith(("=", "+", "-", "@")) else value
 
 
-def _file_record(path: Path, root: Path, **metadata) -> dict:
+def _open_result(path: Path, root: Path):
     if path.is_symlink() or not path.is_file() or not path.resolve().is_relative_to(root.resolve()):
         raise PlanExecutionError("presentation.output", f"Esportazione assente o fuori destinazione: {path.name}")
-    with path.open("rb") as handle:
+    return path.open("rb")
+
+
+def _file_record(path: Path, root: Path, **metadata) -> dict:
+    with _open_result(path, root) as handle:
         digest = hashlib.file_digest(handle, "sha256").hexdigest()
     return {"path": path.relative_to(root).as_posix(), "sha256": digest, **metadata}
 
@@ -271,8 +292,9 @@ def finish_presentation(request: dict, root: Path) -> dict | None:
         native, readable = output / source, directory / entry["target"]
         _file_record(native, root)
         record = _file_record(readable, root, kind="plot", source=native.relative_to(root).as_posix(), sample=entry["sample"])
-        if readable.read_bytes()[:5] != b"%PDF-":
-            raise PlanExecutionError("presentation.plot", f"PDF non valido: {readable.name}")
+        with readable.open("rb") as stream:
+            if stream.read(5) != b"%PDF-":
+                raise PlanExecutionError("presentation.plot", f"PDF non valido: {readable.name}")
         files.append(record)
     map_path = directory / "sample-map.tsv"
     with map_path.open("x", encoding="utf-8", newline="") as handle:
@@ -285,7 +307,7 @@ def finish_presentation(request: dict, root: Path) -> dict | None:
     mappings = "".join(f"<tr><td>{html.escape(identity)}</td><td>{html.escape(label)}</td></tr>"
                        for identity, label in config["samples"].items())
     index = directory / "index.html"
-    index.write_text(_html_page("Risultati NIPAT", f"<h1>{html.escape(request['workflow'])}</h1>"
+    index.write_text(_html_page("Risultati NewPat", f"<h1>{_MODULE_LABELS[request['workflow']]}</h1>"
                      "<p>Queste copie riportano i nomi originali dei campioni. I valori scientifici sono invariati. "
                      "Le tabelle individuali aggiungono la colonna Sample per identificare il campione. "
                      "I risultati canonici e gli identificativi interni restano disponibili nella cartella superiore.</p>"
@@ -329,11 +351,12 @@ def _interpretation_notes(workflow: str) -> str:
             "non CPI grezzo. I grafici distinguono log10(CPI) dai conteggi dei siti matching/mismatching. "
             "I confronti senza siti informativi mantengono NA e sono indicati come privi di dati.</p>"),
         "cpin": (
-            "<p>Log10_CPI è il logaritmo in base dieci dell'indice; CPI è il valore grezzo. Le analisi "
-            "heterozygous_child_sites e all_compatible_sites applicano selezioni diverse, riportate separatamente. "
-            "La tabella dei siti conserva anche esclusioni e motivi; le curve indicano intervalli inclusivi di "
-            "soglie Min_child_reads–Through_min_child_reads con identico risultato. "
-            "Un confronto privo di siti utilizzabili mantiene NA.</p>"),
+            "<p>Il riepilogo riporta un unico CPI per trio, calcolato come prodotto degli indici dei siti "
+            "inclusi. Log10_CPI esprime lo stesso risultato in scala logaritmica. N_sites indica quanti siti "
+            "contribuiscono al calcolo. Se vale zero, entrambi i risultati sono NA.</p>"
+            "<p>La tabella del trio riporta tutti i siti. Status indica il motivo di ogni esclusione. "
+            "Per i siti inclusi, Paternity_status distingue match, mismatch e assenza di un allele paterno "
+            "obbligato quando madre e figlio sono entrambi eterozigoti.</p>"),
         "contamination": (
             "<p>Le stime di contaminazione sono frazioni: 0,025 corrisponde al 2,5%. La tabella di riepilogo separa "
             "i campioni e riporta anche il numero di loci usati. Un campione senza loci informativi mantiene "
@@ -350,7 +373,8 @@ def _html_page(title: str, body: str) -> str:
             'border-bottom:1px solid #ddd}a{overflow-wrap:anywhere}</style>' + body + '</html>')
 
 
-def finish_plan_presentation(plan: dict, state: dict, root: Path) -> dict | None:
+def finish_plan_presentation(plan: dict, state: dict, root: Path, *,
+                             before_publish: Callable[[], None] | None = None) -> dict | None:
     if "presentation" not in plan:
         return None
     directory = root / "presentation"
@@ -361,7 +385,7 @@ def finish_plan_presentation(plan: dict, state: dict, root: Path) -> dict | None
         if presentation is not None:
             target = presentation["index"]["path"]
             entries.append(f'<li>{html.escape(step["id"])}: <a href="../{quote(target, safe="/")}">'
-                           f'{html.escape(step["workflow"])} — risultati</a></li>')
+                           f'{_MODULE_LABELS[step["workflow"]]} — risultati</a></li>')
         else:
             entries.append(f'<li>{html.escape(step["id"])}: {html.escape(step["status"])}</li>')
     summaries = []
@@ -371,8 +395,10 @@ def finish_plan_presentation(plan: dict, state: dict, root: Path) -> dict | None
                             ("Risorse per campione", group["resources"]),
                             ("Nomi dei campioni", group["sample_labels"]),
                             *[(Path(item["path"]).name, item) for item in group["plots"]]]:
-            _file_record(root / item["path"], root)
-            links.append(f'<li><a href="../{quote(item["path"], safe="/")}">{html.escape(label)}</a></li>')
+            # The SNP summary already recorded the digest. Check that the file
+            # can still be opened before linking it from the index.
+            with _open_result(root / item["path"], root):
+                links.append(f'<li><a href="../{quote(item["path"], safe="/")}">{html.escape(label)}</a></li>')
         summaries.append(f'<h3>{html.escape(group["id"])} — {len(group["samples"])} campioni</h3>'
                          f'<ul>{"".join(links)}</ul>')
     summary_html = ("<h2>Confronto SNPcall 2.0 tra campioni</h2>"
@@ -380,7 +406,9 @@ def finish_plan_presentation(plan: dict, state: dict, root: Path) -> dict | None
                     "gli identificativi interni; la tabella dei nomi consente di risalire ai campioni originali. "
                     "UpSet confronta i loci con genotipo assegnato, non la sola copertura.</p>" + "".join(summaries)
                     if summaries else "")
+    if before_publish is not None:
+        before_publish()
     index = directory / "index.html"
-    index.write_text(_html_page("Workflow NIPAT", "<h1>Risultati del workflow</h1>"
+    index.write_text(_html_page("Workflow NewPat", "<h1>Risultati del workflow</h1>"
                      f'<p>Stato: {html.escape(state["status"])}</p><ul>{"".join(entries)}</ul>{summary_html}'), encoding="utf-8")
     return {"schema_version": 1, "index": _file_record(index, root)}

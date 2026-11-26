@@ -17,6 +17,7 @@ import signal
 import subprocess
 import sys
 import time
+from unittest.mock import patch
 
 
 def execute(arguments: list[str], *, output: Path | None = None) -> bytes:
@@ -34,12 +35,17 @@ def fixture(root: Path, samtools: str) -> dict[str, Path]:
     # Deliberately not lexical order, with enough independent tasks to exercise
     # both the two-process and four-process acquisition budgets.
     contigs = ("chr2", "chr1", "chr10", "chr3")
-    reference.write_text("".join(f">{chrom}\n{sequence}\n" for chrom in contigs), encoding="utf-8")
+    sequences = dict.fromkeys(contigs, sequence)
+    # Qualify the bounded index scan and a contig whose literal name looks
+    # exactly like its region string. Numeric ranges must select chr2.
+    sequences["chr2"] = sequence * 1001
+    sequences["chr2:49-233"] = sequence
+    reference.write_text("".join(f">{chrom}\n{bases}\n" for chrom, bases in sequences.items()), encoding="utf-8")
     bed = root / "panel.bed"
     bed.write_text("chr1\t48\t53\nchr2\t138\t143\nchr2\t48\t52\nchr2\t50\t54\nchr2\t228\t233\n"
                    "chr3\t48\t53\nchr10\t48\t53\n", encoding="utf-8")
     header = "@HD\tVN:1.6\tSO:coordinate\n" + "".join(
-        f"@SQ\tSN:{chrom}\tLN:1000\n" for chrom in contigs)
+        f"@SQ\tSN:{chrom}\tLN:{len(bases)}\n" for chrom, bases in sequences.items())
     records = []
 
     def row(name, start, cigar="80M", bases=None, flag=0, chrom="chr2", mate="*", matepos=0, tlen=0):
@@ -49,6 +55,10 @@ def fixture(root: Path, samtools: str) -> dict[str, Path]:
 
     # More than the unchanged default 8000-depth limit. Coordinate order and
     # alternating alleles make changes to the retained read set observable.
+    # Off-target short reads start at the same position as reads spanning the
+    # first BED interval. The indexed scan must preserve the depth-capped read set.
+    for index in range(8100):
+        row(f"upstream_{index:06}", 20, "12M", sequence[19:31])
     for index in range(20050):
         start = 20 + index % 31
         bases = list(sequence[start - 1:start + 79])
@@ -282,6 +292,12 @@ def audit(project: Path, root: Path, samtools: str) -> dict:
                    expected_contigs=contigs, require_overlap=True)
     compare_budget("chromosomes-multiple", [paths["sparse"], paths["dense"]], 4,
                    expected_contigs=contigs, require_overlap=True)
+    with patch.dict(os.environ, NIPAT_DNP_OPTIMIZED_IO="1"):
+        details = compare_budget("clustered-bounded-region", [paths["dense"], paths["sparse"]],
+                                 1, expected_contigs=contigs)
+    regions = [row["region"] for row in details["processes"] if "region" in row]
+    if regions != ["{chr2}:49-233"] or details["staged_bytes"] != 0:
+        raise AssertionError(f"Expected only the long clustered contig to use a bounded region: {regions}")
     compare_budget("budgeted-missing-index", [missing], 4,
                    strategy="sequential-budgeted", reason="missing-index")
     compare_budget("budgeted-mixed-index", [missing, paths["sparse"]], 2,

@@ -61,6 +61,29 @@ def validate_families(entries, roles: tuple[str, ...], branch_samples: Collectio
             assignments[member] = role
 
 
+def bind_fetal_sex_tables(mounts: InputMounts, autosomes, x, y, *, sample_id=None):
+    """Keep all three roles and the original basenames in one maternal sample record."""
+    from nipat_scientific.fetal_sex import validate_inputs
+
+    tables = {role: require_file(Path(path), f"Tabella cfDNA {role}")
+              for role, path in (("autosomes", autosomes), ("x", x), ("y", y))}
+    validate_inputs(**tables)
+    mapping = []
+    for role, prefix in (("autosomes", "fsa"), ("x", "fsx"), ("y", "fsy")):
+        source = tables[role]
+        target = mounts.bind_file(source, target=INPUT_ROOT / "fetal-sex" / role / source.name)
+        mapping.append({"sample_id": f"{prefix}_{sample_id or 'maternal'}",
+                        "biological_id": sample_id or tables["autosomes"].stem,
+                        "fetal_sex_role": role, "original_path": str(source),
+                        "container_path": str(target)})
+    return mapping
+
+
+def fetal_sex_metadata(mapping: list[dict]) -> dict:
+    return {"sample_id": mapping[0]["biological_id"],
+            **{item["fetal_sex_role"]: item["original_path"] for item in mapping}}
+
+
 def build_analysis_plan(*, layout, caller: str, analyses: list[str],
                         samples=None, pileups=None, dnp_tables=None, snp_tables=None,
                         dnp_analyses=None, snp_analyses=None,
@@ -68,7 +91,7 @@ def build_analysis_plan(*, layout, caller: str, analyses: list[str],
                         dnp_panel=None, snp_panel=None, dnp_popfreq=None, snp_popfreq=None,
                         dnp_contamination_panel=None, snp_contamination_panel=None,
                         dnp_cpi_cutoffs=None, snp_cpi_cutoffs=None,
-                        dnp_cpin_panel=None, snp_cpin_panel=None):
+                        dnp_cpin_panel=None, snp_cpin_panel=None, fetal_sex=None):
     from nipat.execution.workflows import _bind_bam, _bind_reference, _select_cpi_cutoffs
 
     table_markers = [marker for marker, tables in (("DNP", dnp_tables), ("SNP", snp_tables)) if tables]
@@ -87,19 +110,25 @@ def build_analysis_plan(*, layout, caller: str, analyses: list[str],
         raise ValidationError("I BAM richiedono un FASTA indicizzato (--reference).")
     if not samples and reference is not None:
         raise ValidationError("Il FASTA si usa soltanto con campioni BAM.")
-    if caller == "tables" and not branch_analyses:
+    if caller == "tables" and not branch_analyses and (fetal_sex is None or analyses):
         raise ValidationError("Per tabelle esistenti selezionare almeno un ramo con tabelle e una analisi.")
     planned_analyses = set().union(*branch_analyses.values())
     if pairs and "cpi" not in planned_analyses:
         raise ValidationError("Le coppie richiedono l'analisi CPI prenatale.")
     if trios and "cpin" not in planned_analyses:
-        raise ValidationError("I trii richiedono l'analisi CPIN postnatale.")
+        raise ValidationError("I trii richiedono l'analisi CPI postnatale.")
     if "cpi" in planned_analyses and not pairs:
         raise ValidationError("CPI richiede coppie esplicite: ID, campione cfDNA materno, padre.")
     if "cpin" in planned_analyses and not trios:
-        raise ValidationError("CPIN richiede trii espliciti: ID, madre, padre, figlio.")
+        raise ValidationError("CPI postnatale richiede trii espliciti: ID, madre, padre, figlio.")
 
     mounts = InputMounts(layout)
+    sex_tables = []
+    if fetal_sex is not None:
+        if (not isinstance(fetal_sex, (tuple, list)) or len(fetal_sex) != 4
+                or not isinstance(fetal_sex[0], str) or not _ID.fullmatch(fetal_sex[0])):
+            raise ValidationError("Indicare un ID campione valido e le tre tabelle cfDNA: autosomi, X e Y.")
+        sex_tables = bind_fetal_sex_tables(mounts, *fetal_sex[1:], sample_id=fetal_sex[0])
     input_files, mapping, plan_samples, steps = [], [], [], []
     references = {"DNP": {}, "SNP": {}}
     physical_samples = {}
@@ -132,6 +161,12 @@ def build_analysis_plan(*, layout, caller: str, analyses: list[str],
                 raise ValidationError(f"ID campione ambiguo: {identifier}")
             known_ids.add(plan_id.casefold())
             path = require_file(Path(source), "Campione " + identifier)
+            shared = next((item for item in sex_tables if path.samefile(item["original_path"])), None)
+            if shared:
+                marker = "SNP" if shared["fetal_sex_role"] == "y" else "DNP"
+                if shared["biological_id"] != identifier or branch != marker:
+                    raise ValidationError(f"La tabella cfDNA {path.name} è già assegnata al campione "
+                                          f"{shared['biological_id']}: riutilizzare lo stesso ID e il ramo {marker}.")
             identity_group = branch or kind
             previous_paths = input_identities.setdefault(identity_group, [])
             if any(path.samefile(previous) for previous in previous_paths):
@@ -150,13 +185,19 @@ def build_analysis_plan(*, layout, caller: str, analyses: list[str],
                 input_files.append(path)
             else:
                 require_count_input(path, branch, cpi=bool(set(branch_analyses[branch]) & {"cpi", "cpin"}))
-                target = INPUT_ROOT / "tables" / f"{plan_id}.txt"
-                mounts.bind_file(path, target=target)
+                if shared:
+                    target = shared["container_path"]
+                else:
+                    target = INPUT_ROOT / "tables" / f"{plan_id}.txt"
+                    mounts.bind_file(path, target=target)
                 input_files.append(path)
                 references[branch][identifier] = {"sample": plan_id}
             plan_samples.append({"id": plan_id, "kind": kind, "path": str(target)})
-            mapping.append({"sample_id": plan_id, "biological_id": identifier,
-                            "original_path": str(path), "container_path": str(target)})
+            if shared:
+                shared.update(sample_id=plan_id, shared_fetal_sex_table=True)
+            else:
+                mapping.append({"sample_id": plan_id, "biological_id": identifier,
+                                "original_path": str(path), "container_path": str(target)})
             collected.append(identifier)
         return collected
 
@@ -205,7 +246,7 @@ def build_analysis_plan(*, layout, caller: str, analyses: list[str],
         popfreq_target = None
         if set(selected_analyses) & {"cpi", "cpin"}:
             if freq is None:
-                raise ValidationError(f"CPI/CPIN richiede --{prefix}-popfreq per il ramo {marker}.")
+                raise ValidationError(f"CPI prenatale o postnatale richiede --{prefix}-popfreq per il ramo {marker}.")
             popfreq_target = bind(freq, "Frequenze " + marker, f"{prefix}-population.tsv",
                                   lambda path: require_population_frequencies(path, marker))
         if "contamination" in selected_analyses:
@@ -234,12 +275,26 @@ def build_analysis_plan(*, layout, caller: str, analyses: list[str],
             def check_cpin_panel(path):
                 records = read_position_panel(path, marker)
                 if any(not record.reference or not record.alternative for record in records):
-                    raise ValidationError("Il pannello CPIN richiede anche gli alleli REF e ALT.")
-            target = (bind(marker_panel, "Pannello CPIN " + marker, f"{prefix}-cpin-panel.tsv",
+                    raise ValidationError("Il pannello CPI postnatale richiede anche gli alleli REF e ALT.")
+            target = (bind(marker_panel, "Pannello CPI postnatale " + marker, f"{prefix}-cpin-panel.tsv",
                            check_cpin_panel) if marker_panel is not None else None)
             steps.append({"id": f"{prefix}_cpin", "workflow": "cpin", "inputs": {
                 "trios": family(trios, FAMILY_ROLES["cpin"], marker),
                 "popfreq": popfreq_target, "markers": target}, "parameters": {"marker_type": marker}})
+    if sex_tables:
+        roles = {}
+        for item in sex_tables:
+            sid, role = item["sample_id"], item["fetal_sex_role"]
+            roles[role] = sid
+            if item.get("shared_fetal_sex_table"):
+                continue
+            if sid.casefold() in known_ids:
+                raise ValidationError(f"ID campione ambiguo: {sid}")
+            plan_samples.append({"id": sid, "kind": "snp-table" if role == "y" else "dnp-table",
+                                 "path": item["container_path"]})
+            input_files.append(Path(item["original_path"]))
+        mapping.extend(sex_tables)
+        steps.append({"id": "fetal_sex", "workflow": "fetal-sex", "inputs": roles, "parameters": {}})
     presentation = {"samples": {item["sample_id"]: Path(item["original_path"]).name for item in mapping}, "pairs": {}}
     return ({"schema_version": 1, "samples": plan_samples, "steps": steps,
              "presentation": presentation}, mounts, list(dict.fromkeys(input_files)), mapping, branch_analyses)

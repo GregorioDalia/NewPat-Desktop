@@ -10,9 +10,10 @@ def verify_sha256_manifest(manifest: Path) -> None:
     if not manifest.is_file():
         raise ValidationError(f"Manifest scientifico non trovato: {manifest}")
     base_dir = manifest.parent
-    for line_number, line in enumerate(
-        manifest.read_text(encoding="utf-8").splitlines(), start=1
-    ):
+    contents = manifest.read_text(encoding="utf-8")
+    if not contents.strip():
+        raise ValidationError(f"Manifest scientifico vuoto: {manifest}")
+    for line_number, line in enumerate(contents.splitlines(), start=1):
         if not line.strip():
             continue
         try:

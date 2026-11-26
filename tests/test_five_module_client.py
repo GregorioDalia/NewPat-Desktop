@@ -19,7 +19,7 @@ from nipat.preferences import Preferences, PreferencesStore
 from nipat.scientific_options import load_scientific_config, edit_scientific_settings
 from nipat.terminal import Terminal
 from nipat.wizard import run_wizard
-from nipat_scientific.settings import defaults
+from nipat_scientific.settings import normalize_settings
 
 
 class RecordingRunner:
@@ -110,7 +110,7 @@ class FiveModuleClientTests(unittest.TestCase):
                         for step in consumers:
                             marker = step["parameters"]["marker_type"]
                             self.assertTrue(step["id"].startswith(marker.lower() + "_"))
-                            self.assertEqual(step["parameters"]["scientific_settings"], defaults(step["workflow"]))
+                            self.assertEqual(step["parameters"]["scientific_settings"], normalize_settings(step["workflow"]))
                         self.assertEqual(self.runner.records[-1][1]["bundled_workflow"], "workflow-plan-all")
                         self.assertTrue(all(item["read_only"] for item in self.runner.records[-1][1]["mounts"].mappings))
                         self.assertEqual(len(self.runner.calls), len(self.runner.records))
@@ -154,6 +154,21 @@ class FiveModuleClientTests(unittest.TestCase):
         keys = {field.key for field in form.fields()}
         self.assertTrue({"pairs", "trios", "dnp_popfreq", "snp_popfreq", "dnp_cpin_panel", "snp_cpi_cutoffs"} <= keys)
         self.assertTrue({"dnp_cpi_cutoffs", "snp_cpin_panel", "dnp_contamination_panel"}.isdisjoint(keys))
+
+    def test_editing_review_collects_new_fields_exposed_by_nested_choices(self):
+        # Start with caller-only BAMs. Enabling per-marker analyses reveals two
+        # switches; enabling SNP Contamination then reveals its optional panel.
+        form = AnalysisForm("1", Mock(), self.layout, 0.001)
+        form.values.update(source="bam", marker="both", analyses="0", samples=self.bams,
+                           reference=self.reference, dnp_panel=self.dnp_panel,
+                           snp_panel=self.snp_panel, run_name="reviewed")
+        form.ui.menu.side_effect = ["8", "0", "1"]
+        form.ui.prompt.return_value = ""
+        index = next(i for i, field in enumerate(form.fields()) if field.key == "analyses")
+        form.collect(index, single=True)
+        self.assertEqual(form.arguments()["snp_analyses"], ["contamination"])
+        self.assertTrue(all(field.key in form.values for field in form.fields()))
+        self.assertIsNone(form.values["snp_contamination_panel"])
 
     def test_guided_table_workflow_only_passes_active_fields_and_samples(self):
         ui = Mock()
@@ -273,16 +288,16 @@ class FiveModuleClientTests(unittest.TestCase):
             self.assertEqual(Path(samples[sample_id]["path"]).name, f"sample_{number:04d}.bam")
 
     def test_scientific_overrides_arrive_in_every_matching_step_and_run_metadata(self):
-        self.workflows.scientific_settings = {"snp-call": {"min_base_quality": 17}, "cpin": {"min_child_reads": 8}}
+        self.workflows.scientific_settings = {"snp-call": {"min_base_quality": 17}, "cpin": {"min_coverage": 8}}
         run = self.workflows.analyze(**self.arguments())
         for step in self.plan(run)["steps"]:
             if step["workflow"] == "snp-call":
                 self.assertEqual(step["parameters"]["scientific_settings"]["min_base_quality"], 17)
             if step["workflow"] == "cpin":
-                self.assertEqual(step["parameters"]["scientific_settings"]["min_child_reads"], 8)
+                self.assertEqual(step["parameters"]["scientific_settings"]["min_coverage"], 8)
         record = self.runner.records[-1][1]["parameters"]
         self.assertEqual(record["scientific_settings_requested"], self.workflows.scientific_settings)
-        self.assertEqual(record["scientific_settings_effective"]["cpin"]["min_child_reads"], 8)
+        self.assertEqual(record["scientific_settings_effective"]["cpin"]["min_coverage"], 8)
 
     def test_snp_pileup_can_feed_all_consumers_without_reference(self):
         arguments = self.arguments("snp")
@@ -325,12 +340,12 @@ class FiveModuleClientTests(unittest.TestCase):
         self.assertEqual(result, 0)
         runner.assert_not_called()
         config = load_scientific_config(export)
-        self.assertEqual(set(config), {"dnp-call", "snp-call", "contamination", "cpi", "cpin"})
+        self.assertEqual(set(config), {"dnp-call", "snp-call", "contamination", "cpi", "cpin", "fetal-sex"})
         self.assertEqual(config["snp-call"]["min_base_quality"], 23)
 
     def test_scientific_config_rejects_silently_overwritten_modules_and_parameters(self):
         for number, document in enumerate((
-            '{"cpin":{"min_child_reads":9},"cpin":{"min_parent_reads":7}}',
+            '{"cpin":{"min_coverage":9},"cpin":{"min_parent_reads":7}}',
             '{"snp-call":{"min_base_quality":23,"min_base_quality":0}}',
         )):
             with self.subTest(document=document):
@@ -339,14 +354,14 @@ class FiveModuleClientTests(unittest.TestCase):
                     load_scientific_config(path)
 
     def test_cli_scientific_config_and_generic_roles_dispatch(self):
-        config = self.file("config.json", '{"cpin":{"min_child_reads":9}}')
+        config = self.file("config.json", '{"cpin":{"min_coverage":9}}')
         with patch("nipat.cli.ProjectLayout.discover", return_value=self.layout), \
                 patch("nipat.cli.DockerComposeRunner"), patch("nipat.cli.Workflows") as workflows, redirect_stdout(io.StringIO()):
             self.assertEqual(main(["--scientific-config", str(config), "--set", "snp-call.min_base_quality=21",
                 "workflow", "analyze", "--caller", "snp", "--analyses", "cpi,cpin", "--sample", "M", "m.bam",
                 "--pair", "P", "M", "F", "--trio", "T", "M", "F", "C"]), 0)
         self.assertEqual(workflows.call_args.kwargs["scientific_settings"],
-                         {"cpin": {"min_child_reads": 9}, "snp-call": {"min_base_quality": 21}})
+                         {"cpin": {"min_coverage": 9}, "snp-call": {"min_base_quality": 21}})
         call = workflows.return_value.analyze.call_args.kwargs
         self.assertEqual(call["pairs"], [["P", "M", "F"]])
         self.assertEqual(call["trios"], [["T", "M", "F", "C"]])
@@ -379,7 +394,7 @@ class FiveModuleClientTests(unittest.TestCase):
         workflows.cpin.return_value = run
         workflows.scientific_settings = {}
         store = PreferencesStore(self.root / "preferences.json")
-        store.save(Preferences(scientific_settings={"cpin": {"min_child_reads": 12}}))
+        store.save(Preferences(scientific_settings={"cpin": {"min_coverage": 12}}))
         seen = []
         workflows.cpin.side_effect = lambda **kwargs: seen.append(dict(workflows.scientific_settings)) or run
         answers = ["N", str(self.root), "M:F:C", "", "", "", str(self.snp_freq), "", "", "1", "0", "0"]
@@ -387,7 +402,7 @@ class FiveModuleClientTests(unittest.TestCase):
                             read=Mock(side_effect=answers), write=lambda _: None)
         self.assertEqual(status, 0)
         workflows.cpin.assert_called_once()
-        self.assertEqual(seen, [{"cpin": {"min_child_reads": 12}}])
+        self.assertEqual(seen, [{"cpin": {"min_coverage": 12}}])
 
     def test_editor_checks_combined_thresholds_and_failed_default_reset_is_atomic(self):
         ui = Mock()
@@ -402,7 +417,7 @@ class FiveModuleClientTests(unittest.TestCase):
     def test_advanced_editor_validates_and_reverts_settings(self):
         ui = Mock()
         ui.menu.side_effect = ["5", "9"]
-        ui.prompt.side_effect = ["min_child_reads=11", "min_child_reads=-1", ""]
+        ui.prompt.side_effect = ["min_coverage=11", "min_coverage=-1", ""]
         result = edit_scientific_settings(ui, {})
-        self.assertEqual(result, {"cpin": {"min_child_reads": 11}})
+        self.assertEqual(result, {"cpin": {"min_coverage": 11}})
         self.assertTrue(any(call.kwargs.get("kind") == "error" for call in ui.message.call_args_list))

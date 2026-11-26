@@ -1,10 +1,12 @@
 """Readable artifacts preserve canonical scientific identity and values."""
 
 import csv
+import hashlib
 import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from nipat_scientific.errors import ValidationError
 from nipat_scientific.plan import validate_plan
@@ -97,6 +99,8 @@ class PresentationTests(unittest.TestCase):
             report = finish_presentation(request, root)
             self.assertEqual(report["status"], "complete")
             index = (root / report["index"]["path"]).read_text(encoding="utf-8")
+            self.assertIn("<title>Risultati NewPat</title>", index)
+            self.assertIn("<h1>SNPcall</h1>", index)
             self.assertIn("&lt;script&gt;", index)
             self.assertNotIn("<script>", index)
             self.assertEqual(native.read_bytes(), before)
@@ -104,6 +108,66 @@ class PresentationTests(unittest.TestCase):
             with readable.open(encoding="utf-8", newline="") as handle:
                 rows = list(csv.reader(handle, delimiter="\t"))
             self.assertEqual(rows, [["Sample", "pos", "N_REF"], ["<script>alert(1)<.pileup", "1", "010"]])
+
+    def test_prenatal_readable_audits_keep_each_pair_and_panel_distinct(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work, output = Path(tmp) / "work", Path(tmp) / "output"
+            work.mkdir()
+            output.mkdir()
+            names = {"MotherM": "Madre.txt", "FatherF": "Padre.txt"}
+            request = {"workflow": "cpi", "work_dir": str(work), "out_dir": str(output),
+                       "samples": [{"name": key + ".txt"} for key in names], "pairs": "M:F",
+                       "cutoff_mode": "named", "cutoffs": [{"label": "Full"}, {"label": "Subset"}],
+                       "mother_prefix": "Mother", "father_prefix": "Father", "marker_type": "SNP",
+                       "presentation": {"samples": names, "pairs": {"M:F": "Famiglia A"}}}
+            prepare_presentation(request, Path("/native.R"), [])
+            native = "MotherM-FatherF_SNPs"
+            readable = _filename("Famiglia A", native)
+            config = json.loads((work / "presentation-config.json").read_text(encoding="utf-8"))
+            for panel in ("_panel_1", "_panel_2"):
+                for suffix in ("_HOM_child_sites.txt", "_CPI_iterations.csv"):
+                    table = config["tables"][native + panel + suffix]
+                    self.assertEqual(table["target"], readable + panel + suffix)
+
+    def test_postnatal_readable_tables_preserve_scalar_and_excluded_sites(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            work, output = root / "work", root / "output"
+            work.mkdir()
+            output.mkdir()
+            names = {"MotherM": "Madre A.txt", "FatherF": "Padre B.txt", "ChildC": "Figlio C.txt"}
+            request = {"workflow": "cpin", "work_dir": str(work), "out_dir": str(output),
+                       "samples": [{"name": key + ".txt"} for key in names],
+                       "trios": "M:F:C", "marker_type": "SNP",
+                       "mother_prefix": "Mother", "father_prefix": "Father", "child_prefix": "Child",
+                       "presentation": {"samples": names, "pairs": {"M:F:C": "Trio A"}}}
+            prepare_presentation(request, Path("/native.R"), [])
+            trio = "MotherM-FatherF-ChildC_SNPs"
+            config = json.loads((work / "presentation-config.json").read_text(encoding="utf-8"))
+            summary, sites = "Summary_Postnatal_CPI.txt", f"{trio}_sites.txt"
+            self.assertEqual(set(config["tables"]), {summary, sites})
+            self.assertEqual(config["plots"], {})
+            (output / summary).write_text(f"Trio\tCPI\tLog10_CPI\n{trio}\tNA\tNA\n", encoding="utf-8")
+            site_text = "pos\tStatus\tPaternity_Index\n15\tquality_filter\tNA\n"
+            (output / sites).write_text(site_text, encoding="utf-8")
+            report = finish_presentation(request, root)
+            self.assertEqual([entry["kind"] for entry in report["files"]], ["table", "table"])
+            displayed = output / "presentation"
+            self.assertEqual((displayed / summary).read_text(encoding="utf-8").splitlines()[1], "Trio A\tNA\tNA")
+            self.assertEqual((displayed / config["tables"][sites]["target"]).read_text(encoding="utf-8"), site_text)
+            self.assertIn("un unico CPI per trio", (root / report["index"]["path"]).read_text(encoding="utf-8"))
+
+    def test_bad_late_row_discards_only_the_export_created_by_this_copy(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source, target = Path(tmp) / "source.tsv", Path(tmp) / "readable.tsv"
+            source.write_text("chr\tpos\n1\t123\n2\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValidationError, "Tabella non rettangolare"):
+                _copy_table(source, target, {}, sample="A")
+            self.assertFalse(target.exists())
+            target.write_text("previous result", encoding="utf-8")
+            with self.assertRaises(FileExistsError):
+                _copy_table(source, target, {}, sample="A")
+            self.assertEqual(target.read_text(encoding="utf-8"), "previous result")
 
     def test_resources_relabel_sample_without_changing_measurements(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -122,7 +186,7 @@ class PresentationTests(unittest.TestCase):
         self.assertIn("non misurano il picco", snp)
         self.assertIn("CPI_medianFF", _interpretation_notes("cpi"))
         self.assertIn("0,025 corrisponde al 2,5%", _interpretation_notes("contamination"))
-        for workflow in ("snp-call", "dnp-call", "cpi", "contamination"):
+        for workflow in ("snp-call", "dnp-call", "cpi", "cpin", "contamination"):
             self.assertIn("non equivale a zero", _interpretation_notes(workflow))
 
     def test_missing_plot_fails_visibly(self):
@@ -155,12 +219,30 @@ class PresentationTests(unittest.TestCase):
                 path.write_text("synthetic", encoding="utf-8")
                 records[key] = {"path": path.relative_to(root).as_posix()}
             group = {"id": "group_0001", "samples": ["a", "b"], "plots": [records.pop("plot")], **records}
-            report = finish_plan_presentation({"presentation": {}},
-                                              {"status": "succeeded", "steps": [], "snp_summary": [group]}, root)
+            with patch("nipat_scientific.presentation.hashlib.file_digest", wraps=hashlib.file_digest) as digests:
+                report = finish_plan_presentation({"presentation": {}},
+                                                  {"status": "succeeded", "steps": [], "snp_summary": [group]}, root)
+            self.assertEqual([Path(call.args[0].name) for call in digests.call_args_list],
+                             [root / "presentation/index.html"])
             content = (root / report["index"]["path"]).read_text(encoding="utf-8")
             self.assertIn("2 campioni", content)
             self.assertIn("../snp_summary/group_0001/merged_genotypes.tsv", content)
             self.assertIn("non la sola copertura", content)
+
+    def test_plan_index_rejects_missing_or_outside_summary_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            (directory / "outside.tsv").touch()
+            for label, invalid in (("missing", "missing.tsv"), ("outside", "../outside.tsv")):
+                with self.subTest(label=label):
+                    root = directory / label
+                    root.mkdir()
+                    group = dict.fromkeys(("genotypes", "resources", "sample_labels"), {"path": invalid})
+                    group.update(id="comparison", samples=["a", "b"], plots=[])
+                    with self.assertRaisesRegex(ValidationError, "Esportazione assente"):
+                        finish_plan_presentation({"presentation": {}},
+                                                 {"status": "succeeded", "steps": [], "snp_summary": [group]}, root)
+                    self.assertFalse((root / "presentation/index.html").exists())
 
     def test_reordered_plan_inputs_keep_identity_not_position(self):
         plan = {"presentation": {"samples": {"a": "A.bam", "b": "B.bam"}, "pairs": {}}}
@@ -171,7 +253,7 @@ class PresentationTests(unittest.TestCase):
         bindings = [{"native_selection": "m001:f001", "pair": "family", "mother": {"sample": "b"}, "father": {"sample": "a"}}]
         cpi = step_presentation(plan, {"workflow": "cpi"}, {}, bindings)
         self.assertEqual(cpi["samples"], {"Motherm001": "B.bam", "Fatherf001": "A.bam"})
-        self.assertEqual(cpi["pairs"]["m001:f001"], "family — Madre: B.bam | Padre: A.bam")
+        self.assertEqual(cpi["pairs"]["m001:f001"], "family — Mother: B.bam | Father: A.bam")
 
     def test_plan_preserves_complete_presentation_and_rejects_unknown_identity(self):
         plan = {"schema_version": 1, "samples": [{"id": "sample_a", "kind": "bam", "path": "/inputs/a.bam"}],

@@ -108,6 +108,8 @@ def check_dnp(run, fixtures, samples=("A", "B", "A")):
             number(gl[1], -(int(wanted["N_REF"]) + int(wanted["N_ALT"])) * math.log(2), "DNP GL1", tolerance=.00051)
             require(all(math.isfinite(value) for value in gl) and ("0/0", "0/1", "1/1")[gl.index(max(gl))] == wanted["GT"],
                     "DNP: likelihood o genotipo incoerenti")
+            require(all(summary[key][field] == wanted[field] for field in ("REF", "ALT")),
+                    f"DNP {key}: alleli aggregati diversi dalla ricetta")
             require(summary[key][f"GT_{identity}"] == wanted["GT"], "DNP: genotipo aggregato diverso")
         for suffix in ("N_genotypes", "Ref_read_count", "Alt_read_count", "Other_read_count"):
             pdf(output / "plots" / identity / f"{identity}_{suffix}.pdf")
@@ -177,24 +179,33 @@ def check_snp_plan(parent, expected, count, *, additional=()):
         require(not groups, "SNP singolo: riepilogo multi-campione inatteso")
         return {"snp_samples": 1, "steps": len(plan["steps"])}
     require(len(groups) == 1 and set(groups[0]["samples"]) == set(ids), "SNP: riepilogo campioni incompleto")
-    summary = table(root / groups[0]["genotypes"]["path"])
+    summary_path = root / groups[0]["genotypes"]["path"]
+    summary = table(summary_path)
     oracle = table(expected)
     require(len(summary) == len(oracle), "SNP: riepilogo genotipi con loci mancanti")
     expected_by_locus = {(row["chr"], row["pos"]): row for row in oracle}
     require({(row["chr"], row["pos"]) for row in summary} == set(expected_by_locus), "SNP: coordinate aggregate diverse")
     for row in summary:
+        wanted = expected_by_locus[(row["chr"], row["pos"])]
+        require(all(row.get(field) == wanted[field] for field in ("REF", "ALT")), "SNP: alleli aggregati diversi")
         for identity in ids:
-            require(row[f"GT_{identity}"] == expected_by_locus[(row["chr"], row["pos"])]["GT"], "SNP: genotipo aggregato diverso")
-    for artifact in groups[0]["plots"]:
-        pdf(root / artifact["path"])
+            require(row[f"GT_{identity}"] == wanted["GT"], "SNP: genotipo aggregato diverso")
+    plots = [root / item["path"] for item in groups[0]["plots"]]
+    expected_plots = {summary_path.parent / name for name in ("Unassigned_genotypes.pdf", "SNPs_covered_UpSet_plot.pdf")}
+    require(len(plots) == len(expected_plots) and set(plots) == expected_plots, "SNP: grafici del riepilogo mancanti o inattesi")
+    for path in plots:
+        pdf(path)
     return {"snp_samples": count, "steps": len(plan["steps"])}
 
 
-def check_all_five(parent, fixtures):
-    root, plan, _ = check_plan(parent, ["dnp-call"] + ["snp-call"] * 3 + ["contamination", "cpi", "cpin"] * 2)
+def check_all_modules(parent, fixtures, *, fetal_sex=None):
+    other_modules = ["dnp-call"] + ["contamination", "cpi", "cpin"] * 2
+    if fetal_sex is not None:
+        other_modules.append("fetal-sex")
+    root, plan, _ = check_plan(parent, ["snp-call"] * 3 + other_modules)
     check_dnp(root / "steps/dnp", fixtures)
     check_snp_plan(parent, fixtures / "snp_engine/expected.tsv", 3,
-                   additional=["dnp-call"] + ["contamination", "cpi", "cpin"] * 2)
+                   additional=other_modules)
     for step in plan["steps"]:
         if step["workflow"] in {"cpi", "cpin"}:
             refs = step["inputs"]["pairs" if step["workflow"] == "cpi" else "trios"]
@@ -203,7 +214,11 @@ def check_all_five(parent, fixtures):
                     require(family[role]["output"] in {"dnp-tables", "snp-tables"} and
                             planned_workflow(plan, family[role]["step"]) in {"dnp-call", "snp-call"},
                             "Riferimento familiare collegato a un modulo consumatore invece che al caller")
-    return {"steps": 10, "bam_count": 3, "scope": "caller numerical oracles; downstream routing/contracts; not a biologically valid trio"}
+    result = {"steps": len(plan["steps"]), "bam_count": 3, "scope": "caller numerical oracles and downstream routing"}
+    if fetal_sex is not None:
+        from installed_models import check_fetal_sex
+        result["fetal_sex"] = check_fetal_sex(root / "steps/fetal_sex", fetal_sex, "Female_fetus")
+    return result
 
 
 def planned_workflow(plan, identity):
@@ -409,7 +424,7 @@ def prepare_inputs(fixtures: Path, generated: Path, samtools):
     return {"combined": combined, "positive": positive, "bams": bams, "pileups": pileups}
 
 
-def build_cases(fixtures: Path, generated: Path, metadata):
+def build_cases(fixtures: Path, generated: Path, metadata, *, fetal_sex=None):
     del generated
     c, positive = metadata["combined"], metadata["positive"]
     bams, pileups = metadata["bams"], metadata["pileups"]
@@ -445,8 +460,14 @@ def build_cases(fixtures: Path, generated: Path, metadata):
             "--dnp-popfreq", c / "dnp-frequency.tsv", "--snp-popfreq", c / "snp-frequency.tsv",
             "--dnp-cpin-panel", c / "dnp-panel.tsv", "--snp-cpin-panel", c / "snp-panel.tsv",
             "--pair", "prenatal", "mother", "father", "--trio", "postnatal", "mother", "father", "child"]
+    group = "all-five"
+    if fetal_sex is not None:
+        from installed_models import fetal_sex_inputs
+        full.extend(["--fetal-sex", "maternal_cfDNA", *fetal_sex_inputs(fetal_sex, "Female_fetus")])
+        group = "all-six"
     for mode in ("serial", "auto", "cap2"):
-        add(f"all-five-{mode}", full.copy(), lambda run: check_all_five(run, fixtures), mode=mode, compare_group="all-five")
+        add(f"{group}-{mode}", full.copy(), lambda run: check_all_modules(run, fixtures, fetal_sex=fetal_sex),
+            mode=mode, compare_group=group)
     def contamination_plan(run):
         root, _, _ = check_plan(run, ["dnp-call", "contamination"])
         return check_dnp(root / "steps/dnp", fixtures)

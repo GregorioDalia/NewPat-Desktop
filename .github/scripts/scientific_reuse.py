@@ -7,8 +7,10 @@ proof is a cache miss; the consumer then runs every scientific gate.
 import argparse
 from datetime import datetime
 import hashlib
+import http.client
 import json
 import os
+import sys
 from pathlib import Path, PurePosixPath
 import platform
 import re
@@ -21,17 +23,28 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
+import zlib
 
 from qualification_evidence import ALLOWED, MAX_ENTRIES, MAX_FILE, MAX_TOTAL, safe_name
 import release_acceptance as acceptance
+import native_evidence
 
 
-REPOSITORY = "GregorioDalia/nipat-desktop"
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
+from nipat.repository import REPOSITORY_ID, build_repository, official_actions_context
+
+REPOSITORY = build_repository()
 API_ROOT = f"https://api.github.com/repos/{REPOSITORY}/"
 DESCRIPTOR = "scientific-qualification.json"
 ARCHIVE = "scientific-evidence.zip"
 MAX_DESCRIPTOR = 2 * 1024 * 1024
 MAX_DOWNLOAD = MAX_TOTAL + 4 * 1024 * 1024
+RUNTIME_TAR = "scientific-runtime.tar"
+MAX_RUNTIME_SIZE = 4 * 1024 ** 3
+IMAGE_TRANSFER_SECONDS = 5 * 60
+IMAGE_UPLOAD_STEP = "Retain qualified scientific Docker image"
+LOOKUP_ERRORS = (OSError, http.client.HTTPException, EOFError, ValueError, KeyError, TypeError, AttributeError,
+                 RuntimeError, zipfile.BadZipFile, zlib.error, subprocess.SubprocessError)
 SEARCH_BUDGET_SECONDS = 120
 PRODUCER_STEPS = ("Seal successful scientific qualification for exact-image reuse", "Retain reusable scientific qualification")
 CHECK_DIRECTORIES = (
@@ -71,7 +84,7 @@ def remaining_timeout(deadline=None, maximum=10):
 
 def error_reason(error):
     # Parser/network exceptions can contain signed URLs or untrusted values.
-    return str(error) if isinstance(error, ReuseMiss) else type(error).__name__
+    return str(error) if isinstance(error, (ReuseMiss, native_evidence.NativeEvidenceError)) else type(error).__name__
 
 
 def sha256(data):
@@ -105,9 +118,14 @@ def image_identity(reference):
     require(isinstance(images, list) and len(images) == 1, "Expected exactly one Docker image")
     image = images[0]
     result = {"id": image.get("Id"), "os": image.get("Os"), "architecture": image.get("Architecture")}
-    require(isinstance(result["id"], str) and re.fullmatch(r"sha256:[0-9a-f]{64}", result["id"])
-            and result["os"] == "linux" and result["architecture"] == "amd64", "Expected immutable Linux AMD64 image")
+    validate_image(result)
     return result
+
+
+def validate_image(image):
+    require(isinstance(image, dict) and set(image) == {"id", "os", "architecture"}
+            and isinstance(image["id"], str) and re.fullmatch(r"sha256:[0-9a-f]{64}", image["id"])
+            and image["os"] == "linux" and image["architecture"] == "amd64", "Expected immutable Linux AMD64 image")
 
 
 def selected_path(name):
@@ -144,7 +162,7 @@ def raw_evidence(runner_temp):
             yield name, data
 
 
-def verify_required(evidence, image):
+def verify_required(evidence, image, commit):
     require(all(f"{directory}/verification.log" in evidence for directory in CHECK_DIRECTORIES),
             "Scientific gate logs are incomplete")
     require(any(name.startswith("nipat-validation/runs/") and name.endswith("/run.json") for name in evidence)
@@ -154,6 +172,7 @@ def verify_required(evidence, image):
     require(isinstance(performance, dict) and performance.get("schema_version") == 1
             and performance.get("status") == "passed" and performance.get("image_id") == image["id"],
             "Performance qualification report is missing or belongs to another image")
+    native_evidence.verify_report(evidence.get(native_evidence.REPORT_PATH), commit)
     for name, kind in REPORTS.items():
         require(name in evidence, "Scientific qualification report is missing")
         report = json.loads(evidence[name])
@@ -203,7 +222,7 @@ def verify_required(evidence, image):
 
 
 def producer_identity(source):
-    require(os.environ.get("GITHUB_REPOSITORY") == REPOSITORY, "Scientific producer must belong to this repository")
+    require(official_actions_context() and os.environ.get("GITHUB_REPOSITORY") == REPOSITORY, "Scientific producer must belong to this repository")
     event = os.environ.get("GITHUB_EVENT_NAME")
     require(event in {"push", "pull_request", "workflow_dispatch"}, "Unsupported scientific producer event")
     require(os.environ.get("GITHUB_SHA") == source["commit"], "Producer checkout differs from the event commit")
@@ -234,12 +253,12 @@ def host_environment():
             "pdfinfo": tool_version("pdfinfo"), "pdftoppm": tool_version("pdftoppm")}
 
 
-def seal(image, output, runner_temp):
+def seal(image, output, runner_temp, runtime_archive=None):
     source = checkout()
     producer = producer_identity(source)
     identity = image_identity(image)
     evidence = dict(raw_evidence(runner_temp))
-    verify_required(evidence, identity)
+    verify_required(evidence, identity, source["commit"])
     require(checkout() == source, "Producer checkout changed while sealing")
     require(platform.python_version() == "3.12.10", "Scientific producer must use pinned Python 3.12.10")
     environment = host_environment()
@@ -259,6 +278,13 @@ def seal(image, output, runner_temp):
                   "environment": environment, "steps": list(STEPS),
                   "archive": {"file": ARCHIVE, "size": len(archived), "sha256": sha256(archived)},
                   "entries": [{"path": name, "size": len(data), "sha256": sha256(data)} for name, data in evidence.items()]}
+        if runtime_archive is not None and runtime_archive.exists():
+            require(runtime_archive.is_file() and not runtime_archive.is_symlink(), "Invalid scientific image export")
+            size = runtime_archive.stat().st_size
+            if 0 < size <= MAX_RUNTIME_SIZE:
+                with runtime_archive.open("rb") as stream:
+                    digest = hashlib.file_digest(stream, "sha256").hexdigest()
+                record.update(schema_version=2, runtime_archive={"file": RUNTIME_TAR, "size": size, "sha256": digest})
         encoded = (json.dumps(record, indent=2) + "\n").encode()
         require(len(encoded) <= MAX_DESCRIPTOR, "Scientific descriptor exceeds its bound")
         (output / DESCRIPTOR).write_bytes(encoded)
@@ -316,9 +342,9 @@ class ArtifactRedirect(urllib.request.HTTPRedirectHandler):
         return super().redirect_request(request, fp, code, msg, headers, newurl)
 
 
-def download_artifact(artifact, destination, *, deadline=None):
+def download_artifact(artifact, destination, *, deadline=None, maximum=MAX_DOWNLOAD):
     require(positive(artifact.get("id")) and type(artifact.get("size_in_bytes")) is int
-            and 0 < artifact["size_in_bytes"] <= MAX_DOWNLOAD
+            and 0 < artifact["size_in_bytes"] <= maximum
             and isinstance(artifact.get("digest"), str) and re.fullmatch(r"sha256:[0-9a-f]{64}", artifact["digest"]),
             "Artifact size or GitHub digest is invalid")
     try:
@@ -377,7 +403,7 @@ def validate_run(run):
             and (run.get("status"), run.get("conclusion")) == ("completed", "success"), "CI run is not an eligible successful producer")
     repository, head = run.get("repository", {}), run.get("head_repository", {})
     require(repository.get("full_name") == head.get("full_name") == REPOSITORY
-            and positive(repository.get("id")) and repository["id"] == head.get("id"), "CI producer belongs to a fork or another repository")
+            and repository.get("id") == head.get("id") == int(REPOSITORY_ID), "CI producer belongs to a fork or another repository")
 
 
 def validate_job(document, run):
@@ -399,12 +425,12 @@ def validate_job(document, run):
     return job
 
 
-def artifact_for(document, run, tree, job):
+def artifact_for(document, run, tree, job, kind="qualification"):
     require(isinstance(document, dict) and isinstance(document.get("artifacts"), list)
             and all(isinstance(artifact, dict) for artifact in document["artifacts"]), "Invalid artifact list")
     artifacts = document.get("artifacts", [])
     require(type(document.get("total_count")) is int and document["total_count"] == len(artifacts), "Artifact list is incomplete")
-    name = f"nipat-scientific-qualification-{run['run_attempt']}-{tree}"
+    name = f"nipat-scientific-{kind}-{run['run_attempt']}-{tree}"
     matches = [artifact for artifact in artifacts if artifact.get("name") == name]
     require(len(matches) == 1 and matches[0].get("expired") is False, "Scientific artifact is missing, expired or ambiguous")
     artifact = matches[0]
@@ -423,10 +449,16 @@ def verify_bundle(artifact_zip, directory, run, source, image, fetch=fetch_json,
                      allowed=lambda name: name in {DESCRIPTOR, ARCHIVE})
     require(set(outer) == {DESCRIPTOR, ARCHIVE} and len(outer[DESCRIPTOR]) <= MAX_DESCRIPTOR, "Scientific artifact files are incomplete")
     record = json.loads(outer[DESCRIPTOR])
-    require(isinstance(record, dict) and set(record) == {
-        "schema_version", "repository", "producer", "image", "environment", "steps", "archive", "entries"}
-        and type(record["schema_version"]) is int and record["schema_version"] == 1 and record["repository"] == REPOSITORY
-        and record["steps"] == list(STEPS) and record["image"] == image, "Scientific proof schema, image or gates differ")
+    fields = {"schema_version", "repository", "producer", "image", "environment", "steps", "archive", "entries"}
+    require(isinstance(record, dict) and type(record.get("schema_version")) is int
+            and record["schema_version"] in (1, 2), "Unknown scientific proof schema")
+    if record["schema_version"] == 2:
+        fields.add("runtime_archive")
+    require(set(record) == fields and record["repository"] == REPOSITORY and record["steps"] == list(STEPS),
+            "Scientific proof fields, repository or gates differ")
+    validate_image(record["image"])
+    if image is not None:
+        require(record["image"] == image, "Built Docker image differs from the qualified image")
     env = record["environment"]
     require(isinstance(env, dict) and env.get("python") == "3.12.10" and env.get("system") == "Linux"
             and env.get("machine") == "x86_64" and all(isinstance(env.get(tool), str) and env[tool] for tool in ("pdfinfo", "pdftoppm")),
@@ -466,7 +498,7 @@ def verify_bundle(artifact_zip, directory, run, source, image, fetch=fetch_json,
             "Scientific inventory is incomplete")
     expected = [{"path": name, "size": len(data), "sha256": sha256(data)} for name, data in evidence.items()]
     require(entries == expected, "Scientific inventory does not match raw evidence bytes")
-    verify_required(evidence, image)
+    verify_required(evidence, record["image"], source["commit"])
     return record, evidence
 
 
@@ -502,23 +534,63 @@ def consumer_identity():
     return result
 
 
-def verify_merged_pr(producer, source, fetch, deadline):
-    pull = producer["pull_request"]
-    merged = fetch(f"pulls/{pull['number']}", deadline=deadline)
-    require(merged.get("number") == pull["number"] and merged.get("merged") is True
-            and merged.get("merge_commit_sha") == source["commit"]
-            and merged.get("base", {}).get("ref") == "main" and merged.get("head", {}).get("sha") == pull["head_sha"]
+def merged_main_pull(commit, fetch, deadline):
+    associated = fetch(f"commits/{commit}/pulls?per_page=100", deadline=deadline)
+    require(isinstance(associated, list) and len(associated) < 100, "Main pull request association is incomplete")
+    matches = [pull.get("number") for pull in associated
+               if pull.get("merged_at") and pull.get("merge_commit_sha") == commit
+               and pull.get("base", {}).get("ref") == "main"]
+    require(len(matches) == 1 and positive(matches[0]), "No unique pull request merged at this main commit")
+    number = matches[0]
+    merged = fetch(f"pulls/{number}", deadline=deadline)
+    head = merged.get("head", {}).get("sha")
+    require(merged.get("number") == number and merged.get("merged") is True and sha(head)
+            and merged.get("merge_commit_sha") == commit and merged.get("base", {}).get("ref") == "main"
             and all((merged.get(side, {}).get("repo") or {}).get("full_name") == REPOSITORY for side in ("base", "head")),
-            "Scientific producer is not the pull request merged at this main commit")
+            "The merged pull request is not an eligible scientific producer")
+    return number, head
 
 
-def restore(image, output, runner_temp, *, fetch=fetch_json, download=download_artifact):
+def promote_runtime(record, artifact, directory, reference, download, deadline):
+    descriptor = record.get("runtime_archive")
+    require(isinstance(descriptor, dict) and set(descriptor) == {"file", "size", "sha256"}
+            and descriptor["file"] == RUNTIME_TAR and positive(descriptor["size"])
+            and descriptor["size"] <= MAX_RUNTIME_SIZE and sha(descriptor["sha256"], 64),
+            "CI did not seal a usable Docker image archive")
+    require(isinstance(reference, str) and reference and not reference.startswith("-"), "Invalid image tag")
+    archive_path, tar_path = directory / "runtime.zip", directory / RUNTIME_TAR
+    download(artifact, archive_path, deadline=deadline, maximum=MAX_RUNTIME_SIZE + 16 * 1024 ** 2)
+    with zipfile.ZipFile(archive_path) as archive:
+        entries = archive.infolist()
+        require(len(entries) == 1 and entries[0].filename == RUNTIME_TAR and entries[0].file_size == descriptor["size"]
+                and stat.S_IFMT(entries[0].external_attr >> 16) in {0, stat.S_IFREG} and not entries[0].flag_bits & 1,
+                "Unexpected scientific Docker archive contents")
+        digest = hashlib.sha256()
+        with archive.open(entries[0]) as source, tar_path.open("xb") as target:
+            while block := source.read(1024 ** 2):
+                remaining_timeout(deadline)
+                digest.update(block)
+                target.write(block)
+        require(tar_path.stat().st_size == descriptor["size"] and digest.hexdigest() == descriptor["sha256"],
+                "Scientific Docker archive differs from the sealed export")
+    # The same-repository CI job exported an untagged image by ID. Both the
+    # GitHub ZIP digest and the sealed tar digest were checked before Docker sees it.
+    archive_path.unlink()
+    subprocess.run(["docker", "image", "load", "--input", str(tar_path)], check=True, capture_output=True,
+                   timeout=remaining_timeout(deadline, IMAGE_TRANSFER_SECONDS))
+    qualified = record["image"]
+    require(image_identity(qualified["id"]) == qualified, "Imported Docker image did not match its qualification")
+    subprocess.run(["docker", "image", "tag", qualified["id"], reference], check=True, capture_output=True,
+                   timeout=remaining_timeout(deadline))
+
+
+def restore(image, output, runner_temp, *, fetch=fetch_json, download=download_artifact, promote_image=False):
     deadline = time.monotonic() + SEARCH_BUDGET_SECONDS
     receipt = {"schema_version": 1, "reused": False, "reason": "No matching successful CI scientific qualification",
                "consumer": consumer_identity()}
     try:
         consumer = receipt["consumer"]
-        require(consumer["repository"] == REPOSITORY and positive(consumer["run_id"]) and positive(consumer["attempt"])
+        require(official_actions_context() and consumer["repository"] == REPOSITORY and positive(consumer["run_id"]) and positive(consumer["attempt"])
                 and isinstance(consumer["workflow_ref"], str), "Unknown scientific consumer identity")
         main_push = consumer["event"] == "push"
         if main_push:
@@ -530,16 +602,20 @@ def restore(image, output, runner_temp, *, fetch=fetch_json, download=download_a
             require(consumer["event"] == "workflow_dispatch"
                     and consumer["workflow_ref"].startswith(REPOSITORY + "/.github/workflows/windows-installer.yml@refs/heads/"),
                     "Unknown scientific consumer workflow")
-        source, identity = checkout(), image_identity(image)
+        source = checkout()
+        identity = None if promote_image else image_identity(image)
         if main_push:
             require(source["commit"] == os.environ.get("GITHUB_SHA"), "Main checkout differs from the push")
             environment = host_environment()
         require(platform.python_version() == "3.12.10" and platform.system() == "Linux" and platform.machine() == "x86_64",
                 "Consumer must use the pinned Linux Python host")
-        receipt["consumer"].update(checkout=source, image=identity)
+        consumer["checkout"] = source
+        if identity is not None:
+            consumer["image"] = identity
         query = "actions/workflows/ci.yml/runs?status=completed&per_page=30"
         if main_push:
-            query += "&event=pull_request"
+            pull_number, pull_head = merged_main_pull(source["commit"], fetch, deadline)
+            query += f"&event=pull_request&head_sha={pull_head}"
         runs = fetch(query, deadline=deadline).get("workflow_runs")
         require(isinstance(runs, list) and len(runs) <= 30, "Unexpected CI history response")
         misses = []
@@ -548,7 +624,8 @@ def restore(image, output, runner_temp, *, fetch=fetch_json, download=download_a
             try:
                 validate_run(candidate)
                 if main_push:
-                    require(candidate["event"] == "pull_request", "A main push needs an original PR qualification")
+                    require(candidate["event"] == "pull_request" and candidate["head_sha"] == pull_head,
+                            "A main push needs a qualification of its exact PR head")
                 run_id, attempt = candidate["id"], candidate["run_attempt"]
                 artifacts = fetch(f"actions/runs/{run_id}/artifacts?per_page=100", deadline=deadline)
                 name = f"nipat-scientific-qualification-{attempt}-{source['tree']}"
@@ -561,25 +638,36 @@ def restore(image, output, runner_temp, *, fetch=fetch_json, download=download_a
                     download(artifact, downloaded, deadline=deadline)
                     record, evidence = verify_bundle(downloaded, directory, candidate, source, identity, fetch, deadline=deadline)
                     if main_push:
-                        verify_merged_pr(record["producer"], source, fetch, deadline)
+                        require(record["producer"]["pull_request"]["number"] == pull_number,
+                                "Scientific producer is not the pull request merged at this main commit")
                         require(record["environment"] == environment, "Scientific qualification host tools changed")
                     remaining_timeout(deadline)
-                    require(checkout() == source and image_identity(image) == identity, "Consumer changed during scientific restore")
+                    if promote_image:
+                        uploads = [step for step in job["steps"] if step.get("name") == IMAGE_UPLOAD_STEP]
+                        require(len(uploads) == 1 and (uploads[0].get("status"), uploads[0].get("conclusion"))
+                                == ("completed", "success"), "Qualified CI Docker image upload is unavailable")
+                        runtime = artifact_for(artifacts, candidate, source["tree"], job, "image")
+                        promote_runtime(record, runtime, directory, image, download, time.monotonic() + IMAGE_TRANSFER_SECONDS)
+                    require(checkout() == source and image_identity(image) == record["image"],
+                            "Consumer changed during scientific restore")
                     restore_files(evidence, runner_temp)
+                consumer["image"] = record["image"]
+                if promote_image:
+                    receipt["runtime_artifact"] = {key: runtime[key] for key in ("id", "name", "digest")}
                 receipt.update(reused=True, reason="Identical Git tree and immutable Docker image; all seven CI gates passed",
                                producer=record["producer"], producer_environment=record["environment"],
                                scientific_job_id=job["id"], artifact={"id": artifact["id"], "name": artifact["name"],
                                "digest": artifact["digest"]}, evidence_archive=record["archive"], evidence_entries=len(evidence))
                 break
-            except (OSError, ValueError, KeyError, TypeError, AttributeError, RuntimeError, zipfile.BadZipFile, subprocess.SubprocessError) as error:
+            except LOOKUP_ERRORS as error:
                 # Never print signed URLs, response bodies or credentials.
                 misses.append({"run_id": candidate.get("id") if isinstance(candidate, dict) else None,
                                "reason": error_reason(error)})
-                if isinstance(error, OSError):
+                if isinstance(error, (OSError, http.client.HTTPException)):
                     break  # An unavailable API/download must not cause 30 timeout retries.
         if not receipt["reused"]:
             receipt["candidates_checked"] = misses
-    except (OSError, ValueError, KeyError, TypeError, AttributeError, RuntimeError, zipfile.BadZipFile, subprocess.SubprocessError) as error:
+    except LOOKUP_ERRORS as error:
         receipt["reason"] = error_reason(error)
     output.mkdir(parents=True, exist_ok=True)
     require(not output.is_symlink() and not (output / "reuse.json").is_symlink(), "Scientific reuse receipt path is a symlink")
@@ -595,19 +683,21 @@ def main():
     parser.add_argument("--runner-temp", type=Path, default=os.environ.get("RUNNER_TEMP"))
     parser.add_argument("--output", type=Path)
     parser.add_argument("--wait-for-active-ci", action="store_true")
+    parser.add_argument("--promote-image", action="store_true", help="Import the exact Docker image exported by CI")
+    parser.add_argument("--runtime-archive", type=Path, help="Optionally seal the CI Docker image export")
     args = parser.parse_args()
     require(args.runner_temp is not None, "RUNNER_TEMP is required")
     if args.operation == "seal":
         require(args.output is None, "Seal does not write workflow outputs")
-        record = seal(args.image, args.output_dir, args.runner_temp)
+        record = seal(args.image, args.output_dir, args.runner_temp, args.runtime_archive)
         print(f"Sealed {len(record['entries'])} raw scientific evidence files for CI run {record['producer']['run_id']}.")
     else:
         require(args.output is not None, "Restore requires the workflow output file")
-        receipt = restore(args.image, args.output_dir, args.runner_temp)
+        receipt = restore(args.image, args.output_dir, args.runner_temp, promote_image=args.promote_image)
         if args.wait_for_active_ci and not receipt["reused"]:
             from installer_science_wait import producer_finished
             if producer_finished(receipt):
-                receipt = restore(args.image, args.output_dir, args.runner_temp)
+                receipt = restore(args.image, args.output_dir, args.runner_temp, promote_image=args.promote_image)
         with args.output.open("a", encoding="utf-8") as stream:
             stream.write(f"reused={str(receipt['reused']).lower()}\n")
         print(f"Scientific reuse {'hit' if receipt['reused'] else 'miss'}: {receipt['reason']}")

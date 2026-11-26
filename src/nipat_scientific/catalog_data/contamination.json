@@ -3,8 +3,8 @@
   "workflow": "contamination",
   "source": {
     "path": "scientific/vendor/NEWPAT/contamination/detect_contamination.R",
-    "sha256": "8ceb587e19bb2f0b8f08051a894cd1780254b7ffe0959b0e48755c96f4792f66",
-    "line_count": 319
+    "sha256": "75c59a177245d45a20dee323812f7d3e4efe3b49de785fe26a9635c658ce2e63",
+    "line_count": 310
   },
   "public_parameters": [
     {
@@ -27,8 +27,8 @@
         "mapping": "adapted"
       },
       "source_lines": [
-        18,
-        20
+        17,
+        19
       ],
       "description": {
         "it": "Pannello SNP o DNP; coordinate e alleli sono preservati nella copia normalizzata.",
@@ -56,8 +56,8 @@
         "mapping": "adapted"
       },
       "source_lines": [
-        18,
-        20
+        17,
+        19
       ],
       "description": {
         "it": "File o cartella di tabelle dei conteggi, con selezione ricorsiva .txt.",
@@ -85,8 +85,8 @@
         "mapping": "adapted"
       },
       "source_lines": [
-        18,
-        20
+        17,
+        19
       ],
       "description": {
         "it": "Cartella nuova dei risultati.",
@@ -115,8 +115,8 @@
         "mapping": "adapted"
       },
       "source_lines": [
-        22,
-        37
+        21,
+        36
       ],
       "description": {
         "it": "Include per impostazione predefinita i loci con zero letture inattese; l’esclusione modifica siti, media e deviazione standard.",
@@ -150,8 +150,8 @@
         ]
       },
       "source_lines": [
-        39,
-        87
+        38,
+        86
       ],
       "description": {
         "it": "Rilevamento del formato del pannello e coordinate dinamiche.",
@@ -168,8 +168,8 @@
         "duplicate_basenames": "rejected ignoring case"
       },
       "source_lines": [
-        89,
-        116
+        88,
+        114
       ],
       "description": {
         "it": "Selezione ricorsiva dei campioni con esclusione del pannello e nomi univoci.",
@@ -190,8 +190,8 @@
         "ratio": "optional"
       },
       "source_lines": [
-        128,
-        179
+        124,
+        174
       ],
       "description": {
         "it": "I conteggi sono validati prima dei filtri.",
@@ -207,8 +207,8 @@
         "zero_depth": "excluded"
       },
       "source_lines": [
-        176,
-        178
+        171,
+        173
       ],
       "description": {
         "it": "Il rapporto è ricavato dai conteggi REF e ALT per ogni sito con copertura utile. Il valore fornito viene controllato per segnalare incoerenze.",
@@ -220,8 +220,8 @@
       "kind": "formula",
       "value": "N_Other/(N_REF+N_ALT+N_Other)",
       "source_lines": [
-        207,
-        216
+        202,
+        211
       ],
       "description": {
         "it": "Il denominatore aggiornato include anche le letture Other; la soglia other_fraction_max è configurabile.",
@@ -233,8 +233,8 @@
       "kind": "filter",
       "value": "ratio>=homozygous_ref_min or ratio<=homozygous_alt_max",
       "source_lines": [
-        218,
-        224
+        213,
+        219
       ],
       "description": {
         "it": "Classificazione omozigote con soglie inclusive configurabili.",
@@ -249,8 +249,8 @@
         "proportion": "N_unexpected/(N_REF+N_ALT)"
       },
       "source_lines": [
-        225,
-        234
+        220,
+        229
       ],
       "description": {
         "it": "Stima per sito in proporzione, non percentuale.",
@@ -262,8 +262,8 @@
       "kind": "filter",
       "value": "include_zero controls per-site rows, site count, mean and SD",
       "source_lines": [
-        233,
-        240
+        228,
+        235
       ],
       "description": {
         "it": "Gli zeri inclusi contribuiscono alle statistiche; NA rimane distinto da zero.",
@@ -280,8 +280,8 @@
         "one_site": "SD NA"
       },
       "source_lines": [
-        253,
-        269
+        246,
+        261
       ],
       "description": {
         "it": "Riduzioni sulla sequenza originale dei siti selezionati.",
@@ -302,8 +302,8 @@
         ]
       },
       "source_lines": [
-        265,
-        319
+        258,
+        310
       ],
       "description": {
         "it": "Tabelle per sito e riepilogo con conteggio indipendente dal tipo di marcatore.",
@@ -321,8 +321,8 @@
         "reduction": "ordered"
       },
       "source_lines": [
-        240,
-        254
+        235,
+        247
       ],
       "description": {
         "it": "Blocchi di righe e campioni usano un budget comune e risultati ordinati.",
@@ -404,26 +404,26 @@
       },
       "evidence": {
         "path": "src/nipat_scientific/settings.py",
-        "sha256": "21fd42ad2c04e8f7bf7bf3f08e01aa88df27416f7fbd104aeae6439ba7cd8f88",
+        "sha256": "dc40a1dfff1e87fbc8c9eb8427ea413ed1b358cf6b62542678e061894605cba9",
         "source_lines": [
           1,
-          197
+          207
         ],
         "dependencies": [
           {
             "path": "src/nipat_scientific/settings.R",
-            "sha256": "d4e0db860501861132aa3fde280d371ab84a5fe7944d94482b7499f29687c392",
+            "sha256": "fb6e63b54b8e99c9cc754e7a0cce36ae9803312eee117a014fd6e9c5f6019af7",
             "source_lines": [
               1,
-              96
+              104
             ]
           },
           {
             "path": "src/nipat_scientific/settings_data.json",
-            "sha256": "e1284fe3489dc55b19c13a806ca461cbfc712c6047fb2499d8c3ac2c86692123",
+            "sha256": "288538dd8057e235edcb0e6e12ccea610f1066fb536262be086191759777e03c",
             "source_lines": [
               1,
-              631
+              764
             ]
           }
         ]
@@ -465,10 +465,10 @@
           },
           {
             "path": "src/nipat_scientific/panels.py",
-            "sha256": "a22cbc37601c4cd79dca6ad69d20b4cc2a21a568a89ba3034a33dbf53fc23905",
+            "sha256": "b102d8ac8ed99608df48c3493fb85a42233361feec4ca82ea1e02fef904e9b28",
             "source_lines": [
               1,
-              278
+              281
             ]
           }
         ]
@@ -489,20 +489,28 @@
         "capacity_memory_fraction": 0.8,
         "memory_estimate": "max(2 * loaded coordinator RSS, module estimate); serial if workload is not observed",
         "concurrency_policy": "fixed-pool-per-phase-within-run-ceiling",
-        "sample_worker_estimate": "2 × coordinator RSS + 64 × largest plain TSV size"
+        "sample_worker_estimate": "2 × coordinator RSS + 64 × largest plain TSV size",
+        "cgroup_limits": "CPU quota, memory limit and PID headroom across visible process and ancestor cgroups (v1/v2)",
+        "desktop_concurrent_runs": "Share measured CPU and memory across desktop sessions on the same runtime. Compatible multi-step plans can renegotiate at a completed step boundary. Each active step or independent SNP group keeps its assigned budget until it finishes.",
+        "desktop_step_evidence": {
+          "capability": "step-budget-v1",
+          "budget_basis": "assigned-capacity-at-step-boundary",
+          "host_log": "work/desktop-scheduling/grants.jsonl",
+          "engine_state": "workflow-state.json: desktop_resource_grants (next_phase and applied CPU, memory and worker ceiling)"
+        }
       },
       "applies_to": "all",
       "origin": "NewPat scientific runtime",
       "description": {
-        "it": "Il tetto dei processi è fissato all’avvio dalle capacità assegnate a hardware, ambiente e container e dal massimo richiesto; non segue la memoria libera istantanea. Ogni fase fissa il proprio pool entro quel tetto, con riserva proporzionale del 20%, memoria residente del coordinatore conteggiata separatamente e stima del carico. Non esiste un minimo universale di 2 GiB per worker: la stima usa il maggiore fra il doppio della RSS del coordinatore caricato e il modello del modulo, quando disponibile. La stima non è una prenotazione di memoria né una garanzia contro OOM. Capacità o carico non misurabili mantengono la fase seriale. I pool annidati restano seriali, i thread interni sono limitati e i risultati mantengono l’ordine delle attività. Per almeno due tabelle TSV di testo, il pool di campioni stima la memoria di ciascun processo come il doppio della RSS del coordinatore più 64 volte la dimensione del file maggiore. Se la stima manca, i campioni procedono in sequenza. Il calcolo per blocchi di righe può usare il budget disponibile mentre si elabora un solo campione.",
-        "en": "The run-wide process ceiling is fixed at startup from assigned hardware, environment and container capacities and the requested maximum; it does not track transient free memory. Each phase fixes its pool within that ceiling, reserving 20% proportionally, accounting separately for coordinator RSS and estimating its workload. There is no universal 2GiB floor per worker: the estimate is the larger of twice the loaded coordinator RSS and a module workload estimate when available. This is neither a memory reservation nor an OOM guarantee. Unknown capacity or workload keeps the phase serial. Nested pools stay serial, internal threads are limited and results retain task order. For two or more plain TSV tables, the sample pool estimates each worker at twice coordinator RSS plus 64 times the largest input file size. If the estimate is unavailable, samples run sequentially. Row blocks may use the available budget while processing a single sample."
+        "it": "Il tetto dei processi è fissato all’avvio dalle capacità assegnate a hardware, ambiente e container e dal massimo richiesto; non segue la memoria libera istantanea. Ogni fase fissa il proprio pool entro quel tetto, con riserva proporzionale del 20%, memoria residente del coordinatore conteggiata separatamente e stima del carico. Non esiste un minimo universale di 2 GiB per worker: la stima usa il maggiore fra il doppio della RSS del coordinatore caricato e il modello del modulo, quando disponibile. La stima non è una prenotazione di memoria né una garanzia contro OOM. Capacità o carico non misurabili mantengono la fase seriale. I pool annidati restano seriali, i thread interni sono limitati e i risultati mantengono l’ordine delle attività. Per almeno due tabelle TSV di testo, il pool di campioni stima la memoria di ciascun processo come il doppio della RSS del coordinatore più 64 volte la dimensione del file maggiore. Se la stima manca, i campioni procedono in sequenza. Il calcolo per blocchi di righe può usare il budget disponibile mentre si elabora un solo campione. Su Linux il motore legge i cgroup del processo e le radici dei mount, inclusi i controller v1 combinati, e applica i limiti visibili più restrittivi del processo e dei suoi antenati. Se non riesce ad associare un controller montato al processo, usa un solo worker. Se mancano i dati dei mount, controlla i percorsi standard dei controller. Le sessioni desktop dello stesso utente condividono CPU e memoria disponibili sullo stesso runtime. Con un motore compatibile un piano di analisi può cambiare la quota tra passaggi o gruppi di campioni SNP indipendenti. Ogni passaggio o gruppo attivo mantiene la quota fino al termine dei suoi processi scientifici. I nuovi budget di calcolo rispettano i tetti iniziali e i limiti impostati dall’utente. Il container conserva i limiti definiti all’avvio. Se le risorse sono insufficienti, l’esperimento attende. I motori privi di questo supporto mantengono la quota iniziale. Se la capacità è sconosciuta viene eseguito un calcolo desktop alla volta.",
+        "en": "The run-wide process ceiling is fixed at startup from assigned hardware, environment and container capacities and the requested maximum; it does not track transient free memory. Each phase fixes its pool within that ceiling, reserving 20% proportionally, accounting separately for coordinator RSS and estimating its workload. There is no universal 2GiB floor per worker: the estimate is the larger of twice the loaded coordinator RSS and a module workload estimate when available. This is neither a memory reservation nor an OOM guarantee. Unknown capacity or workload keeps the phase serial. Nested pools stay serial, internal threads are limited and results retain task order. For two or more plain TSV tables, the sample pool estimates each worker at twice coordinator RSS plus 64 times the largest input file size. If the estimate is unavailable, samples run sequentially. Row blocks may use the available budget while processing a single sample. On Linux the engine reads the process’s cgroup memberships and mount roots, including combined v1 controllers, and applies the strictest visible quotas from the process and its ancestors. An unmappable mounted controller restricts the pool to one worker. If mount metadata is unavailable, the engine checks the standard controller paths. Desktop sessions of the same user share the CPU and memory available on one runtime. With compatible engine support, a workflow plan can change its allocation between steps or groups of independent SNP samples. Each active step or group keeps its quota until its scientific processes finish. New scheduler budgets stay within the original ceilings and user limits. The container keeps its launch limits. An experiment waits if capacity is insufficient. Engines without this support retain the initial allocation. With unknown capacity, one desktop calculation runs at a time."
       },
       "evidence": {
         "path": "src/nipat_scientific/parallel.R",
-        "sha256": "4902b20a9d29a82777274777c8a365ef7d1da48974392292e514cf682d87cf9b",
+        "sha256": "7c83def1907d041decf7dd8705aaf1f92bcd401d7b1fba38aaf788962a5dd47a",
         "source_lines": [
           1,
-          267
+          322
         ],
         "dependencies": [
           {
@@ -519,31 +527,71 @@
               100,
               148
             ],
-            "sha256": "a49528bb9e20ed8b48ca3d12ed90642931535c9e60cd694a97221c155d628751"
+            "sha256": "ade3337dc4975159ca7df91ff0554ed1c77c6ee72a710cfbc7256e27eaa9b61f"
           },
           {
             "path": "src/nipat/execution/runner.py",
             "source_lines": [
-              110,
-              131
+              112,
+              133
             ],
-            "sha256": "77fd4dd63f28ed82aa47898d1cf3496281965e7415025a87961fd53fad4b9e7d"
+            "sha256": "9b45ccfbc9c2d10a6d8983e34f7754a3cbfe1a0f1fcc98a1f38f80f8905eb601"
           },
           {
             "path": "src/nipat/execution/runner.py",
             "source_lines": [
-              199,
-              220
+              205,
+              230
             ],
-            "sha256": "77fd4dd63f28ed82aa47898d1cf3496281965e7415025a87961fd53fad4b9e7d"
+            "sha256": "9b45ccfbc9c2d10a6d8983e34f7754a3cbfe1a0f1fcc98a1f38f80f8905eb601"
           },
           {
             "path": "scientific/vendor/NEWPAT/contamination/detect_contamination.R",
             "source_lines": [
-              277,
-              311
+              269,
+              302
             ],
-            "sha256": "8ceb587e19bb2f0b8f08051a894cd1780254b7ffe0959b0e48755c96f4792f66"
+            "sha256": "75c59a177245d45a20dee323812f7d3e4efe3b49de785fe26a9635c658ce2e63"
+          },
+          {
+            "path": "src/nipat/gui/jobs.py",
+            "source_lines": [
+              185,
+              240
+            ],
+            "sha256": "92bec0c8d12f11e3e215decd14ce9ff7a75dea590187c31f963718573a02b6b3"
+          },
+          {
+            "path": "src/nipat/gui/admission.py",
+            "source_lines": [
+              1,
+              313
+            ],
+            "sha256": "207189916340303d49f861aec5811c272c60790b5b6d507570e6533a36fe2db8"
+          },
+          {
+            "path": "src/nipat_scientific/desktop_scheduling.py",
+            "source_lines": [
+              1,
+              141
+            ],
+            "sha256": "1bc221175a801c696dc4a469aae64d2347b433ebfc67bc20712fe5e184466a80"
+          },
+          {
+            "path": "src/nipat_scientific/executor.py",
+            "source_lines": [
+              451,
+              592
+            ],
+            "sha256": "b3229758cf1ebc9bf0173888d9934cdf13d2da3c8ec4d16c39887a8af4bf7b99"
+          },
+          {
+            "path": "src/nipat/execution/runner.py",
+            "source_lines": [
+              225,
+              228
+            ],
+            "sha256": "9b45ccfbc9c2d10a6d8983e34f7754a3cbfe1a0f1fcc98a1f38f80f8905eb601"
           }
         ]
       }
@@ -564,10 +612,10 @@
       },
       "evidence": {
         "path": "src/nipat_scientific/outputs.py",
-        "sha256": "405f1be20b5475451d39c7088b8cd5d720c419bf9c5d756eb23fcac3e058c8d6",
+        "sha256": "a7d38ad99d05f96e3bfb520461a6f52d00bc2316dc36e302775c55a86f0b4c01",
         "source_lines": [
           1,
-          500
+          744
         ]
       }
     },
@@ -585,10 +633,10 @@
       },
       "evidence": {
         "path": "src/nipat_scientific/presentation.py",
-        "sha256": "fb01b23f6183c3478ab97d869dfafcb11692428be63453e378f9a7742bb78c0a",
+        "sha256": "6af297218e67da1d8de695759647be6afd57e9ecb6da3a08353ab4a2f949cd66",
         "source_lines": [
           1,
-          386
+          414
         ],
         "dependencies": [
           {
@@ -606,55 +654,55 @@
   "audit_sections": [
     {
       "start": 1,
-      "end": 38,
+      "end": 37,
       "summary": {
         "it": "Librerie, configurazione, input e politica degli zeri.",
         "en": "Libraries, configuration, inputs and zero policy."
       }
     },
     {
-      "start": 39,
-      "end": 88,
+      "start": 38,
+      "end": 87,
       "summary": {
         "it": "Formato del pannello SNP/DNP.",
         "en": "SNP/DNP panel format."
       }
     },
     {
-      "start": 89,
-      "end": 127,
+      "start": 88,
+      "end": 123,
       "summary": {
         "it": "Selezione dei file e schema del riepilogo.",
         "en": "File selection and summary schema."
       }
     },
     {
-      "start": 128,
-      "end": 172,
+      "start": 124,
+      "end": 167,
       "summary": {
         "it": "Lettura e validazione dei conteggi.",
         "en": "Count reading and validation."
       }
     },
     {
-      "start": 173,
-      "end": 239,
+      "start": 168,
+      "end": 234,
       "summary": {
         "it": "Rapporto REF, filtri e contaminazione per sito.",
         "en": "REF ratio, filters and per-site contamination."
       }
     },
     {
-      "start": 240,
-      "end": 264,
+      "start": 235,
+      "end": 257,
       "summary": {
         "it": "Blocchi paralleli ordinati e statistiche.",
         "en": "Ordered parallel blocks and statistics."
       }
     },
     {
-      "start": 265,
-      "end": 319,
+      "start": 258,
+      "end": 310,
       "summary": {
         "it": "Output per campione, pool dei campioni e riepilogo.",
         "en": "Per-sample output, sample pool and summary."

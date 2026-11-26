@@ -1,4 +1,3 @@
-# Expected direct runtime versions from the successful NIPAT 0.4.1 build.
 # The dated CRAN repository also constrains transitive dependency resolution.
 expected <- read.delim(
   "/usr/share/nipat/r-packages.tsv",

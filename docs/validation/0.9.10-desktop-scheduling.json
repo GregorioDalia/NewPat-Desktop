@@ -1,0 +1,216 @@
+{
+  "schema_version": 1,
+  "baseline_commit": "f5b837ebb0f5b2c9a1a39299e5c1aca879fb3d3d",
+  "fixture": "Four distinct BAMs made deterministically by retaining 50 reference-bearing reads and respectively 1, 6, 11, 16 alternate-bearing reads at each of three loci of the bundled synthetic trio father alignment. Both callers, one DNP step and four SNP steps, plus the merged SNP plot/summary. Counts checked independently per locus and sample, exact per-sample and summary tables compared against f5b837e.",
+  "runtime": "Released Linux/AMD64 0.9.9 userspace under bwrap with actual Python scientific entry point, R 4.4.2 and samtools 1.21. Each scenario shares the same four CPU affinity cores and 8192 MiB software scheduling capacity. Independent host processes use production admission, owner locks and DesktopStepScheduler. Cross-session files live on the same filesystem and the admission runtime-idle callback observes the live local engine process. No Docker daemon, GUI platform, VM mount or kernel RAM-limit timing validation.",
+  "process_observation": "Scientific R and samtools descendants sampled from /proc about every 100 ms; concurrent positive CPU-tick deltas mean processes from distinct experiment trees actually received CPU during the same sampling interval. Workflow start/end timestamps separately determine concurrent SNP steps and engine lifetime overlap. Single trial per scenario.",
+  "scenarios_source": {
+    "standalone_pair_triple": {
+      "src/nipat/gui/admission.py": "7ffdbb031a3656a14732ab07bef11b944381d671e73be8aefc1dcfc4c26a4c21",
+      "src/nipat/gui/jobs.py": "04cad19050c5bb962b822294e8ac9671e61cc92524097d396f83e43407522b99",
+      "src/nipat_scientific/desktop_scheduling.py": "3310bb9f1784e7ea6091ffd4bd476d0c0f02a44e392bf1f9eca0bc76db976097",
+      "src/nipat_scientific/executor.py": "6764bb44de261bb8438c33aef16cb5b0e8745096f210577d6b4e74e262a458ee",
+      "src/nipat_scientific/snp_summary.py": "8441193952d48a355bd0c44102887d9eafde0c83c52e47bfe8cb04b0feccd1c2",
+      "src/nipat_scientific/parallel.R": "ab2a6298ddfe171a26d3a6dd3b2731bbd2d3fa6c174c2ca1b526d2752f5853ea"
+    },
+    "shipping_recovery": {
+      "src/nipat/gui/admission.py": "7bfb13e7a55a5c1bc8d4328a1f31acac75848eb0721ad6a0569aacc418f2992b",
+      "src/nipat/gui/jobs.py": "2de3a5583fe58b9e1bb099d1cf652a3a93a192283f660dcf8b33dde06a36c323",
+      "src/nipat_scientific/desktop_scheduling.py": "1bc221175a801c696dc4a469aae64d2347b433ebfc67bc20712fe5e184466a80",
+      "src/nipat_scientific/executor.py": "6764bb44de261bb8438c33aef16cb5b0e8745096f210577d6b4e74e262a458ee",
+      "src/nipat_scientific/snp_summary.py": "8441193952d48a355bd0c44102887d9eafde0c83c52e47bfe8cb04b0feccd1c2",
+      "src/nipat_scientific/parallel.R": "7c83def1907d041decf7dd8705aaf1f92bcd401d7b1fba38aaf788962a5dd47a"
+    },
+    "faults": "The missing-grant fault and cancellation were exercised before the final atomic-write-retry refinement. The host process is stopped after publishing its valid request and killed after acknowledgement, so no grant is possible. The real default 60-second deadline is retained."
+  },
+  "scientific_sha256": {
+    "dnp": "58c4c7f64151b659b996b7d6f0ce5efc1a5bfa8ba695e88a7738d3e18f5d7f93",
+    "snp": "fabe7c66ab507f06862ac1df40251e3da264f1bef7399713a3923182d02745dc"
+  },
+  "uncontended": {
+    "successful_runs": [
+      {
+        "initial_cpu": 4,
+        "initial_mib": 8192,
+        "actual_dnp_workers": 4,
+        "applied_grants": [],
+        "snp_batch_worker_budget": 4,
+        "snp_memory_capacity_mib": 8192,
+        "snp_batch_budget_source": "assigned-capacity-at-run-start",
+        "simultaneous_snp_sample_steps": 4,
+        "sampled_max_SNP_R_processes": 4,
+        "verified_native_and_label_files": 15,
+        "snp_merged_sha256": "a120ac0199ef1e269d7b4b017d80538b6b61cf40217197f84acbdbbe1a6d2bf3",
+        "elapsed_seconds": 11.906
+      }
+    ],
+    "sampled_peak_cpu_active_experiments_after_first_dnp": 1,
+    "observations_with_two_or_more_cpu_active_experiments": 0,
+    "observations_with_three_cpu_active_experiments": 0
+  },
+  "two_staggered": {
+    "successful_runs": [
+      {
+        "initial_cpu": 4,
+        "initial_mib": 8192,
+        "actual_dnp_workers": 4,
+        "applied_grants": [
+          {
+            "next_phase": "snp-batch",
+            "cpu_limit": 2.0,
+            "memory_capacity_mib": 4096,
+            "worker_ceiling": 2
+          }
+        ],
+        "snp_batch_worker_budget": 2,
+        "snp_memory_capacity_mib": 4096,
+        "snp_batch_budget_source": "assigned-capacity-at-run-start",
+        "simultaneous_snp_sample_steps": 2,
+        "sampled_max_SNP_R_processes": 2,
+        "verified_native_and_label_files": 15,
+        "snp_merged_sha256": "a120ac0199ef1e269d7b4b017d80538b6b61cf40217197f84acbdbbe1a6d2bf3",
+        "elapsed_seconds": 16.724
+      },
+      {
+        "initial_cpu": 2.0,
+        "initial_mib": 4096,
+        "actual_dnp_workers": 2,
+        "applied_grants": [],
+        "snp_batch_worker_budget": 2,
+        "snp_memory_capacity_mib": 4096,
+        "snp_batch_budget_source": "assigned-capacity-at-run-start",
+        "simultaneous_snp_sample_steps": 2,
+        "sampled_max_SNP_R_processes": 2,
+        "verified_native_and_label_files": 15,
+        "snp_merged_sha256": "a120ac0199ef1e269d7b4b017d80538b6b61cf40217197f84acbdbbe1a6d2bf3",
+        "elapsed_seconds": 15.974
+      }
+    ],
+    "sampled_peak_cpu_active_experiments_after_first_dnp": 2,
+    "observations_with_two_or_more_cpu_active_experiments": 79,
+    "observations_with_three_cpu_active_experiments": 0,
+    "overlap_seconds_all_successful_engines": 9.076,
+    "next_experiment_engine_start_seconds_after_first_completed_dnp": [
+      0.262
+    ]
+  },
+  "three_staggered": {
+    "successful_runs": [
+      {
+        "initial_cpu": 4,
+        "initial_mib": 8192,
+        "actual_dnp_workers": 4,
+        "applied_grants": [
+          {
+            "next_phase": "snp-batch",
+            "cpu_limit": 1.333333333,
+            "memory_capacity_mib": 2730,
+            "worker_ceiling": 1
+          }
+        ],
+        "snp_batch_worker_budget": 1,
+        "snp_memory_capacity_mib": 2730,
+        "snp_batch_budget_source": "assigned-capacity-at-run-start",
+        "simultaneous_snp_sample_steps": 1,
+        "sampled_max_SNP_R_processes": 1,
+        "verified_native_and_label_files": 15,
+        "snp_merged_sha256": "a120ac0199ef1e269d7b4b017d80538b6b61cf40217197f84acbdbbe1a6d2bf3",
+        "elapsed_seconds": 22.501
+      },
+      {
+        "initial_cpu": 1.333333333,
+        "initial_mib": 2731,
+        "actual_dnp_workers": 1,
+        "applied_grants": [],
+        "snp_batch_worker_budget": 1,
+        "snp_memory_capacity_mib": 2731,
+        "snp_batch_budget_source": "assigned-capacity-at-run-start",
+        "simultaneous_snp_sample_steps": 1,
+        "sampled_max_SNP_R_processes": 1,
+        "verified_native_and_label_files": 15,
+        "snp_merged_sha256": "a120ac0199ef1e269d7b4b017d80538b6b61cf40217197f84acbdbbe1a6d2bf3",
+        "elapsed_seconds": 21.953
+      },
+      {
+        "initial_cpu": 1.333333334,
+        "initial_mib": 2731,
+        "actual_dnp_workers": 1,
+        "applied_grants": [],
+        "snp_batch_worker_budget": 1,
+        "snp_memory_capacity_mib": 2731,
+        "snp_batch_budget_source": "assigned-capacity-at-run-start",
+        "simultaneous_snp_sample_steps": 1,
+        "sampled_max_SNP_R_processes": 1,
+        "verified_native_and_label_files": 15,
+        "snp_merged_sha256": "a120ac0199ef1e269d7b4b017d80538b6b61cf40217197f84acbdbbe1a6d2bf3",
+        "elapsed_seconds": 23.741
+      }
+    ],
+    "sampled_peak_cpu_active_experiments_after_first_dnp": 3,
+    "observations_with_two_or_more_cpu_active_experiments": 204,
+    "observations_with_three_cpu_active_experiments": 126,
+    "overlap_seconds_all_successful_engines": 15.2,
+    "next_experiment_engine_start_seconds_after_first_completed_dnp": [
+      0.191,
+      0.289
+    ]
+  },
+  "missing_grant_after_host_loss": {
+    "workflow_status": "failed",
+    "exit_code": 2,
+    "error_code": "execution.desktop_scheduling",
+    "elapsed_seconds_from_ack_to_exit": 60.15,
+    "unstarted_snp_steps": 4,
+    "successful_and_verified_dnp_output_files": 5,
+    "next_admission_waited_for_orphan_exit": true,
+    "seconds_until_full_quota_recovered_after_exit": 3.963
+  },
+  "cancel_while_waiting_after_host_loss": {
+    "workflow_status": "cancelled",
+    "exit_code": 143,
+    "error_code": "execution.cancelled",
+    "elapsed_seconds_from_ack_to_exit": 0.24,
+    "unstarted_snp_steps": 4,
+    "successful_and_verified_dnp_output_files": 5,
+    "next_admission_waited_for_orphan_exit": true,
+    "seconds_until_full_quota_recovered_after_exit": 3.834
+  },
+  "final_source_recovery_after_cancelling_second_experiment": {
+    "successful_runs": [
+      {
+        "initial_cpu": 4,
+        "initial_mib": 8192,
+        "actual_dnp_workers": 4,
+        "applied_grants": [
+          {
+            "next_phase": "snp-batch",
+            "cpu_limit": 2.0,
+            "memory_capacity_mib": 4096,
+            "worker_ceiling": 2
+          },
+          {
+            "next_phase": "snp-summary",
+            "cpu_limit": 4,
+            "memory_capacity_mib": 8192,
+            "worker_ceiling": 4
+          }
+        ],
+        "snp_batch_worker_budget": 2,
+        "snp_memory_capacity_mib": 4096,
+        "snp_batch_budget_source": "assigned-capacity-at-step-boundary",
+        "simultaneous_snp_sample_steps": 2,
+        "sampled_max_SNP_R_processes": 2,
+        "verified_native_and_label_files": 15,
+        "snp_merged_sha256": "a120ac0199ef1e269d7b4b017d80538b6b61cf40217197f84acbdbbe1a6d2bf3",
+        "elapsed_seconds": 15.386
+      }
+    ],
+    "sampled_peak_cpu_active_experiments_after_first_dnp": 2,
+    "observations_with_two_or_more_cpu_active_experiments": 1,
+    "observations_with_three_cpu_active_experiments": 0,
+    "second_run_cancelled": {
+      "exit_code": 143,
+      "first_run_restored_full_budget": true
+    }
+  }
+}

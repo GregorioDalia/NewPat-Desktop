@@ -42,9 +42,11 @@ def verify(app: Path, output: Path) -> dict:
     if not launcher.is_file() or manifest.get("channel") != "desktop":
         raise ValueError("An installed desktop package is required.")
     output = output.resolve()
+    if output.exists():
+        raise FileExistsError(f"Runtime verification report already exists: {output}")
     output.parent.mkdir(parents=True, exist_ok=True)
     log_root = output.parent / (output.stem + "-logs")
-    log_root.mkdir(exist_ok=True)
+    log_root.mkdir()
     workspace = Path.home() / "Library/Application Support/NIPAT-Desktop"
     run_root = workspace / "runs" / ("acceptance-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S") + f"-{time.time_ns()}")
     records = []

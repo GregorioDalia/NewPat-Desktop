@@ -26,7 +26,7 @@ _MAX_OUTPUT_FILES = 12
 _MAX_PAIRS = 12
 _MAX_STEPS = 24
 _MAX_WARNINGS = 12
-_STEP_LABELS = {"dnp-call": "DNPcall", "snp-call": "SNPcall", "contamination": "Contamination", "cpi": "CPI", "cpin": "CPIN"}
+_STEP_LABELS = {"dnp-call": "DNPcall", "snp-call": "SNPcall", "contamination": "Contamination", "cpi": "CPI prenatale", "cpin": "CPI postnatale", "fetal-sex": "Sesso fetale"}
 _STATUS_LABELS = {
     "unreadable": "Non verificabile",
     "preparing": "Preparazione",

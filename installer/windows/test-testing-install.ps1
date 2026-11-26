@@ -101,7 +101,7 @@ exit 0
     Assert-Test (Test-Path -LiteralPath (Join-Path $root 'pending.json')) 'reboot retains pending installation'
     Assert-Test (Test-Path -LiteralPath (Join-Path $root 'NewPat.lnk')) 'same app entry available before reboot'
     Assert-Test (-not (Test-Path -LiteralPath $env:NIPAT_TESTING_FIXTURE_LAUNCHES)) 'GUI not started before ready'
-    Remove-Item -LiteralPath (Join-Path $destination 'pacchetto') -Recurse -Force
+    Remove-Item -LiteralPath (Join-Path $destination 'bundle') -Recurse -Force
     Remove-Item -LiteralPath (Join-Path $destination $record.file)
     $env:NIPAT_TESTING_FIXTURE_PHASE = 'ready'
     & $powershell -NoProfile -ExecutionPolicy Bypass -File $entry -Destination $destination
@@ -116,6 +116,13 @@ exit 0
     New-InstalledFixture $legacy | Out-Null
     $download = Join-Path $env:LOCALAPPDATA 'NIPAT-Testing\0.9.1'
     Assert-Test ((Get-TestingInstallRoot $download $true) -ceq $legacy) 'default preview upgrade retains legacy root'
+    $custom = Join-Path $temporary 'stable ZIP'
+    $stableZip = Join-Path $custom 'NIPAT'
+    New-InstalledFixture $stableZip '0.9.9' | Out-Null
+    Assert-Rejected { Get-TestingInstallRoot $custom $false '0.9.1' ('b' * 40) } 'custom Testing setup rejects an existing stable 0.9 ZIP'
+    Assert-Test (-not (Test-Path -LiteralPath (Join-Path $stableZip 'testing.json'))) 'stable ZIP channel stays unchanged'
+    Write-Json (Join-Path $stableZip 'testing.json') @{schema_version=1; channel='stable'}
+    Assert-Rejected { Get-TestingInstallRoot $custom $false } 'invalid Testing channel marker cannot be overwritten'
     $stable = Join-Path $env:LOCALAPPDATA 'NIPAT Desktop'
     New-InstalledFixture $stable '0.8.99' | Out-Null
     Assert-Rejected { Assert-TestingRoot $stable } 'stable application cannot be adopted as Testing'
@@ -136,7 +143,7 @@ exit 0
     [IO.File]::WriteAllText((Join-Path $foreign 'keep.txt'), 'keep')
     Assert-Rejected { Get-TestingInstallRoot (Split-Path -Parent $foreign) $false } 'foreign custom destination is not adopted'
 
-    $bundle = Join-Path $download 'pacchetto'
+    $bundle = Join-Path $download 'bundle'
     $archive = Join-Path $download $metadata.complete_zip.file
     Assert-TestingBundle $archive $bundle
     Add-Content -LiteralPath (Join-Path $bundle 'app\installer\windows\install-zip.ps1') -Value '# changed'

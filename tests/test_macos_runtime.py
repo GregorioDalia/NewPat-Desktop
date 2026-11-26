@@ -234,6 +234,18 @@ class MacRuntimeTests(unittest.TestCase):
         self.assertEqual(len(execute.call_args_list), 3)
         self.assertEqual(execute.call_args_list[1].args[0][-3:], ["start", "--tty=false", INSTANCE])
 
+    def test_ensure_waits_for_another_experiments_cold_start_then_verifies_image(self):
+        self.owned_vm()
+        state = self.ready_state()
+        with (patch.object(self.runtime, "_host_check"),
+              patch("fcntl.flock", side_effect=[BlockingIOError(), None, None]),
+              patch("nipat.macos_runtime.time.monotonic", side_effect=[0.0, 20.0]),
+              patch("nipat.macos_runtime.time.sleep"),
+              patch.object(self.runtime, "_run", side_effect=["started", self.application_digest()]),
+              patch.object(self.runtime, "_verify_image") as verify):
+            self.assertEqual(self.runtime.ensure(), state)
+        verify.assert_called_once_with(self.manifest, LOADED_ID)
+
     def test_ensure_requires_correct_build_and_never_imports_or_creates(self):
         self.owned_vm()
         state = self.ready_state()
@@ -493,6 +505,19 @@ class MacRuntimeTests(unittest.TestCase):
         self.assertEqual(report["checks"][-1]["exit_code"], 7)
         self.assertEqual(json.loads(report_path.read_text()), report)
         self.assertTrue(self.runtime.state_path.exists())
+        logs = report_path.parent / "report-logs"
+        (logs / "prepare.log").write_text("first run")
+        with (patch.object(verifier.sys, "platform", "darwin"),
+              patch.object(verifier.Path, "home", return_value=self.home),
+              patch.object(verifier.subprocess, "run") as launch):
+            with self.assertRaisesRegex(FileExistsError, "report.json"):
+                verifier.verify(app, report_path)
+            self.assertEqual(json.loads(report_path.read_text()), report)
+            report_path.unlink()
+            with self.assertRaisesRegex(FileExistsError, "report-logs"):
+                verifier.verify(app, report_path)
+            self.assertEqual((logs / "prepare.log").read_text(), "first run")
+            launch.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -4,23 +4,27 @@ Linux CI uses a system Chromium/Chrome through Playwright. Native window smoke
 checks remain separate. Native file dialogs and the external-browser handoff are observed with test doubles.
 RPC and genomic decoding/rendering are production code. A non-executing job
 checks progress rendering and an unavailable-runtime fixture checks startup errors.
-Recorded CPI/CPIN fixtures exercise plots without recalculating scientific results.
+Recorded family results exercise prenatal curves, archived postnatal plots and the current postnatal scalar.
 """
 from __future__ import annotations
 
 import argparse
+import base64
 import csv
 from contextlib import ExitStack
 from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
+import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import time
 from threading import Event
 from unittest.mock import patch
+import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "src"), str(ROOT / "tests")]
@@ -35,6 +39,9 @@ from nipat.gui.service import GuiService
 from nipat.paths import ProjectLayout
 from nipat.preferences import PreferencesStore
 from test_gui_igv import create_alignment_fixture
+from test_gui_report_igv_capture import verify_report_igv_capture
+from test_workflow_five_modules import plan_for
+from nipat_scientific.plan import validate_plan
 
 
 class FixturePicker:
@@ -42,6 +49,8 @@ class FixturePicker:
 
     def __init__(self):
         self.paths: list[Path] = []
+        self.report_path: Path | None = None
+        self.report_saves = 0
 
     def pick_files(self, _title, _filters, _multiple):
         return self.paths
@@ -50,7 +59,9 @@ class FixturePicker:
         return self.paths[0] if self.paths else None
 
     def save_file(self, _title, _name, _filters):
-        raise AssertionError("This verification does not export files through a native dialog")
+        assert _name.lower().endswith(".pdf"), _name
+        self.report_saves += 1
+        return self.report_path
 
 
 def write_json(path, value):
@@ -62,14 +73,14 @@ def digest_files(paths):
     return {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in paths}
 
 
-def prepare_curve_fixtures(layout):
+def prepare_cpi_fixtures(layout):
     """Write deterministic native-schema result rows, not a scientific calculation."""
     preserved = []
-    for module in ("cpi", "cpin"):
-        run = layout.runs_dir / f"{module}-curve-ui-fixture"
+    for module, form in (("cpi", "curve"), ("cpin", "curve"), ("cpin", "scalar")):
+        run = layout.runs_dir / f"{module}-{form}-ui-fixture"
         native = "MotherM-FatherF_DNPs" if module == "cpi" else "MotherM-FatherF-ChildC_DNPs"
         write_json(run / "run.json", {"schema_version": 1, "workflow": module, "status": "succeeded",
-            "run_name": f"{module.upper()} · fixture grafici", "started_at": "2026-11-15T10:00:00Z",
+            "run_name": f"{module.upper()} · fixture {form}", "started_at": "2026-11-15T10:00:00Z",
             "finished_at": "2026-11-15T10:01:00Z", "source": {"nipat_version": __version__},
             "parameters": {"marker_type": "DNP", "sample_mapping": []}})
         def write_table(relative, columns, rows):
@@ -82,7 +93,10 @@ def prepare_curve_fixtures(layout):
             return {"path": relative, "sha256": hashlib.sha256(target.read_bytes()).hexdigest()}
         if module == "cpi":
             write_table("output/Summary_FetalFraction_CPI.csv",
-                ["Pair", "Median_fetal_fraction_percent", "CPI_medianFF"], [[native, "6", "0.602"]])
+                ["Pair", "Median_fetal_fraction_percent", "CPI_medianFF", "N_sites_mother", "N_sites_father"],
+                [[native, "6", "0.602", "10", "9"]])
+            write_json(run / "output/scientific-settings.json", {"schema_version": 1, "workflow": "cpi",
+                "parameters": {"log_cpi_lower": -4, "log_cpi_upper": 4}})
             curve = write_table(f"output/curves/{native}_panel_1.tsv",
                 ["Iteration", "InfSites_mother", "InfSites_father", "CPI", "log_CPI", "Mismatch", "NotMismatch", "Cutoff"],
                 [["2", "10", "9", "0.0007525631256789", "-3.123456789012345", "1", "8", "ALL"],
@@ -90,7 +104,7 @@ def prepare_curve_fixtures(layout):
                  ["4", "8", "7", "NA", "NA", "1", "6", "ALL"]])
             artifacts = {"cpi-pairs": [{"pair": "M:F", "native_pair": native,
                 "mother": {"sample": "M"}, "father": {"sample": "F"}, "curves": [{**curve, "cutoff": None}]}]}
-        else:
+        elif form == "curve":
             analysis = "all_compatible_sites"
             write_table("output/Summary_Postnatal_CPI.txt",
                 ["Trio", "Analysis", "CPI", "Log10_CPI", "N_sites", "Matching_sites", "Mismatching_sites"],
@@ -102,6 +116,21 @@ def prepare_curve_fixtures(layout):
                  ["7", "10", "0.221848749616356", "1", "1", "0"]])
             artifacts = {"cpin-trios": [{"trio": "family", "native_trio": native,
                 "analyses": [{"analysis": analysis, "curve": curve}]}]}
+        else:
+            write_table("output/Summary_Postnatal_CPI.txt", [
+                "Trio", "Marker_type", "N_sites", "N_hom_hom", "N_hom_het", "N_het_hom", "N_het_het",
+                "Matching_sites", "Mismatching_sites", "No_obligatory_allele_sites", "Maternal_incompatible_sites",
+                "Log10_CPI", "CPI", "Mismatch_probability", "Min_coverage", "Include_hom_hom", "Include_hom_het",
+                "Include_het_hom", "Include_het_het"],
+                [[native, "DNP", 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0.0000892303778101497, 10,
+                  "TRUE", "TRUE", "TRUE", "TRUE"]])
+            write_json(run / "output/scientific-settings.json", {"schema_version": 1, "workflow": "cpin",
+                "parameters": {"log_cpi_lower": -1, "log_cpi_upper": 1}})
+            sites = write_table(f"output/{native}_sites.txt",
+                ["chr", "pos1", "pos2", "Status", "Genotype_combination", "Paternity_Index"],
+                [["1", 100, 101, "eligible", "hom_hom", 10],
+                 ["1", 200, 201, "quality_filter", "NA", "NA"]])
+            artifacts = {"cpin-trios": [{"trio": "family", "native_trio": native, "sites": sites}]}
         write_json(run / "work/scientific-validation.json", {"schema_version": 1, "workflow": module,
             "status": "passed", "artifacts": artifacts})
         preserved.extend(path for path in run.rglob("*") if path.is_file())
@@ -133,10 +162,23 @@ def prepare_fixture(directory):
                "parameters": {"marker_type": "DNP", "sample_mapping": [{"sample_id": "Synthetic",
                    "original_path": selection["tracks"][0]["path"]}]}})
     write_json(run / "gui.json", {"schema_version": 1, "name": "Esperimento interrotto · verifica UI", "draft": draft})
-    output = run / "output" / "DNPcall_output.txt"
-    output.parent.mkdir()
+    output = run / "output" / "individual_outputs" / "full_output_sample_0001.txt"
+    output.parent.mkdir(parents=True)
     output.write_text("chr\tpos1\tpos2\tGT\ttotal_count\n1\t151\t152\t0/1\t20\n", encoding="utf-8")
-    preserved = list(data.iterdir()) + [run / "run.json", run / "gui.json", output] + prepare_curve_fixtures(layout)
+    preserved = list(data.iterdir()) + [run / "run.json", run / "gui.json", output] + prepare_cpi_fixtures(layout)
+    plan = validate_plan(plan_for("DNP", called=False))["plan"]
+    grouped = layout.runs_dir / "grouped-ui-fixture"
+    steps = [{"id": step["id"], "workflow": step["workflow"]} for step in plan["steps"]]
+    write_json(grouped / "run.json", {"schema_version": 1, "workflow": "analysis", "status": "succeeded",
+               "run_name": "Grouped DNP", "parameters": {"plan": plan, "expected_steps": steps,
+               "sample_mapping": [{"sample_id": s["id"], "container_path": s["path"], "original_path": s["id"] + ".tsv"}
+                                  for s in plan["samples"]]}})
+    workflow = grouped / "output/workflow"
+    for step, source in (("prenatal", "cpi-curve-ui-fixture"), ("postnatal", "cpin-scalar-ui-fixture")):
+        shutil.copytree(layout.runs_dir / source / "output", workflow / "steps" / step / "output")
+    write_json(workflow / "workflow-state.json", {"schema_version": 1, "status": "succeeded",
+               "interface": "workflow-plan-execution-v2", "steps": [{**step, "status": "succeeded", "artifacts": {}} for step in steps]})
+    preserved.extend(path for path in grouped.rglob("*") if path.is_file())
     return service, job, selection, run, preserved
 
 
@@ -248,12 +290,192 @@ def verify_single_start(page, probe, service, methods, check):
           "New experiment opens a clean input sheet after an attempted run")
 
 
+def verify_archive_pages(page, probe, service, methods, check):
+    for number in range(30):
+        identifier = f"older-{number:02}"
+        write_json(service.layout.runs_dir / identifier / "run.json", {
+            "schema_version": 1, "workflow": "snp-call", "status": "succeeded",
+            "run_name": f"Archive example {number:02}", "started_at": "2001-01-01T00:00:00Z",
+            "parameters": {"marker_type": "SNP", "sample_mapping": [{
+                "sample_id": f"sample-{number:02}", "original_path": f"{identifier}.bam"}]},
+        })
+
+    before = len(methods)
+    page.locator('nav [data-view="home"]').click()
+    probe.wait("NipatApp.state.recentRuns.length===5")
+    check([params for method, params in methods[before:] if method == "runs.list"] == [{"limit": 5, "offset": 0}],
+          "Home retrieves five cards in a single bounded request")
+    page.locator('nav [data-view="archive"]').click()
+    page.wait_for_selector('#archive-results [data-action="archive-page"][data-page="1"]')
+    rows = page.locator('#archive-results [data-action="open-run"]')
+    check(rows.count() == 25, "The first archive page displays exactly 25 cards")
+    page.locator('[data-action="archive-page"][data-page="1"]').click()
+    old_card = page.locator('[data-action="open-run"][data-id="older-00"]')
+    old_card.wait_for()
+    check(rows.count() < 25, "A later archive page includes the oldest experiment")
+    search = page.locator("#archive-search")
+    search.fill("sample-00")
+    probe.wait("NipatApp.state.archiveListing?.total===1 && NipatApp.state.archivePage===0")
+    check(old_card.is_visible() and search.evaluate("el => document.activeElement === el"),
+          "Searching all pages by sample ID resets pagination and preserves keyboard focus")
+    page.select_option("#archive-marker", "DNP")
+    page.get_by_text("Nessun esperimento corrisponde ai filtri.", exact=True).wait_for()
+    page.select_option("#archive-marker", "SNP")
+    old_card.click()
+    probe.wait("NipatApp.state.run?.id==='older-00'")
+    page.locator("#page-back").click()
+    old_card.wait_for()
+    check(search.input_value() == "sample-00" and page.locator("#archive-marker").input_value() == "SNP",
+          "Returning from the result keeps the query, marker and matching old experiment")
+
+
+def verify_long_report_identifiers(page, model, check):
+    model["run_name"] = "E" * 600
+    model["subject"] = "F" * 600
+    for subject in model["subjects"]:
+        subject["value"] = "M" * 600
+    encoded = page.evaluate("model => window.NewPatReports.render(model, 'summary')", model)
+    content = base64.b64decode(encoded, validate=True)
+    check(content.startswith(b"%PDF-"), "Long sample and experiment identifiers produce a valid summary")
+    if shutil.which("pdftotext"):
+        bounds = ET.fromstring(subprocess.check_output(["pdftotext", "-bbox", "-", "-"], input=content))
+        pages = bounds.findall(".//{*}page")
+        check(len(pages) == 1 and abs(float(pages[0].get("width")) - 595.28) < 1
+              and abs(float(pages[0].get("height")) - 841.89) < 1,
+              "Summary with 600-character identifiers still fits one A4 page")
+        words = pages[0].findall(".//{*}word")
+        check(any("abbreviati" in (word.text or "") for word in words)
+              and all(float(word.get("xMax")) <= 558 for word in words),
+              "Summary explains abbreviations and all words stay within the right page margin")
+
+
+def verify_result_reports(page, picker, directory, evidence, check):
+    """Exercise both formats through the Results view, real RPC and a native-dialog fixture."""
+    page.locator('[data-action="choose-report"]').click()
+    case = page.locator('input[name="report-case"]:checked')
+    case.first.wait_for()
+    check(case.count() == 1 and "DNP" in case.locator("xpath=ancestor::fieldset[1]/legend").inner_text(),
+          "The report picker identifies the selected result and marker")
+    dialog = page.get_by_role("dialog", name="Esporta report PDF")
+    chooser = directory / "report-selection.png"
+    dialog.screenshot(path=str(chooser))
+    evidence["screenshots"].append(chooser.name)
+    save = dialog.locator('[data-action="save-report"]')
+    with page.expect_response(lambda response: response.request.method == "POST"
+                              and response.request.post_data_json.get("method") == "reports.prepare") as prepared:
+        save.click()
+    dialog.locator('[data-action="save-report"]:enabled').wait_for()
+    check(picker.report_saves == 1 and dialog.is_visible(),
+          "Cancelling the native PDF destination preserves the selected result and format")
+    evidence["report_exports"] = []
+    source = None
+    for kind in ("summary", "detailed"):
+        if kind == "detailed":
+            page.locator('[data-action="choose-report"]').click()
+        dialog.locator("#report-" + kind).check()
+        path = directory / ("newpat-" + kind + ".pdf")
+        picker.report_path = path
+        save.click()
+        dialog.wait_for(state="detached")
+        content = path.read_bytes()
+        check(content.startswith(b"%PDF-") and b"%%EOF" in content[-1024:],
+              f"Native {kind} export saves a complete PDF")
+        record = {"file": path.name, "size": len(content)}
+        if shutil.which("pdfinfo") and shutil.which("pdftotext"):
+            info = subprocess.check_output(["pdfinfo", str(path)], text=True)
+            record["pages"] = int(re.search(r"(?m)^Pages:\s+(\d+)", info).group(1))
+            text = subprocess.check_output(["pdftotext", str(path), "-"]).decode("utf-8")
+            if kind == "summary":
+                check("Esito inconcludente" in text, "Summary explains the inconclusive boundary result in plain language")
+            else:
+                check("DNP" in text and "CPI" in text and re.search(r"\b10\b", text),
+                      "Detailed PDF includes the recorded postnatal CPI and marker as selectable text")
+                source = " ".join(text.partition("Origine dei dati")[2].split())
+            check(record["pages"] == 1 if kind == "summary" else record["pages"] >= 1,
+                  f"The {kind} PDF has the required page count")
+        evidence["report_exports"].append(record)
+    picker.report_path = None
+    verify_long_report_identifiers(page, prepared.value.json()["result"]["results"][0], check)
+    return source
+
+
+def verify_grouped_reports(page, picker, directory, evidence, check):
+    page.locator('nav [data-view="archive"]').click()
+    page.locator('[data-action="open-run"][data-id="grouped-ui-fixture"]').click()
+    dialog = page.get_by_role("dialog", name="Esporta report PDF")
+    for kind in ("summary", "detailed", "combined"):
+        page.locator('[data-action="choose-report"]').click()
+        boxes = dialog.locator('input[name="report-case"]')
+        boxes.first.wait_for()
+        check(boxes.count() == 2 and all(box.is_checked() for box in boxes.all()),
+              f"The {kind} batch selection includes both prenatal and postnatal modules")
+        if kind == "summary":
+            dialog.get_by_text("Deseleziona tutti", exact=True).click()
+            dialog.locator('[data-action="save-report"]').click()
+            dialog.get_by_text("Seleziona almeno un risultato.", exact=True).wait_for()
+            dialog.get_by_text("Seleziona tutti", exact=True).click()
+            path = directory / "report-selections.png"
+            dialog.screenshot(path=str(path))
+            evidence["screenshots"].append(path.name)
+        dialog.locator("#report-" + kind).check()
+        before = picker.report_saves
+        target = directory / f"newpat-multiple-{kind}.pdf"
+        picker.report_path = target
+        with page.expect_response(lambda response: response.request.method == "POST"
+                                  and response.request.post_data_json.get("method") == "reports.prepare") as prepared:
+            dialog.locator('[data-action="save-report"]').click()
+        dialog.wait_for(state="detached")
+        check(target.read_bytes().startswith(b"%PDF-") and picker.report_saves == before + 1,
+              f"Two selected modules produce one {kind} file and one native save dialog")
+        record = {"file": target.name, "size": target.stat().st_size, "results": 2}
+        if shutil.which("pdftotext"):
+            pages = subprocess.check_output(["pdftotext", str(target), "-"]).decode().rstrip("\f\n").split("\f")
+            models = prepared.value.json()["result"]["results"]
+            modules = [model["module"] for model in models]
+            check(len(set(modules)) == 2 and all(module in "\n".join(pages) for module in modules),
+                  f"Both selected modules remain individually identifiable in the {kind} PDF")
+            if kind == "summary":
+                check(len(pages) == 2 and all(modules[i] in pages[i] for i in range(2)),
+                      "Each selected result gets its own single summary page in selection order")
+            elif kind == "combined":
+                for module in modules:
+                    sections = [p for p in pages if module in p]
+                    check(len(sections) >= 2 and "Sintesi" in sections[0],
+                          f"The {module} summary is followed by its own detailed section")
+            record["pages"] = len(pages)
+        evidence["report_exports"].append(record)
+    picker.report_path = None
+
+
+def verify_fetal_sex_form(page, probe, picker, check):
+    page.locator('nav [data-view="new"]').click()
+    page.locator("#experiment-name").fill("Maternal cfDNA")
+    page.locator("#source").select_option("fetal-sex")
+    page.locator("#fetal-sample-id").fill("Maternal")
+    inputs = ROOT / "tests/fixtures/fetal_sex/inputs"
+    for role, suffix in (("autosomes", "autosomes"), ("x", "X"), ("y", "Y")):
+        picker.paths = [inputs / f"Female_fetus_{suffix}.txt"]
+        page.locator(f'[data-action="choose-path"][data-key="fetal.{role}"]').click()
+        probe.wait(f"Boolean(NipatApp.state.draft.fetal_sex.{role})")
+    page.locator('[role="tab"][data-index="2"]').click()
+    page.locator('[data-parameter="fetal-sex|b_female_max|draft"]').fill("0.05")
+    page.locator('[role="tab"][data-index="3"]').click()
+    page.locator('[data-action="validate-plan"]').click()
+    page.locator(".plan-list li").wait_for()
+    preview = probe.evaluate("NipatApp.state.preview")
+    check([step["workflow"] for step in preview["steps"]] == ["fetal-sex"]
+          and preview["steps"][0]["parameters"]["scientific_settings"]["b_female_max"] == 0.05
+          and set(row["biological_id"] for row in preview["samples"]) == {"Maternal"},
+          "Maternal table pickers and the edited threshold reach one validated fetal-sex step")
+    picker.paths = []
+
+
 def run_verification(report_path, executable):
     from playwright.sync_api import sync_playwright
 
     report_path.parent.mkdir(parents=True, exist_ok=True)
     evidence = {"schema_version": 1, "status": "failed", "nipat_version": __version__,
-                "scope": "Actual browser rendering, production DesktopApplication/GuiService/HTTP and bundled IGV; synthetic indexed alignment and recorded CPI/CPIN fixtures, not domain or native-host acceptance.",
+                "scope": "Actual browser rendering, production DesktopApplication/GuiService/HTTP and bundled IGV; synthetic indexed alignment and recorded prenatal, postnatal and archived curve fixtures.",
                 "checks": [], "screenshots": [], "errors": [], "external_requests": []}
     page = None
     token = ""
@@ -302,10 +524,32 @@ def run_verification(report_path, executable):
                 page.goto(app.server.url)
                 probe.wait("document.documentElement.dataset.nipatReady==='true'")
                 check(page.locator("#version").inner_text().startswith(__version__), "Displayed application version matches source")
+                check(page.locator('.brand img[alt="NewPat"]').evaluate("el => el.complete && el.naturalWidth === 406"),
+                      "Desktop displays the packaged Intreccio vector wordmark")
+                check(page.locator('main [data-view="new"]').count() == 1,
+                      "Home has one create-experiment action above the recent experiments")
+                home = report_path.parent / "home.png"
+                page.screenshot(path=str(home), full_page=True)
+                evidence["screenshots"].append(home.name)
                 verify_language_controls(page, probe, service, check)
+                page.locator('[data-action="navigate"][data-view="environment"]').click()
+                save_examples = page.get_by_role("button", name="Salva dati di esempio")
+                picker.paths = [directory]
+                save_examples.click()
+                examples_dialog = page.get_by_role("dialog", name="Dati di esempio salvati")
+                expected_folder = directory / "synthetic-trio"
+                check(examples_dialog.locator(".path").inner_text() == str(expected_folder)
+                      and (expected_folder / "SHA256SUMS").is_file(),
+                      "Example-data button saves the bundled trio locally and shows its destination")
+                examples_dialog.locator('[data-action="close-modal"]').click()
+                picker.paths = []
                 page.locator('[data-action="navigate"][data-view="activity"]').click()
                 page.wait_for_selector('[data-job-card] .dna-rung')
                 check(page.locator('.dna-rung').count() == 10, "Recognizable DNA helix contains ten rungs")
+                check(page.locator('.job-progress .helix').evaluate("el => el.offsetWidth === 40 && el.offsetHeight === 44"),
+                      "The running experiment has a compact 40 by 44 pixel helix")
+                check(page.locator('.job-header .badge.in-progress svg[aria-hidden="true"]').count() == 1,
+                      "Running status includes a distinct icon and readable status label")
                 probe.evaluate("window.__qaDna=document.querySelector('.dna-loader');window.__qaAnimation=window.__qaDna.querySelector('.dna-rung').getAnimations()[0]")
                 progress = probe.evaluate("() => {const node=document.querySelector('.progress-track span');return {inline:node.style.width,width:node.getBoundingClientRect().width}}")
                 check(not progress["inline"] and progress["width"] > 0, "Unknown progress band is visible without zero-width override")
@@ -344,6 +588,14 @@ def run_verification(report_path, executable):
                     job.status = "interrupted"
                     job.finished_at = datetime.now(timezone.utc).isoformat()
                     job.done.set()
+                page.wait_for_selector('[data-job-status="interrupted"]')
+                check(page.locator('[data-job-card] .dna-rung').count() == 0 and
+                      page.locator('[data-action="cancel-job"]').count() == 0,
+                      "Interrupted jobs leave the active experiment controls")
+                page.locator('[data-action="remove-job"]').click()
+                page.locator('[data-action="confirm-remove-job"]').click()
+                page.wait_for_selector('[data-job-card]', state="detached")
+                check(not service.jobs.list(), "Dismissing a finished session card also clears its job record")
 
                 # Observe the real returned instance; delegate unchanged to the bundled renderer.
                 # IGV 3.8.9 does not export a browser-inventory function.
@@ -362,6 +614,28 @@ def run_verification(report_path, executable):
                     open_guide.assert_called_once_with("https://igv.org/doc/webapp/")
                 check(page.url == local_url and len(page.context.pages) == 1,
                       "IGV information hands the official guide to the system browser and retains the local viewer")
+                # Preparing a reference is explicit. Merely inspecting a named build never starts a transfer.
+                assemblies = page.locator("#igv-reference-assembly")
+                for build, alias in (("grch37", "hg19"), ("grch38", "hg38")):
+                    assemblies.select_option(build)
+                    download = page.get_by_role("button", name=f"Scarica da UCSC {alias}")
+                    download.wait_for()
+                    check(download.is_visible() and not any(method == "references.download" for method, _ in methods),
+                          f"{alias} offers local registration and an explicit download on a fresh installation")
+                assemblies.select_option("custom")
+                picker.paths = [Path(selection["reference"]["fasta"])]
+                page.locator('[data-action="reference-register"][data-scope="igv"]').click()
+                probe.wait("!!NipatApp.state.igv.reference.fasta")
+                check(page.locator("#igv-registered-fasta").input_value() != "" and
+                      probe.evaluate("NipatApp.state.igv.reference.fasta") == selection["reference"]["fasta"],
+                      "The registered local genome opens in IGV with the exact selected path")
+                page.locator('nav [data-view="new"]').click()
+                page.locator("#new-reference-assembly").select_option("custom")
+                probe.wait("!!NipatApp.state.draft.reference_id")
+                check(probe.evaluate("NipatApp.state.draft.reference") == selection["reference"]["fasta"],
+                      "A local FASTA registered in IGV can be selected in a new experiment")
+                page.locator('nav [data-view="igv"]').click()
+                page.locator("#igv-reference-assembly").select_option("file")
                 picker.paths = [Path(selection["reference"]["fasta"])]
                 page.locator('[data-action="choose-path"][data-key="igv-reference.fasta"]').click()
                 page.locator('[data-action="igv-add-track"]').click()
@@ -412,8 +686,31 @@ def run_verification(report_path, executable):
                         ("cpin", "-3.33278849686833", "-3.42969850987639")):
                     page.locator('[data-action="navigate"][data-view="archive"]').click()
                     page.locator(f'[data-action="open-run"][data-id="{module}-curve-ui-fixture"]').click()
+                    kind = "prenatal_cpi" if module == "cpi" else "postnatal_cpi"
+                    expected = "0,602" if module == "cpi" else "0,00046474155109453"
+                    preview = page.locator(f'.outcome-preview[data-outcome="{kind}"]')
+                    check(preview.locator("strong").inner_text() == expected,
+                          f"{module} overview shows the recorded summary with its original precision")
                     page.locator(f'[role="tab"][data-action="result-module"][data-module="{module}|DNP"]').click()
                     page.wait_for_selector('.interactive-curve .curve-point')
+                    panel = page.locator(f'.outcome-panel[data-outcome="{kind}"]')
+                    check(panel.locator('[data-outcome-value]').inner_text() == expected,
+                          f"{module} selected family shows the same index as the overview")
+                    if module == "cpi":
+                        check("Tra i limiti" in panel.locator('[data-band="between"]').inner_text(),
+                              "Prenatal index uses the archived guides; this family lies between them")
+                    else:
+                        check(panel.locator("[data-band]").count() == 0,
+                              "Archived postnatal curve has no recorded guides")
+                    page.get_by_role("radio", name="Italiano", exact=True).press("ArrowRight")
+                    value_selector = '.outcome-panel [data-outcome-value]'
+                    probe.wait(f"document.querySelector('{value_selector}')?.textContent==='{expected.replace(',', '.')}'")
+                    expected_label = ("log₁₀(CPI) at the median fetal read threshold" if module == "cpi"
+                                      else "Combined Paternity Index (CPI)")
+                    check(panel.locator(".outcome-label").inner_text() == expected_label,
+                          f"{module} English summary reloads the same family, metric and numeric result")
+                    page.get_by_role("radio", name="English", exact=True).press("ArrowLeft")
+                    probe.wait(f"document.querySelector('{value_selector}')?.textContent==='{expected}'")
                     curve_id = probe.evaluate("NipatApp.state.curves[0].file.id")
                     curve_selector = f'.results-body [data-action="curve-mode"][data-id="{curve_id}"]'
                     check(page.locator('.interactive-curve').count() == 2,
@@ -468,8 +765,50 @@ def run_verification(report_path, executable):
                     evidence["screenshots"].append(chart_image.name)
 
                 page.locator('[data-action="navigate"][data-view="archive"]').click()
+                page.locator('[data-action="open-run"][data-id="cpin-scalar-ui-fixture"]').click()
+                preview = page.locator('.outcome-preview[data-outcome="postnatal_cpi"]')
+                check(preview.locator("strong").inner_text() == "10", "Trio overview shows its recorded scalar CPI")
+                source = verify_result_reports(page, picker, report_path.parent, evidence, check)
+                page.get_by_role("tab", name="CPI postnatale", exact=True).click()
+                site_rows = page.locator(".result-table tbody tr")
+                site_rows.nth(1).get_by_role("cell", name="Filtro di qualità non superato", exact=True).wait_for()
+                if source is not None:
+                    entry = page.locator("#result-entry option:checked").text_content()
+                    check("Esperimenti e risultati" in source and "CPI postnatale" in source and entry in source
+                          and "Summary_Postnatal_CPI.txt" not in source and "Riferimento risultato" not in source,
+                          "Data sources identifies the actual archive tab and family option in operator language")
+                panel = page.locator('.outcome-panel[data-outcome="postnatal_cpi"]')
+                check(panel.locator('[data-outcome-value]').inner_text() == "10",
+                      "Selected trio shows its raw CPI even when the log index is on a guide")
+                check(panel.locator('[data-band="at_upper"]').is_visible(),
+                      "Postnatal log index equals the recorded upper guide for this experiment")
+                check(site_rows.count() == 2 and site_rows.first.get_by_role("cell", name="Ammissibile", exact=True).is_visible()
+                      and page.locator('.interactive-curve').count() == 0,
+                      "New postnatal output displays the eligible and excluded sites without a threshold curve")
+                check(probe.evaluate("NipatApp.state.table.rows.map(r=>r.Status)") == ["eligible", "quality_filter"],
+                      "Displayed site audit preserves the included site and exclusion reason")
+                scalar_image = report_path.parent / "postnatal-trio-scalar.png"
+                page.screenshot(path=str(scalar_image), full_page=True)
+                evidence["screenshots"].append(scalar_image.name)
+
+                page.locator('[data-action="navigate"][data-view="archive"]').click()
                 page.locator('[data-action="open-run"][data-id="archived-ui-fixture"]').click()
                 page.wait_for_selector('[data-action="reuse-run"]')
+                page.locator('[role="tab"][data-module="dnp-call|DNP"]').click()
+                check(page.locator('.outcome-panel [data-outcome-value]').inner_text() == "Analisi incompleta",
+                      "An interrupted call with a partial site table does not appear complete")
+                check(page.locator('.result-table .locus-genotype').inner_text() == "0/1",
+                      "The recorded heterozygous genotype remains visible at the individual locus")
+                page.locator('.page-heading [data-action="run-igv"]').click()
+                probe.wait("NipatApp.state.view==='igv'&&NipatApp.state.igv.loaded")
+                page.locator('#page-back').click()
+                probe.wait("NipatApp.state.view==='archive'&&NipatApp.state.module==='dnp-call|DNP'")
+                check(page.locator('#result-marker').input_value() == "dnp-call|DNP",
+                      "Page Back from IGV restores the original experiment and marker module")
+                page.locator('#page-back').click()
+                probe.wait("NipatApp.state.run?.id==='archived-ui-fixture'&&!NipatApp.state.module")
+                check(page.locator('.module-card h3').all_text_contents() == ["Conteggi e genotipi DNP"],
+                      "Back from a module shows only the recorded caller in the result cards")
                 page.locator('[data-action="reuse-run"]').first.click()
                 probe.wait("NipatApp.state.view==='new'")
                 reused = probe.evaluate("NipatApp.state.draft")
@@ -479,8 +818,12 @@ def run_verification(report_path, executable):
                 page.locator('[data-action="remove-run"][data-id="archived-ui-fixture"]').click()
                 check('file di input resteranno' in page.locator('[role="dialog"]').inner_text(), "Removal confirmation explains source and result preservation")
                 page.locator('[data-action="confirm-remove-run"]').click()
-                probe.wait("!NipatApp.state.runs.some(run=>run.id==='archived-ui-fixture')")
+                page.locator('[data-action="open-run"][data-id="archived-ui-fixture"]').wait_for(state="detached")
                 check(archived.is_dir() and digest_files(preserved) == before, "Remove from list preserves every source, index, result and metadata byte")
+                verify_grouped_reports(page, picker, report_path.parent, evidence, check)
+                verify_report_igv_capture(page, app, check)
+                verify_fetal_sex_form(page, probe, picker, check)
+                verify_archive_pages(page, probe, service, methods, check)
                 check(not evidence["external_requests"], "All browser resources and genomic byte ranges stay on the local service")
                 check(not evidence["errors"], "No JavaScript exceptions or unexpected browser console errors")
                 evidence["status"] = "passed"

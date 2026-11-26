@@ -1,4 +1,4 @@
-"""Stable, standard-library-only downloader for the Windows setup (contract 1).
+"""Stable, standard-library-only downloader for the Windows setup (English launcher contract).
 
 This program is embedded in the small setup with official CPython. It never
 executes downloaded files. The setup supplies an explicit immutable target for
@@ -21,9 +21,12 @@ import urllib.parse
 import urllib.request
 import zipfile
 
-BOOTSTRAP_VERSION = "1.1.0"
-REPOSITORY = "https://github.com/GregorioDalia/nipat-desktop"
-FEED_NAME = "update-manifest-windows-bootstrap.json"
+BOOTSTRAP_VERSION = "1.2.0"
+REPOSITORY_ID = 1307623649
+OFFICIAL_REPOSITORIES = ("GregorioDalia/nipat-desktop", "GregorioDalia/NewPat-Desktop")
+REPOSITORY = "https://github.com/" + OFFICIAL_REPOSITORIES[0]
+REPOSITORY_API = f"https://api.github.com/repositories/{REPOSITORY_ID}"
+FEED_NAME = "update-manifest-windows-bootstrap-v2.json"
 PLATFORM = "windows-bootstrap-x86_64"
 MAX_DOWNLOAD = 2**31 - 1
 MAX_EXPANDED = 3 * 1024**3
@@ -54,7 +57,7 @@ def _sha(stream):
 
 def _target(version, source, sha256, size):
     if (not isinstance(version, str) or not VERSION.fullmatch(version)
-            or tuple(map(int, version.split("."))) < (0, 8, 99)
+            or tuple(map(int, version.split("."))) < (0, 9, 10)
             or not isinstance(source, str) or not COMMIT.fullmatch(source)
             or not isinstance(sha256, str) or not SHA256.fullmatch(sha256)
             or type(size) is not int or not 0 < size <= MAX_DOWNLOAD):
@@ -69,7 +72,7 @@ def validate_feed(value):
             or type(value["schema_version"]) is not int or value["schema_version"] != 1
             or value["product"] != "nipat-desktop" or value["channel"] != "stable"
             or type(value["minimum_updater_version"]) is not int
-            or value["minimum_updater_version"] != 1
+            or value["minimum_updater_version"] != 2
             or not isinstance(value["assets"], list) or len(value["assets"]) != 1):
         raise ValueError("Manifest di distribuzione non supportato da questo setup")
     asset = value["assets"][0]
@@ -78,12 +81,14 @@ def validate_feed(value):
     target = _target(value["version"], value["source_commit"], asset["sha256"], asset["size"])
     tag = "v" + target["version"]
     name = "NIPAT-" + target["version"] + "-Windows-payload.zip"
-    url = REPOSITORY + "/releases/download/" + tag + "/" + name
-    if (asset["platform"] != PLATFORM or asset["name"] != name or asset["url"] != url
+    asset_path = "/releases/download/" + tag + "/" + name
+    allowed_urls = tuple("https://github.com/" + repo + asset_path for repo in OFFICIAL_REPOSITORIES)
+    allowed_notes = tuple("https://github.com/" + repo + "/releases/tag/" + tag for repo in OFFICIAL_REPOSITORIES)
+    if (asset["platform"] != PLATFORM or asset["name"] != name or asset["url"] not in allowed_urls
             or value["release_tag"] != tag
-            or value["release_notes_url"] != REPOSITORY + "/releases/tag/" + tag):
+            or value["release_notes_url"] not in allowed_notes):
         raise ValueError("Il pacchetto non appartiene alla release ufficiale richiesta")
-    return dict(target, url=url)
+    return dict(target, url=asset["url"])
 
 
 def _approved_url(url):
@@ -96,32 +101,46 @@ def _approved_url(url):
 
 class _GitHubRedirects(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, request, fp, code, message, headers, newurl):
-        if not _approved_url(newurl):
+        if request.full_url == REPOSITORY_API or not _approved_url(newurl):
             raise ValueError("Reindirizzamento download non consentito")
         return super().redirect_request(request, fp, code, message, headers, newurl)
 
 
 def _open(url):
-    if not _approved_url(url):
+    if url != REPOSITORY_API and not _approved_url(url):
         raise ValueError("Indirizzo download non consentito")
     request = urllib.request.Request(url, headers={"User-Agent": "NIPAT-Setup/" + BOOTSTRAP_VERSION})
     return urllib.request.build_opener(_GitHubRedirects()).open(request, timeout=60)
 
 
 def current_target():
-    with _open(REPOSITORY + "/releases/latest/download/" + FEED_NAME) as response:
+    with _open(REPOSITORY_API) as response:
+        identity = response.read(MAX_MANIFEST + 1)
+    if len(identity) > MAX_MANIFEST:
+        raise ValueError("Risposta GitHub troppo grande")
+    record = _json(identity)
+    if (not isinstance(record, dict) or type(record.get("id")) is not int
+            or record["id"] != REPOSITORY_ID or record.get("full_name") not in OFFICIAL_REPOSITORIES):
+        raise ValueError("Identità del repository GitHub non valida")
+    repository = "https://github.com/" + record["full_name"]
+    with _open(repository + "/releases/latest/download/" + FEED_NAME) as response:
         data = response.read(MAX_MANIFEST + 1)
     if len(data) > MAX_MANIFEST:
         raise ValueError("Manifest di distribuzione troppo grande")
-    return validate_feed(_json(data))
+    target = validate_feed(_json(data))
+    # Previous release manifests may retain the former name after the repository moves.
+    target["url"] = repository + "/releases/" + target["url"].split("/releases/", 1)[1]
+    return target
 
 
 def download(target, destination):
     digest = hashlib.sha256()
     count = 0
     previous_progress = -1
+    created = False
     try:
         with _open(target["url"]) as source, Path(destination).open("xb") as output:
+            created = True
             while chunk := source.read(1024 * 1024):
                 count += len(chunk)
                 if count > target["size"]:
@@ -135,7 +154,8 @@ def download(target, destination):
         if count != target["size"] or digest.hexdigest() != target["sha256"]:
             raise ValueError("Download incompleto o SHA-256 diverso dalla release")
     except BaseException:
-        Path(destination).unlink(missing_ok=True)
+        if created:
+            Path(destination).unlink(missing_ok=True)
         raise
 
 

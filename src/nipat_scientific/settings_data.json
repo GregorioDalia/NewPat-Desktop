@@ -422,12 +422,38 @@
           "unit": "log10(CPI)"
         },
         "min_fetal_reads": {
-          "default": 2,
+          "default": null,
           "type": "integer",
-          "description": "Supporto minimo dell'allele minoritario nel cfDNA materno.",
+          "description": "Numero minimo di letture dell’allele minoritario. Si applica la soglia di 2 letture quando entrambi i filtri fetali sono disattivati.",
           "unit": "letture",
           "minimum": 1,
-          "maximum": 2147483646
+          "maximum": 2147483647,
+          "nullable": true
+        },
+        "min_fetal_percent": {
+          "default": null,
+          "type": "number",
+          "nullable": true,
+          "description": "Percentuale minima di letture fetali sul totale REF + ALT. Se attivi, entrambi i filtri devono essere soddisfatti.",
+          "unit": "%",
+          "minimum": 0,
+          "exclusive_minimum": true,
+          "maximum": 100
+        },
+        "min_coverage": {
+          "default": null,
+          "type": "integer",
+          "nullable": true,
+          "description": "Copertura minima totale (REF + ALT + Other) richiesta separatamente alla madre e al presunto padre. Lasciare vuoto per disattivare il filtro.",
+          "unit": "letture",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "include_homozygous_child": {
+          "default": false,
+          "type": "boolean",
+          "description": "Includi nel CPI i siti con madre e feto presunti omozigoti per lo stesso allele. Opzione sperimentale, disattivata per impostazione predefinita.",
+          "unit": null
         }
       },
       "constants": {
@@ -523,54 +549,68 @@
           "minimum": 0,
           "maximum": 1
         },
-        "err_const_snp": {
-          "default": 0.001,
-          "type": "number",
-          "description": "Costante per un mismatch paterno su SNP.",
-          "unit": "probabilita",
-          "minimum": 0,
-          "maximum": 1,
-          "exclusive_minimum": true
-        },
-        "err_const_dnp": {
-          "default": 8.92303778101497e-05,
-          "type": "number",
-          "description": "Costante per un mismatch paterno su DNP.",
-          "unit": "probabilita",
-          "minimum": 0,
-          "maximum": 1,
-          "exclusive_minimum": true
-        },
         "log_cpi_lower": {
           "default": -4.0,
           "type": "number",
-          "description": "Guida grafica inferiore del log10(CPI); non modifica il calcolo.",
+          "description": "Soglia inferiore per interpretare il log10(CPI) riportato.",
           "unit": "log10(CPI)"
         },
         "log_cpi_upper": {
           "default": 4.0,
           "type": "number",
-          "description": "Guida grafica superiore del log10(CPI); non modifica il calcolo.",
+          "description": "Soglia superiore per interpretare il log10(CPI) riportato.",
           "unit": "log10(CPI)"
         },
-        "min_child_reads": {
-          "default": 2,
+        "mismatch_probability_snp": {
+          "default": 0.001,
+          "type": "number",
+          "description": "Peso attribuito a un mismatch paterno su SNP nel calcolo del PI.",
+          "unit": "probabilita",
+          "minimum": 0,
+          "maximum": 1,
+          "exclusive_minimum": true
+        },
+        "mismatch_probability_dnp": {
+          "default": 8.92303778101497e-05,
+          "type": "number",
+          "description": "Peso attribuito a un mismatch paterno su DNP nel calcolo del PI.",
+          "unit": "probabilita",
+          "minimum": 0,
+          "maximum": 1,
+          "exclusive_minimum": true
+        },
+        "min_coverage": {
+          "default": null,
           "type": "integer",
-          "description": "Supporto minimo di ciascun allele chiamato nel figlio.",
+          "nullable": true,
+          "description": "Copertura minima del sito (REF + ALT + Other) richiesta a ciascun membro del trio. Facoltativa.",
           "unit": "letture",
           "minimum": 1,
           "maximum": 2147483646
         },
-        "site_selection": {
-          "default": "both",
-          "type": "string",
-          "description": "Selezione dei siti postnatali; both produce due analisi distinte.",
-          "unit": null,
-          "choices": [
-            "other_allele",
-            "all",
-            "both"
-          ]
+        "include_hom_hom": {
+          "default": true,
+          "type": "boolean",
+          "description": "Includi siti con madre omozigote e figlio omozigote compatibile.",
+          "unit": null
+        },
+        "include_hom_het": {
+          "default": true,
+          "type": "boolean",
+          "description": "Includi siti con madre omozigote e figlio eterozigote.",
+          "unit": null
+        },
+        "include_het_hom": {
+          "default": true,
+          "type": "boolean",
+          "description": "Includi siti con madre eterozigote e figlio omozigote compatibile.",
+          "unit": null
+        },
+        "include_het_het": {
+          "default": true,
+          "type": "boolean",
+          "description": "Includi siti con madre eterozigote e figlio eterozigote.",
+          "unit": null
         }
       },
       "constants": {
@@ -604,19 +644,15 @@
         },
         "pi_formula": {
           "value": "paternal transmission (or mismatch constant) / obligatory allele population frequency",
-          "description": "Indice di paternita per sito."
+          "description": "Indice di paternità nei siti con allele paterno obbligato."
         },
         "other_filter_comparison": {
           "value": "<=",
           "description": "La soglia Other e inclusa fra i siti ammessi."
         },
-        "maternal_selection": {
-          "value": "homozygous mother only",
-          "description": "Entrambe le selezioni CPIN richiedono madre omozigote."
-        },
-        "curve_threshold_semantics": {
-          "value": "obligatory paternal allele support after initial child genotype support filter",
-          "description": "La curva aumenta il supporto dell'allele paterno obbligato dopo il filtro iniziale sugli alleli chiamati."
+        "het_het_pi": {
+          "value": "1 / (f_REF + f_ALT)",
+          "description": "Indice di paternità con madre e figlio eterozigoti. Se le frequenze sommano a 1, il sito contribuisce un PI di 1."
         }
       },
       "source_files": [
@@ -624,7 +660,104 @@
       ],
       "constraints": [
         "homozygous_alt_max < heterozygous_min <= heterozygous_max < homozygous_ref_min",
-        "log_cpi_lower < log_cpi_upper"
+        "log_cpi_lower < log_cpi_upper",
+        "include_hom_hom or include_hom_het or include_het_hom or include_het_het"
+      ]
+    },
+    "fetal-sex": {
+      "workflow": "fetal-sex",
+      "parameters": {
+        "max_other_fraction": {
+          "default": 0.1,
+          "type": "number",
+          "description": "Massima frazione N_Other/total_count ammessa nei siti autosomici e X. Il limite è incluso.",
+          "unit": "proporzione",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "maternal_hom_threshold": {
+          "default": 0.9,
+          "type": "number",
+          "description": "Frazione minima di letture REF o ALT tra le letture REF + ALT per assegnare l’allele materno prevalente.",
+          "unit": "proporzione",
+          "minimum": 0.5,
+          "exclusive_minimum": true,
+          "maximum": 1
+        },
+        "include_zero_coverage_y": {
+          "default": true,
+          "type": "boolean",
+          "description": "Include nella media Y i marcatori con zero letture REF + ALT.",
+          "unit": null
+        },
+        "min_fetal_reads": {
+          "default": null,
+          "type": "integer",
+          "description": "Numero minimo di letture non materne nei siti autosomici e X. Se entrambi i filtri sono vuoti si usano due letture.",
+          "unit": "letture",
+          "minimum": 1,
+          "maximum": 2147483647,
+          "nullable": true
+        },
+        "min_fetal_percent": {
+          "default": null,
+          "type": "number",
+          "description": "Percentuale minima di letture non materne sul totale REF + ALT nei siti autosomici e X. Se impostati, entrambi i filtri devono essere soddisfatti.",
+          "unit": "%",
+          "minimum": 0,
+          "exclusive_minimum": true,
+          "maximum": 100,
+          "nullable": true
+        },
+        "a_threshold": {
+          "default": 0.5,
+          "type": "number",
+          "description": "Soglia del rapporto X/autosomi. Valori uguali o superiori soddisfano il criterio femminile, valori inferiori quello maschile.",
+          "unit": "rapporto",
+          "minimum": 0,
+          "exclusive_minimum": true
+        },
+        "b_female_max": {
+          "default": 0.1,
+          "type": "number",
+          "description": "Massimo rapporto Y/autosomi per la classificazione femminile, limite incluso.",
+          "unit": "rapporto",
+          "minimum": 0
+        },
+        "b_male_min": {
+          "default": 1,
+          "type": "number",
+          "description": "Minimo rapporto Y/autosomi per la classificazione maschile, limite incluso.",
+          "unit": "rapporto",
+          "minimum": 0
+        },
+        "c_female_max": {
+          "default": 0.1,
+          "type": "number",
+          "description": "Massimo rapporto Y/X per la classificazione femminile, limite incluso.",
+          "unit": "rapporto",
+          "minimum": 0
+        },
+        "c_male_min": {
+          "default": 2,
+          "type": "number",
+          "description": "Minimo rapporto Y/X per la classificazione maschile, limite incluso.",
+          "unit": "rapporto",
+          "minimum": 0
+        }
+      },
+      "constants": {
+        "classification_rule": {
+          "value": "A AND B AND C",
+          "description": "La classificazione richiede concordanza dei tre rapporti. In caso di dati mancanti o criteri discordanti il risultato è indeterminato."
+        }
+      },
+      "source_files": [
+        "scientific/vendor/NEWPAT/Fetal_sex/Fetal_sex.R"
+      ],
+      "constraints": [
+        "Il massimo femminile deve essere inferiore al minimo maschile sia per B sia per C.",
+        "Se entrambi i filtri sulle letture fetali sono assenti, la soglia effettiva è di due letture."
       ]
     }
   }

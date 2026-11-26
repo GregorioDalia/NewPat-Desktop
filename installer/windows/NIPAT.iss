@@ -15,7 +15,7 @@ AppName={#NipatDisplayName}
 AppVersion={#NipatBootstrapVersion}
 AppVerName={#NipatDisplayName}
 AppPublisher=NewPat contributors
-AppPublisherURL=https://github.com/GregorioDalia/nipat-desktop
+AppPublisherURL=https://github.com/GregorioDalia
 LicenseFile={#StageDir}\app\LICENSE
 DefaultDirName={code:GetNipatDefaultAppDir}
 DisableDirPage=no
@@ -82,15 +82,15 @@ Root: HKCU; Subkey: "Software\NIPAT\desktop"; ValueType: string; ValueName: "run
 Name: "desktopicon"; Description: "Crea un collegamento {#NipatDisplayName} sul desktop"
 
 [Icons]
-Name: "{autodesktop}\{#NipatDisplayName}"; Filename: "{app}\2_AVVIA.cmd"; WorkingDir: "{code:GetNipatDataDir}"; IconFilename: "{app}\assets\branding\nipat-icon.ico"; Tasks: desktopicon
-Name: "{group}\{#NipatDisplayName}"; Filename: "{app}\2_AVVIA.cmd"; WorkingDir: "{code:GetNipatDataDir}"; IconFilename: "{app}\assets\branding\nipat-icon.ico"
-Name: "{group}\{#NipatDisplayName} - completa preparazione"; Filename: "{app}\1_SETUP.cmd"; WorkingDir: "{app}"; IconFilename: "{app}\assets\branding\nipat-icon.ico"
-Name: "{group}\Cartella {#NipatDisplayName}"; Filename: "{app}"
-Name: "{group}\Guida {#NipatDisplayName}"; Filename: "{app}\docs\GUIDA_UTILIZZO.md"
-Name: "{group}\Disinstalla {#NipatDisplayName}"; Filename: "{uninstallexe}"
+Name: "{autodesktop}\{#NipatDisplayName}"; Filename: "{app}\2_LAUNCH.cmd"; WorkingDir: "{code:GetNipatDataDir}"; IconFilename: "{app}\assets\branding\nipat-icon.ico"; Tasks: desktopicon
+Name: "{group}\{#NipatDisplayName}"; Filename: "{app}\2_LAUNCH.cmd"; WorkingDir: "{code:GetNipatDataDir}"; IconFilename: "{app}\assets\branding\nipat-icon.ico"
+Name: "{group}\{#NipatDisplayName} - Resume Setup"; Filename: "{app}\1_SETUP.cmd"; WorkingDir: "{app}"; IconFilename: "{app}\assets\branding\nipat-icon.ico"
+Name: "{group}\{#NipatDisplayName} Folder"; Filename: "{app}"
+Name: "{group}\{#NipatDisplayName} User Guide"; Filename: "{app}\docs\USER_GUIDE.md"
+Name: "{group}\Uninstall {#NipatDisplayName}"; Filename: "{uninstallexe}"
 
 [Run]
-Filename: "{app}\2_AVVIA.cmd"; Description: "Avvia {#NipatDisplayName}"; WorkingDir: "{code:GetNipatDataDir}"; Flags: postinstall nowait skipifsilent; Check: CanLaunchNipat
+Filename: "{app}\2_LAUNCH.cmd"; Description: "Avvia {#NipatDisplayName}"; WorkingDir: "{code:GetNipatDataDir}"; Flags: postinstall nowait skipifsilent; Check: CanLaunchNipat
 
 [Code]
 var
@@ -1001,6 +1001,10 @@ begin
   RemoveLegacyNipatShortcut(LegacyGroup + '\Cartella NIPAT Desktop.lnk', ExpandConstant('{app}'));
   RemoveLegacyNipatShortcut(LegacyGroup + '\Guida NIPAT Desktop.lnk', ExpandConstant('{app}\docs\GUIDA_UTILIZZO.md'));
   RemoveLegacyNipatShortcut(LegacyGroup + '\Disinstalla NIPAT Desktop.lnk', ExpandConstant('{uninstallexe}'));
+  RemoveLegacyNipatShortcut(ExpandConstant('{group}\{#NipatDisplayName} - completa preparazione.lnk'), ExpandConstant('{app}\1_SETUP.cmd'));
+  RemoveLegacyNipatShortcut(ExpandConstant('{group}\Cartella {#NipatDisplayName}.lnk'), ExpandConstant('{app}'));
+  RemoveLegacyNipatShortcut(ExpandConstant('{group}\Guida {#NipatDisplayName}.lnk'), ExpandConstant('{app}\docs\GUIDA_UTILIZZO.md'));
+  RemoveLegacyNipatShortcut(ExpandConstant('{group}\Disinstalla {#NipatDisplayName}.lnk'), ExpandConstant('{uninstallexe}'));
   RemoveDir(LegacyGroup);
 end;
 
@@ -1044,7 +1048,7 @@ begin
     end;
     if (BootstrapResult <> 0) and not WslRebootRequired then
       MsgBox('I file NewPat sono installati, ma la preparazione non e'' completata. ' +
-        'Apri "{#NipatDisplayName} - completa preparazione" dal menu Start. ' +
+        'Apri "{#NipatDisplayName} - Resume Setup" dal menu Start. ' +
         'Dettagli nel file .runtime\installer\setup.log della cartella NIPAT.', mbError, MB_OK);
   end;
 end;

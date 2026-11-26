@@ -29,8 +29,10 @@ because they were produced with NewPat, place scientific results under the GPL.
 
 | Component | Upstream source | Included license and scope |
 | --- | --- | --- |
-| NEWPAT | <https://github.com/lpistacchia/NEWPAT> | [Upstream LICENSE](scientific/vendor/NEWPAT/LICENSE), containing the GNU GPL version 3 text. Includes the supplied SNPcall, prenatal CPI, postnatal CPI and Contamination files and accompanying examples. |
-| DNPcall | <https://github.com/fravasini/DNPcall> | [Upstream LICENSE](scientific/vendor/DNPcall/LICENSE), containing the GNU GPL version 3 text. Includes the supplied DNPcall files and accompanying examples. |
+| NEWPAT | <https://github.com/lpistacchia/NEWPAT> | [Upstream LICENSE](scientific/vendor/NEWPAT/LICENSE), containing the GNU GPL version 3 text. Includes the supplied SNPcall, prenatal CPI, postnatal CPI, fetal sex and Contamination files and accompanying examples. |
+| DNPcall | <https://github.com/fravasini/DNPcall> | [Upstream LICENSE](scientific/vendor/DNPcall/LICENSE), containing the GNU GPL version 3 text. Covers the bundled DNPcall R program. |
+
+The bundled fetal sex script and its example tables come from [NEWPAT revision dde1a75](https://github.com/lpistacchia/NEWPAT/tree/dde1a759e4b994a42ec9c9651f896394c546b109/Fetal_sex).
 
 These components retain their original authorship, license texts and notices.
 NewPat uses the complete SNPcall 2.0 scientific core from NEWPAT commit
@@ -38,9 +40,10 @@ NewPat uses the complete SNPcall 2.0 scientific core from NEWPAT commit
 `tests/reference_r/2.0/SNPcall.R` as the differential-test reference. NewPat's
 input adapters, resource scheduling and presentation changes are identified
 separately from that upstream source.
-NewPat incorporates CPI, Contamination and Postnatal CPI from NEWPAT
-commit `9c2a8be60afcb944153710da6a61cd0559e2b4cf`. The unmodified sources
-are frozen in `tests/reference_r/NEWPAT_20261113`; operational copies add
+The candidate incorporates Letizia Pistacchia’s prenatal CPI revision from
+[NEWPAT snapshot c753afc](https://github.com/lpistacchia/NEWPAT/tree/c753afc4be62dfc0b81b8cb683a6e850516f5ffd/CPI_from_cffDNA).
+The corresponding prenatal, postnatal and Contamination reference scripts are
+frozen in `tests/reference_r/NEWPAT_20261126`. The operational copies add
 validated configuration, shared execution budgets and readable exports.
 
 The `GPL-3.0-or-later` grant for original NewPat material does not add an
@@ -53,6 +56,14 @@ and the integration of each component.
 files used by NewPat. Preserve these records when distributing a modified copy.
 
 ## Software supplied with the runtime
+
+The desktop client creates analysis PDFs offline using the MIT-licensed pdfmake
+0.3.15 browser build and its embedded Roboto fonts under the SIL Open Font
+License 1.1. The [asset manifest](src/nipat/gui/web/vendor/pdfmake/manifest.json)
+identifies the upstream archive and the exact distributed files.
+[pdfmake license](src/nipat/gui/web/vendor/pdfmake/pdfmake.LICENSE.txt) ·
+[Font license](src/nipat/gui/web/vendor/pdfmake/Roboto.OFL.txt) ·
+[Bundled component notices](src/nipat/gui/web/vendor/pdfmake/BUNDLED-NOTICES.txt)
 
 The desktop interface includes the following components:
 

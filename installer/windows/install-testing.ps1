@@ -19,7 +19,7 @@ function Assert-PlainPath([string]$Path) {
     }
 }
 
-function Get-VerifiedAsset($Record, [string]$Directory, [string]$BaseUrl) {
+function Get-VerifiedAsset($Record, [string]$Directory, [string]$ReleasePath) {
     if ($Record.file -notmatch '\A[A-Za-z0-9][A-Za-z0-9._-]+\z' -or
         $Record.sha256 -notmatch '\A[a-f0-9]{64}\z' -or [long]$Record.size -le 0) {
         throw 'Identita del download non valida.'
@@ -30,6 +30,8 @@ function Get-VerifiedAsset($Record, [string]$Directory, [string]$BaseUrl) {
         Write-Host ('Download: ' + $Record.file)
         $temporary = $target + '.download-' + [Guid]::NewGuid().ToString('N')
         try {
+            . (Join-Path $PSScriptRoot 'install-profile.ps1')
+            $baseUrl = (Get-NipatOnlineRepository) + $ReleasePath
             $client = New-Object Net.WebClient
             $client.Headers.Add('User-Agent', 'NIPAT-Testing-Installer')
             try { $client.DownloadFile(($BaseUrl + $Record.file), $temporary) }
@@ -126,7 +128,8 @@ function Assert-TestingRoot([string]$Root) {
     }
 }
 
-function Get-TestingInstallRoot([string]$DownloadDirectory, [bool]$DefaultDestination) {
+function Get-TestingInstallRoot([string]$DownloadDirectory, [bool]$DefaultDestination,
+        [string]$ExpectedVersion = '', [string]$ExpectedSource = '') {
     if ($DefaultDestination) {
         $base = Join-Path $env:LOCALAPPDATA 'NIPAT-Testing'
         $root = Join-Path $base 'NIPAT'
@@ -140,6 +143,25 @@ function Get-TestingInstallRoot([string]$DownloadDirectory, [bool]$DefaultDestin
         if (-not (Test-Path -LiteralPath $root) -and (Test-Path -LiteralPath $legacy)) { $root = $legacy }
     }
     Assert-TestingRoot $root
+    $testingMarker = Join-Path $root 'testing.json'
+    if (Test-Path -LiteralPath $testingMarker) {
+        Assert-PlainPath $testingMarker
+        $testing = Get-Content -LiteralPath $testingMarker -Raw -Encoding UTF8 | ConvertFrom-Json
+        if (@($testing.PSObject.Properties).Count -ne 2 -or $testing.schema_version -ne 1 -or $testing.channel -cne 'testing') {
+            throw 'Identita Testing della destinazione non valida.'
+        }
+    } else {
+        foreach ($name in @('current.json', 'pending.json')) {
+            $path = Join-Path $root $name
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { continue }
+            $pointer = Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json
+            # The original 0.9.0 Testing installer used this unmarked layout.
+            # A newer first installation can stop before its marker is written.
+            if (($root -ieq $legacy -and $pointer.version -ceq '0.9.0') -or
+                ($ExpectedVersion -and $pointer.version -ceq $ExpectedVersion -and $pointer.source_commit -ceq $ExpectedSource)) { continue }
+            throw 'La destinazione contiene una installazione ZIP diversa. Scegliere una cartella separata per NewPat Testing.'
+        }
+    }
     return $root
 }
 
@@ -168,7 +190,7 @@ try {
         throw 'Questo avvio e riservato alle versioni sperimentali NewPat 0.9.'
     }
     $version = $metadata.version
-    $baseUrl = 'https://github.com/GregorioDalia/nipat-desktop/releases/download/v' + $version + '/'
+    $releasePath = '/releases/download/v' + $version + '/'
     $defaultDestination = -not $Destination
     if ($defaultDestination) { $Destination = Join-Path $env:LOCALAPPDATA ('NIPAT-Testing\' + $version) }
     $destination = [IO.Path]::GetFullPath($Destination)
@@ -177,8 +199,8 @@ try {
     Write-Host ('NewPat ' + $version + ' - VERSIONE SPERIMENTALE')
     if ($UseSetup) {
         Write-Host 'Questa modalita aggiorna l installazione desktop esistente con la versione sperimentale.'
-        $payload = Get-VerifiedAsset $metadata.payload $destination $baseUrl
-        $setup = Get-VerifiedAsset $metadata.setup $destination $baseUrl
+        $payload = Get-VerifiedAsset $metadata.payload $destination $releasePath
+        $setup = Get-VerifiedAsset $metadata.setup $destination $releasePath
         $arguments = @(
             ('/NIPATPACKAGE="' + $payload + '"'), ('/NIPATVERSION=' + $version),
             ('/NIPATSOURCE=' + $metadata.source_commit), ('/NIPATSHA256=' + $metadata.payload.sha256),
@@ -187,7 +209,7 @@ try {
         $process = Start-Process -FilePath $setup -ArgumentList $arguments -Wait -PassThru
         exit $process.ExitCode
     }
-    $root = Get-TestingInstallRoot $destination $defaultDestination
+    $root = Get-TestingInstallRoot $destination $defaultDestination $version $metadata.source_commit
     $currentPath = Join-Path $root 'current.json'
     $pendingPath = Join-Path $root 'pending.json'
     if ((Test-Path -LiteralPath $currentPath) -and -not (Test-Path -LiteralPath $pendingPath)) {
@@ -205,14 +227,14 @@ try {
         $pending = Get-Content -LiteralPath $pendingPath -Raw -Encoding UTF8 | ConvertFrom-Json
         if ($pending.version -ceq $version -and $pending.source_commit -ceq $metadata.source_commit) { $resumeProject = $pending.app_dir }
     }
-    $bundle = Join-Path $destination 'pacchetto'
+    $bundle = Join-Path $destination 'bundle'
     $powershell = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
     if ($resumeProject) {
         Write-Host 'Ripresa automatica della preparazione gia iniziata...'
         & $powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $resumeProject 'installer\windows\install-zip.ps1') -Resume
         $code = $LASTEXITCODE
     } else {
-        $archive = Get-VerifiedAsset $metadata.complete_zip $destination $baseUrl
+        $archive = Get-VerifiedAsset $metadata.complete_zip $destination $releasePath
         if (-not (Test-Path -LiteralPath $bundle)) {
             # Extraction is atomic: interrupted extraction does not leave a
             # partial bundle that prevents running the same entrypoint again.

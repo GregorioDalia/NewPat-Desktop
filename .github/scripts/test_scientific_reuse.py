@@ -16,6 +16,7 @@ import urllib.error
 import zipfile
 
 import scientific_reuse as reuse
+from test_native_evidence import native_fixture
 
 
 HEAD, TREE, BASE, MERGE = (letter * 40 for letter in "abcd")
@@ -45,7 +46,11 @@ class ScientificReuseTests(unittest.TestCase):
             digest = reuse.sha256(b"qualified summary\r\n")
             analysis_cases.append({"name": name, "workflow": workflow, "status": "passed",
                                    "summary_sha256": digest, "output_sha256": {filename: digest}})
+        paths, sources, report = native_fixture()
+        self.enterContext(patch.object(reuse.native_evidence, "git_native_test_paths", return_value=paths))
+        self.enterContext(patch.object(reuse.native_evidence, "git_source", side_effect=lambda commit, path: sources[path]))
         self.evidence.update({
+            reuse.native_evidence.REPORT_PATH: json.dumps(report).encode(),
             "nipat-validation/runs/self-test/run.json": b'{"status":"passed"}\n',
             "nipat-validation/runs/self-test/execution.log": b"PASS\n",
             "nipat-performance-check/artifacts/verification.json": json.dumps({
@@ -66,14 +71,11 @@ class ScientificReuseTests(unittest.TestCase):
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(data)
         self.bundle = self.root / "sealed"
-        with self.runtime(), patch.dict(os.environ, {"GITHUB_REPOSITORY": reuse.REPOSITORY,
-                "GITHUB_EVENT_NAME": "push", "GITHUB_SHA": HEAD, "GITHUB_RUN_ID": "123", "GITHUB_RUN_ATTEMPT": "1"}), \
-                patch.object(reuse, "tool_version", return_value="poppler 24.02"):
-            self.record = reuse.seal("scientific:test", self.bundle, self.producer_temp)
+        self.seal()
         self.run = {"id": 123, "run_attempt": 1, "event": "push", "head_sha": HEAD,
                     "path": ".github/workflows/ci.yml", "status": "completed", "conclusion": "success",
-                    "repository": {"id": 9, "full_name": reuse.REPOSITORY},
-                    "head_repository": {"id": 9, "full_name": reuse.REPOSITORY}, "pull_requests": []}
+                    "repository": {"id": int(reuse.REPOSITORY_ID), "full_name": reuse.REPOSITORY},
+                    "head_repository": {"id": int(reuse.REPOSITORY_ID), "full_name": reuse.REPOSITORY}, "pull_requests": []}
         self.job = {"id": 88, "name": "scientific", "run_id": 123, "run_attempt": 1, "head_sha": HEAD,
                     "status": "completed", "conclusion": "success", "started_at": "2026-11-13T10:00:00Z",
                     "completed_at": "2026-11-13T10:20:00Z", "steps": [
@@ -81,9 +83,15 @@ class ScientificReuseTests(unittest.TestCase):
         self.commit = {"sha": HEAD, "tree": {"sha": TREE}, "parents": []}
         self.artifact = {"id": 44, "name": f"nipat-scientific-qualification-1-{TREE}", "expired": False,
                          "created_at": "2026-11-13T10:19:00Z", "workflow_run": {"id": 123,
-                         "head_sha": HEAD, "repository_id": 9, "head_repository_id": 9}}
+                         "head_sha": HEAD, "repository_id": int(reuse.REPOSITORY_ID), "head_repository_id": int(reuse.REPOSITORY_ID)}}
         self.remote = self.root / "github-artifact.zip"
         self.write_remote()
+
+    def seal(self, runtime_archive=None):
+        with self.runtime(), patch.dict(os.environ, {"GITHUB_EVENT_NAME": "push", "GITHUB_SHA": HEAD,
+                "GITHUB_RUN_ID": "123", "GITHUB_RUN_ATTEMPT": "1"}), \
+                patch.object(reuse, "tool_version", return_value="poppler 24.02"):
+            self.record = reuse.seal("scientific:test", self.bundle, self.producer_temp, runtime_archive)
 
     def runtime(self):
         stack = ExitStack()
@@ -92,7 +100,7 @@ class ScientificReuseTests(unittest.TestCase):
         stack.enter_context(patch.object(reuse.platform, "python_version", return_value="3.12.10"))
         stack.enter_context(patch.object(reuse.platform, "system", return_value="Linux"))
         stack.enter_context(patch.object(reuse.platform, "machine", return_value="x86_64"))
-        stack.enter_context(patch.dict(os.environ, {"GITHUB_REPOSITORY": reuse.REPOSITORY,
+        stack.enter_context(patch.dict(os.environ, {"GITHUB_REPOSITORY": reuse.REPOSITORY, "GITHUB_REPOSITORY_ID": reuse.REPOSITORY_ID,
             "GITHUB_RUN_ID": "456", "GITHUB_RUN_ATTEMPT": "1", "GITHUB_EVENT_NAME": "workflow_dispatch",
             "GITHUB_WORKFLOW_REF": reuse.REPOSITORY + "/.github/workflows/windows-installer.yml@refs/heads/main"}))
         return stack
@@ -113,8 +121,13 @@ class ScientificReuseTests(unittest.TestCase):
 
     def fetch(self, path, *, deadline=None):
         if path in ("actions/workflows/ci.yml/runs?status=completed&per_page=30",
-                    "actions/workflows/ci.yml/runs?status=completed&per_page=30&event=pull_request"):
+                    f"actions/workflows/ci.yml/runs?status=completed&per_page=30&event=pull_request&head_sha={HEAD}"):
             return {"workflow_runs": [copy.deepcopy(self.run)]}
+        if path == f"actions/workflows/ci.yml/runs?status=completed&per_page=30&event=pull_request&head_sha={BASE}":
+            return {"workflow_runs": []}
+        if path == f"commits/{self.source['commit']}/pulls?per_page=100":
+            return [{"number": 12, "merged_at": "2026-11-13T10:21:00Z", "merge_commit_sha": self.source["commit"],
+                     "base": {"ref": "main"}}]
         if path == "actions/runs/123/attempts/1/jobs?per_page=100":
             return {"total_count": 1, "jobs": [copy.deepcopy(self.job)]}
         if path == "actions/runs/123/artifacts?per_page=100":
@@ -147,6 +160,82 @@ class ScientificReuseTests(unittest.TestCase):
         for name, data in self.evidence.items():
             self.assertEqual((self.consumer_temp / name).read_bytes(), data)
         self.assertEqual([path.name for path in self.output.iterdir()], ["reuse.json"])
+
+    def prepare_runtime(self):
+        tar = self.root / reuse.RUNTIME_TAR
+        tar.write_bytes(b"stand-in for an untagged docker save archive")
+        self.bundle = self.root / "sealed-runtime"
+        self.seal(tar)
+        self.write_remote()
+        self.job["steps"].append({"name": reuse.IMAGE_UPLOAD_STEP, "status": "completed", "conclusion": "success"})
+        self.runtime_zip = self.root / "runtime.zip"
+        with zipfile.ZipFile(self.runtime_zip, "w", zipfile.ZIP_DEFLATED) as archive:
+            archive.write(tar, reuse.RUNTIME_TAR)
+        self.runtime_artifact = {**copy.deepcopy(self.artifact), "id": 45, "name": f"nipat-scientific-image-1-{TREE}",
+                                 "digest": "sha256:" + reuse.sha256(self.runtime_zip.read_bytes()),
+                                 "size_in_bytes": self.runtime_zip.stat().st_size}
+
+    def promote(self, *, identity=IMAGE, merged_pull=None):
+        def fetch(path, **kwargs):
+            if path == "actions/runs/123/artifacts?per_page=100":
+                return {"total_count": 2, "artifacts": [self.artifact, self.runtime_artifact]}
+            if path == "pulls/12":
+                return merged_pull
+            return self.fetch(path, **kwargs)
+
+        def download(artifact, path, **kwargs):
+            shutil.copyfile(self.remote if artifact["id"] == self.artifact["id"] else self.runtime_zip, path)
+
+        environment = {} if merged_pull is None else {"GITHUB_EVENT_NAME": "push", "GITHUB_WORKFLOW_REF": reuse.REPOSITORY
+                     + "/.github/workflows/ci.yml@refs/heads/main", "GITHUB_REF": "refs/heads/main",
+                     "GITHUB_REF_PROTECTED": "true", "GITHUB_SHA": self.source["commit"]}
+        with self.runtime(), patch.dict(os.environ, environment), patch.object(reuse, "tool_version", return_value="poppler 24.02"), \
+                patch.object(reuse, "image_identity", return_value=identity) as self.inspect_image, \
+                patch.object(reuse.subprocess, "run") as self.docker:
+            return reuse.restore("scientific:test", self.output, self.consumer_temp, fetch=fetch, download=download, promote_image=True)
+
+    def test_promotes_sealed_image_on_protected_main_and_installs_exact_evidence(self):
+        self.prepare_runtime()
+        result = self.promote(merged_pull=self.merged_pr())
+        self.assertTrue(result["reused"], result)
+        self.assertEqual(result["runtime_artifact"]["digest"], self.runtime_artifact["digest"])
+        self.assertEqual(result["consumer"]["image"], IMAGE)
+        self.assertEqual([call.args[0] for call in self.inspect_image.call_args_list], [IMAGE["id"], "scientific:test"])
+        self.assertEqual([call.args[0][:3] for call in self.docker.call_args_list], [
+            ["docker", "image", "load"], ["docker", "image", "tag"]])
+        self.assertEqual(self.docker.call_args.args[0][-2:], [IMAGE["id"], "scientific:test"])
+        for name, data in self.evidence.items():
+            self.assertEqual((self.consumer_temp / name).read_bytes(), data)
+
+    def test_installer_rejects_substituted_tar_zip_entries_and_imported_image(self):
+        self.prepare_runtime()
+        for name, data in [(reuse.RUNTIME_TAR, b"x" * self.record["runtime_archive"]["size"]), ("other.tar", b"extra")]:
+            with self.subTest(member=name):
+                with zipfile.ZipFile(self.runtime_zip, "w") as archive:
+                    archive.writestr(name, data)
+                self.assertFalse(self.promote()["reused"])
+                self.docker.assert_not_called()
+        with zipfile.ZipFile(self.runtime_zip, "w") as archive:
+            archive.write(self.root / reuse.RUNTIME_TAR, reuse.RUNTIME_TAR)
+        self.assertFalse(self.promote(identity={**IMAGE, "id": "sha256:" + "0" * 64})["reused"])
+        self.assertEqual([call.args[0][2] for call in self.docker.call_args_list], ["load"])
+        self.assertEqual(list(self.consumer_temp.iterdir()), [])
+
+    def test_image_is_never_loaded_for_unrelated_pr_expired_export_or_unsealed_proof(self):
+        self.prepare_runtime()
+        pull = self.merged_pr()
+        self.assertFalse(self.promote(merged_pull={**pull, "merged": False})["reused"])
+        self.docker.assert_not_called()
+        for artifact_fields in ({"expired": True}, {"workflow_run": {"id": 44}}, {"name": "other-image"}):
+            with self.subTest(fields=artifact_fields), patch.dict(self.runtime_artifact, artifact_fields):
+                self.assertFalse(self.promote()["reused"])
+                self.docker.assert_not_called()
+        self.record.pop("runtime_archive")
+        self.record["schema_version"] = 1
+        self.write_remote()
+        self.assertFalse(self.promote()["reused"])
+        self.docker.assert_not_called()
+        self.assertEqual(list(self.consumer_temp.iterdir()), [])
 
     def test_merged_pr_uses_recorded_immutable_parents_even_without_current_pr_metadata(self):
         self.run["event"] = "pull_request"
@@ -201,6 +290,29 @@ class ScientificReuseTests(unittest.TestCase):
             with self.subTest(fields=fields):
                 self.assertFalse(self.restore_on_main({**original, **fields})["reused"])
                 self.assertEqual(list(self.consumer_temp.iterdir()), [])
+
+    def test_main_looks_up_the_merged_pr_before_checking_its_head_runs(self):
+        pr = self.merged_pr()
+        associated = self.fetch(f"commits/{self.source['commit']}/pulls?per_page=100")
+        for pairs in ([], [dict(associated[0], merged_at=None)], [dict(associated[0], merge_commit_sha=BASE)],
+                      [dict(associated[0], base={"ref": "release/preparation"})], associated * 2, associated * 100):
+            with self.subTest(association=pairs[:2]):
+                fetch = Mock(return_value=pairs)
+                with self.assertRaises(reuse.ReuseMiss):
+                    reuse.merged_main_pull(self.source["commit"], fetch, 10)
+                fetch.assert_called_once()
+        # Both a stacked PR and the main PR may appear in the association list.
+        stacked = dict(associated[0], number=8, base={"ref": "release/preparation"})
+        fetch = Mock(side_effect=[[stacked, *associated], pr])
+        self.assertEqual(reuse.merged_main_pull(self.source["commit"], fetch, 10), (12, HEAD))
+        self.assertEqual(fetch.call_args.args, ("pulls/12",))
+
+    def test_qualification_from_a_different_pr_with_the_same_head_and_tree_is_rejected(self):
+        pr = self.merged_pr()
+        self.record["producer"]["pull_request"]["number"] = 9
+        self.write_remote()
+        self.assertFalse(self.restore_on_main(pr)["reused"])
+        self.assertEqual(list(self.consumer_temp.iterdir()), [])
 
     def test_main_requires_protected_push_exact_host_and_original_execution(self):
         pull = self.merged_pr()
@@ -294,7 +406,27 @@ class ScientificReuseTests(unittest.TestCase):
     def test_missing_core_report_is_rejected_before_seal(self):
         del self.evidence[next(iter(reuse.REPORTS))]
         with self.assertRaisesRegex(ValueError, "report is missing"):
-            reuse.verify_required(self.evidence, IMAGE)
+            reuse.verify_required(self.evidence, IMAGE, HEAD)
+
+    def test_missing_or_failed_native_report_cannot_be_sealed_or_restored(self):
+        path = reuse.native_evidence.REPORT_PATH
+        with zipfile.ZipFile(self.bundle / reuse.ARCHIVE) as archive:
+            members = {name: archive.read(name) for name in archive.namelist()}
+        for raw in (None, b'{"passed":false,"status":"completed","tests_run":0}'):
+            with self.subTest(raw=raw):
+                edited = dict(members)
+                if raw is None:
+                    del edited[path]
+                else:
+                    edited[path] = raw
+                with self.assertRaisesRegex(ValueError, "Native R qualification"):
+                    reuse.verify_required(edited, IMAGE, HEAD)
+                # Even a self-consistent outer digest and inventory cannot rescue the wrong report.
+                self.record["entries"] = [{"path": name, "size": len(data), "sha256": reuse.sha256(data)}
+                                          for name, data in edited.items()]
+                self.write_remote(edited.items())
+                receipt = self.assert_miss()
+                self.assertIn("Native R qualification", receipt["candidates_checked"][0]["reason"])
 
     def test_existing_restore_roots_are_never_overwritten(self):
         target = self.consumer_temp / reuse.CHECK_DIRECTORIES[0]
@@ -376,12 +508,12 @@ class ScientificReuseTests(unittest.TestCase):
             data = dict(self.evidence)
             mutation(data)
             with self.assertRaisesRegex(ValueError, "summary is missing or differs"):
-                reuse.verify_required(data, IMAGE)
+                reuse.verify_required(data, IMAGE, HEAD)
         name = next(name for name, kind in reuse.REPORTS.items() if kind == "analyses")
         report = json.loads(self.evidence[name])
         report["results"] = report["results"][:1]
         with self.assertRaisesRegex(ValueError, "coverage is incomplete"):
-            reuse.verify_required(dict(self.evidence, **{name: json.dumps(report).encode()}), IMAGE)
+            reuse.verify_required(dict(self.evidence, **{name: json.dumps(report).encode()}), IMAGE, HEAD)
 
     def test_search_budget_is_global_and_falls_back_without_waiting_for_other_runs(self):
         calls = []
@@ -406,6 +538,11 @@ class ScientificReuseTests(unittest.TestCase):
             raise urllib.error.URLError("unavailable")
         self.assert_miss(fetch=fetch)
         self.assertEqual(len(calls), 2)
+
+    def test_interrupted_responses_and_corrupt_compression_fall_back(self):
+        for error in (reuse.http.client.IncompleteRead(b"partial"), EOFError(), reuse.zlib.error()):
+            with self.subTest(error=type(error).__name__):
+                self.assert_miss(download=Mock(side_effect=error))
 
     def test_untrusted_parser_details_are_not_written_to_receipts(self):
         self.assertFalse(reuse.allowed_download("https://example.blob.core.windows.net:SIGNED_SECRET/path?sig=SECRET"))

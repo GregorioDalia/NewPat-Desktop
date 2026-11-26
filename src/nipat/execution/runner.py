@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import platform
 import re
 import shutil
 import signal
@@ -34,13 +35,14 @@ BUNDLED_WORKFLOW_INTERFACES = {
     "dnp-call": "dnp-call-v1",
     "contamination": "contamination-v2",
     "snp-call": "snp-call-v2",
-    "cpi": "cpi-v2",
-    "cpin": "cpin-v1",
+    "cpi": "cpi-v4",
+    "cpin": "cpin-v2",
+    "fetal-sex": "fetal-sex-v1",
 }
 BUNDLED_WORKFLOW_LABELS = {
-    "contamination": "Contamination", "dnp-call": "DNPcall", "snp-call": "SNPcall", "cpi": "CPI",
-    "cpin": "CPI postnatale",
-    "workflow-plan-all": "Workflow con cinque moduli",
+    "contamination": "Contamination", "dnp-call": "DNPcall", "snp-call": "SNPcall", "cpi": "CPI prenatale",
+    "cpin": "CPI postnatale", "fetal-sex": "Sesso fetale",
+    "workflow-plan-all": "Workflow di analisi",
     "workflow-plan": "Workflow automatico",
     "workflow-plan-cpi": "Workflow automatico con CPI",
     "workflow-plan-snp": "Workflow SNPcall su piu' campioni",
@@ -48,7 +50,7 @@ BUNDLED_WORKFLOW_LABELS = {
 }
 PLAN_EXECUTION_INTERFACE = "workflow-plan-execution-v2"
 PLAN_WORKFLOWS = {
-    "workflow-plan-all": ("dnp-call", "snp-call", "contamination", "cpi", "cpin"),
+    "workflow-plan-all": tuple(BUNDLED_WORKFLOW_INTERFACES),
     "workflow-plan": ("dnp-call", "contamination"),
     "workflow-plan-cpi": ("dnp-call", "contamination", "cpi"),
     "workflow-plan-snp": ("snp-call",),
@@ -129,6 +131,10 @@ class DockerComposeRunner:
             self._record.data["resource_snapshot"], self.options,
         )
         self._record.save()
+
+    def _finalize_status(self, record: RunRecord, status: str) -> None:
+        """Set the terminal status before saving run metadata and its report."""
+        record.data["status"] = status
 
     def _write_run_report(self, record: RunRecord) -> None:
         try:
@@ -216,15 +222,26 @@ class DockerComposeRunner:
             service["environment"]["NIPAT_FIXED_RESOURCE_BUDGET"] = json.dumps(
                 budget, ensure_ascii=True, allow_nan=False, separators=(",", ":"),
             )
+        scheduling = self._record.data.get("concurrent_execution", {}).get("step_scheduling")
+        if scheduling and scheduling.get("interface") == "step-budget-v1":
+            service["environment"]["NIPAT_DESKTOP_SCHEDULER"] = str(
+                self.layout.container_path(run_dir / "work" / "desktop-scheduling")).replace("$", "$$")
         if self.options.max_workers is not None:
             service["environment"]["NIPAT_MAX_WORKERS"] = str(self.options.max_workers)
         if self.options.cpus is not None:
             service["environment"]["NIPAT_CPU_LIMIT"] = str(self.options.cpus)
         if self.options.memory_mb is not None:
             service["environment"]["NIPAT_MEMORY_LIMIT_MIB"] = str(self.options.memory_mb)
-        if self._transport.backend == "lima":
-            # The experimental macOS clients share the validated AMD64 engine.
+        backend = self._transport.backend
+        architecture = platform.machine().lower()
+        arm_lima = backend == "lima" and architecture == "arm64"
+        if backend == "lima":
             service["platform"] = "linux/amd64"
+        if arm_lima:
+            service["environment"]["NIPAT_DNP_LIMA_ARM64"] = "1"
+        if arm_lima or (backend == "native" and sys.platform == "linux" and architecture == "x86_64"):
+            # Qualified on Linux AMD64 with the same engine used under Rosetta.
+            service["environment"]["NIPAT_DNP_OPTIMIZED_IO"] = "1"
         service.update(self.options.compose_limits())
         destination = run_dir / "work" / "engine-compose.json"
         with destination.open("x", encoding="utf-8", newline="\n") as handle:
@@ -284,6 +301,7 @@ class DockerComposeRunner:
             "engine/main.py", "lib/nipat_scientific/__init__.py",
             "lib/nipat_scientific/errors.py", "lib/nipat_scientific/panels.py",
             "lib/nipat_scientific/files.py", "lib/nipat_scientific/contamination.py",
+            "lib/nipat_scientific/fetal_sex.py",
             "lib/nipat_scientific/snp.py", "lib/nipat_scientific/dnp.py",
             "lib/nipat_scientific/cpi.py", "lib/nipat_scientific/cpin.py",
             "lib/nipat_scientific/settings.py", "lib/nipat_scientific/settings.R",
@@ -354,7 +372,7 @@ class DockerComposeRunner:
                 and parallel.get("modes") == ["auto", "serial"]
                 and parallel.get("max_workers") is True
                 and isinstance(parallel.get("workflows"), list)
-                and required_workflows.issubset(
+                and (required_workflows - {"fetal-sex"}).issubset(
                     name for name in parallel["workflows"] if isinstance(name, str))
                 and validation.get("interface") == "scientific-validation-v1"
                 and validation.get("snp_alleles") == "uppercase-working-copy"
@@ -365,6 +383,8 @@ class DockerComposeRunner:
             )
             if valid:
                 files = preparation["file_sha256"]
+                if description.get("desktop_scheduling") == "step-budget-v1":
+                    required_preparation.add("lib/nipat_scientific/desktop_scheduling.py")
                 valid = required_preparation.issubset(files) and all(
                     (path == "engine/main.py" or relative_path(path, "lib/nipat_scientific/"))
                     and has_digest(value) for path, value in files.items()
@@ -385,7 +405,7 @@ class DockerComposeRunner:
                 )
         if not valid:
             label = (BUNDLED_WORKFLOW_LABELS.get(workflow, workflow)
-                     if workflow is not None else "dei cinque workflow")
+                     if workflow is not None else "dei moduli scientifici")
             contracts = ", ".join(str(value) for value in expected_interfaces.values())
             if is_plan:
                 contracts = PLAN_EXECUTION_INTERFACE + ", " + contracts
@@ -480,7 +500,7 @@ class DockerComposeRunner:
         command = self._transport.ensure_command()
         if command is not None:
             # The helper bounds both its startup lock and the daemon readiness wait.
-            self._capture_process(command, timeout=240)
+            self._capture_process(command, timeout=420 if self._transport.backend == "lima" else 240)
         self._backend_ready = True
 
     def _capture_process(
@@ -651,16 +671,15 @@ class DockerComposeRunner:
                     record.save()
                     yield record
                     self._verify_inputs("after_execution")
+                    self._finalize_status(record, "planned" if self.dry_run else "succeeded")
                 except BaseException as exc:
                     with _finish_cleanup():
-                        record.data["status"] = (
-                            "interrupted" if isinstance(exc, (KeyboardInterrupt, SystemExit)) else "failed"
-                        )
+                        status = "interrupted" if isinstance(exc, (KeyboardInterrupt, SystemExit)) else "failed"
+                        self._finalize_status(record, status)
                         record.data["error"] = {"type": type(exc).__name__, "message": str(exc)}
                         self._write(f"{record.data['status']}: {type(exc).__name__}: {exc}\n")
                     raise
                 else:
-                    record.data["status"] = "planned" if self.dry_run else "succeeded"
                     self._write(f"{record.data['status']}: {workflow}\n")
                 finally:
                     with _finish_cleanup():
@@ -975,6 +994,6 @@ class DockerComposeRunner:
             try:
                 self._prepare_runtime()
                 self._describe_bundled_engine()
-                self._write("Contratti scientifici verificati: DNPcall, SNPcall, Contamination, CPI, CPIN.\n")
+                self._write("Contratti scientifici verificati: DNPcall, SNPcall, Contamination, CPI prenatale, CPI postnatale.\n")
             finally:
                 self._image_id = None

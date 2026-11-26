@@ -6,12 +6,81 @@ import io
 import json
 from pathlib import Path
 import unittest
+from unittest import mock
 import zipfile
 
 import test_revised_r_acceptance as legacy_tests
 from test_revised_r_acceptance import acceptance, COMMIT, IMAGE, digest
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+class RevisedCpiReleaseTests(unittest.TestCase):
+    # Native output for two synthetic SNP trios in the serial qualification matrix.
+    header = ("Trio\tMarker_type\tN_sites\tN_hom_hom\tN_hom_het\tN_het_hom\tN_het_het"
+              "\tMatching_sites\tMismatching_sites\tNo_obligatory_allele_sites\tMaternal_incompatible_sites"
+              "\tLog10_CPI\tCPI\tMismatch_probability\tMin_coverage"
+              "\tInclude_hom_hom\tInclude_hom_het\tInclude_het_hom\tInclude_het_het\n")
+    values = ("\tSNP\t5\t1\t3\t0\t1\t2\t2\t1\t1\t-4.88536122003151\t1.30208333333333e-05"
+              "\t0.001\tNA\tTRUE\tTRUE\tTRUE\tTRUE\n")
+    first = "MotherM1-FatherF1-ChildC1_SNPs" + values
+    second = "MotherM2-FatherF2-ChildC2_SNPs" + values
+
+    def verify_postnatal(self, summary, *, reported=None):
+        raw = summary.encode()
+        name = "SNP-cpin-batch2-serial-capNone"
+        filename = "Summary_Postnatal_CPI.txt"
+        rows = list(csv.DictReader(io.StringIO(summary), delimiter="\t"))
+        case = {"name": name, "workflow": "cpin", "marker": "SNP", "batch_size": 2,
+                "rows": rows if reported is None else reported,
+                "output_sha256": {filename: digest(raw)}, "summary_sha256": digest(raw)}
+        archive = io.BytesIO()
+        with zipfile.ZipFile(archive, "w") as handle:
+            handle.writestr(f"reports/{name}/output/{filename}", raw)
+        acceptance.verify_analysis_summary(archive, "reports/five-module-qualification.json", case,
+                                           revised_cpi=acceptance.revised_cpi_contract("0.9.10"))
+
+    def test_accepts_native_scalar_bytes_and_rejects_misreported_rows(self):
+        summary = self.header + self.first + self.second
+        self.verify_postnatal(summary)
+        reported = list(csv.DictReader(io.StringIO(summary), delimiter="\t"))
+        reported[1]["CPI"] = "1"
+        with self.assertRaisesRegex(ValueError, "retained summary bytes"):
+            self.verify_postnatal(summary, reported=reported)
+
+    def test_retained_rows_require_each_requested_trio_once(self):
+        for data in (self.first, self.first + self.first, self.first + self.first + self.second + self.second):
+            with self.subTest(row_count=len(data.splitlines())), self.assertRaisesRegex(ValueError, "one row per"):
+                self.verify_postnatal(self.header + data)
+
+    def test_rejects_scalar_with_missing_scientific_fields_even_with_matching_digests(self):
+        for column in ("CPI", "Log10_CPI", "N_het_het", "No_obligatory_allele_sites",
+                       "Mismatch_probability", "Min_coverage", "Include_het_hom"):
+            rows = csv.DictReader(io.StringIO(self.header + self.first + self.second), delimiter="\t")
+            stream = io.StringIO()
+            writer = csv.DictWriter(stream, [key for key in rows.fieldnames if key != column],
+                                    delimiter="\t", extrasaction="ignore")
+            writer.writeheader()
+            writer.writerows(rows)
+            with self.subTest(column=column), self.assertRaisesRegex(ValueError, "columns are incomplete"):
+                self.verify_postnatal(stream.getvalue())
+
+    def test_releases_pin_the_correct_frozen_model_bytes(self):
+        versions = {"0.9.9": "9c2a8be60afcb944153710da6a61cd0559e2b4cf",
+                    "0.9.10": "c753afc4be62dfc0b81b8cb683a6e850516f5ffd"}
+        for version, expected in versions.items():
+            with self.subTest(version=version):
+                commit, directory, hashes = acceptance.downstream_reference(version)
+                self.assertEqual(commit, expected)
+                manifest = json.loads((ROOT / directory / "manifest.json").read_bytes())
+                self.assertEqual((manifest["upstream_commit"], manifest["sha256"]), (expected, hashes))
+                self.assertEqual({path: digest((ROOT / directory / path).read_bytes()) for path in hashes}, hashes)
+                evidence = {"reference_source_commit": expected, "report_sha256": "d" * 64,
+                            "runtime_image": IMAGE, "report_path": "scientific/five-module-qualification.json"}
+                acceptance.validate_analysis_record(evidence, version)
+                other = next(commit for commit in versions.values() if commit != expected)
+                with self.assertRaisesRegex(ValueError, "frozen NEWPAT reference"):
+                    acceptance.validate_analysis_record({**evidence, "reference_source_commit": other}, version)
 
 
 class FiveModuleAcceptanceTests(unittest.TestCase):
@@ -394,6 +463,7 @@ class FiveModuleAcceptanceTests(unittest.TestCase):
         self.write_reports()
         checked = self.verify()
         self.assertEqual(checked["caller_parallel_qualification"]["acquisitions_verified"], ["dnp-call", "snp-call"])
+        self.assertNotIn("native_r_qualification", checked)
         for version, expected in (("0.9.8", False), ("0.9.9", True), ("0.9.10", True)):
             self.assertEqual(acceptance.measured_sample_contract(version), expected)
         original = copy.deepcopy(self.report)
@@ -405,6 +475,76 @@ class FiveModuleAcceptanceTests(unittest.TestCase):
             self.write_reports()
             with self.subTest(field=field), self.assertRaisesRegex(ValueError, "measured workload"):
                 self.verify()
+
+    def test_0910_publication_requires_both_source_bound_fetal_sex_examples(self):
+        report = self.caller_report_fixture()
+
+        def verify(version="0.9.10"):
+            archive = io.BytesIO()
+            with zipfile.ZipFile(archive, "w") as handle:
+                handle.writestr("scientific/_temp/nipat-engine-check/caller-parallel-qualification.json",
+                                json.dumps(report))
+            return acceptance.verify_caller_parallel_qualification(
+                archive, IMAGE, version=version, source=lambda path: (ROOT / path).read_bytes())
+
+        self.assertNotIn("fetal_sex_examples_verified", verify("0.9.9"))
+        with self.assertRaisesRegex(ValueError, "Both source-free fetal-sex examples"):
+            verify()
+        folder = ROOT / "tests/fixtures/fetal_sex"
+        examples = {}
+        for sample, call in (("Female_fetus", "F"), ("Male_fetus", "M")):
+            inputs = (folder / "inputs").glob(f"{sample}_*.txt")
+            outputs = (folder / "outputs" / sample).glob("*.txt")
+            examples[sample] = {"call": call, "sample": sample + "_autosomes",
+                                "input_sha256": {p.name: digest(p.read_bytes()) for p in inputs},
+                                "output_sha256": {p.name: digest(p.read_bytes()) for p in outputs}}
+        report["fetal_sex_examples"] = examples
+        with self.assertRaisesRegex(ValueError, "Both published prenatal examples"):
+            verify()
+        folder = ROOT / "tests/fixtures/prenatal_cpi/outputs"
+        report["prenatal_examples"] = {marker: {p.name: p.read_text() for p in (folder / marker).iterdir()}
+                                       for marker in ("DNP", "SNP")}
+        self.assertEqual(verify()["fetal_sex_examples_verified"], sorted(examples))
+        filename = "MotherA1-FatherA1_SNPs_CPI_iterations.csv"
+        actual = report["prenatal_examples"]["SNP"][filename]
+        report["prenatal_examples"]["SNP"][filename] = actual.replace("2,", "1,", 1)
+        with self.assertRaisesRegex(ValueError, "numerical results differ"):
+            verify()
+        report["prenatal_examples"]["SNP"][filename] = actual
+        for key, value in (("call", "F"), ("sample", "Female_fetus_autosomes"),
+                           ("input_sha256", examples["Female_fetus"]["input_sha256"]),
+                           ("output_sha256", {})):
+            report["fetal_sex_examples"] = copy.deepcopy(examples)
+            report["fetal_sex_examples"]["Male_fetus"][key] = value
+            with self.subTest(field=key), self.assertRaisesRegex(ValueError, "Fetal-sex"):
+                verify()
+        report["fetal_sex_examples"] = copy.deepcopy(examples)
+        report["fetal_sex_examples"]["Male_fetus"]["output_sha256"]["Y_sites.txt"] = "0" * 64
+        with self.assertRaisesRegex(ValueError, "differs from the Git fixture"):
+            verify()
+
+    def test_0910_publication_requires_one_source_bound_native_report(self):
+        self.prepare_parallel_report()
+        self.record["version"] = self.manifest["version"] = "0.9.10"
+        self.record["scientific_analysis_qualification"]["reference_source_commit"] = acceptance.CPI_REFERENCE_COMMIT
+        archive = self.legacy.directory / "qualification-evidence.zip"
+        with self.assertRaisesRegex(ValueError, "Missing, duplicate or oversized native R"):
+            self.verify()
+
+        def add_report(prefix):
+            with zipfile.ZipFile(archive, "a") as handle:
+                handle.writestr(prefix + "/nipat-native-r-check/native-r.json",
+                                json.dumps({"status": "completed", "passed": False, "tests_run": 0}))
+            self.record["qualification_evidence_sha256"] = digest(archive.read_bytes())
+
+        add_report("scientific/_temp")
+        with mock.patch.object(acceptance.native_evidence, "git_native_test_paths", return_value=set()) as paths:
+            with self.assertRaisesRegex(ValueError, "Native R qualification did not complete successfully"):
+                self.verify()
+            paths.assert_called_once_with(self.record["source_commit"])
+        add_report("scientific/other-run")
+        with self.assertRaisesRegex(ValueError, "Missing, duplicate or oversized native R"):
+            self.verify()
 
     def test_099_rejects_partial_parallel_execution_or_changed_scientific_outputs(self):
         self.prepare_parallel_report()

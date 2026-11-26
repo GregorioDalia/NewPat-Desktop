@@ -100,9 +100,10 @@ def run_self_tests(layout: ProjectLayout) -> None:
     )
     checks = (
         ("SNPcall", "verify_snp_example.py"),
-        ("CPI", "verify_cpi_update.py"),
+        ("CPI prenatale", "verify_cpi_update.py"),
         ("Contamination", "verify_contamination_update.py"),
-        ("CPIN", "verify_cpin_update.py"),
+        ("CPI postnatale", "verify_cpin_update.py"),
+        ("Sesso fetale", "verify_fetal_sex_update.py"),
         ("percorsi esterni e modalità di input", "verify_input_modes.py"),
     )
     for label, filename in checks:

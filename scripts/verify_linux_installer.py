@@ -44,7 +44,14 @@ def checks_for_version(version: str) -> tuple[str, ...]:
     checks = CHECKS[:-2] if version.startswith("0.6.") else CHECKS
     if not current_model(version):
         checks = tuple("all_four_workflows" if key == "all_five_workflows" else key for key in checks)
+    if has_fetal_sex(version):
+        return (*checks, "fetal_sex_example")
     return checks
+
+
+def has_fetal_sex(version: str) -> bool:
+    parsed = re.match(r"^(\d+)\.(\d+)\.(\d+)", version)
+    return parsed is not None and tuple(map(int, parsed.groups())) >= (0, 9, 10)
 
 
 def current_model(version: str) -> bool:
@@ -182,7 +189,8 @@ def check_automatic_plan(run_directory: Path, fixture: Path, manifest: dict,
             "Installed workflow does not identify the tested package and loaded image.")
     modern = current_model(manifest["version"])
     require(set(record["runtime"]["engine"]["plan_execution"]["workflows"])
-            == ({"dnp-call", "snp-call", "contamination", "cpi"} | ({"cpin"} if modern else set())),
+            == ({"dnp-call", "snp-call", "contamination", "cpi"} | ({"cpin"} if modern else set())
+                | ({"fetal-sex"} if has_fetal_sex(manifest["version"]) else set())),
             "Installed image lacks the complete plan interface.")
     require(len(record["commands"]) == 1 and "execute-plan" in record["commands"][0]["argv"],
             "Installed composition must execute in one scientific container.")
@@ -267,8 +275,13 @@ def check_automatic_plan(run_directory: Path, fixture: Path, manifest: dict,
             and all(int(row["informative_sites" if modern else "informative_DNPs"]) == 2 and float(row["mean_contamination"]) == 0
                     and float(row["sd_contamination"]) == 0 for row in rows),
             "Installed Contamination differs from the two homozygous loci per sample.")
-    for artifact in contamination["contamination-tables"]:
-        rows = read_table(checked_artifact(root, artifact))
+    tables = contamination["contamination-tables"]
+    require(len(tables) == 2 and {item.get("sample") for item in tables} == {"sample_0001", "sample_0002"},
+            "Installed Contamination tables must identify both expected samples.")
+    paths = [checked_artifact(root, item).resolve() for item in tables]
+    require(len(set(paths)) == len(paths), "Installed Contamination table paths must be distinct.")
+    for path in paths:
+        rows = read_table(path)
         require(len(rows) == 2 and {int(row["pos1"]) for row in rows} == {50, 230}
                 and all(float(row["contamination"]) == 0 for row in rows),
                 "Installed per-site contamination differs from its oracle.")
@@ -443,6 +456,20 @@ def verify(package: Path, manifest_path: Path, work: Path, output: Path) -> None
                 environment=environment, cwd=work)
             check_automatic_plan(data / "runs/installed-automatic-plan", fixture, manifest, image, [bam, paternal])
             evidence["checks"]["automatic_workflow_plan"] = True
+        if has_fetal_sex(manifest["version"]):
+            fixture_root = APP / "tests/fixtures/fetal_sex"
+            for case in ("Female_fetus", "Male_fetus"):
+                argv = [COMMAND, "fetal-sex", "--run-name", "installed-" + case]
+                for option, region in (("--autosomes", "autosomes"), ("--x", "X"), ("--y", "Y")):
+                    argv.extend([option, str(fixture_root / "inputs" / f"{case}_{region}.txt")])
+                run(argv, environment=environment, cwd=work)
+                result = data / "runs" / ("installed-" + case) / "output"
+                for name in ("Fetal_sex_summary.txt", "Autosomal_informative_sites.txt",
+                             "X_informative_sites.txt", "Y_sites.txt"):
+                    expected_file = fixture_root / "outputs" / case / name
+                    require(read_table(result / name) == read_table(expected_file),
+                            f"Installed fetal sex result differs from the reference: {case}/{expected_file.name}")
+            evidence["checks"]["fetal_sex_example"] = True
         require(snapshot(inputs) == originals, "The installed workflow changed original inputs.")
         require(snapshot(configuration) == preferences_before, "Installed analysis changed saved preferences.")
         evidence["checks"]["private_inputs_unchanged"] = True

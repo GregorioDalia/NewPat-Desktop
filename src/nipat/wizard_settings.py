@@ -402,7 +402,7 @@ class GuidedSettings:
                 ("7", "Ripristina impostazioni", "Conferma richiesta; dati conservati"),
                 ("8", "Aggiornamenti", "Canale e verifica all'avvio"),
                 ("9", "Risorse, prestazioni e provenienza", "Parallelismo, blocchi, RAM, CPU e checksum degli input"),
-                ("s", "Parametri scientifici e costanti", "Valori dei cinque moduli, salvati per i prossimi avvii"),
+                ("s", "Parametri scientifici e costanti", "Valori dei moduli, salvati per i prossimi avvii"),
                 ("0", "Torna al menu", ""),
             ], default="0")
             if action in {"0", ":indietro"}:

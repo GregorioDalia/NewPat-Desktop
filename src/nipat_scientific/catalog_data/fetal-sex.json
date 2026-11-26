@@ -1,0 +1,602 @@
+{
+  "schema_version": 1,
+  "workflow": "fetal-sex",
+  "source": {
+    "path": "scientific/vendor/NEWPAT/Fetal_sex/Fetal_sex.R",
+    "sha256": "cc4ad06d8d5df9feb021b37264a8b13459e30ec11aad7d77ee9dd0735ba3fd46",
+    "line_count": 577
+  },
+  "public_parameters": [
+    {
+      "id": "autosomes",
+      "r_names": [
+        "--autosomes"
+      ],
+      "position": null,
+      "type": "file",
+      "default": null,
+      "required": true,
+      "unit": null,
+      "nipat": {
+        "cli": [
+          "--autosomes"
+        ],
+        "request_fields": [
+          "autosomes"
+        ],
+        "mapping": "direct"
+      },
+      "description": {
+        "it": "Conteggi DNP sui cromosomi da 1 a 22. Usare lo stesso campione di cfDNA materno per le tre tabelle.",
+        "en": "DNP counts on chromosomes 1 through 22. Use the same maternal cfDNA sample for all three tables."
+      },
+      "source_lines": [
+        16,
+        17
+      ]
+    },
+    {
+      "id": "x",
+      "r_names": [
+        "--X"
+      ],
+      "position": null,
+      "type": "file",
+      "default": null,
+      "required": true,
+      "unit": null,
+      "nipat": {
+        "cli": [
+          "--x"
+        ],
+        "request_fields": [
+          "x"
+        ],
+        "mapping": "direct"
+      },
+      "description": {
+        "it": "Conteggi DNP sul cromosoma X. Usare lo stesso campione di cfDNA materno per le tre tabelle.",
+        "en": "DNP counts on chromosome X. Use the same maternal cfDNA sample for all three tables."
+      },
+      "source_lines": [
+        19,
+        20
+      ]
+    },
+    {
+      "id": "y",
+      "r_names": [
+        "--Y"
+      ],
+      "position": null,
+      "type": "file",
+      "default": null,
+      "required": true,
+      "unit": null,
+      "nipat": {
+        "cli": [
+          "--y"
+        ],
+        "request_fields": [
+          "y"
+        ],
+        "mapping": "direct"
+      },
+      "description": {
+        "it": "Conteggi SNP sul cromosoma Y. Usare lo stesso campione di cfDNA materno per le tre tabelle.",
+        "en": "SNP counts on chromosome Y. Use the same maternal cfDNA sample for all three tables."
+      },
+      "source_lines": [
+        22,
+        23
+      ]
+    },
+    {
+      "id": "out",
+      "r_names": [
+        "--out"
+      ],
+      "position": null,
+      "type": "directory",
+      "default": null,
+      "required": true,
+      "unit": null,
+      "nipat": {
+        "cli": [
+          "--runs-dir",
+          "--run-name"
+        ],
+        "request_fields": [
+          "out_dir"
+        ],
+        "mapping": "managed"
+      },
+      "description": {
+        "it": "Cartella di destinazione per il riepilogo e le tre tabelle dei siti.",
+        "en": "Destination of the summary and three site tables."
+      },
+      "source_lines": [
+        25,
+        26
+      ]
+    },
+    {
+      "id": "max_other_fraction",
+      "r_names": [
+        "--max_other_fraction"
+      ],
+      "position": null,
+      "type": "number",
+      "default": 0.1,
+      "required": false,
+      "unit": "proporzione",
+      "nipat": {
+        "cli": [
+          "--set"
+        ],
+        "request_fields": [
+          "scientific_settings.max_other_fraction"
+        ],
+        "mapping": "adapted"
+      },
+      "description": {
+        "it": "Massima frazione N_Other/total_count ammessa nei siti autosomici e X. Il limite è incluso.",
+        "en": "Maximum N_Other/total_count for autosomal and X sites. Sites at the limit are included."
+      },
+      "source_lines": [
+        30,
+        33
+      ]
+    },
+    {
+      "id": "maternal_hom_threshold",
+      "r_names": [
+        "--maternal_hom_threshold"
+      ],
+      "position": null,
+      "type": "number",
+      "default": 0.9,
+      "required": false,
+      "unit": "proporzione",
+      "nipat": {
+        "cli": [
+          "--set"
+        ],
+        "request_fields": [
+          "scientific_settings.maternal_hom_threshold"
+        ],
+        "mapping": "adapted"
+      },
+      "description": {
+        "it": "Frazione minima di letture REF o ALT tra le letture REF + ALT per assegnare l’allele materno prevalente.",
+        "en": "Minimum REF or ALT fraction among REF + ALT reads used to identify the predominant maternal allele."
+      },
+      "source_lines": [
+        35,
+        38
+      ]
+    },
+    {
+      "id": "include_zero_coverage_y",
+      "r_names": [
+        "--include_zero_coverage_Y"
+      ],
+      "position": null,
+      "type": "boolean",
+      "default": true,
+      "required": false,
+      "unit": null,
+      "nipat": {
+        "cli": [
+          "--set"
+        ],
+        "request_fields": [
+          "scientific_settings.include_zero_coverage_y"
+        ],
+        "mapping": "adapted"
+      },
+      "description": {
+        "it": "Include nella media Y i marcatori con zero letture REF + ALT.",
+        "en": "Include markers with zero REF + ALT reads in the Y mean."
+      },
+      "source_lines": [
+        40,
+        43
+      ]
+    },
+    {
+      "id": "min_fetal_reads",
+      "r_names": [
+        "--min_fetal_reads"
+      ],
+      "position": null,
+      "type": "integer",
+      "default": null,
+      "required": false,
+      "unit": "letture",
+      "nipat": {
+        "cli": [
+          "--set"
+        ],
+        "request_fields": [
+          "scientific_settings.min_fetal_reads"
+        ],
+        "mapping": "adapted"
+      },
+      "description": {
+        "it": "Numero minimo di letture non materne nei siti autosomici e X. Se entrambi i filtri sono vuoti si usano due letture.",
+        "en": "Minimum non-maternal reads at autosomal and X sites. Two reads are required when both fetal read filters are unset."
+      },
+      "source_lines": [
+        46,
+        48
+      ]
+    },
+    {
+      "id": "min_fetal_percent",
+      "r_names": [
+        "--min_fetal_percent"
+      ],
+      "position": null,
+      "type": "number",
+      "default": null,
+      "required": false,
+      "unit": "%",
+      "nipat": {
+        "cli": [
+          "--set"
+        ],
+        "request_fields": [
+          "scientific_settings.min_fetal_percent"
+        ],
+        "mapping": "adapted"
+      },
+      "description": {
+        "it": "Percentuale minima di letture non materne sul totale REF + ALT nei siti autosomici e X. Se impostati, entrambi i filtri devono essere soddisfatti.",
+        "en": "Minimum non-maternal percentage among REF + ALT reads at autosomal and X sites. Sites must satisfy both fetal read filters when both are set."
+      },
+      "source_lines": [
+        50,
+        52
+      ]
+    },
+    {
+      "id": "a_threshold",
+      "r_names": [
+        "--A_threshold"
+      ],
+      "position": null,
+      "type": "number",
+      "default": 0.5,
+      "required": false,
+      "unit": "rapporto",
+      "nipat": {
+        "cli": [
+          "--set"
+        ],
+        "request_fields": [
+          "scientific_settings.a_threshold"
+        ],
+        "mapping": "adapted"
+      },
+      "description": {
+        "it": "Soglia del rapporto X/autosomi. Valori uguali o superiori soddisfano il criterio femminile, valori inferiori quello maschile.",
+        "en": "X/autosome ratio threshold. Values at or above it satisfy the female criterion. Lower values satisfy the male criterion."
+      },
+      "source_lines": [
+        56,
+        57
+      ]
+    },
+    {
+      "id": "b_female_max",
+      "r_names": [
+        "--B_female_max"
+      ],
+      "position": null,
+      "type": "number",
+      "default": 0.1,
+      "required": false,
+      "unit": "rapporto",
+      "nipat": {
+        "cli": [
+          "--set"
+        ],
+        "request_fields": [
+          "scientific_settings.b_female_max"
+        ],
+        "mapping": "adapted"
+      },
+      "description": {
+        "it": "Massimo rapporto Y/autosomi per la classificazione femminile, limite incluso.",
+        "en": "Maximum Y/autosome ratio for the female classification, inclusive."
+      },
+      "source_lines": [
+        59,
+        60
+      ]
+    },
+    {
+      "id": "b_male_min",
+      "r_names": [
+        "--B_male_min"
+      ],
+      "position": null,
+      "type": "number",
+      "default": 1,
+      "required": false,
+      "unit": "rapporto",
+      "nipat": {
+        "cli": [
+          "--set"
+        ],
+        "request_fields": [
+          "scientific_settings.b_male_min"
+        ],
+        "mapping": "adapted"
+      },
+      "description": {
+        "it": "Minimo rapporto Y/autosomi per la classificazione maschile, limite incluso.",
+        "en": "Minimum Y/autosome ratio for the male classification, inclusive."
+      },
+      "source_lines": [
+        62,
+        63
+      ]
+    },
+    {
+      "id": "c_female_max",
+      "r_names": [
+        "--C_female_max"
+      ],
+      "position": null,
+      "type": "number",
+      "default": 0.1,
+      "required": false,
+      "unit": "rapporto",
+      "nipat": {
+        "cli": [
+          "--set"
+        ],
+        "request_fields": [
+          "scientific_settings.c_female_max"
+        ],
+        "mapping": "adapted"
+      },
+      "description": {
+        "it": "Massimo rapporto Y/X per la classificazione femminile, limite incluso.",
+        "en": "Maximum Y/X ratio for the female classification, inclusive."
+      },
+      "source_lines": [
+        65,
+        66
+      ]
+    },
+    {
+      "id": "c_male_min",
+      "r_names": [
+        "--C_male_min"
+      ],
+      "position": null,
+      "type": "number",
+      "default": 2,
+      "required": false,
+      "unit": "rapporto",
+      "nipat": {
+        "cli": [
+          "--set"
+        ],
+        "request_fields": [
+          "scientific_settings.c_male_min"
+        ],
+        "mapping": "adapted"
+      },
+      "description": {
+        "it": "Minimo rapporto Y/X per la classificazione maschile, limite incluso.",
+        "en": "Minimum Y/X ratio for the male classification, inclusive."
+      },
+      "source_lines": [
+        68,
+        69
+      ]
+    }
+  ],
+  "fixed_settings": [
+    {
+      "id": "autosomal_x_mean",
+      "kind": "formula",
+      "value": "mean(fetal_reads)",
+      "description": {
+        "it": "Media delle letture non materne nei siti informativi autosomici o X. Senza siti informativi la media è NA.",
+        "en": "Mean non-maternal reads at informative autosomal or X sites. An empty set has a missing mean."
+      },
+      "source_lines": [
+        355,
+        371
+      ]
+    },
+    {
+      "id": "y_mean",
+      "kind": "formula",
+      "value": "mean(N_REF + N_ALT)",
+      "description": {
+        "it": "Media delle letture REF + ALT sui siti Y inclusi. In assenza di siti inclusi vale zero.",
+        "en": "Mean REF + ALT reads across included Y sites. With no included sites the value is zero."
+      },
+      "source_lines": [
+        373,
+        377
+      ]
+    },
+    {
+      "id": "three_ratios",
+      "kind": "formula",
+      "value": [
+        "MFF_X / MFF_A",
+        "MFF_Y / MFF_A",
+        "MFF_Y / MFF_X"
+      ],
+      "description": {
+        "it": "I rapporti A, B e C confrontano le tre medie. Un valore mancante o 0/0 dà NA; un numeratore positivo diviso per zero dà Inf.",
+        "en": "Ratios A, B and C compare the three means. Missing inputs or 0/0 yield NA. A positive numerator divided by zero yields Inf."
+      },
+      "source_lines": [
+        383,
+        407
+      ]
+    },
+    {
+      "id": "classification_rule",
+      "kind": "filter",
+      "value": "F | M | Undetermined",
+      "description": {
+        "it": "Tutti i criteri di una classe devono essere soddisfatti. In caso di rapporti mancanti o discordanti il risultato è indeterminato. Le soglie sono preliminari.",
+        "en": "All three criteria for one class must hold. Missing or discordant ratios produce an undetermined result. The thresholds are preliminary."
+      },
+      "source_lines": [
+        413,
+        437
+      ]
+    }
+  ],
+  "preparation_settings": [
+    {
+      "id": "adapter",
+      "origin": "NewPat scientific engine",
+      "applies_to": "fetal-sex",
+      "value": [
+        "autosomes",
+        "x",
+        "y"
+      ],
+      "description": {
+        "it": "Il motore verifica che le tre tabelle distinte associate al campione materno contengano rispettivamente DNP autosomici, DNP sul cromosoma X e SNP sul cromosoma Y. Passa i parametri scientifici allo script R.",
+        "en": "The engine checks that the three distinct tables assigned to the maternal sample contain autosomal DNPs, X chromosome DNPs and Y chromosome SNPs respectively. It passes the scientific settings to the R script."
+      },
+      "evidence": {
+        "path": "src/nipat_scientific/fetal_sex.py",
+        "sha256": "0898044a2f8f1f158bbb3519770fa108cb6108e7ea6342ef36ef6f099b89afa0",
+        "source_lines": [
+          1,
+          158
+        ],
+        "dependencies": [
+          {
+            "path": "src/nipat_scientific/settings.py",
+            "sha256": "dc40a1dfff1e87fbc8c9eb8427ea413ed1b358cf6b62542678e061894605cba9",
+            "source_lines": [
+              1,
+              207
+            ]
+          },
+          {
+            "path": "src/nipat_scientific/settings_data.json",
+            "sha256": "288538dd8057e235edcb0e6e12ccea610f1066fb536262be086191759777e03c",
+            "source_lines": [
+              1,
+              764
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "audit_sections": [
+    {
+      "start": 1,
+      "end": 75,
+      "summary": {
+        "it": "Caricamento di dplyr e optparse e dichiarazione delle opzioni.",
+        "en": "Load dplyr and optparse and declare the command options."
+      }
+    },
+    {
+      "start": 76,
+      "end": 150,
+      "summary": {
+        "it": "Validazione di argomenti, soglie, filtri e cartella di destinazione.",
+        "en": "Validate arguments, thresholds, filters and output destination."
+      }
+    },
+    {
+      "start": 151,
+      "end": 264,
+      "summary": {
+        "it": "Controllo di intestazioni, cromosomi, duplicati e conteggi interi. Scrittura delle tabelle con valori mancanti NA.",
+        "en": "Check headers, chromosomes, duplicates and integer read counts. Write tables with NA for missing values."
+      }
+    },
+    {
+      "start": 265,
+      "end": 282,
+      "summary": {
+        "it": "Lettura delle tre tabelle cfDNA.",
+        "en": "Read the three cfDNA count tables."
+      }
+    },
+    {
+      "start": 283,
+      "end": 339,
+      "summary": {
+        "it": "Selezione dei siti informativi autosomici e X.",
+        "en": "Select informative autosomal and X sites."
+      }
+    },
+    {
+      "start": 340,
+      "end": 350,
+      "summary": {
+        "it": "Conteggio delle letture e selezione dei siti Y.",
+        "en": "Count reads and select Y sites."
+      }
+    },
+    {
+      "start": 351,
+      "end": 378,
+      "summary": {
+        "it": "Media delle letture per ciascuna regione.",
+        "en": "Calculate mean read counts in each region."
+      }
+    },
+    {
+      "start": 379,
+      "end": 408,
+      "summary": {
+        "it": "Rapporti A, B e C, inclusi denominatori nulli e dati mancanti.",
+        "en": "Calculate ratios A, B and C, including zero denominators and missing values."
+      }
+    },
+    {
+      "start": 409,
+      "end": 438,
+      "summary": {
+        "it": "Classificazione mediante tre criteri concordanti.",
+        "en": "Classify using three concordant criteria."
+      }
+    },
+    {
+      "start": 439,
+      "end": 510,
+      "summary": {
+        "it": "Costruzione del riepilogo con conteggi, medie, rapporti, esito e soglie.",
+        "en": "Assemble counts, means, ratios, outcome and thresholds in the summary."
+      }
+    },
+    {
+      "start": 511,
+      "end": 544,
+      "summary": {
+        "it": "Scrittura del riepilogo e delle tre tabelle dei siti.",
+        "en": "Write the summary and three site tables."
+      }
+    },
+    {
+      "start": 545,
+      "end": 577,
+      "summary": {
+        "it": "Presentazione dei risultati a terminale.",
+        "en": "Print the results to the terminal."
+      }
+    }
+  ]
+}

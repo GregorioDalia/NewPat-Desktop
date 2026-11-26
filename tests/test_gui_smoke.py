@@ -2,8 +2,11 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from nipat.cli import build_parser
 from nipat.gui import app, linux_host, macos_host, windows_host
+from nipat.gui.host import smoke_ready
 
 
 def test_full_application_smoke_cli_accepts_screenshot():
@@ -17,7 +20,7 @@ def test_full_application_smoke_cli_accepts_screenshot():
     assert args.smoke_timeout == 90
 
 
-def test_application_forwards_native_smoke_and_screenshot(tmp_path):
+def test_application_forwards_native_smoke_and_screenshot(tmp_path, monkeypatch):
     seen = {}
     class Server:
         url = "http://127.0.0.1:5678/capability/web/index.html"
@@ -26,10 +29,11 @@ def test_application_forwards_native_smoke_and_screenshot(tmp_path):
     def native_run(url, **options):
         seen.update(url=url, **options)
         return 0
-    application = app.DesktopApplication.__new__(app.DesktopApplication)
-    application.host = SimpleNamespace(run_window=native_run)
-    application.service = SimpleNamespace(layout=SimpleNamespace(workspace_dir=tmp_path))
-    application.server = Server()
+    monkeypatch.setattr(app, "DesktopServer", lambda dispatcher, *, assets, pdf_export: Server())
+    application = app.DesktopApplication(
+        host=SimpleNamespace(run_window=native_run),
+        service=SimpleNamespace(layout=SimpleNamespace(workspace_dir=tmp_path)),
+    )
     report, screenshot = tmp_path / "native.json", tmp_path / "native.png"
     assert application.run(smoke_test=True, smoke_report=report, smoke_screenshot=screenshot, timeout=90) == 0
     assert seen["smoke_test"] is True and seen["smoke_report"] == report
@@ -63,3 +67,10 @@ def test_gtk_navigation_matches_other_native_hosts():
     base = "http://127.0.0.1:5678/capability/web/index.html"
     assert linux_host.allowed_navigation("http://127.0.0.1:5678/capability/files/token", base)
     assert not linux_host.allowed_navigation("http://127.0.0.1:5678/capability/%2e%2e/private", base)
+
+
+def test_native_smoke_waits_for_pdf_generation_and_reports_render_failure():
+    assert not smoke_ready({"appReady": True, "pdfExport": "pending"})
+    assert smoke_ready({"appReady": True, "pdfExport": "passed"})
+    with pytest.raises(RuntimeError, match="Incomplete PDF"):
+        smoke_ready({"appReady": True, "pdfExport": "failed", "pdfError": "Incomplete PDF"})

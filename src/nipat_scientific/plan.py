@@ -1,6 +1,6 @@
 """Validate a scientific workflow plan without reading files or executing tools.
 
-Version 1 is a deliberately small contract for the five bundled workflows.
+Version 1 is a deliberately small contract for the bundled workflows.
 Dependencies arise only from typed SNP/DNP output references. It is not a shell,
 template language, or generic task scheduler. The executor consumes this contract
 separately; validation itself never runs an analysis.
@@ -19,7 +19,7 @@ from nipat_scientific.presentation import normalize_presentation
 
 
 SCHEMA_VERSION = 1
-WORKFLOWS = frozenset({"dnp-call", "snp-call", "contamination", "cpi", "cpin"})
+WORKFLOWS = frozenset({"dnp-call", "snp-call", "contamination", "cpi", "cpin", "fetal-sex"})
 SAMPLE_KINDS = frozenset({"bam", "dnp-table", "snp-table", "snp-pileup"})
 _IDENTIFIER = re.compile(r"[A-Za-z][A-Za-z0-9_-]{0,63}\Z")
 
@@ -96,7 +96,7 @@ def _table_reference(value: object, samples: dict, step_ids: set[str],
     producer = _identifier(value["step"], f"{consumer} producer")
     if producer not in step_ids:
         _fail("plan.step_missing", f"{consumer}: unknown producer {producer}.")
-    if value["output"] not in {"dnp-tables", "snp-tables"}:
+    if value["output"] not in ("dnp-tables", "snp-tables"):
         _fail("plan.output_kind", f"{consumer}: only dnp-tables and snp-tables are compatible with this input.")
     sample = _identifier(value["sample"], f"{consumer} output sample")
     dependencies[consumer].add(producer)
@@ -201,6 +201,8 @@ def validate_plan(document: object) -> dict:
         marker_type = parameters.pop("marker_type", None)
         if marker_type is not None and (not isinstance(marker_type, str) or marker_type not in {"SNP", "DNP"}):
             _fail("plan.marker_type", f"{identifier}: marker_type must be SNP or DNP.")
+        if marker_type is not None and workflow in {"snp-call", "dnp-call"} and workflow != f"{marker_type.lower()}-call":
+            _fail("plan.marker_type", f"{identifier}: declared marker type differs from the caller.")
         if scientific_settings is not None:
             from nipat_scientific.settings import normalize_settings
             try:
@@ -237,6 +239,14 @@ def validate_plan(document: object) -> dict:
             selected = {"sample": sample, "reference": reference,
                         "panel": _path(inputs["panel"], f"{identifier} panel")}
             values = {"mode": mode}
+        elif workflow == "fetal-sex":
+            _object(inputs, {"autosomes", "x", "y"}, identifier)
+            _object(parameters, set(), f"{identifier} parameters")
+            if marker_type is not None:
+                _fail("plan.marker_type", "Fetal sex requires both DNP and SNP tables.")
+            selected = {role: _sample(inputs[role], samples, kind, identifier)
+                        for role, kind in (("autosomes", "dnp-table"), ("x", "dnp-table"), ("y", "snp-table"))}
+            _unique(list(selected.values()), f"{identifier} region tables")
         elif workflow == "contamination":
             _object(inputs, {"samples", "panel"}, identifier)
             _object(parameters, set(), f"{identifier} parameters")
@@ -327,7 +337,7 @@ def validate_plan(document: object) -> dict:
         if sample not in produced_samples:
             _fail("plan.output_sample", f"{consumer}: {producer} does not produce sample {sample}.")
     for step in normalized.values():
-        if step["workflow"] in {"dnp-call", "snp-call"}:
+        if step["workflow"] in {"dnp-call", "snp-call", "fetal-sex"}:
             continue
         inp = step["inputs"]
         refs = (inp["samples"] if step["workflow"] == "contamination" else

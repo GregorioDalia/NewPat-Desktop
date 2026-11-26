@@ -1,0 +1,9 @@
+{
+  "upstream_commit": "c753afc4be62dfc0b81b8cb683a6e850516f5ffd",
+  "repository": "https://github.com/lpistacchia/NEWPAT",
+  "sha256": {
+    "CPI_postnatal/Postnatal_CPI.R": "611fd93c4606298e97174c5c7b55f9a34445b95389537c994b7f41ffa43a05e6",
+    "CPI_from_cffDNA/cfDNA_CPI_estimator.R": "b05e2889dbbca00777af1e0b24439f0e211c5c71edf309375c3d7e2e40c7be63",
+    "contamination/detect_contamination.R": "afbbf20b937dfef356d0046e18ffff3d6746113ae771dd87745369b3e64081ca"
+  }
+}

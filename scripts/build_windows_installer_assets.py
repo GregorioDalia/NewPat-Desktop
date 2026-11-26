@@ -27,7 +27,12 @@ _COMPONENT_SPEC = importlib.util.spec_from_file_location(
 component = importlib.util.module_from_spec(_COMPONENT_SPEC)
 _COMPONENT_SPEC.loader.exec_module(component)
 
-RELEASE_REPOSITORY = "GregorioDalia/nipat-desktop"
+_REPO_SPEC = importlib.util.spec_from_file_location(
+    "nipat_repository_identity", Path(__file__).resolve().parents[1] / "src/nipat/repository.py"
+)
+repository = importlib.util.module_from_spec(_REPO_SPEC)
+_REPO_SPEC.loader.exec_module(repository)
+RELEASE_REPOSITORY = repository.build_repository()
 MAX_ASSET_BYTES = 2 * 1024**3  # GitHub release files must be smaller than 2 GiB.
 MANIFEST_NAME = "installer-manifest.json"
 APPLICATION_FILES_NAME = "application-files.json"
@@ -197,7 +202,7 @@ def reuse_rootfs(previous_directory: Path | None, expected: dict, destination: P
         return None
     metadata = previous["assets"]["rootfs"]
     archive = previous_directory / metadata["file"]
-    if asset_metadata(archive, previous["release_tag"]) != metadata:
+    if not matches_asset(archive, previous["release_tag"], metadata):
         raise ValueError("Archivio WSL precedente diverso dal manifest pubblicato.")
     with tarfile.open(archive, "r:gz") as contents:
         markers = [entry for entry in contents if entry.name in {"etc/nipat-runtime.json", "./etc/nipat-runtime.json"}]
@@ -298,8 +303,7 @@ def validate_manifest(manifest: dict) -> None:
         name = entry.get("file", "")
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*\.tar\.gz", name):
             raise ValueError("Nome file non sicuro nel manifest.")
-        expected_url = f"https://github.com/{RELEASE_REPOSITORY}/releases/download/{tag}/{name}"
-        if entry.get("url") != expected_url:
+        if entry.get("url") not in repository.release_urls(f"/releases/download/{tag}/{name}"):
             raise ValueError("URL di download diverso dalla release prevista.")
         if not re.fullmatch(r"[0-9a-f]{64}", entry.get("sha256", "")):
             raise ValueError("SHA-256 mancante o non valido.")
@@ -308,12 +312,18 @@ def validate_manifest(manifest: dict) -> None:
             raise ValueError("Dimensione asset non valida o >= 2 GiB.")
 
 
+def matches_asset(archive: Path, tag: str, entry: dict) -> bool:
+    actual = asset_metadata(archive, tag)
+    if entry.get("url") not in repository.release_urls(f"/releases/download/{tag}/{archive.name}"):
+        return False
+    return dict(actual, url=entry["url"]) == entry
+
+
 def verify_runtime_assets(manifest: dict, asset_directory: Path) -> None:
     """Check the exact archive bytes used by the compiler, not only their names."""
     validate_manifest(manifest)
     for entry in manifest["assets"].values():
-        actual = asset_metadata(asset_directory / entry["file"], manifest["release_tag"])
-        if actual != entry:
+        if not matches_asset(asset_directory / entry["file"], manifest["release_tag"], entry):
             raise ValueError(f"Asset incorporato diverso dal manifest: {entry['file']}")
 
 

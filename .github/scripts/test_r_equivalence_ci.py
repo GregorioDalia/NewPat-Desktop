@@ -1,9 +1,12 @@
 """Keep scientific equivalence mandatory without authorizing publication."""
 
 import ast
+import io
 from pathlib import Path
 import re
 import unittest
+
+import check_native_r
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -46,7 +49,8 @@ class REquivalenceCI(unittest.TestCase):
             self.assertIn('scripts/verify_five_modules.py --image "$NIPAT_RUNTIME_IMAGE"', job)
             self.assertIn('--output "$TMPDIR/artifacts" --full', job)
             self.assertIn('${{ runner.temp }}/nipat-five-modules-check/', job)
-            self.assertNotIn("continue-on-error:", job)
+            step = next(step for step in job.split("      - name:") if "scripts/verify_five_modules.py" in step)
+            self.assertNotIn("continue-on-error:", step)
 
     def test_native_edge_and_settings_regressions_cannot_skip_in_image(self):
         for name, identifier in (("ci.yml", "scientific"), ("windows-installer.yml", "linux-runtime")):
@@ -55,10 +59,44 @@ class REquivalenceCI(unittest.TestCase):
             self.assertIn("--env PYTHONPATH=/opt/nipat/lib:/qualification/src", job)
             self.assertIn("--network=none", job)
             self.assertIn("${{ runner.temp }}/nipat-native-r-check/", job)
+            self.assertIn("--report /evidence/native-r.json", job)
         gate = (ROOT / ".github/scripts/check_native_r.py").read_text()
-        self.assertIn("result.skipped", gate)
+        self.assertIn("self.skipped", gate)
         self.assertIn("test_native_r_*.py", gate)
         self.assertIn("test_scientific_settings.py", gate)
+
+    def test_native_evidence_distinguishes_comparisons_failures_skips_and_missing_suites(self):
+        class Example(unittest.TestCase):
+            def test_values(self):
+                for observed in (2, 3):
+                    with self.subTest(observed=observed):
+                        self.assertEqual(observed, 2)
+
+            @unittest.skip("fixture unavailable")
+            def test_missing(self):
+                pass
+
+            def test_good(self):
+                self.assertEqual(2 * 2, 4)
+
+        def execute(*methods):
+            suite = unittest.TestSuite(Example(name) for name in methods)
+            return unittest.TextTestRunner(stream=io.StringIO(), resultclass=check_native_r.EvidenceResult).run(suite)
+
+        result = execute("test_values", "test_missing")
+        report = result.report({__name__, "missing_suite"})
+        self.assertFalse(report["passed"])
+        self.assertEqual(report["tests_run"], 2)
+        self.assertEqual(report["schema_version"], 2)
+        self.assertEqual(report["subcases_run"], 2)
+        self.assertEqual(report["missing_oracle_modules"], ["missing_suite"])
+        self.assertEqual([item["status"] for item in report["subcases"]], ["passed", "failed"])
+        self.assertIn("3 != 2", report["failures"][0]["detail"])
+        self.assertEqual(report["skipped"][0]["reason"], "fixture unavailable")
+        self.assertFalse(execute("test_missing").report(set())["passed"])
+        self.assertFalse(execute().report(set())["passed"])
+        self.assertFalse(execute("test_good").report({"missing_suite"})["passed"])
+        self.assertTrue(execute("test_good").report({__name__})["passed"])
 
     def test_native_gate_uses_shared_required_and_installed_r_packages(self):
         helper = ast.parse((ROOT / "tests/native_r_helpers.py").read_text())
@@ -70,7 +108,7 @@ class REquivalenceCI(unittest.TestCase):
         self.assertLessEqual(set(packages), installed)
         required = {"jsonlite"}
         for relative in ("CPI_postnatal/Postnatal_CPI.R", "CPI_from_cffDNA/cfDNA_CPI_estimator.R",
-                         "contamination/detect_contamination.R"):
+                         "contamination/detect_contamination.R", "Fetal_sex/Fetal_sex.R"):
             source = (ROOT / "scientific/vendor/NEWPAT" / relative).read_text()
             required.update(re.findall(r"library\(([A-Za-z][A-Za-z0-9.]*)\)", source))
         required.discard("tools")  # Included with base R, not a CRAN dependency.
@@ -100,7 +138,7 @@ class REquivalenceCI(unittest.TestCase):
                     rf"^      - name: {re.escape(CHECK_NAME)}\n(.*?)(?=^      - name:|\Z)",
                     job, re.MULTILINE | re.DOTALL,
                 )[1]
-                self.assertNotIn("continue-on-error:", job)
+                self.assertNotIn("continue-on-error:", step)
                 self.assertEqual(re.findall(r"(?m)^        if: (.+)$", step),
                                  ["steps.scientific_reuse.outputs.reused != 'true'"])
                 self.assertIn('set -o pipefail', step)

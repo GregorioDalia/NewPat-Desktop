@@ -71,7 +71,7 @@ class WorkflowWizardTests(unittest.TestCase):
 
     def test_menu_preserves_existing_numbers_and_single_character_navigation(self):
         keys = [item[0] for item in MAIN_MENU]
-        self.assertEqual(set(keys), set("0123456789") | {"W", "N"})
+        self.assertEqual(set(keys), set("0123456789") | {"W", "N", "F"})
         self.assertTrue(all(len(key) == 1 for key in keys))
         self.assertEqual(dict((key, label) for key, label, _ in MAIN_MENU)["5"], "Configura")
 

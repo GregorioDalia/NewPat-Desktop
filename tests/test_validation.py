@@ -48,6 +48,15 @@ class ValidationTests(unittest.TestCase):
             )
             require_contamination_input(source)
 
+    def test_scientific_manifest_requires_at_least_one_source(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            manifest = Path(directory) / "SHA256SUMS"
+            for content in ("", "\n  \n"):
+                with self.subTest(content=content):
+                    manifest.write_text(content, encoding="utf-8")
+                    with self.assertRaisesRegex(ValidationError, "vuoto"):
+                        verify_sha256_manifest(manifest)
+
     def test_scientific_manifest_detects_changes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

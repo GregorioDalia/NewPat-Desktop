@@ -1,4 +1,4 @@
-# NIPAT 0.8.50: NEWPAT 9c2a8be model, validated settings and bounded ordered parallelism.
+# NewPat adapts the NEWPAT 9c2a8be model to shared settings and bounded sample workers.
 suppressPackageStartupMessages({
   library(dplyr)
   library(tools)
@@ -8,7 +8,6 @@ source(Sys.getenv("NIPAT_PARALLEL_HELPER", unset="/opt/nipat/lib/nipat_scientifi
 source(Sys.getenv("NIPAT_SETTINGS_HELPER", unset="/opt/nipat/lib/nipat_scientific/settings.R"))
 nipat_cfg <- nipat_settings("contamination")
 
-# load arguments
 args <- commandArgs(trailingOnly = TRUE)
 
 if (length(args) < 3) {
@@ -54,8 +53,8 @@ first_fields <- clean(raw_fields)
 has_header <- "chr" %in% first_fields &&
   ("pos" %in% first_fields || all(c("pos1", "pos2") %in% first_fields))
 
-dnplist <- read.table(panel_file, header=has_header, sep="\t",
-                      stringsAsFactors=FALSE, check.names=FALSE,
+dnplist <- nipat_read_marker_table(panel_file, header=has_header, sep="\t",
+                      stringsAsFactors=FALSE, check.names=FALSE, chromosome_column=if (has_header) raw_fields[match("chr", first_fields)] else "V1",
                       quote="", comment.char="",
                       colClasses=if (has_header) {
                         setNames("character", raw_fields[match("chr", first_fields)])
@@ -86,7 +85,6 @@ if (!nrow(dnplist) || anyNA(dnplist[site_columns])) {
 }
 message("Marker type: ", marker)
 
-# detect whether input_path is a file or directory
 if (file.exists(input_path) && !dir.exists(input_path)) {
 
   chip_files <- input_path
@@ -115,7 +113,6 @@ chip_normalized <- normalizePath(chip_files, mustWork = TRUE)
 
 chip_files <- chip_files[chip_normalized != panel_normalized]
 
-# initialize summary dataframe
 contamination_summary <- data.frame(
   individuo = character(),
   informative_sites = integer(),
@@ -124,10 +121,9 @@ contamination_summary <- data.frame(
   stringsAsFactors = FALSE
 )
 
-# main processing function
 process_df <- function(file_path) {
 
-  df <- read.table(
+  df <- nipat_read_marker_table(
     file_path,
     header = TRUE,
     sep = "\t",
@@ -155,7 +151,6 @@ process_df <- function(file_path) {
     )
   }
 
-  # convert numeric fields
   df <- df %>%
     mutate(
       chr = as.character(chr),
@@ -241,14 +236,12 @@ process_df <- function(file_path) {
     filtered_df <- informative_rows(df)
   }
 
-  # compute mean contamination
   if (nrow(filtered_df) > 0) {
     mean_contam <- mean(filtered_df$contamination, na.rm = TRUE)
   } else {
     mean_contam <- NA_real_
   }
 
-  # compute sd contamination
   if (nrow(filtered_df) > 1) {
     sd_contam <- sd(filtered_df$contamination, na.rm = TRUE)
   } else {
@@ -262,7 +255,6 @@ process_df <- function(file_path) {
     mean_contamination=mean_contam, sd_contamination=sd_contam,
     stringsAsFactors=FALSE)
 
-  # save processed file
   write.table(
     filtered_df,
     file = file.path(
@@ -308,7 +300,6 @@ summary_rows <- nipat_parallel_lapply(chip_files, process_df, label="contaminati
                                       memory_mib=sample_memory, workload_observed=!is.null(sample_memory))
 contamination_summary <- do.call(rbind, summary_rows)
 
-# save final summary
 write.table(
   contamination_summary,
   file = file.path(output_dir, "contamination_summary.txt"),

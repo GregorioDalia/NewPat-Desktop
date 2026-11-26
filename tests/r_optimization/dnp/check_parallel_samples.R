@@ -9,7 +9,8 @@ main <- function() {
   environment <- new.env(parent = globalenv())
   sys.source(file.path(root, "src/nipat_scientific/parallel.R"), environment)
   sys.source(file.path(root, "src/nipat_scientific/dnp_blocks.R"), environment)
-  variables <- c("NIPAT_EXECUTION_MODE", "NIPAT_PARALLEL_CHILD", "NIPAT_PARALLEL_LOG_DIR")
+  variables <- c("NIPAT_EXECUTION_MODE", "NIPAT_PARALLEL_CHILD", "NIPAT_PARALLEL_LOG_DIR",
+                 "NIPAT_DNP_OPTIMIZED_IO", "NIPAT_DNP_LIMA_ARM64", "NIPAT_MAX_WORKERS", "NIPAT_PERFORMANCE_DIR")
   previous <- Sys.getenv(variables, unset = NA_character_)
   on.exit(for (name in names(previous)) {
     if (is.na(previous[[name]])) Sys.unsetenv(name) else
@@ -79,12 +80,15 @@ main <- function() {
 
   production_lapply <- environment$nipat_parallel_lapply
   controlled_workers <- 1L
+  environment$nipat_parallel_capacity <- function() list(memory_capacity_mib = 3905)
+  memory_budget <- 32768
   environment$nipat_parallel_budget <- function(tasks, memory_mib = NULL, workers = NULL, workload_observed = TRUE) {
     selected <- min(controlled_workers, if (is.null(workers)) Inf else workers, max(1L, tasks))
     mode <- Sys.getenv("NIPAT_EXECUTION_MODE", "auto")
     if (!workload_observed || mode == "serial" || identical(Sys.getenv("NIPAT_PARALLEL_CHILD"), "1")) selected <- 1L
     list(mode = mode, max_workers = workers, workers = as.integer(selected), tasks = tasks,
-         cpu_limit = controlled_workers, memory_available_mib = 32768,
+         cpu_limit = controlled_workers, memory_available_mib = memory_budget,
+         memory_budget_mib = memory_budget, coordinator_rss_mib = 64,
          memory_per_worker_mib = memory_mib, memory_worker_limit = controlled_workers,
          reason = "controlled-test-budget")
   }
@@ -93,8 +97,15 @@ main <- function() {
   # blocks. With more samples than processes, identity must survive queue reuse.
   cases <- list(
     list(samples = 2L, blocks = 4L, workers = 3L),
+    list(samples = 2L, blocks = 4L, workers = 4L, small_arm = TRUE, tasks = 4L),
+    list(samples = 2L, blocks = 4L, workers = 4L, native_io = TRUE, tasks = 4L),
+    list(samples = 9L, blocks = 3L, workers = 2L, small_arm = TRUE, tasks = 9L),
+    list(samples = 2L, blocks = 4L, workers = 2L, small_arm = TRUE, low_memory = TRUE),
+    list(samples = 2L, blocks = 4L, workers = 2L, small_arm = TRUE, oversize = TRUE),
+    list(samples = 3L, blocks = 1L, workers = 2L, small_arm = TRUE, compatibility = TRUE),
     list(samples = 3L, blocks = 4L, workers = 2L, reverse_callbacks = TRUE),
     list(samples = 5L, blocks = 2L, workers = 4L),
+    list(samples = 5L, blocks = 1L, workers = 4L, small_arm = TRUE, manual = TRUE),
     list(samples = 3L, blocks = 1L, workers = 4L, compatibility = TRUE),
     list(samples = 3L, blocks = 4L, workers = 1L),
     list(samples = 3L, blocks = 4L, workers = 4L, serial = TRUE)
@@ -108,8 +119,13 @@ main <- function() {
     trace <- file.path(case_dir, "events")
     Sys.setenv(NIPAT_PARALLEL_LOG_DIR = trace,
                NIPAT_EXECUTION_MODE = if (isTRUE(case$serial)) "serial" else "auto")
+    Sys.setenv(NIPAT_DNP_OPTIMIZED_IO = if (isTRUE(case$small_arm) || isTRUE(case$native_io)) "1" else "0",
+               NIPAT_DNP_LIMA_ARM64 = if (isTRUE(case$small_arm)) "1" else "0")
+    memory_budget <- if (isTRUE(case$low_memory)) 768 else 32768
+    if (isTRUE(case$manual)) Sys.setenv(NIPAT_MAX_WORKERS = case$workers) else Sys.unsetenv("NIPAT_MAX_WORKERS")
     controlled_workers <- case$workers
     expected_workers <- if (isTRUE(case$serial)) 1L else min(case$workers, case$samples * case$blocks)
+    if (isTRUE(case$small_arm) && !isTRUE(case$manual)) expected_workers <- 2L
     loci <- if (isTRUE(case$compatibility)) 4L else case$blocks
     path <- file.path(case_dir, "samples.pileup")
     writeLines(make_lines(case$samples, loci), path)
@@ -119,6 +135,7 @@ main <- function() {
                          uniq = rep(seq_len(loci), each = 2L))
     refs <- data.frame(POS = paste0("locus-", seq_len(loci)), stringsAsFactors = FALSE)
     plan <- environment$nipat_dnp_plan(index, labels, refs, max_loci = 1L, max_bytes = 1024L)
+    if (isTRUE(case$oversize)) plan$max_bytes <- 1L
     check(length(plan$blocks) == case$blocks)
     if (isTRUE(case$compatibility)) {
       check(identical(plan$compatibility_reasons, "legacy-repeated-qname-within-position"))
@@ -162,12 +179,19 @@ main <- function() {
     }
     check(own_connections(index$path) == 0L)
     actual <- environment$nipat_dnp_process_samples(index, plan, labels, refs, computations,
-                                                    progress, workers = case$workers, columns = selections)
+                                                    progress, columns = selections)
     check(own_connections(index$path) == 0L)
     check(actual$workers == expected_workers)
-    check(actual$task_count == case$samples * case$blocks)
+    expected_tasks <- if (is.null(case$tasks)) case$samples * case$blocks else case$tasks
+    check(actual$task_count == expected_tasks)
+    check(actual$totals$sample_block_count == case$samples * case$blocks)
+    check(actual$totals$block_read_count == expected_tasks)
+    check(actual$totals$block_compute_seconds >= 0 && actual$totals$block_read_seconds >= 0)
+    check(actual$totals$block_logical_bytes_read == sum(index$lengths) * expected_tasks / case$blocks)
     check(actual$observed_workers == expected_workers)
-    check(actual$observed_samples == min(expected_workers, case$samples))
+    if (is.null(case$tasks) || case$samples == 2L) {
+      check(actual$observed_samples == min(expected_workers, case$samples))
+    }
     check(length(actual$samples) == case$samples)
     for (sample_number in seq_len(case$samples)) {
       sample <- actual$samples[[sample_number]]
@@ -213,10 +237,42 @@ main <- function() {
                   function(...) stop("scientific failure in sample two"))
   expect_error(environment$nipat_dnp_process_samples(index, plan, labels, refs, failing,
                 workers = 2L, columns = selections[1:2]), "scientific failure in sample two")
+  Sys.setenv(NIPAT_DNP_OPTIMIZED_IO = "1")
+  expect_error(environment$nipat_dnp_process_samples(index, plan, labels, refs, failing,
+                workers = 1L, columns = selections[1:2]), "scientific failure in sample two")
   check(own_connections(index$path) == 0L)
   check(length(parallel::mccollect(wait = FALSE)) == 0L)
+  previous_directory <- setwd(directory)
+  on.exit(setwd(previous_directory), add = TRUE, after = FALSE)
+  dir.create("work")
+  path <- file.path("work", "dnp-block-progress.json")
+  succeed <- function(pileup, block_labels, block_refs) nrow(pileup)
+  callbacks <- rep(list(succeed), 3L)
+  run <- function() environment$nipat_dnp_process_samples(index, plan, labels, refs,
+    callbacks, workers = 1L, columns = selections)
+  run()
+  check(!file.exists(path))
+  Sys.setenv(NIPAT_PERFORMANCE_DIR = directory)
+  callbacks[[2L]] <- function(pileup, block_labels, block_refs) {
+    if (block_refs$POS[[1L]] == refs$POS[[2L]]) stop("interrupted in second group")
+    nrow(pileup)
+  }
+  expect_error(run(), "interrupted in second group")
+  snapshot <- jsonlite::fromJSON(path)
+  check(snapshot$completed_groups == 1L && snapshot$planned_groups == length(plan$blocks))
+  check(snapshot$sample_block_count == 3L && snapshot$block_read_count == 1L)
+  check(snapshot$block_logical_bytes_read == plan$blocks[[1L]]$raw_bytes)
+  callbacks[[2L]] <- succeed
+  all_done <- run()
+  snapshot <- jsonlite::fromJSON(path)
+  check(snapshot$completed_groups == snapshot$planned_groups)
+  check(isTRUE(all.equal(unlist(snapshot[names(all_done$totals)]), unlist(all_done$totals), tolerance = 1e-12)))
+  check(identical(list.files("work", all.files = TRUE, no.. = TRUE), basename(path)))
+  # A missing diagnostics directory must not affect dispatch or its results.
+  unlink("work", recursive = TRUE)
+  check(identical(lapply(run()$samples, "[[", "results"), lapply(all_done$samples, "[[", "results")))
   cat("DNP multi-sample dispatcher:", checks,
-      "checks passed (2/3/5 samples, one global pool, resource caps, actual overlap,",
+      "checks passed (2/3/5/9 samples, one global pool, resource caps, actual overlap,",
       "serial execution, ordered identities, compatibility, selective types, progress and errors).\n")
 }
 main()

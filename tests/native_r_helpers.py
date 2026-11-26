@@ -8,7 +8,7 @@ def native_r_availability():
     executable = shutil.which("Rscript")
     if executable is None:
         return False, "R runtime is unavailable; native regressions run in scientific-image CI"
-    packages = ("argparse", "dplyr", "ggplot2", "jsonlite", "readxl", "patchwork", "stringr", "tidyr")
+    packages = ("argparse", "optparse", "dplyr", "ggplot2", "jsonlite", "readxl", "patchwork", "stringr", "tidyr")
     expression = ("packages <- c(" + ",".join(f'"{name}"' for name in packages) + "); "
                   "missing <- packages[!vapply(packages, requireNamespace, logical(1), quietly=TRUE)]; "
                   "if (length(missing)) { cat(paste(missing, collapse=', ')); quit(status=1) }")

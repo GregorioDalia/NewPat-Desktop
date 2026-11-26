@@ -289,10 +289,11 @@ def build(project: Path, manifest_path: Path, output: Path, architecture: str,
         icons = work / "NIPAT.iconset"
         icons.mkdir()
         for size in (16, 32, 128, 256, 512):
+            source = "newpat-icon-small.png" if size == 16 else "nipat-icon.png"
             for scale in (1, 2):
                 destination = icons / f"icon_{size}x{size}{'@2x' if scale == 2 else ''}.png"
                 subprocess.run(["/usr/bin/sips", "-z", str(size * scale), str(size * scale),
-                                str(project / "assets/branding/nipat-icon.png"),
+                                str(project / "assets/branding" / source),
                                 "--out", str(destination)], check=True, capture_output=True)
         subprocess.run(["/usr/bin/iconutil", "-c", "icns", str(icons), "-o",
                         str(app / "Contents/Resources/NewPat.icns")], check=True)

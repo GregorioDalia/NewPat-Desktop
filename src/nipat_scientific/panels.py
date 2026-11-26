@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Collection
 import csv
 import re
 from dataclasses import dataclass
@@ -37,9 +38,8 @@ def reference_lengths(index: Path) -> dict[str, int]:
     return lengths
 
 
-def require_reference_windows(index: Path, windows) -> dict[str, int]:
+def require_reference_windows(lengths: dict[str, int], windows) -> dict[str, int]:
     """Check one-based window bounds and return the lengths of targeted contigs."""
-    lengths = reference_lengths(index)
     targets = {}
     for chromosome, first, last in windows:
         if chromosome not in lengths or first < 1 or last > lengths[chromosome]:
@@ -67,14 +67,17 @@ def read_bam_dictionary(header: Path, bam: Path) -> tuple[dict[str, int], bool]:
     return sequences, coordinate_sorted
 
 
-def require_bam_targets(bam: Path, sequences: dict[str, int], targets: dict[str, int]) -> None:
-    for name, length in targets.items():
+def require_bam_targets(bam: Path, sequences: dict[str, int], targets: Collection[str],
+                        reference: dict[str, int]) -> None:
+    """Require exact panel names and reject conflicting lengths anywhere both dictionaries overlap."""
+    for name in targets:
         if name not in sequences:
             raise ValidationError(f"{bam.name}: contig del pannello assente dal dizionario BAM: {name}.")
-        if sequences[name] != length:
+    for name, length in sequences.items():
+        if name in reference and reference[name] != length:
             raise ValidationError(
                 f"{bam.name}: lunghezza discordante per {name} "
-                f"(BAM {sequences[name]}, FASTA {length})."
+                f"(BAM {length}, FASTA {reference[name]})."
             )
 
 

@@ -135,8 +135,8 @@ class DesktopTransportTests(unittest.TestCase):
     def test_actionable_igv_and_dnp_errors_reach_the_window(self):
         viewer = LocalIGV(self.server.register)
         fasta = self.root / "ref.fa"
-        fasta.write_text(">chr1\nACGT\n")
-        Path(str(fasta) + ".fai").write_text("chr1\t4\t6\t4\t5\n")
+        fasta.write_bytes(b">chr1\r\nACGT\r\n")
+        Path(str(fasta) + ".fai").write_text("chr1\t4\t7\t4\t6\n")
         bam = self.root / "sample.bam"
         bam.write_bytes(b"BAM\x01")
 
@@ -226,6 +226,17 @@ class DesktopTransportTests(unittest.TestCase):
         self.assertEqual(headers["Content-Length"], "5")
         self.assertEqual(body, b"")
         self.assertEqual(source.read_bytes(), data)
+
+    def test_reference_range_refuses_replaced_file_after_opening_viewer(self):
+        from nipat.execution.tracking import input_stat_snapshot
+        source = self.root / "genome.fa"
+        source.write_bytes(b">a\nACGT\n")
+        route = urlsplit(self.server.register(source, expected_identity=input_stat_snapshot(source.stat()))["url"]).path
+        self.assertEqual(self.request("GET", route, headers={"Range": "bytes=3-6"})[2], b"ACGT")
+        replacement = self.root / "replacement.fa"
+        replacement.write_bytes(b">a\nTTTT\n")
+        replacement.replace(source)
+        self.assertEqual(self.request("GET", route, headers={"Range": "bytes=3-6"})[0], 409)
 
     def test_unsatisfiable_range_empty_file_and_removed_resource(self):
         path = self.root / "empty.bam"

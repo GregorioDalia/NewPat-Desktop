@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from copy import deepcopy
-from dataclasses import asdict, dataclass, field, replace
+from dataclasses import dataclass, field, fields, replace
 import errno
 import json
 import math
@@ -19,7 +19,7 @@ import time
 from typing import Any, Callable, Mapping
 
 from nipat.errors import ValidationError
-from nipat.scientific_options import normalize_config
+from nipat.scientific_options import effective_config, migrate_saved_settings, normalize_config
 from nipat.distribution import WINDOWS_DIRECTORY, UNIX_DIRECTORY
 from nipat.execution.options import ExecutionOptions
 from nipat.paths import ProjectLayout
@@ -38,6 +38,7 @@ WORKFLOW_KEYS = {
 }
 _PATH_KEYS = frozenset({"reference", "panel", "popfreq"})
 _UNSET = object()
+_EXECUTION_KEYS = frozenset(option.name for option in fields(ExecutionOptions)) - {"performance_diagnostics"}
 
 
 def preferences_path() -> Path:
@@ -159,6 +160,36 @@ def _workflow_values(choice: str, values: Any, *, stored: bool = False) -> dict[
     return normalized
 
 
+def _execution_options(values: Any) -> ExecutionOptions:
+    if not isinstance(values, dict) or values.keys() - _EXECUTION_KEYS:
+        raise ValidationError("Opzioni di esecuzione non riconosciute.")
+    return ExecutionOptions(**values)
+
+
+def _parameter_profiles(profiles: Any) -> dict[str, dict]:
+    if not isinstance(profiles, dict):
+        raise ValidationError("Elenco dei profili non valido.")
+    normalized = {}
+    for name, profile in profiles.items():
+        if _text(name, "nome del profilo").strip() != name or len(name) > 80:
+            raise ValidationError("Nome del profilo non valido.")
+        if not isinstance(profile, dict) or set(profile) != {"scientific_settings", "execution"}:
+            raise ValidationError("Un profilo deve contenere parametri scientifici e di esecuzione.")
+        execution = _execution_options(profile["execution"]).as_dict()
+        del execution["performance_diagnostics"]
+        overrides = migrate_saved_settings(profile["scientific_settings"])
+        scientific = effective_config(overrides)
+        # A profile stores editable filters. Resolve the two-read fallback at
+        # execution time so that setting only a percentage remains possible.
+        if overrides.get("cpi", {}).get("min_fetal_reads") is None:
+            scientific["cpi"]["min_fetal_reads"] = None
+        normalized[name] = {
+            "scientific_settings": scientific,
+            "execution": execution,
+        }
+    return normalized
+
+
 @dataclass(frozen=True)
 class Preferences:
     """Optional overrides only; omitted fields retain their application defaults."""
@@ -170,6 +201,8 @@ class Preferences:
     check_updates_on_startup: bool = False
     execution: dict[str, Any] = field(default_factory=dict)
     scientific_settings: dict[str, dict[str, Any]] = field(default_factory=dict)
+    parameter_profiles: dict[str, dict] = field(default_factory=dict)
+    default_profile: str = ""
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "scientific_settings", normalize_config(self.scientific_settings))
@@ -177,11 +210,11 @@ class Preferences:
             raise ValidationError("Canale aggiornamenti non valido: scegliere stable o testing.")
         if type(self.check_updates_on_startup) is not bool:
             raise ValidationError("Il controllo aggiornamenti all'avvio deve essere attivo o disattivo.")
-        if (not isinstance(self.execution, dict)
-                or self.execution.keys() - {"input_hashes", "cpus", "memory_mb", "pids_limit",
-                                            "execution_mode", "max_workers", "dnp_block_mib", "dnp_block_loci"}):
-            raise ValidationError("Opzioni di esecuzione non riconosciute.")
-        normalized_execution = asdict(ExecutionOptions(**self.execution))
+        profiles = _parameter_profiles(self.parameter_profiles)
+        if not isinstance(self.default_profile, str) or (self.default_profile and self.default_profile not in profiles):
+            raise ValidationError("Scegliere un profilo predefinito esistente.")
+        object.__setattr__(self, "parameter_profiles", profiles)
+        normalized_execution = _execution_options(self.execution).as_dict()
         object.__setattr__(self, "execution", {
             key: normalized_execution[key] for key in self.execution
         })
@@ -204,10 +237,7 @@ class Preferences:
         """Saved guided defaults, with explicit command-line overrides applied last."""
         values = dict(self.execution)
         values.update(overrides or {})
-        if values.keys() - {"input_hashes", "cpus", "memory_mb", "pids_limit",
-                           "execution_mode", "max_workers", "dnp_block_mib", "dnp_block_loci"}:
-            raise ValidationError("Opzioni di esecuzione non riconosciute.")
-        return ExecutionOptions(**values)
+        return _execution_options(values)
 
     def with_workflow(self, choice: str, values: dict[str, Any]) -> "Preferences":
         workflows = deepcopy(self.workflows)
@@ -254,12 +284,15 @@ class Preferences:
                 "workflows": workflows, "update_channel": self.update_channel,
                 "check_updates_on_startup": self.check_updates_on_startup,
                 "execution": deepcopy(self.execution),
-                "scientific_settings": deepcopy(self.scientific_settings)}
+                "scientific_settings": deepcopy(self.scientific_settings),
+                "parameter_profiles": deepcopy(self.parameter_profiles),
+                "default_profile": self.default_profile}
 
     @classmethod
     def from_dict(cls, document: Any) -> "Preferences":
         allowed = {"schema_version", "data_dir", "runs_dir", "workflows",
-                   "update_channel", "check_updates_on_startup", "execution", "scientific_settings"}
+                   "update_channel", "check_updates_on_startup", "execution", "scientific_settings",
+                   "parameter_profiles", "default_profile"}
         if (not isinstance(document, dict) or document.keys() - allowed
                 or type(document.get("schema_version")) is not int
                 or document["schema_version"] != SCHEMA_VERSION):
@@ -275,7 +308,9 @@ class Preferences:
                    update_channel=document.get("update_channel", "stable"),
                    check_updates_on_startup=document.get("check_updates_on_startup", False),
                    execution=document.get("execution", {}),
-                   scientific_settings=document.get("scientific_settings", {}))
+                   scientific_settings=migrate_saved_settings(document.get("scientific_settings", {})),
+                   parameter_profiles=document.get("parameter_profiles", {}),
+                   default_profile=document.get("default_profile", ""))
 
 
 def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -310,55 +345,60 @@ def _merge_preferences(baseline: Any, requested: Any, current: Any, path: str = 
     )
 
 
+@contextmanager
+def settings_file_lock(settings_path: Path):
+    """Serialize read/modify/write across processes sharing a local settings file."""
+    # Keep this sidecar after release: unlinking a live lock would allow another
+    # process to lock a different inode while an existing waiter uses the old one.
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    path = settings_path.with_name(settings_path.name + ".lock")
+    if path.is_symlink():
+        raise ValidationError("Il file di coordinamento delle impostazioni non puo' essere un collegamento.")
+    with path.open("a+b") as stream:
+        if os.name == "nt":
+            import msvcrt
+            if stream.seek(0, os.SEEK_END) == 0:
+                stream.write(b"\0")
+                stream.flush()
+            def acquire():
+                stream.seek(0)
+                msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
+            def release():
+                stream.seek(0)
+                msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+            def acquire():
+                fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            def release():
+                fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
+        deadline = time.monotonic() + 5
+        while True:
+            try:
+                acquire()
+                break
+            except OSError as exc:
+                if exc.errno not in {errno.EACCES, errno.EAGAIN, errno.EDEADLK}:
+                    raise
+                if time.monotonic() >= deadline:
+                    raise ValidationError(
+                        "Un'altra sessione sta salvando le impostazioni. Riprovare fra poco."
+                    ) from exc
+                time.sleep(0.05)
+        try:
+            yield
+        finally:
+            release()
+
+
 class PreferencesStore:
     """Serialize updates and merge edits against the snapshot reviewed by the user."""
 
     def __init__(self, path: Path | None = None):
         self.path = Path(path).expanduser().absolute() if path is not None else preferences_path()
 
-    @contextmanager
     def _lock(self):
-        # Keep this sidecar after release: unlinking a live lock would allow another
-        # process to lock a different inode while an existing waiter uses the old one.
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        path = self.path.with_name(self.path.name + ".lock")
-        if path.is_symlink():
-            raise ValidationError("Il file di coordinamento delle impostazioni non puo' essere un collegamento.")
-        with path.open("a+b") as stream:
-            if os.name == "nt":
-                import msvcrt
-                if stream.seek(0, os.SEEK_END) == 0:
-                    stream.write(b"\0")
-                    stream.flush()
-                def acquire():
-                    stream.seek(0)
-                    msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
-                def release():
-                    stream.seek(0)
-                    msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
-            else:
-                import fcntl
-                def acquire():
-                    fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-                def release():
-                    fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
-            deadline = time.monotonic() + 5
-            while True:
-                try:
-                    acquire()
-                    break
-                except OSError as exc:
-                    if exc.errno not in {errno.EACCES, errno.EAGAIN, errno.EDEADLK}:
-                        raise
-                    if time.monotonic() >= deadline:
-                        raise ValidationError(
-                            "Un'altra sessione sta salvando le impostazioni. Riprovare fra poco."
-                        ) from exc
-                    time.sleep(0.05)
-            try:
-                yield
-            finally:
-                release()
+        return settings_file_lock(self.path)
 
     def load(self) -> Preferences:
         try:

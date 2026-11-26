@@ -5,7 +5,7 @@ downloads. These checks do not claim that an executable has a code-signing certi
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import hashlib
 from http.client import HTTPException
 import json
@@ -22,15 +22,17 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
+from nipat import __version__
 from nipat.errors import NipatError
+from nipat.repository import LEGACY_REPOSITORY, OFFICIAL_REPOSITORIES, REPOSITORY_ID, REPOSITORY_INFO_URL, release_urls
 from nipat.distribution import is_experimental_version
-from nipat.branding import PRODUCT_NAME, canonical_asset_name
+from nipat.branding import PRODUCT_NAME, canonical_asset_name, windows_complete_filename, windows_feed_filename
 
 
-REPOSITORY = "GregorioDalia/nipat-desktop"
+REPOSITORY = LEGACY_REPOSITORY
 API = f"https://api.github.com/repos/{REPOSITORY}"
 WEB = f"https://github.com/{REPOSITORY}"
-UPDATER_VERSION = 1
+UPDATER_VERSION = 2
 PLATFORMS = frozenset({"windows-x86_64", "windows-zip-x86_64", "windows-bootstrap-x86_64",
                        "linux-x86_64", "darwin-arm64", "darwin-x86_64"})
 MAX_ASSET_SIZE = 2**31 - 1
@@ -69,12 +71,12 @@ def detect_platform() -> str:
                       status="unsupported_platform")
 
 
-def manifest_filename(platform: str) -> str:
+def manifest_filename(platform: str, version: str = __version__) -> str:
     # Existing Windows/Linux clients reject unknown platforms. Preserve their feed.
     if platform == "windows-zip-x86_64":
-        return "update-manifest-windows-zip.json"
+        return windows_feed_filename("zip", version)
     if platform == "windows-bootstrap-x86_64":
-        return "update-manifest-windows-bootstrap.json"
+        return windows_feed_filename("bootstrap", version)
     return "update-manifest-macos.json" if platform.startswith("darwin-") else "update-manifest.json"
 
 
@@ -83,7 +85,7 @@ def _installer_name(version: str, platform: str) -> str:
     if platform == "windows-x86_64":
         return "NIPAT-Setup.exe"
     if platform == "windows-zip-x86_64":
-        return f"NIPAT-{version}-Windows-completo.zip"
+        return windows_complete_filename(version)
     if platform == "windows-bootstrap-x86_64":
         return f"NIPAT-{version}-Windows-payload.zip"
     if platform == "linux-x86_64":
@@ -184,12 +186,11 @@ def _validated_asset(data: object, version: str, tag: str) -> UpdateAsset:
               "Dimensione del pacchetto non valida.")
     _required(isinstance(data["sha256"], str) and bool(_HASH.fullmatch(data["sha256"])),
               "Checksum del pacchetto non valido.")
-    expected = f"{WEB}/releases/download/{tag}/{name}"
-    _required(data["url"] == expected, f"Il pacchetto non appartiene alla release {PRODUCT_NAME} dichiarata.")
-    return UpdateAsset(platform, name, data["size"], data["sha256"], expected)
+    _required(data["url"] in release_urls(f"/releases/download/{tag}/{name}"), f"Il pacchetto non appartiene alla release {PRODUCT_NAME} dichiarata.")
+    return UpdateAsset(platform, name, data["size"], data["sha256"], data["url"])
 
 
-def _public_asset(asset: UpdateAsset, version: str, published: list[dict]) -> UpdateAsset:
+def _public_asset(asset: UpdateAsset, version: str, published: list[dict], web: str = WEB) -> UpdateAsset:
     """Prefer a verified NewPat alias while keeping legacy manifests consumable.
 
     Older clients require the NIPAT filenames in their feeds. The public alias
@@ -203,7 +204,7 @@ def _public_asset(asset: UpdateAsset, version: str, published: list[dict]) -> Up
     candidates = [item for item in published if item.get("name") == name]
     if not candidates:
         return asset
-    url = f"{WEB}/releases/download/v{version}/{name}"
+    url = f"{web}/releases/download/v{version}/{name}"
     _required(len(candidates) == 1, "Alias NewPat duplicato nella release.")
     candidate = candidates[0]
     _required(candidate.get("state") == "uploaded" and candidate.get("size") == asset.size
@@ -222,7 +223,7 @@ def _validate_offer(offer: UpdateOffer) -> None:
               "Commit aggiornamento non valido.")
     _required(type(offer.minimum_updater_version) is int and 0 < offer.minimum_updater_version <= UPDATER_VERSION,
               "Questa release richiede un programma di aggiornamento piu' recente.")
-    _required(offer.release_notes_url == f"{WEB}/releases/tag/{offer.release_tag}",
+    _required(offer.release_notes_url in release_urls(f"/releases/tag/{offer.release_tag}"),
               "Indirizzo delle note di release non valido.")
     _required(isinstance(offer.asset, UpdateAsset), "Pacchetto aggiornamento non valido.")
     _validated_asset(vars(offer.asset), offer.version, offer.release_tag)
@@ -244,8 +245,8 @@ class UpdateClient:
             timeout = min(timeout, deadline - self.clock())
             if timeout <= 0:
                 raise UpdateError("Controllo aggiornamenti incompleto: tempo disponibile esaurito.", status="incomplete")
-        request = Request(url, headers={"User-Agent": "NIPAT-Updater/1", "Accept": "application/vnd.github+json"
-                                       if url.startswith(API + "/") else "application/octet-stream",
+        request = Request(url, headers={"User-Agent": f"NIPAT-Updater/{UPDATER_VERSION}", "Accept": "application/vnd.github+json"
+                                       if urlsplit(url).hostname == "api.github.com" else "application/octet-stream",
                                        "Accept-Encoding": "identity", "X-GitHub-Api-Version": "2022-11-28"})
         try:
             response = self._open(request, timeout=timeout)
@@ -294,10 +295,18 @@ class UpdateClient:
         except (OSError, URLError, TimeoutError, HTTPException) as exc:
             raise UpdateError("La connessione a GitHub e' stata interrotta. Riprovare.", status="offline") from exc
 
-    def _releases(self, deadline: float) -> list[dict]:
+    def _repository(self, deadline: float) -> str:
+        # Resolve the immutable ID before constructing repository, tag and asset URLs.
+        info = self._json(REPOSITORY_INFO_URL, deadline=deadline)
+        _required(isinstance(info, dict) and info.get("id") == int(REPOSITORY_ID)
+                  and info.get("full_name") in OFFICIAL_REPOSITORIES,
+                  "Identità della repository GitHub ufficiale non verificata.")
+        return info["full_name"]
+
+    def _releases(self, api: str, deadline: float) -> list[dict]:
         releases = []
         for page in range(1, self.max_pages + 1):
-            batch = self._json(f"{API}/releases?per_page=100&page={page}", deadline=deadline)
+            batch = self._json(f"{api}/releases?per_page=100&page={page}", deadline=deadline)
             _required(isinstance(batch, list) and len(batch) <= 100 and all(isinstance(item, dict) for item in batch),
                       "Elenco delle release non valido.")
             releases.extend(batch)
@@ -305,8 +314,8 @@ class UpdateClient:
                 return releases
         raise UpdateError("Controllo aggiornamenti incompleto: elenco delle release troppo esteso.", status="incomplete")
 
-    def _verify_source(self, tag: str, source: str, deadline: float) -> None:
-        record = self._json(f"{API}/git/ref/tags/{tag}", deadline=deadline)
+    def _verify_source(self, api: str, tag: str, source: str, deadline: float) -> None:
+        record = self._json(f"{api}/git/ref/tags/{tag}", deadline=deadline)
         _required(isinstance(record, dict) and record.get("ref") == f"refs/tags/{tag}",
                   "Il tag della release non e' verificabile.")
         for _ in range(4):
@@ -317,20 +326,21 @@ class UpdateClient:
                 _required(obj["sha"] == source, "Il tag della release non corrisponde ai sorgenti dichiarati.")
                 return
             _required(obj.get("type") == "tag", "Il tag della release non identifica un commit.")
-            record = self._json(f"{API}/git/tags/{obj['sha']}", deadline=deadline)
+            record = self._json(f"{api}/git/tags/{obj['sha']}", deadline=deadline)
         raise UpdateError("Il tag della release contiene troppi riferimenti indiretti.")
 
-    def _manifest(self, release: dict, version: str, platform: str, deadline: float) -> UpdateOffer | None:
+    def _manifest(self, release: dict, version: str, platform: str, repository: str, deadline: float) -> UpdateOffer | None:
         tag = "v" + version
+        web = f"https://github.com/{repository}"
         assets = release.get("assets")
         _required(isinstance(assets, list) and all(isinstance(asset, dict) for asset in assets),
                   "Elenco dei pacchetti della release non valido.")
-        descriptors = [asset for asset in assets if asset.get("name") == manifest_filename(platform)]
+        descriptors = [asset for asset in assets if asset.get("name") == manifest_filename(platform, version)]
         if not descriptors:
             return None
         _required(len(descriptors) == 1, "Manifest di aggiornamento duplicato.")
         descriptor = descriptors[0]
-        url = f"{WEB}/releases/download/{tag}/{manifest_filename(platform)}"
+        url = f"{web}/releases/download/{tag}/{manifest_filename(platform, version)}"
         _required(descriptor.get("browser_download_url") == url and descriptor.get("state") == "uploaded"
                   and type(descriptor.get("size")) is int and 0 < descriptor["size"] <= MANIFEST_LIMIT,
                   "Manifest di aggiornamento non disponibile o estraneo alla release.")
@@ -349,7 +359,7 @@ class UpdateClient:
         _required(isinstance(source, str) and bool(_COMMIT.fullmatch(source)), "Commit sorgente non valido.")
         minimum = data["minimum_updater_version"]
         _required(type(minimum) is int and minimum > 0, "Versione minima dell'updater non valida.")
-        _required(data["release_notes_url"] == f"{WEB}/releases/tag/{tag}", "Note di release non appartenenti al progetto.")
+        _required(data["release_notes_url"] in release_urls(f"/releases/tag/{tag}"), "Note di release non appartenenti al progetto.")
         _required(isinstance(data["assets"], list) and 0 < len(data["assets"]) <= len(PLATFORMS),
                   "Pacchetti nel manifest non validi.")
         decoded = [_validated_asset(asset, version, tag) for asset in data["assets"]]
@@ -357,7 +367,7 @@ class UpdateClient:
         for asset in decoded:
             published = [item for item in assets if item.get("name") == asset.name]
             _required(len(published) == 1 and published[0].get("state") == "uploaded"
-                      and published[0].get("browser_download_url") == asset.url
+                      and published[0].get("browser_download_url") == f"{web}/releases/download/{tag}/{asset.name}"
                       and type(published[0].get("size")) is int and published[0]["size"] == asset.size,
                       "Il pacchetto pubblicato non corrisponde al manifest.")
             if published[0].get("digest") is not None:
@@ -369,9 +379,11 @@ class UpdateClient:
         if minimum > UPDATER_VERSION:
             raise UpdateError(f"Una nuova release richiede un updater piu' recente. Consultare le release ufficiali {PRODUCT_NAME}.",
                               status="unsupported_updater")
-        self._verify_source(tag, source, deadline)
-        selected = _public_asset(selected, version, assets)
-        return UpdateOffer(version, tag, expected_channel, source, minimum, selected, data["release_notes_url"])
+        self._verify_source(f"https://api.github.com/repos/{repository}", tag, source, deadline)
+        # Verified repository metadata supplies the current URL for historical manifests.
+        selected = replace(selected, url=f"{web}/releases/download/{tag}/{selected.name}")
+        selected = _public_asset(selected, version, assets, web)
+        return UpdateOffer(version, tag, expected_channel, source, minimum, selected, release["html_url"])
 
     def check(self, current_version: str, channel: str, platform: str) -> UpdateCheck:
         if is_experimental_version(current_version):
@@ -381,22 +393,28 @@ class UpdateClient:
             current = version_key(current_version)
             _required(isinstance(channel, str) and channel in {"stable", "testing"}, "Canale aggiornamenti non valido.")
             _required(isinstance(platform, str) and platform in PLATFORMS, "Piattaforma aggiornamenti non supportata.")
+            feed = manifest_filename(platform, current_version)
             deadline = self.clock() + self.check_budget
             candidates = []
             had_managed_release = False
-            for release in self._releases(deadline):
+            repository = self._repository(deadline)
+            for release in self._releases(f"https://api.github.com/repos/{repository}", deadline):
                 if release.get("draft") is True or not release.get("published_at"):
                     continue
                 _required(release.get("draft") is False and type(release.get("prerelease")) is bool,
                           "Stato della release GitHub non valido.")
                 tag = release.get("tag_name")
-                if not isinstance(tag, str) or not tag.startswith("v") or not _VERSION.fullmatch(tag[1:]):
+                if (not isinstance(tag, str) or len(tag) > 81 or not tag.startswith("v")
+                        or not _VERSION.fullmatch(tag[1:])):
                     continue
                 if channel == "stable" and release["prerelease"]:
                     continue
-                _required(release.get("html_url") == f"{WEB}/releases/tag/{tag}", "Release appartenente a un altro progetto.")
+                _required(release.get("html_url") == f"https://github.com/{repository}/releases/tag/{tag}", "Release appartenente a un altro progetto.")
+                if feed != manifest_filename(platform, tag[1:]):
+                    # Windows ZIP and retained setups can only apply their own layout generation.
+                    continue
                 has_manifest = isinstance(release.get("assets"), list) and any(
-                    isinstance(asset, dict) and asset.get("name") == manifest_filename(platform) for asset in release["assets"])
+                    isinstance(asset, dict) and asset.get("name") == feed for asset in release["assets"])
                 if not has_manifest:
                     continue
                 had_managed_release = True
@@ -406,7 +424,7 @@ class UpdateClient:
             for index, (_, version, release) in enumerate(candidates):
                 if index >= self.max_manifests:
                     raise UpdateError("Controllo aggiornamenti incompleto: troppe release da verificare.", status="incomplete")
-                offer = self._manifest(release, version, platform, deadline)
+                offer = self._manifest(release, version, platform, repository, deadline)
                 if offer:
                     return UpdateCheck("available", f"{PRODUCT_NAME} {offer.version} disponibile nel canale {offer.channel}.", offer)
             if had_managed_release and not candidates:

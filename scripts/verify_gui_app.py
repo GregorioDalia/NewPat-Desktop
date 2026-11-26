@@ -24,7 +24,7 @@ def verify(app: Path, python: Path, workspace: Path, report: Path, screenshot: P
     environment = {name: value for name, value in os.environ.items()
                    if not name.startswith(("NIPAT_", "PYTHON", "DOCKER", "COMPOSE"))}
     environment.update({
-        "NIPAT_PROJECT_DIR": str(app), "NIPAT_WORKSPACE_DIR": str(workspace),
+        "NIPAT_GUI_VERIFY_PDF": "1", "NIPAT_PROJECT_DIR": str(app), "NIPAT_WORKSPACE_DIR": str(workspace),
         "NIPAT_DATA_DIR": str(workspace / "data"), "NIPAT_RUNS_DIR": str(workspace / "runs"),
         "NIPAT_SETTINGS_FILE": str(workspace / "preferences.json"),
     })
@@ -41,6 +41,8 @@ def verify(app: Path, python: Path, workspace: Path, report: Path, screenshot: P
     if (result.get("status") != "passed" or result.get("nativeWebView") is not True
             or result.get("appReady") is not True):
         raise ValueError("The production application did not reach native GUI readiness")
+    if result.get("pdfExport") != "passed":
+        raise ValueError("The production application did not generate a PDF inside the native view")
     if not screenshot.read_bytes().startswith(b"\x89PNG\r\n\x1a\n"):
         raise ValueError("The native application screenshot is missing or invalid")
     return result

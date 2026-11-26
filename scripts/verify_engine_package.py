@@ -1,6 +1,6 @@
 """Check bundled R scripts without mounting the application or source checkout.
 
-This verifies native R invocation and all five complete scientific workflows.
+This verifies native R invocation and all six complete scientific workflows.
 Only fixture input and result directories are mounted into the image.
 """
 
@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import csv
 import hashlib
 import json
 import os
@@ -166,19 +167,23 @@ def check_metadata(identifier: str) -> dict:
         raise ValueError("The engine lacks the complete SNPcall interface.")
     if description.get("workflow_interfaces", {}).get("dnp-call") != "dnp-call-v1":
         raise ValueError("The engine lacks the complete DNPcall interface.")
-    if description.get("workflow_interfaces", {}).get("cpi") != "cpi-v2":
+    if description.get("workflow_interfaces", {}).get("cpi") != "cpi-v4":
         raise ValueError("The engine lacks the complete CPI interface.")
-    if description.get("workflow_interfaces", {}).get("cpin") != "cpin-v1":
+    if description.get("workflow_interfaces", {}).get("cpin") != "cpin-v2":
         raise ValueError("The engine lacks the complete CPIN interface.")
+    if description.get("workflow_interfaces", {}).get("fetal-sex") != "fetal-sex-v1":
+        raise ValueError("The engine lacks the fetal sex interface.")
+    if description.get("desktop_scheduling") != "step-budget-v1":
+        raise ValueError("The image lacks the desktop step-budget interface.")
     if description.get("plan_execution") != {
         "interface": "workflow-plan-execution-v2", "schema_version": 1,
-        "workflows": ["dnp-call", "snp-call", "contamination", "cpi", "cpin"], "scheduling": "dependency-order-with-bounded-independent-snp", "resume": False,
+        "workflows": ["dnp-call", "snp-call", "contamination", "cpi", "cpin", "fetal-sex"], "scheduling": "dependency-order-with-bounded-independent-snp", "resume": False,
     }:
         raise ValueError("Unexpected supported workflow plan execution interface.")
     if description.get("scientific_validation") != {
         "interface": "scientific-validation-v1",
-        "input_workflows": ["dnp-call", "snp-call", "contamination", "cpi", "cpin"],
-        "output_workflows": ["dnp-call", "snp-call", "contamination", "cpi", "cpin"],
+        "input_workflows": ["dnp-call", "snp-call", "contamination", "cpi", "cpin", "fetal-sex"],
+        "output_workflows": ["dnp-call", "snp-call", "contamination", "cpi", "cpin", "fetal-sex"],
         "snp_alleles": "uppercase-working-copy",
         "snp_model": "SNPcall-2.0",
         "snp_output_columns": 17,
@@ -191,9 +196,9 @@ def check_metadata(identifier: str) -> dict:
     source_files = {"engine/main.py": PROJECT / "engine/main.py"}
     for name in (
         "__init__.py", "errors.py", "panels.py", "files.py", "contamination.py", "snp.py", "snp_summary.py", "snp_parallel.py",
-        "dnp.py", "cpi.py", "cpin.py", "settings.py", "settings.R", "settings_data.json", "catalog.py", "plan.py", "executor.py", "outputs.py", "presentation.py", "presentation.R", "plots.R", "performance.py",
+        "dnp.py", "cpi.py", "cpin.py", "fetal_sex.py", "settings.py", "settings.R", "settings_data.json", "catalog.py", "plan.py", "executor.py", "desktop_scheduling.py", "outputs.py", "presentation.py", "presentation.R", "plots.R", "performance.py",
         "scratch.py", "dnp_pileup.py", "dnp_blocks.R", "progress.py", "progress.R", "parallel.py", "parallel.R", "catalog_data/dnp-call.json",
-        "catalog_data/snp-call.json", "catalog_data/contamination.json", "catalog_data/cpi.json", "catalog_data/cpin.json",
+        "catalog_data/snp-call.json", "catalog_data/contamination.json", "catalog_data/cpi.json", "catalog_data/cpin.json", "catalog_data/fetal-sex.json",
     ):
         source_files[f"lib/nipat_scientific/{name}"] = PROJECT / "src/nipat_scientific" / name
     expected_sources = {
@@ -215,7 +220,7 @@ def check_catalog(identifier: str) -> None:
         selected = json.loads(run_image(identifier, ["catalog", workflow, "--json"]))
         if selected.get("workflows") != {workflow: expected["workflows"][workflow]}:
             raise ValueError(f"The image returned an incorrect catalog selection: {workflow}.")
-    print("PASS: source-verified catalog for five R scripts, without host source mounts.", flush=True)
+    print("PASS: source-verified catalog for six R scripts, without host source mounts.", flush=True)
 
 
 def check_plan_contract(identifier: str, root: Path) -> None:
@@ -245,8 +250,7 @@ def check_plan_contract(identifier: str, root: Path) -> None:
     ))
     expected_plan = copy.deepcopy(plan)
     expected_plan["steps"].reverse()
-    # Consumers now declare their inferred marker type in the canonical plan.
-    # Keep this expectation explicit rather than using the validator as oracle.
+    # Derive the expected marker independently of the validator under test.
     expected_plan["steps"][1]["parameters"] = {"marker_type": "DNP"}
     if report.get("execution_order") != ["dnp", "contamination"] or report.get("plan") != expected_plan:
         raise ValueError("The bundled validator returned an unexpected plan or execution order.")
@@ -348,6 +352,11 @@ def build_snp_bam_fixture(identifier: str, root: Path) -> Path:
     return inputs
 
 
+def check_snp_rejected_before_r(diagnostics: str, output: Path) -> None:
+    if ">> SNPcall 2.0 started" in diagnostics or any(output.iterdir()):
+        raise ValueError("Rejected SNP input reached R or created scientific output.")
+
+
 def check_snp_workflow(identifier: str, root: Path) -> tuple[Path, Path]:
     examples = PROJECT / "scientific/vendor/NEWPAT/SNPcall/examples"
     example_inputs = root / "snp-inputs"
@@ -396,8 +405,7 @@ def check_snp_workflow(identifier: str, root: Path) -> tuple[Path, Path]:
         write_request(rejected, pileup_request)
         diagnostic = run_image(identifier, ["execute", "snp-call", "--request", "/results/work/request.json"],
                                inputs=lowercase, results=rejected, expected_returncode=2)
-        if "snpscall started" in diagnostic or any((rejected / "output").iterdir()):
-            raise ValueError("Invalid SNP semantics reached R.")
+        check_snp_rejected_before_r(diagnostic, rejected / "output")
     print("PASS: real R lowercase/uppercase SNP equivalence, original preservation and semantic rejection.", flush=True)
 
     inputs = build_snp_bam_fixture(identifier, root)
@@ -444,8 +452,7 @@ def check_snp_workflow(identifier: str, root: Path) -> tuple[Path, Path]:
     )
     if "samtools" not in diagnostics.lower() and "mpileup" not in diagnostics.lower():
         raise ValueError(f"Expected a samtools failure, got: {diagnostics}")
-    if "snpscall started" in diagnostics or any((rejected_bam / "output").iterdir()):
-        raise ValueError("R ran after failed samtools preparation.")
+    check_snp_rejected_before_r(diagnostics, rejected_bam / "output")
     print("PASS: SNPcall rejects invalid pileup before preparation and propagates samtools failure without R.",
           flush=True)
     return inputs, expected
@@ -608,7 +615,7 @@ def check_doctor_without_host_scripts(identifier: str, root: Path) -> None:
         DockerComposeRunner(layout).doctor(True)
     if {path.name for path in project.iterdir()} != {"compose.yaml"}:
         raise ValueError("Runtime diagnostics unexpectedly populated the application directory.")
-    print("PASS: runtime diagnostics verify all five bundled interfaces without host scientific sources.",
+    print("PASS: runtime diagnostics verify all six bundled interfaces without host scientific sources.",
           flush=True)
 
 
@@ -631,7 +638,7 @@ def check_cpin_workflow(identifier: str, root: Path) -> None:
         check_cpin(run, marker)
         check_bundled_run(run, layout, workflow="cpin")
         effective = json.loads((run / "work/effective-scientific-settings.json").read_text())
-        if effective.get("workflow") != "cpin" or effective["parameters"]["min_child_reads"] != 2:
+        if effective.get("workflow") != "cpin" or effective["parameters"]["min_coverage"] is not None:
             raise ValueError("CPIN did not preserve its effective scientific settings.")
         if any(path.read_bytes() != content for path, content in originals.items()):
             raise ValueError("CPIN changed an original input.")
@@ -639,6 +646,49 @@ def check_cpin_workflow(identifier: str, root: Path) -> None:
         raise ValueError("CPIN client unexpectedly populated its application directory.")
     print("PASS: complete CPIN SNP/DNP, analytical PI and curves, site exclusions, PDFs, "
           "effective settings and immutable inputs without host scientific sources.", flush=True)
+
+def qualify_fetal_sex(identifier: str, root: Path) -> dict:
+    """Drive the installed image through the desktop client using the two published examples."""
+    project = root / "fetal sex client"
+    project.mkdir()
+    compose = project / "compose.yaml"
+    compose.write_text(f"services:\n  scientific:\n    image: {identifier}\n", encoding="utf-8")
+    layout = ProjectLayout(project, root / "fetal sex workspace", root / "fetal sex data",
+                           root / "fetal sex runs", compose)
+    fixture = PROJECT / "tests/fixtures/fetal_sex"
+    inputs = root / "maternal cfDNA inputs"
+    shutil.copytree(fixture / "inputs", inputs)
+    results = {}
+    client = Workflows(layout, DockerComposeRunner(layout))
+    for case, expected_sex in (("Female_fetus", "F"), ("Male_fetus", "M")):
+        tables = {role: inputs / f"{case}_{suffix}.txt" for role, suffix in (
+            ("autosomes", "autosomes"), ("x", "X"), ("y", "Y"))}
+        original = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in tables.values()}
+        run = client.fetal_sex(**tables, run_name=case)
+        check_bundled_run(run, layout, workflow="fetal-sex")
+        record = json.loads((run / "run.json").read_bytes())
+        if record["runtime"]["image_id"] != identifier:
+            raise ValueError("Fetal-sex run used a different image.")
+        output = run / "output"
+        actual = {}
+        for name in ("Fetal_sex_summary.txt", "Autosomal_informative_sites.txt",
+                     "X_informative_sites.txt", "Y_sites.txt"):
+            content = (output / name).read_bytes()
+            if content != (fixture / "outputs" / case / name).read_bytes():
+                raise ValueError(f"Fetal-sex output differs from the published {case}/{name}.")
+            actual[name] = hashlib.sha256(content).hexdigest()
+        with (output / "Fetal_sex_summary.txt").open(encoding="utf-8") as stream:
+            summary, = csv.DictReader(stream, delimiter="\t")
+        if summary["Sample"] != tables["autosomes"].stem or summary["Fetal_sex"] != expected_sex:
+            raise ValueError("Wrong fetal sex or sample identity in the published example.")
+        if original != {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in tables.values()}:
+            raise ValueError("Fetal-sex analysis modified the selected calling tables.")
+        results[case] = {"sample": summary["Sample"], "call": summary["Fetal_sex"],
+                         "input_sha256": original, "output_sha256": actual}
+    if {p.name for p in project.iterdir()} != {"compose.yaml"}:
+        raise ValueError("Fetal-sex client unexpectedly populated its application directory.")
+    return results
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -674,12 +724,14 @@ def main() -> int:
         check_contamination_workflow(identifier, root)
         check_cpi_fixture(identifier, root)
         cpi_inputs = check_cpi_workflow(identifier, root, run_image=run_image, write_request=write_request)
-        check_cpi_client_without_host_scripts(identifier, root, cpi_inputs)
+        prenatal = check_cpi_client_without_host_scripts(identifier, root, cpi_inputs)
         check_contamination_client_without_host_scripts(identifier, root)
         check_cpin_workflow(identifier, root)
+        fetal_sex = qualify_fetal_sex(identifier, root)
         composed = qualify_image(identifier, root / "five-module BAM workflow", run_container=run_container)
         report = {"status": "passed", "schema_version": 1, "runtime_image": identifier,
-                  "acquisitions": acquisitions, "five_module_workflow": composed}
+                  "acquisitions": acquisitions, "five_module_workflow": composed,
+                  "fetal_sex_examples": fetal_sex, "prenatal_examples": prenatal}
         evidence = root.parent / "caller-parallel-qualification.json"
         with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=evidence.parent, delete=False) as handle:
             json.dump(report, handle, indent=2)

@@ -5,21 +5,22 @@
 
 # NewPat
 
-NewPat is a desktop application for research on genetic markers and parentage. It calls genotypes at sites in a supplied SNP or DNP panel, estimates contamination, and calculates prenatal and postnatal combined paternity indices. Researchers can configure an experiment in the desktop window, inspect the reads in the integrated IGV viewer, and export the tables and plots.
+NewPat is a desktop application for research on genetic markers and parentage. It calls genotypes at sites in a supplied SNP or DNP panel, estimates contamination and fetal sex, and calculates prenatal and postnatal combined paternity indices. Researchers can configure an experiment in the desktop window, inspect the reads in the integrated IGV viewer, and export the tables and plots.
 
 Analyses run on your computer. NewPat packages R and samtools with the scientific engine. After you prepare the runtime, you can analyze local files offline. A command-line interface supports scripted runs using the same inputs and settings.
 
 ## Download
 
-| System | Package | Installation guide |
-| --- | --- | --- |
-| Windows 11 x64 or Windows 10 22H2 x64 (build 19045) | [Windows setup](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.9/NewPat-Setup.exe) | [Windows](docs/INSTALLATORE_WINDOWS.md) |
-| Windows x64, installation in an extracted folder | [Complete ZIP](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.9/NewPat-0.9.9-Windows-completo.zip) | [Windows](docs/INSTALLATORE_WINDOWS.md) |
-| macOS 14 or later, Apple Silicon | [Apple Silicon package](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.9/NewPat-0.9.9-macos-arm64.pkg) | [macOS](docs/INSTALLATORE_MACOS.md) |
-| macOS 14 or later, Intel | [Intel package](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.9/NewPat-0.9.9-macos-x86_64.pkg) | [macOS](docs/INSTALLATORE_MACOS.md) |
-| Ubuntu 24.04 LTS x86_64 | [Debian package](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.9/newpat-desktop_0.9.9_amd64.deb) | [Ubuntu](docs/INSTALLATORE_LINUX.md) |
+Open the **latest stable research release** and expand **Assets**. Select the package for your computer using the table below. The release page also lists the checksums. [Download NewPat](https://github.com/GregorioDalia/nipat-desktop/releases/latest)
 
-Windows uses WSL2, macOS uses Lima, and Ubuntu uses a local Docker Engine. The download page includes the package checksums. [NewPat 0.9.9 downloads](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.9.9)
+This guide describes **0.9.10**. The release notes record its status and changes. If you use 0.9.9, its tagged guide covers the launcher names and features available in that build. [0.9.9 documentation](https://github.com/GregorioDalia/nipat-desktop/blob/v0.9.9/README.md) · [What changes in 0.9.10](docs/RELEASE_0.9.10.md)
+
+| System | Asset to choose | Installation guide |
+| --- | --- | --- |
+| Windows 11 x64 or Windows 10 22H2 x64 (build 19045) | `NewPat-Setup.exe` for standard setup, or the complete Windows ZIP for a folder-based installation | [Windows and WSL2](docs/WINDOWS_INSTALLER.md) |
+| macOS 14 or later, Apple Silicon (M-series) | The package ending in `macos-arm64.pkg` | [macOS and Lima](docs/MACOS_INSTALLER.md) |
+| macOS 14 or later, Intel | The package ending in `macos-x86_64.pkg` | [macOS and Lima](docs/MACOS_INSTALLER.md) |
+| Ubuntu 24.04 LTS, x86_64 | The package ending in `amd64.deb` | [Ubuntu and Docker Engine](docs/LINUX_INSTALLER.md) |
 
 ## What you can analyze
 
@@ -28,26 +29,28 @@ Windows uses WSL2, macOS uses Lima, and Ubuntu uses a local Docker Engine. The d
 | **DNPcall** | One or more BAMs, an indexed reference FASTA, and a double nucleotide polymorphism (DNP) panel | Allele counts and genotypes per sample, summary tables and plots |
 | **SNPcall** | A single nucleotide polymorphism (SNP) panel, plus a BAM with an indexed FASTA or a pileup with base qualities and read names | Allele counts, genotype likelihoods, genotypes, indel statistics and plots |
 | **Contamination** | SNP or DNP count tables and a matching coordinate panel | Per-site contamination estimates and a summary per sample |
-| **Prenatal CPI** | Count tables for maternal cell-free DNA and the alleged father, sample pairings, and population allele frequencies | Fetal fraction estimates, combined paternity index (CPI), tables and plots |
-| **Postnatal CPIN** | Mother, alleged father and child count tables, sample trios, and population allele frequencies | Site-level paternity indices, combined paternity index, tables and plots |
+| **Prenatal CPI** | Count tables for maternal cell-free DNA and the alleged father, sample pairings, and population allele frequencies | Fetal fraction and CPI, a curve across read thresholds, and separate contributions from putative heterozygous and optional homozygous fetal sites |
+| **Postnatal CPI** | Mother, alleged father and child count tables, sample trios, and population allele frequencies | One CPI per trio, its base-10 logarithm and a table of included and excluded sites |
+| **Fetal sex** | Autosomal DNP, X DNP and Y SNP count tables from the same maternal cfDNA sample | F, M or Undetermined, three ratios and three site tables |
 
 Run a module on its own or build a workflow. DNPcall and SNPcall can share BAM inputs and feed separate analyses. Each branch uses its own panels and population frequencies. For parentage analyses, assign samples to family roles explicitly.
 
 ## Run your first experiment
 
-1. Open **NewPat**, choose **New experiment**, and enter a name for the experiment.
-2. For a DNP analysis, select the sample BAM, its reference FASTA and the DNP panel. Keep the FASTA index next to the reference file (for example, `genome.fa.fai` next to `genome.fa`).
-3. Review the settings and results folder, then choose **Start experiment**. NewPat checks the configuration and runtime before starting the analysis.
-4. Open **Experiments and results** to inspect the tables and plots. The run folder also contains `run-report.html`, `run.json` and `execution.log`.
+**Try the demo.** Open **Environment and help → Open demo**. NewPat opens a draft for three simulated samples with DNP and SNP selected. Review the settings and choose **Start experiment**. Open **Experiments and results** when it finishes. Each caller should report three loci per sample, with 100 reads per locus. [Guida rapida in italiano](docs/QUICKSTART_IT.md) · [English desktop walkthrough](docs/GUI.md#try-the-shared-example)
 
-For the same analysis from PowerShell, open the installed application folder and supply your own file paths:
+Choose **Save example data** to copy the BAMs, reference, panels, expected results and instructions to a local folder. The separate timing dataset lets you compare runs on different computers with the same BAM and panels. [Example ZIP](examples/newpat-synthetic-trio.zip) · [SHA-256 checksum](examples/newpat-synthetic-trio.zip.sha256)
+
+**Use your own files.** Open **New experiment**, select the sample BAMs, the exact reference FASTA used for alignment and the panel for each caller. Review the configuration and start the experiment. You can reopen the results in the desktop window or read `run-report.html` in the run folder. [Choosing a reference genome](docs/GUI.md#choose-a-reference-genome) · [Reading run results](docs/RUNS.md)
+
+For a DNP run from PowerShell, open the application directory containing `newpat.cmd` and substitute your file paths.
 
 ```powershell
 .\newpat.cmd dnp-call --bam "C:\Data\sample.bam" `
   --reference "C:\Data\genome.fa" --panel "C:\Data\dnp-panel.txt"
 ```
 
-[Desktop guide](docs/GUI.md) · [Input formats and CLI examples](docs/GUIDA_UTILIZZO.md) · [Reading run results](docs/ESECUZIONI.md) · [Documentation](https://github.com/GregorioDalia/nipat-desktop/blob/main/docs/README.md)
+[Input formats and CLI examples](docs/USER_GUIDE.md) · [Code guide](docs/CODE_GUIDE.md) · [All guides](docs/README.md)
 
 ## Scientific methods
 

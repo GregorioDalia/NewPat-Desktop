@@ -57,8 +57,8 @@ class SnpAcquisitionTests(unittest.TestCase):
             snp._run_acquisition(Path(command[2]), command[3:])
 
     def planned(self, order="coordinate"):
-        prep = snp.SnpPreparation(self.command, [], self.output, self.bam,
-                                  {c: 200 for c in reversed(self.contigs)})
+        lengths = {c: 200 for c in reversed(self.contigs)}
+        prep = snp.SnpPreparation(self.command, [], self.output, self.bam, lengths, lengths)
         def header(argv):
             Path(argv[-2]).write_text(f"@HD\tVN:1.6\tSO:{order}\n" +
                                       "".join(f"@SQ\tSN:{c}\tLN:200\n" for c in self.contigs))

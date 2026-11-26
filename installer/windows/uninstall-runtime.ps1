@@ -105,12 +105,26 @@ function Assert-NipatRemovalTarget($Target, $Registrations, [switch] $SkipOwnerP
     }
 }
 
+function Get-NipatZipRemovalRoot([string] $Project) {
+    # The layout history stores paths, including versions from earlier releases
+    # whose files can already have been removed. ZIP projects have an immutable
+    # versions/<version>-<commit> path under their own installation root.
+    $projectPath = Get-NipatRemovalPath $Project
+    $versions = [IO.Path]::GetDirectoryName($projectPath)
+    if ([IO.Path]::GetFileName($versions) -ieq 'versions' -and
+        [IO.Path]::GetFileName($projectPath) -cmatch '\A[0-9]+\.[0-9]+\.[0-9]+-[a-f0-9]{40}\z') {
+        return [IO.Path]::GetDirectoryName($versions)
+    }
+    return ''
+}
+
 function Get-NipatRuntimeRemovalPlan([string] $Project, [switch] $InspectOnly) {
     $layouts = @(Get-NipatKnownInstallLayouts $Project)
     $profile = Get-NipatInstallationProfile
     $runtimeRoots = @{}
     $cacheRoots = @{}
     $protectedRoots = @()
+    $selectedZipRoot = Get-NipatZipRemovalRoot $Project
     foreach ($layout in $layouts) {
         Assert-NipatInstallationChannel $layout 'Le destinazioni di rimozione'
         foreach ($name in @('app_dir', 'data_dir', 'runs_dir')) {
@@ -118,13 +132,17 @@ function Get-NipatRuntimeRemovalPlan([string] $Project, [switch] $InspectOnly) {
         }
         $runtime = Get-NipatRemovalPath $layout.runtime_dir
         $cache = Get-NipatRemovalPath $layout.cache_dir
+        if ((Get-NipatZipRemovalRoot $layout.app_dir) -ine $selectedZipRoot) {
+            $protectedRoots += @($runtime, $cache)
+            continue
+        }
         $runtimeRoots[$runtime] = $runtime
         $cacheRoots[$cache] = $cache
     }
     foreach ($path in @($runtimeRoots.Values) + @($cacheRoots.Values)) {
         foreach ($protected in $protectedRoots) {
             if (Test-NipatRemovalPathsOverlap $path $protected) {
-                throw "La destinazione da rimuovere si sovrappone a una cartella applicativa, dati o risultati: $path."
+                throw "La destinazione da rimuovere si sovrappone a una cartella protetta di questa o di un altra installazione: $path."
             }
         }
         Assert-NipatRemovalTree $path
