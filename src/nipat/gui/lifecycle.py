@@ -14,7 +14,7 @@ from nipat.errors import RuntimeExecutionError, ValidationError
 from nipat.execution.recovery import reconcile_run
 from nipat.execution.runner import DockerComposeRunner
 from nipat.execution.tracking import read_run_status
-from nipat.resources import _backend, _resource_lock
+from nipat.resources import ResourceLockBusy, _backend, _resource_lock
 
 _ACTIVE = {"preparing", "running"}
 _LIVE_CONTAINERS = {"created", "running", "restarting", "paused"}
@@ -57,8 +57,13 @@ class RunObserver:
             # Probe only: keeping this exclusive lock during Docker inspection
             # could make an unrelated newly started analysis fail to acquire its
             # shared lock. Run paths are immutable and every re-run has a new ID.
-            with self.guard():
-                pass
+            try:
+                with self.guard():
+                    pass
+                backend_idle = True
+            except ResourceLockBusy:
+                # The holder might be this run's client, even between containers.
+                backend_idle = False
             layout = self.layout()
             # Imported experiments may belong to another computer/backend.
             # The core refuses cross-backend observations, and no source file
@@ -66,15 +71,15 @@ class RunObserver:
             if not path.resolve().is_relative_to(layout.runs_dir.resolve()):
                 return self._result("unknown", recorded, "external")
             report = self.reconcile(self.runner_factory(layout), path, stop=False)
-            containers = report.get("containers", [])
-            if (not report.get("backend_matches") or report.get("error")
-                    or any(item.get("state") in {"unavailable", "identity_mismatch"}
-                           for item in containers)):
+            if not report.get("backend_matches") or report.get("error"):
                 return self._result("unknown", recorded, "unavailable")
-            if any(item.get("state") in _LIVE_CONTAINERS for item in containers):
+            # A same-name container can belong to a different run or image.
+            # The engine can confirm absence without an identity to check.
+            present = [item for item in report["containers"] if item.get("state") != "absent"]
+            if any(item.get("owned") is True and item.get("state") in _LIVE_CONTAINERS for item in present):
                 return self._result("running", recorded, "external_active")
-            if any(item.get("state") not in {"absent", "exited", "dead"}
-                   for item in containers):
+            if (not backend_idle or any(item.get("owned") is not True or item.get("state") not in {"exited", "dead"}
+                                        for item in present)):
                 return self._result("unknown", recorded, "unavailable")
             # Workflow steps can be complete before the client performs its
             # final input verification/report. Never promote them to success.
