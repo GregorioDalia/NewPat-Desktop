@@ -128,7 +128,7 @@ def test_combined_plan_accepts_only_the_explicit_two_table_layout(tmp_path):
     inputs = {"dnp": roles["dnp"], "y": roles["y"]}
     step = {"id": "sex", "workflow": "fetal-sex", "inputs": inputs, "parameters": {}}
     plan = {"schema_version": 1, "samples": [
-        {"id": roles[role], "kind": kind, "path": request[role]}
+        {"id": roles[role], "kind": kind, "path": f"/workspace/inputs/{role}.txt"}
         for role, kind in (("dnp", "dnp-table"), ("y", "snp-table"))], "steps": [step]}
     assert validate_plan(plan)["plan"]["steps"] == [step]
     inputs["x"] = roles["dnp"]

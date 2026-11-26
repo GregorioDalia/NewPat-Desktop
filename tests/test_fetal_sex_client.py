@@ -70,10 +70,11 @@ class FetalSexClientTests(unittest.TestCase):
         self.assertEqual(Path(request["y"]).name, y.name)
         self.assertTrue({"autosomes", "x"}.isdisjoint(request))
         record = self.runner.records[-1][1]
+        sources = {"dnp": str(dnp.resolve()), "y": str(y.resolve())}
         self.assertEqual(record["parameters"]["fetal_sex"],
-                         {"sample_id": dnp.stem, "dnp": str(dnp), "y": str(y)})
+                         {"sample_id": dnp.stem, **sources})
         self.assertEqual({(m["host_path"], m["read_only"]) for m in record["mounts"].mappings},
-                         {(str(dnp), True), (str(y), True)})
+                         {(path, True) for path in sources.values()})
 
         args = parser.parse_args(["workflow", "analyze", "--caller", "tables",
                                   "--fetal-sex", "Mother", str(dnp), str(y)])
@@ -84,7 +85,7 @@ class FetalSexClientTests(unittest.TestCase):
         self.assertEqual({s["id"]: s["kind"] for s in plan["samples"]},
                          {"fsd_Mother": "dnp-table", "fsy_Mother": "snp-table"})
         self.assertEqual(self.runner.records[-1][1]["parameters"]["fetal_sex"],
-                         {"sample_id": "Mother", "dnp": str(dnp), "y": str(y)})
+                         {"sample_id": "Mother", **sources})
 
     def test_mixed_workflow_reuses_the_combined_maternal_count_table(self):
         dnp = self.combined_table()
@@ -99,7 +100,7 @@ class FetalSexClientTests(unittest.TestCase):
         self.assertEqual(contamination["inputs"]["samples"], [{"sample": "dnp_Mother"}])
         self.assertEqual(sex["inputs"], {"dnp": "dnp_Mother", "y": "fsy_Mother"})
         mounts = self.runner.records[-1][1]["mounts"].mappings
-        self.assertEqual(sum(m["host_path"] == str(dnp) for m in mounts), 1)
+        self.assertEqual(sum(m["host_path"] == str(dnp.resolve()) for m in mounts), 1)
 
     def test_incomplete_or_mixed_table_layouts_are_rejected_before_recording(self):
         for tables in ({"autosomes": self.paths["autosomes"]},
