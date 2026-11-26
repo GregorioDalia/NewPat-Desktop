@@ -824,6 +824,13 @@ def run_verification(report_path, executable):
                     series_keys = probe.evaluate("[...new Set([...document.querySelectorAll('.interactive-curve [data-curve-series]')].map(node=>node.dataset.curveSeries))].sort()")
                     expected_keys = sorted(["log_CPI", "NotMismatch", "Mismatch"] if module == "cpi" else ["Log10_CPI", "Matching_sites", "Mismatching_sites"])
                     check(series_keys == expected_keys, f"{module.upper()} combined view uses exactly the black, green and orange source series")
+                    at_rest = combined_chart.locator('.curve-point:not(.selected):not(:focus) .curve-dot')
+                    solid_markers = at_rest.evaluate_all(
+                        """dots => dots.length > 0 && dots.every(dot => {
+                            const {fill, stroke} = getComputedStyle(dot);
+                            return fill !== 'none' && (stroke === 'none' || stroke === fill);
+                        })""")
+                    check(solid_markers, f"{module.upper()} unselected markers keep their series color to the edge")
                     combined_chart.locator('.curve-hit-dot').first.hover()
                     probe.wait("!document.querySelector('.curve-tooltip').hidden")
                     combined_tooltip = combined_chart.locator('.curve-tooltip')
