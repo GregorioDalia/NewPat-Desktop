@@ -82,7 +82,7 @@ def installation_session(state: Path = STATE, *, exclusive: bool = False):
 
 
 def mount_repair_required(app: Path, resources: Path, workspace: Path) -> bool:
-    """Check the current application path before taking an exclusive lease."""
+    """Check managed mounts and Rosetta before selecting the installation lease."""
     source = str(app / "src")
     if source not in sys.path:
         sys.path.insert(0, source)

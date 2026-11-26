@@ -13,6 +13,10 @@
 .github/scripts/test_verify_installer_set.py
 .github/scripts/verify_installer_set.py
 .github/workflows/ci.yml
+.github/workflows/native-scientific-parity.yml
+.github/scripts/check_native_r.py
+.github/scripts/compare_native_oracles.py
+.github/scripts/export_arm_science.py
 .github/workflows/publish-windows-release.yml
 .github/workflows/windows-installer.yml
 .gitignore
@@ -613,3 +617,7 @@ tests/fixtures/prenatal_cpi/outputs/DNP/Summary_FetalFraction_CPI.csv
 tests/fixtures/prenatal_cpi/outputs/SNP/MotherA1-FatherA1_SNPs_CPI_iterations.csv
 tests/fixtures/prenatal_cpi/outputs/SNP/MotherA1-FatherA1_SNPs_HOM_child_sites.txt
 tests/fixtures/prenatal_cpi/outputs/SNP/Summary_FetalFraction_CPI.csv
+scripts/benchmark_macos_candidate.py
+installer/macos/Run-Mac-Comparison.command
+docs/MACOS_CANDIDATE_TEST.md
+docs/validation/0.9.10-apple-silicon-timing.json

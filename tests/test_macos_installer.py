@@ -94,7 +94,7 @@ class MacInstallerTests(unittest.TestCase):
         executable.chmod(0o755)
         record = {
             **{field: common[field] for field in ("version", "source_commit", "runtime_image")},
-            "architecture": "arm64", "runtime_vm_qualified": False,
+            "architecture": "arm64", "scientific_platform": "linux/arm64", "runtime_vm_qualified": False,
             "scientific_asset_sha256": common["assets"]["scientific_image"]["sha256"],
             "payload_inventory": builder.payload_inventory(payload),
         }
@@ -116,6 +116,30 @@ class MacInstallerTests(unittest.TestCase):
         self.assertGreaterEqual(len(provenance["files_sha256"]), 10)
         for name, expected in provenance["files_sha256"].items():
             self.assertEqual(builder.bundle.sha256_file(notices / name), expected, name)
+
+    def test_saved_image_platform_comes_from_the_digest_bound_docker_config(self):
+        arm = b'{"os":"linux","architecture":"arm64"}'
+        amd = b'{"os":"linux","architecture":"amd64"}'
+        path = self.root / "saved.tar.gz"
+        for prefix in ("blobs/sha256/", ""):
+            name = prefix + hashlib.sha256(arm).hexdigest() + ("" if prefix else ".json")
+            manifest = [{"Config": name, "RepoTags": [], "Layers": []}]
+            def save(raw, selected):
+                archive(path, [(name, raw, None), ("manifest.json", json.dumps(selected).encode(), None)])
+            save(arm, manifest)
+            self.assertEqual(builder.archive_platform(path), "linux/arm64")
+            for raw, selected in ((amd, manifest), (arm, manifest * 2),
+                                  (arm, [dict(manifest[0], RepoTags=["unrelated:latest"])])):
+                save(raw, selected)
+                with self.assertRaises(ValueError):
+                    builder.archive_platform(path)
+
+    def test_arm_package_rejects_the_windows_scientific_manifest(self):
+        manifest = {"version": "0.9.99", "installation_profile": builder.assets.EXPECTED_INSTALLATION_PROFILE,
+                    "schema_version": 1, "release_tag": "v0.9.99", "runtime_image": "sha256:" + "a" * 64,
+                    "source_commit": "b" * 40, "assets": {"scientific_image": {"file": "runtime-amd64.tar.gz"}}}
+        with self.assertRaisesRegex(ValueError, "ARM64"):
+            builder.validate_scientific_manifest(manifest, "arm64")
 
     def test_changed_scientific_archive_cannot_pass_package_verification(self):
         payload, app, common, record = self.fixture()

@@ -97,6 +97,20 @@ def file_sha256(path: Path) -> str:
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
+def scientific_platform(architecture: str) -> str:
+    try:
+        return {"arm64": "linux/arm64", "x86_64": "linux/amd64"}[architecture]
+    except KeyError as exc:
+        raise ValidationError(f"Architettura macOS non supportata: {architecture}") from exc
+
+
+def rosetta_enabled(config: dict) -> bool:
+    options = (config.get("vmOpts") or {}).get("vz") or {}
+    nested = options.get("rosetta") or {}
+    return any(options.get(key) for options in (nested, config.get("rosetta", {}))
+               if isinstance(options, dict) for key in ("enabled", "binfmt"))
+
+
 def read_manifest(project: Path) -> dict:
     manifest = _read_json(project / ".distribution" / "macos-manifest.json")
     asset = manifest.get("scientific_asset")
@@ -106,6 +120,7 @@ def read_manifest(project: Path) -> dict:
         and re.fullmatch(r"0\.[89]\.[0-9]+(?:[ab][0-9]+|rc[0-9]+)?", str(manifest.get("version", "")))
         and re.fullmatch(r"[0-9a-f]{40}", str(manifest.get("source_commit", "")))
         and manifest.get("architecture") in _BASE_IMAGES
+        and manifest.get("scientific_platform") == scientific_platform(manifest["architecture"])
         and manifest.get("lima_version") == LIMA_VERSION
         and _IMAGE.fullmatch(str(manifest.get("runtime_image", "")))
         and isinstance(asset, dict)
@@ -180,7 +195,7 @@ class LimaRuntime:
         values = {
             "HOME": "/root", "PATH": _LINUX_PATH, "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8",
             "DOCKER_HOST": "unix:///var/run/docker.sock", "DOCKER_CONFIG": "/root/.docker",
-            "DOCKER_DEFAULT_PLATFORM": "linux/amd64", "NIPAT_UID": str(os.getuid()),
+            "DOCKER_DEFAULT_PLATFORM": scientific_platform(platform.machine()), "NIPAT_UID": str(os.getuid()),
             "NIPAT_GID": str(os.getgid()),
         }
         for key in ("NIPAT_PROJECT_DIR", "NIPAT_WORKSPACE_DIR", "NIPAT_DATA_DIR", "NIPAT_RUNS_DIR"):
@@ -342,8 +357,8 @@ class LimaRuntime:
         required = [Path(item["location"]) for item in self.default_mounts()]
         if any(not self._covers(owner["mounts"], path) for path in required):
             return True
-        actual = self._instance_info()["config"]["mounts"]
-        return any(not self._covers(actual, path) for path in required)
+        config = self._instance_info()["config"]
+        return rosetta_enabled(config) or any(not self._covers(config["mounts"], path) for path in required)
 
     def _verify_application(self) -> None:
         """A healthy image is insufficient: the current app must be visible too."""
@@ -360,16 +375,14 @@ class LimaRuntime:
             raise RuntimeExecutionError("La VM vede una copia diversa dell'applicazione. Chiudere le altre sessioni e riaprire NewPat da Applicazioni.")
 
     def _repair_mounts(self, owner: dict, additions: list[dict]) -> dict:
-        """Extend only the owned VM, under the launcher's exclusive lease.
+        """Update the owned VM under the launcher's exclusive lease.
 
-        Lima 2.2.1 edit refuses running instances. The --set expression changes
-        mounts only; existing resource settings and advanced mount options stay
-        intact. No VM, image, data or result directory is removed.
+        Lima 2.2.1 edit refuses running instances. The edit preserves resource settings, disks and existing mount options. No VM, image, data or result directory is removed.
         """
         if (os.environ.get("NIPAT_RUNTIME_MAINTENANCE") != "1"
                 or os.environ.get("NIPAT_LAUNCHER_PID") != str(os.getppid())):
             raise ValidationError(
-                "Le cartelle dell'applicazione sono cambiate. Chiudere tutte le sessioni NewPat/NIPAT "
+                "La configurazione della VM richiede un aggiornamento. Chiudere tutte le sessioni NewPat/NIPAT "
                 "e riaprire NewPat da Applicazioni per completare il ripristino automatico."
             )
         self._assert_owned()
@@ -383,6 +396,7 @@ class LimaRuntime:
         config_mode = config.stat().st_mode & 0o777
         owner_mode = self.owner_path.stat().st_mode & 0o777
         actual = info["config"]["mounts"]
+        disable_rosetta = rosetta_enabled(info["config"])
         obsolete = self._obsolete_application_mounts(owner)
         if any(item["location"] in obsolete and item.get("writable") is not False for item in actual):
             raise ValidationError("Una vecchia cartella dell'applicazione ha una condivisione personalizzata: nessuna modifica eseguita.")
@@ -397,18 +411,24 @@ class LimaRuntime:
                             "config_mode": config_mode, "owner_mode": owner_mode,
                             "config_base64": base64.b64encode(original_config).decode("ascii"),
                             "owner_base64": base64.b64encode(original_owner).decode("ascii")})
-        print("Aggiornamento delle cartelle condivise per NewPat; dati e risultati vengono conservati.", flush=True)
+        print("Aggiornamento della configurazione Lima. I dati e i risultati vengono conservati.", flush=True)
         try:
-            if append or obsolete:
+            if append or obsolete or disable_rosetta:
                 if running:
                     self._run(self.host_prefix() + ["stop", INSTANCE], timeout=180)
                 expressions = [".mounts |= map(select(.location != " + json.dumps(path, ensure_ascii=True) + "))"
                                for path in obsolete]
-                expressions.append(".mounts += " + json.dumps(append, ensure_ascii=True))
+                if append or obsolete:
+                    expressions.append(".mounts += " + json.dumps(append, ensure_ascii=True))
+                if disable_rosetta:
+                    expressions.extend(["del(.rosetta)", ".vmOpts.vz.rosetta.enabled = false",
+                                        ".vmOpts.vz.rosetta.binfmt = false"])
                 expression = " | ".join(expressions)
                 self._run(self.host_prefix() + ["edit", "--tty=false", "--set", expression, INSTANCE])
                 self._assert_owned()
                 verified = self._instance_info()
+                if rosetta_enabled(verified["config"]):
+                    raise RuntimeExecutionError("Lima non ha disattivato Rosetta per il motore nativo.")
                 if any(not self._covers(verified["config"]["mounts"], Path(item["location"])) for item in additions):
                     raise RuntimeExecutionError("Lima non ha applicato le cartelle condivise richieste.")
             _write_json(self.owner_path, updated)
@@ -426,13 +446,13 @@ class LimaRuntime:
                     self._run(self.host_prefix() + ["start", "--tty=false", INSTANCE], timeout=180)
             except (NipatError, OSError, ValueError) as restore_error:
                 raise RuntimeExecutionError(
-                    f"Ripristino delle cartelle non completato. Conservati VM, dati e backup {backup}. "
+                    f"Ripristino della configurazione Lima non completato. Conservati VM, dati e backup {backup}. "
                     f"Recupero della configurazione da verificare: {restore_error}. Errore iniziale: {exc}"
                 ) from exc
             if isinstance(exc, KeyboardInterrupt):
                 raise
             raise RuntimeExecutionError(
-                f"Aggiornamento delle cartelle non completato; configurazione precedente ripristinata. "
+                f"Aggiornamento di Lima non completato, configurazione precedente ripristinata. "
                 f"Dati e risultati conservati. Backup: {backup}. {exc}"
             ) from exc
 
@@ -532,8 +552,7 @@ class LimaRuntime:
             "mountType": "virtiofs", "mounts": owner["mounts"],
             "containerd": {"system": False, "user": False},
             "ssh": {"loadDotSSHPubKeys": False, "forwardAgent": False, "forwardX11": False},
-            "vmOpts": {"vz": {"rosetta": {"enabled": manifest["architecture"] == "arm64",
-                                               "binfmt": manifest["architecture"] == "arm64"}}},
+            "vmOpts": {"vz": {"rosetta": {"enabled": False, "binfmt": False}}},
             "provision": [{"mode": "system", "script": _PROVISION}],
             "probes": [{"script": "#!/bin/sh\nset -eu\ntest \"$(cat /etc/nipat-owner)\" = \"$PARAM_NipatOwner\"\nsudo -n docker info >/dev/null\nsudo -n docker compose version\n",
                         "hint": "Consultare /var/log/cloud-init-output.log nella VM NewPat."}],
@@ -545,6 +564,7 @@ class LimaRuntime:
         return {"schema_version": 1, "channel": CHANNEL, "backend": "lima", "instance": INSTANCE,
                 "lima_home": str(self.lima_home), "version": manifest["version"],
                 "source_commit": manifest["source_commit"], "architecture": manifest["architecture"],
+                "scientific_platform": manifest["scientific_platform"],
                 "source_runtime_image": manifest["runtime_image"],
                 "runtime_archive_sha256": manifest["scientific_asset"]["sha256"]}
 
@@ -559,12 +579,12 @@ class LimaRuntime:
         inspected = self._run(self.docker_command([
             "image", "inspect", "--format", "{{.Id}} {{.Os}} {{.Architecture}}", image,
         ]))
-        if inspected != f"{image} linux amd64":
+        if inspected != image + " " + manifest["scientific_platform"].replace("/", " "):
             raise RuntimeExecutionError("Identità o architettura dell'immagine scientifica non valida.")
         name = "nipat-verify-" + uuid.uuid4().hex
         try:
             description = json.loads(self._run(self.docker_command([
-                "run", "--rm", "--pull=never", "--platform=linux/amd64", "--name", name,
+                "run", "--rm", "--pull=never", "--platform=" + manifest["scientific_platform"], "--name", name,
                 "--network", "none", "--read-only", "--tmpfs", "/tmp:rw,nosuid,nodev,size=128m",
                 "--env", "HOME=/tmp", image, "python3", "/opt/nipat/engine/main.py", "describe", "--json",
             ])))
@@ -576,6 +596,22 @@ class LimaRuntime:
             raise
         if description != manifest["engine_description"]:
             raise RuntimeExecutionError("Il codice scientifico dell'immagine non corrisponde alla build NewPat.")
+
+    def native_evidence(self, image: str) -> dict:
+        """Inspect the running guest and execute the bundled tools for physical acceptance."""
+        target = scientific_platform(platform.machine())
+        expected_machine = "aarch64" if target == "linux/arm64" else "x86_64"
+        guest = self._run(self.shell_command(["uname", "-m"]), timeout=30)
+        detected = self._run(self.docker_command(["image", "inspect", "--format", "{{.Os}}/{{.Architecture}}", image]))
+        if rosetta_enabled(self._instance_info()["config"]) or detected != target or guest != expected_machine:
+            raise RuntimeExecutionError("La VM o l’immagine non corrisponde alla piattaforma nativa del Mac.")
+        command = ["run", "--rm", "--pull=never", "--network=none", "--platform=" + target, "--entrypoint"]
+        r_arch = self._run(self.docker_command([*command, "Rscript", image, "-e", "cat(R.version$arch)"]))
+        if r_arch != expected_machine:
+            raise RuntimeExecutionError("L’architettura di R non corrisponde a quella del Mac.")
+        samtools = self._run(self.docker_command([*command, "samtools", image, "--version-only"]))
+        return {"scientific_platform": detected, "guest_machine": guest, "r_arch": r_arch,
+                "samtools_version": samtools, "rosetta_enabled": False}
 
     def prepare(self, extra_mounts: list[Path] | None = None) -> dict:
         manifest = read_manifest(self.project)
@@ -624,8 +660,6 @@ class LimaRuntime:
                 state = {**self._bindings(manifest), "phase": "preparing_vm", "last_error": None}
                 _write_json(self.state_path, state)
                 print("Prima preparazione NewPat: download di Linux e configurazione di Docker nella VM dedicata. Può richiedere diversi minuti.", flush=True)
-                if manifest["architecture"] == "arm64":
-                    print("Su Apple Silicon Lima prepara anche Rosetta per eseguire il motore scientifico AMD64.", flush=True)
                 try:
                     self._run(self.host_prefix() + ["start", "--tty=false", "--name=" + INSTANCE, str(config)], timeout=1800)
                     self._assert_owned()
@@ -662,6 +696,8 @@ class LimaRuntime:
         with self.lock(timeout=180):
             self._assert_owned()
             state = self._state(manifest)
+            if manifest["architecture"] == "arm64" and rosetta_enabled(self._instance_info()["config"]):
+                raise ValidationError("Riaprire NewPat per aggiornare la VM al motore ARM64 nativo.")
             self._run(self.host_prefix() + ["start", "--tty=false", INSTANCE], timeout=180)
             self._verify_application()
             self._verify_image(manifest, state["runtime_image"])

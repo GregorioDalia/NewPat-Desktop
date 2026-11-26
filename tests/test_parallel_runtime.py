@@ -43,7 +43,7 @@ class ParallelRuntimeTests(unittest.TestCase):
             self.assertEqual(service["mem_limit"], 6000 * 1024**2)
             self.assertTrue(all(environment[name] == "1" for name in THREAD_LIMITS))
 
-    def test_dnp_io_and_translated_worker_policy_follow_the_runtime(self):
+    def test_dnp_io_and_apple_silicon_worker_policy_follow_the_runtime(self):
         # Identical engine allocations on different physical hosts, explicit
         # per-run limits, and the two independent engine policy switches.
         cases = [
@@ -59,7 +59,7 @@ class ParallelRuntimeTests(unittest.TestCase):
             ("wsl", "win32", "AMD64", 8192, 3905, None, False, False),
             ("wsl", "win32", "arm64", 8192, 3905, None, False, False),
         ]
-        for backend, system, arch, host, guest, limit, io, translated in cases:
+        for backend, system, arch, host, guest, limit, io, arm_policy in cases:
             with self.subTest(backend=backend, arch=arch, host=host, guest=guest), tempfile.TemporaryDirectory() as temp:
                 root = Path(temp).resolve()
                 run = root / "runs" / "one"
@@ -75,8 +75,10 @@ class ParallelRuntimeTests(unittest.TestCase):
                     runner._write_engine_compose("sha256:" + "a" * 64)
                 compose = json.loads((run / "work/engine-compose.json").read_text())
                 env = compose["services"]["scientific"]["environment"]
+                if backend == "lima":
+                    self.assertEqual(compose["services"]["scientific"]["platform"], "linux/arm64" if arch == "arm64" else "linux/amd64")
                 self.assertEqual(env.get("NIPAT_DNP_OPTIMIZED_IO") == "1", io)
-                self.assertEqual(env.get("NIPAT_DNP_LIMA_ARM64") == "1", translated)
+                self.assertEqual(env.get("NIPAT_DNP_LIMA_ARM64") == "1", arm_policy)
                 self.assertNotIn("NIPAT_MAX_WORKERS", env)
                 if limit is not None:
                     self.assertEqual(json.loads(env["NIPAT_FIXED_RESOURCE_BUDGET"])["memory_capacity_mib"], limit)

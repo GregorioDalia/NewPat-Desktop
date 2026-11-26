@@ -94,7 +94,7 @@ def asset_metadata(path: Path, release_tag: str) -> dict:
     }
 
 
-def inspect_image(reference: str) -> dict:
+def inspect_image(reference: str, *, architecture: str = "amd64") -> dict:
     result = subprocess.run(
         ["docker", "image", "inspect", reference], check=True,
         capture_output=True, text=True, timeout=60,
@@ -103,8 +103,8 @@ def inspect_image(reference: str) -> dict:
     if not isinstance(images, list) or len(images) != 1:
         raise ValueError("Docker deve restituire una sola immagine.")
     details = images[0]
-    if (details.get("Os"), details.get("Architecture")) != ("linux", "amd64"):
-        raise ValueError("Gli asset Windows x64 richiedono immagini Linux amd64.")
+    if (details.get("Os"), details.get("Architecture")) != ("linux", architecture):
+        raise ValueError(f"Immagine Docker non valida: è richiesta linux/{architecture}.")
     if not re.fullmatch(r"sha256:[0-9a-f]{64}", details.get("Id", "")):
         raise ValueError("Identificativo immagine Docker non valido.")
     return details

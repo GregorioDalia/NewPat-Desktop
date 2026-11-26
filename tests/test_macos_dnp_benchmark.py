@@ -92,3 +92,24 @@ def test_benchmark_keeps_native_digests_and_available_diagnostics(tmp_path, monk
     assert serial["sampled_cgroup_max_bytes"] is None and two["sampled_cgroup_max_bytes"] == 1024
     assert two["observed_kernel_memory_peak_bytes"] is None
     assert all(case["matches_serial_tables"] for case in report["cases"])
+
+
+def test_candidate_timing_compares_the_recorded_inputs_and_excludes_warmup(tmp_path):
+    from scripts import benchmark_macos_candidate as candidate
+    baseline = candidate.read(candidate.PROJECT / "docs/validation/0.9.10-apple-silicon-timing.json")
+    candidate.input_files(tmp_path, baseline)
+    for i in range(1, 5):
+        for suffix in ("bam", "bam.bai"):
+            assert (tmp_path / f"replica{i}.{suffix}").read_bytes() == (tmp_path / f"timing.{suffix}").read_bytes()
+    measurements = [{"bam_count": n, "trial": trial, "cpu_limit": 4, "memory_capacity_mib": 3905,
+                     "run_seconds": 10000 if trial == 0 else baseline["warm_median_seconds"][str(n)] / 2,
+                     "power_source": ["battery", "battery"]} for trial, order in enumerate(baseline["rounds"]) for n in order]
+    report = {"host": dict(baseline["host"]), "measurements": measurements}
+    candidate.compare(baseline, report)
+    assert report["time_reduction_percent"] == {"1": 50, "2": 50, "4": 50}
+    for field, value in (("memory_capacity_mib", 7800), ("cpu_limit", 2), ("power_source", ["battery", "ac"])):
+        changed = dict(report, measurements=[dict(m, **{field: value}) for m in measurements])
+        changed.pop("time_reduction_percent")
+        candidate.compare(baseline, changed)
+        assert "time_reduction_percent" not in changed
+        assert changed["different_conditions"] == [field]

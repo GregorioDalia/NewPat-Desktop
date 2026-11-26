@@ -46,7 +46,10 @@ def verify_payload(payload: Path, common: dict, record: dict) -> dict:
         if manifest.get(field) != common.get(field) or record.get(field) != common.get(field):
             raise ValueError(f"Package scientific/source identity mismatch: {field}")
     if (manifest.get("channel") != "desktop" or manifest.get("provider") != "lima"
+            or record.get("architecture") not in builder.SCIENTIFIC_PLATFORMS
             or manifest.get("architecture") != record.get("architecture")
+            or manifest.get("scientific_platform") != record.get("scientific_platform")
+            or manifest.get("scientific_platform") != builder.SCIENTIFIC_PLATFORMS.get(record["architecture"])
             or manifest.get("runtime_vm_qualified") is not False
             or record.get("runtime_vm_qualified") is not False):
         raise ValueError("Invalid package qualification or architecture.")
@@ -88,8 +91,8 @@ def verify(package: Path, common_manifest: Path, *, build_record: Path | None = 
     if sys.platform != "darwin":
         raise ValueError("Verify the real .pkg on a macOS runner; Linux tests validate fixture payloads only.")
     common = builder.read_json(common_manifest)
-    builder.assets.validate_manifest(common)
     record = builder.read_json(build_record or package.parent / builder.BUILD_RECORD)
+    builder.validate_scientific_manifest(common, record["architecture"])
     if (package.is_symlink() or not package.is_file()
             or package.name != record.get("package")
             or package.stat().st_size != record.get("package_size")
@@ -154,7 +157,10 @@ runtime = LimaRuntime(project, home / "Library/Application Support/NIPAT-Desktop
                       executable, home=home)
 manifest = json.loads((project / ".distribution/macos-manifest.json").read_text())
 owner = {"token": "d" * 32, "mounts": runtime.default_mounts()}
-destination.write_text(json.dumps(runtime.template(manifest, owner)))
+template = runtime.template(manifest, owner)
+if template["vmOpts"]["vz"]["rosetta"] != {"enabled": False, "binfmt": False}:
+    raise ValueError("The native guest must disable Rosetta and its binary handler")
+destination.write_text(json.dumps(template))
 subprocess.run([*runtime.host_prefix(), "validate", str(destination)], check=True)
 # Inspect a stopped VZ instance with the packaged limactl. The disposable home
 # keeps this check separate from the runner's Lima instances; no guest boots.
@@ -172,6 +178,36 @@ with tempfile.TemporaryDirectory(prefix="np-", dir="/private/tmp") as directory:
     saved, = previous.lima_home.parent.glob("recovered-nipat-*/nipat/diffdisk")
     if previous.instance_dir.exists() or saved.read_bytes() != b"previous instance":
         raise ValueError("Stopped package fixture was not preserved")
+    if manifest["architecture"] == "arm64":
+        from unittest.mock import patch
+        from nipat.macos_runtime import CHANNEL, INSTANCE, _write_json, rosetta_enabled
+        owner = {"channel": CHANNEL, "instance": INSTANCE, "lima_home": str(previous.lima_home),
+                 "token": "e" * 32, "mounts": previous.default_mounts()}
+        legacy = previous.template(manifest, owner)
+        legacy.update(cpus=3, memory="4096MiB")
+        legacy["vmOpts"]["vz"]["rosetta"] = {"enabled": True, "binfmt": True}
+        previous.instance_dir.mkdir()
+        disk = previous.instance_dir / "diffdisk"
+        disk.write_bytes(b"previous owned disk")
+        _write_json(previous.instance_dir / "lima.yaml", legacy)
+        _write_json(previous.owner_path, owner)
+        old_info = previous._instance_info()
+        if not previous.requires_mount_repair():
+            raise ValueError("An owned 0.9.10 ARM configuration must request migration")
+        # Use the bundled limactl for the stopped-instance edit and inspection.
+        # The hosted runner does not boot the fixture. The installed trial tests first boot.
+        original_run = previous._run
+        def stopped_check(argv, **kwargs):
+            if argv == previous.host_prefix() + ["start", "--tty=false", INSTANCE]:
+                return ""
+            return original_run(argv, **kwargs)
+        with previous.lock(), patch.object(previous, "_run", side_effect=stopped_check), patch.object(previous, "_verify_application"):
+            previous._repair_mounts(owner, owner["mounts"])
+        new_info = previous._instance_info()
+        if (rosetta_enabled(new_info["config"]) or previous.requires_mount_repair()
+                or disk.read_bytes() != b"previous owned disk" or previous._assert_owned() != owner
+                or any(new_info["config"].get(k) != old_info["config"].get(k) for k in ("cpus", "memory", "disk", "mounts"))):
+            raise ValueError("The stopped Apple Silicon upgrade did not preserve the previous VM")
 '''
         subprocess.run([str(python), "-I", "-B", "-c", validate_template,
                         str(resources / "app/src"), str(resources / "app"),
@@ -179,14 +215,16 @@ with tempfile.TemporaryDirectory(prefix="np-", dir="/private/tmp") as directory:
                         str(Path(temporary) / "lima.yaml")], check=True)
     return {
         "schema_version": 1, "verified": True, "platform": "darwin",
-        "architecture": record["architecture"], "version": common["version"],
+        "architecture": record["architecture"], "scientific_platform": installed["scientific_platform"],
+        "version": common["version"],
         "source_commit": common["source_commit"], "package_sha256": record["package_sha256"],
         "scientific_asset_sha256": record["scientific_asset_sha256"],
         "runtime_image": common["runtime_image"], "runtime_vm_qualified": False,
         "checks": ["package-sha256", "full-payload-inventory", "scientific-archive-reuse",
                    "source-inventory", "installer-os-and-architecture", "ad-hoc-code-signatures",
                    "native-python", "native-lima", "lima-virtualization-entitlement",
-                   "packaged-cli-version", "generated-lima-template"],
+                   "packaged-cli-version", "generated-lima-template", "docker-archive-architecture",
+                   "rosetta-disabled"] + (["stopped-0.9.10-lima-upgrade"] if record["architecture"] == "arm64" else []),
         "not_tested": ["clean-installation", "first-launch-vm-provisioning", "scientific-execution",
                        "upgrade", "runtime-removal", "gatekeeper-policy"],
     }

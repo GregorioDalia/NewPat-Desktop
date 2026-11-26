@@ -53,6 +53,36 @@ class MacosReleaseTests(unittest.TestCase):
         report[name] = value
         path.write_text(json.dumps(report))
 
+    def test_native_release_binds_arm_to_its_own_image_and_the_common_sources(self):
+        common = dict(self.manifest, version="0.9.99", release_tag="v0.9.99", source_sha256={"engine.py": "1" * 64})
+        arm = dict(common, schema_version=1, scientific_platform="linux/arm64", runtime_image="sha256:" + "e" * 64,
+                   engine_description_sha256="3" * 64,
+                   assets={"scientific_image": {"file": "newpat-scientific-0.9.99-arm64.tar.gz", "sha256": "d" * 64, "size": 95}})
+        root = self.root / "new"
+        root.mkdir()
+        directories = {}
+        for arch, science in (("arm64", arm), ("x86_64", common)):
+            folder = directories[arch] = native_fixture(root, arch, science)
+            for filename in ("macos-installer-build.json", "macos-package-verification.json"):
+                path = folder / filename
+                record = json.loads(path.read_bytes())
+                record["scientific_platform"] = "linux/arm64" if arch == "arm64" else "linux/amd64"
+                if "checks" in record:
+                    record["checks"] += ["docker-archive-architecture", "rosetta-disabled"]
+                    if arch == "arm64":
+                        record["checks"].append("stopped-0.9.10-lima-upgrade")
+                path.write_text(json.dumps(record))
+        identity = directories["arm64"] / "arm64-scientific.json"
+        identity.write_text(json.dumps(arm))
+        pair = dict(self.pair, version="0.9.99")
+        result = release.extend_installer_set(pair, directories, common)
+        self.assertEqual(result["macos_arm64"]["scientific_identity_sha256"], release.digest(identity))
+        for changes in ({"runtime_image": common["runtime_image"]}, {"source_sha256": {}},
+                        {"scientific_platform": "linux/amd64"}, {"source_commit": "f" * 40}):
+            identity.write_text(json.dumps(dict(arm, **changes)))
+            with self.assertRaisesRegex(ValueError, "ARM64"):
+                release.extend_installer_set(pair, directories, common)
+
     def test_exact_native_packages_extend_pair_without_claiming_vm_execution(self):
         result = self.extend()
         for arch in release.ARCHITECTURES:

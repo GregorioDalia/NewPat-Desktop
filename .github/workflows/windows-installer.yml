@@ -607,17 +607,23 @@ jobs:
           retention-days: 14
           if-no-files-found: ignore
 
+  arm-science:
+    needs: release-source
+    uses: ./.github/workflows/native-scientific-parity.yml
+
   macos-installer:
     name: macos-installer (${{ matrix.architecture }})
-    needs: linux-runtime
+    needs: [linux-runtime, arm-science]
     strategy:
       fail-fast: false
       matrix:
         include:
           - runner: macos-15
             architecture: arm64
+            asset: newpat-arm64-runtime-assets
           - runner: macos-15-intel
             architecture: x86_64
+            asset: nipat-runtime-assets
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     env:
@@ -635,10 +641,10 @@ jobs:
         env:
           EXPECTED_ARCHITECTURE: ${{ matrix.architecture }}
         run: python .github/scripts/check_macos.py --output build/macos-client-check.json
-      - name: Download the exact shared AMD64 scientific archive
+      - name: Download the scientific archive for this Mac
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: nipat-runtime-assets
+          name: ${{ matrix.asset }}
           path: build/assets
       - name: Build the self-contained macOS package
         env:
@@ -648,7 +654,7 @@ jobs:
             --manifest build/assets/installer-manifest.json \
             --output build/macos-output --architecture "$PACKAGE_ARCHITECTURE"
       - name: Verify the native package and embedded client
-        # Successful packaging is not evidence of Lima/Rosetta execution.
+        # Successful packaging is not evidence of Lima guest execution.
         run: |
           package=(build/macos-output/*.pkg)
           test "${#package[@]}" -eq 1
@@ -741,8 +747,14 @@ jobs:
         with:
           name: nipat-linux-installation-logs
           path: build/evidence/linux
+      - name: Download the identity recorded by the native ARM64 oracle producer
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: newpat-arm64-scientific-identity
+          path: build/arm-identity
       - name: Bind all four packages to exact source and scientific archive
         run: |
+          cmp build/arm-identity/installer-manifest.json build/macos-arm64/arm64-scientific.json
           python .github/scripts/verify_installer_set.py \
             --windows-dir build/windows-output --linux-dir build/linux-output --assets-dir build/assets \
             --macos-arm64-dir build/macos-arm64 --macos-x86-64-dir build/macos-x86_64 \
@@ -829,7 +841,7 @@ jobs:
           path: build/qualified-macos
       - name: Install and test the dedicated official Lima runtime
         # The runner operator must provision noninteractive sudo and consent to
-        # installing the official app and Rosetta on this dedicated machine.
+        # installing the official app on this dedicated machine.
         # The verifier preserves results and the owned VM; it never deletes other VMs.
         run: |
           package=(build/qualified-macos/*.pkg)

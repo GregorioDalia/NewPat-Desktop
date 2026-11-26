@@ -236,11 +236,11 @@ class DockerComposeRunner:
         architecture = platform.machine().lower()
         arm_lima = backend == "lima" and architecture == "arm64"
         if backend == "lima":
-            service["platform"] = "linux/amd64"
+            from nipat.macos_runtime import scientific_platform
+            service["platform"] = scientific_platform(architecture)
         if arm_lima:
             service["environment"]["NIPAT_DNP_LIMA_ARM64"] = "1"
         if arm_lima or (backend == "native" and sys.platform == "linux" and architecture == "x86_64"):
-            # Qualified on Linux AMD64 with the same engine used under Rosetta.
             service["environment"]["NIPAT_DNP_OPTIMIZED_IO"] = "1"
         service.update(self.options.compose_limits())
         destination = run_dir / "work" / "engine-compose.json"

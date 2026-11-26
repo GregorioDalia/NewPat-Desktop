@@ -33,6 +33,7 @@ APP_NAME = "NewPat.app"
 APP_RELATIVE = Path("Applications") / APP_NAME
 IDENTIFIER = "org.nipat.desktop"
 BUILD_RECORD = "macos-installer-build.json"
+SCIENTIFIC_PLATFORMS = {"arm64": "linux/arm64", "x86_64": "linux/amd64"}
 MACHO_MAGICS = {b"\xfe\xed\xfa\xce", b"\xce\xfa\xed\xfe", b"\xfe\xed\xfa\xcf",
                 b"\xcf\xfa\xed\xfe", b"\xca\xfe\xba\xbe", b"\xbe\xba\xfe\xca"}
 
@@ -44,10 +45,59 @@ def read_json(path: Path) -> dict:
     return value
 
 
-def verified_inputs(project: Path, manifest_path: Path, description_path: Path,
+def archive_platform(archive: Path) -> str:
+    """Read the config selected by docker save without unpacking scientific layers."""
+    configs = {}
+    images = None
+    with tarfile.open(archive, "r|gz") as stream:
+        for item in stream:
+            if not item.isfile() or item.size > 2 * 1024 * 1024:
+                continue
+            if item.name == "manifest.json":
+                if images is not None:
+                    raise ValueError("Ambiguous Docker archive manifest")
+                images = json.load(stream.extractfile(item))
+            elif re.fullmatch(r"(?:blobs/sha256/[a-f0-9]{64}|[a-f0-9]{64}\.json)", item.name):
+                raw = stream.extractfile(item).read()
+                digest = hashlib.sha256(raw).hexdigest()
+                if digest != Path(item.name).stem:
+                    continue
+                try:
+                    config = json.loads(raw)
+                except (ValueError, UnicodeDecodeError):
+                    continue
+                if isinstance(config, dict) and "os" in config and "architecture" in config:
+                    configs[item.name] = f"{config['os']}/{config['architecture']}"
+    if not isinstance(images, list) or len(images) != 1 or not isinstance(images[0], dict):
+        raise ValueError("Expected exactly one saved scientific image")
+    if images[0].get("RepoTags") or images[0].get("Config") not in configs:
+        raise ValueError("Expected a tagless Docker image with a digest-bound configuration")
+    return configs[images[0]["Config"]]
+
+
+def validate_scientific_manifest(manifest: dict, architecture: str) -> str:
+    if architecture == "x86_64":
+        assets.validate_manifest(manifest)
+        return "linux/amd64"
+    version = package_version(manifest["version"])
+    assets.validate_installation_profile(manifest.get("installation_profile"))
+    entry = manifest.get("assets", {}).get("scientific_image", {})
+    if (architecture != "arm64" or manifest.get("scientific_platform") != "linux/arm64"
+            or manifest.get("schema_version") != 1 or manifest.get("release_tag") != f"v{version}"
+            or not re.fullmatch(r"[a-f0-9]{40}", str(manifest.get("source_commit")))
+            or not re.fullmatch(r"sha256:[a-f0-9]{64}", str(manifest.get("runtime_image")))
+            or entry.get("file") != f"newpat-scientific-{version}-arm64.tar.gz"
+            or not re.fullmatch(r"[a-f0-9]{64}", str(entry.get("sha256")))
+            or type(entry.get("size")) is not int or not 0 < entry["size"] < assets.MAX_ASSET_BYTES
+            or not re.fullmatch(r"[a-f0-9]{64}", str(manifest.get("engine_description_sha256")))):
+        raise ValueError("The Apple Silicon package requires the qualified Linux ARM64 scientific archive")
+    return "linux/arm64"
+
+
+def verified_inputs(project: Path, manifest_path: Path, description_path: Path, architecture: str,
                     *, require_clean: bool = True) -> tuple[dict, list[Path], Path, dict]:
     manifest = read_json(manifest_path)
-    assets.validate_manifest(manifest)
+    desired_platform = validate_scientific_manifest(manifest, architecture)
     if package_version(manifest["version"]) != manifest["version"]:
         raise ValueError("The macOS package requires an official 0.8.2 or later release.")
     if manifest.get("installation_profile", {}).get("channel") != "desktop":
@@ -83,8 +133,15 @@ def verified_inputs(project: Path, manifest_path: Path, description_path: Path,
             raise ValueError(f"Python dependency notice missing or changed: {name}")
     entry = manifest["assets"]["scientific_image"]
     archive = manifest_path.parent / entry["file"]
-    if assets.asset_metadata(archive, manifest["release_tag"]) != entry:
+    metadata = assets.asset_metadata(archive, manifest["release_tag"])
+    if architecture == "arm64":
+        metadata.pop("url")
+        if bundle.sha256_file(description_path) != manifest["engine_description_sha256"]:
+            raise ValueError("Engine description differs from the qualified ARM64 image")
+    if metadata != entry:
         raise ValueError("Scientific archive bytes do not match the original manifest.")
+    if archive_platform(archive) != desired_platform:
+        raise ValueError("Embedded Docker archive architecture differs from the requested macOS package")
     description = read_json(description_path)
     # Engine metadata is produced by the same verified image job, never by the Mac host.
     if not description or not isinstance(description.get("workflows"), (dict, list)):
@@ -155,6 +212,7 @@ def mac_manifest(manifest: dict, architecture: str, dependencies: dict, descript
         "schema_version": 1, "provider": "lima", "channel": "desktop",
         "version": manifest["version"], "release_tag": manifest["release_tag"],
         "source_commit": manifest["source_commit"], "architecture": architecture,
+        "scientific_platform": SCIENTIFIC_PLATFORMS[architecture],
         "minimum_macos": "14.0", "bundle_identifier": IDENTIFIER,
         "lima_version": dependencies["lima_version"],
         "python_version": dependencies["python_version"],
@@ -268,7 +326,7 @@ def build(project: Path, manifest_path: Path, output: Path, architecture: str,
         raise ValueError("Build each macOS installer on a native macOS runner of that architecture.")
     if int(platform.mac_ver()[0].split(".")[0]) < 14:
         raise ValueError("The builder requires macOS 14 or later.")
-    manifest, files, scientific, description = verified_inputs(project, manifest_path, description_path)
+    manifest, files, scientific, description = verified_inputs(project, manifest_path, description_path, architecture)
     dependencies = read_json(project / "installer/macos/dependencies.json")
     output.mkdir(parents=True, exist_ok=True)
     name = f"NIPAT-{manifest['version']}-macos-{architecture}.pkg"
@@ -322,7 +380,7 @@ def build(project: Path, manifest_path: Path, output: Path, architecture: str,
             "Installs NewPat for macOS 14 or later.\n"
             "Python, Lima and the scientific image are included. Start NewPat\n"
             "from Applications after installation. The first start needs an Internet connection\n"
-            "to prepare its dedicated Linux VM. On Apple Silicon, Rosetta for Linux is required.\n\n"
+            "to prepare its dedicated Linux VM. The scientific engine runs natively on this architecture.\n\n"
             "This package has no Developer ID signature or Apple notarization. Local security\n"
             "policy may prevent installation or launch. No security setting is changed.\n"
             "Runtime execution on physical Intel and Apple Silicon Macs is not yet qualified.\n"
@@ -336,7 +394,8 @@ def build(project: Path, manifest_path: Path, output: Path, architecture: str,
         record = {
             "schema_version": 1, "distribution": "self-contained-macos-lima",
             "version": manifest["version"], "source_commit": manifest["source_commit"],
-            "architecture": architecture, "platform": "darwin", "package": target.name,
+            "architecture": architecture, "platform": "darwin",
+            "scientific_platform": SCIENTIFIC_PLATFORMS[architecture], "package": target.name,
             "package_sha256": bundle.sha256_file(target), "package_size": target.stat().st_size,
             "scientific_asset_sha256": manifest["assets"]["scientific_image"]["sha256"],
             "runtime_image": manifest["runtime_image"], "runtime_vm_qualified": False,
@@ -344,6 +403,8 @@ def build(project: Path, manifest_path: Path, output: Path, architecture: str,
             "payload_inventory": inventory,
         }
         (output / BUILD_RECORD).write_text(json.dumps(record, indent=2) + "\n")
+    if architecture == "arm64":
+        shutil.copyfile(manifest_path, output / "arm64-scientific.json")
     return target
 
 

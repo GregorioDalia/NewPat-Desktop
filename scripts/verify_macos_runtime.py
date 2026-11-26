@@ -81,6 +81,19 @@ def verify(app: Path, output: Path) -> dict:
         state_path = workspace / ".runtime/macos/runtime.json"
         first_state = json.loads(state_path.read_text())
         execute("doctor", ["doctor", "--runtime"], 600)
+        project = app / "Contents/Resources/app"
+        sys.path.insert(0, str(project / "src"))
+        from nipat.errors import NipatError
+        from nipat.macos_runtime import LimaRuntime
+        runtime = LimaRuntime(project, workspace, app / "Contents/Resources/lima/bin/limactl")
+        try:
+            native = runtime.native_evidence(first_state["runtime_image"])
+        except NipatError as exc:
+            raise ValueError(str(exc)) from exc
+        if first_state.get("scientific_platform") != native["scientific_platform"]:
+            raise ValueError("The prepared guest platform differs from the installed scientific image")
+        report.update(native)
+        records.append({"name": "native-scientific-runtime", "passed": True})
         execute("numerical-self-tests", ["--runs-dir", str(run_root), "self-test"], 3600)
         execute("cold-stop", ["--runtime", "stop"], 240)
         execute("cold-start", ["--runtime", "ensure"], 240)
@@ -92,7 +105,7 @@ def verify(app: Path, output: Path) -> dict:
         unchanged = all(snapshot(path) == before[str(path)] for path in protected)
         records.append({"name": "external-docker-lima-config-unchanged", "passed": unchanged})
         report["passed"] = all(item["passed"] for item in records)
-    except (OSError, ValueError, KeyError, RuntimeError) as exc:
+    except (OSError, ValueError, KeyError, RuntimeError, subprocess.SubprocessError) as exc:
         report["error"] = str(exc)
     finally:
         output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

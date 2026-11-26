@@ -226,10 +226,11 @@ class LimaDockerTransport(DockerTransport):
 
     @property
     def metadata(self) -> dict[str, str]:
-        from nipat.macos_runtime import INSTANCE
+        from nipat.macos_runtime import INSTANCE, scientific_platform
+        from platform import machine
         return {"backend": self.backend, "lima_instance": INSTANCE,
                 "lima_home": str(self.runtime.lima_home), "path_mapping": "virtiofs-same-path",
-                "scientific_platform": "linux/amd64"}
+                "scientific_platform": scientific_platform(machine())}
 
     @property
     def unavailable_message(self) -> str:

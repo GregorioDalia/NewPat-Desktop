@@ -45,7 +45,7 @@ class MacRuntimeTests(unittest.TestCase):
         self.archive.write_bytes(b"verified fixture archive")
         self.manifest = {
             "schema_version": 1, "channel": CHANNEL, "version": "0.8.0a1", "source_commit": "c" * 40,
-            "architecture": "x86_64", "lima_version": LIMA_VERSION, "runtime_image": SOURCE_ID,
+            "architecture": "x86_64", "scientific_platform": "linux/amd64", "lima_version": LIMA_VERSION, "runtime_image": SOURCE_ID,
             "scientific_asset": {"name": self.archive.name, "sha256": file_sha256(self.archive)},
             "engine_description": engine_metadata(),
         }
@@ -87,6 +87,8 @@ class MacRuntimeTests(unittest.TestCase):
             lambda m: m["scientific_asset"].update(name="../runtime.tar.gz"),
             lambda m: m.update(engine_description={}),
             lambda m: m.update(lima_version="latest"),
+            lambda m: m.update(scientific_platform="linux/arm64"),
+            lambda m: m.pop("scientific_platform"),
         ]
         for mutate in mutations:
             with self.subTest(mutate=mutate):
@@ -104,19 +106,92 @@ class MacRuntimeTests(unittest.TestCase):
             with self.subTest(output=output), self.assertRaises(RuntimeExecutionError):
                 loaded_image_id(output)
 
-    def test_native_architectures_share_same_amd64_scientific_image(self):
+    def test_both_guest_architectures_disable_rosetta(self):
         for arch in ("arm64", "x86_64"):
             manifest = dict(self.manifest, architecture=arch)
             config = self.runtime.template(manifest, self.owner)
             self.assertEqual(config["vmType"], "vz")
             self.assertEqual(config["arch"], "aarch64" if arch == "arm64" else "x86_64")
-            self.assertEqual(config["vmOpts"]["vz"]["rosetta"], {"enabled": arch == "arm64", "binfmt": arch == "arm64"})
+            self.assertEqual(config["vmOpts"]["vz"]["rosetta"], {"enabled": False, "binfmt": False})
             self.assertEqual(len(config["images"]), 1)
             self.assertRegex(config["images"][0]["digest"], r"^sha256:[a-f0-9]{64}$")
             self.assertIn("24.04", config["images"][0]["location"])
             self.assertNotIn("curl", config["provision"][0]["script"])
             self.assertIn("$PARAM_NipatOwner", config["provision"][0]["script"])
             self.assertFalse(config["ssh"]["forwardAgent"])
+
+    def test_native_evidence_checks_real_guest_image_and_r_before_recording_samtools(self):
+        for hardware, target, machine in (("arm64", "linux/arm64", "aarch64"), ("x86_64", "linux/amd64", "x86_64")):
+            with self.subTest(hardware=hardware), patch("platform.machine", return_value=hardware), \
+                    patch.object(self.runtime, "_instance_info", return_value=self.instance_info()):
+                with patch.object(self.runtime, "_run", side_effect=[machine, target, machine, "1.21"]) as run:
+                    evidence = self.runtime.native_evidence(LOADED_ID)
+                    self.assertEqual(evidence["r_arch"], machine)
+                    self.assertEqual(evidence["samtools_version"], "1.21")
+                    self.assertIn("--platform=" + target, run.call_args.args[0])
+                with patch.object(self.runtime, "_run", side_effect=[machine, target, "other"]):
+                    with self.assertRaisesRegex(RuntimeExecutionError, "architettura di R"):
+                        self.runtime.native_evidence(LOADED_ID)
+
+    def test_existing_owned_arm_guest_migrates_with_same_mounts_and_native_image(self):
+        self.manifest.update(architecture="arm64", scientific_platform="linux/arm64", version="0.9.99")
+        _write_json(self.project / ".distribution/macos-manifest.json", self.manifest)
+        self.owned_vm()
+        previous = self.runtime.template(self.manifest, self.owner)
+        previous["vmOpts"]["vz"]["rosetta"] = {"enabled": True, "binfmt": True}
+        previous.update(cpus=3, memory="4096MiB", disk="65GiB")
+        config = self.runtime.instance_dir / "lima.yaml"
+        _write_json(config, previous)
+        _write_json(self.runtime.state_path, {"version": "0.9.10", "runtime_image": SOURCE_ID, "phase": "ready"})
+        disk = self.runtime.instance_dir / "diffdisk"
+        disk.write_text("retained guest disk")
+        info = {"status": "Running", "active": "old-container", "commands": []}
+
+        def execute(argv, **kwargs):
+            info["commands"].append(argv)
+            if "list" in argv:
+                return json.dumps({"name": INSTANCE, "status": info["status"], "config": json.loads(config.read_bytes())})
+            if "ps" in argv:
+                return info["active"]
+            if "stop" in argv or "start" in argv:
+                info["status"] = "Stopped" if "stop" in argv else "Running"
+                return ""
+            if "edit" in argv:
+                self.assertEqual(info["status"], "Stopped")
+                expression = argv[argv.index("--set") + 1]
+                self.assertNotIn(".mounts", expression)
+                self.assertIn(".vmOpts.vz.rosetta.enabled = false", expression)
+                self.assertIn(".vmOpts.vz.rosetta.binfmt = false", expression)
+                current = json.loads(config.read_bytes())
+                current["vmOpts"]["vz"]["rosetta"] = {"enabled": False, "binfmt": False}
+                _write_json(config, current)
+                return ""
+            if "sha256sum" in argv:
+                return self.application_digest()
+            if "load" in argv:
+                return "Loaded image ID: " + LOADED_ID
+            if "inspect" in argv:
+                return LOADED_ID + " linux arm64"
+            if "describe" in argv:
+                self.assertIn("--platform=linux/arm64", argv)
+                return json.dumps(self.manifest["engine_description"])
+            self.fail(argv)
+        with patch.dict(os.environ, {"NIPAT_RUNTIME_MAINTENANCE": "1", "NIPAT_LAUNCHER_PID": str(os.getppid())}), \
+                patch.object(self.runtime, "_host_check"), patch.object(self.runtime, "_run", side_effect=execute):
+            self.assertTrue(self.runtime.requires_mount_repair())
+            with self.assertRaisesRegex(ValidationError, "attivi"):
+                self.runtime.prepare()
+            self.assertFalse(any("stop" in argv or "edit" in argv for argv in info["commands"]))
+            info["active"] = ""
+            state = self.runtime.prepare()
+            self.assertEqual(state["scientific_platform"], "linux/arm64")
+            self.assertFalse(self.runtime.requires_mount_repair())
+            self.assertEqual(self.runtime.prepare(), state)
+        self.assertEqual(sum("load" in argv for argv in info["commands"]), 1)
+        current = json.loads(config.read_bytes())
+        for key in ("mounts", "disk", "memory", "cpus", "param"):
+            self.assertEqual(current[key], previous[key])
+        self.assertEqual(disk.read_text(), "retained guest disk")
 
     def test_owned_config_accepts_original_json_and_lima_yaml(self):
         self.owned_vm()
@@ -597,7 +672,9 @@ class MacRuntimeTests(unittest.TestCase):
         self.assertIn("LIMA_HOME=" + str(self.home / ".nipat/lima"), command)
         self.assertIn("SSH=/usr/bin/ssh", command)
         self.assertIn("--workdir=/", command)
-        self.assertIn("DOCKER_DEFAULT_PLATFORM=linux/amd64", command)
+        from platform import machine
+        from nipat.macos_runtime import scientific_platform
+        self.assertIn("DOCKER_DEFAULT_PLATFORM=" + scientific_platform(machine()), command)
 
     def test_paths_outside_mounts_and_escaping_symlinks_are_rejected(self):
         outside = Path("/unshared/nipat/file.bam")

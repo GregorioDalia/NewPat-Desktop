@@ -4,7 +4,7 @@ NewPat supports **macOS 14 or later** on Intel and Apple Silicon. Choose the pac
 
 | Processor | Release asset (match the version to the release tag) | Scientific runtime |
 | --- | --- | --- |
-| Apple Silicon | `NewPat-<version>-macos-arm64.pkg` | ARM64 Lima guest running the Linux AMD64 image with Rosetta |
+| Apple Silicon | `NewPat-<version>-macos-arm64.pkg` | ARM64 Lima guest and Linux ARM64 scientific image (0.9.99 candidate) |
 | Intel | `NewPat-<version>-macos-x86_64.pkg` | AMD64 Lima guest running the Linux AMD64 image |
 
 The package includes native Python and Lima, the graphical application, CLI and scientific image. The first launch needs virtualization, internet access for guest preparation and sufficient storage for the application, VM disk, image, input files and results. Homebrew, Docker Desktop and separate R or samtools installations are unnecessary.
@@ -60,13 +60,13 @@ Initial preparation checks the archive and engine contracts. Run `self-test` exp
 
 ## Compare worker settings on an Apple Silicon Mac
 
-The Apple Silicon installer uses a native ARM guest and runs the AMD64 scientific image through Rosetta. The starting Lima allocation is half the host RAM, capped at 8 GiB, and up to four CPUs, keeping one host CPU free when possible. An existing VM retains its own allocation. Check the actual values with the installed launcher:
+The 0.9.99 candidate uses native Linux ARM64 R and samtools. The launcher disables Rosetta in the owned guest when upgrading from 0.9.10. It checks for active containers before stopping the VM and retains its disk, mounts and resource allocation. The starting Lima allocation is half the host RAM, capped at 8 GiB, and up to four CPUs, keeping one host CPU free when possible. An existing VM retains its own allocation. Check the actual values with the installed launcher:
 
 ```sh
 "/Applications/NewPat.app/Contents/Resources/NewPat.command" resources inspect
 ```
 
-When the AMD64 engine runs under Lima on Apple Silicon and the effective allocation is at most 4 GiB, DNP block processing automatically uses up to two R workers. The allocation includes the limits of the VM and of this run. Larger allocations use the regular CPU, task and memory estimates. In a three-repeat high-depth comparison on an 8 GiB M1 (0.9.5, four guest CPUs, 3,905 MiB effective), the median was 27.84 seconds at two workers, 36.09 at four and 29.87 in serial mode. The control and background profiles differed by less than 0.2 seconds across modes. These are synthetic DNP workloads. An explicit maximum in the experiment settings takes precedence, subject to the existing CPU and memory checks. Samtools determines its own concurrency before the R calculation.
+On Apple Silicon with an effective Lima allocation of at most 4 GiB, DNP block processing automatically uses up to two R workers. The allocation includes the limits of the VM and of this run. Larger allocations use the regular CPU, task and memory estimates. In a three-repeat high-depth comparison on an 8 GiB M1 (0.9.5, four guest CPUs, 3,905 MiB effective), the median was 27.84 seconds at two workers, 36.09 at four and 29.87 in serial mode. The control and background profiles differed by less than 0.2 seconds across modes. These are synthetic DNP workloads. An explicit maximum in the experiment settings takes precedence, subject to the existing CPU and memory checks. Samtools determines its own concurrency before the R calculation.
 
 When a single samtools process is admitted on this Mac configuration, its chromosome outputs go directly into the pending pileup in BAM dictionary order. This avoids writing and reading an extra complete copy on the VM's scratch disk. The new file is published after all chromosomes finish successfully.
 
@@ -89,7 +89,7 @@ Save the script in Downloads. Prepare a text file with one BAM path per line in 
 
 One round runs each selected condition once. For repeated measurements of the same representative multi-BAM list, use `--rounds 3` in a fresh output directory. The order rotates to reduce the effect of warmed file caches. `benchmark.json` reports each run and the median total time per setting. Compare the spread, actual samtools concurrency, phase times and scientific table agreement before choosing the setting. If automatic mode already uses one worker, inspect the acquisition reason and measured CPU/RAM first. Preserve the per-run logs if a run fails. Reports and logs remain local and can contain paths or sample names.
 
-A separate VM-allocation comparison can then change either the Lima CPU count or its memory while holding worker mode and inputs fixed. For an Apple Silicon image built natively for ARM64, separate R/package and samtools builds plus scientific equivalence checks would be needed. The DNP benchmark above measures the installed AMD64 image.
+A separate VM-allocation comparison can then change either the Lima CPU count or its memory while holding worker mode and inputs fixed. The DNP benchmark measures the engine in the installed package. The [Apple Silicon candidate trial](MACOS_CANDIDATE_TEST.md) compares the two callers with the existing 0.9.10 timings.
 
 ## Updates, resources and removal
 

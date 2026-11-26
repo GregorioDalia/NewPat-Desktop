@@ -58,7 +58,7 @@ The routine caller check runs only the candidate on the bundled inputs. Independ
 
 The container supplies R, samtools, model scripts, adapters and orchestration. The client verifies contracts. Scientific scripts used for execution come from the image. The final-image checks exercise synthetic read mixtures, FASTA changes, analytical CPI and contamination expectations, and the current postnatal site contract in the existing native R job. Its JSON report records outcomes and test durations. [Suite and local replay](VALIDATION.md#repeat-the-scientific-correctness-suite) A three-BAM, ten-step plan exercises DNP, SNP and all three downstream modules for both callers, in serial and capped at two processes. It checks expected outputs, run identity, settings and original inputs. Presentation checks verify canonical tables with/without readable names and PDF text. The catalog pins distributed scientific sources and preparation dependencies by hash.
 
-Both scientific reports are required and must identify the same immutable image. Upstream reference fixtures stay in tests. Linux AMD64 numerical results do not establish the behavior of the Lima/Rosetta transport on an Apple Silicon device.
+Both scientific reports are required and must identify the same immutable image. Upstream reference fixtures stay in tests. Apple Silicon additionally requires the Linux ARM64 image and its native oracle results. The full installer job binds the Mac package to the ARM build record and to the source inventory shared with the other platforms.
 
 ## Installer construction
 
@@ -103,7 +103,7 @@ The full installer build first searches up to 30 completed CI runs with a two-mi
 
 The Windows job verifies reproducibility of the C# components involved. The Inno fixture exercises install, update and removal using substitutes for the bootstrap and desktop prerequisites in that fixture. Its evidence explicitly records `production_setup_executed: false`. The Authenticode report records signature states and verification failures. Smart App Control needs separate observation on the target Windows device. Scientific concurrency checks cover DNP 2-, 3- and 6-BAM differential cases and actual per-coordinator and global worker overlap relative to the budget.
 
-For real Lima tests, enable `qualify_macos_runtime` on trusted self-hosted runners labeled `macOS`, `nipat-runtime` and `ARM64` or `X64`, with virtualization available. Record host architecture, hardware, macOS, Lima/Rosetta versions, commit and PKG hash. Treat architectures separately. Finder permissions and Gatekeeper interactions require their own device observations. Run trusted release code on these dedicated runners.
+For real Lima tests, enable `qualify_macos_runtime` on trusted self-hosted runners labeled `macOS`, `nipat-runtime` and `ARM64` or `X64`, with virtualization available. Record host architecture, hardware, macOS, Lima version, scientific image architecture and Rosetta setting, commit and PKG hash. Treat architectures separately. Finder permissions and Gatekeeper interactions require their own device observations. Run trusted release code on these dedicated runners.
 
 ## Publication and reruns
 
