@@ -671,13 +671,14 @@
         "unmapped_reads": "excluded",
         "anomalous_pairs": "excluded",
         "overlap_removal": true,
-        "configuration": "--set snp-call.PARAMETER=value or --scientific-config PATH"
+        "configuration": "--set snp-call.PARAMETER=value or --scientific-config PATH",
+        "maximum_depth_per_file_per_position": 2147483647
       },
       "applies_to": "bam",
       "origin": "samtools_documented_defaults",
       "description": {
-        "it": "Default documentati di samtools 1.21 ereditati senza override. Il limite di profondità è invece esplicitamente disattivato con -d 0. Le qualità sono Phred. Questi valori non ricostruiscono i filtri di un pileup importato. Sono valori predefiniti configurabili tramite il registro scientifico; il report del run conserva quelli effettivi.",
-        "en": "Documented samtools 1.21 defaults inherited without overrides. The depth cap is instead explicitly disabled with -d 0. Qualities are Phred scores. These settings do not reconstruct the filters of an imported pileup. These are configurable scientific defaults; each run records its effective values."
+        "en": "NewPat requests a maximum of 2147483647 reads per BAM and position by default, using -d 0 in samtools 1.21. A saved depth overrides this value. Mapping and base quality are Phred scores. Imported pileups already reflect the filters used to generate them.",
+        "it": "Per impostazione predefinita NewPat richiede fino a 2147483647 letture per BAM e posizione, con -d 0 in samtools 1.21. Un limite salvato nel profilo ha la precedenza. Le qualità di mappatura e delle basi sono punteggi Phred. I pileup importati riflettono i filtri usati per generarli."
       },
       "evidence": {
         "path": "src/nipat_scientific/snp.py",
@@ -698,15 +699,15 @@
           },
           {
             "path": "src/nipat_scientific/settings.py",
-            "sha256": "dc40a1dfff1e87fbc8c9eb8427ea413ed1b358cf6b62542678e061894605cba9",
+            "sha256": "9441997406f7285f6a23781b3824ed2d0a1942e4d60d3aa37edab3d05a646e1f",
             "source_lines": [
               1,
-              207
+              206
             ]
           },
           {
             "path": "src/nipat_scientific/settings_data.json",
-            "sha256": "288538dd8057e235edcb0e6e12ccea610f1066fb536262be086191759777e03c",
+            "sha256": "3aa44b5f00263a9be55a81cee60773821ea0664a58c2fcfc7cbd2a579d73b47a",
             "source_lines": [
               1,
               764
@@ -1203,9 +1204,9 @@
             "maximum": 255
           },
           "max_depth": {
-            "default": 0,
+            "default": 2147483647,
             "type": "integer",
-            "description": "Profondita massima per BAM di mpileup; 0 disabilita il limite. Applicato solo nella produzione del pileup da BAM.",
+            "description": "Numero massimo di letture per posizione in ciascun BAM. Il valore predefinito è 2147483647. In samtools 1.21 anche 0 indica lo stesso massimo.",
             "unit": "letture",
             "minimum": 0,
             "maximum": 2147483647
@@ -1323,7 +1324,7 @@
       },
       "evidence": {
         "path": "src/nipat_scientific/settings_data.json",
-        "sha256": "288538dd8057e235edcb0e6e12ccea610f1066fb536262be086191759777e03c",
+        "sha256": "3aa44b5f00263a9be55a81cee60773821ea0664a58c2fcfc7cbd2a579d73b47a",
         "source_lines": [
           1,
           764
@@ -1331,10 +1332,10 @@
         "dependencies": [
           {
             "path": "src/nipat_scientific/settings.py",
-            "sha256": "dc40a1dfff1e87fbc8c9eb8427ea413ed1b358cf6b62542678e061894605cba9",
+            "sha256": "9441997406f7285f6a23781b3824ed2d0a1942e4d60d3aa37edab3d05a646e1f",
             "source_lines": [
               1,
-              207
+              206
             ]
           },
           {

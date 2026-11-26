@@ -913,10 +913,10 @@
       },
       "evidence": {
         "path": "src/nipat_scientific/settings.py",
-        "sha256": "dc40a1dfff1e87fbc8c9eb8427ea413ed1b358cf6b62542678e061894605cba9",
+        "sha256": "9441997406f7285f6a23781b3824ed2d0a1942e4d60d3aa37edab3d05a646e1f",
         "source_lines": [
           1,
-          207
+          206
         ],
         "dependencies": [
           {
@@ -929,7 +929,7 @@
           },
           {
             "path": "src/nipat_scientific/settings_data.json",
-            "sha256": "288538dd8057e235edcb0e6e12ccea610f1066fb536262be086191759777e03c",
+            "sha256": "3aa44b5f00263a9be55a81cee60773821ea0664a58c2fcfc7cbd2a579d73b47a",
             "source_lines": [
               1,
               764

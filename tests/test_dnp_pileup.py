@@ -125,12 +125,49 @@ class DnpPileupTests(unittest.TestCase):
         commands = {x['stage']: x['args'] for x in self.commands()}
         self.assertEqual(commands['view'], ['view', '--no-PG', '-u', '-M', '-L', str(self.bed), str(bams[0])])
         self.assertEqual(commands['mpileup'], ['mpileup', '-l', str(self.bed), '-f', str(self.reference),
-                                             *dnp_pileup.MPILEUP_OPTIONS, '-'])
+                                             *dnp_pileup.MPILEUP_OPTIONS, '-d', '0', '-'])
         self.assertEqual([x['returncode'] for x in result['processes']], [0, 0, 0])
         self.assertIsNone(result['samples'][0]['selected_bytes'])
         self.assertEqual(result['staged_bytes'], 0)
         self.assertEqual(list(self.scratch.iterdir()), [self.output])
         self.assertEqual(json.loads(self.metadata.read_text()), result)
+
+    def test_depth_probe_uses_all_inputs_and_falls_back_without_changing_scientific_depth(self):
+        bams = self.samples([True, True])
+        samples = [{"index_candidates": [str(bam) + ".bai"]} for bam in bams]
+        targets = {"chr1": 100, "chr2": 100}
+        windows = [("chr1", 21, 24), ("chr2", 31, 34)]
+        at_limit = [["chr1", "20", "24", "16000", "4000"], ["chr2", "30", "34", "0", "0"]]
+        oversized = [["chr1", "20", "24", "16004", "4001"], at_limit[1]]
+        for other, workers in ((at_limit, 2), (oversized, 1), ([], 1), (at_limit[::-1], 1)):
+            with self.subTest(other=other):
+                parallel = {"budget": {"verify_depth_limit": 8000}, "workers": 2}
+                with patch.object(dnp_pileup, "_probe_rows", side_effect=[at_limit, other]) as probe:
+                    dnp_pileup._verify_depth_budget(bams, samples, self.bed, windows, targets,
+                                                    "samtools", dnp_pileup.Cancellation(), parallel)
+                self.assertEqual(probe.call_count, 2)
+                self.assertEqual(parallel["workers"], workers)
+                self.assertEqual(samples[0]["depth_evidence"]["upper_bound"], 8000)
+        os.utime(samples[0]["index_candidates"][0], (1, 1))
+        with patch.object(dnp_pileup, "_probe_rows") as probe:
+            parallel = {"budget": {"verify_depth_limit": 8000}, "workers": 2}
+            dnp_pileup._verify_depth_budget(bams, samples, self.bed, windows, targets,
+                                            "samtools", dnp_pileup.Cancellation(), parallel)
+            probe.assert_not_called()
+            self.assertEqual(parallel["workers"], 1)
+
+    def test_large_panel_uses_one_indexed_count_and_honours_the_probe_deadline(self):
+        bam, = self.samples([True])
+        indexes = [str(bam) + ".bai"]
+        windows = [("chr1", 21, 24)] * 2049
+        cancel = dnp_pileup.Cancellation()
+        with patch.object(dnp_pileup, "_probe_rows", return_value=[["8500"]]) as probe:
+            self.assertEqual(dnp_pileup._sample_depth_evidence(bam, indexes, self.bed, windows,
+                             8000, "samtools", time.monotonic() + 5, cancel), ("indexed-panel-count", 8500))
+            self.assertEqual(probe.call_args.args[0][1:5], ["view", "-c", "-M", "-L"])
+        with patch.object(dnp_pileup.subprocess, "run") as run:
+            self.assertEqual(dnp_pileup._probe_rows(["samtools"], time.monotonic() - 1, cancel), [])
+            run.assert_not_called()
 
     def test_custom_acquisition_settings_apply_with_and_without_budget(self):
         self.samples([True, True])

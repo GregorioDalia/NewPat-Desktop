@@ -938,7 +938,7 @@
         "samtools_version": "1.21",
         "minimum_mapping_quality": 0,
         "minimum_base_quality": 13,
-        "maximum_depth_per_file_per_position": 8000,
+        "maximum_depth_per_file_per_position": 2147483647,
         "baq_with_reference": true,
         "excluded_flags": [
           "SECONDARY",
@@ -953,16 +953,16 @@
       "applies_to": "dnp-call",
       "origin": "samtools_documented_defaults",
       "description": {
-        "it": "Default documentati di samtools 1.21 ereditati dal comando DNPcall: non imposta -q, -Q, -d, -B, -A, --ff o -x. Le qualità sono Phred; la profondità massima è per file e posizione. Sono valori predefiniti configurabili tramite il registro scientifico; il report del run conserva quelli effettivi.",
-        "en": "Documented samtools 1.21 defaults inherited by DNPcall: its command sets none of -q, -Q, -d, -B, -A, --ff or -x. Qualities are Phred scores; maximum depth applies per file and position. These are configurable scientific defaults; each run records its effective values."
+        "en": "NewPat requests a maximum of 2147483647 reads per BAM and position by default, using -d 0 in samtools 1.21. A saved depth overrides this value. Mapping and base quality are Phred scores. Imported pileups already reflect the filters used to generate them.",
+        "it": "Per impostazione predefinita NewPat richiede fino a 2147483647 letture per BAM e posizione, con -d 0 in samtools 1.21. Un limite salvato nel profilo ha la precedenza. Le qualità di mappatura e delle basi sono punteggi Phred. I pileup importati riflettono i filtri usati per generarli."
       },
       "evidence": {
         "path": "src/nipat_scientific/dnp_pileup.py",
         "source_lines": [
-          381,
-          425
+          451,
+          495
         ],
-        "sha256": "45939c999b7aa02b7468f25ce07d78840c1bcc7c1b3a497270380f10e0fc5ef4",
+        "sha256": "91adb8a9407356f6c65fb27a54f53877b54e54fcf4b3e93ac265498dc9bdfadd",
         "dependencies": [
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
@@ -970,15 +970,15 @@
               38,
               38
             ],
-            "sha256": "45939c999b7aa02b7468f25ce07d78840c1bcc7c1b3a497270380f10e0fc5ef4"
+            "sha256": "91adb8a9407356f6c65fb27a54f53877b54e54fcf4b3e93ac265498dc9bdfadd"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
             "source_lines": [
-              292,
-              378
+              362,
+              448
             ],
-            "sha256": "45939c999b7aa02b7468f25ce07d78840c1bcc7c1b3a497270380f10e0fc5ef4"
+            "sha256": "91adb8a9407356f6c65fb27a54f53877b54e54fcf4b3e93ac265498dc9bdfadd"
           },
           {
             "path": "docker/scientific-runtime/Dockerfile",
@@ -998,15 +998,15 @@
           },
           {
             "path": "src/nipat_scientific/settings.py",
-            "sha256": "dc40a1dfff1e87fbc8c9eb8427ea413ed1b358cf6b62542678e061894605cba9",
+            "sha256": "9441997406f7285f6a23781b3824ed2d0a1942e4d60d3aa37edab3d05a646e1f",
             "source_lines": [
               1,
-              207
+              206
             ]
           },
           {
             "path": "src/nipat_scientific/settings_data.json",
-            "sha256": "288538dd8057e235edcb0e6e12ccea610f1066fb536262be086191759777e03c",
+            "sha256": "3aa44b5f00263a9be55a81cee60773821ea0664a58c2fcfc7cbd2a579d73b47a",
             "source_lines": [
               1,
               764
@@ -1110,7 +1110,7 @@
         "internal_unbudgeted_legacy": "view -u -M -L pipe/disk selection for differential tests",
         "dictionary_requirements": "identical ordered BAM @SQ dictionaries; panel targets present; shared BAM/FASTA contigs have equal lengths",
         "concurrent_samtools_cap": 5,
-        "concurrency_estimate": "For depth 1–8000 and supported filters, each chromosome task costs BAM count × 2 × max(288, 48 + ceil(largest target length / 2^20)) MiB. After coordinator RSS, single-BAM tasks share 25% of the remaining budget. A pair can use up to 40% on optimized I/O backends, or at 576 MiB per task on other backends. Joint multi-BAM tasks share 50%.",
+        "concurrency_estimate": "With a configured or observed upper bound of 8000 reads per BAM and supported filters, each chromosome task costs BAM count × 2 × max(288, 48 + ceil(largest target length / 2^20)) MiB. After coordinator RSS, single-BAM tasks share 25% of the remaining budget. A pair can use up to 40% on optimized I/O backends, or at 576 MiB per task on other backends. Joint multi-BAM tasks share 50%.",
         "compact_region": {
           "maximum_fraction_of_contig": 0.5,
           "minimum_bases_skipped": 1000000,
@@ -1122,40 +1122,40 @@
       "applies_to": "dnp-call",
       "origin": "NewPat scientific engine",
       "description": {
-        "it": "Tutti i BAM devono avere gli stessi nomi, lunghezze e ordine delle sequenze. Ogni contig del pannello deve essere presente nei BAM e nel FASTA, con lunghezze concordi per tutti i contig condivisi. Con input indicizzati compatibili, ogni processo samtools legge l’elenco originale dei BAM per un cromosoma e applica il BED originale. Su Apple Silicon con Lima o su Linux nativo x86_64, il task può usare l’intervallo dal primo all’ultimo sito del cromosoma quando copre al massimo metà del contig ed evita almeno 1.000.000 di basi. Gli spazi fra i siti interni vengono attraversati. L’ordine dei risultati segue il dizionario dei BAM. Con un solo worker ammesso su quel profilo, i dati sono scritti direttamente nel file di output provvisorio. Gli altri task indicizzati producono parti per cromosoma da assemblare. Il budget dei processi limita la concorrenza. Se la partizione non è disponibile, gli input indicizzati vengono selezionati su disco in sequenza. Un unico mpileup li legge insieme agli input originali senza indice nell’ordine dei campioni. Un indice corrotto provoca un errore. L’helper interno senza budget conserva la selezione indicizzata storica per i test differenziali. Il modello attribuisce a ciascun BAM il costo stimato del riferimento e del processo, incluso il margine. Con un BAM, due worker cromosomici possono usare fino al 40% della memoria di lavoro residua quando entrambe le stime vi rientrano. Sui backend con I/O ottimizzato il criterio vale per qualsiasi lunghezza del cromosoma bersaglio, sugli altri per la stima da 576 MiB. Con più BAM i worker cromosomici condividono metà della memoria di lavoro residua.",
-        "en": "All BAMs must agree on sequence names, lengths and order. Each panel contig must be present in every BAM and the FASTA, with matching lengths for all shared contigs. With compatible indexed inputs, one samtools process reads the original BAM list for each target chromosome and applies the original BED. On Apple Silicon with Lima or native x86_64 Linux, the helper can restrict a chromosome task to the single interval from its first to last target base when this covers at most half the contig and skips at least 1,000,000 bases. Internal gaps are traversed. The BAM sequence dictionary determines output order. One admitted worker on that profile writes directly to the unpublished output. Other indexed tasks write chromosome pieces before assembly. The process budget bounds concurrent tasks. When partitioning is unavailable, indexed inputs are selected to disk in sequence, and one mpileup reads them with the original unindexed inputs in sample order. A corrupt index causes an error. The internal unbudgeted helper retains the historical indexed selection path for differential tests. The model charges the padded reference and process estimate for each BAM. With one BAM, a pair of chromosome workers can use up to 40% of remaining work memory when both estimates fit. This applies to any target-reference length on optimized I/O backends and to the 576 MiB estimate on other backends. With several BAMs, chromosome workers share half of the remaining work memory."
+        "it": "Tutti i BAM devono avere gli stessi nomi, lunghezze e ordine delle sequenze. Ogni contig del pannello deve essere presente nei BAM e nel FASTA, con lunghezze concordi per tutti i contig condivisi. Con input indicizzati compatibili, ogni processo samtools legge l’elenco originale dei BAM per un cromosoma e applica il BED originale. Su Apple Silicon con Lima o su Linux nativo x86_64, il task può usare l’intervallo dal primo all’ultimo sito del cromosoma quando copre al massimo metà del contig ed evita almeno 1.000.000 di basi. Gli spazi fra i siti interni vengono attraversati. L’ordine dei risultati segue il dizionario dei BAM. Con un solo worker ammesso su quel profilo, i dati sono scritti direttamente nel file di output provvisorio. Gli altri task indicizzati producono parti per cromosoma da assemblare. Il budget dei processi limita la concorrenza. Se la partizione non è disponibile, gli input indicizzati vengono selezionati su disco in sequenza. Un unico mpileup li legge insieme agli input originali senza indice nell’ordine dei campioni. Un indice corrotto provoca un errore. L’helper interno senza budget conserva la selezione indicizzata storica per i test differenziali. Il modello attribuisce a ciascun BAM il costo stimato del riferimento e del processo, incluso il margine. Con un BAM, due worker cromosomici possono usare fino al 40% della memoria di lavoro residua quando entrambe le stime vi rientrano. Sui backend con I/O ottimizzato il criterio vale per qualsiasi lunghezza del cromosoma bersaglio, sugli altri per la stima da 576 MiB. Con più BAM i worker cromosomici condividono metà della memoria di lavoro residua. Con una profondità superiore a 8000 o con -d 0, un breve conteggio sulle regioni indicizzate verifica ciascun BAM prima di avviare più processi. Una copertura elevata o sconosciuta assegna un processo con la profondità scientifica richiesta.",
+        "en": "All BAMs must agree on sequence names, lengths and order. Each panel contig must be present in every BAM and the FASTA, with matching lengths for all shared contigs. With compatible indexed inputs, one samtools process reads the original BAM list for each target chromosome and applies the original BED. On Apple Silicon with Lima or native x86_64 Linux, the helper can restrict a chromosome task to the single interval from its first to last target base when this covers at most half the contig and skips at least 1,000,000 bases. Internal gaps are traversed. The BAM sequence dictionary determines output order. One admitted worker on that profile writes directly to the unpublished output. Other indexed tasks write chromosome pieces before assembly. The process budget bounds concurrent tasks. When partitioning is unavailable, indexed inputs are selected to disk in sequence, and one mpileup reads them with the original unindexed inputs in sample order. A corrupt index causes an error. The internal unbudgeted helper retains the historical indexed selection path for differential tests. The model charges the padded reference and process estimate for each BAM. With one BAM, a pair of chromosome workers can use up to 40% of remaining work memory when both estimates fit. This applies to any target-reference length on optimized I/O backends and to the 576 MiB estimate on other backends. With several BAMs, chromosome workers share half of the remaining work memory. Above a configured depth of 8000, or with -d 0, a short indexed read count checks each BAM before the chromosome pool starts. High or unknown coverage uses one worker with the requested scientific depth."
       },
       "evidence": {
         "path": "src/nipat_scientific/dnp_pileup.py",
         "source_lines": [
-          232,
-          289
+          300,
+          359
         ],
-        "sha256": "45939c999b7aa02b7468f25ce07d78840c1bcc7c1b3a497270380f10e0fc5ef4",
+        "sha256": "91adb8a9407356f6c65fb27a54f53877b54e54fcf4b3e93ac265498dc9bdfadd",
         "dependencies": [
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
             "source_lines": [
-              381,
-              425
+              451,
+              495
             ],
-            "sha256": "45939c999b7aa02b7468f25ce07d78840c1bcc7c1b3a497270380f10e0fc5ef4"
+            "sha256": "91adb8a9407356f6c65fb27a54f53877b54e54fcf4b3e93ac265498dc9bdfadd"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
             "source_lines": [
-              292,
-              378
+              362,
+              448
             ],
-            "sha256": "45939c999b7aa02b7468f25ce07d78840c1bcc7c1b3a497270380f10e0fc5ef4"
+            "sha256": "91adb8a9407356f6c65fb27a54f53877b54e54fcf4b3e93ac265498dc9bdfadd"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
             "source_lines": [
               171,
-              197
+              200
             ],
-            "sha256": "45939c999b7aa02b7468f25ce07d78840c1bcc7c1b3a497270380f10e0fc5ef4"
+            "sha256": "91adb8a9407356f6c65fb27a54f53877b54e54fcf4b3e93ac265498dc9bdfadd"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
@@ -1163,7 +1163,7 @@
               77,
               93
             ],
-            "sha256": "45939c999b7aa02b7468f25ce07d78840c1bcc7c1b3a497270380f10e0fc5ef4"
+            "sha256": "91adb8a9407356f6c65fb27a54f53877b54e54fcf4b3e93ac265498dc9bdfadd"
           },
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
@@ -1177,9 +1177,9 @@
             "path": "src/nipat_scientific/dnp_blocks.R",
             "source_lines": [
               577,
-              629
+              632
             ],
-            "sha256": "75b44e332a7948993ae15ff0f5934fcadba7b4dfda16fcdfcdec0f6357c2ac65"
+            "sha256": "8c04b53a8733dedb2c181e146caed6a99d083bab79500c8a2997698e72359a0a"
           },
           {
             "path": "src/nipat/execution/runner.py",
@@ -1188,6 +1188,14 @@
               244
             ],
             "sha256": "8214cfa2076474d7cd1e805c3f67518b9caed2dae662b87460a62ed9d9229ca9"
+          },
+          {
+            "path": "src/nipat_scientific/dnp_pileup.py",
+            "source_lines": [
+              235,
+              297
+            ],
+            "sha256": "91adb8a9407356f6c65fb27a54f53877b54e54fcf4b3e93ac265498dc9bdfadd"
           }
         ]
       }
@@ -1249,7 +1257,7 @@
           1,
           572
         ],
-        "sha256": "75b44e332a7948993ae15ff0f5934fcadba7b4dfda16fcdfcdec0f6357c2ac65",
+        "sha256": "8c04b53a8733dedb2c181e146caed6a99d083bab79500c8a2997698e72359a0a",
         "dependencies": [
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
@@ -1374,34 +1382,34 @@
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
             "source_lines": [
-              381,
-              425
+              451,
+              495
             ],
-            "sha256": "45939c999b7aa02b7468f25ce07d78840c1bcc7c1b3a497270380f10e0fc5ef4"
+            "sha256": "91adb8a9407356f6c65fb27a54f53877b54e54fcf4b3e93ac265498dc9bdfadd"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
             "source_lines": [
-              292,
-              378
+              362,
+              448
             ],
-            "sha256": "45939c999b7aa02b7468f25ce07d78840c1bcc7c1b3a497270380f10e0fc5ef4"
+            "sha256": "91adb8a9407356f6c65fb27a54f53877b54e54fcf4b3e93ac265498dc9bdfadd"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
             "source_lines": [
-              208,
-              229
+              211,
+              232
             ],
-            "sha256": "45939c999b7aa02b7468f25ce07d78840c1bcc7c1b3a497270380f10e0fc5ef4"
+            "sha256": "91adb8a9407356f6c65fb27a54f53877b54e54fcf4b3e93ac265498dc9bdfadd"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
             "source_lines": [
-              428,
-              565
+              498,
+              635
             ],
-            "sha256": "45939c999b7aa02b7468f25ce07d78840c1bcc7c1b3a497270380f10e0fc5ef4"
+            "sha256": "91adb8a9407356f6c65fb27a54f53877b54e54fcf4b3e93ac265498dc9bdfadd"
           },
           {
             "path": "src/nipat_scientific/dnp_blocks.R",
@@ -1409,7 +1417,7 @@
               339,
               552
             ],
-            "sha256": "75b44e332a7948993ae15ff0f5934fcadba7b4dfda16fcdfcdec0f6357c2ac65"
+            "sha256": "8c04b53a8733dedb2c181e146caed6a99d083bab79500c8a2997698e72359a0a"
           },
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
@@ -1576,17 +1584,17 @@
             "path": "src/nipat_scientific/dnp_pileup.py",
             "source_lines": [
               171,
-              197
+              200
             ],
-            "sha256": "45939c999b7aa02b7468f25ce07d78840c1bcc7c1b3a497270380f10e0fc5ef4"
+            "sha256": "91adb8a9407356f6c65fb27a54f53877b54e54fcf4b3e93ac265498dc9bdfadd"
           },
           {
             "path": "src/nipat_scientific/dnp_pileup.py",
             "source_lines": [
-              292,
-              378
+              362,
+              448
             ],
-            "sha256": "45939c999b7aa02b7468f25ce07d78840c1bcc7c1b3a497270380f10e0fc5ef4"
+            "sha256": "91adb8a9407356f6c65fb27a54f53877b54e54fcf4b3e93ac265498dc9bdfadd"
           },
           {
             "path": "src/nipat_scientific/parallel.py",
@@ -1610,7 +1618,7 @@
               403,
               551
             ],
-            "sha256": "75b44e332a7948993ae15ff0f5934fcadba7b4dfda16fcdfcdec0f6357c2ac65"
+            "sha256": "8c04b53a8733dedb2c181e146caed6a99d083bab79500c8a2997698e72359a0a"
           },
           {
             "path": "src/nipat/resources.py",
@@ -1640,9 +1648,9 @@
             "path": "src/nipat_scientific/dnp_blocks.R",
             "source_lines": [
               577,
-              629
+              632
             ],
-            "sha256": "75b44e332a7948993ae15ff0f5934fcadba7b4dfda16fcdfcdec0f6357c2ac65"
+            "sha256": "8c04b53a8733dedb2c181e146caed6a99d083bab79500c8a2997698e72359a0a"
           },
           {
             "path": "src/nipat/execution/runner.py",
@@ -1654,7 +1662,7 @@
           },
           {
             "path": "src/nipat_scientific/dnp_blocks.R",
-            "sha256": "75b44e332a7948993ae15ff0f5934fcadba7b4dfda16fcdfcdec0f6357c2ac65",
+            "sha256": "8c04b53a8733dedb2c181e146caed6a99d083bab79500c8a2997698e72359a0a",
             "source_lines": [
               79,
               85
@@ -1760,9 +1768,9 @@
             "maximum": 255
           },
           "max_depth": {
-            "default": 8000,
+            "default": 2147483647,
             "type": "integer",
-            "description": "Profondita massima per BAM di mpileup; 0 disabilita il limite. Applicato solo nella produzione del pileup da BAM.",
+            "description": "Numero massimo di letture per posizione in ciascun BAM. Il valore predefinito è 2147483647. In samtools 1.21 anche 0 indica lo stesso massimo.",
             "unit": "letture",
             "minimum": 0,
             "maximum": 2147483647
@@ -1880,7 +1888,7 @@
       },
       "evidence": {
         "path": "src/nipat_scientific/settings_data.json",
-        "sha256": "288538dd8057e235edcb0e6e12ccea610f1066fb536262be086191759777e03c",
+        "sha256": "3aa44b5f00263a9be55a81cee60773821ea0664a58c2fcfc7cbd2a579d73b47a",
         "source_lines": [
           1,
           764
@@ -1888,10 +1896,10 @@
         "dependencies": [
           {
             "path": "src/nipat_scientific/settings.py",
-            "sha256": "dc40a1dfff1e87fbc8c9eb8427ea413ed1b358cf6b62542678e061894605cba9",
+            "sha256": "9441997406f7285f6a23781b3824ed2d0a1942e4d60d3aa37edab3d05a646e1f",
             "source_lines": [
               1,
-              207
+              206
             ]
           },
           {

@@ -2,8 +2,8 @@
 
 The BED comes from DNPcall and acquisition options from the scientific registry.
 Indexed view selects alignments overlapping the same BED; reads are not
-deduplicated by name and original BAMs remain read-only. Default quality,
-filter and depth options preserve the original acquisition behavior.
+deduplicated by name and original BAMs remain read-only. The scientific
+depth limit applies per input BAM at each position.
 An explicit R-owned budget enables indexed chromosome tasks, with exactly one
 samtools process per task. Output is reassembled in BAM dictionary order.
 Regression tests also exercise the indexed selection path without a supplied budget.
@@ -182,6 +182,9 @@ def _budget(value):
             or value["mode"] not in {"auto", "serial"}
             or type(value.get("workers")) is not int or value["workers"] < 1):
         raise PileupError("Acquisition budget requires a mode and positive whole worker count")
+    depth_limit = value.get("verify_depth_limit")
+    if depth_limit is not None and (type(depth_limit) is not int or not 1 <= depth_limit <= 8000):
+        raise PileupError("Invalid acquisition depth envelope")
     workers = value["workers"]
     for key in ("max_workers", "memory_worker_limit", "cpu_limit"):
         limit = value.get(key)
@@ -229,6 +232,71 @@ def _tracked_execute(command, output, cancellation, document, record):
                           finished_at_unix=time.time(), elapsed_seconds=time.monotonic() - started)
 
 
+def _probe_rows(command, deadline, cancellation):
+    cancellation.check()
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        return []
+    try:
+        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                stdin=subprocess.DEVNULL, timeout=remaining, check=True)
+        return [row.split("\t") for row in result.stdout.decode().splitlines()]
+    except (OSError, subprocess.SubprocessError, UnicodeError):
+        return []
+    finally:
+        cancellation.check()
+
+
+def _sample_depth_evidence(bam, indexes, bed, windows, limit, samtools, deadline, cancellation):
+    if any(Path(index).stat().st_mtime_ns < bam.stat().st_mtime_ns for index in indexes):
+        return "stale-index", None
+    if len(windows) > 2048:
+        # For a large panel, traverse the indexed regions once. Even if all
+        # selected reads overlap, their total bounds the pileup depth.
+        rows = _probe_rows([samtools, "view", "-c", "-M", "-L", str(bed), str(bam)],
+                           deadline, cancellation)
+        if len(rows) == 1 and len(rows[0]) == 1 and rows[0][0].isdecimal():
+            return "indexed-panel-count", int(rows[0][0])
+        return "target-counts-unavailable", None
+
+    # mpileup with -l admits only reads overlapping a target. Between two
+    # target intervals, every such live alignment crosses the nearest target
+    # to the left or to the right. Twice the largest interval count therefore
+    # bounds simultaneous reads, also outside the reported intervals.
+    rows = _probe_rows([samtools, "bedcov", "-g", "0x704", "-c", "--max-depth", str(limit + 1),
+                        "-X", str(bed), str(bam), indexes[0]], deadline, cancellation)
+    if len(rows) != len(windows):
+        return "target-counts-unavailable", None
+    peak = 0
+    for (chrom, first, last), row in zip(windows, rows):
+        if (len(row) != 5 or row[:3] != [chrom, str(first - 1), str(last)]
+                or not row[3].isdecimal() or not row[4].isdecimal()):
+            return "target-counts-unavailable", None
+        reads = int(row[4])
+        if int(row[3]) > (last - first + 1) * reads or 2 * reads > limit:
+            return "target-depth-outside-budget", None
+        peak = max(peak, reads)
+    return "indexed-target-counts", 2 * peak
+
+
+def _verify_depth_budget(bams, samples, bed, windows, targets, samtools, cancellation, parallel):
+    limit = parallel["budget"].get("verify_depth_limit")
+    if limit is None or parallel["workers"] < 2 or len(targets) < 2:
+        return
+    deadline = time.monotonic() + 5
+    for bam, sample in zip(bams, samples):
+        try:
+            basis, depth = _sample_depth_evidence(bam, sample["index_candidates"], bed, windows,
+                                                  limit, samtools, deadline, cancellation)
+        except OSError:
+            basis, depth = "index-counts-unavailable", None
+        sample["depth_evidence"] = {"basis": basis, "upper_bound": depth}
+        if depth is None or depth > limit:
+            parallel.update(workers=1, depth_budget="single-worker")
+            return
+    parallel["depth_budget"] = "verified-for-parallel-acquisition"
+
+
 def _chromosomes(bams, samples, bed, reference, staging, samtools, cancellation, document):
     """Validate the joint target IDs before choosing an acquisition strategy."""
     windows = []
@@ -273,6 +341,8 @@ def _chromosomes(bams, samples, bed, reference, staging, samtools, cancellation,
     # valid BAM names still work through the unpartitioned fallback.
     if any(name == "." or not re.fullmatch(r"[A-Za-z0-9_.-]+", name) for name in selected):
         return [], "ambiguous-contig", {}
+    if "parallel" in document:
+        _verify_depth_budget(bams, samples, bed, windows, targets, samtools, cancellation, document["parallel"])
     regions = {}
     if "parallel" in document and os.environ.get("NIPAT_DNP_OPTIMIZED_IO") == "1":
         # One bounding interval retains every BED window for this contig without

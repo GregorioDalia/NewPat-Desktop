@@ -53,7 +53,7 @@ def fixture(root: Path, samtools: str) -> dict[str, Path]:
             bases = sequence[start - 1:start + 79]
         records.append("\t".join(map(str, (name, flag, chrom, start, 60, cigar, mate, matepos, tlen, bases, "I" * len(bases)))))
 
-    # More than the unchanged default 8000-depth limit. Coordinate order and
+    # More than the historical 8000-read cap. Coordinate order and
     # alternating alleles make changes to the retained read set observable.
     # Off-target short reads start at the same position as reads spanning the
     # first BED interval. The indexed scan must preserve the depth-capped read set.
@@ -198,7 +198,7 @@ def audit(project: Path, root: Path, samtools: str) -> dict:
     helper = project / "src/nipat_scientific/dnp_pileup.py"
     helper_sha256 = hashlib.sha256(helper.read_bytes()).hexdigest()
     mpileup = [samtools, "mpileup", "-l", str(paths["bed"]), "-f", str(paths["reference"]),
-               "--output-QNAME", "--no-output-ins", "--no-output-del", "--no-output-ends"]
+               "--output-QNAME", "--no-output-ins", "--no-output-del", "--no-output-ends", "-d", "2147483647"]
     # Compare the alignment stream as well as the pileup; -M must deduplicate
     # reads crossing several BED intervals while preserving coordinate order.
     selection = [samtools, "view", "-h", "--no-PG", "-L", str(paths["bed"])]
@@ -223,10 +223,23 @@ def audit(project: Path, root: Path, samtools: str) -> dict:
             command.extend(("--budget", str(allocation)))
         return work, bamlist, output, metadata, command
 
-    def compare(name, bams, strategy):
+    def compare(name, bams, strategy, depth=None):
         work, bamlist, output, metadata, command = arguments(name, bams)
-        expected = execute([*mpileup, "-b", str(bamlist)], output=work / "sequential.pileup")
-        execute(command, output=work / "helper.stdout")
+        oracle = mpileup.copy()
+        if depth is None:
+            execute(command, output=work / "helper.stdout")
+        else:
+            registry = json.loads((project / "src/nipat_scientific/settings_data.json").read_text())
+            caller = registry["workflows"]["dnp-call"]
+            parameters = {key: entry["default"] for key, entry in caller["parameters"].items()}
+            parameters["max_depth"] = depth
+            saved = work / "effective-settings.json"
+            saved.write_text(json.dumps({"schema_version": 1, "workflow": "dnp-call",
+                                         "parameters": parameters, "constants": caller["constants"]}))
+            with patch.dict(os.environ, NIPAT_SCIENTIFIC_SETTINGS=str(saved)):
+                execute(command, output=work / "helper.stdout")
+            oracle[oracle.index("-d") + 1] = str(depth)
+        expected = execute([*oracle, "-b", str(bamlist)], output=work / "sequential.pileup")
         actual = output.read_bytes()
         details = json.loads(metadata.read_text())
         if not expected or expected != actual:
@@ -240,9 +253,12 @@ def audit(project: Path, root: Path, samtools: str) -> dict:
 
     def compare_budget(name, bams, workers, *, mode="auto", panel=None, reference=None,
                        strategy="indexed-chromosomes", reason=None, expected_contigs=None,
-                       require_overlap=False):
+                       require_overlap=False, verify_depth=False):
+        budget = process_budget(workers, mode)
+        if verify_depth:
+            budget["verify_depth_limit"] = 8000
         work, bamlist, output, metadata, command = arguments(
-            name, bams, budget=process_budget(workers, mode), panel=panel, reference=reference)
+            name, bams, budget=budget, panel=panel, reference=reference)
         oracle = [samtools, "mpileup", "-l", str(panel or paths["bed"]),
                   "-f", str(reference or paths["reference"]), *mpileup[6:], "-b", str(bamlist)]
         expected = execute(oracle, output=work / "sequential.pileup")
@@ -275,8 +291,16 @@ def audit(project: Path, root: Path, samtools: str) -> dict:
         return details
 
     compare("indexed-single", [paths["dense"]], "indexed-pipe")
-    if scenarios[-1]["maximum_first_sample_depth"] < 8000:
-        raise AssertionError("Synthetic coverage did not reach the unchanged default depth limit")
+    if scenarios[-1]["maximum_first_sample_depth"] <= 8000:
+        raise AssertionError("Default DNP acquisition did not exceed the historical 8000-read cap")
+    unbounded = scenarios[-1]["maximum_first_sample_depth"]
+    compare("indexed-saved-8000", [paths["dense"]], "indexed-pipe", depth=8000)
+    if scenarios[-1]["maximum_first_sample_depth"] >= unbounded:
+        raise AssertionError("The explicit legacy cap did not reduce the dense-site read count")
+    for source, expected_workers in (("sparse", 2), ("dense", 1)):
+        details = compare_budget("verified-depth-" + source, [paths[source]], 2, verify_depth=True)
+        if details["parallel"]["workers"] != expected_workers:
+            raise AssertionError(f"Incorrect pool for {source} input: {details['parallel']}")
     compare("indexed-multiple", [paths["sparse"], paths["dense"]], "indexed-disk")
     missing = root / "missing-index.bam"
     shutil.copyfile(paths["dense"], missing)

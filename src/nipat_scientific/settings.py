@@ -186,14 +186,13 @@ def settings_context(workflow: str, overrides: dict | None, workdir: Path):
 
 
 def samtools_options(workflow: str, overrides: dict | None = None) -> list[str]:
-    """Return only deviations from samtools defaults, preserving native defaults."""
+    """Set the requested depth explicitly and emit other overrides as needed."""
     if workflow not in {"snp-call", "dnp-call"}:
         raise ValidationError("Le opzioni pileup richiedono SNPcall o DNPcall.")
     values = normalize_settings(workflow, overrides)
-    result = []
-    # SNP has always explicitly disabled the samtools depth limit.
-    if workflow == "snp-call" or values["max_depth"] != 8000:
-        result.extend(["-d", str(values["max_depth"])])
+    depth = values["max_depth"]
+    # samtools 1.21 spells its maximum per-input depth as -d 0.
+    result = ["-d", "0" if depth == 2147483647 else str(depth)]
     for key, flag, native_default in (("min_base_quality", "-Q", 13),
                                       ("min_mapping_quality", "-q", 0),
                                       ("mapping_quality_adjustment", "-C", 0),

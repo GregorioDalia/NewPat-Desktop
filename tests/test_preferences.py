@@ -76,7 +76,7 @@ class PreferencesTests(unittest.TestCase):
         self.write_document({"schema_version": 1, "scientific_settings": {"snp-call": {"max_depth": 200}}})
         baseline = self.store.load()
         self.assertFalse(baseline.default_profile)
-        profile = {"scientific_settings": {"snp-call": {"max_depth": 0}},
+        profile = {"scientific_settings": {"dnp-call": {"max_depth": 8000}, "snp-call": {"max_depth": 0}},
                    "execution": {"max_workers": 3}}
         self.store.save(replace(baseline, update_channel="testing"), baseline=baseline)
         self.store.save(replace(baseline, default_profile="Prova",
@@ -85,6 +85,7 @@ class PreferencesTests(unittest.TestCase):
         self.assertEqual(saved.update_channel, "testing")
         self.assertEqual(saved.scientific_settings["snp-call"]["max_depth"], 200)
         loaded = saved.parameter_profiles[saved.default_profile]
+        self.assertEqual(loaded["scientific_settings"]["dnp-call"]["max_depth"], 8000)
         self.assertEqual(loaded["scientific_settings"]["snp-call"]["max_depth"], 0)
         self.assertEqual(loaded["execution"]["max_workers"], 3)
         self.assertNotIn("performance_diagnostics", loaded["execution"])

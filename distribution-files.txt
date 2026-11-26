@@ -570,6 +570,7 @@ tests/test_gui_windows_launcher.py
 
 # NewPat 0.9.5: diagnostics, fixed resources and public-name compatibility.
 docs/RELEASE_0.9.10.md
+docs/RELEASE_0.9.99.md
 examples/newpat-synthetic-trio.zip
 examples/newpat-synthetic-trio.zip.sha256
 src/nipat/gui/examples.py

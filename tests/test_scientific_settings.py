@@ -122,8 +122,12 @@ class ScientificSettingsTests(unittest.TestCase):
                 self.assertEqual(normalize_settings("cpi", values), values)
 
     def test_samtools_default_and_custom_flags(self):
-        self.assertEqual(samtools_options("dnp-call"), [])
-        self.assertEqual(samtools_options("snp-call"), ["-d", "0"])
+        for caller in ("dnp-call", "snp-call"):
+            self.assertEqual(normalize_settings(caller, {})["max_depth"], 2147483647)
+            for depth, flag in ((2147483647, "0"), (0, "0"), (8000, "8000"), (1, "1")):
+                with self.subTest(caller=caller, depth=depth):
+                    self.assertEqual(samtools_options(caller, {"max_depth": depth}), ["-d", flag])
+            self.assertEqual(samtools_options(caller), ["-d", "0"])
         values = {"max_depth": 12000, "min_base_quality": 20, "min_mapping_quality": 10,
                   "mapping_quality_adjustment": 50, "excluded_flags": 4, "baq": False,
                   "count_overlaps": True, "include_orphans": True}

@@ -29,9 +29,9 @@
           "maximum": 255
         },
         "max_depth": {
-          "default": 8000,
+          "default": 2147483647,
           "type": "integer",
-          "description": "Profondita massima per BAM di mpileup; 0 disabilita il limite. Applicato solo nella produzione del pileup da BAM.",
+          "description": "Numero massimo di letture per posizione in ciascun BAM. Il valore predefinito è 2147483647. In samtools 1.21 anche 0 indica lo stesso massimo.",
           "unit": "letture",
           "minimum": 0,
           "maximum": 2147483647
@@ -171,9 +171,9 @@
           "maximum": 255
         },
         "max_depth": {
-          "default": 0,
+          "default": 2147483647,
           "type": "integer",
-          "description": "Profondita massima per BAM di mpileup; 0 disabilita il limite. Applicato solo nella produzione del pileup da BAM.",
+          "description": "Numero massimo di letture per posizione in ciascun BAM. Il valore predefinito è 2147483647. In samtools 1.21 anche 0 indica lo stesso massimo.",
           "unit": "letture",
           "minimum": 0,
           "maximum": 2147483647

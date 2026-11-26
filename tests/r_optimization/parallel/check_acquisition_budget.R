@@ -164,8 +164,11 @@ main <- function() {
       if (.Platform$OS.type != "windows") {
         expected <- switch(configuration$name, "capable" = 5L, "maximum-two" = 2L,
                            "limited" = 2L, "pair-at-budget" = 2L, "pair-only" = 2L, "larger-pair-at-budget" = 2L,
-                           "multi-bam" = 5L, "multi-capped" = 2L, "three-bams" = 3L, 1L)
+                           "multi-bam" = 5L, "multi-capped" = 2L, "three-bams" = 3L,
+                           "unlimited-depth" = 5L, "high-depth" = 5L, "multi-high-depth" = 5L, 1L)
         stopifnot(evidence$budget$workers == expected)
+        if (configuration$name %in% c("unlimited-depth", "high-depth", "multi-high-depth"))
+          stopifnot(identical(evidence$budget$verify_depth_limit, 8000L))
         if (configuration$name %in% c("multi-bam", "multi-limited", "three-bams", "eight-bams")) {
           stopifnot(evidence$budget$input_bams == samples,
                     evidence$budget$memory_per_worker_mib == 576 * samples,

@@ -79,6 +79,28 @@ class NativeCallerInputs(unittest.TestCase):
                 self.assertEqual({row["chr"]: (row["N_REF"], row["N_ALT"], row["GT"]) for row in actual},
                                  expected)
 
+    def test_bam_depth_default_and_saved_limit_reach_both_scientific_tables(self):
+        reference = self.fasta(("chr1",))
+        bam = self.bam("sample_0001", [("chr1", 100)], [("chr1", f"read{i}", "AAAA") for i in range(9001)])
+        for caller in ("dnp-call", "snp-call"):
+            panel = self.root / f"{caller}.tsv"
+            if caller == "dnp-call":
+                panel.write_text("chr1\t50\t51\tAA\tGG\n")
+                inputs = {"samples": [{"sample_id": "sample_0001", "path": str(bam)}], "parallel": False}
+                result_table = "output/individual_outputs/full_output_sample_0001.txt"
+            else:
+                panel.write_text("chr\tpos\tref\talt\nchr1\t50\tA\tG\n")
+                inputs = {"mode": "bam", "bam": str(bam), "pileup": None}
+                result_table = "output/SNPcall_output.txt"
+            for label, overrides, expected in (("default", {}, "9001"), ("saved", {"max_depth": 8000}, "8000")):
+                with self.subTest(caller=caller, depth=label):
+                    output = self.root / f"{caller}-{label}"
+                    result = self.execute(caller, output, panel=str(panel), reference=reference,
+                                          scientific_settings={**overrides, "baq": False}, **inputs)
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    row, = table(output / result_table)
+                    self.assertEqual((row["N_REF"], row["N_ALT"], row["GT"]), (expected, "0", "0/0"))
+
     def test_dnp_accepts_at_in_covered_contig(self):
         reference = self.fasta(("chr@1",))
         bam = self.bam("sample_0001", [("chr@1", 100)], [("chr@1", "read", "AAAA")])

@@ -578,7 +578,7 @@ nipat_dnp_acquisition_budget <- function(chromosomes, samples, settings, referen
   chromosomes <- unique(chromosomes)
   plan <- nipat_parallel_budget(length(chromosomes), workload_observed = FALSE)
   if (!identical(plan$reason, "workload-not-observed") || samples < 1L ||
-      settings$max_depth <= 0L || settings$max_depth > 8000L || length(chromosomes) < 2L ||
+      length(chromosomes) < 2L ||
       !settings$baq || settings$redo_baq || settings$mapping_quality_adjustment > 0L ||
       settings$count_overlaps || settings$include_orphans || settings$min_base_quality < 13L ||
       bitwAnd(settings$excluded_flags, 1796L) != 1796L ||
@@ -616,6 +616,9 @@ nipat_dnp_acquisition_budget <- function(chromosomes, samples, settings, referen
     available <- remaining / 2
     plan$workload_model <- "joint-bam-bounded-depth-reference-and-rss"
   }
+  # Higher scientific limits may use this pool only after the acquisition
+  # helper checks that every input fits the measured depth envelope.
+  if (settings$max_depth == 0L || settings$max_depth > 8000L) plan$verify_depth_limit <- 8000L
   plan$input_bams <- samples
   plan$memory_per_worker_mib <- estimate
   plan$acquisition_pool_budget_mib <- available
