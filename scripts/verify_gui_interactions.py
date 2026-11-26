@@ -449,6 +449,20 @@ def verify_grouped_reports(page, picker, directory, evidence, check):
 
 def verify_fetal_sex_form(page, probe, picker, check, directory):
     page.locator('nav [data-view="new"]').click()
+    for language, label, options, marker_question in (
+        ("en", "Input files", ["BAM or pileup files", "Calling tables",
+                               "BAM files, pileup files, and calling tables", "Fetal sex tables"],
+         "Which markers do you want to analyse?"),
+        ("it", "File di input", ["File BAM o pileup", "Tabelle di calling",
+                                 "File BAM, file pileup e tabelle di calling", "Tabelle per il sesso fetale"],
+         "Quali marcatori vuoi analizzare?"),
+    ):
+        page.locator(".language-picker label[lang=" + language + "]").click()
+        probe.wait(f"document.documentElement.lang==='{language}'")
+        source = page.get_by_role("combobox", name=label, exact=True)
+        check(source.locator("option").all_text_contents() == options
+              and page.get_by_role("group", name=marker_question, exact=True).is_visible(),
+              f"The {language} input menu lists file types and asks about markers separately")
     page.locator("#experiment-name").fill("Maternal cfDNA")
     page.locator("#source").select_option("fetal-sex")
     page.locator("#fetal-sample-id").fill("Maternal")

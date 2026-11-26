@@ -12,7 +12,7 @@ To try contamination and the two CPI analyses, select **Environment and help →
 
 ## Set up an experiment
 
-1. Choose **New experiment** and give the experiment a name. Select the starting material (BAM files, SNP pileups or existing count tables). For BAM inputs, supply the reference FASTA, the marker panel for each caller and a sample ID for each file.
+1. Choose **New experiment** and give the experiment a name. Under **Input files**, choose BAM or pileup files, calling tables, or a mix of these. When calling markers, select DNP, SNP or both in the marker section below. For BAM inputs, supply the reference FASTA, the marker panel for each caller and a sample ID for each file.
 2. Select the analyses. Contamination, prenatal CPI and postnatal CPI can each use a caller's count tables. For parentage analyses, identify each sample's role in its pair or trio and select population frequencies for the marker type.
 3. Review the scientific parameters, sample list, execution settings and destination. Select **Record performance diagnostics** if you need timing and resource measurements. Choose **Start experiment** once. NewPat checks the configuration and runtime and starts the analysis when the checks pass. If a check fails, use the displayed message to correct the problem before trying again.
 4. Open **Activity** to see the current phase, the sample when available, and the elapsed time. Recent activity lists changes as they happen. Expand **Technical log** for detailed messages. The DNA animation shows activity while the engine prepares. When a phase has measurable progress, the percentage refers to that phase. Stopping an analysis can take time while its processes exit.
