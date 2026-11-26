@@ -34,27 +34,42 @@ def input_roles(fields):
     return ("dnp", "y") if isinstance(fields, dict) and "dnp" in fields else ROLES
 
 
-def _check_table(path: Path, role: str, split_files=None) -> None:
+def chromosome_region(chromosome: str) -> str | None:
+    chromosome = re.sub("^chr", "", chromosome, flags=re.IGNORECASE)
+    return "autosomes" if chromosome in AUTOSOMES else {"X": "x", "Y": "y"}.get(chromosome)
+
+
+def _check_table(path: Path, role: str, split_files=None, *, caller_warnings=None) -> None:
     path = require_file(path, f"Maternal cfDNA {role}")
     markers = _marker_columns(role)
     regions = {"autosomes", "x"} if role == "dnp" else {role}
     observed = set()
     seen = set()
     writers = {}
+    empty_totals = 0
+    first_empty_total = None
     for number, row in table_rows(path, set(markers) | set(COUNTS), f"Maternal cfDNA {role}"):
-        chromosome = re.sub("^chr", "", row["chr"], flags=re.IGNORECASE)
-        region = "autosomes" if chromosome in AUTOSOMES else {"X": "x", "Y": "y"}.get(chromosome)
+        region = chromosome_region(row["chr"])
         if region not in regions:
+            if caller_warnings is not None:
+                continue
             raise ValidationError(f"{path.name}: chromosome on line {number} does not belong to {role}.")
         key = tuple(row[col] for col in markers)
         if role == "dnp":
             # An autosome or X locus written with both chromosome spellings is still one marker.
-            key = (chromosome, *key[1:])
+            key = (re.sub("^chr", "", row["chr"], flags=re.IGNORECASE), *key[1:])
         if any(v in {"", "NA"} for v in key) or key in seen:
             raise ValidationError(f"{path.name}: missing or duplicate marker on line {number}.")
         seen.add(key)
         observed.add(region)
-        ref, alt, other, total = (nonnegative_integer(row[col], path, number, col) for col in COUNTS)
+        ref, alt, other = (nonnegative_integer(row[col], path, number, col) for col in COUNTS[:3])
+        if role == "dnp" and caller_warnings is not None and row["total_count"] == "NA" and not (ref or alt or other):
+            # DNPcall outer-joins the panel with its counts of retained reads. An absent group has zero retained reads.
+            row["total_count"] = "0"
+            empty_totals += 1
+            if first_empty_total is None:
+                first_empty_total = number
+        total = nonnegative_integer(row["total_count"], path, number, "total_count")
         if total < ref + alt + other:
             raise ValidationError(f"{path.name}: total_count is too small on line {number}.")
         if split_files is not None:
@@ -64,8 +79,11 @@ def _check_table(path: Path, role: str, split_files=None) -> None:
                 writer.writeheader()
                 writers[region] = writer
             writers[region].writerow(row)
+    if empty_totals:
+        caller_warnings.append({"code": "fetal_sex.no_retained_reads", "row": first_empty_total, "path": str(path),
+                                "count": empty_totals, "message": f"Staged {empty_totals} DNP loci with zero retained reads."})
     if not seen:
-        raise ValidationError(f"{path.name}: empty {role} calling table.")
+        raise ValidationError(f"{path.name}: no {role} markers in the calling table.")
     if regions != observed:
         missing = ", ".join(sorted(regions - observed))
         raise ValidationError(f"{path.name}: combined DNP table is missing {missing} markers.")
@@ -97,7 +115,26 @@ def _split_dnp(source: Path, work: Path) -> tuple[Path, Path]:
     return autosomes, x
 
 
-def prepare_fetal_sex(request: dict) -> list[str]:
+def stage_caller_outputs(dnp: Path, snp: Path, sample: str, directory: Path):
+    """Partition one BAM's validated caller outputs, retaining all selected panel loci in input order."""
+    directory.mkdir()
+    warnings = []
+    try:
+        (directory / "autosomes").mkdir()
+        tables = {"autosomes": directory / "autosomes" / f"full_output_{sample}.txt",
+                  "x": directory / "X.tsv", "y": directory / "Y.tsv"}
+        with tables["autosomes"].open("x", encoding="utf-8", newline="") as autosomes, tables["x"].open(
+                "x", encoding="utf-8", newline="") as x:
+            _check_table(dnp, "dnp", {"autosomes": autosomes, "x": x}, caller_warnings=warnings)
+        with tables["y"].open("x", encoding="utf-8", newline="") as y:
+            _check_table(snp, "y", {"y": y}, caller_warnings=warnings)
+    except BaseException:
+        shutil.rmtree(directory)
+        raise
+    return tables, warnings, [(dnp, tables["autosomes"]), (dnp, tables["x"]), (snp, tables["y"])]
+
+
+def prepare_fetal_sex(request: dict, *, caller_warnings=(), caller_normalizations=()) -> list[str]:
     from nipat_scientific.presentation import validate_request_presentation
 
     roles = input_roles(request)
@@ -123,7 +160,7 @@ def prepare_fetal_sex(request: dict) -> list[str]:
     if out.exists() and (not out.is_dir() or any(out.iterdir())):
         raise ValidationError("Fetal-sex output directory must be new or empty.")
     values = normalize_settings("fetal-sex", request.get("scientific_settings"))
-    normalized = []
+    normalized = list(caller_normalizations)
     if "dnp" in sources:
         _check_table(sources["y"], "y")
         work.mkdir(parents=True, exist_ok=True)
@@ -134,7 +171,7 @@ def prepare_fetal_sex(request: dict) -> list[str]:
         work.mkdir(parents=True, exist_ok=True)
         autosomes, x = sources["autosomes"], sources["x"]
     out.mkdir(parents=True, exist_ok=True)
-    write_input_report(work, "fetal-sex", [], normalized=normalized)
+    write_input_report(work, "fetal-sex", list(caller_warnings), normalized=normalized)
     # The unmodified script requires a new destination even when the client has already created out.
     argv = ["--autosomes", str(autosomes), "--X", str(x), "--Y", str(sources["y"]),
             "--out", str(out / ".native-fetal-sex")]

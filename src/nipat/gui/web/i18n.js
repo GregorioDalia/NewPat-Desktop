@@ -2,6 +2,12 @@
 window.NipatI18n = (() => {
 const strings = {
  fetalSex:['Sesso fetale','Fetal sex'],
+ maternalBam:['BAM del campione materno di cfDNA','Maternal cfDNA BAM'],
+ fetalInputSource:['Input per il sesso fetale','Fetal sex input'],
+ fromMaternalBam:['Dal BAM materno','From the maternal BAM'],
+ fetalBamHelp:['DNPcall e SNPcall generano i conteggi dal BAM. Per il sesso fetale usa un pannello DNP con autosomi e siti X e un pannello SNP con siti Y. I marcatori X e Y devono essere già validati.','DNPcall and SNPcall generate counts from the BAM. For fetal sex, use a DNP panel covering autosomes and X and an SNP panel containing Y sites. Use previously validated X and Y markers.'],
+ chooseMaternalBam:['Seleziona il BAM del campione materno di cfDNA.','Select the maternal cfDNA BAM.'],
+ fetalBamPanels:['Seleziona il pannello DNP con autosomi e siti X e il pannello SNP con siti Y.','Choose a DNP panel covering autosomes and X and an SNP panel containing Y sites.'],
  fetalTablesSource:['Tabelle per il sesso fetale','Fetal sex tables'],
  fetalTablesHelp:['Scegli le tabelle dello stesso campione di cfDNA materno. Per X e Y usa marcatori già validati per la loro specificità.','Choose tables from the same maternal cfDNA sample. Use X and Y markers previously validated for specificity.'],
  fetalInputsRequired:['Indica il nome del campione materno e seleziona le tabelle richieste.','Enter the maternal sample name and select the required tables.'],

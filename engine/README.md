@@ -35,7 +35,7 @@ Before running any workflow, the engine checks all six R sources against the bun
 | --- | --- |
 | `schema_version` | `1` |
 | `interface` | `native-r-v1` |
-| `workflow_interfaces` | `dnp-call-v1`, `snp-call-v2`, `contamination-v2`, `cpi-v4`, `cpin-v2` and `fetal-sex-v2` for their respective workflows |
+| `workflow_interfaces` | `dnp-call-v1`, `snp-call-v2`, `contamination-v2`, `cpi-v4`, `cpin-v2` and `fetal-sex-v3` for their respective workflows |
 | `preparation.interface` | `workflow-preparation-v1` |
 | `plan_execution.interface` | `workflow-plan-execution-v2` |
 | `plan_execution.workflows` | `dnp-call`, `snp-call`, `contamination`, `cpi`, `cpin`, `fetal-sex` |

@@ -779,19 +779,24 @@ class Workflows:
 
     def analyze(self, *, caller: str, analyses: list[str], run_name: str | None = None,
                 **inputs) -> Path:
-        """Any subset of Contamination, prenatal CPI and postnatal CPI, independently for SNP/DNP."""
+        """Run callers and their selected downstream analyses in one experiment."""
         from nipat.execution.analysis_plan import build_analysis_plan, fetal_sex_metadata
         plan, mounts, input_files, mapping, branch_analyses = build_analysis_plan(
             layout=self.layout, caller=caller, analyses=analyses, **inputs)
         plan = self._validate_plan(plan)["plan"]
         sex_tables = [item for item in mapping if "fetal_sex_role" in item]
+        fetal_metadata = fetal_sex_metadata(sex_tables) if sex_tables else None
+        if inputs.get("fetal_sex") and not sex_tables:
+            maternal_id, = inputs["fetal_sex"]
+            bam = next(row for row in mapping if row["sample_id"] == maternal_id)
+            fetal_metadata = {"sample_id": maternal_id, "bam": bam["original_path"]}
         run_dir = self.layout.new_run_dir("analysis", run_name)
         with self._record_run(
             run_dir, workflow="analysis", inputs=input_files, mounts=mounts,
             bundled_workflow="workflow-plan-all", parameters={
                 "caller": caller, "analyses": analyses,
                 "analyses_by_marker": branch_analyses,
-                **({"fetal_sex": fetal_sex_metadata(sex_tables)} if sex_tables else {}),
+                **({"fetal_sex": fetal_metadata} if fetal_metadata else {}),
                 "sample_mapping": mapping,
                 "expected_steps": _expected_steps(plan), "plan": plan},
         ):

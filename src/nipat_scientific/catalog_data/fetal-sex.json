@@ -480,15 +480,15 @@
         ]
       ],
       "description": {
-        "it": "Il motore accetta i conteggi autosomici e X del campione materno in una o due tabelle DNP e richiede una tabella SNP Y separata. Nel formato combinato usa la colonna chr per separare gli autosomi dai marcatori X. Lo script R riceve gli stessi tre gruppi di siti in entrambe le modalità.",
-        "en": "The engine accepts maternal autosomal and X counts in one or two DNP tables and requires a separate Y SNP table. With combined DNP input it splits rows by the chr column. The R script receives the same three groups of sites in both modes."
+        "it": "Dallo stesso BAM materno il motore usa i conteggi DNP autosomici e X e i conteggi SNP Y prodotti nell’esperimento. È possibile anche importare due tabelle (DNP autosomici e X insieme, SNP Y) oppure tre tabelle regionali. Lo script R riceve gli stessi tre gruppi di siti.",
+        "en": "For a maternal BAM, the engine takes autosomal and X DNP counts and Y SNP counts from the callers in the experiment. It also accepts two imported tables (combined autosomal and X DNPs, plus Y SNPs) or three regional tables. The R script receives the same three groups of sites."
       },
       "evidence": {
         "path": "src/nipat_scientific/fetal_sex.py",
-        "sha256": "4074e94801908855cdf89f6ef5114dc60e0bd7dd66f56122813aee04564cd6fc",
+        "sha256": "f82ca55823c7c31208d32d6f635bdd041ef0d64f16bda9776a434f437fed8406",
         "source_lines": [
           1,
-          215
+          252
         ],
         "dependencies": [
           {
@@ -505,6 +505,14 @@
             "source_lines": [
               1,
               764
+            ]
+          },
+          {
+            "path": "src/nipat_scientific/executor.py",
+            "sha256": "f327ca9c8bfcdb86747c83675d0ad9b5fe361ceef10e2177786cdeaada4a9394",
+            "source_lines": [
+              355,
+              369
             ]
           }
         ]

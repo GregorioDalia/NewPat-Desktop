@@ -845,9 +845,9 @@
         "path": "src/nipat_scientific/presentation.py",
         "source_lines": [
           1,
-          415
+          419
         ],
-        "sha256": "3cd930227d83ab4a8619478f1e8cea9c7844a1fced3336e11b0ce720b54a1533",
+        "sha256": "a4574efc72f40e4a0ef2d34834acded3f8608eebffd41c2daab28c531072bcd1",
         "dependencies": [
           {
             "path": "src/nipat_scientific/presentation.R",
@@ -936,7 +936,7 @@
               209,
               230
             ],
-            "sha256": "436bc335f476834e1a42fd0d9577e290109fba8544eeeae8b37561cfa96c3d90"
+            "sha256": "8214cfa2076474d7cd1e805c3f67518b9caed2dae662b87460a62ed9d9229ca9"
           },
           {
             "path": "src/nipat_scientific/parallel.py",
@@ -952,7 +952,7 @@
               469,
               476
             ],
-            "sha256": "a884b21f9d871280b3b85f4b9f78becfe25f6fbd4e32d30fd6df6c62513df388"
+            "sha256": "e4255b8b044c069a1908ae56a82dcc4d31322b49e81cdc012e307220ccec9b09"
           },
           {
             "path": "scientific/vendor/NEWPAT/SNPcall/SNPcall.R",
@@ -976,7 +976,7 @@
               112,
               133
             ],
-            "sha256": "436bc335f476834e1a42fd0d9577e290109fba8544eeeae8b37561cfa96c3d90"
+            "sha256": "8214cfa2076474d7cd1e805c3f67518b9caed2dae662b87460a62ed9d9229ca9"
           },
           {
             "path": "src/nipat/execution/runner.py",
@@ -984,7 +984,7 @@
               205,
               230
             ],
-            "sha256": "436bc335f476834e1a42fd0d9577e290109fba8544eeeae8b37561cfa96c3d90"
+            "sha256": "8214cfa2076474d7cd1e805c3f67518b9caed2dae662b87460a62ed9d9229ca9"
           },
           {
             "path": "src/nipat_scientific/snp_parallel.py",
@@ -1029,10 +1029,10 @@
           {
             "path": "src/nipat_scientific/executor.py",
             "source_lines": [
-              451,
-              592
+              460,
+              601
             ],
-            "sha256": "11602848bc4a7c5b9c471fe78db9b0f2dae16a6eaed202643697e3d249d99e05"
+            "sha256": "f327ca9c8bfcdb86747c83675d0ad9b5fe361ceef10e2177786cdeaada4a9394"
           },
           {
             "path": "src/nipat/execution/runner.py",
@@ -1040,7 +1040,7 @@
               225,
               228
             ],
-            "sha256": "436bc335f476834e1a42fd0d9577e290109fba8544eeeae8b37561cfa96c3d90"
+            "sha256": "8214cfa2076474d7cd1e805c3f67518b9caed2dae662b87460a62ed9d9229ca9"
           }
         ]
       }
@@ -1093,10 +1093,10 @@
           },
           {
             "path": "src/nipat_scientific/executor.py",
-            "sha256": "11602848bc4a7c5b9c471fe78db9b0f2dae16a6eaed202643697e3d249d99e05",
+            "sha256": "f327ca9c8bfcdb86747c83675d0ad9b5fe361ceef10e2177786cdeaada4a9394",
             "source_lines": [
               1,
-              592
+              601
             ]
           }
         ]

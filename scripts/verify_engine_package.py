@@ -171,7 +171,7 @@ def check_metadata(identifier: str) -> dict:
         raise ValueError("The engine lacks the complete CPI interface.")
     if description.get("workflow_interfaces", {}).get("cpin") != "cpin-v2":
         raise ValueError("The engine lacks the complete CPIN interface.")
-    if description.get("workflow_interfaces", {}).get("fetal-sex") != "fetal-sex-v2":
+    if description.get("workflow_interfaces", {}).get("fetal-sex") != "fetal-sex-v3":
         raise ValueError("The engine lacks the fetal sex interface.")
     if description.get("desktop_scheduling") != "step-budget-v1":
         raise ValueError("The image lacks the desktop step-budget interface.")

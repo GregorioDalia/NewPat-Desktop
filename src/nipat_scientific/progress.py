@@ -182,7 +182,7 @@ def request_sample_ids(request):
 def step_sample_ids(step):
     inputs = step["inputs"]
     if step["workflow"] == "fetal-sex":
-        return list(inputs.values())
+        return list(dict.fromkeys(ref["sample"] if isinstance(ref, dict) else ref for ref in inputs.values()))
     result = []
     if "sample" in inputs:
         result.append(inputs["sample"])

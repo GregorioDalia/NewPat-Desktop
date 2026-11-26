@@ -27,6 +27,10 @@
 @media(max-width:720px){.app-shell{display:block}.sidebar{position:relative;inset:auto;width:100%;padding:15px;border-right:0;border-bottom:1px solid var(--line)}.brand{margin:0 10px 12px}.brand{display:flex;align-items:baseline;gap:var(--s3)}.brand img{width:112px}.sidebar nav{display:flex;overflow:auto;gap:6px}.nav-button{width:auto;white-space:nowrap;margin:0}.nav-divider,.sidebar-foot{display:none}.workspace{width:100%}.topbar{height:57px;padding:0 18px}.top-actions{gap:12px}#main{padding:23px 16px}.form-row,.execution-grid,.igv-track{grid-template-columns:1fr}.choices{grid-template-columns:1fr}.parameter-row{grid-template-columns:1fr;gap:14px}.parameter-value{justify-content:flex-start}.form-footer{flex-wrap:wrap}.table th,.table td{padding:11px}.metrics{grid-template-columns:1fr}.modal-backdrop{padding:10px}.modal{max-height:96vh}.modal-body,.modal-header{padding:16px}.detail-values>div{grid-template-columns:1fr;gap:5px}.family-row,.family-row.pair{grid-template-columns:1fr auto}.family-row .field{grid-column:1}.family-row>.button{grid-column:2}.page-heading h1{font-size:25px}.home-card{padding:18px}.toolbar{align-items:stretch}.toolbar .field{flex:1}.toolbar .input{width:100%}.review-list{grid-template-columns:1fr;gap:4px}.review-list dd{margin-bottom:12px}.result-table td{white-space:normal}.igv-track .field:first-child{grid-column:auto}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 
+#archive-results .pager{padding-inline:var(--s6);flex-wrap:wrap}
+#archive-results .table :is(th,td):first-child{padding-inline-start:var(--s6)}
+#archive-results .table :is(th,td):last-child{padding-inline-end:var(--s6)}
+
 /* Live activity and a single, synchronized IGV navigation surface. */
 .dna-loader.helix{--helix-width:40px;width:var(--helix-width);height:44px;flex:0 0 var(--helix-width);overflow:visible;perspective:180px}.boot-state .dna-loader.helix{--helix-width:64px;height:64px}
 .dna-loader.helix::before,.dna-loader.helix::after{content:none}

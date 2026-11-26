@@ -138,7 +138,7 @@ def build_parser() -> argparse.ArgumentParser:
         "workflow", help="esegue automaticamente analisi scientifiche collegate",
     )
     workflow_presets = workflow.add_subparsers(dest="preset", required=True)
-    analyze = workflow_presets.add_parser("analyze", help="SNP/DNP verso qualunque combinazione di Contamination, CPI prenatale e CPI postnatale")
+    analyze = workflow_presets.add_parser("analyze", help="Conteggi DNP/SNP, contaminazione, CPI prenatale, CPI postnatale e sesso fetale")
     analyze.add_argument("--caller", choices=("dnp", "snp", "both", "tables"), required=True)
     analyze.add_argument("--analyses", default="", help="moduli separati da virgole: contamination,cpi,cpin; vuoto per solo calling")
     for option, description in (("sample", "campione BAM"), ("pileup", "pileup SNP"),
@@ -159,7 +159,7 @@ def build_parser() -> argparse.ArgumentParser:
                              help="cutoff CPI etichettato; ripetibile; se omesso usa ALL")
         analyze.add_argument(f"--{marker}-cpin-panel", type=_path, help="pannello CPI postnatale con coordinate e alleli REF/ALT; se omesso usa tutti i siti")
     analyze.add_argument("--fetal-sex", nargs="+", metavar="ARG",
-                         help="ID del campione cfDNA materno seguito da DNP Y (autosomi e X insieme) "
+                         help="ID del BAM cfDNA materno (--caller both), oppure ID seguito da DNP Y (autosomi e X insieme) "
                               "oppure AUTOSOMES X Y (tre tabelle)")
     analyze.add_argument("--run-name")
     dnp_contamination = workflow_presets.add_parser(

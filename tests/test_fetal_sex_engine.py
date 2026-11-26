@@ -137,3 +137,81 @@ def test_combined_plan_accepts_only_the_explicit_two_table_layout(tmp_path):
     request["x"] = request["dnp"]
     with pytest.raises(ValidationError, match="Invalid fetal-sex"):
         prepare_fetal_sex(request)
+
+
+def test_generated_tables_are_ordered_by_producers_and_bound_to_one_bam():
+    from nipat_scientific.presentation import step_presentation
+    from nipat_scientific.progress import step_sample_ids
+
+    mother = "Maternal"
+    inputs = {"dnp": {"step": "dnpcall", "output": "dnp-tables", "sample": mother},
+              "y": {"step": "snpcall", "output": "snp-tables", "sample": mother}}
+    sex = {"id": "classify", "workflow": "fetal-sex", "inputs": inputs, "parameters": {}}
+    callers = [{"id": "dnpcall", "workflow": "dnp-call", "parameters": {"parallel": True},
+                "inputs": {"samples": [mother], "panel": "/dnp", "reference": "/fa"}},
+               {"id": "snpcall", "workflow": "snp-call", "parameters": {"mode": "bam"},
+                "inputs": {"sample": mother, "panel": "/snp", "reference": "/fa"}}]
+    plan = {"schema_version": 1, "samples": [{"id": mother, "kind": "bam", "path": "/mother.bam"}],
+            "steps": [sex, *callers], "presentation": {"samples": {mother: "Mother.bam"}, "pairs": {}}}
+    checked = validate_plan(plan)
+    assert checked["execution_order"] == ["dnpcall", "snpcall", "classify"]
+    assert checked == validate_plan(checked["plan"])
+    assert step_sample_ids(sex) == [mother]
+    assert step_presentation(plan, sex, {})["samples"] == dict.fromkeys(ROLES, "Mother.bam")
+    inputs["y"] = dict(inputs["y"], sample="Other")
+    with pytest.raises(ValidationError, match="same maternal BAM"):
+        validate_plan(plan)
+    inputs["y"] = dict(inputs["dnp"])
+    with pytest.raises(ValidationError, match="snp-tables"):
+        validate_plan(plan)
+    inputs["y"] = dict(inputs["dnp"], output="snp-tables")
+    with pytest.raises(ValidationError, match="does not produce snp-tables"):
+        validate_plan(plan)
+
+
+def test_generated_tables_project_only_required_regions_and_audit_uncovered_loci(tmp_path):
+    from nipat_scientific.fetal_sex import stage_caller_outputs
+
+    inputs = combined_request(tmp_path)
+    dnp = Path(inputs["dnp"])
+    with dnp.open("a") as stream:
+        stream.write("chrX\t11\t12\tGA\tTT\t0\t0\t0\tNA\nchrY\t11\t12\tGA\tTT\t7\t0\t0\t7\n")
+    original_y = Path(inputs["y"]).read_text()
+    snp = tmp_path / "snp.txt"
+    snp.write_text(original_y + "chrX\t21\tG\tT\t1\t0\t0\t1\n")
+    source_rows = dnp.read_bytes(), snp.read_bytes()
+    targets, warnings, normalized = stage_caller_outputs(dnp, snp, "Maternal", tmp_path / "stage")
+    assert targets["autosomes"].name == "full_output_Maternal.txt"
+    assert targets["autosomes"].read_text() == (FIXTURE / "inputs/Female_fetus_autosomes.txt").read_text()
+    assert targets["x"].read_text() == (FIXTURE / "inputs/Female_fetus_X.txt").read_text() + "chrX\t11\t12\tGA\tTT\t0\t0\t0\t0\n"
+    assert targets["y"].read_text() == original_y
+    assert len(warnings) == 1 and warnings[0]["count"] == 1
+    assert warnings[0]["code"] == "fetal_sex.no_retained_reads"
+    request = dict(request_at(tmp_path), **{role: str(file) for role, file in targets.items()})
+    prepare_fetal_sex(request, caller_warnings=warnings, caller_normalizations=normalized)
+    audit = json.loads((tmp_path / "work/input-validation.json").read_text())
+    assert audit["warnings"] == warnings
+    assert {(row["source"], row["prepared"]) for row in audit["normalizations"]} == {
+        (str(dnp), str(targets["autosomes"])), (str(dnp), str(targets["x"])), (str(snp), str(targets["y"]))}
+    assert (dnp.read_bytes(), snp.read_bytes()) == source_rows
+    inputs["y"] = str(snp)
+    with pytest.raises(ValidationError, match="does not belong to y"):
+        prepare_fetal_sex(inputs)
+
+
+def test_generated_tables_require_y_markers_and_reject_missing_counts_with_reads(tmp_path):
+    from nipat_scientific.fetal_sex import stage_caller_outputs
+
+    inputs = combined_request(tmp_path)
+    dnp = Path(inputs["dnp"])
+    snp = tmp_path / "snp.txt"
+    snp.write_text(Path(inputs["y"]).read_text().replace("chrY", "chr1"))
+    stage = tmp_path / "regions"
+    with pytest.raises(ValidationError, match="no y markers"):
+        stage_caller_outputs(dnp, snp, "Maternal", stage)
+    assert not stage.exists()
+    with dnp.open("a") as stream:
+        stream.write("chrX\t31\t32\tGA\tTT\t1\t0\t0\tNA\n")
+    with pytest.raises(ValidationError, match="total_count"):
+        stage_caller_outputs(dnp, Path(inputs["y"]), "Maternal", stage)
+    assert not stage.exists()

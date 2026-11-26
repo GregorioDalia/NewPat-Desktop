@@ -110,3 +110,41 @@ def test_combined_dnp_mode_requires_y_and_rejects_mixed_role_assignments(tmp_pat
     draft["fetal_sex"]["x"] = ""
     with pytest.raises(ValidationError, match="either a combined DNP table"):
         prepare_analysis(draft, layout, language="en")
+
+
+def test_bam_draft_reuses_selected_mother_in_preview_repeat_and_archive(tmp_path):
+    layout = ProjectLayout(ROOT, tmp_path, tmp_path / "inputs", tmp_path / "runs", ROOT / "compose.yaml")
+    reference = tmp_path / "ref.fa"
+    reference.write_bytes(b">chr1\nACGT\n>chrX\nACGT\n>chrY\nACGT\n")
+    reference.with_suffix(".fa.fai").write_bytes(b"chr1\t4\t6\t4\t5\nchrX\t4\t17\t4\t5\nchrY\t4\t28\t4\t5\n")
+    dnp, snp = tmp_path / "dnp.tsv", tmp_path / "snp.tsv"
+    dnp.write_text("chr1\t2\t3\tCG\tAT\nchrX\t2\t3\tCG\tAT\n")
+    snp.write_text("chr\tpos\tref\talt\nchrY\t2\tC\tA\n")
+    samples = []
+    for sample_id in ("Father", "Plasma"):
+        bam = tmp_path / f"{sample_id}.bam"
+        bam.write_bytes(b"synthetic mount fixture")
+        samples.append({"kind": "bam", "path": str(bam.resolve()), "id": sample_id})
+    draft = {"name": "Maternal BAM", "caller": "both", "samples": samples, "reference": str(reference),
+             "resources": {"DNP": {"panel": str(dnp.resolve())}, "SNP": {"panel": str(snp.resolve())}},
+             "fetal_sex": {"source": "bam", "id": "Plasma"}}
+    prepared = prepare_analysis(draft, layout)
+    step = prepared.preview["steps"][-1]
+    assert step["workflow"] == "fetal-sex"
+    assert {ref["sample"] for ref in step["inputs"].values()} == {"Plasma"}
+    assert prepared.inputs["fetal_sex"] == ("Plasma",)
+    runner = DockerComposeRunner(layout, dry_run=True, transport=DockerTransport(dry_run=True))
+    run = Workflows(layout, runner).analyze(caller="both", analyses=[], **prepared.inputs)
+    service = GuiService(layout, preferences_store=PreferencesStore(tmp_path / "preferences.json"))
+    repeated = service.run_reuse(run.name)
+    assert repeated["fetal_sex"] == draft["fetal_sex"] and repeated["samples"] == samples
+    assert prepare_analysis(repeated, layout).preview["steps"] == prepared.preview["steps"]
+    single = service.run_prepare(run.name, "fetal-sex")
+    assert single["samples"] == [samples[1]]
+    dnp_step, snp_step, fetal_step = prepare_analysis(single, layout).preview["steps"]
+    assert fetal_step["inputs"] == {
+        "dnp": {"step": dnp_step["id"], "output": "dnp-tables", "sample": "Plasma"},
+        "y": {"step": snp_step["id"], "output": "snp-tables", "sample": "Plasma"}}
+    draft["fetal_sex"]["y"] = str(snp)
+    with pytest.raises(ValidationError, match="maternal BAM or count tables"):
+        prepare_analysis(draft, layout, language="en")

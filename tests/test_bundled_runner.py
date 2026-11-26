@@ -43,7 +43,7 @@ def engine_metadata():
             for name in ("dnp-call", "snp-call", "contamination", "cpi", "cpin", "fetal-sex")
         },
         "workflow_interfaces": {"contamination": "contamination-v2", "snp-call": "snp-call-v2",
-                                "dnp-call": "dnp-call-v1", "cpi": "cpi-v4", "cpin": "cpin-v2", "fetal-sex": "fetal-sex-v2"},
+                                "dnp-call": "dnp-call-v1", "cpi": "cpi-v4", "cpin": "cpin-v2", "fetal-sex": "fetal-sex-v3"},
         "preparation": {
             "interface": "workflow-preparation-v1",
             "file_sha256": {name: "d" * 64 for name in (

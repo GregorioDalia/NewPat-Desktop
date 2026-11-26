@@ -128,7 +128,11 @@ def step_presentation(plan: dict, step: dict, request: dict, bindings: list[dict
     elif workflow == "snp-call":
         selected = {"sample_0001": labels[step["inputs"]["sample"]]}
     elif workflow == "fetal-sex":
-        selected = {role: labels[identity] for role, identity in step["inputs"].items()}
+        region = step["inputs"]
+        if isinstance(region.get("dnp"), dict):
+            selected = {role: labels[region["dnp"]["sample"]] for role in ("autosomes", "x", "y")}
+        else:
+            selected = {role: labels[identity] for role, identity in region.items()}
     elif workflow == "contamination":
         selected = {f"table_{number:04d}": labels[reference["sample"]]
                     for number, reference in enumerate(step["inputs"]["samples"], 1)}

@@ -33,7 +33,7 @@ This guide describes **0.9.10**. The release notes record its status and changes
 | **Postnatal CPI** | Mother, alleged father and child count tables, sample trios, and population allele frequencies | One CPI per trio, its base-10 logarithm and a table of included and excluded sites |
 | **Fetal sex** | Maternal DNP counts for autosomes and X (one file or two), plus maternal Y SNP counts | F, M or Undetermined, three ratios and three site tables |
 
-The stable 0.9.10 package uses separate autosomal and X DNP tables for fetal sex. The combined DNP input is available in the development version.
+The stable 0.9.10 package uses separate autosomal and X DNP tables for fetal sex. The development version also accepts a combined autosomal and X DNP table or runs both callers directly on the maternal BAM.
 
 Run a module on its own or build a workflow. DNPcall and SNPcall can share BAM inputs and feed separate analyses. Each branch uses its own panels and population frequencies. For parentage analyses, assign samples to family roles explicitly.
 

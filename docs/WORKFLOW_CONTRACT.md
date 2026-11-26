@@ -35,7 +35,7 @@ Every entry in `steps` contains exactly `id`, `workflow`, `inputs` and `paramete
 | `contamination` | `samples` (list of table references), `panel` (coordinate panel) | No module-specific required field |
 | `cpi` | `pairs` (explicit pairs), `popfreq` (population frequencies), `cutoffs` (selected panels) | `cutoff_mode` (`all`, `panel` or `named`), optional finite `err_const` in `(0, 1]` |
 | `cpin` | `trios` (explicit trios), `popfreq` (population frequencies), `markers` (panel with REF/ALT alleles or `null`) | No module-specific required field |
-| `fetal-sex` | Table IDs from one maternal cfDNA sample. Use `dnp` (autosomes and X) with `y` (SNP), or `autosomes` and `x` (both DNP) with `y` | No module-specific required field |
+| `fetal-sex` | Table IDs from one maternal cfDNA sample, or references to both caller outputs for the same maternal BAM. Use `dnp` (autosomes and X) with `y` (SNP), or `autosomes` and `x` (both DNP) with `y` | No module-specific required field |
 
 The desktop displays `cpi` as **Prenatal CPI** and `cpin` as **Postnatal CPI**. Saved plans and run records use the workflow IDs above. The [module integration guide](ARCHITECTURE.md#adding-a-downstream-scientific-module) lists the engine and desktop changes for an additional downstream script.
 
@@ -52,6 +52,8 @@ Contamination, prenatal and postnatal CPI accept the following table references.
 - `{"sample": "table_a"}` selects a registered `dnp-table` or `snp-table` sample.
 - `{"step": "dnp", "output": "dnp-tables", "sample": "sample_a"}` selects the individual table produced by that DNPcall step for the sample.
 - `{"step": "snp_a", "output": "snp-tables", "sample": "sample_a"}` selects the table produced by that SNPcall step for the sample.
+
+For fetal sex from a BAM, use a DNPcall output reference under `dnp` and an SNPcall output reference under `y`. Both references identify the same maternal BAM. The estimator uses autosomal and X DNPs and Y SNPs. Other analyses can use the full caller outputs.
 
 A reference to a producing step creates a dependency. SNPcall produces `snp-tables` and DNPcall produces `dnp-tables`. A Contamination summary, a prenatal/postnatal CPI result or a guessed path to a future output cannot serve as a count-table reference.
 
