@@ -10,15 +10,17 @@ NewPat development centers on the reproducibility of research results and the op
 | Platform support | Exercise installation, launch, update and recovery on Windows, Ubuntu, and both Apple Silicon and Intel Macs. Associate each observation with its package and system. |
 | Desktop usability | Walk through sample selection, validation, progress, results and diagnostic export in the supported interface languages. Check that error messages identify the next action. |
 
-## Outstanding work for 0.9.10
+## Next stable release
 
-| Item | Evidence needed |
+The next planned public release is 0.9.99. Version 0.9.10 is the stable comparison build for all six analyses and the starting point for the upgrade test. Integrate changes through pull requests and use internal installer builds to test them. A direct update from the installed 0.9.10 package is part of release qualification. [0.9.10 acceptance record](https://github.com/GregorioDalia/nipat-desktop/blob/11a78744eb7f034f1e510ef6e5f9f158c957f9b5/.github/release-acceptance/v0.9.10.json) · [Publication procedure](../.github/RELEASE.md)
+
+| Area | Work for 0.9.99 |
 | --- | --- |
-| Revised prenatal and postnatal CPI | Compare the packaged workflows with the revised upstream models, including the postnatal [worked SNP and DNP trios](https://github.com/lpistacchia/NEWPAT/tree/97c4eb5f7a901d0435b950c3e2a52a8bd7eae9d4/CPI_postnatal/examples). Check the scalar and its logarithm in the postnatal summary, site audit and exported results. |
-| Sixth downstream module | Qualify fetal sex with the three maternal input tables and all four expected outputs from the [pinned upstream examples](https://github.com/lpistacchia/NEWPAT/tree/dde1a759e4b994a42ec9c9651f896394c546b109/Fetal_sex/examples). [Integration steps](ARCHITECTURE.md#adding-a-downstream-scientific-module) |
-| Performance on physical Apple Silicon | Compare the installed stable build on the same BAM lists and fixed Lima allocation. Record actual worker counts, phase times and table agreement. [Mac benchmark](MACOS_INSTALLER.md#compare-worker-settings-on-an-apple-silicon-mac) |
-
-The revised CPI scripts and the fetal sex script have been supplied. Qualify the final module set before publication. The physical Mac measurement is planned for after the stable build becomes available. [Publication procedure](../.github/RELEASE.md)
+| Native Apple Silicon | Keep the Lima ARM64 guest and ship a Linux ARM64 scientific image with native R, its packages and samtools. The standard Apple Silicon path must run with Rosetta disabled. Build and verify the matching archives for ARM64 and AMD64, select by architecture, and verify the installed engine on each platform. |
+| Automatic resources | Tune macOS using the CPU and RAM actually available inside Lima, the BAM workload and the demands of other experiments. Measure acquisition and R processing separately. Preserve the established Windows behavior and use its stable measurements to detect regressions. |
+| Performance qualification | Run the same synthetic 1-, 2- and 4-BAM suite on stable and candidate installations. Repeat a representative multi-BAM workload on the same physical Mac. Use the same files, settings and VM allocation when comparing architectures. Then measure the effect of the automatic resource policy. Report repeated end-to-end times, phase times, observed workers and peak memory alongside scientific agreement. Set a meaningful improvement target from the Mac baseline before tuning the candidate. [Mac benchmark](MACOS_INSTALLER.md#compare-worker-settings-on-an-apple-silicon-mac) |
+| Scientific qualification | Review all six modules against synthetic inputs and reference results. For prenatal and postnatal CPI retain coverage of the revised models. For fetal sex accept a combined maternal autosomal/X DNP table plus a Y SNP table, alongside the three-table format. Apply the existing filters to the supplied specificity-validated sites. Compare all four output tables for each published maternal example. [Postnatal CPI references](https://github.com/lpistacchia/NEWPAT/tree/97c4eb5f7a901d0435b950c3e2a52a8bd7eae9d4/CPI_postnatal/examples) · [Fetal sex references](https://github.com/lpistacchia/NEWPAT/tree/dde1a759e4b994a42ec9c9651f896394c546b109/Fetal_sex/examples) |
+| Installation and experiment recovery | Qualify direct downloads, recovery of the managed Lima environment after an upgrade, and consistent experiment status across desktop sessions. Verify that completed, interrupted and still-active experiments remain distinguishable after an application or VM restart. |
 
 The current CPI display highlights the reported log index against two numeric limits and marks exact boundaries. User-selectable strict or inclusive comparison operators for assigning outcome categories remain a separate proposal.
 
@@ -26,8 +28,8 @@ Scientific reference implementations, analytical test cases and domain review se
 
 [Scientific components](../scientific/README.md) · [Technical and domain validation](VALIDATION.md) · [Performance measurements](PERFORMANCE.md) · [Installer acceptance](INSTALLER_ACCEPTANCE.md)
 
-## Release requirement for 0.9.99: NewPat throughout the project
+## NewPat naming and the 0.9.10 upgrade
 
-Use NewPat consistently throughout the maintained project, including package names, imports, command names, configuration keys, environment variables, runtime paths, installers, tests and build workflows. Reorganize directories by responsibility and give them descriptive English names so a reader can locate the desktop interface, experiment management, scientific input preparation and analysis code directly. Update the [code guide](CODE_GUIDE.md) to match the delivered layout.
+Rename the existing GitHub repository to `NewPat-Desktop` following the [repository migration procedure](CI_CD.md#preparing-the-github-repository-rename). Use NewPat consistently throughout the maintained project, including package names, imports, command names, configuration keys, environment variables, runtime paths, installers, tests and build workflows. Reorganize directories by responsibility and give them descriptive English names so a reader can locate the desktop interface, experiment management, scientific input preparation and analysis code directly. Update the [code guide](CODE_GUIDE.md) to match the delivered layout.
 
 Before release, search tracked file names, directory names and text case-insensitively for the former product name (NIPAT). Repeat the check on the installed file tree and generated package metadata. Resolve every occurrence in maintained code and delivery files. Verify a clean install and an upgrade from 0.9.10, including reopening an existing experiment and running an analysis, on each supported platform.
