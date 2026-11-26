@@ -37,7 +37,7 @@ NewPat already passes a caller’s count tables to independently selected analys
 | Expose the analysis | `src/nipat/execution/analysis_plan.py`, `runner.py`, `cli.py`, `analysis_forms.py`, and `src/nipat/gui/` | Add the explicit branch selection, forms, labels, summary and original file access. The client checks the module interface against the installed engine. |
 | Qualify the integrated path | `tests/fixtures/`, `scripts/verify_five_modules.py` and `scripts/verify_five_module_workflow.py` are examples | Compare native R output and integrated output for supported inputs, empty/uninformative cases and invalid inputs. Check sample identities and compare the archived results after reopening the desktop. |
 
-For example, the postnatal CPI adapter accepts explicit trios while Contamination works per sample. Fetal sex uses three region-specific count tables from the same maternal sample.
+For example, the postnatal CPI adapter accepts explicit trios while Contamination works per sample. The fetal sex adapter accepts maternal DNP counts for autosomes and X in one file or two. It passes separate regional counts and the Y SNP table to the original R program.
 
 ## Workflow execution
 
@@ -59,7 +59,7 @@ The WSL transport runs with UID/GID 0 inside its dedicated environment. The Wind
 
 ## Client and engine contract
 
-A single-analysis JSON request uses schema version 1 and one of `dnp-call-v1`, `snp-call-v2`, `contamination-v2`, `cpi-v4`, `cpin-v2` and `fetal-sex-v1`. The SNP interface identifies SNPcall 2.0 and its 17-column output. Plans use their own schema version 1 and `workflow-plan-execution-v2`. Requests describe container paths, scientific parameters and destinations. The runner resolves the image to an immutable ID and checks that its description supports the required interface and modules. The engine validates the input files again before invoking R. `doctor --runtime` checks all six module contracts and `scientific-settings-v1` against the image.
+A single-analysis JSON request uses schema version 1 and one of `dnp-call-v1`, `snp-call-v2`, `contamination-v2`, `cpi-v4`, `cpin-v2` and `fetal-sex-v3`. The SNP interface identifies SNPcall 2.0 and its 17-column output. Plans use their own schema version 1 and `workflow-plan-execution-v2`. Requests describe container paths, scientific parameters and destinations. The runner resolves the image to an immutable ID and checks that its description supports the required interface and modules. The engine validates the input files again before invoking R. `doctor --runtime` checks all six module contracts and `scientific-settings-v1` against the image.
 
 Environment probes mount no user data. During analysis, `work/engine-compose.json` gives the container read-only binds for selected input files, read/write access to this run, a read-only image filesystem, dedicated temporary storage and disabled networking. This avoids copying large BAM and FASTA files and limits exposure of sibling files and other runs. Optional CPU, memory and PID limits are recorded. Effective resources and the requested execution mode constrain workers. The container PID limit also covers coordinating processes and threads.
 

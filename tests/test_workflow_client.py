@@ -432,6 +432,46 @@ class WorkflowClientTests(unittest.TestCase):
     def snp_panel(self):
         return self.write("SNP panel.tsv", b"pos\tref\talt\nchr1:100\tA\tC\n")
 
+    def maternal_calling_inputs(self):
+        other = self.write("Other.bam", b"other BAM")
+        return {"caller": "both", "analyses": [], "reference": self.reference,
+                "samples": [("Other", other), ("Mother", self.bam)],
+                "dnp_panel": self.write("sex-dnp.tsv", b"chr1 100 101 AA CC\nX 21 22 AG TT\n"),
+                "snp_panel": self.write("sex-snp.tsv", b"pos\tref\talt\nchr1:100\tA\tC\nchrY:21\tA\tG\n"),
+                "fetal_sex": ("Mother",)}
+
+    def test_fetal_sex_takes_same_maternal_bam_from_both_callers(self):
+        inputs = self.maternal_calling_inputs()
+        cli = build_parser().parse_args(["workflow", "analyze", "--caller", "both",
+                                         "--fetal-sex", "Mother"])
+        inputs["fetal_sex"] = cli.fetal_sex
+        run = self.workflows.analyze(**inputs, dnp_analyses=["contamination"])
+        plan = self.plan(run)
+        self.assertEqual([s["kind"] for s in plan["samples"]], ["bam", "bam"])
+        self.assertCountEqual([step["workflow"] for step in plan["steps"]],
+                              ["dnp-call", "snp-call", "snp-call", "contamination", "fetal-sex"])
+        self.assertEqual(plan["steps"][-1]["inputs"],
+                         {"dnp": {"step": "dnp", "output": "dnp-tables", "sample": "Mother"},
+                          "y": {"step": "snp_0002", "output": "snp-tables", "sample": "Mother"}})
+        record = self.runner.records[0][1]
+        self.assertEqual(record["parameters"]["fetal_sex"], {"sample_id": "Mother", "bam": str(self.bam)})
+        self.assertEqual(sum(m["host_path"] == str(self.bam) for m in record["mounts"].mappings), 1)
+        self.assertEqual(len(self.runner.calls), 1)
+
+    def test_fetal_sex_rejects_missing_callers_sample_and_regions_before_start(self):
+        inputs = self.maternal_calling_inputs()
+        for changes, message in (
+            ({"caller": "dnp"}, "DNPcall e SNPcall"),
+            ({"caller": "snp"}, "DNPcall e SNPcall"),
+            ({"fetal_sex": ("Absent",)}, "BAM selezionati"),
+            ({"dnp_panel": self.panel}, "autosomici e X"),
+            ({"dnp_panel": self.write("x-only.tsv", b"chrX 21 22 AA CC\n")}, "autosomici e X"),
+            ({"snp_panel": self.snp_panel()}, "marcatori Y"),
+        ):
+            with self.subTest(changes=changes), self.assertRaisesRegex(ValidationError, message):
+                self.workflows.analyze(**(inputs | changes))
+        self.assert_not_started()
+
     def test_optional_snp_steps_reuse_each_bam_once_without_changing_dnp_handoff(self):
         panel = self.snp_panel()
         second = self.write("other/sample.bam", b"second BAM\n")

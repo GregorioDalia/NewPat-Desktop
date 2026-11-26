@@ -34,13 +34,20 @@ The PowerShell execution policy option applies only to the process used for the 
 
 ## Expected results
 
-For a build with fetal sex and the revised prenatal CPI model, the suite schedules 68 runs (62 positive cases and 6 expected input rejections), 9 reproducibility comparisons and 7 initial/final checks. A complete passing environment reports **84 PASS, 0 FAIL, 0 BLOCKED, 0 INTERRUPTED**. Earlier builds with fetal sex retain the 66-run suite, and five-module installations retain the 64-run suite.
+The suite selects the cases supported by the installed client. Both configurations below include fetal sex, the revised prenatal CPI model, six expected input rejections, nine reproducibility comparisons and seven setup and integrity checks.
+
+| Installation | Scheduled runs | Expected passing checks in the report |
+| --- | ---: | ---: |
+| Stable 0.9.10 with separate autosomal DNP, X DNP and Y SNP tables | 68 | 84 |
+| Build that also accepts a single DNP table for autosomes and X | 70 | 86 |
+
+A complete pass has zero failed, blocked or interrupted checks. Earlier builds with fetal sex retain the 66-run suite, and five-module installations retain the 64-run suite.
 
 It verifies:
 
 - Installed application, runtime, settings and resource identity.
 - DNP, SNP, Contamination, prenatal CPI and postnatal CPI numerical outputs against independent expected values.
-- Fetal sex on the two published maternal cfDNA examples. The suite copies the three input tables for each case to the session and compares every cell of the summary and the three site tables with the published results.
+- Fetal sex on the two published maternal cfDNA examples. The suite runs the three-table input for both samples. When the installed client accepts combined DNP input, it repeats each case with autosomal and X counts in one table and the original Y table. Each run compares the summary and all three site tables byte for byte with the published results.
 - Prenatal read-count, percentage-only and combined filters, including empty curves. Postnatal scalar CPI and per-site reasons under genotype selection and trio coverage filters.
 - Workflows from three BAMs, SNP pileup and tables, including a combined plan with all six modules.
 - Sample IDs, family roles, parameters and artifacts actually produced.

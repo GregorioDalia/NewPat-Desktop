@@ -28,6 +28,47 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
  app.state.recentRuns=recent;app.render();
  check(app.state.boot.version==='0.9.0','Bootstrap uses actual version');check(element('main').innerHTML.includes('Famiglia α &lt;test&gt;'),'Archive name HTML escaped');check(app.state.draft.samples.length===0,'No embedded demonstration samples');
  for(const view of ['home','new','activity','archive','catalog','settings','environment','igv']){await app.navigate(view);check(element('main').innerHTML.length>300,'Render '+view)}
+ await app.action('new-experiment',{});
+ app.state.draft.name='Maternal';
+ app.onValue({type:'select-one',value:'fetal-sex',dataset:{field:'source'}});
+ const fetal=()=>app.state.draft.fetal_sex;
+ check(Object.hasOwn(fetal(),'dnp')&&app.renderNew().includes('data-key="fetal.dnp"')&&!app.renderNew().includes('data-key="fetal.x"'),'A new maternal sample presents one DNP and one Y SNP picker');
+ app.onValue({value:'Mother',dataset:{fetalId:'true'}});
+ for(const role of ['dnp','y']){
+  dialogPaths=['/counts/'+role+'.txt'];await app.action('choose-path',{key:'fetal.'+role,filter:'table'});
+ }
+ await app.action('step',{index:1});
+ check(app.state.step===1&&app.submittedDraft().fetal_sex.dnp==='/counts/dnp.txt','Two maternal tables pass step validation and survive submission');
+ await app.action('step',{index:0});
+ app.onValue({type:'select-one',value:'separate',dataset:{fetalLayout:'true'}});
+ check(fetal().id==='Mother'&&fetal().y==='/counts/y.txt'&&!Object.hasOwn(fetal(),'dnp')&&app.renderNew().includes('data-key="fetal.autosomes"')&&app.renderNew().includes('data-key="fetal.x"'),'Switching to separate files preserves the sample and Y, requiring both DNP files');
+ await app.action('step',{index:1});
+ check(app.state.step===0&&app.state.error,'The separate DNP mode refuses to advance with empty DNP inputs');
+ app.onValue({type:'select-one',value:'combined',dataset:{fetalLayout:'true'}});
+ check(fetal().y==='/counts/y.txt'&&!Object.hasOwn(fetal(),'x')&&!Object.hasOwn(fetal(),'autosomes'),'Switching back keeps Y and removes the unused split-table roles');
+ await app.action('new-experiment',{});
+ app.state.draft.name='Maternal BAM';
+ const chooseSex=(checked)=>app.onValue({type:'checkbox',checked,dataset:{fetalOption:'true'}});
+ app.state.draft.samples=[{id:'Plasma',kind:'bam',path:'/mother.bam'}];
+ await app.action('step',{index:1});chooseSex(true);
+ check(fetal().source==='bam'&&fetal().id==='Plasma'&&app.state.draft.caller==='both','Selecting fetal sex with one BAM wires both callers to the maternal BAM');
+ check(!app.renderNew().includes('data-key="fetal.y"')&&app.renderNew().includes('fetal-maternal-bam')&&app.renderNew().includes('data-key="resource.SNP.panel"'),'BAM mode presents the maternal input and panel controls without count table uploads');
+ await app.action('step',{index:2});check(app.state.step===1&&app.state.error,'Missing panels block the BAM route');
+ app.state.draft.resources={DNP:{panel:'/autosomes-x.tsv'},SNP:{panel:'/Y.tsv'}};
+ await app.action('step',{index:2});check(app.state.step===2&&app.submittedDraft().samples.length===1,'A configured BAM route advances without imported tables');
+ await app.action('step',{index:0});chooseSex(false);
+ app.state.draft.samples.push({id:'Father',kind:'bam',path:'/father.bam'});
+ await app.action('step',{index:1});chooseSex(true);
+ check(!fetal().id,'Two BAMs require an explicit maternal assignment');
+ await app.action('step',{index:2});check(app.state.step===1&&app.state.error,'Missing maternal assignment blocks the BAM route');
+ app.onValue({value:'Plasma',dataset:{fetalId:'true'}});
+ app.onValue({value:'Maternal',dataset:{sample:'0'}});
+ check(fetal().id==='Maternal','Renaming the selected BAM preserves the maternal assignment');
+ await app.action('remove-sample',{index:0});
+ check(!fetal().id,'Removing the selected BAM never assigns a different sample as maternal');
+ app.onValue({value:'tables',dataset:{fetalSource:'true'}});
+ check(Object.hasOwn(fetal(),'dnp')&&app.renderNew().includes('data-key="fetal.y"'),'Mixed experiments can explicitly use imported maternal tables');
+ await app.action('new-experiment',{});
  const pickBuild=(scope,value)=>app.onValue({dataset:{referenceBuild:scope},type:'select-one',value});
  const pickEntry=(scope,value)=>app.onValue({dataset:{referenceEntry:scope},type:'select-one',value});
  const reference=(build,label)=>({id:build+'-'+label,build,label,fasta:'/ref/'+label+'.fa',index:'/ref/'+label+'.fa.fai',index_sha256:'a'.repeat(64),naming:'chr',available:true});

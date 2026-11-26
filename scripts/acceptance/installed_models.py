@@ -115,13 +115,30 @@ def check_fetal_sex(run, fixture, sample):
     return {"sample": summary["Sample"], "fetal_sex": summary["Fetal_sex"], "output_sha256": hashes}
 
 
-def fetal_sex_cases(fixture):
+def combined_fetal_dnp(autosomes, x, directory):
+    # Retain the autosomal basename so the R summary keeps the reference sample ID.
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / autosomes.name
+    with autosomes.open("rb") as auto, x.open("rb") as chromosome_x, path.open("xb") as output:
+        header = auto.readline()
+        require(header == chromosome_x.readline(), "Reference DNP column headers differ")
+        output.write(header)
+        shutil.copyfileobj(auto, output)
+        shutil.copyfileobj(chromosome_x, output)
+    return path
+
+
+def fetal_sex_cases(fixture, combined_dir=None):
     cases = []
     for sample in FETAL_SEX_EXAMPLES:
         autosomes, x, y = fetal_sex_inputs(fixture, sample)
-        cases.append({"id": "fetal-sex-" + sample.lower().replace("_", "-"), "category": "model", "mode": "auto",
-                      "args": ["fetal-sex", "--autosomes", autosomes, "--x", x, "--y", y],
-                      "validate": partial(check_fetal_sex, fixture=fixture, sample=sample)})
+        case = {"id": "fetal-sex-" + sample.lower().replace("_", "-"), "category": "model", "mode": "auto",
+                "validate": partial(check_fetal_sex, fixture=fixture, sample=sample)}
+        cases.append({**case, "args": ["fetal-sex", "--autosomes", autosomes, "--x", x, "--y", y]})
+        if combined_dir is not None:
+            combined = combined_fetal_dnp(autosomes, x, combined_dir)
+            cases.append({**case, "id": case["id"] + "-combined",
+                          "args": ["fetal-sex", "--dnp", combined, "--y", y]})
     return cases
 
 

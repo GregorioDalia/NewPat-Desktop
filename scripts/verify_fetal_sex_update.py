@@ -9,7 +9,7 @@ import tempfile
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from acceptance.installed_models import (FETAL_SEX_EXAMPLES, check_fetal_sex,
-                                        copy_fetal_sex_fixtures, fetal_sex_inputs, tree_hashes)
+                                        combined_fetal_dnp, copy_fetal_sex_fixtures, fetal_sex_inputs, tree_hashes)
 from nipat.errors import NipatError
 from nipat.execution.runner import DockerComposeRunner
 from nipat.execution.workflows import Workflows
@@ -19,7 +19,7 @@ from verify_contamination_update import check_bundled_run
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--run-name", help="optional prefix for the two new runs")
+    parser.add_argument("--run-name", help="optional prefix for the verification runs")
     args = parser.parse_args()
     layout = ProjectLayout.discover()
     try:
@@ -28,16 +28,23 @@ def main():
         layout.ensure_storage_dirs()
         client = Workflows(layout, DockerComposeRunner(layout))
         with tempfile.TemporaryDirectory(prefix="fetal-sex-self-test-", dir=layout.data_dir) as directory:
-            fixture = Path(directory)
-            hashes = copy_fetal_sex_fixtures(layout.project_dir / "tests/fixtures/fetal_sex", fixture)
+            fixture = Path(directory) / "reference"
+            combined_dir = Path(directory) / "combined"
+            copy_fetal_sex_fixtures(layout.project_dir / "tests/fixtures/fetal_sex", fixture)
+            cases = []
             for sample in FETAL_SEX_EXAMPLES:
                 autosomes, x, y = fetal_sex_inputs(fixture, sample)
-                run_name = f"{args.run_name}-{sample}" if args.run_name else None
-                run = client.fetal_sex(autosomes=autosomes, x=x, y=y, run_name=run_name)
-                check_bundled_run(run, layout, workflow="fetal-sex")
-                result = check_fetal_sex(run, fixture, sample)
-                print(f"{sample}: {result['fetal_sex']} (four matching tables), {run}", flush=True)
-            if tree_hashes(fixture) != hashes:
+                combined = combined_fetal_dnp(autosomes, x, combined_dir)
+                cases.append((sample, autosomes, x, y, combined))
+            hashes = tree_hashes(Path(directory))
+            for sample, autosomes, x, y, combined in cases:
+                for label, inputs in (("split", {"autosomes": autosomes, "x": x}), ("combined", {"dnp": combined})):
+                    run_name = f"{args.run_name}-{sample}-{label}" if args.run_name else None
+                    run = client.fetal_sex(**inputs, y=y, run_name=run_name)
+                    check_bundled_run(run, layout, workflow="fetal-sex")
+                    result = check_fetal_sex(run, fixture, sample)
+                    print(f"{sample} ({label}): {result['fetal_sex']} (four matching tables), {run}", flush=True)
+            if tree_hashes(Path(directory)) != hashes:
                 raise ValueError("Fetal-sex inputs or reference outputs changed during execution.")
     except (NipatError, ValueError, OSError) as exc:
         print(f"Fetal-sex verification failed: {exc}", file=sys.stderr)

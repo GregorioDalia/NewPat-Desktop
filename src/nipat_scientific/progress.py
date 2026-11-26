@@ -162,8 +162,9 @@ def request_sample_ids(request):
         return [key for key in presentation["samples"] if _text(key)]
     if request.get("workflow") == "snp-call":
         return ["sample_0001"]
-    if request.get("workflow") == "fetal-sex" and isinstance(request.get("autosomes"), str):
-        return [Path(request["autosomes"]).stem]
+    if request.get("workflow") == "fetal-sex":
+        source = request.get("dnp", request.get("autosomes"))
+        return [Path(source).stem] if isinstance(source, str) else []
     samples = request.get("samples")
     if not isinstance(samples, list):
         return []
@@ -181,7 +182,7 @@ def request_sample_ids(request):
 def step_sample_ids(step):
     inputs = step["inputs"]
     if step["workflow"] == "fetal-sex":
-        return [inputs[role] for role in ("autosomes", "x", "y")]
+        return list(dict.fromkeys(ref["sample"] if isinstance(ref, dict) else ref for ref in inputs.values()))
     result = []
     if "sample" in inputs:
         result.append(inputs["sample"])
