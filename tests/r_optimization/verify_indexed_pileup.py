@@ -185,6 +185,25 @@ def overlap_count(records: list[dict]) -> int:
     return peak
 
 
+def retain_distinct_pileups(root: Path, cases: list[dict]) -> None:
+    """Keep one verified raw output per digest and record its path for every comparison."""
+    retained = {}
+    for case in cases:
+        digest = case.get("pileup_sha256")
+        if digest is None:
+            continue
+        output = root / case["case"] / "pileup.txt"
+        data = output.read_bytes()
+        if len(data) != case["size_bytes"] or hashlib.sha256(data).hexdigest() != digest:
+            raise ValueError(f"Qualified pileup changed before archival: {case['case']}")
+        first = retained.setdefault(digest, output)
+        if first != output:
+            if first.read_bytes() != data:
+                raise ValueError(f"Retained pileup differs from comparison: {case['case']}")
+            output.unlink()
+        case["pileup_file"] = first.relative_to(root).as_posix()
+
+
 def audit(project: Path, root: Path, samtools: str) -> dict:
     resolved = shutil.which(samtools)
     if resolved is None:
@@ -462,9 +481,10 @@ def audit(project: Path, root: Path, samtools: str) -> dict:
     if hashlib.sha256(helper.read_bytes()).hexdigest() != helper_sha256:
         raise AssertionError("The acquisition helper changed during qualification")
     version = execute([samtools, "--version"]).splitlines()[0].decode("ascii")
+    retain_distinct_pileups(root, scenarios)
     return {"schema_version": 1, "status": "passed", "samtools_version": version,
             "helper_sha256": helper_sha256, "exact_alignment_stream": True,
-            "scientific_options": "unchanged samtools mpileup defaults; BAQ and depth limit preserved",
+            "scientific_options": "Default BAQ, maximum depth 2147483647 and explicit 8000-read limit",
             "coverage": ["overlapping BED intervals", "unsorted panel", "nonlexical contigs", "read crossing disjoint windows",
                          "repeated QNAME", "insertions and deletions", "overlapping paired reads", "filtered flags", "depth above 8000",
                          "one/two/four-process budgets", "actual samtools overlap", "parallel repeated run",

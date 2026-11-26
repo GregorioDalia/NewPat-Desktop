@@ -10,6 +10,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from r_optimization.verify_indexed_pileup import retain_distinct_pileups
+
 
 PROJECT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("verify_r_equivalence", PROJECT / "scripts/verify_r_equivalence.py")
@@ -366,6 +368,29 @@ class REquivalenceTests(unittest.TestCase):
             self.assertEqual(reference["NIPAT_EQ_KEEP_PILEUP"], "1")
             self.assertEqual(candidate["NIPAT_DNP_KEEP_PILEUP"], "1")
             self.assertEqual(candidate["NIPAT_DNP_BLOCK_LOCI"], dict(case.candidate_environment)["NIPAT_DNP_BLOCK_LOCI"])
+
+    def test_archive_links_each_case_to_its_verified_pileup(self):
+        cases = []
+        for name, reads in (("serial", "A"), ("parallel", "A"), ("capped", "G")):
+            output = self.file(f"{name}/pileup.txt", reads)
+            cases.append({"case": name, "pileup_sha256": verification.digest(output),
+                          "size_bytes": output.stat().st_size})
+        cases.append({"case": "cancelled"})
+        retain_distinct_pileups(self.root, cases)
+        self.assertEqual([case.get("pileup_file") for case in cases],
+                         ["serial/pileup.txt", "serial/pileup.txt", "capped/pileup.txt", None])
+        self.assertEqual(len(list(self.root.rglob("pileup.txt"))), 2)
+        for case in cases[:3]:
+            self.assertEqual(verification.digest(self.root / case["pileup_file"]), case["pileup_sha256"])
+
+    def test_changed_output_cannot_be_archived_as_a_duplicate(self):
+        first = self.file("first/pileup.txt", "A")
+        changed = self.file("second/pileup.txt", "G")
+        cases = [{"case": name, "pileup_sha256": verification.digest(first), "size_bytes": 1}
+                 for name in ("first", "second")]
+        with self.assertRaisesRegex(ValueError, "changed before archival"):
+            retain_distinct_pileups(self.root, cases)
+        self.assertEqual(changed.read_bytes(), b"G")
 
     def test_indexed_pileup_requires_exact_nonempty_bytes(self):
         reference = self.file("reference/mpileup.txt", "1\t60\tA\t1\t.\tI\tshared\n")
