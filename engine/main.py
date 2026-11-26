@@ -36,7 +36,7 @@ PREPARATION_FILES = (
 CATALOG_FILES = tuple(f"catalog_data/{workflow}.json" for workflow in SCRIPT_PATHS)
 WORKFLOW_INTERFACES = {
     "contamination": "contamination-v2", "snp-call": "snp-call-v2", "dnp-call": "dnp-call-v1",
-    "cpi": "cpi-v4", "cpin": "cpin-v2", "fetal-sex": "fetal-sex-v1",
+    "cpi": "cpi-v4", "cpin": "cpin-v2", "fetal-sex": "fetal-sex-v2",
 }
 
 

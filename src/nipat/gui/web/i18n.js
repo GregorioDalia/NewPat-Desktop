@@ -2,10 +2,14 @@
 window.NipatI18n = (() => {
 const strings = {
  fetalSex:['Sesso fetale','Fetal sex'],
- fetalTablesSource:['Sesso fetale da tre tabelle di conteggi','Fetal sex from three count tables'],
- fetalTablesHelp:['Scegli tre tabelle dello stesso campione di cfDNA materno. Per X e Y usa marcatori già validati per la loro specificità.','Choose three tables from the same maternal cfDNA sample. Use X and Y markers previously validated for specificity.'],
- fetalInputsRequired:['Indica il nome del campione materno e seleziona tutte e tre le tabelle.','Enter the maternal sample name and select all three tables.'],
+ fetalTablesSource:['Sesso fetale da tabelle di conteggi','Fetal sex from count tables'],
+ fetalTablesHelp:['Scegli le tabelle dello stesso campione di cfDNA materno. Per X e Y usa marcatori già validati per la loro specificità.','Choose tables from the same maternal cfDNA sample. Use X and Y markers previously validated for specificity.'],
+ fetalInputsRequired:['Indica il nome del campione materno e seleziona le tabelle richieste.','Enter the maternal sample name and select the required tables.'],
  maternalSampleId:['Nome del campione di cfDNA materno','Maternal cfDNA sample name'],
+ dnpTableLayout:['Come sono salvati i conteggi DNP?','How are the DNP counts stored?'],
+ oneDnpTable:['Un file per autosomi e X','One file for autosomes and X'],
+ twoDnpTables:['Due file separati per autosomi e X','Separate files for autosomes and X'],
+ combinedDnp:['Conteggi DNP di autosomi e cromosoma X','Autosomal and chromosome X DNP counts'],
  autosomalDnp:['Conteggi DNP autosomici','Autosomal DNP counts'],
  xDnp:['Conteggi DNP del cromosoma X','Chromosome X DNP counts'],
  ySnp:['Conteggi SNP del cromosoma Y','Chromosome Y SNP counts'],

@@ -804,12 +804,13 @@ class Workflows:
                 working_dir=self.layout.container_path(run_dir / "work"))
         return run_dir
 
-    def fetal_sex(self, *, autosomes: Path, x: Path, y: Path, run_name: str | None = None) -> Path:
-        """Analyze three region-specific calling tables from one maternal cfDNA sample."""
+    def fetal_sex(self, *, y: Path, autosomes: Path | None = None, x: Path | None = None,
+                  dnp: Path | None = None, run_name: str | None = None) -> Path:
+        """Analyze maternal DNP counts (combined or region-specific) and Y SNP counts."""
         from nipat.execution.analysis_plan import bind_fetal_sex_tables, fetal_sex_metadata
 
         mounts = InputMounts(self.layout)
-        mapping = bind_fetal_sex_tables(mounts, autosomes, x, y)
+        mapping = bind_fetal_sex_tables(mounts, autosomes=autosomes, x=x, y=y, dnp=dnp)
         run_dir = self.layout.new_run_dir("fetal-sex", run_name)
         with self._record_run(run_dir, workflow="fetal-sex", bundled_workflow="fetal-sex", mounts=mounts,
                               inputs=[Path(item["original_path"]) for item in mapping],

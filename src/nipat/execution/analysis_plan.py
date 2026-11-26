@@ -61,19 +61,20 @@ def validate_families(entries, roles: tuple[str, ...], branch_samples: Collectio
             assignments[member] = role
 
 
-def bind_fetal_sex_tables(mounts: InputMounts, autosomes, x, y, *, sample_id=None):
-    """Keep all three roles and the original basenames in one maternal sample record."""
+def bind_fetal_sex_tables(mounts: InputMounts, autosomes=None, x=None, y=None, *, dnp=None, sample_id=None):
+    """Bind the original count tables and retain one maternal sample identity."""
     from nipat_scientific.fetal_sex import validate_inputs
 
-    tables = {role: require_file(Path(path), f"Tabella cfDNA {role}")
-              for role, path in (("autosomes", autosomes), ("x", x), ("y", y))}
+    paths = {"autosomes": autosomes, "x": x, "dnp": dnp, "y": y}
+    tables = {role: Path(path).expanduser().resolve() for role, path in paths.items() if path is not None}
     validate_inputs(**tables)
+    biological_id = sample_id or tables["dnp" if dnp is not None else "autosomes"].stem
+    prefixes = {"autosomes": "fsa", "x": "fsx", "dnp": "fsd", "y": "fsy"}
     mapping = []
-    for role, prefix in (("autosomes", "fsa"), ("x", "fsx"), ("y", "fsy")):
-        source = tables[role]
+    for role, source in tables.items():
         target = mounts.bind_file(source, target=INPUT_ROOT / "fetal-sex" / role / source.name)
-        mapping.append({"sample_id": f"{prefix}_{sample_id or 'maternal'}",
-                        "biological_id": sample_id or tables["autosomes"].stem,
+        mapping.append({"sample_id": f"{prefixes[role]}_{sample_id or 'maternal'}",
+                        "biological_id": biological_id,
                         "fetal_sex_role": role, "original_path": str(source),
                         "container_path": str(target)})
     return mapping
@@ -125,10 +126,12 @@ def build_analysis_plan(*, layout, caller: str, analyses: list[str],
     mounts = InputMounts(layout)
     sex_tables = []
     if fetal_sex is not None:
-        if (not isinstance(fetal_sex, (tuple, list)) or len(fetal_sex) != 4
+        if (not isinstance(fetal_sex, (tuple, list)) or len(fetal_sex) not in (3, 4)
                 or not isinstance(fetal_sex[0], str) or not _ID.fullmatch(fetal_sex[0])):
-            raise ValidationError("Indicare un ID campione valido e le tre tabelle cfDNA: autosomi, X e Y.")
-        sex_tables = bind_fetal_sex_tables(mounts, *fetal_sex[1:], sample_id=fetal_sex[0])
+            raise ValidationError("Indicare un ID campione valido seguito dalle tabelle DNP e Y, oppure autosomi, X e Y.")
+        roles = ("dnp", "y") if len(fetal_sex) == 3 else ("autosomes", "x", "y")
+        sex_tables = bind_fetal_sex_tables(mounts, sample_id=fetal_sex[0],
+                                          **dict(zip(roles, fetal_sex[1:], strict=True)))
     input_files, mapping, plan_samples, steps = [], [], [], []
     references = {"DNP": {}, "SNP": {}}
     physical_samples = {}

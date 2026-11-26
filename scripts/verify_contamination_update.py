@@ -114,7 +114,7 @@ def check_bundled_run(run_dir: Path, layout: ProjectLayout, *, workflow: str = "
     runtime = record["runtime"]
     engine = runtime.get("engine", {})
     interfaces = {"dnp-call": "dnp-call-v1", "snp-call": "snp-call-v2",
-                  "contamination": "contamination-v2", "cpi": "cpi-v4", "cpin": "cpin-v2", "fetal-sex": "fetal-sex-v1"}
+                  "contamination": "contamination-v2", "cpi": "cpi-v4", "cpin": "cpin-v2", "fetal-sex": "fetal-sex-v2"}
     if (record["status"] != "succeeded" or record["source"].get("role") != "client"
             or record.get("workflow") != workflow
             or engine.get("workflow_interfaces", {}) != interfaces

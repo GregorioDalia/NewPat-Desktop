@@ -23,6 +23,16 @@ def example(sample):
             for key, suffix in (("autosomes", "autosomes"), ("x", "X"), ("y", "Y"))}
 
 
+def combined_example(sample, root):
+    inputs = example(sample)
+    autosomes = Path(inputs["autosomes"])
+    header, *a_rows = autosomes.read_text(encoding="utf-8").splitlines()
+    _, *x_rows = Path(inputs["x"]).read_text(encoding="utf-8").splitlines()
+    path = root / autosomes.name
+    path.write_text("\n".join([header, *x_rows[:1], *a_rows, *x_rows[1:]]) + "\n", encoding="utf-8")
+    return {"dnp": str(path), "y": inputs["y"]}
+
+
 class NativeFetalSex(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -71,13 +81,43 @@ class NativeFetalSex(unittest.TestCase):
                     self.assertEqual(actual.read_text(encoding="utf-8"), source.read_text(encoding="utf-8"),
                                      source.name)
 
-    def test_shared_autosomal_table_feeds_contamination_and_fetal_sex(self):
-        inputs = example("Female_fetus")
+    def test_combined_dnp_matches_all_four_reference_tables_and_indeterminate_case(self):
+        for sample in ("Female_fetus", "Male_fetus"):
+            with self.subTest(sample=sample):
+                combined = combined_example(sample, self.root)
+                run = self.root / (sample + "-combined")
+                result = execute_workflow("fetal-sex", run, **combined)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                for source in (FIXTURE / "outputs" / sample).glob("*.txt"):
+                    self.assertEqual((run / "output" / source.name).read_text(encoding="utf-8"),
+                                     source.read_text(encoding="utf-8"), source.name)
+        settings = {"a_threshold": 0.125}
+        for name, inputs in (("split", example("Male_fetus")), ("combined", combined_example("Male_fetus", self.root))):
+            run = self.root / name
+            result = execute_workflow("fetal-sex", run, **inputs, scientific_settings=settings)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        baseline = self.root / "split/output"
+        with (baseline / "Fetal_sex_summary.txt").open() as stream:
+            row, = csv.DictReader(stream, delimiter="\t")
+        self.assertEqual(row["Fetal_sex"], "Undetermined")
+        for source in baseline.glob("*.txt"):
+            self.assertEqual((self.root / "combined/output" / source.name).read_bytes(), source.read_bytes())
+
+    def test_shared_maternal_dnp_feeds_contamination_and_fetal_sex(self):
+        for layout in ("split", "combined"):
+            with self.subTest(layout=layout):
+                self.check_shared_maternal_dnp(layout)
+
+    def check_shared_maternal_dnp(self, layout):
+        inputs = (combined_example("Female_fetus", self.root) if layout == "combined"
+                  else example("Female_fetus"))
         maternal = "dnp_Maternal"
         panel = self.root / "panel.tsv"
         panel.write_text("chr\tpos1\tpos2\nchr1\t3010000\t3010001\nchr1\t3020000\t3020001\n",
                          encoding="utf-8")
         role_ids = {"autosomes": maternal, "x": "fsx_Maternal", "y": "fsy_Maternal"}
+        if layout == "combined":
+            role_ids = {"dnp": maternal, "y": "fsy_Maternal"}
         plan = {"schema_version": 1,
                 "samples": [{"id": identifier, "kind": "snp-table" if role == "y" else "dnp-table",
                              "path": inputs[role]} for role, identifier in role_ids.items()],
@@ -86,7 +126,7 @@ class NativeFetalSex(unittest.TestCase):
                           {"id": "sex", "workflow": "fetal-sex", "inputs": role_ids, "parameters": {}}]}
         manifest = self.root / "plan.json"
         manifest.write_text(json.dumps(plan), encoding="utf-8")
-        run = self.root / "combined"
+        run = self.root / layout
         result = subprocess.run(
             [sys.executable, str(PAYLOAD / "engine/main.py"), "execute-plan",
              "--plan", str(manifest), "--run-dir", str(run)],

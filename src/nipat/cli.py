@@ -158,8 +158,9 @@ def build_parser() -> argparse.ArgumentParser:
         analyze.add_argument(f"--{marker}-cpi-cutoff", nargs=2, action="append", metavar=("LABEL", "PATH"),
                              help="cutoff CPI etichettato; ripetibile; se omesso usa ALL")
         analyze.add_argument(f"--{marker}-cpin-panel", type=_path, help="pannello CPI postnatale con coordinate e alleli REF/ALT; se omesso usa tutti i siti")
-    analyze.add_argument("--fetal-sex", nargs=4, metavar=("SAMPLE_ID", "AUTOSOMES", "X", "Y"),
-                         help="ID del campione cfDNA materno e le sue tre tabelle DNP autosomi, DNP X e SNP Y")
+    analyze.add_argument("--fetal-sex", nargs="+", metavar="ARG",
+                         help="ID del campione cfDNA materno seguito da DNP Y (autosomi e X insieme) "
+                              "oppure AUTOSOMES X Y (tre tabelle)")
     analyze.add_argument("--run-name")
     dnp_contamination = workflow_presets.add_parser(
         "dnp-contamination",
@@ -278,9 +279,11 @@ def build_parser() -> argparse.ArgumentParser:
     cpin.add_argument("--popfreq", type=_path, required=True)
     cpin.add_argument("--panel", type=_path, help="pannello con coordinate SNP/DNP e REF/ALT; se omesso usa tutti i siti")
     cpin.add_argument("--run-name")
-    sex = subparsers.add_parser("fetal-sex", help="stima del sesso fetale da tre tabelle dello stesso campione di cfDNA materno")
-    sex.add_argument("--autosomes", type=_path, required=True, help="conteggi DNP autosomici")
-    sex.add_argument("--x", "--X", type=_path, required=True, help="conteggi DNP del cromosoma X")
+    sex = subparsers.add_parser("fetal-sex", help="stima del sesso fetale da due o tre tabelle dello stesso cfDNA materno")
+    dnp_layout = sex.add_mutually_exclusive_group(required=True)
+    dnp_layout.add_argument("--dnp", type=_path, help="unica tabella DNP con autosomi e cromosoma X")
+    dnp_layout.add_argument("--autosomes", type=_path, help="conteggi DNP autosomici, da usare con --x")
+    sex.add_argument("--x", "--X", type=_path, help="conteggi DNP del cromosoma X, da usare con --autosomes")
     sex.add_argument("--y", "--Y", type=_path, required=True, help="conteggi SNP del cromosoma Y")
     sex.add_argument("--run-name")
     return parser
@@ -548,7 +551,8 @@ def main(argv: list[str] | None = None) -> int:
             )
             print(f"{completion_label}: {run_dir}")
         elif args.command == "fetal-sex":
-            run_dir = workflows.fetal_sex(autosomes=args.autosomes, x=args.x, y=args.y, run_name=args.run_name)
+            run_dir = workflows.fetal_sex(autosomes=args.autosomes, x=args.x, y=args.y,
+                                          dnp=args.dnp, run_name=args.run_name)
             print(f"{completion_label}: {run_dir}")
         elif args.command == "cpin":
             run_dir = workflows.cpin(input_dir=args.input_dir, trios=args.trios,

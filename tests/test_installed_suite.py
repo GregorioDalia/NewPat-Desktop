@@ -234,6 +234,15 @@ class InstalledSuiteTests(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, re.escape(name)):
                         case["validate"](run)
                     shutil.copyfile(fixture / "outputs" / sample / name, output)
+        both_formats = models.fetal_sex_cases(fixture, self.driver.generated / "fetal-sex")
+        self.assertEqual(len(both_formats), 4)
+        for case, sample, original in zip(both_formats[1::2], models.FETAL_SEX_EXAMPLES, cases, strict=True):
+            autosomes, x, y = models.fetal_sex_inputs(fixture, sample)
+            merged = case["args"][2]
+            self.assertEqual(case["args"], ["fetal-sex", "--dnp", merged, "--y", y])
+            self.assertEqual(merged.name, autosomes.name)
+            self.assertEqual(merged.read_bytes(), autosomes.read_bytes() + x.read_bytes().partition(b"\n")[2])
+            self.assertEqual(case["validate"](self.driver.runs / sample), original["validate"](self.driver.runs / sample))
         metadata = {"combined": self.root, "positive": self.root,
                     "bams": [self.root / f"sample{i}.bam" for i in range(3)],
                     "pileups": [self.root / f"sample{i}.pileup" for i in range(3)]}

@@ -60,6 +60,17 @@ class WizardGuidanceTests(unittest.TestCase):
         form.collect()
         return form, ui
 
+    def test_fetal_sex_offers_combined_or_separate_dnp_tables(self):
+        dnp, x, y = [self.file(name, "") for name in ("dnp.tsv", "x.tsv", "y.tsv")]
+        for mode, paths, expected in (
+            ("", [dnp, y], {"dnp": dnp, "y": y}),
+            ("3", [dnp, x, y], {"autosomes": dnp, "x": x, "y": y}),
+        ):
+            with self.subTest(mode=mode):
+                form, ui = self.collect("f", [mode, *paths, ""])
+                self.assertEqual(form.arguments(), {"run_name": None, **expected})
+                self.assert_no_errors(ui)
+
     def assert_no_errors(self, ui):
         self.assertEqual([text for kind, text in ui.events if kind == "error"], [])
 

@@ -11,6 +11,7 @@ import csv
 from datetime import datetime, timezone
 import hashlib
 import html
+import inspect
 import io
 import json
 import os
@@ -505,7 +506,10 @@ class Suite:
                 fetal_sex = self.fixtures / "fetal_sex"
                 hashes = installed_models.copy_fetal_sex_fixtures(self.app / "tests/fixtures/fetal_sex", fetal_sex)
                 self.report["fixture_sha256"].update({"fetal_sex/" + name: value for name, value in hashes.items()})
-                self.cases.extend(installed_models.fetal_sex_cases(fetal_sex))
+                from nipat.execution.workflows import Workflows
+                self.report["combined_fetal_dnp"] = "dnp" in inspect.signature(Workflows.fetal_sex).parameters
+                combined_dir = self.generated / "fetal-sex" if self.report["combined_fetal_dnp"] else None
+                self.cases.extend(installed_models.fetal_sex_cases(fetal_sex, combined_dir))
             try:
                 metadata = installed_workflows.prepare_inputs(self.fixtures, self.generated, self.samtools)
                 self.cases.extend(installed_workflows.build_cases(self.fixtures, self.generated, metadata, fetal_sex=fetal_sex))

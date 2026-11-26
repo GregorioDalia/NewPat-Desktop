@@ -15,6 +15,7 @@ import re
 import unicodedata
 
 from nipat_scientific.errors import ValidationError
+from nipat_scientific.fetal_sex import input_roles as fetal_sex_roles
 from nipat_scientific.presentation import normalize_presentation
 
 
@@ -240,12 +241,13 @@ def validate_plan(document: object) -> dict:
                         "panel": _path(inputs["panel"], f"{identifier} panel")}
             values = {"mode": mode}
         elif workflow == "fetal-sex":
-            _object(inputs, {"autosomes", "x", "y"}, identifier)
+            roles = fetal_sex_roles(inputs)
+            _object(inputs, set(roles), identifier)
             _object(parameters, set(), f"{identifier} parameters")
             if marker_type is not None:
                 _fail("plan.marker_type", "Fetal sex requires both DNP and SNP tables.")
-            selected = {role: _sample(inputs[role], samples, kind, identifier)
-                        for role, kind in (("autosomes", "dnp-table"), ("x", "dnp-table"), ("y", "snp-table"))}
+            selected = {role: _sample(inputs[role], samples, "snp-table" if role == "y" else "dnp-table",
+                                      identifier) for role in roles}
             _unique(list(selected.values()), f"{identifier} region tables")
         elif workflow == "contamination":
             _object(inputs, {"samples", "panel"}, identifier)

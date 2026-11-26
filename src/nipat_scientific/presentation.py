@@ -52,7 +52,8 @@ def validate_request_presentation(request: dict) -> dict | None:
         if workflow == "dnp-call":
             sample_ids = {sample["sample_id"] for sample in request["samples"]}
         elif workflow == "fetal-sex":
-            sample_ids = {"autosomes", "x", "y"}
+            from nipat_scientific.fetal_sex import input_roles
+            sample_ids = set(input_roles(request))
         elif workflow == "snp-call":
             sample_ids = {"sample_0001"}
         else:

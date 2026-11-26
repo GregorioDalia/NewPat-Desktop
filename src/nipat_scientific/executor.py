@@ -24,7 +24,7 @@ import time
 from nipat_scientific.contamination import prepare_contamination
 from nipat_scientific.cpi import prepare_cpi
 from nipat_scientific.cpin import prepare_cpin
-from nipat_scientific.fetal_sex import ROLES as FETAL_SEX_ROLES, prepare_fetal_sex, publish_outputs as publish_fetal_sex_outputs
+from nipat_scientific.fetal_sex import prepare_fetal_sex, publish_outputs as publish_fetal_sex_outputs
 from nipat_scientific.settings import normalize_settings, settings_context
 from nipat_scientific.dnp import prepare_dnp
 from nipat_scientific.errors import PlanExecutionError, ValidationError
@@ -353,7 +353,7 @@ def _execute_step(plan, step, record, root, scripts, samples, outputs, cancellat
                     ]
                     persist()
             elif step["workflow"] == "fetal-sex":
-                request.update({role: samples[step["inputs"][role]]["path"] for role in FETAL_SEX_ROLES})
+                request.update({role: samples[identifier]["path"] for role, identifier in step["inputs"].items()})
                 record["input_tables"] = step["inputs"].copy()
                 record_request()
                 native, cwd = prepare_fetal_sex(request), work

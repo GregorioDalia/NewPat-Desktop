@@ -859,7 +859,7 @@
               112,
               133
             ],
-            "sha256": "9b45ccfbc9c2d10a6d8983e34f7754a3cbfe1a0f1fcc98a1f38f80f8905eb601"
+            "sha256": "436bc335f476834e1a42fd0d9577e290109fba8544eeeae8b37561cfa96c3d90"
           },
           {
             "path": "src/nipat/execution/runner.py",
@@ -867,7 +867,7 @@
               205,
               230
             ],
-            "sha256": "9b45ccfbc9c2d10a6d8983e34f7754a3cbfe1a0f1fcc98a1f38f80f8905eb601"
+            "sha256": "436bc335f476834e1a42fd0d9577e290109fba8544eeeae8b37561cfa96c3d90"
           },
           {
             "path": "src/nipat/gui/jobs.py",
@@ -899,7 +899,7 @@
               451,
               592
             ],
-            "sha256": "b3229758cf1ebc9bf0173888d9934cdf13d2da3c8ec4d16c39887a8af4bf7b99"
+            "sha256": "11602848bc4a7c5b9c471fe78db9b0f2dae16a6eaed202643697e3d249d99e05"
           },
           {
             "path": "src/nipat/execution/runner.py",
@@ -907,7 +907,7 @@
               225,
               228
             ],
-            "sha256": "9b45ccfbc9c2d10a6d8983e34f7754a3cbfe1a0f1fcc98a1f38f80f8905eb601"
+            "sha256": "436bc335f476834e1a42fd0d9577e290109fba8544eeeae8b37561cfa96c3d90"
           }
         ]
       }

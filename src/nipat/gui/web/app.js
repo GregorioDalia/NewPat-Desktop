@@ -373,13 +373,16 @@ function renderHome(){
   <section class="panel"><div class="panel-header"><h2>${t('recent')}</h2>${button(t('allExperiments'),'navigate',{view:'archive'},'quiet','arrow')}</div>${runRows(state.recentRuns)}</section>
   <div class="grid two-columns section-gap">${tools.map(([view,description])=>`<button class="home-card" data-action="navigate" data-view="${view}"><span class="icon-box">${icon(view)}</span><span><strong>${t(view)}</strong><small>${esc(description)}</small></span>${icon('arrow')}</button>`).join('')}</div>`;
 }
-const fetalRoles=[['autosomes','autosomalDnp'],['x','xDnp'],['y','ySnp']];
-function emptyFetalSample(){return {id:'',autosomes:'',x:'',y:''}}
+function fetalRoles(sample){
+ return Object.hasOwn(sample,'dnp')?[['dnp','combinedDnp'],['y','ySnp']]:[['autosomes','autosomalDnp'],['x','xDnp'],['y','ySnp']];
+}
+function emptyFetalSample(){return {id:'',dnp:'',y:''}}
 function fetalTables(){
  const sample=state.draft.fetal_sex;
  return `<fieldset class="choice-fieldset"><legend>${t('fetalSex')}</legend><p class="help">${t('fetalTablesHelp')}</p>
   ${input(t('maternalSampleId'),'fetal-sample-id',sample.id,'data-fetal-id="true" maxlength="48"')}
-  <div class="form-row">${fetalRoles.map(([role,label])=>fileField(t(label),'fetal.'+role,sample[role],'table')).join('')}</div></fieldset>`;
+  ${select(t('dnpTableLayout'),'fetal-table-layout',[['combined',t('oneDnpTable')],['separate',t('twoDnpTables')]],Object.hasOwn(sample,'dnp')?'combined':'separate','data-fetal-layout="true"')}
+  <div class="form-row">${fetalRoles(sample).map(([role,label])=>fileField(t(label),'fetal.'+role,sample[role],'table')).join('')}</div></fieldset>`;
 }
 function fetalOption(){
  return `<label class="check-row section-gap"><input type="checkbox" data-fetal-option="true" ${state.draft.fetal_sex?'checked':''}><span><b>${t('fetalSex')}</b></span></label>${state.draft.fetal_sex?fetalTables():''}`;
@@ -1014,7 +1017,7 @@ async function action(name,data,element){
   if(next>state.step){
    const fetal=d.fetal_sex;
    if(!d.name.trim()||(!d.samples.length&&!fetal)){state.error=t('inputRequired');render();return}
-   if(fetal&&(state.source==='fetal-sex'||next>1)&&(!fetal.id.trim()||!fetalRoles.every(([role])=>fetal[role]))){state.error=t('fetalInputsRequired');render();return}
+   if(fetal&&(state.source==='fetal-sex'||next>1)&&(!fetal.id.trim()||!fetalRoles(fetal).every(([role])=>fetal[role]))){state.error=t('fetalInputsRequired');render();return}
   }
   state.step=next;state.error='';render();return
  }
@@ -1191,6 +1194,11 @@ function onValue(target){const value=target.type==='checkbox'?target.checked:tar
  if(target.dataset.referenceEntry)return selectReferenceEntry(target.dataset.referenceEntry,value).catch(showError);
  if(target.dataset.draft){state.draft[target.dataset.draft]=value;invalidate();if(target.dataset.draft==='caller')render();return}
  if(target.dataset.fetalOption){if(value)state.draft.fetal_sex=emptyFetalSample();else delete state.draft.fetal_sex;invalidate();render();return}
+ if(target.dataset.fetalLayout){
+  const {id,y}=state.draft.fetal_sex;
+  state.draft.fetal_sex=value==='combined'?{id,y,dnp:''}:{id,y,autosomes:'',x:''};
+  invalidate();render();return;
+ }
  if(target.dataset.fetalId){state.draft.fetal_sex.id=value;invalidate();return}
  if(target.dataset.sample!==undefined){state.draft.samples[Number(target.dataset.sample)].id=value;invalidate();return}
  if(target.dataset.family){const [m,index,key]=target.dataset.family.split('|');state.draft.families[m][Number(index)][key]=value;invalidate();return}

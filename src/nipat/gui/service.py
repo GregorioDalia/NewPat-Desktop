@@ -286,6 +286,11 @@ class GuiService:
             raise ValidationError("Invalid genomic coordinates." if english else "Coordinate genomiche non valide.")
         return {"reference": reference, "tracks": tracks, "locus": locus or "all"}
 
+    @staticmethod
+    def _recorded_fetal_tables(recorded):
+        roles = ("autosomes", "x", "y") if "autosomes" in recorded or "x" in recorded else ("dnp", "y")
+        return {"id": recorded.get("sample_id", ""), **{role: recorded.get(role, "") for role in roles}}
+
     def run_prepare(self, run_id: str, module: str) -> dict:
         """Prepare only one new consumer using recorded counts, never call again.
 
@@ -309,8 +314,7 @@ class GuiService:
             # Generic DNP and SNP outputs do not identify the required chromosome roles.
             settings = source.get("scientific_settings", parameters.get("scientific_settings_effective", {}))
             recorded = parameters.get("fetal_sex") or {}
-            fetal = source.get("fetal_sex") or {"id": recorded.get("sample_id", ""),
-                                                **{role: recorded.get(role, "") for role in ("autosomes", "x", "y")}}
+            fetal = source.get("fetal_sex") or self._recorded_fetal_tables(recorded)
             return {"name": self._derived_name(run.get("name") or run_id, module),
                     "caller": "tables", "samples": [], "fetal_sex": fetal,
                     "scientific_settings": effective_config(migrate_saved_settings(settings)),
@@ -407,9 +411,7 @@ class GuiService:
         for step in plan["steps"]:
             workflow, inputs, parameters = step["workflow"], step["inputs"], step["parameters"]
             if workflow == "fetal-sex":
-                recorded = p["fetal_sex"]
-                draft["fetal_sex"] = {"id": recorded["sample_id"],
-                                      **{role: recorded[role] for role in ("autosomes", "x", "y")}}
+                draft["fetal_sex"] = self._recorded_fetal_tables(p["fetal_sex"])
                 continue
             marker = "DNP" if workflow == "dnp-call" else "SNP" if workflow == "snp-call" else parameters["marker_type"]
             resource = draft["resources"][marker]

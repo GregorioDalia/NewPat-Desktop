@@ -19,16 +19,18 @@
       "unit": null,
       "nipat": {
         "cli": [
-          "--autosomes"
+          "--autosomes",
+          "--dnp"
         ],
         "request_fields": [
-          "autosomes"
+          "autosomes",
+          "dnp"
         ],
-        "mapping": "direct"
+        "mapping": "adapted"
       },
       "description": {
-        "it": "Conteggi DNP sui cromosomi da 1 a 22. Usare lo stesso campione di cfDNA materno per le tre tabelle.",
-        "en": "DNP counts on chromosomes 1 through 22. Use the same maternal cfDNA sample for all three tables."
+        "it": "Conteggi DNP materni sui cromosomi da 1 a 22. Possono essere forniti insieme ai siti X nella tabella DNP combinata.",
+        "en": "Maternal DNP counts on chromosomes 1 through 22. They may share a combined DNP table with the X sites."
       },
       "source_lines": [
         16,
@@ -47,16 +49,18 @@
       "unit": null,
       "nipat": {
         "cli": [
-          "--x"
+          "--x",
+          "--dnp"
         ],
         "request_fields": [
-          "x"
+          "x",
+          "dnp"
         ],
-        "mapping": "direct"
+        "mapping": "adapted"
       },
       "description": {
-        "it": "Conteggi DNP sul cromosoma X. Usare lo stesso campione di cfDNA materno per le tre tabelle.",
-        "en": "DNP counts on chromosome X. Use the same maternal cfDNA sample for all three tables."
+        "it": "Conteggi DNP del cromosoma X dello stesso campione materno, in una tabella dedicata o nella tabella DNP combinata.",
+        "en": "X chromosome DNP counts from the same maternal sample, in a dedicated or combined DNP table."
       },
       "source_lines": [
         19,
@@ -83,8 +87,8 @@
         "mapping": "direct"
       },
       "description": {
-        "it": "Conteggi SNP sul cromosoma Y. Usare lo stesso campione di cfDNA materno per le tre tabelle.",
-        "en": "SNP counts on chromosome Y. Use the same maternal cfDNA sample for all three tables."
+        "it": "Tabella distinta dei conteggi SNP sul cromosoma Y dello stesso campione di cfDNA materno.",
+        "en": "Separate Y chromosome SNP count table from the same maternal cfDNA sample."
       },
       "source_lines": [
         22,
@@ -465,20 +469,26 @@
       "origin": "NewPat scientific engine",
       "applies_to": "fetal-sex",
       "value": [
-        "autosomes",
-        "x",
-        "y"
+        [
+          "dnp",
+          "y"
+        ],
+        [
+          "autosomes",
+          "x",
+          "y"
+        ]
       ],
       "description": {
-        "it": "Il motore verifica che le tre tabelle distinte associate al campione materno contengano rispettivamente DNP autosomici, DNP sul cromosoma X e SNP sul cromosoma Y. Passa i parametri scientifici allo script R.",
-        "en": "The engine checks that the three distinct tables assigned to the maternal sample contain autosomal DNPs, X chromosome DNPs and Y chromosome SNPs respectively. It passes the scientific settings to the R script."
+        "it": "Il motore accetta i conteggi autosomici e X del campione materno in una o due tabelle DNP e richiede una tabella SNP Y separata. Nel formato combinato usa la colonna chr per separare gli autosomi dai marcatori X. Lo script R riceve gli stessi tre gruppi di siti in entrambe le modalità.",
+        "en": "The engine accepts maternal autosomal and X counts in one or two DNP tables and requires a separate Y SNP table. With combined DNP input it splits rows by the chr column. The R script receives the same three groups of sites in both modes."
       },
       "evidence": {
         "path": "src/nipat_scientific/fetal_sex.py",
-        "sha256": "0898044a2f8f1f158bbb3519770fa108cb6108e7ea6342ef36ef6f099b89afa0",
+        "sha256": "4074e94801908855cdf89f6ef5114dc60e0bd7dd66f56122813aee04564cd6fc",
         "source_lines": [
           1,
-          158
+          215
         ],
         "dependencies": [
           {

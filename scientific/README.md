@@ -61,7 +61,7 @@ Postnatal CPI takes mother–father–child trios and SNP/DNP frequencies. The m
 
 ## Fetal sex
 
-NewPat runs the upstream R script from [NEWPAT revision dde1a75](https://github.com/lpistacchia/NEWPAT/tree/dde1a759e4b994a42ec9c9651f896394c546b109/Fetal_sex). The three inputs come from one maternal cfDNA sample: autosomal and X DNP counts, and Y SNP counts. Use X and Y panels previously validated for specificity. For the two published examples the expected ratios (A, B, C) are (1, 0, 0) with outcome F and (0.125, 1.5, 12) with outcome M. Missing ratios or a combination outside both sets of thresholds gives Undetermined. The author describes the thresholds as preliminary.
+NewPat runs the upstream R script from [NEWPAT revision dde1a75](https://github.com/lpistacchia/NEWPAT/tree/dde1a759e4b994a42ec9c9651f896394c546b109/Fetal_sex). All counts come from one maternal cfDNA sample. The adapter can split a combined DNP table by chromosome or read separate autosomal and X tables. It passes both regions and the separate Y SNP table to the original R script. Use X and Y panels previously validated for specificity. For the two published examples the expected ratios (A, B, C) are (1, 0, 0) with outcome F and (0.125, 1.5, 12) with outcome M. Missing ratios or a combination outside both sets of thresholds gives Undetermined. The author describes the thresholds as preliminary.
 
 ## Configuration and verification
 
