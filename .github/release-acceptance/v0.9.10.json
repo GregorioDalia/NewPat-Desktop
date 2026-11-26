@@ -1,0 +1,1884 @@
+{
+  "schema_version": 7,
+  "version": "0.9.10",
+  "source_commit": "85d91af7cd8ec01a628d96e9f5d49acbb06d25b4",
+  "installer_manifest_sha256": "d587fa6045a15d9f016a92020197d75dde8e3f5400e1285ae8e63b01f2f864c5",
+  "scientific_archive_sha256": "249a68228c38aa7477da0aae19b06f93702be1ce6ce457eb63ef449f7cc5f41e",
+  "windows_installer_sha256": "fc15095688d6949c304401f2a6089ea5fb888e7ec5672beccf05b049c8a8ed97",
+  "linux_installer_sha256": "efd133613e9afe5e7358112644b90ee625f6302b0835490877ec3fc716fa146a",
+  "macos_arm64_installer_sha256": "1c91842a1f22fae55ad548716cc0c95cc8cef4f0fc24e1ea1597c06b043b9c30",
+  "macos_x86_64_installer_sha256": "4d07191927667d351122eeb08f43bf29d0477221c386f1601aeb951cf7c57d1f",
+  "windows_zip_sha256": "db10f026119bdc6f733f4a4e396a9b3d55069eb5dc92ae599c3065ca75012789",
+  "windows_payload_sha256": "d1dcf8660ad8703baaca87c41ca1f5c09d3926f13acca66269fddd921fb370ad",
+  "build_run_id": 45736001749,
+  "decision": "accepted-for-research",
+  "scope": "pre-1.0-research",
+  "review": {
+    "reviewer": "Codex (authorized by GregorioDalia)",
+    "reviewed_at": "2026-11-26T07:47:09Z",
+    "evidence": [
+      "https://github.com/GregorioDalia/nipat-desktop/actions/runs/45736001749/attempts/1",
+      "https://github.com/GregorioDalia/nipat-desktop/actions/runs/45736001749/job/139634852973",
+      "https://github.com/GregorioDalia/nipat-desktop/actions/runs/45736001749/job/139629388813",
+      "https://github.com/GregorioDalia/nipat-desktop/actions/runs/45732938365",
+      "https://github.com/GregorioDalia/nipat-desktop/pull/82"
+    ]
+  },
+  "observed_baseline": {
+    "source_commit": "d19e6bf58941a349d26d2f32ebb79bd24b6b7fcc",
+    "observations": [
+      "installation_ready",
+      "runtime_diagnostics",
+      "scientific_self_tests",
+      "dnp_sample_analysis",
+      "automatic_workflow_sample_analysis"
+    ],
+    "evidence": [
+      "https://github.com/GregorioDalia/nipat-desktop/blob/ea7029742afcb3e376968e1d360202915fa88248/docs/AUDIT_0.8.70.md",
+      "https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.8.60"
+    ],
+    "role": "historical-platform-evidence",
+    "source_comparison_scope": "reviewed-operative-changes-with-versioned-scientific-models-v1"
+  },
+  "reviewed_source_changes": [
+    {
+      "path": ".gitattributes",
+      "before_sha256": "ff8773624aea67988f16c74bd4a9d924ebc0dee0e4a0f3b4334a585172b57e5e",
+      "after_sha256": "4efe3d07a57a35600e082b23f5dca1d5d97003cb1d7ae5c608b755d97e552251"
+    },
+    {
+      "path": ".gitignore",
+      "before_sha256": "39716ec010d281b5ac52c11e91167d0845732b6322436f4c92940e6d1ecec03b",
+      "after_sha256": "1be4eaf8a4a50a09486f6c6f7c30385172237ff042efe341dfd2b146adbc5ec1"
+    },
+    {
+      "path": "2_AVVIA.cmd",
+      "before_sha256": "34c5180ed8cbe4978a7dda761b961ddb276d18d7c6204ac90836a5ca60e60474",
+      "after_sha256": null
+    },
+    {
+      "path": "2_LAUNCH.cmd",
+      "before_sha256": null,
+      "after_sha256": "567ff9676020268edddf8c40c578ff8f60c04f4b89907d0b0e2358cd6126c812"
+    },
+    {
+      "path": "assets/branding/build_assets.py",
+      "before_sha256": "df5403a430ecb2d28959e0ccda39f6843711df558a86be75dec59c423db7d276",
+      "after_sha256": "ff18bddae9628962dc3b219efbcccdc71d7a29b0f5d8ea4e0e58ca2230705333"
+    },
+    {
+      "path": "assets/branding/newpat-app-icon-small.svg",
+      "before_sha256": null,
+      "after_sha256": "5bd5c1ce6c6651bb7006eb8ff1b935afb9601bda0e66f0c966943e93aa2043c1"
+    },
+    {
+      "path": "assets/branding/newpat-app-icon.svg",
+      "before_sha256": null,
+      "after_sha256": "d81400771fc1a7365531d20916c60f355a3ab265d3e278ab5b13f378e7c68d18"
+    },
+    {
+      "path": "assets/branding/newpat-icon-small.png",
+      "before_sha256": null,
+      "after_sha256": "2476f600ce3ded3503849848919f33a598979eaf896763f42693ea3e4eeb5001"
+    },
+    {
+      "path": "assets/branding/nipat-icon.ico",
+      "before_sha256": "806a0cd235e52b861c05f75ce37b41c1dbb6ca99e14fddad8b1175372f05643c",
+      "after_sha256": "2db6ae77fb3b69fb173325903b333d5390b05694fb5f1d3d460c15853ca10a5f"
+    },
+    {
+      "path": "assets/branding/nipat-icon.png",
+      "before_sha256": "719ad87315df9bc0587d267d28c17e3186f95237030414850545de0bbfd21847",
+      "after_sha256": "d92246580771f9ae7caf06c958cd5fcd0f358a1467462a2bcca8682030f5660a"
+    },
+    {
+      "path": "assets/branding/nipat-logo-dark.svg",
+      "before_sha256": "3919509cdbe809e9b4ac8cc0d9e676938197677f1640af060908a32c2ed3183e",
+      "after_sha256": "d1bc52c6a585896588d5c73cb76a6cb6028bd35c5e7b75ec554b491909df8064"
+    },
+    {
+      "path": "assets/branding/nipat-logo.svg",
+      "before_sha256": "4f2a0d9367575529c91057870248f14fdc95727ffcba8723bb49d0fd24b7e125",
+      "after_sha256": "f56228450a169018e5596a8c996655c193fd9d0d7a751b8e8a9f684abc0a767c"
+    },
+    {
+      "path": "assets/branding/nipat-symbol.svg",
+      "before_sha256": "9b7d1c27daa9e952ff2807e528f5bb18166e2674af068075be1ffbf46b9ce967",
+      "after_sha256": "515f04a41f1db63162aa0024439f35ac0b5c25c1124eb80224527e581bcf1efb"
+    },
+    {
+      "path": "compose.yaml",
+      "before_sha256": "3f2c4107e2cb4c350675e57309b8f1409d8bcce3b699c72fe361ed0638b1ebd8",
+      "after_sha256": "84c661815761dcc72d74c2f7515fd4b619a2feac4d50ea985b50fe00d618d01a"
+    },
+    {
+      "path": "config/defaults.toml",
+      "before_sha256": "73d53b704a2571177816fc0ca1bca997070fc6da31bbc8672a72a93a090a5f28",
+      "after_sha256": "44bbb6b40f02bf8b5c411a2dfe1f9118abd9998e039377e69fd8c9b26e5fcc64"
+    },
+    {
+      "path": "docker/scientific-runtime/Dockerfile",
+      "before_sha256": "7328efff0bf8058a3f9a0100e620372b39810a5ef1e6b34ec71f3470f96a0539",
+      "after_sha256": "2e6092934e6a6c564f1208ed83c1547bab88a5dcb4c1992e45a4ef663ec88b59"
+    },
+    {
+      "path": "docker/scientific-runtime/verify-packages.R",
+      "before_sha256": "ef30c69555f6871f7c38c89baba5b52e1ef7d82fd02aaf206ae4568e2f686af7",
+      "after_sha256": "c468ba8cebdfcf4f30c9ab444ddf8a9f26482645faff0e5560911ebb07bdae2d"
+    },
+    {
+      "path": "docs/validation/0.9.10-desktop-scheduling.json",
+      "before_sha256": null,
+      "after_sha256": "bd302a1e1284e5f6da2d6f266918e297d4f63cab072039b4e5c28e907a144d88"
+    },
+    {
+      "path": "engine/main.py",
+      "before_sha256": "5667313e61ee8f13eedc026e0fd374f98a96fc6a852f77f234d53ff215417532",
+      "after_sha256": "dd1f19cafd5992d6e173b19a2fe2b312c10634e34818578134827744755e5934"
+    },
+    {
+      "path": "examples/newpat-synthetic-trio.zip",
+      "before_sha256": null,
+      "after_sha256": "f1a5b1aa51664982e93f9954e8d936758f251ab985020c9c0a09e8f855280ff7"
+    },
+    {
+      "path": "examples/newpat-synthetic-trio.zip.sha256",
+      "before_sha256": null,
+      "after_sha256": "2ca14e9cbf70f292e3618252e754c740ae0758ca49e4d2d699a89ed27587f7b6"
+    },
+    {
+      "path": "installer/linux/launch.py",
+      "before_sha256": "251ce2f17aaff1f8c97f3bb7514d4f5f4ca9845c46e7767bfdcf322ea5d2d07d",
+      "after_sha256": "ee07e0dff90aa5fe568d3d78aa0536d953108c15478907342199012c6460fd9b"
+    },
+    {
+      "path": "installer/macos/NIPAT.command",
+      "before_sha256": "d39042dcee80eeca4f05f0bd253a426ce069bc6fea3e184fe6918ac569876072",
+      "after_sha256": "d3f885695ff82c9f8852d162aefbd1dfa626dc7f19e861ab951da98b9900dc43"
+    },
+    {
+      "path": "installer/macos/launch.py",
+      "before_sha256": "7dbb3d810ae7c5e9d400f25f66a2db922b7331d573b99acdb91f8a4a3247507b",
+      "after_sha256": "c373898017c44ce7d6ddafe5018dc77a59dcac622a20064b66391e0b45a9da7f"
+    },
+    {
+      "path": "installer/macos/launcher.c",
+      "before_sha256": "4fb401bd27e93550b445930aa39f2d5a793418c2503ae66e73e0ccb515f79424",
+      "after_sha256": "76e474539ab3c86bed02bdb62fab26e9e088035ac6d34678f759ba2f65e1e11d"
+    },
+    {
+      "path": "installer/macos/migrate_legacy.py",
+      "before_sha256": null,
+      "after_sha256": "cdd6c8f27c1537f3f44acf184caa45ea73fc626b7253c7212e954daea93925da"
+    },
+    {
+      "path": "installer/macos/package-guard.c",
+      "before_sha256": "944da94994d8e04f0c89a7b8dc3d545e4ef15f1806b42fb5efc2a6f22dcd9208",
+      "after_sha256": "f709e645808cb6b2cc5a0c405ac7c56107fe9faf320e8377040655bc0e4cb6dc"
+    },
+    {
+      "path": "installer/windows/ActivityNative.cs",
+      "before_sha256": "1e51148137047ec2dc999508e93f2a13099261b7a70f6a2efa9dd0d41d50492c",
+      "after_sha256": null
+    },
+    {
+      "path": "installer/windows/EnableWsl.cs",
+      "before_sha256": "7b4e3d59754608d3269559b85d709e3c4d1d5c758c2e4a22153d31993727f2ad",
+      "after_sha256": null
+    },
+    {
+      "path": "installer/windows/EnableWsl.manifest",
+      "before_sha256": "6fe3ed5de7a152d78522faf6ceae46817d353dd092c39178d06c4eeb46ec645b",
+      "after_sha256": null
+    },
+    {
+      "path": "installer/windows/NIPAT.iss",
+      "before_sha256": "b14f6b8b88c5e6f8c823d93ae6de8c592940df26c4a3a2f7ddb1bbdb8b244589",
+      "after_sha256": "dd4306a00793ddd338f284ad5b5fb2859c6e2b153d3e4a132380dc32433b2f4b"
+    },
+    {
+      "path": "installer/windows/NipatLauncher.cs",
+      "before_sha256": "e3c0b2da393691ec5b6510e2aec9b094e90a574d1fcbf3b0b01e53aab6682345",
+      "after_sha256": "66e5d41870b80b6968bccdbd819e2ac2aae3e9ddd1dbe8a74af4640a7b0020d6"
+    },
+    {
+      "path": "installer/windows/activity-lock.ps1",
+      "before_sha256": "87df878590c018ace5679a1503a5912c582ca195b3da404329d54585c5f95118",
+      "after_sha256": "3005e3412d3af216f5f7e5a4bbfd234ece3838ead084345ac8eeba007796d639"
+    },
+    {
+      "path": "installer/windows/bootstrap-common.ps1",
+      "before_sha256": "150671b1e1a037e87b830eb84218a245d666a18c0bba6ec364701834367580b6",
+      "after_sha256": "7c7f19250ac7638d191e05bac9066edeb36154569efe88a906fc24ee27714b68"
+    },
+    {
+      "path": "installer/windows/bootstrap-migration.ps1",
+      "before_sha256": "4e572c14f7160287d0363fa3fef9e50993d70f7c3d1f291f9b490a7346583992",
+      "after_sha256": "56b4f37dc116c7916ab373214c050a5a8c4fa602d77d47754456e9e8d96e4364"
+    },
+    {
+      "path": "installer/windows/bootstrap-profile.iss",
+      "before_sha256": null,
+      "after_sha256": "1e5c12cc6b4a5ad80ab5f96476430905e9831b811c0a8f6f35f31c0ed4a5a147"
+    },
+    {
+      "path": "installer/windows/bootstrap.ps1",
+      "before_sha256": "f701c08f95a01471d2831d4d5ed0ebf3485d2e505b09ed8262b2f34267b05ec1",
+      "after_sha256": "b95232e6114d4e727120ebdef4da678658b3df96ddf9ca90665396d15799350b"
+    },
+    {
+      "path": "installer/windows/bootstrap_download.py",
+      "before_sha256": null,
+      "after_sha256": "26aed189a9338b19ca02ace9fc6b9b175c41280cd7acfa02fbdf3f779656251a"
+    },
+    {
+      "path": "installer/windows/build-launcher.ps1",
+      "before_sha256": "33a32c2a47f89c79b2d84d6279c581ea2035f9b2e1a54fdb0e5273f7a7285569",
+      "after_sha256": "2a68ff78e5b2616decc4a3827476acfed846ce633b07b4698a99181b3a580560"
+    },
+    {
+      "path": "installer/windows/build-native.ps1",
+      "before_sha256": "a572c99b509b192850d3aecf74665f1fb8c117e8b24649a4dc007ef98d1d6440",
+      "after_sha256": null
+    },
+    {
+      "path": "installer/windows/build-wsl-helper.ps1",
+      "before_sha256": "59b93053c473f311f49b717900ba8ee8db82ca6da6729c4445671300b8512ba0",
+      "after_sha256": null
+    },
+    {
+      "path": "installer/windows/desktop_payload.py",
+      "before_sha256": null,
+      "after_sha256": "68af3a33b91d9cc8f2528900ce454382c0099eb25104568094a9f72e2086e371"
+    },
+    {
+      "path": "installer/windows/install-layout.ps1",
+      "before_sha256": "941e577850e35620aa68abb9dec5e21777ba3ea295d4cc2da492a55b3096cbb2",
+      "after_sha256": "4a5517f420ca3bb97862608ce720b2c6bc3a0ce53487909c6b83c7e51d3523e3"
+    },
+    {
+      "path": "installer/windows/install-profile.json",
+      "before_sha256": "2a1d18ca9af6b9b044f34d8a86e435c54af238dda8d4a51e13b1d6890a5e7c52",
+      "after_sha256": "358a61fe49638d3cb7ab907437f599be87ee2c6d3abc3655446e1104fe15c81a"
+    },
+    {
+      "path": "installer/windows/install-profile.ps1",
+      "before_sha256": "08b94b29f54a41c08d8780e69ab67d4ee560dfdd4e4793da05bcf317149a6cbb",
+      "after_sha256": "0c9a3075b9a1e9a94b9bd2fae1583a8eb2cd37cfd31be8913baae1c2d6a0fd42"
+    },
+    {
+      "path": "installer/windows/install-testing.ps1",
+      "before_sha256": null,
+      "after_sha256": "e4b3ab231508654a59d2a05748d94560b621ccf257c96983ab8469b2aa0d352c"
+    },
+    {
+      "path": "installer/windows/install-zip.ps1",
+      "before_sha256": null,
+      "after_sha256": "1909c42863a7ace9ae3c6e402cb3e7dfc6a43f2971bb9c7ef56b1a2e5d7dc965"
+    },
+    {
+      "path": "installer/windows/launch.ps1",
+      "before_sha256": "0dbb56667ec143869f2ba1977966d6e4fbb1063d95025667f661bf52c59e52f5",
+      "after_sha256": "3d1a9b49f45df1b5c23354b2fd17bc2b51d0f64181ff2d73244fc3bd8f8573d4"
+    },
+    {
+      "path": "installer/windows/launcher-version.txt",
+      "before_sha256": null,
+      "after_sha256": "8780409dbc52c96276102c5a079a7d3e325510d7bf87af5257508ecc088a3730"
+    },
+    {
+      "path": "installer/windows/maintenance.ps1",
+      "before_sha256": "6f45df0eab722feaef13a415efa5f768964633a60398a94e2984c6021971eed4",
+      "after_sha256": "ad2eb5e1507c5df90994da277c373b08a8adc39e8f40512aada0ff19fdd53e70"
+    },
+    {
+      "path": "installer/windows/repair-installation.ps1",
+      "before_sha256": "8a98e7335757ce8a4be912b6d08ae13b6670396a00d6a04c1dbb40f15efd6851",
+      "after_sha256": "cd76592e06548b81bde0e319444c6e0819eb723ee4d832cf74bde31324c9f644"
+    },
+    {
+      "path": "installer/windows/test-activity-lock.ps1",
+      "before_sha256": "04aecfbd5440675de6140a53c3aea1c388411dabd359e13b44f2535c32f09948",
+      "after_sha256": "adcf91eefabac0d0f2e7f321e682b8237f77561e8202eec5ef78d480d60a80aa"
+    },
+    {
+      "path": "installer/windows/test-bootstrap.ps1",
+      "before_sha256": "43a1871cfcaf6e8ec35010091f19da071009a060e142610cb39872716d5faa10",
+      "after_sha256": "a3f78c005b59734872e8ce2cd8412bb29d1c0b372fee65ba0ec6069f7115dd18"
+    },
+    {
+      "path": "installer/windows/test-compiled-installer.ps1",
+      "before_sha256": "cbf126130889a1c18a003691b317701859cab8c377767111b347d7dc70a2ea66",
+      "after_sha256": "9fb7a4e7f3c8150b2c8ad9f8b3767d4d01753f9d29edeb191371ff0d7605585b"
+    },
+    {
+      "path": "installer/windows/test-installer-layout.ps1",
+      "before_sha256": "71793d5eda856d33393ad806f63debaf58d873179d00690b5bf30fcab45b06ac",
+      "after_sha256": "83fa1fae37217cf8356e82c18f7d2b895e8ca6cebfd3c885b0de3d8692cadd1f"
+    },
+    {
+      "path": "installer/windows/test-launcher.ps1",
+      "before_sha256": "0cbd78a73f023ecfe1d7d086ae41f012f0d6b3ba2eb02a9e4649052372fd42f1",
+      "after_sha256": "91ed52e28c7bb293513baa34d1ab566037c21e5700d54d8ef41f4e90a8cf7325"
+    },
+    {
+      "path": "installer/windows/test-native-build.ps1",
+      "before_sha256": "2a8785ec7773b706f43be9917c6ddaa63a97d49db9a07ee77f9ca3847ed0f885",
+      "after_sha256": null
+    },
+    {
+      "path": "installer/windows/test-packaged-client.ps1",
+      "before_sha256": "7675f4530c855c89fda5e841ad24cf072f4bcc124e3144d172d0f21604aa99de",
+      "after_sha256": "24eca008cfeda76908bdae5416423ef0569aa215c243b73cec09b002d1431f91"
+    },
+    {
+      "path": "installer/windows/test-testing-install.ps1",
+      "before_sha256": null,
+      "after_sha256": "f09701253af28f7b68cbc4c6cf61d9e4a5c4e9fd6f80cb41e3527181e7d53489"
+    },
+    {
+      "path": "installer/windows/test-uninstall.ps1",
+      "before_sha256": "997632f77e1b1a434a738b61ed670c372329dfe1d3550bd9955dc034933c6f7d",
+      "after_sha256": "59723ff4fa8099facae2c90a547b9552093e57ffe4e853b70ddcb85dffe7a931"
+    },
+    {
+      "path": "installer/windows/test-update-handoff.ps1",
+      "before_sha256": "0fe6f4c2dacd8811b0a88c98d0d1a83aeb6701144669972102ead01f7448acd2",
+      "after_sha256": "c5e4078b8db9a1bde365a2d2c52bd8919e3cdff6826f629be1efa7237fd44009"
+    },
+    {
+      "path": "installer/windows/test-windows-environment.ps1",
+      "before_sha256": "c6a90cbb1a3d19150a685cf477318fc1dc49d896d0e8c4c53adbbe46b8ad4e3e",
+      "after_sha256": "9bbe591dea4e47e9644f81780984d1fafea7f2155848fb291f63881904467026"
+    },
+    {
+      "path": "installer/windows/test-zip-install.ps1",
+      "before_sha256": null,
+      "after_sha256": "8e59a4c069c634ec1786e21c60a27b4d357ea78e2488290c126be0ed4ff71fc5"
+    },
+    {
+      "path": "installer/windows/test-zip-package.ps1",
+      "before_sha256": null,
+      "after_sha256": "1e65ec453527fbe31ee1ab8c751b221110254a309c48ba282bc735624ddfcf8b"
+    },
+    {
+      "path": "installer/windows/testing-install.cmd",
+      "before_sha256": null,
+      "after_sha256": "0c102df4c6e7250eb4d212737b02acfd73e41b22ef4c67e14afdb8aeafb9ac1c"
+    },
+    {
+      "path": "installer/windows/testing-readme.txt",
+      "before_sha256": null,
+      "after_sha256": "249ab62affbb52968ef199d14b0cf76861976d59f379a0b064c90451c37015a5"
+    },
+    {
+      "path": "installer/windows/testing_package.py",
+      "before_sha256": null,
+      "after_sha256": "d5276f24eddf4cf5d7f17edc49780f9b7bfa20f0766ca07b9c7602f155bc1704"
+    },
+    {
+      "path": "installer/windows/uninstall-runtime.ps1",
+      "before_sha256": "eaa1e571300509c3c2ba0dfc59e1a5645b03c094c723efc9bf4a17d15dd87248",
+      "after_sha256": "5e140f0b8563f2dff52995ab4db38347e67a8d770b699a3c411931978cf9ae53"
+    },
+    {
+      "path": "installer/windows/update-handoff.ps1",
+      "before_sha256": "8a66b9befc9fe6bcf7924a8e4213a8832f72bb82b1303b68f75e3cf98b6faacc",
+      "after_sha256": "5a11141ae383d4bf13ec35092e3dbf43f6ff988b5050b77e183cc702ddab69f6"
+    },
+    {
+      "path": "installer/windows/validate-install-layout.ps1",
+      "before_sha256": "0d827efd80374a5eff000e2516653f9e5e7ed2428f7b35e7af64e5a086f06d37",
+      "after_sha256": "1f0d924eb390cdbe1fca70ad02e2a39bdca787ee75b25bca0c67a0906802254e"
+    },
+    {
+      "path": "installer/windows/zip-common.ps1",
+      "before_sha256": null,
+      "after_sha256": "1bf0de85a6a1cfaf5d1a0ae7895e0260c5baf4b8c0f5f42514f3fa4020fab6ed"
+    },
+    {
+      "path": "installer/windows/zip-entry.ps1",
+      "before_sha256": null,
+      "after_sha256": "95b5122bff7a3b816c23eb1fa4bd1f3e4387bc9b7768e69f3b91137c046f924a"
+    },
+    {
+      "path": "installer/windows/zip-install.cmd",
+      "before_sha256": null,
+      "after_sha256": "174411052a9e29ed43595a295184019e740f12a21d9090c27b7d4e19fbe57df7"
+    },
+    {
+      "path": "installer/windows/zip-readme.txt",
+      "before_sha256": null,
+      "after_sha256": "33ddb6d013d726adc0266ec82a28ba9b9d63952e76415308308486bdce72928d"
+    },
+    {
+      "path": "installer/windows/zip_package.py",
+      "before_sha256": null,
+      "after_sha256": "02bca5d4ea731a9a125bec4ed681cd14aa17569d78ff174e4a0beb69bdcc4324"
+    },
+    {
+      "path": "newpat.cmd",
+      "before_sha256": null,
+      "after_sha256": "70ec4cda1e6f988af3671e7be9195ba9a340d41cd87af355b04950813c053970"
+    },
+    {
+      "path": "pyproject.toml",
+      "before_sha256": "b3868e9837eb0decc5e2002e7b87f3e922751928ffd3c63ae07edb9e5c15cba2",
+      "after_sha256": "672abd4a51585c8805dcc1c2c5491326b8c9870960720d056f80dfaee0d4917d"
+    },
+    {
+      "path": "scientific/SHA256SUMS",
+      "before_sha256": "22500bebef02c717cb8e31abef4963be0a37dc7100849695b303269bae94d5b6",
+      "after_sha256": "f70a3d1378f53ebbf7718f8def2e0ba3762b5721962a25e00068a54cad68c710"
+    },
+    {
+      "path": "scientific/vendor/DNPcall/DNPcall.R",
+      "before_sha256": "4904721e258190ace5cb0fc7df367c0d6f2f68abfc5d794aea83ed0a43db2088",
+      "after_sha256": "5231ae9fefb1c10f40bd5d51d73864043deccbb757a439d75577bce722c6b262"
+    },
+    {
+      "path": "scientific/vendor/NEWPAT/CPI_from_cffDNA/cfDNA_CPI_estimator.R",
+      "before_sha256": "d5a7518e5d4b41a2c1b2a780c186595edc617a0963ff7cdb63843f202f1c4f10",
+      "after_sha256": "e21bdf3fc3a994bff2f1b8684b81510fab1f316ab49b9e7ccca6db8cdb43f5a8"
+    },
+    {
+      "path": "scientific/vendor/NEWPAT/CPI_postnatal/Postnatal_CPI.R",
+      "before_sha256": "947723633cbd9563fee34d638522fe0edb37498ca0e3eb00aef1b21900f4d10c",
+      "after_sha256": "121c0de62e7c6d2394914a7d90821edfbb9492fab98f4330e1f0b0d9bbfa03d8"
+    },
+    {
+      "path": "scientific/vendor/NEWPAT/Fetal_sex/Fetal_sex.R",
+      "before_sha256": null,
+      "after_sha256": "cc4ad06d8d5df9feb021b37264a8b13459e30ec11aad7d77ee9dd0735ba3fd46"
+    },
+    {
+      "path": "scientific/vendor/NEWPAT/SNPcall/SNPcall.R",
+      "before_sha256": "e27981da3e4c061068f1d17751e45223674b1a1fa01c177f1c5f858162f62c73",
+      "after_sha256": "6f379af21a8750118da9edbe76a9151516d277fe21ff9f0ebdd535fac2e4f965"
+    },
+    {
+      "path": "scientific/vendor/NEWPAT/contamination/detect_contamination.R",
+      "before_sha256": "3660122faa2a07984ef26c2adbb6c3407928976c634c21fa8574c3630371dca0",
+      "after_sha256": "75c59a177245d45a20dee323812f7d3e4efe3b49de785fe26a9635c658ce2e63"
+    },
+    {
+      "path": "scripts/acceptance/bundle-manifest.json",
+      "before_sha256": "d6c40349c21bd8218ed348fd286ad2279ac9c5088389d661ce24c0e683a07dc2",
+      "after_sha256": "933d21b6007d4b7d282a6bef976571b4329e19ae2684acd39a72ff6028ac93a5"
+    },
+    {
+      "path": "scripts/acceptance/fixtures.json",
+      "before_sha256": "a820357e9de658e466bb136ecfbed02bb20d5a5b1deb3806c130839b8df86554",
+      "after_sha256": "bccca7594fe95a568c23cd66ef7ed4e065ac960add09bc647db0f8ece9fc0f15"
+    },
+    {
+      "path": "scripts/acceptance/installed_models.py",
+      "before_sha256": "7d5f1aae8faf76b7b7093874d2d644e9ca4f05b91d55cb25a9964bd53acb5b8b",
+      "after_sha256": "70299e2124a7fcd182f73606bfe7af97be54cb678d3f46cd91942739feb7e423"
+    },
+    {
+      "path": "scripts/acceptance/installed_suite.py",
+      "before_sha256": "e78178b70af9fe17efb12c3e7a21b2e21515aabd1ab94ef5ea4c1227dbd7631a",
+      "after_sha256": "af43dc07f291f0f21102a6a2d29a93cb3d9972030c96b01d1124982b227b23ae"
+    },
+    {
+      "path": "scripts/acceptance/installed_workflows.py",
+      "before_sha256": "985b26f66f9f3ede061485ca4c6c4b677add70ae2f34f0be1dd44963e13d8189",
+      "after_sha256": "025ea39815fd54069da0a609275cac072dfa2487c80d18a13c2a85533e63ff2a"
+    },
+    {
+      "path": "scripts/benchmark_macos_dnp.py",
+      "before_sha256": null,
+      "after_sha256": "78695c5b456f4ad6973c06426d846a6935ea63859245be50fdc0f1c468d32315"
+    },
+    {
+      "path": "scripts/build_linux_installer.py",
+      "before_sha256": "bc5dc50ab26624b3efd02a52f30592301310eee71d2246953ef58d867a4f0f19",
+      "after_sha256": "576874052947b714b68a74a0f72db76253ed4e9da2cb457b71178135834ae7e2"
+    },
+    {
+      "path": "scripts/build_macos_installer.py",
+      "before_sha256": "e615428308b2b1ec272d1bfb018c885bd5f217f9032bd4a46f8aee3294abf59e",
+      "after_sha256": "3c84622f8d1b1116d8ef6e5cff05a7c6668c3ab9954b4bbdc350a32f7a81684e"
+    },
+    {
+      "path": "scripts/build_windows_installer_assets.py",
+      "before_sha256": "b62db58a84fb5fdce5d38dfbd74324f0995806dfe577bd22cfa8d68186c179b0",
+      "after_sha256": "8bf803ec3a099bc6f910299dba6c886722ab953b775265b050a05322f5f2744c"
+    },
+    {
+      "path": "scripts/scientific_worker_evidence.py",
+      "before_sha256": null,
+      "after_sha256": "26fa6f6cff545bc8a4e7d8fbd91f862a6942f2d5bf93feb7463076d656267400"
+    },
+    {
+      "path": "scripts/test_gui_frontend.cjs",
+      "before_sha256": null,
+      "after_sha256": "16a00bc39489f1458c975350bb3dec01b3f3c4f4437e0193e50f662f5500d203"
+    },
+    {
+      "path": "scripts/test_gui_macos_native.py",
+      "before_sha256": null,
+      "after_sha256": "9359eaa69ac602af36a57ea444cc917e608bfe2906ae07647807765cbbf56c55"
+    },
+    {
+      "path": "scripts/test_gui_windows_native.py",
+      "before_sha256": null,
+      "after_sha256": "7c6aa325c7cadbb14add3fb1a8a095453f11348cc3779cc57992d33fa98e82ce"
+    },
+    {
+      "path": "scripts/verify_caller_acquisition.py",
+      "before_sha256": null,
+      "after_sha256": "f2303c64af7f15e9e3d0a07183f29b75ea94ac5b1e6f3c1d142a9df947055d7a"
+    },
+    {
+      "path": "scripts/verify_contamination_update.py",
+      "before_sha256": "363772980b1c1ea128e582f883a12fcc6612dbe0c2889bb7f3ef2474145e4698",
+      "after_sha256": "1255ae44158e8881b9e765b9c528b35cc18fd4b41b385ec668663e0e89dd4048"
+    },
+    {
+      "path": "scripts/verify_cpi_engine.py",
+      "before_sha256": "867559c809a9cdebbbebcd3dff4f3313f815c69d5f7f61754f2169fe5c9438ce",
+      "after_sha256": "35444233d5c699d2b42c3227194856ca99125377b72995931e55c1d3597bc14b"
+    },
+    {
+      "path": "scripts/verify_cpi_update.py",
+      "before_sha256": "450e31861f62e69bcb8f4259b2f608d0e85130d1ac250274985247bca48b630a",
+      "after_sha256": "f15110607e11c1007ae38bb937624afc65991bd11ea807ace397a07dc42378e9"
+    },
+    {
+      "path": "scripts/verify_cpin_update.py",
+      "before_sha256": "22d68e6a0851d1ee1fb00799dc9447bdbffbc17645061ff03deaf7875dab6cbf",
+      "after_sha256": "2652cf5d4ccbcc15b17f89210eeaece1b696310961cc5f4d2e492a3c1d9d0f09"
+    },
+    {
+      "path": "scripts/verify_engine_package.py",
+      "before_sha256": "14c5bbd78723fbd0dc58090487067b52b1eb82151164c7aa2e479d7f7a8398da",
+      "after_sha256": "e9ad256b975894bb872178e19bc50c4d02154c69942f591eff177b3cf6493d2e"
+    },
+    {
+      "path": "scripts/verify_fetal_sex_update.py",
+      "before_sha256": null,
+      "after_sha256": "460c59fe2a813445bbc3f9548304e8f9e8f27a11f579eb6f33734cf623740c96"
+    },
+    {
+      "path": "scripts/verify_five_module_workflow.py",
+      "before_sha256": "e5ee6684b1c0702e18336fb5c694d8490e8747c2d3db6d3f3962241baaf7ca56",
+      "after_sha256": "1827db458bff63055f34967fb1023e8c4b5d848bf39f8f612f0d97c0ef1a4fa9"
+    },
+    {
+      "path": "scripts/verify_gui_app.py",
+      "before_sha256": null,
+      "after_sha256": "ac1d34567504eb28f23973c7d149775cd778597d99a3aba086e765c5f75e51f8"
+    },
+    {
+      "path": "scripts/verify_gui_distribution.py",
+      "before_sha256": null,
+      "after_sha256": "bee6c0c46759609db444752227d7e2ca064ad9784fb9cb420e42f15089b3059d"
+    },
+    {
+      "path": "scripts/verify_gui_interactions.py",
+      "before_sha256": null,
+      "after_sha256": "3bcc5075267ae637d5afe537882d1dd21824cd515233b4dc63d2a12a83442ca9"
+    },
+    {
+      "path": "scripts/verify_linux_dependencies.py",
+      "before_sha256": "4b9c5c816de03318870c3db79901200108323eb66b7bc3345b6a54a0aa822f81",
+      "after_sha256": "9f0f347dbc993c6b7dafa4c34c65617b90a3bff17c98fd0d3cf9d82c20e1f8ab"
+    },
+    {
+      "path": "scripts/verify_linux_installer.py",
+      "before_sha256": "5c3fd1439c7e983dd13a981e88aec2d4a5b26a3646e8e670f33afbf85da1f588",
+      "after_sha256": "ea69a31fdad8bb5124368534c0c1c638a1198eb062f5a9593c6c2b65b668d451"
+    },
+    {
+      "path": "scripts/verify_linux_upgrade.py",
+      "before_sha256": "a97fa48a9a4d623388ce90362d4fc89dd8c842a30db334a177c30bcd41e52745",
+      "after_sha256": "b2cc16cd2a98c9e9dfbb43f8ebf486d0e7ebb706e31202490442314d01b6bf3d"
+    },
+    {
+      "path": "scripts/verify_macos_package.py",
+      "before_sha256": "ea4f347190439db9443d1c74141488d9bc555a79a682f5ce10a7c9b4c62f8abc",
+      "after_sha256": "4cd0b3be9b41096a23d7477b07401f0b79377d22a39e217bb08e6dfc15338d9d"
+    },
+    {
+      "path": "scripts/verify_macos_runtime.py",
+      "before_sha256": "c2d419ddb587365e4aca9e674b83771dddb3411f2ae5201095a8a3db8752bf6d",
+      "after_sha256": "5356347d10dd8bfd3ef9624e0c3bfa543a301a032c7675800cc703090c4456ce"
+    },
+    {
+      "path": "scripts/verify_performance.py",
+      "before_sha256": "974452ee8b5010110c322f35f0afd95e65a035d4a6e5defb8e6d1f94691c6886",
+      "after_sha256": "baaafea09c03a6b4ef30daea7d7cad615068a6538830e4d3a2989cac149ddc24"
+    },
+    {
+      "path": "scripts/verify_presentation.py",
+      "before_sha256": "cfacb4e3bd10348959a151cd6c59525f3f26690e6c21854dd918f86e979cb0f3",
+      "after_sha256": "4d7f1b992b679966a8aa12d889a3a4bcc6009a086bdcd12a63950cd37bee62fc"
+    },
+    {
+      "path": "scripts/verify_snp_workflow.py",
+      "before_sha256": "2467c8a50c177efdcbe35a1eca05771cf1964b15cc1e449739f957fe52175fe5",
+      "after_sha256": "67c14e8b643699cf97564c8ef90a657af344d26c8cc55ac0f4655e8ef8848b7a"
+    },
+    {
+      "path": "scripts/verify_windows_payload.py",
+      "before_sha256": "74f6f3a360bf54a6c0f1088d625b1fbb5a6c771b1d11973f992b27561158b37d",
+      "after_sha256": "4b38aa44ecd56acb16266d49c2afd6914e4c3ea12450295fa343258439a4d936"
+    },
+    {
+      "path": "scripts/windows/common.ps1",
+      "before_sha256": "1a7b0c5250a7d0789d961b820d09a1c6163d453f3c0719fc2081b35e77437367",
+      "after_sha256": "ec87ee3128a7f44e0b6727496a2806d618acf96a1ff292029046bcb2d95c9ffb"
+    },
+    {
+      "path": "scripts/windows/gui-launch.py",
+      "before_sha256": null,
+      "after_sha256": "1c9c256dba35ac3dbdff39d16236a949c8f4bbaed4f9c350d4658cf6cf40a762"
+    },
+    {
+      "path": "scripts/windows/repair-0850-self-test.ps1",
+      "before_sha256": "06851eccfa325dcd35f86254d96923033b01f163d8d9d7ffe9a8ac33dabbc917",
+      "after_sha256": null
+    },
+    {
+      "path": "scripts/windows/run.ps1",
+      "before_sha256": "4038abee060a05b3483757ccbdbee1f1c3e141ad7c30e52c451f12ac47a40587",
+      "after_sha256": "44649b707938cb83daa608a18e691f4015e646195a12cf9ae2b96db12bc792a9"
+    },
+    {
+      "path": "scripts/windows/setup.ps1",
+      "before_sha256": "374a7fdd3948b652e05b3834255f945721f0aed3c38d4a3e92112778f17ce216",
+      "after_sha256": "fa4e877d467bb002f18b668dfb2230fe9b154a201fadfd93578ab4f8934b53ad"
+    },
+    {
+      "path": "scripts/windows/test-installed.ps1",
+      "before_sha256": "fb234a00ada9cd87858da5e0c34c43d3132b4af5116b009adc25a0259ed4ddf9",
+      "after_sha256": "275aeb4f8e66edf2d2699a1d9f9013c1f012813402aa341488f122fc51df89ac"
+    },
+    {
+      "path": "src/nipat/__init__.py",
+      "before_sha256": "647afed1865dff3f937029baca1aca21c181910f79cdb8181514dbc0a4e8d349",
+      "after_sha256": "93e618ead3490118834c629a2e9217f7677630af99e4e6816ae6a6fa92c07928"
+    },
+    {
+      "path": "src/nipat/activity.py",
+      "before_sha256": "b9adb269e234ca736dcb6985d57dbef0f2c0dd0f2b3910035e90ca2826c80880",
+      "after_sha256": "cd11add6bfd6c0f920a1ceb1e9659d09374cd7733ac4a90a9cd7d7c94dfb9866"
+    },
+    {
+      "path": "src/nipat/analysis_forms.py",
+      "before_sha256": "efd34307b4c416d32b420d84d6cf79cca360acdd66fcc03fa62093eaa9361c28",
+      "after_sha256": "c2fdb67a0d59c0b7344e724f1c87de25b7e2e36707141cd0c68d5c5a6fd2c608"
+    },
+    {
+      "path": "src/nipat/branding.py",
+      "before_sha256": null,
+      "after_sha256": "324f73ee99c4b1a5939d00c22e7589e1ad298a532d0e4fa2209cb51ef8a7bcac"
+    },
+    {
+      "path": "src/nipat/catalog_ui.py",
+      "before_sha256": "3fc7914d0e897c714716fd61101fc6a8e227ab4a6d115fd633b6b5f80542c3b3",
+      "after_sha256": "3f23d4742c19f44d3d1647c0bcd9091cdde17ec6b97e1ab6315ebf57788b0330"
+    },
+    {
+      "path": "src/nipat/cli.py",
+      "before_sha256": "1c64c65cf1020a00e654c98c0d1d5e17804b721514ecc86ea852a69c2f7652c7",
+      "after_sha256": "16a0af9357667dc7f08534584d7f842536a0dcb1281d82568a480a9170251b6a"
+    },
+    {
+      "path": "src/nipat/distribution.py",
+      "before_sha256": "b16fe45f8754805160af773eb73453ef48185bfceb625c634fd828aa8ebc295c",
+      "after_sha256": "74ff0a9a2559a350cfa2de8ab2034039fc41022a1f69a773a24d31f6876b3b6a"
+    },
+    {
+      "path": "src/nipat/execution/analysis_plan.py",
+      "before_sha256": "dfbc6980618474e584a534db95bcd7cfc958d87ee9089f45e84027e9e3d3bd20",
+      "after_sha256": "425e63e4ef7e04ac11448757dbba876c3fe1f2762b24652aab8801a2416d325d"
+    },
+    {
+      "path": "src/nipat/execution/performance.py",
+      "before_sha256": "7d4ed41360a242de4942f782eeb00246518ed29d866aac3686c95044736b2e59",
+      "after_sha256": "c65798332a13acea72b376b293c31a8831173a6bcd25809da143fdf0b1056e1b"
+    },
+    {
+      "path": "src/nipat/execution/progress.py",
+      "before_sha256": "2e12b564c0e945bf8a28f1311659ffa9b612ade2e81c5c388cc95c907a0f7d6e",
+      "after_sha256": "5625b88d8fa6cb1be375ca9d64c3fe3d0aee1648732e3831284f4bc96dd5080c"
+    },
+    {
+      "path": "src/nipat/execution/recovery.py",
+      "before_sha256": "5d8a9d0d4a0e0c6cceaaac7009bdad9f475b6c5193e44610af30e9677514823c",
+      "after_sha256": "ff44a7d54b70ea11a1939b26a144e6a20711ae379414bfc3a346da0ef46ba588"
+    },
+    {
+      "path": "src/nipat/execution/runner.py",
+      "before_sha256": "b10793c827f0892556ea075ff2bc49f11d96cf46ddbb23b040e78c055cc09830",
+      "after_sha256": "9b45ccfbc9c2d10a6d8983e34f7754a3cbfe1a0f1fcc98a1f38f80f8905eb601"
+    },
+    {
+      "path": "src/nipat/execution/tracking.py",
+      "before_sha256": "3b3c0e979df17391cc300ea186fd11e7aee0b5d47346b54ff16461987a531001",
+      "after_sha256": "b86db46e57092f6f2477f3470831c66f91a3ce181c07f1449f757d31ff3b1286"
+    },
+    {
+      "path": "src/nipat/execution/transport.py",
+      "before_sha256": "46d89ca43d9e65858cae2905cc769ff12f72a51861f8e916e73717bcf5de00be",
+      "after_sha256": "4b84c586a222bfb0beddb718da60c605130a194143009f68d238e7bbdc1259fc"
+    },
+    {
+      "path": "src/nipat/execution/workflows.py",
+      "before_sha256": "2bd16b0ee2e20c38ac6d43828ae4598951e83dcdd9a9535138de11988877a034",
+      "after_sha256": "2acfba53dfd44473ada7a05b01a3881379a369f3c835c1343be0ecb5c9ee5e6e"
+    },
+    {
+      "path": "src/nipat/gui/__init__.py",
+      "before_sha256": null,
+      "after_sha256": "ef4b1fde748b9015ee276dc3e7e5ab9909c22af4c7bdd105ede295f6f626a419"
+    },
+    {
+      "path": "src/nipat/gui/admission.py",
+      "before_sha256": null,
+      "after_sha256": "207189916340303d49f861aec5811c272c60790b5b6d507570e6533a36fe2db8"
+    },
+    {
+      "path": "src/nipat/gui/analysis_report.py",
+      "before_sha256": null,
+      "after_sha256": "47bbea83281d329e7a6c6bd7fe7318f5103ff87037237567a0d5c0e28f8013aa"
+    },
+    {
+      "path": "src/nipat/gui/app.py",
+      "before_sha256": null,
+      "after_sha256": "253c83b51aa70bd6038338f156318b4e1d18e544663c71d1ada623604e50efd7"
+    },
+    {
+      "path": "src/nipat/gui/diagnostics.py",
+      "before_sha256": null,
+      "after_sha256": "5659be0189ebfaa13bffb55a9a0c3dc2d7cec78133165415e18cd9c6cb3a82b6"
+    },
+    {
+      "path": "src/nipat/gui/examples.py",
+      "before_sha256": null,
+      "after_sha256": "dea261d2d621747b4f525b524cdb4832e5f48f60f6a5646748eb0e404e6fad97"
+    },
+    {
+      "path": "src/nipat/gui/host.py",
+      "before_sha256": null,
+      "after_sha256": "db8aeee4d7897fa623ced7f5416a8dc124f1642effb0e0dc351d7d0afc1581ce"
+    },
+    {
+      "path": "src/nipat/gui/igv.py",
+      "before_sha256": null,
+      "after_sha256": "e2f8d84e7801914c9ae1f503a42f9a60543e76a6f51d380d92047d58f471a4c4"
+    },
+    {
+      "path": "src/nipat/gui/jobs.py",
+      "before_sha256": null,
+      "after_sha256": "92bec0c8d12f11e3e215decd14ce9ff7a75dea590187c31f963718573a02b6b3"
+    },
+    {
+      "path": "src/nipat/gui/lifecycle.py",
+      "before_sha256": null,
+      "after_sha256": "bc9f08072dc9b22d252f8ed122e67eb00a91ee6c324e2d369b30beb57e2b42dc"
+    },
+    {
+      "path": "src/nipat/gui/linux_host.py",
+      "before_sha256": null,
+      "after_sha256": "c978c41a075aacba744e8656f403c4e96851b0b2d2a39e02d1df206e9ac0852b"
+    },
+    {
+      "path": "src/nipat/gui/macos_host.py",
+      "before_sha256": null,
+      "after_sha256": "ffb3d27e09eca6d45a31a9ba02991135acb37f17b79bf75e3c5bcf606e6612dc"
+    },
+    {
+      "path": "src/nipat/gui/native/windows/LICENSE.txt",
+      "before_sha256": null,
+      "after_sha256": "0af8f1b807512aae39c2ac1aa4d0cae65cabecb6fd554b8439a5162a0d6eca55"
+    },
+    {
+      "path": "src/nipat/gui/native/windows/dependencies.json",
+      "before_sha256": null,
+      "after_sha256": "c7cee66ed968ade74699c7d60c575f8e7feb1ed54db611d06128735249e635a4"
+    },
+    {
+      "path": "src/nipat/gui/native/windows/x64/MicrosoftEdgeWebview2Setup.exe",
+      "before_sha256": null,
+      "after_sha256": "cf2f2445fef0c5c14e372045f84998771eeb8bb01d59be4afd00692fa160082e"
+    },
+    {
+      "path": "src/nipat/gui/native/windows/x64/WebView2Loader.dll",
+      "before_sha256": null,
+      "after_sha256": "d3fce90bdeecb08596e377dea6a316354dd8949e32ff09b89d51be00c14e21b6"
+    },
+    {
+      "path": "src/nipat/gui/plan.py",
+      "before_sha256": null,
+      "after_sha256": "bd3daf60c55d596e5736eb39b1e83585a22ec9857b0c41011ca044ef80c360cf"
+    },
+    {
+      "path": "src/nipat/gui/reference_downloads.py",
+      "before_sha256": null,
+      "after_sha256": "f30ecc841b1a9c6e632d921287a722b06579e3a91643523d8625485cc4059235"
+    },
+    {
+      "path": "src/nipat/gui/references.py",
+      "before_sha256": null,
+      "after_sha256": "441e2b2332040fd41745479fdb09bfc4aeaba41c82a47f4db770dbc0e0507527"
+    },
+    {
+      "path": "src/nipat/gui/report_bundle.py",
+      "before_sha256": null,
+      "after_sha256": "d85a50e4d04e011a43092df470bb1f8db3ef72e1082122b101e744d575bfa1a2"
+    },
+    {
+      "path": "src/nipat/gui/report_charts.py",
+      "before_sha256": null,
+      "after_sha256": "a2521d891d9db1fdb7025c9db70fc277b8095b5583f9e5b1c81932c094ed8753"
+    },
+    {
+      "path": "src/nipat/gui/report_igv.py",
+      "before_sha256": null,
+      "after_sha256": "bdb13dbea88de26f772b3fac18d96e3cc73f4ec333d7914fbe254550ff982687"
+    },
+    {
+      "path": "src/nipat/gui/results.py",
+      "before_sha256": null,
+      "after_sha256": "8c293e81a5df5aff225da73b330f3e876b3f2ad343b39957bcfa703419e1753e"
+    },
+    {
+      "path": "src/nipat/gui/server.py",
+      "before_sha256": null,
+      "after_sha256": "611f2c7e9bc73f7a64cfae74fee373c204c2321521d336d3455d68a87fd2150a"
+    },
+    {
+      "path": "src/nipat/gui/service.py",
+      "before_sha256": null,
+      "after_sha256": "9448e9cb61a3a6840c0f8d1722355c92bd99cc33774371188b41923a22eb7012"
+    },
+    {
+      "path": "src/nipat/gui/startup.py",
+      "before_sha256": null,
+      "after_sha256": "33d2cd9b1baba74c4ce7bc3df1b0ee83921f4266c0f9fd9adc347986aef217cc"
+    },
+    {
+      "path": "src/nipat/gui/web/app.js",
+      "before_sha256": null,
+      "after_sha256": "bd7387228058554a86f83c5692faaff7a22437fb248534f3581cc0536c444d2f"
+    },
+    {
+      "path": "src/nipat/gui/web/i18n.js",
+      "before_sha256": null,
+      "after_sha256": "92d2908077aa31133f8aa7fd639158042c89f41fa6d20c6901ecb6a10bbf418e"
+    },
+    {
+      "path": "src/nipat/gui/web/igv-view.js",
+      "before_sha256": null,
+      "after_sha256": "9f13fc395e5e0fb23d180ceb5435c1a83c70e2b740a713f408d927c334a426db"
+    },
+    {
+      "path": "src/nipat/gui/web/index.html",
+      "before_sha256": null,
+      "after_sha256": "98b4fb8f25613a596dd57d581c0f4f81716226cb50cb1ecf9234eb845d7773d9"
+    },
+    {
+      "path": "src/nipat/gui/web/newpat-wordmark.svg",
+      "before_sha256": null,
+      "after_sha256": "f56228450a169018e5596a8c996655c193fd9d0d7a751b8e8a9f684abc0a767c"
+    },
+    {
+      "path": "src/nipat/gui/web/report-igv.html",
+      "before_sha256": null,
+      "after_sha256": "c370f5736e70bbf962c2649cf0ec205da348a541ba6a0a5fc1aff8e107448d57"
+    },
+    {
+      "path": "src/nipat/gui/web/report-igv.js",
+      "before_sha256": null,
+      "after_sha256": "4646306f79e9509365cab750cf04cc805adaa6dc720b8ac743b4a6718d43f61f"
+    },
+    {
+      "path": "src/nipat/gui/web/reports.js",
+      "before_sha256": null,
+      "after_sha256": "ce74100105485c17038e0803fbbf11df1c2c8ea0dff26975cf06fd1954a95ac0"
+    },
+    {
+      "path": "src/nipat/gui/web/style.css",
+      "before_sha256": null,
+      "after_sha256": "df5bd31bf04a7aff331e41d338ee9f21c2ac7ffbc58aabc893056a57e55f0e1a"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/igv.LICENSE.txt",
+      "before_sha256": null,
+      "after_sha256": "fd69572836ffc3e7e17d19177bcd55c62c74c5c8a3db0d7a5f867759d7f9d443"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/igv.min.js",
+      "before_sha256": null,
+      "after_sha256": "240c31f8dc20d233b023e8482cb4b388f87679f69779afe3685a5c0c979e93ff"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/licenses/canvas2svg.LICENSE.txt",
+      "before_sha256": null,
+      "after_sha256": "e74ea1f767c879c2e6c8a787ffe2868f9323ddd5b507e18878e52c5876c2da1e"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/licenses/circular-view.LICENSE.txt",
+      "before_sha256": null,
+      "after_sha256": "718a9c12726a4cc7c88859c365778bedeb2988aa7c6d9b3c8ac41b19b0b8b495"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/licenses/cram-bundle.js.LICENSE.txt",
+      "before_sha256": null,
+      "after_sha256": "89f37b2690ea830d3a1437d5a57903e765037b7efb135aaf183ce52f686518f0"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/licenses/dompurify-3.4.16-LICENSE-MPL.txt",
+      "before_sha256": null,
+      "after_sha256": "fab3dd6bdab226f1c08630b1dd917e11fcb4ec5e1e020e2c16f83a0a13863e85"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/licenses/dompurify-3.4.16-LICENSE.txt",
+      "before_sha256": null,
+      "after_sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/licenses/gmod-cram.LICENSE.txt",
+      "before_sha256": null,
+      "after_sha256": "404439bb6a5c127f0a99ae2ddda56b0a1926f75e0065f9f6ce85a09855aa19f5"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/licenses/hdf5-indexed-reader.LICENSE.txt",
+      "before_sha256": null,
+      "after_sha256": "24424412c2098bd787de2603a9c7f04f0cdfaaa77546762f88fcdff918ea7ad3"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/licenses/hic-straw-2.1.3-LICENSE.txt",
+      "before_sha256": null,
+      "after_sha256": "feb87a2e0c305de3464cc44077da5393c52d8ca6362d37427157d04ec6f4510d"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/licenses/igv-utils.package.json",
+      "before_sha256": null,
+      "after_sha256": "153570b0d7680dc950ceebd0b41043b98f9d817a23711cfbf8e658ec671ab1be"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/licenses/pako-2.0.4-LICENSE.txt",
+      "before_sha256": null,
+      "after_sha256": "a04665b3b2de56c66730c1f720f528175739e4104f79073614aa611da1e85539"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/licenses/pako-2.1.0-LICENSE.txt",
+      "before_sha256": null,
+      "after_sha256": "a04665b3b2de56c66730c1f720f528175739e4104f79073614aa611da1e85539"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/licenses/regenerator-runtime-0.14.1-LICENSE.txt",
+      "before_sha256": null,
+      "after_sha256": "51887a3d47051ac2fce1210562e5b9fe0830a8a8fabeb272c2d586eeb18a05fd"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/licenses/sources.json",
+      "before_sha256": null,
+      "after_sha256": "d0cf2bdc769a43cafafc709ffe6391dac0baad4aca70b99f6f2cc98d4ce5d3a9"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/licenses/twobit-js.LICENSE.txt",
+      "before_sha256": null,
+      "after_sha256": "404439bb6a5c127f0a99ae2ddda56b0a1926f75e0065f9f6ce85a09855aa19f5"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/licenses/vanilla-picker-2.12.1-LICENSE.md.txt",
+      "before_sha256": null,
+      "after_sha256": "a4294f0f987ce43d315e3d6db2bd46a2254fdec0b8996427daaa8a910ca1d7ca"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/licenses/vanilla-picker-2.12.3-LICENSE.md.txt",
+      "before_sha256": null,
+      "after_sha256": "a4294f0f987ce43d315e3d6db2bd46a2254fdec0b8996427daaa8a910ca1d7ca"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/manifest.json",
+      "before_sha256": null,
+      "after_sha256": "e55c2ad14abc66fbd69c98342d768e2586ea6005c55b1ab6b0f98bdf7aace47b"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/pdfmake/BUNDLED-NOTICES.txt",
+      "before_sha256": null,
+      "after_sha256": "96def4577398c7bc66bc595c2eb883e59269a52fc29c8c4e48c4bec38693b06e"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/pdfmake/Roboto.OFL.txt",
+      "before_sha256": null,
+      "after_sha256": "061402327a96aadb0bfb694a960ed289ecd38d383e396243831ab81feb109c41"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/pdfmake/manifest.json",
+      "before_sha256": null,
+      "after_sha256": "1346374178f4198472004fbdd31071a161b56bc9a19c6defa30de43fede57e37"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/pdfmake/pdfmake.LICENSE.txt",
+      "before_sha256": null,
+      "after_sha256": "ab919430421c2e244dbb8694d70916eae16235b75c0ea07e9a6c67cd4265c954"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/pdfmake/pdfmake.min.js",
+      "before_sha256": null,
+      "after_sha256": "a3453acc05b244d2a9264d1231abf7e53f869c56a834553046be56a514a7e0f6"
+    },
+    {
+      "path": "src/nipat/gui/web/vendor/pdfmake/vfs_fonts.js",
+      "before_sha256": null,
+      "after_sha256": "f3db5ac36ce8c9a6a3f55d5d00c2a0e21a3d7698db149dff22f4e670ffcfd5c4"
+    },
+    {
+      "path": "src/nipat/gui/windows_host.py",
+      "before_sha256": null,
+      "after_sha256": "dc27cf36abf77404fc8e3785b99d16414a6a459cfaaece4a2b98ee77dad07519"
+    },
+    {
+      "path": "src/nipat/i18n.py",
+      "before_sha256": "d3a2261f4dab304863364c53c2d3e61fb36437bbd49420ca3df367de2a6e06a0",
+      "after_sha256": "c29cc46fddf46d4fca2f402d462cf6a267999b1e0ddfe279b1ff2523c5caa8c2"
+    },
+    {
+      "path": "src/nipat/installation.py",
+      "before_sha256": "889bbe96be1042624ffc3bb7661b87fe953b22cd8a335abb833086d7a25d50d8",
+      "after_sha256": "8a4bfa99ce3b61435de5c4f5da9b8e7646bf1b4536eb9318bcadc296a11b6c8a"
+    },
+    {
+      "path": "src/nipat/linux_update.py",
+      "before_sha256": "be274d30d566ad91f287288c34b1b34f2ecec839248f3d8e1edca2e56d02c6c3",
+      "after_sha256": "be98293c9e9ab906a3bd948da0cfd0d43ad9db63853806963c4d72fe7062298e"
+    },
+    {
+      "path": "src/nipat/macos_runtime.py",
+      "before_sha256": "a2a38be8ce4d471c91ba635da828e0ea5a105cb963860ed3078f7e66df1fffcb",
+      "after_sha256": "4b075bfbbfc3e083b1424ee683079cf7cf400753406ad4c4f894fa1bf148541a"
+    },
+    {
+      "path": "src/nipat/preferences.py",
+      "before_sha256": "f79e130b9da8f321fb1445d86727e82064dbc29e29060d77165590e7541f8a7d",
+      "after_sha256": "04bc538fea7cde684a03d7fcadc0490efe64c81fe755a97866cb2968ea42d074"
+    },
+    {
+      "path": "src/nipat/processes.py",
+      "before_sha256": null,
+      "after_sha256": "8abd1d77e95ea6908dccf3a6b0f2f3ffefc25038c9732929abfce8b641394793"
+    },
+    {
+      "path": "src/nipat/repository.py",
+      "before_sha256": null,
+      "after_sha256": "c15eb8a1566650933276d5b50bbf39044b2da5f48416c8f87f09fc30b224cbe9"
+    },
+    {
+      "path": "src/nipat/resource_ui.py",
+      "before_sha256": "49e091d544ebb4b478494df03c467a6da7fac83ddc8e19aa25f2d5530aca3521",
+      "after_sha256": "46e75936e9765c88dc10ce366238d3bda94aca65a84a7d553d08f021bef8a17b"
+    },
+    {
+      "path": "src/nipat/resources.py",
+      "before_sha256": "1315ea0ee7bcf48400c584c43b43bcfd9e8d738140c7d746bbe00e432e9b5479",
+      "after_sha256": "ade3337dc4975159ca7df91ff0554ed1c77c6ee72a710cfbc7256e27eaa9b61f"
+    },
+    {
+      "path": "src/nipat/results.py",
+      "before_sha256": "15e36644cf2620e776a4b83075586b21a174ae7bc4894a0b0a22ab343a84b8f5",
+      "after_sha256": "d8c66e85033682180a0e5db0fd17806a74ab6b8bf7036b7b81868330a9a038e9"
+    },
+    {
+      "path": "src/nipat/run_report.py",
+      "before_sha256": "45394eabf4cdeef60fe56c253405e6452933accbb0cd3f45222c2d6ed523fa0b",
+      "after_sha256": "ca74d3ed345c56c99eeadc71c6dd02f3897611b8b8de6e22d5ea69a3614397c2"
+    },
+    {
+      "path": "src/nipat/scientific_options.py",
+      "before_sha256": "7144e738a35a5a2cee0620be43f75a9c78f70aab7bcc3dcff013af9295b7a0a0",
+      "after_sha256": "8af2b339e8d1e0f8cabb88ccbc883cb9ae959de2f5a05d99cf1e0d75103f9324"
+    },
+    {
+      "path": "src/nipat/storage.py",
+      "before_sha256": "efc18f1d9064bbf7bb1e9d52c4681b9e2bc65e54d0b6f1035f2d05e649beb38b",
+      "after_sha256": "dc66fa9558172f6328435b4edd8f95b92e6bb6e2435147a14ddc4896616d8842"
+    },
+    {
+      "path": "src/nipat/terminal.py",
+      "before_sha256": "2daeaff2f3fa02bb7150d1d46238fd1ed94f44654974612eaf8e1590242dcbd0",
+      "after_sha256": "c008739ab01348e0c089cb521ddd36186df435912d610eb39d5efc0f7e61bfb1"
+    },
+    {
+      "path": "src/nipat/update_handoff.py",
+      "before_sha256": "cc73c33c42e12fe1f2db28b05434228dee3f40f97aad03c4be2e00c2dace4616",
+      "after_sha256": "6d3e048c761242be6482c83a99e999d8524ba9ce9c5e41ecfe2eacac263669e5"
+    },
+    {
+      "path": "src/nipat/update_ui.py",
+      "before_sha256": "d48a2b4c17989a0c7b5110dc3f68461e24bc1e71d3e643b0305fc82d1f24dea7",
+      "after_sha256": "ec57b80ebe30b2bdd1302a135521aeadf7c266ca90fc352ade1320ee9e6e3d63"
+    },
+    {
+      "path": "src/nipat/updates.py",
+      "before_sha256": "00f43e9e981ce5e56d380f717ee02787c386acc1380b03584a883faee6af0db1",
+      "after_sha256": "7f7a0de328fa580f280c77dd6e50d83dbcae1c7646d3585a8f910bf237925367"
+    },
+    {
+      "path": "src/nipat/validation/integrity.py",
+      "before_sha256": "2aef253a4136e9bc10aef9c6b1abaf8582a912c46eff078a77bed365a660842f",
+      "after_sha256": "90bd880d9c350e11112fa723aab511c8f4a3819ad96230053d8dc1991d102bca"
+    },
+    {
+      "path": "src/nipat/validation/self_test.py",
+      "before_sha256": "09d0782e7e31cd117f3f8022952415f14e9da4dcc50bc6d1edfbc7a6fb323d49",
+      "after_sha256": "a7ce742b600b9f23e6f8d3ac106e8ee6d3afb317b397254a915aacecb4b040b7"
+    },
+    {
+      "path": "src/nipat/windows_install_activity.py",
+      "before_sha256": null,
+      "after_sha256": "e82444aa24c6b5f4474a4fdcb7fbd0f57f57753453da5514707254d9ddc7eeec"
+    },
+    {
+      "path": "src/nipat/windows_setup_check.py",
+      "before_sha256": null,
+      "after_sha256": "0ba80fe6d866e2c48d7b2c14dd8331fab99f8775eae786970aef12782f4655a3"
+    },
+    {
+      "path": "src/nipat/windows_wsl_prerequisites.py",
+      "before_sha256": null,
+      "after_sha256": "bbda4b9c44e7593773d18a851e4319d21c1230f0bce9589ff4d47d056683a49a"
+    },
+    {
+      "path": "src/nipat/wizard.py",
+      "before_sha256": "410422e72069f24387825eefeca04afb25875c146fa8c46bb316aceedcd21ac9",
+      "after_sha256": "d80a60d9b0dd3ff7c8b36532f33d16581066f9e488bee874fbb495bfa5478ef2"
+    },
+    {
+      "path": "src/nipat/wizard_forms.py",
+      "before_sha256": "bdf58420c79a921e7571769e0092a5e18d3aa1a5ebc556bdc25cc3c47a722e94",
+      "after_sha256": "0937fcb1b182c08ca286b60749b89b601f206a63b5e44c0537fa191fc5594261"
+    },
+    {
+      "path": "src/nipat/wizard_settings.py",
+      "before_sha256": "74ca539d80ad80f3a106f5d7a20df991ec69117c970d753c5be008fa13061e3a",
+      "after_sha256": "a4f123e4cde7bfca7516066f47b1374792771235c2e30fdb060de2fc840e345b"
+    },
+    {
+      "path": "src/nipat/workflow_forms.py",
+      "before_sha256": "527818ac7df680c28e6cad5c57aeff11f46e1bb37c210565fbe8fb438aa8d677",
+      "after_sha256": "457362f99437d5ef9a0310ae393e7109ca76b89e9f0d8b6b279efdd8cd0327f5"
+    },
+    {
+      "path": "src/nipat_scientific/catalog.py",
+      "before_sha256": "6c2a89aae82e0f9382342b9266ea1a72a5e12bd161570a6585b7af8bf339e28d",
+      "after_sha256": "1ac98749088be000b91284b48f7622b2340856cfd2923a9b32f943959d0f8c62"
+    },
+    {
+      "path": "src/nipat_scientific/catalog_data/contamination.json",
+      "before_sha256": "9727f1b8d7167e21c3d25382b631fd2afcf300a933d4ee104602c9b9a2a1acff",
+      "after_sha256": "7539b87a33eabc4ea75b5282461d1390b2efaceec02a41e450d7787b2eec80db"
+    },
+    {
+      "path": "src/nipat_scientific/catalog_data/cpi.json",
+      "before_sha256": "0cf06e791acc62e3324897872349103c5c82fd8facaad2869d8e0e55ecfeb7f8",
+      "after_sha256": "08cbe54a461a28b28cd681514bc31022f201bb9a8d495924637dfb5c1598f003"
+    },
+    {
+      "path": "src/nipat_scientific/catalog_data/cpin.json",
+      "before_sha256": "45325482725641b0b21ff14e071543c6065d8caf0c25c41fbe7392c266189add",
+      "after_sha256": "f998b8d91ccf46163d5d5898bf01e8487a6c51531010382c1e02900c63e97791"
+    },
+    {
+      "path": "src/nipat_scientific/catalog_data/dnp-call.json",
+      "before_sha256": "b3a90b32f89d42834940524111e69434c63c001f244f10cd2e9a0fba4f0816be",
+      "after_sha256": "6c9664165dd3a013ac39653342c7c6a8230f5e38b255a054b1700da1f24115ad"
+    },
+    {
+      "path": "src/nipat_scientific/catalog_data/fetal-sex.json",
+      "before_sha256": null,
+      "after_sha256": "4b51b7f7cafb17d7f81dcbc0c0501a6210fca391d9462566d0c31eb5eb9e9f9b"
+    },
+    {
+      "path": "src/nipat_scientific/catalog_data/snp-call.json",
+      "before_sha256": "af7b856fb72a3df4804e8a0f006b130277a615af6dfb1b5d9150cce9f919681a",
+      "after_sha256": "344634772fb2757b50e15fd0cbd751ef615ce3c5a46622a30f35ce091068d9ef"
+    },
+    {
+      "path": "src/nipat_scientific/cpi.py",
+      "before_sha256": "e15ea2eeaa02f184e03512875c74c5d92052f4e25821b36b4a43facfa038b4e7",
+      "after_sha256": "d779089d0bce8b5e228907d2a6409823e72d6b722bddfe414acb0449bb9f6f98"
+    },
+    {
+      "path": "src/nipat_scientific/cpin.py",
+      "before_sha256": "a0a53975759336d9fa46e72a936624906fbb56f19ae2fc73f0a9d522313fc775",
+      "after_sha256": "df56b37c8414711499038b7d4d7c95d4a280031855d058f48f2e88feb462eb30"
+    },
+    {
+      "path": "src/nipat_scientific/desktop_scheduling.py",
+      "before_sha256": null,
+      "after_sha256": "1bc221175a801c696dc4a469aae64d2347b433ebfc67bc20712fe5e184466a80"
+    },
+    {
+      "path": "src/nipat_scientific/dnp.py",
+      "before_sha256": "33684104949046d2726d749971e9a19c17bcba0f54269948172668035adf8b46",
+      "after_sha256": "37f8cced2b9adf052da201ac61c94184618ac0da83567d2fa11e6d21e068d7d5"
+    },
+    {
+      "path": "src/nipat_scientific/dnp_blocks.R",
+      "before_sha256": "717fbe409caf1b80f1a6fa1734b454ea5e31da910b67fcf0db8b7e72294441ca",
+      "after_sha256": "75b44e332a7948993ae15ff0f5934fcadba7b4dfda16fcdfcdec0f6357c2ac65"
+    },
+    {
+      "path": "src/nipat_scientific/dnp_pileup.py",
+      "before_sha256": "8f0da5988f7b203ae2d37057e38c2ab4f6c15c434757b3dd0ae7f021b5a7b762",
+      "after_sha256": "45939c999b7aa02b7468f25ce07d78840c1bcc7c1b3a497270380f10e0fc5ef4"
+    },
+    {
+      "path": "src/nipat_scientific/executor.py",
+      "before_sha256": "452bcfbeadbf725b886e0768f2cccdea5178a7fd6df8bc92afc8ac7490f00665",
+      "after_sha256": "b3229758cf1ebc9bf0173888d9934cdf13d2da3c8ec4d16c39887a8af4bf7b99"
+    },
+    {
+      "path": "src/nipat_scientific/fetal_sex.py",
+      "before_sha256": null,
+      "after_sha256": "0898044a2f8f1f158bbb3519770fa108cb6108e7ea6342ef36ef6f099b89afa0"
+    },
+    {
+      "path": "src/nipat_scientific/files.py",
+      "before_sha256": "cb6d5e52658233b8f20f8f86739710a3a7af84d7901d02821f33e1fd182447d0",
+      "after_sha256": "da59fd1cbc700d1aaf6cabe59a8849907bbf5d469dcaf52e01c033ed497b97a6"
+    },
+    {
+      "path": "src/nipat_scientific/outputs.py",
+      "before_sha256": "2778f6a453de036bbd1eb73161db6b2d8924cc42d524c757f714b29788cd6651",
+      "after_sha256": "a7d38ad99d05f96e3bfb520461a6f52d00bc2316dc36e302775c55a86f0b4c01"
+    },
+    {
+      "path": "src/nipat_scientific/panels.py",
+      "before_sha256": "c05735970f78fa4527a195f599dc58d198872b557a64105f191e939e26699c65",
+      "after_sha256": "b102d8ac8ed99608df48c3493fb85a42233361feec4ca82ea1e02fef904e9b28"
+    },
+    {
+      "path": "src/nipat_scientific/parallel.R",
+      "before_sha256": "2e8ebb3c0ccfa36e5e67f64392e5d8da166f149667d7b1d559de95054d307e42",
+      "after_sha256": "7c83def1907d041decf7dd8705aaf1f92bcd401d7b1fba38aaf788962a5dd47a"
+    },
+    {
+      "path": "src/nipat_scientific/plan.py",
+      "before_sha256": "cc0a126a19f10c8315d367df7a328bf7b8730d1a2e0d705c124bd35ac8d4ebcd",
+      "after_sha256": "ed49965a2ade82e25c9fd91e9075485a3ae3785112baab98a1e2a4feb21bec03"
+    },
+    {
+      "path": "src/nipat_scientific/plots.R",
+      "before_sha256": "4bb6d65e05d4cc6d69a0a8160b4405e48a7bab549bfe9cbe4ea7d7185ffa35a3",
+      "after_sha256": "714e86d4e080ade63be3a47c0322dae93097d9a4ccef0ef9fadc5cbba7d35d1d"
+    },
+    {
+      "path": "src/nipat_scientific/presentation.py",
+      "before_sha256": "fb01b23f6183c3478ab97d869dfafcb11692428be63453e378f9a7742bb78c0a",
+      "after_sha256": "6af297218e67da1d8de695759647be6afd57e9ecb6da3a08353ab4a2f949cd66"
+    },
+    {
+      "path": "src/nipat_scientific/progress.py",
+      "before_sha256": "bdf580cdce8c88efbf93a10116d851162260c09d7b07d5713ea0f6c6c1200bec",
+      "after_sha256": "6d0ec28d36e05f9a529fadee78209a04b33bef589c35a83cc33cb64a7055a265"
+    },
+    {
+      "path": "src/nipat_scientific/settings.R",
+      "before_sha256": "d4e0db860501861132aa3fde280d371ab84a5fe7944d94482b7499f29687c392",
+      "after_sha256": "fb6e63b54b8e99c9cc754e7a0cce36ae9803312eee117a014fd6e9c5f6019af7"
+    },
+    {
+      "path": "src/nipat_scientific/settings.py",
+      "before_sha256": "21fd42ad2c04e8f7bf7bf3f08e01aa88df27416f7fbd104aeae6439ba7cd8f88",
+      "after_sha256": "dc40a1dfff1e87fbc8c9eb8427ea413ed1b358cf6b62542678e061894605cba9"
+    },
+    {
+      "path": "src/nipat_scientific/settings_data.json",
+      "before_sha256": "e1284fe3489dc55b19c13a806ca461cbfc712c6047fb2499d8c3ac2c86692123",
+      "after_sha256": "288538dd8057e235edcb0e6e12ccea610f1066fb536262be086191759777e03c"
+    },
+    {
+      "path": "src/nipat_scientific/snp.py",
+      "before_sha256": "d508ce9ad617f27976941c870ff41edb9fea950a1dc3514fab5be53d8cd2541c",
+      "after_sha256": "2b39ef5b45a86fd6f25624cc675ace392d4c86978d32819ad446b5b5ab04dd8a"
+    },
+    {
+      "path": "src/nipat_scientific/snp_parallel.py",
+      "before_sha256": "f8493ce29953ce44c0fbad945305ede8afdd20bd7bcabb4d089e151bf49b2ae1",
+      "after_sha256": "8f8affdd5314d9e1fa4153bdfe511790ffbe9d8efd5da97ea64ac2aff8484d99"
+    },
+    {
+      "path": "src/nipat_scientific/snp_summary.py",
+      "before_sha256": "1269920773e53f4e658fd95680d6929fdd8c32eac487b263be7a9f2901527945",
+      "after_sha256": "8441193952d48a355bd0c44102887d9eafde0c83c52e47bfe8cb04b0feccd1c2"
+    },
+    {
+      "path": "tests/fixtures/fetal_sex/inputs/Female_fetus_X.txt",
+      "before_sha256": null,
+      "after_sha256": "1fd05c6ded2147a549ac2b4db1327bee3443c0a056b49e9c95ee1e876b2964a9"
+    },
+    {
+      "path": "tests/fixtures/fetal_sex/inputs/Female_fetus_Y.txt",
+      "before_sha256": null,
+      "after_sha256": "9dad6e51145de6e05d0a9370715afa0014ffe45602e07d61a9469fc49f78d5f8"
+    },
+    {
+      "path": "tests/fixtures/fetal_sex/inputs/Female_fetus_autosomes.txt",
+      "before_sha256": null,
+      "after_sha256": "b2a479d8dd9ecfea51f61295a5952a6b369bc1ee003ef6b98d605f39fee5e30c"
+    },
+    {
+      "path": "tests/fixtures/fetal_sex/inputs/Male_fetus_X.txt",
+      "before_sha256": null,
+      "after_sha256": "7ea85e05980af0526a09ecc00cd41d6b3b3762b7ce83292dfa976172d2f22ef8"
+    },
+    {
+      "path": "tests/fixtures/fetal_sex/inputs/Male_fetus_Y.txt",
+      "before_sha256": null,
+      "after_sha256": "b647802e8a8a42f45634d07dd79edf9bea5d85996fe41b3f33582e74655fbc04"
+    },
+    {
+      "path": "tests/fixtures/fetal_sex/inputs/Male_fetus_autosomes.txt",
+      "before_sha256": null,
+      "after_sha256": "b2a479d8dd9ecfea51f61295a5952a6b369bc1ee003ef6b98d605f39fee5e30c"
+    },
+    {
+      "path": "tests/fixtures/fetal_sex/outputs/Female_fetus/Autosomal_informative_sites.txt",
+      "before_sha256": null,
+      "after_sha256": "b74120027e75a8ac9c1434c7a4e97a595fcdbbcee8d26847fb1a90dae2315644"
+    },
+    {
+      "path": "tests/fixtures/fetal_sex/outputs/Female_fetus/Fetal_sex_summary.txt",
+      "before_sha256": null,
+      "after_sha256": "9cecf2e2d26bc54e54cdd100e5765b9703179c30aa5a64a91349e31f078f2eaf"
+    },
+    {
+      "path": "tests/fixtures/fetal_sex/outputs/Female_fetus/X_informative_sites.txt",
+      "before_sha256": null,
+      "after_sha256": "d8916bf4a1d271897e93e84f767a0d4f703c408ebaef9866698b07859865f642"
+    },
+    {
+      "path": "tests/fixtures/fetal_sex/outputs/Female_fetus/Y_sites.txt",
+      "before_sha256": null,
+      "after_sha256": "2c0505378eb803bdc750265c0a62568ab5358db0c764727caf0f29c00792001a"
+    },
+    {
+      "path": "tests/fixtures/fetal_sex/outputs/Male_fetus/Autosomal_informative_sites.txt",
+      "before_sha256": null,
+      "after_sha256": "b74120027e75a8ac9c1434c7a4e97a595fcdbbcee8d26847fb1a90dae2315644"
+    },
+    {
+      "path": "tests/fixtures/fetal_sex/outputs/Male_fetus/Fetal_sex_summary.txt",
+      "before_sha256": null,
+      "after_sha256": "aa8fc45fdae2be10013879e1cdd7d9bca36eb46b8c0fab029b19b98bb0665416"
+    },
+    {
+      "path": "tests/fixtures/fetal_sex/outputs/Male_fetus/X_informative_sites.txt",
+      "before_sha256": null,
+      "after_sha256": "5a43cab67145f04a297c8572ea5c0ba487601174b32b3ef3997fbb29849daa19"
+    },
+    {
+      "path": "tests/fixtures/fetal_sex/outputs/Male_fetus/Y_sites.txt",
+      "before_sha256": null,
+      "after_sha256": "088cf8704b5561245433fe7dc889621bd8d50a0af19eb5494676fd866a9f1f6c"
+    },
+    {
+      "path": "tests/fixtures/prenatal_cpi/inputs/DNP/FatherA1.txt",
+      "before_sha256": null,
+      "after_sha256": "a94fb6e66e61ec971ad6cd0356a155a4816b36f9a341a28a4c74815ad462eb80"
+    },
+    {
+      "path": "tests/fixtures/prenatal_cpi/inputs/DNP/MotherA1.txt",
+      "before_sha256": null,
+      "after_sha256": "72c311ed5602d15c520352c12a7a31faf5c04fbd17ad02ab5504d6b36f21f365"
+    },
+    {
+      "path": "tests/fixtures/prenatal_cpi/inputs/DNP/markers.txt",
+      "before_sha256": null,
+      "after_sha256": "5ecb8575a8d8a209699c120567db0c58702f6520d710151262f5b806aeacbf20"
+    },
+    {
+      "path": "tests/fixtures/prenatal_cpi/inputs/DNP/population_frequencies.txt",
+      "before_sha256": null,
+      "after_sha256": "49077c6518323f2a5036cb5b6a07db623d5515ab99f2825d8cd757012e5a4bf3"
+    },
+    {
+      "path": "tests/fixtures/prenatal_cpi/inputs/SNP/FatherA1.txt",
+      "before_sha256": null,
+      "after_sha256": "4b494790e054a70afb3a1768689bb8fbabdee2d4581578c417bae6669e9fc077"
+    },
+    {
+      "path": "tests/fixtures/prenatal_cpi/inputs/SNP/MotherA1.txt",
+      "before_sha256": null,
+      "after_sha256": "3744896dd01f15a31a4aa5e7ba84ec248394c91df149597b97396a24a2fa57b1"
+    },
+    {
+      "path": "tests/fixtures/prenatal_cpi/inputs/SNP/markers.txt",
+      "before_sha256": null,
+      "after_sha256": "15682097669e1303111866b0f7f554a513db3dcf3577a89c1b3a974f15a16d1b"
+    },
+    {
+      "path": "tests/fixtures/prenatal_cpi/inputs/SNP/population_frequencies.txt",
+      "before_sha256": null,
+      "after_sha256": "a26d01b74ad56445e21eafabd5b194824ba05409e022c6edeadb4431da38b12c"
+    },
+    {
+      "path": "tests/fixtures/prenatal_cpi/outputs/DNP/MotherA1-FatherA1_DNPs_CPI_iterations.csv",
+      "before_sha256": null,
+      "after_sha256": "2ee6e94dead118ce42be0df0673f1b7892941ee306290566598d47ac39120eaa"
+    },
+    {
+      "path": "tests/fixtures/prenatal_cpi/outputs/DNP/MotherA1-FatherA1_DNPs_HOM_child_sites.txt",
+      "before_sha256": null,
+      "after_sha256": "95613198ed2a6df69628c871219a7f93db3c0df68990a7d4fd1a723554ba4be9"
+    },
+    {
+      "path": "tests/fixtures/prenatal_cpi/outputs/DNP/Summary_FetalFraction_CPI.csv",
+      "before_sha256": null,
+      "after_sha256": "388bc74a78978d14bd9b90ff0dff3e674781600267a49ad5af19cd1f645d62b0"
+    },
+    {
+      "path": "tests/fixtures/prenatal_cpi/outputs/SNP/MotherA1-FatherA1_SNPs_CPI_iterations.csv",
+      "before_sha256": null,
+      "after_sha256": "f908ad9e774de145d5a630e6146b8640b15f21eecbd6c28653d839f70a8053bc"
+    },
+    {
+      "path": "tests/fixtures/prenatal_cpi/outputs/SNP/MotherA1-FatherA1_SNPs_HOM_child_sites.txt",
+      "before_sha256": null,
+      "after_sha256": "c8964d4d42db810491afda5a166c4227b82fe4f6e81ec0e0c282d20d6e955ab8"
+    },
+    {
+      "path": "tests/fixtures/prenatal_cpi/outputs/SNP/Summary_FetalFraction_CPI.csv",
+      "before_sha256": null,
+      "after_sha256": "104ac2907c91336a68cb2a1b1de7b103296542667ced6a78bc702c99b5569d65"
+    },
+    {
+      "path": "tests/test_background_processes.py",
+      "before_sha256": null,
+      "after_sha256": "130271a38474a491516bc1cf0d3349bed0762a93b02465e5543897c8692d12a1"
+    },
+    {
+      "path": "tests/test_bundled_runner.py",
+      "before_sha256": "b3053f64a4ace585a7d573b14303124dd385c0530a2fde5b5077a0dcfdc871fd",
+      "after_sha256": "6cc9dfc5e55443eb5d01b72126fa784e6878445c11481e4be5e3205dc38fbcf5"
+    },
+    {
+      "path": "tests/test_cli_validation.py",
+      "before_sha256": "1bb9bfb8230510d0de96f22735b92331bafc113eb0dce6858e12301f25d9c5e0",
+      "after_sha256": "e9a0f9a29d42f0502b481c61fd02a8336a89653a25d33cba74d20e0b6a114d96"
+    },
+    {
+      "path": "tests/test_client_reliability.py",
+      "before_sha256": "dd1722b30e66c5393f395bb664e763621774955d7451aea966052dfd33e59e16",
+      "after_sha256": "a35c19995bc932714101c8d0a0c7dbfe780dfcfab07ffa872e1ca6af473ce61e"
+    },
+    {
+      "path": "tests/test_cpi_engine.py",
+      "before_sha256": "9efa52aec1506926b698c65c524f210a6d9487043e38a1fcec3ce171518eb685",
+      "after_sha256": "31c241859be92dba12c81ad01db295075f090d7e9b2812bb1678f89624c3e7a5"
+    },
+    {
+      "path": "tests/test_desktop_payload.py",
+      "before_sha256": null,
+      "after_sha256": "e3331d824fa018e2736b5e0a9adbab55c71564b8c047290db9c6789b63a90c84"
+    },
+    {
+      "path": "tests/test_desktop_scheduling.py",
+      "before_sha256": null,
+      "after_sha256": "55c6cbc6b90c899ca0cebaa162bdc5cdb6311db35394ac5561cb54c85bd3ea95"
+    },
+    {
+      "path": "tests/test_dnp_engine.py",
+      "before_sha256": "19b11d67963955b2fda152ca466efb4b1e46211f20a6e6e26cf5d8e1a7bb4079",
+      "after_sha256": "a1c06b78835c474108981d840a2a1efe48992831742ed9a59a421111e27211a3"
+    },
+    {
+      "path": "tests/test_dnp_pileup.py",
+      "before_sha256": "2f08a6cfcef1df8eca6f245feaf4a9a95270f96f5292e77f2d2540b2cbd21fd5",
+      "after_sha256": "dc5af1f040de084185ecde93fb7906f52d065197adec2ebfcc9b556bc17bda33"
+    },
+    {
+      "path": "tests/test_engine_package.py",
+      "before_sha256": "5a59fc6690284f8282a808ddc1d09ff1e82653c9d56b3559718dcc0adc673fec",
+      "after_sha256": "b04f2e3be0d406ec24d990e96775321a29ba7c4d63bc7859a6afa53d8c4be88a"
+    },
+    {
+      "path": "tests/test_engine_progress.py",
+      "before_sha256": "ea5b9fc7595856da5e7147be115b6b5b0eda5123f9ea0881d8525959ef1ffd87",
+      "after_sha256": "5c2f5b79d06406cc9b5686380f991726b563ad250a163126a5515c3717e86550"
+    },
+    {
+      "path": "tests/test_execution_progress.py",
+      "before_sha256": "71b9be93da83239e4e12f9a5330c3918097688a27d6ee8c50d27cc0c4ffd5172",
+      "after_sha256": "c3fc75240dcde377ed318cb72af9e6f3d96f534a76297c826e6038f081a5d5d2"
+    },
+    {
+      "path": "tests/test_experimental_distribution.py",
+      "before_sha256": "ea32a034530bce4c0243e0bb6089d2c0b14382f019018e137f4692e63c42e8f4",
+      "after_sha256": "820db21d1f47eea1d9154b37da416b3399e6c0277d9e46fbb081cdbf744a62d5"
+    },
+    {
+      "path": "tests/test_fixed_resource_budget.py",
+      "before_sha256": null,
+      "after_sha256": "84bf51f0b8161064f7a34b8badb8118fd115abf127466be24c01039a8d8c2fde"
+    },
+    {
+      "path": "tests/test_gui_admission.py",
+      "before_sha256": null,
+      "after_sha256": "bc4ff3db5b1b329a2677c756435f04c3932b2700a6709e956e1e08a45ae182c5"
+    },
+    {
+      "path": "tests/test_gui_analysis_report.py",
+      "before_sha256": null,
+      "after_sha256": "0dd2efbeb58193f0b1c8c774e6db9c83cc2938162041beff8681fb4b411de96f"
+    },
+    {
+      "path": "tests/test_gui_app.py",
+      "before_sha256": null,
+      "after_sha256": "c37cdc5f785d5aa21374dc0ac6ac62a185c3c132a83626199fdda5793b9eb21e"
+    },
+    {
+      "path": "tests/test_gui_app_verification.py",
+      "before_sha256": null,
+      "after_sha256": "abef47fd7f7e13f865de900a6ea95953427ead7051f3bec42bcc3cb9e98a1ce1"
+    },
+    {
+      "path": "tests/test_gui_diagnostics.py",
+      "before_sha256": null,
+      "after_sha256": "b4deed508fb45c1f1bae2b3d23cc5941dd2be7de69691366a82427bdafb9c270"
+    },
+    {
+      "path": "tests/test_gui_distribution.py",
+      "before_sha256": null,
+      "after_sha256": "02747dd827c055f997bb735611c620fb274da715c9f50f4f46123f2fdf18a076"
+    },
+    {
+      "path": "tests/test_gui_frontend.py",
+      "before_sha256": null,
+      "after_sha256": "6ea900f65b411e01aa455b876f9a967495449f6629d6940067e4cb98b977b303"
+    },
+    {
+      "path": "tests/test_gui_igv.py",
+      "before_sha256": null,
+      "after_sha256": "2236ca6042df09ddd87a01f840c6bcc406105457dd7a668e41f422107fbae801"
+    },
+    {
+      "path": "tests/test_gui_igv_adapter.cjs",
+      "before_sha256": null,
+      "after_sha256": "43bd58bdfc5dc8f0fd08739c88014faeb1d1d9caccafdcf5498825c6896258c3"
+    },
+    {
+      "path": "tests/test_gui_lifecycle.py",
+      "before_sha256": null,
+      "after_sha256": "2bc55b5d93da26feaf8b10158bf373e1e07d249f25b95884f0c4364f17ed397f"
+    },
+    {
+      "path": "tests/test_gui_macos_host.py",
+      "before_sha256": null,
+      "after_sha256": "fe022a6d243b31d1db9886cfa5781d944dac373a0038e38c8908af6c994f2cc6"
+    },
+    {
+      "path": "tests/test_gui_report_bundle.py",
+      "before_sha256": null,
+      "after_sha256": "fb96da8a082336e54d7c2fb693d92576a522c8e62799117f39fec6c006256bb7"
+    },
+    {
+      "path": "tests/test_gui_report_charts.py",
+      "before_sha256": null,
+      "after_sha256": "b4898946f7e20e9b3b4bc395ec87381f3abd567e4adf5f97a4750d56b37866a9"
+    },
+    {
+      "path": "tests/test_gui_report_igv.py",
+      "before_sha256": null,
+      "after_sha256": "048137331dea05ac8c223b0f19702c33997e6b9ad7166d773b3203b3290ad485"
+    },
+    {
+      "path": "tests/test_gui_report_igv_capture.py",
+      "before_sha256": null,
+      "after_sha256": "b8f0a43ee62b96e023bf40b32a136f994c2d6efc76dde1ef258fae605b0ee61c"
+    },
+    {
+      "path": "tests/test_gui_results.py",
+      "before_sha256": null,
+      "after_sha256": "467a21e38449d7e1742940bcec3b2da2e277d2404b2b940a52f29808581dc665"
+    },
+    {
+      "path": "tests/test_gui_server.py",
+      "before_sha256": null,
+      "after_sha256": "8e47819f0ca37650c649a9e3e8f14ed407f997654466e2b9a68496badf910a01"
+    },
+    {
+      "path": "tests/test_gui_service.py",
+      "before_sha256": null,
+      "after_sha256": "0ab27acd6df1d7f8cda8187b005eb5003ebc80ef612f1faa03b5c008ed0c625e"
+    },
+    {
+      "path": "tests/test_gui_smoke.py",
+      "before_sha256": null,
+      "after_sha256": "740a6ce60f6bf17ea9719e796515c0e36e3683bbb6e009d33f79101bbfa2e406"
+    },
+    {
+      "path": "tests/test_gui_windows_host.py",
+      "before_sha256": null,
+      "after_sha256": "4a971d5414217b944f11914b37cd2be55a8d81fb0092daf97120142b40791f79"
+    },
+    {
+      "path": "tests/test_gui_windows_launcher.py",
+      "before_sha256": null,
+      "after_sha256": "9ec39b71d13a883249c003925b097b1338e3b8126e4738fadf86dc055fd7c26c"
+    },
+    {
+      "path": "tests/test_installer_assets.py",
+      "before_sha256": "36e329300c82925d10ba4940bb0c41dc238ecf9d0cd19ec3859350e7832ce550",
+      "after_sha256": "7ea3a2e0ab63ed48891709bd9d63bff1f7f12a4913cd7639023a7a620d4797b6"
+    },
+    {
+      "path": "tests/test_linux_installation_check.py",
+      "before_sha256": "247513a0b37241cc1e0aef477b9d1642fc94c4ba0a3f6f2a26ff38f761d609f7",
+      "after_sha256": "8e84d68068a036f52ac46daf75ec949ba8e0bf3120e1662265155c9e432b68da"
+    },
+    {
+      "path": "tests/test_linux_installer.py",
+      "before_sha256": "cd60eeb2067e1e41882bc1ca60acaea16db2a73fa5ed59e0532d58c78f10e60a",
+      "after_sha256": "f9bbd09a22f5633195f1a4bc8f4de124889e8ecf7e9fda73f54b8e99f06b7e0b"
+    },
+    {
+      "path": "tests/test_linux_launcher.py",
+      "before_sha256": "5bddd22da875a124b88733d3c3e982e3a8b9df30aa7b7117768865d1cf1e21e1",
+      "after_sha256": "d7968c6a4ba6f8bf084d98902f56776b184d368a9de782543fa968fdc961c10c"
+    },
+    {
+      "path": "tests/test_linux_updates.py",
+      "before_sha256": "c753c60d84b2e93d5e534e6d3d5ecd6b95aea54c21068e96445fdd03a1aa2646",
+      "after_sha256": "de5d950546ebf3d09cac4e514392434cbc253e55fd578e8127c86cae15a17cc0"
+    },
+    {
+      "path": "tests/test_linux_upgrade.py",
+      "before_sha256": "1641121bf895e3d9b279cb5f02d2c2c4e92927267ea13deeb00af252a9cf30cb",
+      "after_sha256": "7ec9c1ca18d8d7b7bfbfc50ed7830425bb223a14ffbb672b9fc6346385746ab3"
+    },
+    {
+      "path": "tests/test_macos_installer.py",
+      "before_sha256": "aac6af4ca9c4d0735de09f05fde478d3f21707e78ba305a6ba8eed51d52a5e0a",
+      "after_sha256": "5539103ff83649d6e37ce8fe56312fab852623ae5d9d1a925b6b4af3c22a812b"
+    },
+    {
+      "path": "tests/test_macos_runtime.py",
+      "before_sha256": "fbe16f7727720ca5eef73207f746e88f9b12cd72602bb09d07d2cc6410dab43e",
+      "after_sha256": "9c244bd980e72e1307c9f03553a476d049569ffacdd52bf9910ea03c2bc78bbb"
+    },
+    {
+      "path": "tests/test_native_r_fetal_sex.py",
+      "before_sha256": null,
+      "after_sha256": "4964c5586bbb860cc9d2e49e5cd7132450f6c21bb4e8ee3fbc536fac45590ad5"
+    },
+    {
+      "path": "tests/test_newpat_branding.py",
+      "before_sha256": null,
+      "after_sha256": "335ef220407f8b189a1a2da19e2577743af6cdba0d23e9a51687489bc47dbb55"
+    },
+    {
+      "path": "tests/test_parallel_runtime.py",
+      "before_sha256": "0b14f0c20a847140ef881f6c2f5bfba9ee51dcf3943e3464b34aa1f450e1ff63",
+      "after_sha256": "fb967be21d1e21ae29e994ae1c01ce3aa4842dbbb7e94af7a1e1e47774ff161e"
+    },
+    {
+      "path": "tests/test_performance_verification.py",
+      "before_sha256": "b3b291618f82d31eeafa6c63f97e2e77630ecf7aab419f1912d26659a4510282",
+      "after_sha256": "059950c91896f11e533f79a90dcff8d8c42c1e62ba167a26cf236b763a15e888"
+    },
+    {
+      "path": "tests/test_preferences.py",
+      "before_sha256": "e444f777ac196eb968ae482a1e76af972cb94494f6ce87580a37c44703d5b1dc",
+      "after_sha256": "727c385adf300251075db552d16fec68e798fea9e6b6438d3a4663b08d9d7d56"
+    },
+    {
+      "path": "tests/test_resource_ui.py",
+      "before_sha256": "b5fea34eef626ae71e06be69aa30415da0fb759ce10bf8ed6df211e345f40432",
+      "after_sha256": "90edc89aa6d77ed6a3256a5e6309d6e53d0df38d6877696243995d93d3d3338f"
+    },
+    {
+      "path": "tests/test_resources.py",
+      "before_sha256": "bfa4adbe0b972f878df2f5a56aeb9c6ac6e09160d6d12b094383a3d8bb1204a0",
+      "after_sha256": "d59331359b3576796d60d1b872afb82f277439f195498421f9cf2060056638c2"
+    },
+    {
+      "path": "tests/test_results.py",
+      "before_sha256": "de9786a83dd995ae9613328533ec43f7617c1bdd1a8ae6695bdf5ce074421d94",
+      "after_sha256": "fad7fcf1179c03c94fd1ad8195d5450e12f96b988d7dda818a5e439f1dd07f88"
+    },
+    {
+      "path": "tests/test_run_recovery.py",
+      "before_sha256": "b4d0c35e5a39368ff58338344fd8918b18cda48aa1790fb63e0df4e0d0d6b0de",
+      "after_sha256": "aa9b05a9b2219194f0e26b45b812ed6d1d4d4af70af69b4cdd253cdb195b6013"
+    },
+    {
+      "path": "tests/test_run_report.py",
+      "before_sha256": "dba79e62d3909f2a06c9a6098183e4d7adf4745ac6d18e5126478a01a021dfc8",
+      "after_sha256": "eef9ae162fab043bd0e5fc73fcb671dc763c0a4f9d1f8c6124b9e146249c65c0"
+    },
+    {
+      "path": "tests/test_run_tracking.py",
+      "before_sha256": "0a53e37085a0f40d68409a7b7280948a9c5e280165847e7e22b638eaef9cca33",
+      "after_sha256": "617d98c7e2bb5a7c7dd332fccee0a79537f2b53ff6036aeb29177f598b81693e"
+    },
+    {
+      "path": "tests/test_runtime_component.py",
+      "before_sha256": "733ff9a049d8f3b8adde6984f7907f417f32fe72f5c53c7723e5338cee017533",
+      "after_sha256": "cee8cd09b9baca48e1d91977de9632c21b751987a308be70dfbbc899fd48b2a8"
+    },
+    {
+      "path": "tests/test_scientific_catalog.py",
+      "before_sha256": "f371a2b7f46ae2ee46f7cdaeaa20c5c1c4244a0218cedbb730d41be1d4a2527c",
+      "after_sha256": "9622d1c73967111742ea4ffb7f44a5cb9697f486fef916910931e524aa908758"
+    },
+    {
+      "path": "tests/test_scientific_outputs.py",
+      "before_sha256": "f2171637b9a961655006b6c42c05c089fbb9f5532bfdd6149598db5c1f6c3288",
+      "after_sha256": "323bfed679b79fa30fb379038bfe24b64232ab4367528c41bb907ef9ebac225a"
+    },
+    {
+      "path": "tests/test_scientific_preflight.py",
+      "before_sha256": "0b42c411ac5fd4d14737addf7e5701176b9dc4ee4512b6c3f89ceedf2e4ddaae",
+      "after_sha256": "cce2d0c06b1365ba6d8edbb21755e09362087c96320bccdf57d2b5a887254d49"
+    },
+    {
+      "path": "tests/test_scientific_presentation.py",
+      "before_sha256": "f8004ef0400cf09d5f60e2dc08ac55ffc0c190833f4b6acfc25d699cff2ea438",
+      "after_sha256": "1c8bb6d00a793c4ed3aff685355975f051e3dfa8ea09107cd8681b30cb4ceb4b"
+    },
+    {
+      "path": "tests/test_snp_acquisition.py",
+      "before_sha256": null,
+      "after_sha256": "31f085607026cee8fc498ca5def42df5a6ad4bf0b14344321574eacd7e9267aa"
+    },
+    {
+      "path": "tests/test_snp_engine.py",
+      "before_sha256": "d54ebbebf53f8afb0316d48cd5e967e93f60dd24670389b752879e3953aea12b",
+      "after_sha256": "327333d8b03a50dd875b05d353e57f5283728fcc6b1c04af43ca5b896d9b02c5"
+    },
+    {
+      "path": "tests/test_snp_parallel.py",
+      "before_sha256": "b78f35f16d0ff37b006c734f5526ecbfe3ba29037cfd06010a7691004ec1af9c",
+      "after_sha256": "6347738ff4e7e887def2a55fd255817d2d6fb70f63db5bfc80100d003ec9d3a1"
+    },
+    {
+      "path": "tests/test_snp_summary.py",
+      "before_sha256": "29c98b42549cc1d94d68489f6bc69719e6798204c38362d41070fcd6f6d1e2cf",
+      "after_sha256": "8bd24047965b75adb6ff17fb35ca3e7ddefaa8edfbcbb1a8d523640e85a3c865"
+    },
+    {
+      "path": "tests/test_snp_workflow_execution.py",
+      "before_sha256": "db43ec1dd54f7a539f1cc5783db44e4a923e0ba2516bcd4706b99c56e1361365",
+      "after_sha256": "a0cc492464cccf500c642424425a68f1d6bbee914892105610f3d75392649041"
+    },
+    {
+      "path": "tests/test_terminal.py",
+      "before_sha256": "bc77f9161e5f190a7d600cfe820550bfaf5f6b01557a1f8e0357a165cdfca1cf",
+      "after_sha256": "085a1561d6e218dd0975f69966088a3ebcd4bb9a27e2cce7dea2328f24d892ca"
+    },
+    {
+      "path": "tests/test_update_handoff.py",
+      "before_sha256": "3fe01c9e96ced16f48fec61af1914ed7881e16425d2e39ce9eabcd412a823c73",
+      "after_sha256": "712c3f0ef923a6a7fb3f6a0bae4caebedfb282b20c402edf80fb860413c54983"
+    },
+    {
+      "path": "tests/test_update_ui.py",
+      "before_sha256": "f6ca8f6e9e137d12283ca5fa92fd08a416c49a4ad3ef6f7c1eb7798a289006ee",
+      "after_sha256": "e724af19ce45161178c1a6bfba1f54598c81449e77ca77276bd6f738d898ac7d"
+    },
+    {
+      "path": "tests/test_updates.py",
+      "before_sha256": "9c2032492b9c3932be59f3479db2609c10b1f5282ce9f192f67770a749a747a0",
+      "after_sha256": "05a834dd20258efc9ed41cc266dcfe0670fc59c206f282105a2908191d7ed2f3"
+    },
+    {
+      "path": "tests/test_validation.py",
+      "before_sha256": "1681993b7137a3d5e88cd2af35782fd18100e43286ee84d2a483de9143bb76a8",
+      "after_sha256": "b0502f43f4d5ceca1df0e797fd2c6ff394fb0d03a44140439b3d865600cdd558"
+    },
+    {
+      "path": "tests/test_windows_bootstrap_download.py",
+      "before_sha256": null,
+      "after_sha256": "3f93fd0b4d2376a4723195440308d435b8700363e34e7fbb6d1618f8a0f166f7"
+    },
+    {
+      "path": "tests/test_windows_install_activity.py",
+      "before_sha256": null,
+      "after_sha256": "8dc1d2d38c26e8f343f9ee9a5947427f560ded3911d5b18e99db04a7cf4961d7"
+    },
+    {
+      "path": "tests/test_windows_testing_package.py",
+      "before_sha256": null,
+      "after_sha256": "6cd00903d3994f82cfbfb477a59cb876eecc9ef15c4612a6fe0b39585c3aed5d"
+    },
+    {
+      "path": "tests/test_windows_wsl_prerequisites.py",
+      "before_sha256": null,
+      "after_sha256": "59a9f96b112e2961d4a482e2fc08fa9224a2b4354fd3238896038ad21e18a2a6"
+    },
+    {
+      "path": "tests/test_windows_zip.py",
+      "before_sha256": null,
+      "after_sha256": "6f14e57b49bca8496a8e85d39ad865a0f201f733132128c788a3269fec3da482"
+    },
+    {
+      "path": "tests/test_wizard_guidance.py",
+      "before_sha256": "81c1084c1c56b53636f31d7b1b386678d4da6d34f5bba80eb86b857ccbaddefa",
+      "after_sha256": "08cde0c9b369791b169de99469b73611d2f16c27b1d8d0646ee4b7b280723948"
+    },
+    {
+      "path": "tests/test_wizard_settings.py",
+      "before_sha256": "cf9b5ce6924e17d2bd28ce3497b0dfc887bdacd5601a390ea8ca79869d09445d",
+      "after_sha256": "d695bb0528edef5a05b992db9864a3664c39f14c1e8d8e7d02bd76178af831d3"
+    },
+    {
+      "path": "tests/test_workflow_execution.py",
+      "before_sha256": "59ee58490bdb7bdadac4720af3956beeb90b4be6987b7d5dc69ad941c91cd46c",
+      "after_sha256": "1d0ab7d9a55082db51a4784f16a2ebe16e958bbe7be1fd7b7b938683262804d9"
+    },
+    {
+      "path": "tests/test_workflow_plan.py",
+      "before_sha256": "6fde6a2293b11e67bba0952aa9c4a922dcb7e2d4b24b2bdc81cc8cd021606e52",
+      "after_sha256": "12f915ffca8f8cf736d6df75325a884ffe347624c227a963fb9de2b48b66e76a"
+    },
+    {
+      "path": "tests/test_workflow_wizard.py",
+      "before_sha256": "f054f15fbf8f33f3cc84aabdfe9b21f028fb83d7484c4b749d10ddc26468e3bd",
+      "after_sha256": "def60b0313a226fc0846d7a8ddb7e541341db8dd3cd79b8c96b26b54cc576fb9"
+    }
+  ],
+  "deferred_desktop_scenarios": [
+    "ubuntu_clean_dependencies",
+    "ubuntu_existing_docker",
+    "ubuntu_reinstall_removal",
+    "windows_clean_wsl",
+    "windows_reinstall_removal",
+    "windows_stable_coexistence"
+  ],
+  "domain_validation": "pending-domain-researchers",
+  "qualification_evidence_sha256": "b7a59fbb137a6e6006faf52effb90db185b520f26b1cc4baed8f18d7627e536c",
+  "linux_upgrade_check_sha256": "c73d8b4691541994c420297b42391377a4fdb58fca30c5d73d59f21f99b7ba95",
+  "macos_validation": {
+    "arm64": {
+      "status": "not-performed",
+      "evidence": []
+    },
+    "x86_64": {
+      "status": "not-performed",
+      "evidence": []
+    }
+  },
+  "scientific_equivalence": {
+    "reference_source_commit": "eafadf7002a9c7d7c1b9af9ccafc47d698a059e5",
+    "report_path": "scientific/_temp/nipat-r-equivalence-check/artifacts/r-equivalence.json",
+    "report_sha256": "d2d2b4a60e6fd6c9d3409f99cf4d9e02d7bcb7879cfc422175936160d0cadd1e",
+    "runtime_image": "sha256:b954a4f94731ede7bae1e70e0038c005b05e15b0b1827e25a88c42a5c968bc58"
+  },
+  "scientific_analysis_qualification": {
+    "reference_source_commit": "c753afc4be62dfc0b81b8cb683a6e850516f5ffd",
+    "report_path": "scientific/_temp/nipat-five-modules-check/artifacts/five-module-qualification.json",
+    "report_sha256": "d30ced89a56488438a35ab6766ed4d23d93f88060939bfecf8d5438f758ebf45",
+    "runtime_image": "sha256:b954a4f94731ede7bae1e70e0038c005b05e15b0b1827e25a88c42a5c968bc58"
+  },
+  "publication_channel": "stable"
+}
