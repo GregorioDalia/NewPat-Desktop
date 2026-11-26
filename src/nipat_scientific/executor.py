@@ -24,7 +24,7 @@ import time
 from nipat_scientific.contamination import prepare_contamination
 from nipat_scientific.cpi import prepare_cpi
 from nipat_scientific.cpin import prepare_cpin
-from nipat_scientific.fetal_sex import ROLES as FETAL_SEX_ROLES, prepare_fetal_sex, publish_outputs as publish_fetal_sex_outputs
+from nipat_scientific.fetal_sex import prepare_fetal_sex, publish_outputs as publish_fetal_sex_outputs, stage_caller_outputs
 from nipat_scientific.settings import normalize_settings, settings_context
 from nipat_scientific.dnp import prepare_dnp
 from nipat_scientific.errors import PlanExecutionError, ValidationError
@@ -353,10 +353,19 @@ def _execute_step(plan, step, record, root, scripts, samples, outputs, cancellat
                     ]
                     persist()
             elif step["workflow"] == "fetal-sex":
-                request.update({role: samples[step["inputs"][role]]["path"] for role in FETAL_SEX_ROLES})
-                record["input_tables"] = step["inputs"].copy()
+                region = step["inputs"]
+                warnings, normalizations = [], []
+                if isinstance(region.get("dnp"), dict):
+                    tables, warnings, normalizations = stage_caller_outputs(
+                        _resolve_table(region["dnp"], samples, outputs), _resolve_table(region["y"], samples, outputs),
+                        region["dnp"]["sample"], directory / "calling-tables")
+                    request.update({role: str(path) for role, path in tables.items()})
+                else:
+                    request.update({role: samples[identifier]["path"] for role, identifier in region.items()})
+                record["input_tables"] = region.copy()
                 record_request()
-                native, cwd = prepare_fetal_sex(request), work
+                native = prepare_fetal_sex(request, caller_warnings=warnings, caller_normalizations=normalizations)
+                cwd = work
                 activate_settings()
             elif step["workflow"] == "contamination":
                 selected = []

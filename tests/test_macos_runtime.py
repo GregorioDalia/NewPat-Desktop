@@ -144,6 +144,158 @@ class MacRuntimeTests(unittest.TestCase):
         self.assertFalse(self.runtime.owner_path.exists())
         self.assertEqual((self.runtime.instance_dir / "keep").read_text(), "unrelated")
 
+    def orphaned_vm(self):
+        limactl = self.project.parent / "lima/bin/limactl"
+        limactl.parent.mkdir(parents=True)
+        limactl.write_bytes(b"bundled executable fixture")
+        limactl.chmod(0o755)
+        runtime = LimaRuntime(self.project, self.workspace, limactl, home=self.home)
+        runtime.instance_dir.mkdir(parents=True)
+        config = runtime.template(self.manifest, self.owner)
+        _write_json(runtime.instance_dir / "lima.yaml", config)
+        (runtime.instance_dir / "diffdisk").write_bytes(b"original virtual disk")
+        return runtime
+
+    def test_stopped_orphan_is_preserved_and_replacement_is_reused(self):
+        runtime = self.orphaned_vm()
+        prior = (runtime.instance_dir / "lima.yaml").read_bytes()
+        saved_run = self.workspace / "runs" / "previous experiment" / "run.json"
+        _write_json(saved_run, {"status": "succeeded", "run_id": "previous"})
+        original_run = saved_run.read_bytes()
+        other_vm = runtime.lima_home / "unrelated-vm" / "user-disk"
+        other_vm.parent.mkdir()
+        other_vm.write_bytes(b"foreign disk")
+        starts = []
+        imports = []
+        status = "Stopped"
+
+        def execute(argv, **kwargs):
+            nonlocal status
+            if "list" in argv:
+                return json.dumps({"name": INSTANCE, "dir": str(runtime.instance_dir), "status": status,
+                                   "config": json.loads((runtime.instance_dir / "lima.yaml").read_text())})
+            if "start" in argv:
+                if "--name=" + INSTANCE in argv:
+                    self.assertFalse(runtime.instance_dir.exists())
+                    runtime.instance_dir.mkdir()
+                    (runtime.instance_dir / "lima.yaml").write_bytes(Path(argv[-1]).read_bytes())
+                    starts.append(argv)
+                status = "Running"
+                return ""
+            if "load" in argv:
+                imports.append(argv)
+                return "Loaded image ID: " + LOADED_ID
+            if "inspect" in argv:
+                return LOADED_ID + " linux amd64"
+            if "describe" in argv:
+                return json.dumps(self.manifest["engine_description"])
+            if "sha256sum" in argv:
+                return self.application_digest()
+            self.fail(f"Unexpected command during orphan recovery: {argv}")
+
+        lease = {"NIPAT_RUNTIME_MAINTENANCE": "1", "NIPAT_LAUNCHER_PID": str(os.getppid())}
+        with (redirect_stdout(io.StringIO()), patch.dict(os.environ, lease),
+              patch.object(runtime, "_host_check"), patch.object(runtime, "_run", side_effect=execute)):
+            self.assertTrue(runtime.requires_mount_repair())
+            state = runtime.prepare()
+            self.assertEqual(state["phase"], "ready")
+            self.assertEqual(state["runtime_image"], LOADED_ID)
+            self.assertNotEqual(runtime._assert_owned()["token"], self.owner["token"])
+            self.assertFalse(runtime.requires_mount_repair())
+            self.assertEqual(runtime.prepare(), state)
+        self.assertEqual((len(starts), len(imports)), (1, 1))
+        backups = list(runtime.lima_home.parent.glob("recovered-nipat-*/nipat"))
+        self.assertEqual(len(backups), 1)
+        self.assertEqual((backups[0] / "lima.yaml").read_bytes(), prior)
+        self.assertEqual((backups[0] / "diffdisk").read_bytes(), b"original virtual disk")
+        self.assertEqual(other_vm.read_bytes(), b"foreign disk")
+        self.assertEqual(saved_run.read_bytes(), original_run)
+
+    def test_orphan_recovery_refuses_active_foreign_or_ambiguous_instances(self):
+        runtime = self.orphaned_vm()
+        yaml = runtime.instance_dir / "lima.yaml"
+        original = json.loads(yaml.read_text())
+        active = {"name": INSTANCE, "dir": str(runtime.instance_dir), "status": "Stopped"}
+        lease = {"NIPAT_RUNTIME_MAINTENANCE": "1", "NIPAT_LAUNCHER_PID": str(os.getppid())}
+        cases = [
+            ("running", {"status": "Running"}, original),
+            ("protected", {"protected": True}, original),
+            ("inspection_errors", {"errors": ["inconsistent disk metadata"]}, original),
+            ("host_agent_still_present", {"hostAgentPID": 1234}, original),
+            ("driver_still_present", {"driverPID": 5678}, original),
+            ("wrong_directory", {"dir": str(runtime.lima_home / "foreign")}, original),
+            ("wrong_name", {"name": "foreign"}, original),
+            ("no_provision", {}, dict(original, provision=[])),
+            ("foreign_token", {}, dict(original, param={"NipatOwner": "unrelated"})),
+        ]
+        for label, info, config in cases:
+            _write_json(yaml, config)
+            before = yaml.read_bytes()
+            report = json.dumps({**active, **info, "config": config})
+            with (self.subTest(case=label), patch.dict(os.environ, lease),
+                  patch.object(runtime, "_host_check"), patch.object(runtime, "_run", return_value=report) as run,
+                  self.assertRaises((ValidationError, RuntimeExecutionError))):
+                runtime.prepare()
+            self.assertTrue(all("list" in call.args[0] for call in run.call_args_list))
+            self.assertEqual(yaml.read_bytes(), before)
+            self.assertEqual((runtime.instance_dir / "diffdisk").read_bytes(), b"original virtual disk")
+            self.assertFalse(runtime.owner_path.exists())
+            self.assertFalse(list(runtime.lima_home.parent.glob("recovered-nipat-*")))
+
+    def test_orphan_recovery_requires_launcher_maintenance_and_rejects_linked_paths(self):
+        runtime = self.orphaned_vm()
+        config_file = runtime.instance_dir / "lima.yaml"
+        original = config_file.read_bytes()
+        linked_file = self.home / "user-file"
+        linked_file.write_bytes(original)
+        info = json.dumps({"name": INSTANCE, "dir": str(runtime.instance_dir), "status": "Stopped",
+                           "config": json.loads(original)})
+        lease = {"NIPAT_RUNTIME_MAINTENANCE": "1", "NIPAT_LAUNCHER_PID": str(os.getppid())}
+        for label in ("no-exclusive-lease", "wrong-launcher", "linked-config", "dangling-owner"):
+            environment = dict(lease)
+            if label == "no-exclusive-lease":
+                environment["NIPAT_RUNTIME_MAINTENANCE"] = "0"
+            elif label == "wrong-launcher":
+                environment["NIPAT_LAUNCHER_PID"] = str(os.getppid() + 1)
+            elif label == "linked-config":
+                config_file.unlink()
+                config_file.symlink_to(linked_file)
+            else:
+                runtime.owner_path.parent.mkdir(parents=True, exist_ok=True)
+                runtime.owner_path.symlink_to(self.home / "missing-owner")
+            with (self.subTest(case=label), patch.dict(os.environ, environment),
+                  patch.object(runtime, "_host_check"), patch.object(runtime, "_run", return_value=info) as run,
+                  self.assertRaises((ValidationError, RuntimeExecutionError))):
+                runtime.prepare()
+            self.assertTrue(all("list" in call.args[0] for call in run.call_args_list))
+            self.assertFalse(list(runtime.lima_home.parent.glob("recovered-nipat-*")))
+            self.assertEqual((runtime.instance_dir / "diffdisk").read_bytes(), b"original virtual disk")
+            if label == "linked-config":
+                self.assertTrue(config_file.is_symlink())
+                config_file.unlink()
+                config_file.write_bytes(original)
+            if label == "dangling-owner":
+                self.assertTrue(runtime.owner_path.is_symlink())
+                self.assertFalse((self.home / "missing-owner").exists())
+            self.assertEqual(linked_file.read_bytes(), original)
+
+    def test_linked_orphan_instance_never_moves_the_target(self):
+        runtime = self.orphaned_vm()
+        target = self.home / "other-vm"
+        runtime.instance_dir.rename(target)
+        runtime.instance_dir.symlink_to(target, target_is_directory=True)
+        config = json.loads((target / "lima.yaml").read_text())
+        info = json.dumps({"name": INSTANCE, "dir": str(runtime.instance_dir), "status": "Stopped", "config": config})
+        lease = {"NIPAT_RUNTIME_MAINTENANCE": "1", "NIPAT_LAUNCHER_PID": str(os.getppid())}
+        with (patch.dict(os.environ, lease), patch.object(runtime, "_host_check"),
+              patch.object(runtime, "_run", return_value=info) as execute,
+              self.assertRaises((ValidationError, RuntimeExecutionError))):
+            runtime.prepare()
+        self.assertTrue(all("list" in call.args[0] for call in execute.call_args_list))
+        self.assertTrue(runtime.instance_dir.is_symlink())
+        self.assertEqual((target / "diffdisk").read_bytes(), b"original virtual disk")
+        self.assertFalse(list(runtime.lima_home.parent.glob("recovered-nipat-*")))
+
     def test_remove_rejects_forged_ownership_and_preserves_analyses(self):
         self.owned_vm()
         self.ready_state()

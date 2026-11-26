@@ -286,8 +286,15 @@ class GuiService:
             raise ValidationError("Invalid genomic coordinates." if english else "Coordinate genomiche non valide.")
         return {"reference": reference, "tracks": tracks, "locus": locus or "all"}
 
+    @staticmethod
+    def _recorded_fetal_inputs(recorded):
+        if "bam" in recorded:
+            return {"id": recorded["sample_id"], "source": "bam"}
+        roles = ("autosomes", "x", "y") if "autosomes" in recorded or "x" in recorded else ("dnp", "y")
+        return {"id": recorded.get("sample_id", ""), **{role: recorded.get(role, "") for role in roles}}
+
     def run_prepare(self, run_id: str, module: str) -> dict:
-        """Prepare only one new consumer using recorded counts, never call again.
+        """Prepare an analysis using its recorded input mode.
 
         Output identities come from the results adapter's validated artifact
         mapping. Imported count inputs retain their explicit biological IDs.
@@ -306,15 +313,22 @@ class GuiService:
                 source = {}
         source = deepcopy(source)
         if module == "fetal-sex":
-            # Generic DNP and SNP outputs do not identify the required chromosome roles.
             settings = source.get("scientific_settings", parameters.get("scientific_settings_effective", {}))
             recorded = parameters.get("fetal_sex") or {}
-            fetal = source.get("fetal_sex") or {"id": recorded.get("sample_id", ""),
-                                                **{role: recorded.get(role, "") for role in ("autosomes", "x", "y")}}
-            return {"name": self._derived_name(run.get("name") or run_id, module),
-                    "caller": "tables", "samples": [], "fetal_sex": fetal,
-                    "scientific_settings": effective_config(migrate_saved_settings(settings)),
-                    "execution": source.get("execution", self._requested_execution(metadata))}
+            fetal = source.get("fetal_sex") or self._recorded_fetal_inputs(recorded)
+            draft = {"name": self._derived_name(run.get("name") or run_id, module),
+                     "caller": "tables", "samples": [], "fetal_sex": fetal,
+                     "scientific_settings": effective_config(migrate_saved_settings(settings)),
+                     "execution": source.get("execution", self._requested_execution(metadata))}
+            if fetal.get("source") == "bam":
+                draft.update(caller="both", samples=[row for row in source.get("samples", [])
+                             if row.get("kind") == "bam" and row.get("id") == fetal["id"]],
+                             resources={m: {"panel": source.get("resources", {}).get(m, {}).get("panel")}
+                                        for m in ("DNP", "SNP")})
+                for key in ("reference", "reference_id", "reference_genome"):
+                    if key in source:
+                        draft[key] = source[key]
+            return draft
         mapping = {row["sample_id"]: row.get("biological_id", row["sample_id"])
                    for row in parameters.get("sample_mapping", [])
                    if isinstance(row, dict) and isinstance(row.get("sample_id"), str)}
@@ -407,9 +421,7 @@ class GuiService:
         for step in plan["steps"]:
             workflow, inputs, parameters = step["workflow"], step["inputs"], step["parameters"]
             if workflow == "fetal-sex":
-                recorded = p["fetal_sex"]
-                draft["fetal_sex"] = {"id": recorded["sample_id"],
-                                      **{role: recorded[role] for role in ("autosomes", "x", "y")}}
+                draft["fetal_sex"] = self._recorded_fetal_inputs(p["fetal_sex"])
                 continue
             marker = "DNP" if workflow == "dnp-call" else "SNP" if workflow == "snp-call" else parameters["marker_type"]
             resource = draft["resources"][marker]

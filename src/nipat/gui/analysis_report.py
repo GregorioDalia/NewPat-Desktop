@@ -120,10 +120,10 @@ def _result_basis(case, entry, language):
                  f"The sample table records {observations} in total across the individual sites.") + " " + method
 
     if module == "fetal-sex":
-        return t("L’analisi utilizza tre tabelle dello stesso campione di DNA libero circolante materno. "
+        return t("I conteggi provengono dallo stesso campione di DNA libero circolante materno. "
                  "Confronta la media delle letture non materne nei DNP autosomici e del cromosoma X con la media "
                  "delle letture REF e ALT negli SNP del cromosoma Y. I tre rapporti sono valutati con le soglie registrate.",
-                 "The analysis uses three tables from the same maternal cell-free DNA sample. It compares mean "
+                 "The counts come from the same maternal cell-free DNA sample. The analysis compares mean "
                  "non-maternal reads at autosomal and X-chromosome DNPs with mean REF and ALT reads at Y-chromosome "
                  "SNPs. The three ratios are evaluated using the recorded thresholds.")
     if module == "contamination":

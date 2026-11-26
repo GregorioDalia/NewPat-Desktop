@@ -204,9 +204,16 @@ class WorkflowForm:
             result += [Field("reference", "File FASTA di riferimento", "file", check=check_reference),
                        Field("panel", "Pannello DNP", "file", check=read_dnp_list)]
         elif self.choice == "f":
-            result = [Field("autosomes", "Tabella DNP autosomica del cfDNA materno", "file"),
-                      Field("x", "Tabella DNP del cromosoma X dello stesso campione", "file"),
-                      Field("y", "Tabella SNP del cromosoma Y dello stesso campione", "file")]
+            result = [Field("sex_table_layout", "Tabelle del cfDNA materno", "choice", "2", options=(
+                ("2", "Due tabelle", "DNP autosomi + X insieme e SNP Y"),
+                ("3", "Tre tabelle", "DNP autosomi, DNP X e SNP Y separati"),
+            ))]
+            if values.get("sex_table_layout", "2") == "2":
+                result.append(Field("dnp", "Tabella DNP con autosomi e cromosoma X", "file"))
+            else:
+                result += [Field("autosomes", "Tabella DNP autosomica del cfDNA materno", "file"),
+                           Field("x", "Tabella DNP del cromosoma X dello stesso campione", "file")]
+            result.append(Field("y", "Tabella SNP del cromosoma Y dello stesso campione", "file"))
         elif self.choice == "2":
             result = [Field("mode", "Input SNPcall", "choice", "1", options=(
                 ("1", "BAM e riferimento", "Preparazione automatica del pileup"),
@@ -252,6 +259,8 @@ class WorkflowForm:
     def _guide(self, field: Field, default: str = "") -> None:
         """Keep instructions beside the input they describe, including retries."""
         guides = {
+            "sex_table_layout": "Scegliere come sono organizzati i conteggi DNP. In entrambi i casi serve anche la tabella SNP del cromosoma Y dello stesso campione.",
+            "dnp": "Selezionare una tabella DNP del campione materno con autosomi e marcatori X già validati per specificità.",
             "autosomes": "Selezionare i conteggi DNP autosomici di un campione di cfDNA materno.",
             "x": "Selezionare i conteggi DNP dei marcatori X validati per specificità.",
             "y": "Selezionare i conteggi SNP dei marcatori Y validati per specificità.",
@@ -633,6 +642,8 @@ class WorkflowForm:
         v = self.values
         common = {"run_name": v["run_name"]}
         if self.choice == "f":
+            if v["sex_table_layout"] == "2":
+                return {**common, "dnp": v["dnp"], "y": v["y"]}
             return {**common, "autosomes": v["autosomes"], "x": v["x"], "y": v["y"]}
         if self.choice == "1":
             return {**common, "bams": v["bams"] if v["mode"] == "1" else None,

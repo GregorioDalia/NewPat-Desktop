@@ -153,9 +153,18 @@ Choose the existing-tables option in the workflow or use `workflow analyze --cal
 
 ## Fetal sex from maternal cfDNA
 
-Select three calling tables from the same maternal sample. The autosomal and X tables use DNP coordinates and the Y table uses SNP coordinates. A paternal sample is unnecessary. Use X and Y markers validated for specificity.
+For a maternal cfDNA BAM, run both callers on the same sample. Include autosomal and X loci in the DNP panel and Y loci in the SNP panel. With several BAMs, the ID after `--fetal-sex` selects the maternal one. NewPat reuses its counts for this estimate. Use X and Y markers previously validated for specificity.
 
 ```powershell
+& $newpat workflow analyze --caller both --sample Mother ".\maternal.bam" `
+  --reference ".\genome.fa" --dnp-panel ".\autosomes-X.txt" --snp-panel ".\snp-with-Y.tsv" `
+  --fetal-sex Mother
+```
+
+You can also start from existing count tables. When the DNPcall panel includes both autosomal and X positions, supply its per-sample DNP table and the Y SNP table. NewPat assigns every DNP row to its region using the chromosome column, then applies the usual scientific filters. You can also supply separate autosomal and X DNP tables.
+
+```powershell
+& $newpat fetal-sex --dnp ".\maternal_DNP.txt" --y ".\maternal_Y.txt"
 & $newpat fetal-sex --autosomes ".\maternal_autosomes.txt" --x ".\maternal_X.txt" --y ".\maternal_Y.txt"
 ```
 

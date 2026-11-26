@@ -240,7 +240,7 @@ def test_bounded_index_line_does_not_read_entire_invalid_file(local_igv, tmp_pat
         local_igv.prepare({"reference": {"fasta": str(fasta)}})
 
 
-def create_alignment_fixture(directory):
+def create_alignment_fixture(directory, chromosomes=("1", "X")):
     """Deterministic indexed BAM with 20 reads for real IGV rendering checks.
 
     Tiny single-block BAM/BAI per SAMv1 §§4–5, without third-party tooling.
@@ -250,11 +250,17 @@ def create_alignment_fixture(directory):
     directory.mkdir(parents=True, exist_ok=True)
     sequence = "ACGT" * 250
     fasta = directory / "synthetic-reference.fa"
-    fasta.write_text(f">1\n{sequence}\n>X\n{sequence}\n", encoding="ascii", newline="\n")
-    Path(str(fasta) + ".fai").write_text("1\t1000\t3\t1000\t1001\nX\t1000\t1007\t1000\t1001\n", encoding="ascii")
-    text = b"@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:1\tLN:1000\n@SQ\tSN:X\tLN:1000\n"
-    header = b"BAM\x01" + struct.pack("<i", len(text)) + text + struct.pack("<i", 2)
-    for chromosome in (b"1\0", b"X\0"):
+    index = []
+    with fasta.open("wb") as handle:
+        for name in chromosomes:
+            handle.write(f">{name}\n".encode("ascii"))
+            index.append(f"{name}\t1000\t{handle.tell()}\t1000\t1001\n")
+            handle.write((sequence + "\n").encode("ascii"))
+    Path(str(fasta) + ".fai").write_text("".join(index), encoding="ascii")
+    text = ("@HD\tVN:1.6\tSO:coordinate\n" + "".join(f"@SQ\tSN:{name}\tLN:1000\n" for name in chromosomes)).encode("ascii")
+    header = b"BAM\x01" + struct.pack("<i", len(text)) + text + struct.pack("<i", len(chromosomes))
+    for name in chromosomes:
+        chromosome = name.encode("ascii") + b"\0"
         header += struct.pack("<i", len(chromosome)) + chromosome + struct.pack("<i", 1000)
     records = []
     expected = []
@@ -275,9 +281,9 @@ def create_alignment_fixture(directory):
     bam = directory / "synthetic-alignments.bam"
     bam.write_bytes(block + _bgzf(b""))
     chunk_begin, chunk_end = len(header), len(block) << 16
-    # Reference 1: one bin/chunk + one 16KiB linear interval. X: no reads.
-    bai = (b"BAI\x01" + struct.pack("<iiIiQQiQ", 2, 1, 4681, 1, chunk_begin, chunk_end, 1, chunk_begin)
-           + struct.pack("<iiQ", 0, 0, 0))
+    # The first reference has one bin/chunk and one linear interval. The others have no reads.
+    bai = (b"BAI\x01" + struct.pack("<iiIiQQiQ", len(chromosomes), 1, 4681, 1, chunk_begin, chunk_end, 1, chunk_begin)
+           + struct.pack("<ii", 0, 0) * (len(chromosomes) - 1) + struct.pack("<Q", 0))
     Path(str(bam) + ".bai").write_bytes(bai)
     selection = {"reference": {"fasta": str(fasta.resolve()), "index": str(fasta.resolve()) + ".fai"},
                  "tracks": [{"name": "Synthetic QA · 20 reads", "path": str(bam.resolve()), "index": str(bam.resolve()) + ".bai"}],

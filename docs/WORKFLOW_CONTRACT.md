@@ -35,11 +35,11 @@ Every entry in `steps` contains exactly `id`, `workflow`, `inputs` and `paramete
 | `contamination` | `samples` (list of table references), `panel` (coordinate panel) | No module-specific required field |
 | `cpi` | `pairs` (explicit pairs), `popfreq` (population frequencies), `cutoffs` (selected panels) | `cutoff_mode` (`all`, `panel` or `named`), optional finite `err_const` in `(0, 1]` |
 | `cpin` | `trios` (explicit trios), `popfreq` (population frequencies), `markers` (panel with REF/ALT alleles or `null`) | No module-specific required field |
-| `fetal-sex` | Three registered table IDs for one maternal cfDNA sample: `autosomes` (DNP), `x` (DNP) and `y` (SNP) | No module-specific required field |
+| `fetal-sex` | Table IDs from one maternal cfDNA sample, or references to both caller outputs for the same maternal BAM. Use `dnp` (autosomes and X) with `y` (SNP), or `autosomes` and `x` (both DNP) with `y` | No module-specific required field |
 
 The desktop displays `cpi` as **Prenatal CPI** and `cpin` as **Postnatal CPI**. Saved plans and run records use the workflow IDs above. The [module integration guide](ARCHITECTURE.md#adding-a-downstream-scientific-module) lists the engine and desktop changes for an additional downstream script.
 
-All steps accept a `scientific_settings` object in `parameters` for module-specific overrides. Contamination and the two CPI steps also accept `marker_type: "SNP"` or `"DNP"`. The validator infers the type if omitted and checks it if supplied. Frequencies and panels must use the corresponding coordinates. Fetal sex uses both marker types in the roles shown above and requires three distinct tables. The engine checks their contents during execution.
+All steps accept a `scientific_settings` object in `parameters` for module-specific overrides. Contamination and the two CPI steps also accept `marker_type: "SNP"` or `"DNP"`. The validator infers the type if omitted and checks it if supplied. Frequencies and panels must use the corresponding coordinates. Fetal sex requires a distinct table for each supplied role. During execution the engine checks chromosome membership and passes each region to the scientific program. A combined DNP input must contain both autosomal and X sites.
 
 `newpat settings` lists defaults, types, bounds, cross-parameter constraints and model constants. `newpat settings --export FILE` writes reusable JSON for `--scientific-config FILE`. Command-line overrides such as `--set module.parameter=value` take precedence over that file. Validation rejects unknown keys, nonfinite values, incorrect types and invalid threshold combinations. Python and R use the same registry. The client records the settings in the steps and run metadata. The registry documents formulas and other fixed model properties separately from the editable settings.
 
@@ -52,6 +52,8 @@ Contamination, prenatal and postnatal CPI accept the following table references.
 - `{"sample": "table_a"}` selects a registered `dnp-table` or `snp-table` sample.
 - `{"step": "dnp", "output": "dnp-tables", "sample": "sample_a"}` selects the individual table produced by that DNPcall step for the sample.
 - `{"step": "snp_a", "output": "snp-tables", "sample": "sample_a"}` selects the table produced by that SNPcall step for the sample.
+
+For fetal sex from a BAM, use a DNPcall output reference under `dnp` and an SNPcall output reference under `y`. Both references identify the same maternal BAM. The estimator uses autosomal and X DNPs and Y SNPs. Other analyses can use the full caller outputs.
 
 A reference to a producing step creates a dependency. SNPcall produces `snp-tables` and DNPcall produces `dnp-tables`. A Contamination summary, a prenatal/postnatal CPI result or a guessed path to a future output cannot serve as a count-table reference.
 

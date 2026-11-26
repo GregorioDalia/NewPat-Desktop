@@ -2,6 +2,8 @@
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'..'),web=path.join(root,'src/nipat/gui/web');
 const settings=JSON.parse(fs.readFileSync(path.join(root,'src/nipat_scientific/settings_data.json'),'utf8'));
+let clockMs=0;
+const testClock={now:()=>clockMs};
 const events={},elements=new Map(),requests=[],checks=[];let dialogPaths=[],jobs=[],navigationCallback=null;
 function element(id){if(!elements.has(id))elements.set(id,{id,innerHTML:'',textContent:'',value:'',checked:false,style:{},dataset:{},classList:{add(){},remove(){}},focus(){document.activeElement=this},querySelector(){return element('modal-button')},querySelectorAll(){return[]},setSelectionRange(){},replaceWith(){},appendChild(){},remove(){}});return elements.get(id)}
 const document={getElementById:element,documentElement:{lang:'it',dataset:{}},activeElement:null,querySelectorAll(){return[]},addEventListener(type,cb){(events[type]??=[]).push(cb)}};
@@ -16,11 +18,21 @@ handlers['references.list']=()=>({entries:referenceTestEntries});
 handlers['references.download_status']=()=>transferTestState;
 handlers['references.resolve']=({id})=>({entry:referenceTestEntries.find(e=>e.id===id)});
 handlers['runs.curve']=p=>handlers['runs.table']({...p,offset:0,limit:20000});
-const env={console,document,Intl,URL,AbortController,location:{href:'http://127.0.0.1:1234/token/web/index.html',origin:'http://127.0.0.1:1234'},setTimeout:()=>1,clearTimeout(){},fetch:async(url,options)=>{assert.equal(url,'../api');const body=JSON.parse(options.body);requests.push(body);const fn=handlers[body.method];assert(fn,'Unexpected RPC '+body.method);return{ok:true,json:async()=>({id:body.id,result:fn(body.params)})}},NipatIGV:{dispose(){navigationCallback=null},getNavigation(){return {locus:env.locus||'all',chromosome:env.locus&&env.locus!=='all'?env.locus.split(':')[0]:'all',chromosomes:[{name:'chr1',length:1000000},{name:'X',length:100000}],canBack:!!env.locus,canZoom:!!env.locus&&env.locus!=='all',wholeGenome:!env.locus||env.locus==='all'}},onNavigation(callback){navigationCallback=callback;callback(this.getNavigation());return()=>{navigationCallback=null}},async wholeGenome(){await this.search('all')},async back(){await this.search('chr1:100-200')},async zoomIn(){await this.search('chr1:125-175')},async zoomOut(){await this.search('chr1:50-250')},setLanguage(){},resize(){},async mount(node,config){env.viewer={node,config}},async search(locus){env.locus=locus;navigationCallback?.(this.getNavigation())},async exportSession(){return {locus:'chr1:100-200',tracks:[]}}}};env.window=env;vm.createContext(env);vm.runInContext(fs.readFileSync(path.join(web,'i18n.js'),'utf8'),env);vm.runInContext(fs.readFileSync(path.join(web,'app.js'),'utf8'),env);
+const env={console,document,performance:testClock,Intl,URL,AbortController,location:{href:'http://127.0.0.1:1234/token/web/index.html',origin:'http://127.0.0.1:1234'},setTimeout:()=>1,clearTimeout(){},fetch:async(url,options)=>{assert.equal(url,'../api');const body=JSON.parse(options.body);requests.push(body);const fn=handlers[body.method];assert(fn,'Unexpected RPC '+body.method);return{ok:true,json:async()=>({id:body.id,result:fn(body.params)})}},NipatIGV:{dispose(){navigationCallback=null},getNavigation(){return {locus:env.locus||'all',chromosome:env.locus&&env.locus!=='all'?env.locus.split(':')[0]:'all',chromosomes:[{name:'chr1',length:1000000},{name:'X',length:100000}],canBack:!!env.locus,canZoom:!!env.locus&&env.locus!=='all',wholeGenome:!env.locus||env.locus==='all'}},onNavigation(callback){navigationCallback=callback;callback(this.getNavigation());return()=>{navigationCallback=null}},async wholeGenome(){await this.search('all')},async back(){await this.search('chr1:100-200')},async zoomIn(){await this.search('chr1:125-175')},async zoomOut(){await this.search('chr1:50-250')},setLanguage(){},resize(){},async mount(node,config){env.viewer={node,config}},async search(locus){env.locus=locus;navigationCallback?.(this.getNavigation())},async exportSession(){return {locus:'chr1:100-200',tracks:[]}}}};env.window=env;vm.createContext(env);vm.runInContext(fs.readFileSync(path.join(web,'i18n.js'),'utf8'),env);vm.runInContext(fs.readFileSync(path.join(web,'app.js'),'utf8'),env);
 const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(condition,label)=>{assert(condition,label);checks.push(label)};
 (async()=>{
  await tick();await tick();const app=env.NipatApp;
  const recent=app.state.recentRuns;
+ const emptyActivity=app.renderActivity();
+ check(emptyActivity.includes('Nessuna analisi avviata in questa sessione')&&emptyActivity.includes('data-view="archive"'),'Empty Activity identifies its session and opens the archive');
+ for(const [status,reason,label] of [
+  ['unknown','checking','Verifica in corso'],['unknown','unavailable','Da verificare'],
+  ['running','external_active','In esecuzione fuori da questa sessione'],
+ ]){
+  app.state.recentRuns=[{...run,status,status_reason:reason}];app.render();
+  check(element('main').innerHTML.includes(label),'Overview labels observed run status: '+reason);
+ }
+
  for(const entries of [recent,[]]){
   app.state.recentRuns=entries;app.render();
   check((element('main').innerHTML.match(/data-view="new"/g)||[]).length===1,'Populated and empty overview have one primary creation action');
@@ -28,6 +40,47 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
  app.state.recentRuns=recent;app.render();
  check(app.state.boot.version==='0.9.0','Bootstrap uses actual version');check(element('main').innerHTML.includes('Famiglia α &lt;test&gt;'),'Archive name HTML escaped');check(app.state.draft.samples.length===0,'No embedded demonstration samples');
  for(const view of ['home','new','activity','archive','catalog','settings','environment','igv']){await app.navigate(view);check(element('main').innerHTML.length>300,'Render '+view)}
+ await app.action('new-experiment',{});
+ app.state.draft.name='Maternal';
+ app.onValue({type:'select-one',value:'fetal-sex',dataset:{field:'source'}});
+ const fetal=()=>app.state.draft.fetal_sex;
+ check(Object.hasOwn(fetal(),'dnp')&&app.renderNew().includes('data-key="fetal.dnp"')&&!app.renderNew().includes('data-key="fetal.x"'),'A new maternal sample presents one DNP and one Y SNP picker');
+ app.onValue({value:'Mother',dataset:{fetalId:'true'}});
+ for(const role of ['dnp','y']){
+  dialogPaths=['/counts/'+role+'.txt'];await app.action('choose-path',{key:'fetal.'+role,filter:'table'});
+ }
+ await app.action('step',{index:1});
+ check(app.state.step===1&&app.submittedDraft().fetal_sex.dnp==='/counts/dnp.txt','Two maternal tables pass step validation and survive submission');
+ await app.action('step',{index:0});
+ app.onValue({type:'select-one',value:'separate',dataset:{fetalLayout:'true'}});
+ check(fetal().id==='Mother'&&fetal().y==='/counts/y.txt'&&!Object.hasOwn(fetal(),'dnp')&&app.renderNew().includes('data-key="fetal.autosomes"')&&app.renderNew().includes('data-key="fetal.x"'),'Switching to separate files preserves the sample and Y, requiring both DNP files');
+ await app.action('step',{index:1});
+ check(app.state.step===0&&app.state.error,'The separate DNP mode refuses to advance with empty DNP inputs');
+ app.onValue({type:'select-one',value:'combined',dataset:{fetalLayout:'true'}});
+ check(fetal().y==='/counts/y.txt'&&!Object.hasOwn(fetal(),'x')&&!Object.hasOwn(fetal(),'autosomes'),'Switching back keeps Y and removes the unused split-table roles');
+ await app.action('new-experiment',{});
+ app.state.draft.name='Maternal BAM';
+ const chooseSex=(checked)=>app.onValue({type:'checkbox',checked,dataset:{fetalOption:'true'}});
+ app.state.draft.samples=[{id:'Plasma',kind:'bam',path:'/mother.bam'}];
+ await app.action('step',{index:1});chooseSex(true);
+ check(fetal().source==='bam'&&fetal().id==='Plasma'&&app.state.draft.caller==='both','Selecting fetal sex with one BAM wires both callers to the maternal BAM');
+ check(!app.renderNew().includes('data-key="fetal.y"')&&app.renderNew().includes('fetal-maternal-bam')&&app.renderNew().includes('data-key="resource.SNP.panel"'),'BAM mode presents the maternal input and panel controls without count table uploads');
+ await app.action('step',{index:2});check(app.state.step===1&&app.state.error,'Missing panels block the BAM route');
+ app.state.draft.resources={DNP:{panel:'/autosomes-x.tsv'},SNP:{panel:'/Y.tsv'}};
+ await app.action('step',{index:2});check(app.state.step===2&&app.submittedDraft().samples.length===1,'A configured BAM route advances without imported tables');
+ await app.action('step',{index:0});chooseSex(false);
+ app.state.draft.samples.push({id:'Father',kind:'bam',path:'/father.bam'});
+ await app.action('step',{index:1});chooseSex(true);
+ check(!fetal().id,'Two BAMs require an explicit maternal assignment');
+ await app.action('step',{index:2});check(app.state.step===1&&app.state.error,'Missing maternal assignment blocks the BAM route');
+ app.onValue({value:'Plasma',dataset:{fetalId:'true'}});
+ app.onValue({value:'Maternal',dataset:{sample:'0'}});
+ check(fetal().id==='Maternal','Renaming the selected BAM preserves the maternal assignment');
+ await app.action('remove-sample',{index:0});
+ check(!fetal().id,'Removing the selected BAM never assigns a different sample as maternal');
+ app.onValue({value:'tables',dataset:{fetalSource:'true'}});
+ check(Object.hasOwn(fetal(),'dnp')&&app.renderNew().includes('data-key="fetal.y"'),'Mixed experiments can explicitly use imported maternal tables');
+ await app.action('new-experiment',{});
  const pickBuild=(scope,value)=>app.onValue({dataset:{referenceBuild:scope},type:'select-one',value});
  const pickEntry=(scope,value)=>app.onValue({dataset:{referenceEntry:scope},type:'select-one',value});
  const reference=(build,label)=>({id:build+'-'+label,build,label,fasta:'/ref/'+label+'.fa',index:'/ref/'+label+'.fa.fai',index_sha256:'a'.repeat(64),naming:'chr',available:true});
@@ -259,6 +312,50 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
  check(app.state.recentRuns.length===5&&app.state.recentRuns[0].id==='archive-0'&&element('main').innerHTML.includes('Archived 0'),'A stale archive response cannot overwrite recent Home cards');
  handlers['runs.list']=listPage;env.setTimeout=originalTimer;env.clearTimeout=originalClear;
  app.state.archiveSearch='';app.state.archiveMarker='all';app.state.archiveStatus='all';
+ const savedJobs=jobs;
+ let releaseFirstList;
+ handlers['runs.list']=p=>{
+  const snapshot=listPage(p);
+  return new Promise(resolve=>{releaseFirstList=()=>resolve(snapshot)});
+ };
+ const oldHome=app.navigate('home');await tick();
+ const originalRow=manyRuns[0];
+ manyRuns[0]={...originalRow,status:'failed'};
+ jobs=[{id:'late-job',status:'failed',run_id:originalRow.id}];
+ handlers['runs.list']=listPage;
+ await app.poll();releaseFirstList();await oldHome;
+ check(app.state.recentRuns[0].status==='failed','A local job transition supersedes an older in-flight listing');
+ jobs=savedJobs;manyRuns[0]=originalRow;await app.poll();
+ const setObserved=(status,reason,recorded)=>{manyRuns[0]={...manyRuns[0],status,status_reason:reason,recorded_status:recorded}};
+ setObserved('running','external_active','running');
+ await app.navigate('home');
+ let previousLists=listCalls.length;
+ setObserved('succeeded',null,'succeeded');
+ await app.poll();
+ check(listCalls.length===previousLists,'An unchanged external run does not cause an archive scan every poll');
+ clockMs+=30000;await app.poll();
+ check(listCalls.length===previousLists+1&&app.state.recentRuns[0].status==='succeeded','Home observes completion of an external run without a local job transition');
+ clockMs+=60000;await app.poll();
+ check(listCalls.length===previousLists+1,'Terminal Home cards do not trigger further status scans');
+
+ setObserved('unknown','unavailable','running');
+ await app.navigate('archive');
+ setObserved('running','external_active','running');
+ clockMs+=30000;await app.poll();
+ check(app.state.archiveListing.runs[0].status==='running','Archive retries an unavailable runtime and displays a confirmed running experiment');
+ setObserved('interrupted','abandoned','running');
+ clockMs+=30000;await app.poll();
+ previousLists=listCalls.length;clockMs+=30000;await app.poll();
+ check(app.state.archiveListing.runs[0].status==='interrupted'&&listCalls.length===previousLists,'A confirmed interruption stops automatic rechecking of the unfiltered list');
+
+ await setFilter('archiveStatus','running');
+ previousLists=listCalls.length;
+ setObserved('running','external_active','running');
+ await app.poll();
+ check(!app.state.archiveListing.runs.length&&listCalls.length===previousLists,'An empty status filter does not rescan before the observation interval');
+ clockMs+=30000;await app.poll();
+ check(app.state.archiveListing.runs[0]?.id==='archive-0','An external run can enter an empty status filter after the pending check has ended');
+ setObserved('succeeded',null,'succeeded');await setFilter('archiveStatus','all');
  await app.navigate('archive');
  const getHistory=handlers['runs.get'];handlers['runs.get']=p=>({...run,id:p.run_id});
  await app.loadRun('archive-1002');await app.loadRun('archive-0');await app.action('page-back',{});

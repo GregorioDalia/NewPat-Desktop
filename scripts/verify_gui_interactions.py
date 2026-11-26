@@ -309,6 +309,22 @@ def verify_archive_pages(page, probe, service, methods, check):
     page.wait_for_selector('#archive-results [data-action="archive-page"][data-page="1"]')
     rows = page.locator('#archive-results [data-action="open-run"]')
     check(rows.count() == 25, "The first archive page displays exactly 25 cards")
+    viewport = page.viewport_size
+    for width in (1280, 800, 375):
+        page.set_viewport_size({"width": width, "height": viewport["height"]})
+        aligned = page.locator("#archive-results").evaluate("""results => {
+            const rect = element => element.getBoundingClientRect();
+            const panel = results.closest(".panel");
+            const gutter = parseFloat(getComputedStyle(panel.querySelector(".panel-body")).paddingLeft);
+            const edge = rect(results);
+            const count = rect(results.querySelector(".pager > span"));
+            const buttons = rect(results.querySelector(".pager .actions"));
+            const name = rect(results.querySelector("tbody td:first-child b"));
+            return count.left >= edge.left + gutter - 1 && buttons.right <= edge.right - gutter + 1 &&
+                   Math.abs(name.left - count.left) <= 1 && edge.right <= window.innerWidth;
+        }""")
+        check(aligned, f"Archive row names and pagination fit within the filter margins at {width} px")
+    page.set_viewport_size(viewport)
     page.locator('[data-action="archive-page"][data-page="1"]').click()
     old_card = page.locator('[data-action="open-run"][data-id="older-00"]')
     old_card.wait_for()
@@ -447,26 +463,90 @@ def verify_grouped_reports(page, picker, directory, evidence, check):
     picker.report_path = None
 
 
-def verify_fetal_sex_form(page, probe, picker, check):
+def verify_fetal_sex_form(page, probe, picker, check, directory):
     page.locator('nav [data-view="new"]').click()
+    for language, label, options, marker_question in (
+        ("en", "Input files", ["BAM or pileup files", "Calling tables",
+                               "BAM files, pileup files, and calling tables", "Fetal sex tables"],
+         "Which markers do you want to analyse?"),
+        ("it", "File di input", ["File BAM o pileup", "Tabelle di calling",
+                                 "File BAM, file pileup e tabelle di calling", "Tabelle per il sesso fetale"],
+         "Quali marcatori vuoi analizzare?"),
+    ):
+        page.locator(".language-picker label[lang=" + language + "]").click()
+        probe.wait(f"document.documentElement.lang==='{language}'")
+        source = page.get_by_role("combobox", name=label, exact=True)
+        check(source.locator("option").all_text_contents() == options
+              and page.get_by_role("group", name=marker_question, exact=True).is_visible(),
+              f"The {language} input menu lists file types and asks about markers separately")
     page.locator("#experiment-name").fill("Maternal cfDNA")
     page.locator("#source").select_option("fetal-sex")
     page.locator("#fetal-sample-id").fill("Maternal")
     inputs = ROOT / "tests/fixtures/fetal_sex/inputs"
-    for role, suffix in (("autosomes", "autosomes"), ("x", "X"), ("y", "Y")):
-        picker.paths = [inputs / f"Female_fetus_{suffix}.txt"]
-        page.locator(f'[data-action="choose-path"][data-key="fetal.{role}"]').click()
-        probe.wait(f"Boolean(NipatApp.state.draft.fetal_sex.{role})")
-    page.locator('[role="tab"][data-index="2"]').click()
-    page.locator('[data-parameter="fetal-sex|b_female_max|draft"]').fill("0.05")
+    split_files = {role: inputs / f"Female_fetus_{suffix}.txt"
+                   for role, suffix in (("autosomes", "autosomes"), ("x", "X"), ("y", "Y"))}
+    combined = directory / "Maternal-DNP.txt"
+    autosomal_lines = split_files["autosomes"].read_text().splitlines()
+    x_lines = split_files["x"].read_text().splitlines()
+    assert autosomal_lines[0] == x_lines[0]
+    combined.write_text("\n".join([*autosomal_lines, *x_lines[1:], ""]))
+    for mode, paths in (("combined", {"dnp": combined, "y": split_files["y"]}), ("separate", split_files)):
+        page.locator("#fetal-table-layout").select_option(mode)
+        for role, path in paths.items():
+            picker.paths = [path]
+            page.locator(f'[data-action="choose-path"][data-key="fetal.{role}"]').click()
+            probe.wait(f"Boolean(NipatApp.state.draft.fetal_sex.{role})")
+        page.locator('[role="tab"][data-index="2"]').click()
+        page.locator('[data-parameter="fetal-sex|b_female_max|draft"]').fill("0.05")
+        page.locator('[role="tab"][data-index="3"]').click()
+        page.locator('[data-action="validate-plan"]').click()
+        page.locator(".plan-list li").wait_for()
+        preview = probe.evaluate("NipatApp.state.preview")
+        check([step["workflow"] for step in preview["steps"]] == ["fetal-sex"]
+              and preview["steps"][0]["parameters"]["scientific_settings"]["b_female_max"] == 0.05
+              and {row["biological_id"] for row in preview["samples"]} == {"Maternal"}
+              and {row["fetal_sex_role"] for row in preview["samples"]} == set(paths),
+              f"Maternal {mode} DNP and Y pickers and the edited threshold reach one fetal-sex step")
+        if mode == "combined":
+            page.locator('[role="tab"][data-index="0"]').click()
+    picker.paths = []
+
+
+def verify_fetal_sex_from_bam(page, probe, picker, check, directory):
+    folder = directory / "maternal-bam"
+    alignment = create_alignment_fixture(folder, chromosomes=("1", "X", "Y"))
+    dnp, snp = folder / "dnp.tsv", folder / "snp.tsv"
+    dnp.write_text("1\t151\t152\tGT\tAT\nX\t151\t152\tGT\tAT\n")
+    snp.write_text("chr\tpos\tref\talt\nY\t151\tG\tA\n")
+    page.locator('nav [data-view="new"]').click()
+    page.locator("#experiment-name").fill("Maternal BAM")
+    picker.paths = [Path(alignment["tracks"][0]["path"])]
+    page.locator('[data-action="add-samples"]').click()
+    page.locator('[data-sample="0"]').fill("Mother")
+    picker.paths = [Path(alignment["reference"]["fasta"])]
+    page.locator('[data-action="choose-path"][data-key="reference"]').click()
+    probe.wait("Boolean(NipatApp.state.draft.reference)")
+    picker.paths = [dnp]
+    page.locator('[data-action="choose-path"][data-key="resource.DNP.panel"]').click()
+    probe.wait("Boolean(NipatApp.state.draft.resources.DNP.panel)")
+    page.locator('[role="tab"][data-index="1"]').click()
+    page.locator("[data-fetal-option]").check()
+    check(page.locator("#fetal-maternal-bam").input_value() == "Mother"
+          and page.locator('[data-action="choose-path"][data-key^="fetal."]').count() == 0,
+          "Choosing fetal sex uses the only maternal BAM without asking for count tables")
+    picker.paths = [snp]
+    page.locator('[data-action="choose-path"][data-key="resource.SNP.panel"]').click()
+    probe.wait("Boolean(NipatApp.state.draft.resources.SNP.panel)")
     page.locator('[role="tab"][data-index="3"]').click()
     page.locator('[data-action="validate-plan"]').click()
-    page.locator(".plan-list li").wait_for()
+    page.locator(".plan-list li").first.wait_for()
     preview = probe.evaluate("NipatApp.state.preview")
-    check([step["workflow"] for step in preview["steps"]] == ["fetal-sex"]
-          and preview["steps"][0]["parameters"]["scientific_settings"]["b_female_max"] == 0.05
-          and set(row["biological_id"] for row in preview["samples"]) == {"Maternal"},
-          "Maternal table pickers and the edited threshold reach one validated fetal-sex step")
+    steps = {step["workflow"]: step for step in preview["steps"]}
+    check(set(steps) == {"dnp-call", "snp-call", "fetal-sex"}
+          and steps["fetal-sex"]["inputs"] == {
+              "dnp": {"step": steps["dnp-call"]["id"], "output": "dnp-tables", "sample": "Mother"},
+              "y": {"step": steps["snp-call"]["id"], "output": "snp-tables", "sample": "Mother"}},
+          "Fetal sex uses both caller outputs for the same maternal BAM in the reviewed plan")
     picker.paths = []
 
 
@@ -822,7 +902,8 @@ def run_verification(report_path, executable):
                 check(archived.is_dir() and digest_files(preserved) == before, "Remove from list preserves every source, index, result and metadata byte")
                 verify_grouped_reports(page, picker, report_path.parent, evidence, check)
                 verify_report_igv_capture(page, app, check)
-                verify_fetal_sex_form(page, probe, picker, check)
+                verify_fetal_sex_form(page, probe, picker, check, directory)
+                verify_fetal_sex_from_bam(page, probe, picker, check, directory)
                 verify_archive_pages(page, probe, service, methods, check)
                 check(not evidence["external_requests"], "All browser resources and genomic byte ranges stay on the local service")
                 check(not evidence["errors"], "No JavaScript exceptions or unexpected browser console errors")

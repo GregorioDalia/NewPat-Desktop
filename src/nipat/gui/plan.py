@@ -111,6 +111,32 @@ def _check_named_reference(entry, inputs, caller, language):
         checker.check_bam_reference(path, fasta, fai, lengths, exact_names=True, targets=targets)
 
 
+def _fetal_inputs(fetal, language):
+    fetal = _object(fetal, "Fetal sex", {"id", "source", "dnp", "autosomes", "x", "y"})
+    sample_id = _text(fetal.get("id"), "Maternal cfDNA sample ID" if language == "en" else
+                      "ID del campione di cfDNA materno", maximum=48)
+    if "source" in fetal:
+        if fetal["source"] != "bam" or set(fetal) != {"id", "source"}:
+            raise ValidationError("Choose a maternal BAM or count tables." if language == "en" else
+                                  "Seleziona un BAM materno oppure le tabelle di conteggi.")
+        return (sample_id,)
+    if "dnp" in fetal and ("autosomes" in fetal or "x" in fetal):
+        raise ValidationError("Choose either a combined DNP table or separate autosomal and X tables."
+                              if language == "en" else
+                              "Scegli una tabella DNP unica oppure due tabelle DNP separate per autosomi e X.")
+    roles = ("dnp", "y") if "dnp" in fetal else ("autosomes", "x", "y")
+    paths = [_path(fetal.get(role), role) for role in roles]
+    if any(path is None for path in paths):
+        if "dnp" in fetal:
+            raise ValidationError("Choose the combined autosomal and X DNP table and the Y SNP table."
+                                  if language == "en" else
+                                  "Seleziona la tabella DNP di autosomi e X e la tabella SNP del cromosoma Y.")
+        raise ValidationError("Choose the autosomal DNP, X DNP and Y SNP count tables."
+                              if language == "en" else
+                              "Seleziona le tre tabelle di conteggi: DNP autosomici, DNP X e SNP Y.")
+    return (sample_id, *paths)
+
+
 def prepare_analysis(draft: dict, layout: ProjectLayout,
                      preferences: Preferences | None = None, *, language: str = "it",
                      reference_catalog=None) -> PreparedAnalysis:
@@ -181,16 +207,8 @@ def prepare_analysis(draft: dict, layout: ProjectLayout,
                               for k in ("id", *roles)))
         inputs[key] = rows
     if draft.get("fetal_sex") is not None:
-        fetal = _object(draft["fetal_sex"], "Fetal sex", {"id", "autosomes", "x", "y"})
-        sample_id = _text(fetal.get("id"), "Maternal cfDNA sample ID" if language == "en" else
-                          "ID del campione di cfDNA materno", maximum=48)
-        paths = [_path(fetal.get(role), role) for role in ("autosomes", "x", "y")]
-        if any(path is None for path in paths):
-            raise ValidationError("Choose the autosomal DNP, X DNP and Y SNP count tables."
-                                  if language == "en" else
-                                  "Seleziona le tre tabelle di conteggi: DNP autosomici, DNP X e SNP Y.")
-        inputs["fetal_sex"] = (sample_id, *paths)
-        draft["fetal_sex"]["id"] = sample_id
+        inputs["fetal_sex"] = _fetal_inputs(draft["fetal_sex"], language)
+        draft["fetal_sex"]["id"] = inputs["fetal_sex"][0]
     settings = deepcopy(preferences.scientific_settings)
     for module, values in normalize_config(draft.get("scientific_settings", {})).items():
         settings.setdefault(module, {}).update(values)

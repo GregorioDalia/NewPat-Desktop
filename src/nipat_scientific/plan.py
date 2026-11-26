@@ -15,6 +15,7 @@ import re
 import unicodedata
 
 from nipat_scientific.errors import ValidationError
+from nipat_scientific.fetal_sex import input_roles as fetal_sex_roles
 from nipat_scientific.presentation import normalize_presentation
 
 
@@ -240,13 +241,26 @@ def validate_plan(document: object) -> dict:
                         "panel": _path(inputs["panel"], f"{identifier} panel")}
             values = {"mode": mode}
         elif workflow == "fetal-sex":
-            _object(inputs, {"autosomes", "x", "y"}, identifier)
+            roles = fetal_sex_roles(inputs)
+            _object(inputs, set(roles), identifier)
             _object(parameters, set(), f"{identifier} parameters")
             if marker_type is not None:
                 _fail("plan.marker_type", "Fetal sex requires both DNP and SNP tables.")
-            selected = {role: _sample(inputs[role], samples, kind, identifier)
-                        for role, kind in (("autosomes", "dnp-table"), ("x", "dnp-table"), ("y", "snp-table"))}
-            _unique(list(selected.values()), f"{identifier} region tables")
+            if any(isinstance(value, dict) for value in inputs.values()):
+                _object(inputs, {"dnp", "y"}, identifier)
+                for role, kind in (("dnp", "dnp-tables"), ("y", "snp-tables")):
+                    ref = _table_reference(inputs[role], samples, set(step_ids), identifier, dependencies, references)
+                    if ref.get("output") != kind:
+                        _fail("plan.output_kind", f"{identifier}: {role} requires a {kind} caller output.")
+                    selected[role] = ref
+                mother = selected["dnp"]["sample"]
+                if mother != selected["y"]["sample"]:
+                    _fail("plan.roles", f"{identifier}: both callers must use the same maternal BAM.")
+                _sample(mother, samples, "bam", identifier)
+            else:
+                selected = {role: _sample(inputs[role], samples, "snp-table" if role == "y" else "dnp-table",
+                                          identifier) for role in roles}
+                _unique(list(selected.values()), f"{identifier} region tables")
         elif workflow == "contamination":
             _object(inputs, {"samples", "panel"}, identifier)
             _object(parameters, set(), f"{identifier} parameters")

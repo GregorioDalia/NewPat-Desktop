@@ -37,7 +37,7 @@ BUNDLED_WORKFLOW_INTERFACES = {
     "snp-call": "snp-call-v2",
     "cpi": "cpi-v4",
     "cpin": "cpin-v2",
-    "fetal-sex": "fetal-sex-v1",
+    "fetal-sex": "fetal-sex-v3",
 }
 BUNDLED_WORKFLOW_LABELS = {
     "contamination": "Contamination", "dnp-call": "DNPcall", "snp-call": "SNPcall", "cpi": "CPI prenatale",

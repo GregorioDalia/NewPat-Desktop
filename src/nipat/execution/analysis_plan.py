@@ -61,19 +61,20 @@ def validate_families(entries, roles: tuple[str, ...], branch_samples: Collectio
             assignments[member] = role
 
 
-def bind_fetal_sex_tables(mounts: InputMounts, autosomes, x, y, *, sample_id=None):
-    """Keep all three roles and the original basenames in one maternal sample record."""
+def bind_fetal_sex_tables(mounts: InputMounts, autosomes=None, x=None, y=None, *, dnp=None, sample_id=None):
+    """Bind the original count tables and retain one maternal sample identity."""
     from nipat_scientific.fetal_sex import validate_inputs
 
-    tables = {role: require_file(Path(path), f"Tabella cfDNA {role}")
-              for role, path in (("autosomes", autosomes), ("x", x), ("y", y))}
+    paths = {"autosomes": autosomes, "x": x, "dnp": dnp, "y": y}
+    tables = {role: Path(path).expanduser().resolve() for role, path in paths.items() if path is not None}
     validate_inputs(**tables)
+    biological_id = sample_id or tables["dnp" if dnp is not None else "autosomes"].stem
+    prefixes = {"autosomes": "fsa", "x": "fsx", "dnp": "fsd", "y": "fsy"}
     mapping = []
-    for role, prefix in (("autosomes", "fsa"), ("x", "fsx"), ("y", "fsy")):
-        source = tables[role]
+    for role, source in tables.items():
         target = mounts.bind_file(source, target=INPUT_ROOT / "fetal-sex" / role / source.name)
-        mapping.append({"sample_id": f"{prefix}_{sample_id or 'maternal'}",
-                        "biological_id": sample_id or tables["autosomes"].stem,
+        mapping.append({"sample_id": f"{prefixes[role]}_{sample_id or 'maternal'}",
+                        "biological_id": biological_id,
                         "fetal_sex_role": role, "original_path": str(source),
                         "container_path": str(target)})
     return mapping
@@ -93,6 +94,7 @@ def build_analysis_plan(*, layout, caller: str, analyses: list[str],
                         dnp_cpi_cutoffs=None, snp_cpi_cutoffs=None,
                         dnp_cpin_panel=None, snp_cpin_panel=None, fetal_sex=None):
     from nipat.execution.workflows import _bind_bam, _bind_reference, _select_cpi_cutoffs
+    from nipat_scientific.fetal_sex import chromosome_region
 
     table_markers = [marker for marker, tables in (("DNP", dnp_tables), ("SNP", snp_tables)) if tables]
     branch_analyses = active_analysis_branches(caller, analyses, dnp_analyses, snp_analyses,
@@ -124,11 +126,19 @@ def build_analysis_plan(*, layout, caller: str, analyses: list[str],
 
     mounts = InputMounts(layout)
     sex_tables = []
+    maternal_bam = None
     if fetal_sex is not None:
-        if (not isinstance(fetal_sex, (tuple, list)) or len(fetal_sex) != 4
+        if (not isinstance(fetal_sex, (tuple, list)) or len(fetal_sex) not in (1, 3, 4)
                 or not isinstance(fetal_sex[0], str) or not _ID.fullmatch(fetal_sex[0])):
-            raise ValidationError("Indicare un ID campione valido e le tre tabelle cfDNA: autosomi, X e Y.")
-        sex_tables = bind_fetal_sex_tables(mounts, *fetal_sex[1:], sample_id=fetal_sex[0])
+            raise ValidationError("Indicare l’ID del BAM materno oppure l’ID seguito da due o tre tabelle.")
+        if len(fetal_sex) == 1:
+            maternal_bam = fetal_sex[0]
+            if caller != "both":
+                raise ValidationError("Il sesso fetale da BAM richiede DNPcall e SNPcall.")
+        else:
+            roles = ("dnp", "y") if len(fetal_sex) == 3 else ("autosomes", "x", "y")
+            sex_tables = bind_fetal_sex_tables(mounts, sample_id=fetal_sex[0],
+                                              **dict(zip(roles, fetal_sex[1:], strict=True)))
     input_files, mapping, plan_samples, steps = [], [], [], []
     references = {"DNP": {}, "SNP": {}}
     physical_samples = {}
@@ -202,6 +212,8 @@ def build_analysis_plan(*, layout, caller: str, analyses: list[str],
         return collected
 
     bam_ids = identified(samples, "bam")
+    if maternal_bam is not None and maternal_bam not in bam_ids:
+        raise ValidationError(f"Il campione materno {maternal_bam} deve essere uno dei BAM selezionati.")
     pileup_ids = identified(pileups, "snp-pileup")
     reference_target = None
     if samples:
@@ -211,7 +223,13 @@ def build_analysis_plan(*, layout, caller: str, analyses: list[str],
     if caller in {"dnp", "both"}:
         if dnp_panel is None:
             raise ValidationError("DNPcall richiede --dnp-panel.")
-        panels["DNP"] = bind(dnp_panel, "Pannello DNP", "dnp-panel.txt", read_dnp_list)
+        def check_dnp_panel(path):
+            records = read_dnp_list(path)
+            if maternal_bam is not None:
+                regions = {chromosome_region(row.chromosome) for row in records}
+                if not {"autosomes", "x"}.issubset(regions):
+                    raise ValidationError("Il sesso fetale richiede marcatori autosomici e X nel pannello DNP.")
+        panels["DNP"] = bind(dnp_panel, "Pannello DNP", "dnp-panel.txt", check_dnp_panel)
         steps.append({"id": "dnp", "workflow": "dnp-call", "inputs": {
             "samples": bam_ids, "reference": str(reference_target), "panel": panels["DNP"]},
             "parameters": {"parallel": False}})
@@ -220,8 +238,12 @@ def build_analysis_plan(*, layout, caller: str, analyses: list[str],
     if caller in {"snp", "both"}:
         if snp_panel is None:
             raise ValidationError("SNPcall richiede --snp-panel.")
-        panels["SNP"] = bind(snp_panel, "Pannello SNP", "snp-panel.tsv",
-                              lambda path: read_snp_positions(path, for_bed=bool(bam_ids)))
+        def check_snp_panel(path):
+            records = read_snp_positions(path, for_bed=bool(bam_ids))
+            if maternal_bam is not None:
+                if not any(chromosome_region(chromosome) == "y" for chromosome, _ in records):
+                    raise ValidationError("Il sesso fetale richiede marcatori Y nel pannello SNP.")
+        panels["SNP"] = bind(snp_panel, "Pannello SNP", "snp-panel.tsv", check_snp_panel)
         for number, sid in enumerate([*bam_ids, *pileup_ids], 1):
             step_id = f"snp_{number:04d}"
             is_bam = sid in bam_ids
@@ -281,7 +303,11 @@ def build_analysis_plan(*, layout, caller: str, analyses: list[str],
             steps.append({"id": f"{prefix}_cpin", "workflow": "cpin", "inputs": {
                 "trios": family(trios, FAMILY_ROLES["cpin"], marker),
                 "popfreq": popfreq_target, "markers": target}, "parameters": {"marker_type": marker}})
-    if sex_tables:
+    if maternal_bam is not None:
+        steps.append({"id": "fetal_sex", "workflow": "fetal-sex",
+                      "inputs": {"dnp": references["DNP"][maternal_bam], "y": references["SNP"][maternal_bam]},
+                      "parameters": {}})
+    elif sex_tables:
         roles = {}
         for item in sex_tables:
             sid, role = item["sample_id"], item["fetal_sex_role"]

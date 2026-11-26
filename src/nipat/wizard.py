@@ -33,7 +33,7 @@ MAIN_MENU = [
     ("2", "SNPcall", "SNP da BAM o pileup esistente"),
     ("3", "Contamination", "Stima da tabelle compatibili"),
     ("4", "CPI prenatale", "Frazione fetale e indice di paternita'"),
-    ("F", "Sesso fetale", "Tre tabelle dello stesso cfDNA materno: autosomi, X e Y"),
+    ("F", "Sesso fetale", "Due o tre tabelle dello stesso cfDNA materno"),
     ("N", "CPI postnatale", "Trii madre, padre e figlio da SNP o DNP"),
     ("W", "Workflow automatici", "SNP/DNP verso Contamination, CPI prenatale e CPI postnatale"),
     ("5", "Configura", "Cartelle e parametri predefiniti"),

@@ -258,9 +258,14 @@ const statusPresentation = {
  canceled: ['warning','stop'], interrupted: ['warning','stop'], unknown: ['warning','info'],
  queued: ['neutral','activity'], pending: ['neutral','activity'], planned: ['neutral','activity']
 };
-function badge(status){
+function badge(status,label=status){
  const [kind, glyph]=Object.hasOwn(statusPresentation,status)?statusPresentation[status]:['neutral','info'];
- return `<span class="badge ${kind}">${icon(glyph)}${esc(t(status)||status)}</span>`;
+ return `<span class="badge ${kind}">${icon(glyph)}${esc(t(label)||label)}</span>`;
+}
+function runBadge(run){
+ if(run.status==='unknown'&&run.status_reason==='checking')return badge('pending','checkingRunStatus');
+ if(run.status==='running'&&run.status_reason==='external_active')return badge('running','runningOutsideSession');
+ return badge(run.status);
 }
 function date(value){if(!value)return '—';const d=new Date(value);return Number.isNaN(d.getTime())?esc(value):esc(d.toLocaleString(L.language==='en'?'en-GB':'it-IT',{dateStyle:'short',timeStyle:'short'}))}
 function toast(text){$('toast').textContent=text;$('toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),5000)}
@@ -311,11 +316,25 @@ async function choosePath(key,filter='all',multiple=false){
   if(!current())return[];const paths=Array.isArray(result)?result:result?.paths||[];if(!paths.length)return[];if(key)setPath(key,paths[0]);return paths;
  }catch(error){if(current())throw error;return[]}
 }
-let archiveListVersion=0,archiveSearchTimer;
+let archiveListVersion=0,archiveSearchTimer,loadingListVersion=null,nextRunListCheck=0;
+const runStatusRefreshMs=30000;
+function runListNeedsRefresh(jobsChanged){
+ const home=state.view==='home';
+ if(!home&&(state.view!=='archive'||state.run))return false;
+ if(jobsChanged)return true;
+ if(loadingListVersion===archiveListVersion||(!home&&!state.archiveListing))return false;
+ const rows=home?state.recentRuns:(state.archiveListing.runs||[]);
+ if((!home&&state.archiveListing.checking_status)||rows.some(run=>run.status_reason==='checking'))return true;
+ // A different session may finish a run or make it enter the current status filter.
+ return performance.now()>=nextRunListCheck&&((!home&&state.archiveStatus!=='all')||
+  rows.some(run=>['running','preparing'].includes(run.status)||run.status_reason==='unavailable'));
+}
 async function loadRuns(){
  const view=state.view;
  if(view!=='home'&&(view!=='archive'||state.run))return false;
  const version=++archiveListVersion;
+ loadingListVersion=version;
+ nextRunListCheck=performance.now()+runStatusRefreshMs;
  const current=()=>version===archiveListVersion&&state.view===view&&(view==='home'||!state.run);
  const params=view==='home'?{offset:0,limit:5}:{offset:state.archivePage*archivePageSize,limit:archivePageSize};
  if(view==='archive'){
@@ -344,6 +363,8 @@ async function loadRuns(){
   if(!current())return false;
   if(view==='archive'){state.archiveListing={error:humanError(error)};updateArchiveRows()}
   throw error;
+ }finally{
+  if(loadingListVersion===version)loadingListVersion=null;
  }
  return false;
 }
@@ -364,7 +385,7 @@ function requestArchivePage(page,debounce=false){
  return refresh();
 }
 const runSampleCount=run=>run.sample_count??run.samples?.length??0;
-function runRows(runs){if(!runs.length)return empty(t('noRuns'),t('noRunsCopy'),button(t('openFolder'),'import-run',{},'','archive'));return `<div class="table-scroll" tabindex="0"><table class="table"><thead><tr><th>${t('name')}</th><th>${t('date')}</th><th>${t('analysis')}</th><th>${t('status')}</th><th><span class="screen-reader-only">${t('open')}</span></th></tr></thead><tbody>${runs.map(r=>`<tr><td><b>${esc(r.name||r.id)}</b><small>${runSampleCount(r)} ${t(runSampleCount(r)===1?'sample':'samples').toLowerCase()} · ${esc((r.markers||[]).join(' / '))}</small></td><td>${date(r.started_at)}</td><td>${esc((r.modules||[r.workflow]).map(m=>moduleName(typeof m==='string'?m:m.module)).join(' · '))}</td><td>${badge(r.status)}</td><td><div class="actions">${button(t('openResults'),'open-run',{id:r.id},'small result-link','arrow')}${button(t('rerun'),'reuse-run',{id:r.id},'quiet small','play')}${r.can_remove===true?button(t('removeFromList'),'remove-run',{id:r.id},'quiet small','close'):''}</div></td></tr>`).join('')}</tbody></table></div>`}
+function runRows(runs){if(!runs.length)return empty(t('noRuns'),t('noRunsCopy'),button(t('openFolder'),'import-run',{},'','archive'));return `<div class="table-scroll" tabindex="0"><table class="table"><thead><tr><th>${t('name')}</th><th>${t('date')}</th><th>${t('analysis')}</th><th>${t('status')}</th><th><span class="screen-reader-only">${t('open')}</span></th></tr></thead><tbody>${runs.map(r=>`<tr><td><b>${esc(r.name||r.id)}</b><small>${runSampleCount(r)} ${t(runSampleCount(r)===1?'sample':'samples').toLowerCase()} · ${esc((r.markers||[]).join(' / '))}</small></td><td>${date(r.started_at)}</td><td>${esc((r.modules||[r.workflow]).map(m=>moduleName(typeof m==='string'?m:m.module)).join(' · '))}</td><td>${runBadge(r)}</td><td><div class="actions">${button(t('openResults'),'open-run',{id:r.id},'small result-link','arrow')}${button(t('rerun'),'reuse-run',{id:r.id},'quiet small','play')}${r.can_remove===true?button(t('removeFromList'),'remove-run',{id:r.id},'quiet small','close'):''}</div></td></tr>`).join('')}</tbody></table></div>`}
 function renderHome(){
  const parameterCount=Object.values(state.settings).reduce((n,group)=>n+Object.keys(group.parameters||{}).length,0);
  const constantCount=Object.values(state.settings).reduce((n,group)=>n+Object.keys(group.constants||{}).length,0);
@@ -373,16 +394,33 @@ function renderHome(){
   <section class="panel"><div class="panel-header"><h2>${t('recent')}</h2>${button(t('allExperiments'),'navigate',{view:'archive'},'quiet','arrow')}</div>${runRows(state.recentRuns)}</section>
   <div class="grid two-columns section-gap">${tools.map(([view,description])=>`<button class="home-card" data-action="navigate" data-view="${view}"><span class="icon-box">${icon(view)}</span><span><strong>${t(view)}</strong><small>${esc(description)}</small></span>${icon('arrow')}</button>`).join('')}</div>`;
 }
-const fetalRoles=[['autosomes','autosomalDnp'],['x','xDnp'],['y','ySnp']];
-function emptyFetalSample(){return {id:'',autosomes:'',x:'',y:''}}
+function fetalRoles(sample){
+ return Object.hasOwn(sample,'dnp')?[['dnp','combinedDnp'],['y','ySnp']]:[['autosomes','autosomalDnp'],['x','xDnp'],['y','ySnp']];
+}
+function emptyFetalSample(){return {id:'',dnp:'',y:''}}
 function fetalTables(){
  const sample=state.draft.fetal_sex;
  return `<fieldset class="choice-fieldset"><legend>${t('fetalSex')}</legend><p class="help">${t('fetalTablesHelp')}</p>
   ${input(t('maternalSampleId'),'fetal-sample-id',sample.id,'data-fetal-id="true" maxlength="48"')}
-  <div class="form-row">${fetalRoles.map(([role,label])=>fileField(t(label),'fetal.'+role,sample[role],'table')).join('')}</div></fieldset>`;
+  ${select(t('dnpTableLayout'),'fetal-table-layout',[['combined',t('oneDnpTable')],['separate',t('twoDnpTables')]],Object.hasOwn(sample,'dnp')?'combined':'separate','data-fetal-layout="true"')}
+  <div class="form-row">${fetalRoles(sample).map(([role,label])=>fileField(t(label),'fetal.'+role,sample[role],'table')).join('')}</div></fieldset>`;
+}
+function maternalBams(){return state.draft.samples.filter(sample=>sample.kind==='bam')}
+function useFetalBam(){
+ const bams=maternalBams();
+ state.draft.fetal_sex={source:'bam',id:bams.length===1?bams[0].id:''};
+ state.draft.caller='both';
+}
+function fetalInputFields(){
+ const fetal=state.draft.fetal_sex,bams=maternalBams(),generated=fetal.source==='bam';
+ const source=(bams.length||generated)?select(t('fetalInputSource'),'fetal-input-source',[['bam',t('fromMaternalBam')],['tables',t('fetalTablesSource')]],generated?'bam':'tables','data-fetal-source="true"'):'';
+ if(!generated)return source+fetalTables();
+ return source+`<p class="help">${t('fetalBamHelp')}</p>`+
+  select(t('maternalBam'),'fetal-maternal-bam',[['',t('assign')],...bams.map(sample=>[sample.id,sample.id])],fetal.id,'data-fetal-id="true"')+
+  `<div class="form-row">${['DNP','SNP'].map(m=>fileField(t('panel')+' '+m,'resource.'+m+'.panel',state.draft.resources[m].panel,'table')).join('')}</div>`;
 }
 function fetalOption(){
- return `<label class="check-row section-gap"><input type="checkbox" data-fetal-option="true" ${state.draft.fetal_sex?'checked':''}><span><b>${t('fetalSex')}</b></span></label>${state.draft.fetal_sex?fetalTables():''}`;
+ return `<label class="check-row section-gap"><input type="checkbox" data-fetal-option="true" ${state.draft.fetal_sex?'checked':''}><span><b>${t('fetalSex')}</b></span></label>${state.draft.fetal_sex?fetalInputFields():''}`;
 }
 function displayMarkers(){
  return [...new Set([...activeMarkers(),...(state.draft.fetal_sex?['DNP','SNP']:[])])];
@@ -390,9 +428,9 @@ function displayMarkers(){
 function draftSampleNames(){
  return [...new Set([...state.draft.samples.map(row=>row.id),state.draft.fetal_sex?.id].filter(Boolean))];
 }
-function renderInputs(){const d=state.draft;const header= `<div class="section-title"><h2>${t('addSamples')}</h2></div><div class="form-row">${input(t('experimentName'),'experiment-name',d.name,'data-draft="name" maxlength="120" placeholder="'+esc(t('experimentPlaceholder'))+'"')}${select(t('startFrom'),'source',[['bam',t('rawInputs')],['tables',t('existingTables')],['mixed',t('mixedInputs')],['fetal-sex',t('fetalTablesSource')]],state.source,'data-field="source"')}</div>`;
+function renderInputs(){const d=state.draft;const header= `<div class="section-title"><h2>${t('addSamples')}</h2></div><div class="form-row">${input(t('experimentName'),'experiment-name',d.name,'data-draft="name" maxlength="120" placeholder="'+esc(t('experimentPlaceholder'))+'"')}${select(t('inputFiles'),'source',[['bam',t('rawInputs')],['tables',t('callingTables')],['mixed',t('mixedInputs')],['fetal-sex',t('fetalTablesSource')]],state.source,'data-field="source"')}</div>`;
  if(state.source==='fetal-sex')return header+fetalTables();
- return header+`${state.source!=='tables'?`<fieldset class="choice-fieldset"><legend>${t('whichMarkers')}</legend><div class="choices">${[['dnp','onlyDnp','dnpDescription'],['snp','onlySnp','snpDescription'],['both','both','bothDescription']].map(([v,key,help])=>`<label class="choice ${d.caller===v?'selected':''}"><input type="radio" name="caller" value="${v}" data-draft="caller" ${d.caller===v?'checked':''}><span><b>${t(key)}</b><small>${t(help)}</small></span></label>`).join('')}</div></fieldset>`:''}<div class="toolbar">${select(t('sampleKind'),'sample-kind',(state.source==='tables'?[['dnp-table',t('dnpTable')],['snp-table',t('snpTable')]]:state.source==='bam'?[['bam',t('bam')],['snp-pileup',t('snpPileup')]]:[['bam',t('bam')],['snp-pileup',t('snpPileup')],['dnp-table',t('dnpTable')],['snp-table',t('snpTable')]]),state.sampleKind,'data-field="sampleKind"')}${button(t('addSamples'),'add-samples',{},'primary','plus')}</div><div class="table-scroll"><table class="table"><thead><tr><th>${t('sampleName')}</th><th>${t('sampleFile')}</th><th>${t('fileType')}</th><th></th></tr></thead><tbody>${d.samples.map((s,i)=>`<tr><td class="sample-name"><input class="input" value="${esc(s.id)}" data-sample="${i}" maxlength="48" aria-label="${t('sampleName')} ${i+1}"></td><td><b>${esc(basename(s.path))}</b><details class="file-name"><summary>${t('details')}</summary>${esc(s.path)}</details></td><td>${esc({bam:t('bam'),'snp-pileup':t('snpPileup'),'dnp-table':t('dnpTable'),'snp-table':t('snpTable')}[s.kind])}</td><td>${button(t('remove'),'remove-sample',{index:i},'quiet small','close')}</td></tr>`).join('')}</tbody></table>${!d.samples.length?empty(t('noSamples')):''}</div><p class="help section-gap">${t('sampleIdHelp')}</p>${d.samples.some(s=>s.kind==='bam')||state.source!=='tables'&&state.sampleKind==='bam'?`${renderReferencePicker('new')}<p class="help">${t('referenceHelp')}</p>`:''}${d.caller!=='tables'?`<div class="form-row">${(d.caller==='both'?['DNP','SNP']:[d.caller.toUpperCase()]).map(m=>fileField(t('panel')+' '+m,'resource.'+m+'.panel',d.resources[m].panel,'table')).join('')}</div>`:''}`}
+ return header+`${state.source!=='tables'?`<fieldset class="choice-fieldset"><legend>${t('whichMarkers')}</legend><div class="choices">${[['dnp','onlyDnp','dnpDescription'],['snp','onlySnp','snpDescription'],['both','both','bothDescription']].map(([v,key,help])=>`<label class="choice ${d.caller===v?'selected':''}"><input type="radio" name="caller" value="${v}" data-draft="caller" ${d.fetal_sex?.source==='bam'&&v!=='both'?'disabled':''} ${d.caller===v?'checked':''}><span><b>${t(key)}</b><small>${t(help)}</small></span></label>`).join('')}</div></fieldset>`:''}<div class="toolbar">${select(t('sampleKind'),'sample-kind',(state.source==='tables'?[['dnp-table',t('dnpTable')],['snp-table',t('snpTable')]]:state.source==='bam'?[['bam',t('bam')],['snp-pileup',t('snpPileup')]]:[['bam',t('bam')],['snp-pileup',t('snpPileup')],['dnp-table',t('dnpTable')],['snp-table',t('snpTable')]]),state.sampleKind,'data-field="sampleKind"')}${button(t('addSamples'),'add-samples',{},'primary','plus')}</div><div class="table-scroll"><table class="table"><thead><tr><th>${t('sampleName')}</th><th>${t('sampleFile')}</th><th>${t('fileType')}</th><th></th></tr></thead><tbody>${d.samples.map((s,i)=>`<tr><td class="sample-name"><input class="input" value="${esc(s.id)}" data-sample="${i}" maxlength="48" aria-label="${t('sampleName')} ${i+1}"></td><td><b>${esc(basename(s.path))}</b><details class="file-name"><summary>${t('details')}</summary>${esc(s.path)}</details></td><td>${esc({bam:t('bam'),'snp-pileup':t('snpPileup'),'dnp-table':t('dnpTable'),'snp-table':t('snpTable')}[s.kind])}</td><td>${button(t('remove'),'remove-sample',{index:i},'quiet small','close')}</td></tr>`).join('')}</tbody></table>${!d.samples.length?empty(t('noSamples')):''}</div><p class="help section-gap">${t('sampleIdHelp')}</p>${d.samples.some(s=>s.kind==='bam')||state.source!=='tables'&&state.sampleKind==='bam'?`${renderReferencePicker('new')}<p class="help">${t('referenceHelp')}</p>`:''}${d.caller!=='tables'?`<div class="form-row">${(d.caller==='both'?['DNP','SNP']:[d.caller.toUpperCase()]).map(m=>fileField(t('panel')+' '+m,'resource.'+m+'.panel',d.resources[m].panel,'table')).join('')}</div>`:''}`}
 function renderFamilies(module){const rows=state.draft.families[module],roles=module==='cpi'?['mother','father']:['mother','father','child'];const samples=[...new Set(state.draft.samples.map(s=>s.id))];return `<section class="section-gap"><div class="section-title"><h3>${moduleName(module)} · ${t('family')}</h3>${button(t('addFamily'),'add-family',{module},'small','plus')}</div><p class="help">${t('familyHelp')}</p>${rows.map((r,i)=>`<div class="family-row ${module==='cpi'?'pair':''}">${input(t('familyName'),`${module}-family-${i}`,r.id,`data-family="${module}|${i}|id" maxlength="48"`)}${roles.map(role=>select(t(role==='mother'&&module==='cpi'?'maternalCfdna':role),`${module}-${i}-${role}`,[['',t('assign')],...samples.map(s=>[s,s])],r[role]||'',`data-family="${module}|${i}|${role}"`)).join('')}${button(t('remove'),'remove-family',{module,index:i},'quiet small','close')}</div>`).join('')}</section>`}
 function renderAnalyses(){const d=state.draft,markers=activeMarkers(),selected=selectedModules();
  if(state.source==='fetal-sex')return `<h2>${t('fetalSex')}</h2><p class="help section-gap">${t('fetalOutcomeHelp')}</p>`;
@@ -506,7 +544,7 @@ function renderActivity(){
  const actions=button(t('reload'),'refresh-jobs',{},'','activity')+button(t('new'),'navigate',{view:'new'},'primary','plus');
  return heading(t('activity'),t('jobHelp'),actions)+(active.length?`<section><h2>${t('activeExperiments')}</h2>${active.map(renderJobCard).join('')}</section>`:'')
   +(waiting.length?`<section class="section-gap"><h2>${t('waitingExperiments')}</h2>${waiting.map(renderJobCard).join('')}</section>`:'')
-  +(!active.length&&!waiting.length&&!finished.length?empty(t('noJobs')):'')
+  +(!active.length&&!waiting.length&&!finished.length?empty(t('noJobs'),'',button(t('archive'),'navigate',{view:'archive'},'','archive')):'')
   +(finished.length?`<section class="section-gap"><h2>${t('finishedJobs')}</h2>${finished.map(renderJobCard).join('')}</section>`:'');
 }
 function updateActivity(){
@@ -702,7 +740,7 @@ function renderFiles(files=state.files,includeCopies=false){const shown=files.fi
 function resultRowDetails(row,columns){const groups=[['',columns.filter(c=>!/_mother$|_father$|_child$/.test(c.key))],...[['mother','mother'],['father','father'],['child','child']].map(([key,label])=>[t(key==='child'&&Object.hasOwn(row,'Include_homozygous_child')?'presumedFetus':label),columns.filter(c=>c.key.endsWith('_'+key))])];return groups.filter(([,cols])=>cols.length).map(([name,cols])=>`${name?`<h3 class="section-gap">${name}</h3>`:''}<dl class="detail-values">${cols.map(c=>`<div><dt>${esc(c.label)}</dt><dd>${resultCell(row[c.key],c,true)}${number(row[c.key])!==null?`<small>${t('originalValue')}: ${esc(row[c.key])}</small>`:''}${c.description?`<small>${esc(c.description)}</small>`:''}</dd></div>`).join('')}</dl>`).join('')}
 function renderModule(){const group=currentGroup();if(!group)return empty(t('noResults'));const entry=currentEntry();return `<div class="toolbar">${select(t('markers'),'result-marker',(state.overview.modules||[]).filter(g=>g.module===group.module).map(g=>[g.module+'|'+g.marker,g.marker]),state.module,'data-result="module"')}${group.entries.length?select(group.module==='contamination'||group.module==='fetal-sex'||group.module.endsWith('-call')?t('sample'):t('family'),'result-entry',group.entries.map((e,i)=>[String(i),entryLabel(e)]),String(state.entry),'data-result="entry"'):''}${entry?reportButton():''}</div>${group.warnings?.map(w=>notice(typeof w==='string'?w:w.message,'warning')).join('')||''}${entry?`${outcomePanel(entry)||metrics(entry.metrics||[])}${genotypeBars(entry)}${entry.row?`<details class="disclosure"><summary>${t('summary')}</summary><div class="details-body">${resultRowDetails(entry.row,Object.keys(entry.row).map(key=>group.summary_columns?.[key]||{key,label:resultFieldLabel(key)}))}</div></details>`:''}${state.curves.map(renderCurve).join('')}${state.table?`<div class="section-title"><h3>${t('siteDetails')}</h3>${button(t('download'),'export-file',{id:state.table.file.id},'small','download')}</div><div class="toolbar"><input id="site-search" class="input stretch" aria-label="${t('search')}" placeholder="${t('siteSearch')}" data-search="table" value="${esc(state.tableSearch)}"><label class="check-row"><input type="checkbox" data-field="allColumns" ${state.allColumns?'checked':''}><span>${t('allColumns')}</span></label></div>${tableView(state.table)}`:''}${group.matrix_file_ids?.length?`<details class="disclosure"><summary>${L.language==='it'?'Confronta i genotipi dei campioni':'Compare sample genotypes'}</summary><div class="details-body">${group.matrix_file_ids.map(id=>button(t('open'),'open-file',{id},'small','file')).join('')}</div></details>`:''}`:empty(t('noResults'))}<details class="disclosure"><summary>${t('originals')}</summary><div class="details-body">${renderFiles(group.files||[])}</div></details>${resultHelp()}`}
 function resultFieldLabel(key){const fieldMap={Pair:['Coppia','Pair'],Trio:['Trio','Trio'],Marker_type:[t('markers'),t('markers')],Analysis:[t('phaseSelection'),t('phaseSelection')],CPI:['Indice di paternità combinato','Combined Paternity Index'],Log10_CPI:['log₁₀(CPI)','log₁₀(CPI)'],CPI_medianFF:['log₁₀(CPI) alla soglia mediana di letture fetali','log₁₀(CPI) at the median fetal read threshold'],Median_fetal_fraction_percent:['Frazione fetale mediana (%)','Median fetal fraction (%)'],Median_fetal_fraction_raw:['Frazione fetale mediana (proporzione)','Median fetal fraction (proportion)'],N_sites_mother:['Siti informativi materni','Maternal informative sites'],N_sites_father:['Siti paterni candidati','Paternal candidate sites'],paternal_used_at_median:['Siti paterni usati per il CPI alla soglia mediana','Paternal sites used for CPI at the median threshold'],Min_logCPI:['Minimo log₁₀(CPI)','Minimum log₁₀(CPI)'],Max_logCPI:['Massimo log₁₀(CPI)','Maximum log₁₀(CPI)'],Mean_logCPI:['Media log₁₀(CPI)','Mean log₁₀(CPI)'],Median_logCPI:['Mediana log₁₀(CPI)','Median log₁₀(CPI)'],Error_constant:['Probabilità di errore','Error probability'],Min_fetal_reads:[L.field('min_fetal_reads'),L.field('min_fetal_reads')],Min_child_reads:[L.field('min_child_reads'),L.field('min_child_reads')],N_sites:['Siti inclusi','Included sites'],N_heterozygous_child_sites:['Siti con figlio eterozigote','Heterozygous child sites'],N_homozygous_child:['Siti con figlio omozigote','Homozygous child sites'],Matching_sites:['Siti compatibili con il padre','Sites matching the father'],Mismatching_sites:['Siti incompatibili con il padre','Sites mismatching the father'],individuo:[t('sample'),t('sample')],informative_sites:['Siti informativi','Informative sites'],mean_contamination:['Contaminazione media (proporzione)','Mean contamination (proportion)'],sd_contamination:['Deviazione standard (proporzione)','Standard deviation (proportion)'],Cutoff:['Pannello di selezione','Selection panel']};return fieldMap[key]?.[L.language==='en'?1:0]||L.field(key)}
-function renderRun(){const run=state.run,groups=state.overview?.modules||[];let content='';if(state.runTab==='results'){content=`<div class="module-tabs" role="tablist"><button role="tab" aria-selected="${!state.module}" class="${!state.module?'active':''}" data-action="result-module" data-module="">${t('summary')}</button>${[...new Set(groups.map(g=>g.module))].map(module=>`<button role="tab" aria-selected="${currentGroup()?.module===module}" class="${currentGroup()?.module===module?'active':''}" data-action="result-module" data-module="${esc(groups.find(g=>g.module===module).module+'|'+groups.find(g=>g.module===module).marker)}">${module.endsWith('-call')?module.startsWith('dnp')?'DNP':'SNP':moduleName(module)}</button>`).join('')}<button role="tab" aria-selected="${state.module==='files'}" class="${state.module==='files'?'active':''}" data-action="result-module" data-module="files">${t('files')}</button></div><div class="results-body">${state.module==='files'?`<div class="section-title"><h2>${t('files')}</h2>${button(t('downloadAll'),'export-run',{},'','download')}</div>`+renderFiles():state.module?renderModule():renderResultsSummary()}</div>`}else if(state.runTab==='samples'){content=`<div class="table-scroll"><table class="table"><thead><tr><th>${t('sampleName')}</th><th>${t('sampleFile')}</th></tr></thead><tbody>${run.samples.map(s=>`<tr><td>${esc(s.label||s.id)}</td><td>${esc(s.filename)}<details class="file-name"><summary>${t('details')}</summary>${esc(s.path||'')}</details></td></tr>`).join('')}</tbody></table></div>`}else if(state.runTab==='parameters'){content=renderArchivedSettings(run)}else{content=`<div class="panel-body"><dl class="review-list"><dt>${t('status')}</dt><dd>${badge(run.status)}</dd><dt>${t('date')}</dt><dd>${date(run.started_at)} → ${date(run.finished_at)}</dd><dt>${t('applicationVersion')}</dt><dd>${esc(run.version||'—')}</dd></dl>${run.error?notice(typeof run.error==='string'?run.error:run.error.message||JSON.stringify(run.error),'error'):''}${(run.warnings||[]).map(w=>notice(w.message||w.reason||JSON.stringify(w),'warning')).join('')}<details class="disclosure"><summary>${t('files')}</summary><div class="details-body">${renderFiles(state.files.filter(f=>!f.module))}</div></details></div>`}return heading(run.name||run.id,'',button(t('rerun'),'reuse-run',{},'','play')+button(t('openRunDirectory'),'open-run-directory',{id:run.id},'','archive')+button(t('exportDiagnostics'),'export-diagnostics',{id:run.id},'','download')+(run.has_igv_inputs?button(t('viewInIgv'),'run-igv',{},'','igv'):'')+(run.can_remove===true?button(t('removeFromList'),'remove-run',{id:run.id},'quiet','close'):''),t('archive'))+`<div class="meta-row"><span>${date(run.started_at)}</span><span>${esc(run.markers.join(' / '))}</span><span>${runSampleCount(run)} ${t(runSampleCount(run)===1?'sample':'samples').toLowerCase()}</span>${badge(run.status)}</div>${run.status!=='succeeded'?notice(t('partialResults'),'warning'):''}${run.status_note?notice(run.status_note,'warning'):''}<section class="panel section-gap"><div class="tabs" role="tablist">${[['results','results'],['samples','samples'],['parameters','usedSettings'],['provenance','provenance']].map(([value,key])=>`<button class="tab ${state.runTab===value?'active':''}" role="tab" aria-selected="${state.runTab===value}" data-action="run-tab" data-tab="${value}">${t(key)}</button>`).join('')}</div>${content}</section><div class="section-title"><div><h3>${t('newFromSettings')}</h3><p class="help">${t('rerunHelp')}</p></div>${button(t('rerun'),'reuse-run',{},'','play')}</div>`}
+function renderRun(){const run=state.run,groups=state.overview?.modules||[];let content='';if(state.runTab==='results'){content=`<div class="module-tabs" role="tablist"><button role="tab" aria-selected="${!state.module}" class="${!state.module?'active':''}" data-action="result-module" data-module="">${t('summary')}</button>${[...new Set(groups.map(g=>g.module))].map(module=>`<button role="tab" aria-selected="${currentGroup()?.module===module}" class="${currentGroup()?.module===module?'active':''}" data-action="result-module" data-module="${esc(groups.find(g=>g.module===module).module+'|'+groups.find(g=>g.module===module).marker)}">${module.endsWith('-call')?module.startsWith('dnp')?'DNP':'SNP':moduleName(module)}</button>`).join('')}<button role="tab" aria-selected="${state.module==='files'}" class="${state.module==='files'?'active':''}" data-action="result-module" data-module="files">${t('files')}</button></div><div class="results-body">${state.module==='files'?`<div class="section-title"><h2>${t('files')}</h2>${button(t('downloadAll'),'export-run',{},'','download')}</div>`+renderFiles():state.module?renderModule():renderResultsSummary()}</div>`}else if(state.runTab==='samples'){content=`<div class="table-scroll"><table class="table"><thead><tr><th>${t('sampleName')}</th><th>${t('sampleFile')}</th></tr></thead><tbody>${run.samples.map(s=>`<tr><td>${esc(s.label||s.id)}</td><td>${esc(s.filename)}<details class="file-name"><summary>${t('details')}</summary>${esc(s.path||'')}</details></td></tr>`).join('')}</tbody></table></div>`}else if(state.runTab==='parameters'){content=renderArchivedSettings(run)}else{content=`<div class="panel-body"><dl class="review-list"><dt>${t('status')}</dt><dd>${runBadge(run)}</dd><dt>${t('date')}</dt><dd>${date(run.started_at)} → ${date(run.finished_at)}</dd><dt>${t('applicationVersion')}</dt><dd>${esc(run.version||'—')}</dd></dl>${run.error?notice(typeof run.error==='string'?run.error:run.error.message||JSON.stringify(run.error),'error'):''}${(run.warnings||[]).map(w=>notice(w.message||w.reason||JSON.stringify(w),'warning')).join('')}<details class="disclosure"><summary>${t('files')}</summary><div class="details-body">${renderFiles(state.files.filter(f=>!f.module))}</div></details></div>`}return heading(run.name||run.id,'',button(t('rerun'),'reuse-run',{},'','play')+button(t('openRunDirectory'),'open-run-directory',{id:run.id},'','archive')+button(t('exportDiagnostics'),'export-diagnostics',{id:run.id},'','download')+(run.has_igv_inputs?button(t('viewInIgv'),'run-igv',{},'','igv'):'')+(run.can_remove===true?button(t('removeFromList'),'remove-run',{id:run.id},'quiet','close'):''),t('archive'))+`<div class="meta-row"><span>${date(run.started_at)}</span><span>${esc(run.markers.join(' / '))}</span><span>${runSampleCount(run)} ${t(runSampleCount(run)===1?'sample':'samples').toLowerCase()}</span>${badge(run.status)}</div>${run.status!=='succeeded'?notice(t('partialResults'),'warning'):''}${run.status_note?notice(run.status_note,'warning'):''}<section class="panel section-gap"><div class="tabs" role="tablist">${[['results','results'],['samples','samples'],['parameters','usedSettings'],['provenance','provenance']].map(([value,key])=>`<button class="tab ${state.runTab===value?'active':''}" role="tab" aria-selected="${state.runTab===value}" data-action="run-tab" data-tab="${value}">${t(key)}</button>`).join('')}</div>${content}</section><div class="section-title"><div><h3>${t('newFromSettings')}</h3><p class="help">${t('rerunHelp')}</p></div>${button(t('rerun'),'reuse-run',{},'','play')}</div>`}
 function archivedFlagNames(value){
  if(!Number.isSafeInteger(Number(value))||Number(value)<0)return displayValue(value);
  const flags=[[1,'Letture appaiate','Paired reads'],[2,'Coppie corrette','Proper pairs'],[4,'Non allineate','Unmapped'],[8,'Compagno non allineato','Unmapped mate'],[16,'Filamento inverso','Reverse strand'],[32,'Compagno sul filamento inverso','Mate on reverse strand'],[64,'Prima lettura della coppia','First read in pair'],[128,'Seconda lettura della coppia','Second read in pair'],[256,'Allineamenti secondari','Secondary alignments'],[512,'Controllo qualità non superato','Failed quality control'],[1024,'Duplicati','Duplicates'],[2048,'Allineamenti supplementari','Supplementary alignments']];
@@ -1008,13 +1046,16 @@ async function action(name,data,element){
  if(name==='choose-path'){await choosePath(data.key,data.filter);render();return}
  if(name==='clear-path'){setPath(data.key,null);render();return}
  if(name==='add-samples'){const kind=state.sampleKind,draft=state.draft,revision=draftRevision;let paths;try{paths=await choosePath(null,kind==='bam'?'bam':kind==='snp-pileup'?'pileup':'table',true)}catch(error){if(draft===state.draft&&revision===draftRevision)throw error;return}if(draft!==state.draft||revision!==draftRevision)return;for(const path of paths){if(state.draft.samples.some(s=>s.path===path&&s.kind===kind))continue;state.draft.samples.push({id:safeSampleId(path,kind),path,kind})}if(paths.length)invalidate();render();return}
- if(name==='remove-sample'){state.draft.samples.splice(Number(data.index),1);invalidate();render();return}
+ if(name==='remove-sample'){const [removed]=state.draft.samples.splice(Number(data.index),1);if(removed?.kind==='bam'&&state.draft.fetal_sex?.source==='bam'&&state.draft.fetal_sex.id===removed.id)state.draft.fetal_sex.id='';invalidate();render();return}
  if(name==='step'){
   const next=Number(data.index),d=state.draft;
   if(next>state.step){
    const fetal=d.fetal_sex;
    if(!d.name.trim()||(!d.samples.length&&!fetal)){state.error=t('inputRequired');render();return}
-   if(fetal&&(state.source==='fetal-sex'||next>1)&&(!fetal.id.trim()||!fetalRoles.every(([role])=>fetal[role]))){state.error=t('fetalInputsRequired');render();return}
+   if(fetal?.source==='bam'&&next>1){
+    if(!fetal.id||!maternalBams().some(sample=>sample.id===fetal.id)){state.error=t('chooseMaternalBam');render();return}
+    if(!d.resources.DNP.panel||!d.resources.SNP.panel){state.error=t('fetalBamPanels');render();return}
+   }else if(fetal&&fetal.source!=='bam'&&(state.source==='fetal-sex'||next>1)&&(!fetal.id.trim()||!fetalRoles(fetal).every(([role])=>fetal[role]))){state.error=t('fetalInputsRequired');render();return}
   }
   state.step=next;state.error='';render();return
  }
@@ -1190,9 +1231,23 @@ function onValue(target){const value=target.type==='checkbox'?target.checked:tar
  if(target.dataset.referenceBuild)return chooseReferenceBuild(target.dataset.referenceBuild,value).catch(showError);
  if(target.dataset.referenceEntry)return selectReferenceEntry(target.dataset.referenceEntry,value).catch(showError);
  if(target.dataset.draft){state.draft[target.dataset.draft]=value;invalidate();if(target.dataset.draft==='caller')render();return}
- if(target.dataset.fetalOption){if(value)state.draft.fetal_sex=emptyFetalSample();else delete state.draft.fetal_sex;invalidate();render();return}
+ if(target.dataset.fetalOption||target.dataset.fetalSource){
+  if(!value)delete state.draft.fetal_sex;
+  else if(value==='bam'||target.dataset.fetalOption&&maternalBams().length)useFetalBam();
+  else state.draft.fetal_sex=emptyFetalSample();
+  invalidate();render();return;
+ }
+ if(target.dataset.fetalLayout){
+  const {id,y}=state.draft.fetal_sex;
+  state.draft.fetal_sex=value==='combined'?{id,y,dnp:''}:{id,y,autosomes:'',x:''};
+  invalidate();render();return;
+ }
  if(target.dataset.fetalId){state.draft.fetal_sex.id=value;invalidate();return}
- if(target.dataset.sample!==undefined){state.draft.samples[Number(target.dataset.sample)].id=value;invalidate();return}
+ if(target.dataset.sample!==undefined){
+  const sample=state.draft.samples[Number(target.dataset.sample)],fetal=state.draft.fetal_sex;
+  if(sample.kind==='bam'&&fetal?.source==='bam'&&fetal.id&&fetal.id===sample.id)fetal.id=value;
+  sample.id=value;invalidate();return;
+ }
  if(target.dataset.family){const [m,index,key]=target.dataset.family.split('|');state.draft.families[m][Number(index)][key]=value;invalidate();return}
  if(target.dataset.branch){const [marker,module]=target.dataset.branch.split('|'),branch=state.draft.branches[marker];if(value&&!branch.includes(module))branch.push(module);if(!value)state.draft.branches[marker]=branch.filter(m=>m!==module);invalidate();render();return}
  if(target.dataset.cutoff){const [m,index]=target.dataset.cutoff.split('|');state.draft.resources[m].cpi_cutoffs[Number(index)].label=value;invalidate();return}
@@ -1206,9 +1261,9 @@ function onValue(target){const value=target.type==='checkbox'?target.checked:tar
   if(value==='fetal-sex'){
    state.draft.caller='tables';state.draft.samples=[];state.draft.reference=null;
    delete state.draft.reference_id;delete state.draft.reference_genome;referenceForms.delete(state.draft);
-   state.draft.branches={DNP:[],SNP:[]};state.draft.fetal_sex??=emptyFetalSample();invalidate();render();return;
+   state.draft.branches={DNP:[],SNP:[]};if(!state.draft.fetal_sex||state.draft.fetal_sex.source==='bam')state.draft.fetal_sex=emptyFetalSample();invalidate();render();return;
   }
-  if(previous==='fetal-sex')delete state.draft.fetal_sex;
+  if(previous==='fetal-sex'||value==='tables'&&state.draft.fetal_sex?.source==='bam')delete state.draft.fetal_sex;
   state.draft.caller=value==='tables'?'tables':state.draft.caller==='tables'?'dnp':state.draft.caller;state.sampleKind=value==='tables'?'dnp-table':'bam';if(value==='tables'){state.draft.samples=state.draft.samples.filter(s=>s.kind.endsWith('-table'));state.draft.reference=null;delete state.draft.reference_id;delete state.draft.reference_genome;referenceForms.delete(state.draft)}else if(value==='bam')state.draft.samples=state.draft.samples.filter(s=>!s.kind.endsWith('-table'));invalidate();render()}else if(key==='igvLocus'){state.igv.locus=value}else if(key==='igvChromosome'){window.NipatIGV.search(value).catch(showError)}else if(key==='runtimeMemory'||key==='runtimeCpus'){state[key]=value;state.resourcePreview=null}else{state[key]=value;if(key==='archiveStatus'||key==='archiveMarker')return requestArchivePage(0).catch(showError);if(key==='sampleKind'&&value==='snp-pileup'&&state.draft.caller==='dnp'){state.draft.caller='snp';invalidate()}if(key!=='motion')render();else rpc('ui.save',{preferences:{language:L.language,reduce_motion:!value}}).catch(showError)}return}
  if(target.dataset.result){if(target.dataset.result==='module'){state.module=value;state.entry=0}else state.entry=Number(value);loadEntry().catch(showError);return}
 }
@@ -1269,10 +1324,7 @@ async function poll(){
   if(state.view==='activity'&&visibleLogs.size){
    await Promise.all(state.jobs.filter(job=>visibleLogs.has(job.id)).map(refreshJobLog));
   }
-  const listing=state.view==='home'||state.view==='archive'&&!state.run;
-  const rows=state.view==='home'?state.recentRuns:(state.archiveListing?.runs||[]);
-  const checking=rows.some(run=>run.status_reason==='checking')||(state.view==='archive'&&state.archiveListing?.checking_status);
-  if(listing&&(before!==archiveKeys(state.jobs)||checking))await refreshVisibleRuns();
+  if(runListNeedsRefresh(before!==archiveKeys(state.jobs)))await refreshVisibleRuns();
   if(state.view==='archive'&&state.run&&(!terminal(state.run)||state.jobs.some(j=>!terminal(j)&&j.run_id===state.runId)))await refreshOpenedRun();
  }catch{/* A transient poll error must not replace work in progress. */}
  finally{pollTimer=setTimeout(poll,state.jobs.some(j=>!terminal(j))||[...referenceDownloads.values()].some(activeTransfer)?1500:5000)}

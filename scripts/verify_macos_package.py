@@ -145,7 +145,7 @@ def verify(package: Path, common_manifest: Path, *, build_record: Path | None = 
                 "--report", str(package.parent / "macos-native-smoke.json"),
                 "--screenshot", str(package.parent / "macos-native-smoke.png"),
             ], check=True, timeout=180)
-        validate_template = '''import json, pathlib, subprocess, sys
+        validate_template = '''import json, os, pathlib, subprocess, sys, tempfile
 sys.path.insert(0, sys.argv.pop(1))
 from nipat.macos_runtime import LimaRuntime
 project, executable, destination = map(pathlib.Path, sys.argv[1:])
@@ -156,6 +156,22 @@ manifest = json.loads((project / ".distribution/macos-manifest.json").read_text(
 owner = {"token": "d" * 32, "mounts": runtime.default_mounts()}
 destination.write_text(json.dumps(runtime.template(manifest, owner)))
 subprocess.run([*runtime.host_prefix(), "validate", str(destination)], check=True)
+# Inspect a stopped VZ instance with the packaged limactl. The disposable home
+# keeps this check separate from the runner's Lima instances; no guest boots.
+with tempfile.TemporaryDirectory(prefix="np-", dir="/private/tmp") as directory:
+    home = pathlib.Path(directory)
+    previous = LimaRuntime(project, home / "Library/Application Support/NIPAT-Desktop", executable, home=home)
+    previous.instance_dir.mkdir(parents=True)
+    (previous.instance_dir / "lima.yaml").write_bytes(destination.read_bytes())
+    (previous.instance_dir / "diffdisk").write_bytes(b"previous instance")
+    if not previous.requires_mount_repair():
+        raise ValueError("Orphaned package fixture did not request recovery")
+    os.environ.update(NIPAT_RUNTIME_MAINTENANCE="1", NIPAT_LAUNCHER_PID=str(os.getppid()))
+    with previous.lock():
+        previous._preserve_stopped_instance()
+    saved, = previous.lima_home.parent.glob("recovered-nipat-*/nipat/diffdisk")
+    if previous.instance_dir.exists() or saved.read_bytes() != b"previous instance":
+        raise ValueError("Stopped package fixture was not preserved")
 '''
         subprocess.run([str(python), "-I", "-B", "-c", validate_template,
                         str(resources / "app/src"), str(resources / "app"),

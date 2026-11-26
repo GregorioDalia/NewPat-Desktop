@@ -12,12 +12,14 @@ To try contamination and the two CPI analyses, select **Environment and help →
 
 ## Set up an experiment
 
-1. Choose **New experiment** and give the experiment a name. Select the starting material (BAM files, SNP pileups or existing count tables). For BAM inputs, supply the reference FASTA, the marker panel for each caller and a sample ID for each file.
+1. Choose **New experiment** and give the experiment a name. Under **Input files**, choose BAM or pileup files, calling tables, or a mix of these. When calling markers, select DNP, SNP or both in the marker section below. For BAM inputs, supply the reference FASTA, the marker panel for each caller and a sample ID for each file.
 2. Select the analyses. Contamination, prenatal CPI and postnatal CPI can each use a caller's count tables. For parentage analyses, identify each sample's role in its pair or trio and select population frequencies for the marker type.
 3. Review the scientific parameters, sample list, execution settings and destination. Select **Record performance diagnostics** if you need timing and resource measurements. Choose **Start experiment** once. NewPat checks the configuration and runtime and starts the analysis when the checks pass. If a check fails, use the displayed message to correct the problem before trying again.
 4. Open **Activity** to see the current phase, the sample when available, and the elapsed time. Recent activity lists changes as they happen. Expand **Technical log** for detailed messages. The DNA animation shows activity while the engine prepares. When a phase has measurable progress, the percentage refers to that phase. Stopping an analysis can take time while its processes exit.
 
-For fetal sex alone, choose **New experiment → Fetal sex from three count tables**. Enter the maternal sample name and select its three files: autosomal DNP counts, chromosome X DNP counts and chromosome Y SNP counts. Use X and Y markers previously validated for specificity. To include this estimate alongside another analysis, select **Fetal sex** in the analyses step and supply the same three files. You can try this with either [worked example](../tests/fixtures/fetal_sex/README.md).
+To estimate fetal sex from a **maternal cfDNA BAM**, add the BAM and its indexed reference, then select **Fetal sex** under **Analyses**. NewPat selects both callers. With several BAMs, choose the maternal sample. Supply a DNP panel with autosomal and X positions and an SNP panel with Y positions. Use sex-chromosome markers previously validated for specificity. NewPat passes the maternal counts directly to the estimate.
+
+If you already have calling tables, choose **Fetal sex tables** under **Input files**. Supply the combined autosomal and X DNP table and the separate Y SNP table, or select the three-table layout for separate autosomal and X tables. [Worked examples](../tests/fixtures/fetal_sex/README.md)
 
 **New experiment** starts with the defaults in Preferences. **Run again** opens a fresh draft with an existing run's input files and settings. Review those paths before starting it. See the [input and command reference](USER_GUIDE.md) for panel formats and sample roles.
 
