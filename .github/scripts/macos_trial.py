@@ -4,6 +4,8 @@ import argparse
 import hashlib
 from pathlib import Path
 import re
+import shutil
+import stat
 import tempfile
 import zipfile
 
@@ -13,6 +15,16 @@ PROJECT = Path(__file__).resolve().parents[2]
 VERSION = "0.9.99"
 PACKAGE = f"NIPAT-{VERSION}-macos-arm64.pkg"
 LAUNCHER = "Mini-Test-NewPat.command"
+
+
+def trial_member(name):
+    # Finder needs Unix metadata even if the checkout is on NTFS or the outer
+    # GitHub artifact has stripped its executable bits.
+    entry = zipfile.ZipInfo(name)
+    entry.create_system = 3
+    mode = 0o755 if name == LAUNCHER else 0o644
+    entry.external_attr = (stat.S_IFREG | mode) << 16
+    return entry
 
 
 def build_kit(evidence, packages, commit, output):
@@ -32,21 +44,23 @@ def build_kit(evidence, packages, commit, output):
         "mini_suite_macos.py": PROJECT / "scripts/mini_suite_macos.py",
         "LEGGIMI.txt": PROJECT / "docs/MINI_SUITE_MAC.md",
     }
-    # GitHub's outer artifact ZIP resets executable permissions. Finder extracts
-    # this Unix-created inner ZIP with the tracked launcher's executable bit.
     with tempfile.TemporaryDirectory(dir=output.parent) as tmp:
         staging = Path(tmp) / "trial.zip"
         with zipfile.ZipFile(staging, "x", compression=zipfile.ZIP_STORED) as kit:
             for name, source in files.items():
-                kit.write(source, name)
-            kit.writestr("source-commit", commit + "\n")
-            kit.writestr("SHA256SUMS", f"{arm['sha256']}  {PACKAGE}\n")
+                entry = trial_member(name)
+                entry.file_size = source.stat().st_size
+                with source.open("rb") as original, kit.open(entry, "w") as member:
+                    shutil.copyfileobj(original, member, length=1024 * 1024)
+            kit.writestr(trial_member("source-commit"), commit + "\n")
+            kit.writestr(trial_member("SHA256SUMS"), f"{arm['sha256']}  {PACKAGE}\n")
         with zipfile.ZipFile(staging) as kit:
             with kit.open(PACKAGE) as stream:
                 require(hashlib.file_digest(stream, "sha256").hexdigest() == arm["sha256"],
                         "The archived ARM64 installer differs from the verified package SHA-256")
-            require(kit.getinfo(LAUNCHER).external_attr >> 16 & 0o100,
-                    "The archived mini-suite launcher must be executable")
+            for entry in kit.infolist():
+                require(entry.create_system == 3 and entry.external_attr == trial_member(entry.filename).external_attr,
+                        f"Invalid macOS extraction permissions for {entry.filename}")
         staging.replace(output)
 
 

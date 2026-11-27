@@ -1,8 +1,11 @@
 import importlib.util
 import json
 from pathlib import Path
+import shutil
+import stat
 import tempfile
 import unittest
+from unittest.mock import patch
 import zipfile
 
 import macos_trial
@@ -47,14 +50,31 @@ class MacosReleaseTests(unittest.TestCase):
             evidence = folder / "installer-set-check.json"
             evidence.write_text(json.dumps(record))
             output = folder / "trial.zip"
-            macos_trial.build_kit(evidence, folder, commit, output)
+            # Model a checkout without an executable bit while leaving tracked
+            # sources untouched. A Windows checkout has the same limitation.
+            inputs = {macos_trial.LAUNCHER: "installer/macos/" + macos_trial.LAUNCHER,
+                      "mini_suite_macos.py": "scripts/mini_suite_macos.py",
+                      "LEGGIMI.txt": "docs/MINI_SUITE_MAC.md"}
+            checkout = folder / "checkout"
+            for source in inputs.values():
+                destination = checkout / source
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(macos_trial.PROJECT / source, destination)
+                destination.chmod(0o644)
+            with patch.object(macos_trial, "PROJECT", checkout):
+                macos_trial.build_kit(evidence, folder, commit, output)
             with zipfile.ZipFile(output) as kit:
                 self.assertEqual(set(kit.namelist()), {package.name, macos_trial.LAUNCHER, "LEGGIMI.txt",
                                                        "mini_suite_macos.py", "source-commit", "SHA256SUMS"})
                 self.assertEqual(kit.read(package.name), package.read_bytes())
                 self.assertEqual(kit.read("source-commit").decode(), commit + "\n")
                 self.assertEqual(kit.read("SHA256SUMS").decode(), f"{sha}  {package.name}\n")
-                self.assertTrue(kit.getinfo(macos_trial.LAUNCHER).external_attr >> 16 & 0o100)
+                for name, source in inputs.items():
+                    self.assertEqual(kit.read(name), (checkout / source).read_bytes())
+                for entry in kit.infolist():
+                    mode = 0o755 if entry.filename == macos_trial.LAUNCHER else 0o644
+                    self.assertEqual(entry.create_system, 3)
+                    self.assertEqual(entry.external_attr >> 16, stat.S_IFREG | mode)
             output.unlink()
             with self.assertRaisesRegex(ValueError, "exact source"):
                 macos_trial.build_kit(evidence, folder, "b" * 40, output)
