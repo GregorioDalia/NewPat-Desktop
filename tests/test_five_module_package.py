@@ -6,7 +6,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from nipat.paths import ProjectLayout
+from newpat.paths import ProjectLayout
 
 
 SPEC = importlib.util.spec_from_file_location(

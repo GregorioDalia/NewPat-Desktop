@@ -4,8 +4,8 @@ import os
 from pathlib import Path, PurePosixPath
 from unittest.mock import patch
 
-from nipat.errors import ValidationError
-from nipat.paths import ProjectLayout
+from newpat.errors import ValidationError
+from newpat.paths import ProjectLayout
 
 
 def _layout(tmp_path: Path) -> ProjectLayout:

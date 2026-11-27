@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 import unittest
 
-from nipat_scientific.settings import describe_settings, normalize_settings
+from newpat_scientific.settings import describe_settings, normalize_settings
 
 from native_engine_helpers import execute_workflow
 from native_r_helpers import NATIVE_R_AVAILABLE, NATIVE_R_REASON

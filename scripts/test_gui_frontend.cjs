@@ -1,7 +1,7 @@
 /* Contract and state tests for the desktop frontend. No browser layout claims. */
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict');
-const root=path.resolve(__dirname,'..'),web=path.join(root,'src/nipat/gui/web');
-const settings=JSON.parse(fs.readFileSync(path.join(root,'src/nipat_scientific/settings_data.json'),'utf8'));
+const root=path.resolve(__dirname,'..'),web=path.join(root,'src/newpat/desktop/web');
+const settings=JSON.parse(fs.readFileSync(path.join(root,'src/newpat_scientific/settings_data.json'),'utf8'));
 let clockMs=0;
 const testClock={now:()=>clockMs};
 const events={},elements=new Map(),requests=[],checks=[];let dialogPaths=[],jobs=[],navigationCallback=null;

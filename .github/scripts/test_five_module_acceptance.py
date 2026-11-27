@@ -103,7 +103,7 @@ class FiveModuleAcceptanceTests(unittest.TestCase):
         for path in ["scripts/verify_five_modules.py", acceptance.CPIN_SOURCE,
                 *("src/nipat_scientific/" + name for name in acceptance.ANALYSIS_HELPERS),
                 *acceptance.CALLER_SUPPORTING_SOURCES]:
-            sources[path] = (ROOT / path).read_bytes()
+            sources[path] = (ROOT / acceptance.source_path(path, "0.9.99")).read_bytes()
         for path in (ROOT / acceptance.ANALYSIS_REFERENCE_ROOT).rglob("*"):
             if path.is_file():
                 sources[path.relative_to(ROOT).as_posix()] = path.read_bytes()

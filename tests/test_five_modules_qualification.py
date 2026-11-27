@@ -92,10 +92,10 @@ class FiveModuleQualificationTests(unittest.TestCase):
             installed = tmp_path / "scientific/vendor/NEWPAT" / relative
             installed.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(qualification.PROJECT / "scientific/vendor/NEWPAT" / relative, installed)
-        helpers = tmp_path / "lib/nipat_scientific"
+        helpers = tmp_path / "lib/newpat_scientific"
         helpers.mkdir(parents=True)
         for name in qualification.HELPERS:
-            shutil.copyfile(qualification.PROJECT / "src/nipat_scientific" / name, helpers / name)
+            shutil.copyfile(qualification.PROJECT / "src/newpat_scientific" / name, helpers / name)
         hashes = qualification.verify_installed_payload(tmp_path)
         assert len(hashes) == 3 + len(qualification.HELPERS)
         (helpers / "settings_data.json").write_text("{}\n")

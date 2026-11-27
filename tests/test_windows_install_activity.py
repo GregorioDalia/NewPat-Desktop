@@ -1,7 +1,7 @@
 import os
 from unittest.mock import MagicMock
 
-from nipat.windows_install_activity import authorized, is_live_ancestor
+from newpat.windows_install_activity import authorized, is_live_ancestor
 
 
 def test_lease_requires_actual_parent_live_ancestor_and_named_event():

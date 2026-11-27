@@ -26,7 +26,7 @@ if (Test-Path -LiteralPath $work) { throw 'The fixture work directory must not e
 [IO.Directory]::CreateDirectory($work) | Out-Null
 $app = Join-Path $StageDirectory 'app'
 $installed = Join-Path $work 'installed application'
-$definition = Join-Path $PSScriptRoot 'NIPAT.iss'
+$definition = Join-Path $PSScriptRoot 'NewPat.iss'
 $original = [IO.File]::ReadAllText($definition)
 $fixture = Join-Path $work 'fixture.iss'
 $checks = [ordered]@{}

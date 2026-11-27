@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import verify_caller_smoke as smoke
 import verify_caller_edges as edges
-from nipat.errors import ValidationError
+from newpat.errors import ValidationError
 
 
 class CallerSmokeTests(unittest.TestCase):

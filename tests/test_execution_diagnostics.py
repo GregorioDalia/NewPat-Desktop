@@ -9,11 +9,11 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
-from nipat.errors import RuntimeExecutionError
-from nipat.execution.diagnostics import diagnose, inspect_container, settle_oom_observation
-from nipat.execution.runner import DockerComposeRunner
-from nipat.execution.transport import DockerTransport, LimaDockerTransport
-from nipat.paths import ProjectLayout
+from newpat.errors import RuntimeExecutionError
+from newpat.experiments.diagnostics import diagnose, inspect_container, settle_oom_observation
+from newpat.experiments.runner import DockerComposeRunner
+from newpat.experiments.transport import DockerTransport, LimaDockerTransport
+from newpat.paths import ProjectLayout
 
 
 IMAGE = "sha256:" + "b" * 64
@@ -37,8 +37,8 @@ class ExecutionDiagnosticsTests(unittest.TestCase):
                                     self.directory / "runs", project / "compose.yaml")
         self.runner = DockerComposeRunner(self.layout, transport=DockerTransport())
         self.runner._image_id = IMAGE
-        self.enterContext(patch("nipat.execution.tracking.platform.platform", return_value="test host"))
-        self.enterContext(patch("nipat.execution.diagnostics.time.sleep"))
+        self.enterContext(patch("newpat.experiments.tracking.platform.platform", return_value="test host"))
+        self.enterContext(patch("newpat.experiments.diagnostics.time.sleep"))
         self.enterContext(patch.object(self.runner, "_analysis_session", side_effect=lambda: nullcontext()))
         self.enterContext(patch.object(self.runner, "_prepare_runtime", side_effect=self.prepare))
         self.enterContext(patch.object(self.runner, "_describe_bundled_engine"))
@@ -97,8 +97,8 @@ class ExecutionDiagnosticsTests(unittest.TestCase):
             return subprocess.CompletedProcess(argv, 0, CONTAINER, "")
 
         error = None
-        with redirect_stdout(self.log), patch("nipat.execution.runner.subprocess.Popen", side_effect=start), patch(
-            "nipat.execution.diagnostics.subprocess.run", side_effect=execute,
+        with redirect_stdout(self.log), patch("newpat.experiments.runner.subprocess.Popen", side_effect=start), patch(
+            "newpat.experiments.diagnostics.subprocess.run", side_effect=execute,
         ):
             try:
                 with self.runner.record_run(run, workflow="snp-call", inputs=[], parameters={},
@@ -133,7 +133,7 @@ class ExecutionDiagnosticsTests(unittest.TestCase):
         self.assertEqual(stage["container_cleanup"]["status"], "removed")
 
     def test_137_without_oom_flag_is_not_reported_as_confirmed_memory_failure(self):
-        with patch("nipat.execution.diagnostics.time.monotonic", return_value=10.0):
+        with patch("newpat.experiments.diagnostics.time.monotonic", return_value=10.0):
             _, record, error, operations = self.run_case(137)
         self.assertIn("non e confermata", str(error))
         self.assertEqual(record["commands"][0]["container_diagnostics"]["diagnosis"]["kind"],
@@ -146,7 +146,7 @@ class ExecutionDiagnosticsTests(unittest.TestCase):
             self.assertLessEqual(timeout, 2)
             return {"availability": "available", "owned": True, "container_id": CONTAINER,
                     "state": {"status": "exited", "oom_killed": True, "exit_code": 137}}
-        with patch("nipat.execution.diagnostics.inspect_container", side_effect=delayed) as refreshed:
+        with patch("newpat.experiments.diagnostics.inspect_container", side_effect=delayed) as refreshed:
             _, record, error, operations = self.run_case(137)
         self.assertEqual(refreshed.call_count, 1)
         self.assertIn("memoria insufficiente", str(error))
@@ -164,7 +164,7 @@ class ExecutionDiagnosticsTests(unittest.TestCase):
              "state": {"status": "exited", "oom_killed": True}},
         )):
             with self.subTest(updated=updated), patch(
-                "nipat.execution.diagnostics.inspect_container", return_value=updated,
+                "newpat.experiments.diagnostics.inspect_container", return_value=updated,
             ) as refreshed:
                 _, record, error, operations = self.run_case(137, run_name=f"reinspection-{number}")
             self.assertEqual(refreshed.call_count, 1)
@@ -182,12 +182,12 @@ class ExecutionDiagnosticsTests(unittest.TestCase):
                                    ({**original, "state": {"status": "running", "oom_killed": False}}, 137),
                                    ({**original, "state": {"status": "exited", "oom_killed": True}}, 137)):
             with self.subTest(observation=observation, code=code), patch(
-                "nipat.execution.diagnostics.inspect_container",
+                "newpat.experiments.diagnostics.inspect_container",
             ) as refreshed:
                 self.assertIs(settle_oom_observation(self.runner, "name", {}, observation, code), observation)
                 refreshed.assert_not_called()
-        with patch("nipat.execution.diagnostics.time.monotonic", side_effect=[10.0, 10.0, 10.2, 12.1]), patch(
-            "nipat.execution.diagnostics.inspect_container", return_value=original,
+        with patch("newpat.experiments.diagnostics.time.monotonic", side_effect=[10.0, 10.0, 10.2, 12.1]), patch(
+            "newpat.experiments.diagnostics.inspect_container", return_value=original,
         ) as refreshed:
             self.assertIs(settle_oom_observation(self.runner, "name", {}, original, -9), original)
             self.assertEqual(refreshed.call_count, 1)
@@ -212,7 +212,7 @@ class ExecutionDiagnosticsTests(unittest.TestCase):
         self.assertEqual(len(operations), 1)
 
     def test_lima_exit_255_reports_only_observed_vm_state_without_stopping_anything(self):
-        self.enterContext(patch("nipat.execution.runner.platform.machine", return_value="arm64"))
+        self.enterContext(patch("newpat.experiments.runner.platform.machine", return_value="arm64"))
         native = self.runner._transport
         lima = MagicMock(spec=LimaDockerTransport)
         lima.metadata = {"backend": "lima"}
@@ -289,7 +289,7 @@ class ExecutionDiagnosticsTests(unittest.TestCase):
                 elif alteration == "boolean":
                     value["state"]["oom_killed"] = "false"
                 raw = "invalid" if alteration == "invalid-json" else json.dumps(value)
-                with patch("nipat.execution.diagnostics.subprocess.run", return_value=
+                with patch("newpat.experiments.diagnostics.subprocess.run", return_value=
                            subprocess.CompletedProcess([], 0, raw, "")):
                     observation = inspect_container(self.runner, name, labels)
                 self.assertFalse(observation["owned"])
@@ -301,7 +301,7 @@ class ExecutionDiagnosticsTests(unittest.TestCase):
         value = payload(name, {**labels, "secret": "do-not-store"})
         value.update(env=["TOKEN=do-not-store"], mounts=["/private/unrelated"])
         value["state"]["unexpected"] = "do-not-store"
-        with patch("nipat.execution.diagnostics.subprocess.run", return_value=
+        with patch("newpat.experiments.diagnostics.subprocess.run", return_value=
                    subprocess.CompletedProcess([], 0, json.dumps(value), "")):
             observation = inspect_container(self.runner, name, labels)
         self.assertTrue(observation["owned"])
@@ -309,7 +309,7 @@ class ExecutionDiagnosticsTests(unittest.TestCase):
         self.assertNotIn("/private/unrelated", json.dumps(observation))
 
     def test_report_failure_does_not_replace_scientific_success(self):
-        with patch("nipat.run_report.write_run_report", side_effect=OSError("cannot write report")):
+        with patch("newpat.run_report.write_run_report", side_effect=OSError("cannot write report")):
             _, record, error, _ = self.run_case(0)
         self.assertIsNone(error)
         self.assertEqual(record["status"], "succeeded")
@@ -317,7 +317,7 @@ class ExecutionDiagnosticsTests(unittest.TestCase):
         self.assertIn("Resoconto leggibile non creato", self.log.getvalue())
 
     def test_report_failure_keeps_the_original_scientific_error(self):
-        with patch("nipat.run_report.write_run_report", side_effect=OSError("cannot write report")):
+        with patch("newpat.run_report.write_run_report", side_effect=OSError("cannot write report")):
             _, record, error, _ = self.run_case(137, oom=True)
         self.assertIsInstance(error, RuntimeExecutionError)
         self.assertIn("memoria insufficiente", str(error))
@@ -327,7 +327,7 @@ class ExecutionDiagnosticsTests(unittest.TestCase):
     def test_resource_probe_failure_is_unknown_and_does_not_abort_computation(self):
         with patch.object(self.runner, "_record_resource_snapshot", side_effect=lambda:
                           DockerComposeRunner._record_resource_snapshot(self.runner)), patch(
-            "nipat.resources.ResourceManager.snapshot", side_effect=OSError("probe unavailable"),
+            "newpat.resources.ResourceManager.snapshot", side_effect=OSError("probe unavailable"),
         ):
             _, record, error, _ = self.run_case(0)
         self.assertIsNone(error)
@@ -335,7 +335,7 @@ class ExecutionDiagnosticsTests(unittest.TestCase):
         self.assertEqual(record["resource_snapshot"], {"available": False, "reason": "OSError"})
 
     def test_resource_session_covers_prepare_cleanup_and_final_report_on_failure(self):
-        from nipat.run_report import write_run_report
+        from newpat.run_report import write_run_report
         active = 0
         observed = []
         original_stop = self.runner._stop_container
@@ -367,10 +367,10 @@ class ExecutionDiagnosticsTests(unittest.TestCase):
 
         with patch.object(self.runner, "_analysis_session", side_effect=lambda:
                           DockerComposeRunner._analysis_session(self.runner)), patch(
-            "nipat.resources.analysis_session", side_effect=session,
+            "newpat.resources.analysis_session", side_effect=session,
         ), patch.object(self.runner, "_prepare_runtime", side_effect=prepare), patch.object(
             self.runner, "_stop_container", side_effect=stop,
-        ), patch("nipat.run_report.write_run_report", side_effect=report):
+        ), patch("newpat.run_report.write_run_report", side_effect=report):
             _, record, error, _ = self.run_case(137)
         self.assertIsInstance(error, RuntimeExecutionError)
         self.assertEqual(record["status"], "failed")
@@ -383,9 +383,9 @@ class ExecutionDiagnosticsTests(unittest.TestCase):
         # Exercise the real dry-run guard rather than the setup's session stub.
         with patch.object(self.runner, "_analysis_session",
                           side_effect=lambda: DockerComposeRunner._analysis_session(self.runner)), patch(
-            "nipat.resources.analysis_session",
-        ) as session, patch("nipat.execution.runner.inspect_container") as observation, patch(
-            "nipat.execution.runner.subprocess.Popen",
+            "newpat.resources.analysis_session",
+        ) as session, patch("newpat.experiments.runner.inspect_container") as observation, patch(
+            "newpat.experiments.runner.subprocess.Popen",
         ) as process, redirect_stdout(self.log):
             with self.runner.record_run(run, workflow="snp-call", inputs=[], parameters={},
                                          bundled_workflow="snp-call"):

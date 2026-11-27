@@ -6,7 +6,7 @@ For a first run, install the package for your operating system, then open the gu
 
 ## Install NewPat
 
-For the published version, choose the installer under **Assets** on the release page. Each platform guide explains how to prepare the local environment that runs R and samtools. [Latest stable release](https://github.com/GregorioDalia/nipat-desktop/releases/latest)
+For the published version, choose the installer under **Assets** on the release page. Each platform guide explains how to prepare the local environment that runs R and samtools. [Latest stable release](https://github.com/GregorioDalia/NewPat-Desktop/releases/latest)
 
 | Platform | Guide |
 | --- | --- |

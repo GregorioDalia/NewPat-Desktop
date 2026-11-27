@@ -3,8 +3,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 function Get-NipatActivityRuntime([string] $Directory = $PSScriptRoot,
-    [ValidateSet('src/nipat/windows_install_activity.py', 'src/nipat/windows_wsl_prerequisites.py')]
-    [string] $HelperRelativePath = 'src/nipat/windows_install_activity.py') {
+    [ValidateSet('src/newpat/windows_install_activity.py', 'src/newpat/windows_wsl_prerequisites.py')]
+    [string] $HelperRelativePath = 'src/newpat/windows_install_activity.py') {
     $project = Split-Path -Parent (Split-Path -Parent $Directory)
     $helper = Join-Path $project $HelperRelativePath
     Assert-NipatActivityPathWithoutLinks $helper

@@ -10,7 +10,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from nipat_scientific import performance
+from newpat_scientific import performance
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -231,9 +231,9 @@ class EnginePerformanceTests(unittest.TestCase):
         for enabled in (False, True):
             environment = {"NIPAT_PERFORMANCE_DIR": str(self.root / "enabled")} if enabled else {}
             with patch.dict(os.environ, environment, clear=True), \
-                    patch("nipat_scientific.contamination.prepare_contamination", return_value=["panel", "inputs", "outputs"]), \
-                    patch("nipat_scientific.presentation.prepare_presentation", return_value=["Rscript", "science.R", "panel", "inputs", "outputs"]), \
-                    patch("nipat_scientific.executor._run_process", return_value=23) as run:
+                    patch("newpat_scientific.contamination.prepare_contamination", return_value=["panel", "inputs", "outputs"]), \
+                    patch("newpat_scientific.presentation.prepare_presentation", return_value=["Rscript", "science.R", "panel", "inputs", "outputs"]), \
+                    patch("newpat_scientific.executor._run_process", return_value=23) as run:
                 code = engine.main(["execute", "contamination", "--request", str(request)])
                 recorded.append((code, run.call_args.args[:3]))
         self.assertEqual(recorded[0], recorded[1])

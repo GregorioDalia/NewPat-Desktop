@@ -1,6 +1,6 @@
 # Install NewPat on macOS
 
-NewPat supports **macOS 14 or later** on Intel and Apple Silicon. Choose the package for the Mac's processor from the [stable release](https://github.com/GregorioDalia/nipat-desktop/releases/latest). In **Apple menu → About This Mac**, an Apple M-series chip means Apple Silicon.
+NewPat supports **macOS 14 or later** on Intel and Apple Silicon. Choose the package for the Mac's processor from the [stable release](https://github.com/GregorioDalia/NewPat-Desktop/releases/latest). In **Apple menu → About This Mac**, an Apple M-series chip means Apple Silicon.
 
 | Processor | Release asset (match the version to the release tag) | Scientific runtime |
 | --- | --- | --- |
@@ -109,4 +109,4 @@ Removing the app bundle leaves its VM and user files in place. To remove the own
 "/Applications/NewPat.app/Contents/Resources/NewPat.command" --runtime remove-runtime
 ```
 
-A later preparation will recreate the runtime. Data and results stay in the user directory. Native PKG checks and mount-migration simulations cover packaging and recovery logic. Results for an actual Lima VM, Finder interactions, Gatekeeper or Rosetta belong to the tested device and architecture. See the [validation record](VALIDATION.md), [user guide](USER_GUIDE.md) and [release notes](https://github.com/GregorioDalia/nipat-desktop/releases).
+A later preparation will recreate the runtime. Data and results stay in the user directory. Native PKG checks and mount-migration simulations cover packaging and recovery logic. Results for an actual Lima VM, Finder interactions, Gatekeeper or Rosetta belong to the tested device and architecture. See the [validation record](VALIDATION.md), [user guide](USER_GUIDE.md) and [release notes](https://github.com/GregorioDalia/NewPat-Desktop/releases).

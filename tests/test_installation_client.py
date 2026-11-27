@@ -6,11 +6,11 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-from nipat.errors import NipatError
-from nipat.installation import (
+from newpat.errors import NipatError
+from newpat.installation import (
     installation_inventory, maintenance_selection, show_installation, start_maintenance,
 )
-from nipat.terminal import Terminal
+from newpat.terminal import Terminal
 
 
 def inventory():
@@ -34,7 +34,7 @@ class InstallationClientTests(unittest.TestCase):
         self.project = Path(temporary.name).resolve()
 
     def test_linux_inspection_never_launches_or_prunes_runtime(self):
-        with patch("nipat.installation.sys.platform", "linux"), patch("nipat.installation.subprocess.run") as run:
+        with patch("newpat.installation.sys.platform", "linux"), patch("newpat.installation.subprocess.run") as run:
             result = installation_inventory(self.project)
         self.assertEqual(result["platform"], "linux")
         self.assertFalse(result["recovery"]["recoverable"])
@@ -42,9 +42,9 @@ class InstallationClientTests(unittest.TestCase):
 
     def test_inventory_requires_structured_verified_contract(self):
         for value in (inventory(), {**inventory(), "cache": [{"id": "arbitrary"}]}):
-            with self.subTest(value=value), patch("nipat.installation.sys.platform", "win32"), \
-                    patch("nipat.installation._command", return_value=["worker"]), \
-                    patch("nipat.installation.subprocess.run", return_value=subprocess.CompletedProcess(
+            with self.subTest(value=value), patch("newpat.installation.sys.platform", "win32"), \
+                    patch("newpat.installation._command", return_value=["worker"]), \
+                    patch("newpat.installation.subprocess.run", return_value=subprocess.CompletedProcess(
                         [], 0, json.dumps(value).encode("utf-8"), b"")):
                 if value == inventory():
                     self.assertEqual(installation_inventory(self.project), value)
@@ -65,21 +65,21 @@ class InstallationClientTests(unittest.TestCase):
 
     def test_dry_run_menu_never_queries_inventory(self):
         ui = Terminal(read=Mock(), write=Mock())
-        with patch("nipat.installation.installation_inventory") as inspect:
+        with patch("newpat.installation.installation_inventory") as inspect:
             self.assertFalse(show_installation(ui, self.project, dry_run=True))
         inspect.assert_not_called()
 
     def test_menu_default_confirmation_does_not_start_worker(self):
         ui = Terminal(read=Mock(side_effect=["1", "", "0"]), write=Mock())
-        with patch("nipat.installation.installation_inventory", return_value=inventory()), \
-                patch("nipat.installation.start_maintenance") as start:
+        with patch("newpat.installation.installation_inventory", return_value=inventory()), \
+                patch("newpat.installation.start_maintenance") as start:
             self.assertFalse(show_installation(ui, self.project))
         start.assert_not_called()
 
     def test_menu_starts_only_selected_confirmed_operation(self):
         ui = Terminal(read=Mock(side_effect=["1", "1"]), write=Mock())
-        with patch("nipat.installation.installation_inventory", return_value=inventory()), \
-                patch("nipat.installation.start_maintenance", return_value=self.project / "result.json") as start:
+        with patch("newpat.installation.installation_inventory", return_value=inventory()), \
+                patch("newpat.installation.start_maintenance", return_value=self.project / "result.json") as start:
             self.assertTrue(show_installation(ui, self.project))
         start.assert_called_once_with(self.project, "cleanup", "old")
 
@@ -94,9 +94,9 @@ class InstallationClientTests(unittest.TestCase):
                 ready.write_text(json.dumps(acknowledgement), encoding="utf-8")
             return process
 
-        self.enterContext(patch("nipat.installation._command", return_value=["worker"]))
-        self.enterContext(patch("nipat.installation.installation_inventory", return_value=inventory()))
-        launch = self.enterContext(patch("nipat.installation.subprocess.Popen", side_effect=create))
+        self.enterContext(patch("newpat.installation._command", return_value=["worker"]))
+        self.enterContext(patch("newpat.installation.installation_inventory", return_value=inventory()))
+        launch = self.enterContext(patch("newpat.installation.subprocess.Popen", side_effect=create))
         return process, launch
 
     def test_matching_acknowledgement_hands_off_without_claiming_completion(self):
@@ -121,7 +121,7 @@ class InstallationClientTests(unittest.TestCase):
 
     def test_timeout_cancels_waiter_even_if_cancellation_marker_cannot_be_written(self):
         process, _ = self.worker()
-        with patch("nipat.installation.time.monotonic", side_effect=[0, 121]), \
+        with patch("newpat.installation.time.monotonic", side_effect=[0, 121]), \
                 patch.object(Path, "write_text", side_effect=OSError("disk full")), \
                 self.assertRaisesRegex(NipatError, "non ha confermato"):
             start_maintenance(self.project, "cleanup", "old")
@@ -132,7 +132,7 @@ class InstallationClientTests(unittest.TestCase):
         process, launch = self.worker()
         updated = inventory()
         updated["runtimes"][1]["removable"] = False
-        with patch("nipat.installation.installation_inventory", return_value=updated), \
+        with patch("newpat.installation.installation_inventory", return_value=updated), \
                 self.assertRaises(NipatError):
             start_maintenance(self.project, "cleanup", "old")
         launch.assert_not_called()

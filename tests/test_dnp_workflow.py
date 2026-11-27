@@ -4,9 +4,9 @@ import unittest
 from contextlib import nullcontext
 from pathlib import Path
 
-from nipat.errors import ValidationError
-from nipat.execution.workflows import Workflows
-from nipat.paths import ProjectLayout
+from newpat.errors import ValidationError
+from newpat.experiments.workflows import Workflows
+from newpat.paths import ProjectLayout
 
 
 class RecordingRunner:

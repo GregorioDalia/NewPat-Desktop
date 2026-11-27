@@ -5,11 +5,11 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock
 
-from nipat.cli import DEFAULT_ERR_CONST
-from nipat.errors import RuntimeExecutionError
-from nipat.paths import ProjectLayout
-from nipat.preferences import Preferences, PreferencesStore
-from nipat.wizard import MAIN_MENU, run_wizard
+from newpat.cli import DEFAULT_ERR_CONST
+from newpat.errors import RuntimeExecutionError
+from newpat.paths import ProjectLayout
+from newpat.preferences import Preferences, PreferencesStore
+from newpat.wizard import MAIN_MENU, run_wizard
 
 
 class WorkflowWizardTests(unittest.TestCase):

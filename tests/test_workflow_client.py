@@ -8,13 +8,13 @@ from contextlib import nullcontext, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
-from nipat.cli import build_parser, main
-from nipat.errors import RuntimeExecutionError, ValidationError
-from nipat.execution.runner import DockerComposeRunner
-from nipat.execution.transport import DockerTransport
-from nipat.execution.workflows import Workflows
-from nipat.paths import ProjectLayout
-from nipat_scientific.plan import validate_plan
+from newpat.cli import build_parser, main
+from newpat.errors import RuntimeExecutionError, ValidationError
+from newpat.experiments.runner import DockerComposeRunner
+from newpat.experiments.transport import DockerTransport
+from newpat.experiments.workflows import Workflows
+from newpat.paths import ProjectLayout
+from newpat_scientific.plan import validate_plan
 
 
 class RecordingRunner:
@@ -159,9 +159,9 @@ class WorkflowClientTests(unittest.TestCase):
         self.workflows = Workflows(self.layout, DockerComposeRunner(
             self.layout, dry_run=True, transport=DockerTransport(),
         ))
-        with patch("nipat.execution.runner.subprocess.Popen") as popen, \
-                patch("nipat.execution.runner.subprocess.run") as process_run, \
-                patch("nipat.execution.tracking.platform.platform", return_value="Test OS"), \
+        with patch("newpat.experiments.runner.subprocess.Popen") as popen, \
+                patch("newpat.experiments.runner.subprocess.run") as process_run, \
+                patch("newpat.experiments.tracking.platform.platform", return_value="Test OS"), \
                 redirect_stdout(io.StringIO()):
             run = self.invoke()
         popen.assert_not_called()
@@ -213,10 +213,10 @@ class WorkflowClientTests(unittest.TestCase):
         args = build_parser().parse_args(argv)
         self.assertEqual(args.preset, "dnp-contamination")
         self.assertEqual(args.bam, [self.bam])
-        with patch("nipat.cli.ProjectLayout.discover", return_value=self.layout), \
-                patch("nipat.cli.activity_session", return_value=nullcontext()), \
-                patch("nipat.cli.DockerComposeRunner"), \
-                patch("nipat.cli.Workflows") as workflows, redirect_stdout(io.StringIO()):
+        with patch("newpat.cli.ProjectLayout.discover", return_value=self.layout), \
+                patch("newpat.cli.activity_session", return_value=nullcontext()), \
+                patch("newpat.cli.DockerComposeRunner"), \
+                patch("newpat.cli.Workflows") as workflows, redirect_stdout(io.StringIO()):
             workflows.return_value.dnp_contamination.return_value = self.layout.runs_dir / "chosen"
             self.assertEqual(main(argv), 0)
         workflows.return_value.dnp_contamination.assert_called_once_with(
@@ -387,9 +387,9 @@ class WorkflowClientTests(unittest.TestCase):
         arguments = self.cpi_arguments(include_contamination=True)
         self.workflows = Workflows(self.layout, DockerComposeRunner(self.layout, dry_run=True,
                                                                    transport=DockerTransport()))
-        with patch("nipat.execution.runner.subprocess.Popen") as popen, \
-                patch("nipat.execution.runner.subprocess.run") as process_run, \
-                patch("nipat.execution.tracking.platform.platform", return_value="Test OS"), \
+        with patch("newpat.experiments.runner.subprocess.Popen") as popen, \
+                patch("newpat.experiments.runner.subprocess.run") as process_run, \
+                patch("newpat.experiments.tracking.platform.platform", return_value="Test OS"), \
                 redirect_stdout(io.StringIO()):
             run = self.workflows.dnp_cpi(**arguments)
         popen.assert_not_called()
@@ -412,9 +412,9 @@ class WorkflowClientTests(unittest.TestCase):
             if preset == "dnp-contamination-cpi":
                 argv += ["--contamination-panel", str(self.panel)]
             with self.subTest(preset=preset), \
-                    patch("nipat.cli.ProjectLayout.discover", return_value=self.layout), \
-                    patch("nipat.cli.activity_session", return_value=nullcontext()), \
-                    patch("nipat.cli.DockerComposeRunner"), patch("nipat.cli.Workflows") as workflows, \
+                    patch("newpat.cli.ProjectLayout.discover", return_value=self.layout), \
+                    patch("newpat.cli.activity_session", return_value=nullcontext()), \
+                    patch("newpat.cli.DockerComposeRunner"), patch("newpat.cli.Workflows") as workflows, \
                     redirect_stdout(io.StringIO()):
                 workflows.return_value.dnp_cpi.return_value = self.layout.runs_dir / "chosen"
                 self.assertEqual(main(argv), 0)
@@ -590,8 +590,8 @@ class WorkflowClientTests(unittest.TestCase):
     def test_snp_batch_dry_run_never_invokes_runtime_or_writes_results(self):
         self.workflows = Workflows(self.layout, DockerComposeRunner(self.layout, dry_run=True,
                                                                    transport=DockerTransport()))
-        with patch("nipat.execution.runner.subprocess.Popen") as popen, \
-                patch("nipat.execution.runner.subprocess.run") as process_run, redirect_stdout(io.StringIO()):
+        with patch("newpat.experiments.runner.subprocess.Popen") as popen, \
+                patch("newpat.experiments.runner.subprocess.run") as process_run, redirect_stdout(io.StringIO()):
             run = self.workflows.snp_batch(bams=[self.bam], reference=self.reference, panel=self.snp_panel())
         popen.assert_not_called()
         process_run.assert_not_called()
@@ -610,9 +610,9 @@ class WorkflowClientTests(unittest.TestCase):
                                    {"bams": None, "bamlist": None, "pileups": [Path("a.txt"), Path("b.txt")],
                                     "reference": None})):
             argv = ["workflow", "snp-batch", *options, "--panel", str(panel), "--run-name", "batch"]
-            with patch("nipat.cli.ProjectLayout.discover", return_value=self.layout), \
-                    patch("nipat.cli.activity_session", return_value=nullcontext()), \
-                    patch("nipat.cli.DockerComposeRunner"), patch("nipat.cli.Workflows") as workflows, \
+            with patch("newpat.cli.ProjectLayout.discover", return_value=self.layout), \
+                    patch("newpat.cli.activity_session", return_value=nullcontext()), \
+                    patch("newpat.cli.DockerComposeRunner"), patch("newpat.cli.Workflows") as workflows, \
                     redirect_stdout(io.StringIO()):
                 workflows.return_value.snp_batch.return_value = self.layout.runs_dir / "batch"
                 self.assertEqual(main(argv), 0)

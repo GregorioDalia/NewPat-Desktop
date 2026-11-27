@@ -6,7 +6,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-import nipat
+import newpat
 
 
 SPEC = importlib.util.spec_from_file_location(
@@ -68,10 +68,10 @@ class LinuxInstallationEvidenceTests(unittest.TestCase):
             "package_removal_preserves_user_data", "shared_docker_unchanged",
             "automatic_workflow_plan", "preferences_preserved",
         }
-        for version in ("0.9.0", nipat.__version__):
+        for version in ("0.9.0", newpat.__version__):
             with self.subTest(version=version):
                 self.assertEqual(set(check.checks_for_version(version)),
-                                 expected | ({"fetal_sex_example"} if version == nipat.__version__ else set()))
+                                 expected | ({"fetal_sex_example"} if version == newpat.__version__ else set()))
 
     def test_all_five_workflows_must_have_successful_run_records(self):
         for workflow in ("dnp-call", "snp-call", "contamination", "cpi", "cpin"):

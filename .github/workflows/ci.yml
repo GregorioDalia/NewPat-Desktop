@@ -387,8 +387,8 @@ jobs:
           NIPAT_RUNS_DIR: ${{ runner.temp }}/nipat-validation/runs
         run: |
           mkdir -p "$NIPAT_DATA_DIR" "$NIPAT_RUNS_DIR"
-          python -m nipat doctor --runtime
-          python -m nipat self-test
+          python -m newpat doctor --runtime
+          python -m newpat self-test
       - name: Verify optional performance evidence and unchanged DNP results
         if: steps.scientific_reuse.outputs.reused != 'true'
         env:

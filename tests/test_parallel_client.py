@@ -8,10 +8,10 @@ import test_cli_validation as cli_cases
 import test_client_reliability as client_cases
 import test_wizard_settings as settings_cases
 
-from nipat.cli import build_parser, main
-from nipat.errors import ValidationError
-from nipat.execution.options import ExecutionOptions
-from nipat.preferences import Preferences, PreferencesStore
+from newpat.cli import build_parser, main
+from newpat.errors import ValidationError
+from newpat.experiments.options import ExecutionOptions
+from newpat.preferences import Preferences, PreferencesStore
 
 
 class ParallelPolicyTests(unittest.TestCase):

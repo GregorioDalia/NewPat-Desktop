@@ -91,7 +91,7 @@ def audit(bundle: Path, root: Path, samtools: str) -> dict:
     scratch = root / "scratch"
     progress.mkdir()
     scratch.mkdir()
-    library = bundle / ("lib" if (bundle / "lib").is_dir() else "src") / "nipat_scientific"
+    library = bundle / ("lib" if (bundle / "lib").is_dir() else "src") / "newpat_scientific"
     environment = os.environ.copy()
     environment.update(NIPAT_DNP_BLOCK_LOCI="1", NIPAT_SCRATCH_ROOT=str(scratch),
                        NIPAT_PROGRESS_DIR=str(progress), NIPAT_DNP_BLOCKS_HELPER=str(library / "dnp_blocks.R"))

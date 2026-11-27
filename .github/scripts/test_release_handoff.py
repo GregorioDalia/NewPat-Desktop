@@ -13,7 +13,7 @@ import automatic_release as automatic
 from ci_changes import changed_paths
 import publish_windows_release as publisher
 import qualification_evidence as qualification
-from nipat.repository import LEGACY_REPOSITORY, RENAMED_REPOSITORY
+from newpat.repository import LEGACY_REPOSITORY, RENAMED_REPOSITORY
 
 
 ROOT = Path(__file__).resolve().parents[2]

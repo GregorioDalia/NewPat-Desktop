@@ -101,7 +101,7 @@ def verify_payload(app: Path) -> tuple[dict, dict]:
 
 
 def verify_plan(run: Path, *, workflows: list[str], mode: str, originals: list[Path], commit: str) -> None:
-    from nipat_scientific.plan import validate_plan
+    from newpat_scientific.plan import validate_plan
 
     record = read_json(run / "run.json")
     plan = read_json(run / "work/engine-plan.json")
@@ -176,7 +176,7 @@ def fixtures(work: Path) -> dict[str, Path]:
 
 def exercise_client(app: Path, work: Path, manifest: dict) -> None:
     environment = {key: value for key, value in os.environ.items()
-                   if not key.upper().startswith("NIPAT_") and key.upper() not in {"PYTHONPATH", "PYTHONHOME"}}
+                   if not key.upper().startswith(("NEWPAT_", "NIPAT_")) and key.upper() not in {"PYTHONPATH", "PYTHONHOME"}}
     environment.update({"NIPAT_PROJECT_DIR": str(app), "NIPAT_WORKSPACE_DIR": str(work),
                         "NIPAT_DATA_DIR": str(work / "data"), "NIPAT_RUNS_DIR": str(work / "runs"),
                         "LOCALAPPDATA": str(work / "local-app-data"), "APPDATA": str(work / "roaming"),
@@ -188,7 +188,7 @@ def exercise_client(app: Path, work: Path, manifest: dict) -> None:
     cwd.mkdir()
 
     def invoke(name: str, args: list, stdin: str | None = None, *, script: Path | None = None) -> str:
-        entrypoint = [str(script)] if script is not None else ["-m", "nipat"]
+        entrypoint = [str(script)] if script is not None else ["-m", "newpat"]
         command = [sys.executable, "-B", "-X", "utf8", *entrypoint, *map(str, args)]
         result = subprocess.run(command, input=stdin, capture_output=True, text=True,
                                 encoding="utf-8", errors="replace", cwd=cwd, env=environment, timeout=120)
@@ -319,12 +319,12 @@ def main() -> None:
             app / ".runtime/python/python.exe", "The staged embedded Python must execute this check.")
     require(args.installer.is_file() and not args.output.exists(), "Missing installer or existing evidence.")
     manifest, inventory = verify_payload(app)
-    for name in ("nipat", "nipat.workflow_forms", "nipat.analysis_forms", "nipat.scientific_options",
-                 "nipat.catalog_ui", "nipat_scientific.settings", "nipat_scientific.cpin",
-                 "nipat_scientific.plan", "nipat_scientific.executor"):
+    for name in ("newpat", "newpat.workflow_forms", "newpat.analysis_forms", "newpat.scientific_options",
+                 "newpat.catalog_ui", "newpat_scientific.settings", "newpat_scientific.cpin",
+                 "newpat_scientific.plan", "newpat_scientific.executor"):
         module = importlib.import_module(name)
         require(Path(module.__file__).resolve().is_relative_to(app / "src"), f"Import escaped packaged sources: {name}")
-    require(importlib.import_module("nipat").__version__ == manifest["version"], "Manifest/version mismatch.")
+    require(importlib.import_module("newpat").__version__ == manifest["version"], "Manifest/version mismatch.")
     exercise_client(app, work, manifest)
     require(verify_payload(app) == (manifest, inventory), "The payload changed during client verification.")
     report = {"schema_version": 2, "platform": "windows-amd64", "scenario": "staged-embedded-python-client",

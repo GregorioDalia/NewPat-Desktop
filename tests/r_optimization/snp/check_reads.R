@@ -3,7 +3,7 @@
 arguments <- commandArgs(trailingOnly = TRUE)
 if (length(arguments) != 1L) stop("Expected one repository root argument")
 repository <- normalizePath(arguments[[1L]], mustWork = TRUE)
-Sys.setenv(NIPAT_PARALLEL_HELPER = file.path(repository, "src/nipat_scientific/parallel.R"))
+Sys.setenv(NIPAT_PARALLEL_HELPER = file.path(repository, "src/newpat_scientific/parallel.R"))
 load_core <- function(path, upstream = FALSE) {
   environment <- new.env(parent = globalenv())
   expressions <- parse(file = path)

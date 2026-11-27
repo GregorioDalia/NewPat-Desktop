@@ -20,14 +20,14 @@ import sys
 import tempfile
 from unittest.mock import patch
 
-from nipat.adapters.panels import read_position_panel, write_position_panel
-from nipat.errors import NipatError
-from nipat.execution.runner import DockerComposeRunner
-from nipat.execution.workflows import Workflows
-from nipat.paths import ProjectLayout
-from nipat.validation.self_test import compare_snp_outputs
-from nipat.validation.files import require_snp_pileup
-from nipat_scientific.catalog import load_catalog
+from newpat.adapters.panels import read_position_panel, write_position_panel
+from newpat.errors import NipatError
+from newpat.experiments.runner import DockerComposeRunner
+from newpat.experiments.workflows import Workflows
+from newpat.paths import ProjectLayout
+from newpat.validation.self_test import compare_snp_outputs
+from newpat.validation.files import require_snp_pileup
+from newpat_scientific.catalog import load_catalog
 from verify_contamination_update import check_bundled_run
 from verify_contamination_update import check_outputs as check_contamination
 from verify_cpi_update import check_outputs as check_cpi
@@ -200,7 +200,7 @@ def check_metadata(identifier: str) -> dict:
         "scratch.py", "dnp_pileup.py", "dnp_blocks.R", "progress.py", "progress.R", "parallel.py", "parallel.R", "catalog_data/dnp-call.json",
         "catalog_data/snp-call.json", "catalog_data/contamination.json", "catalog_data/cpi.json", "catalog_data/cpin.json", "catalog_data/fetal-sex.json",
     ):
-        source_files[f"lib/nipat_scientific/{name}"] = PROJECT / "src/nipat_scientific" / name
+        source_files[f"lib/newpat_scientific/{name}"] = PROJECT / "src/newpat_scientific" / name
     expected_sources = {
         name: hashlib.sha256(path.read_bytes()).hexdigest()
         for name, path in source_files.items()
@@ -436,7 +436,7 @@ def check_snp_workflow(identifier: str, root: Path) -> tuple[Path, Path]:
         identifier, ["execute", "snp-call", "--request", "/results/work/request.json"],
         inputs=inputs, results=rejected_pileup, expected_returncode=2,
     )
-    if "7 colonne" not in diagnostics or "NIPAT scientific engine:" not in diagnostics:
+    if "7 colonne" not in diagnostics or "NewPat scientific engine:" not in diagnostics:
         raise ValueError(f"Unexpected six-column pileup diagnostics: {diagnostics}")
     if ({path.name for path in (rejected_pileup / "work").iterdir()} != {"request.json"}
             or any((rejected_pileup / "output").iterdir())):
@@ -553,7 +553,7 @@ def check_contamination_workflow(identifier: str, root: Path) -> None:
             identifier, ["execute", "contamination", "--request", "/results/work/request.json"],
             inputs=inputs, results=rejected, expected_returncode=2,
         )
-        if "NIPAT scientific engine:" not in diagnostics or expected_error not in diagnostics:
+        if "NewPat scientific engine:" not in diagnostics or expected_error not in diagnostics:
             raise ValueError(f"Unexpected rejection diagnostics for {label}: {diagnostics}")
         if any((rejected / "output").iterdir()) or (rejected / "work/inputs").exists() \
                 or (rejected / "work/DNPpanel.txt").exists():

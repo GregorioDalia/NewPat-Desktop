@@ -10,10 +10,10 @@ import re
 import sys
 from pathlib import Path
 
-from nipat.errors import NipatError, ValidationError
-from nipat.execution.runner import DockerComposeRunner
-from nipat.execution.workflows import Workflows
-from nipat.paths import ProjectLayout
+from newpat.errors import NipatError, ValidationError
+from newpat.experiments.runner import DockerComposeRunner
+from newpat.experiments.workflows import Workflows
+from newpat.paths import ProjectLayout
 
 
 EXPECTED_SITES = {
@@ -122,18 +122,18 @@ def check_bundled_run(run_dir: Path, layout: ProjectLayout, *, workflow: str = "
             or not re.fullmatch(r"sha256:[0-9a-f]{64}", runtime.get("image_id", ""))):
         raise ValidationError("Identità dell'immagine o provenienza del motore mancanti.")
     hashes = engine["preparation"].get("file_sha256", {})
-    required = {"engine/main.py", *(f"lib/nipat_scientific/{name}.py" for name in (
+    required = {"engine/main.py", *(f"lib/newpat_scientific/{name}.py" for name in (
         "__init__", "errors", "panels", "files", "contamination", "snp", "snp_summary", "snp_parallel", "dnp", "cpi",
         "catalog", "plan", "executor", "outputs", "presentation", "performance",
         "scratch", "dnp_pileup", "progress", "parallel", "cpin", "fetal_sex", "settings",
-    )), "lib/nipat_scientific/presentation.R", "lib/nipat_scientific/progress.R",
-        "lib/nipat_scientific/dnp_blocks.R", "lib/nipat_scientific/parallel.R", "lib/nipat_scientific/plots.R",
-        "lib/nipat_scientific/settings.R", "lib/nipat_scientific/settings_data.json",
-        *(f"lib/nipat_scientific/catalog_data/{name}.json" for name in (
+    )), "lib/newpat_scientific/presentation.R", "lib/newpat_scientific/progress.R",
+        "lib/newpat_scientific/dnp_blocks.R", "lib/newpat_scientific/parallel.R", "lib/newpat_scientific/plots.R",
+        "lib/newpat_scientific/settings.R", "lib/newpat_scientific/settings_data.json",
+        *(f"lib/newpat_scientific/catalog_data/{name}.json" for name in (
         "dnp-call", "snp-call", "contamination", "cpi", "cpin", "fetal-sex",
     ))}
     if engine.get("desktop_scheduling") == "step-budget-v1":
-        required.add("lib/nipat_scientific/desktop_scheduling.py")
+        required.add("lib/newpat_scientific/desktop_scheduling.py")
     if set(hashes) != required or any(not re.fullmatch(r"[0-9a-f]{64}", digest) for digest in hashes.values()):
         raise ValidationError("Hash del codice di preparazione incompleti o non validi.")
     commands = record["commands"]

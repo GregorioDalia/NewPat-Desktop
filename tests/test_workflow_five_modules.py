@@ -7,13 +7,13 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from nipat_scientific.errors import ValidationError
-from nipat_scientific.executor import _preflight
-from nipat_scientific.files import require_count_input
-from nipat_scientific.panels import read_position_panel, write_position_panel
-from nipat_scientific.plan import PlanValidationError, validate_plan
-from nipat_scientific.outputs import _cpin_bindings
-from nipat_scientific.presentation import step_presentation, validate_request_presentation
+from newpat_scientific.errors import ValidationError
+from newpat_scientific.executor import _preflight
+from newpat_scientific.files import require_count_input
+from newpat_scientific.panels import read_position_panel, write_position_panel
+from newpat_scientific.plan import PlanValidationError, validate_plan
+from newpat_scientific.outputs import _cpin_bindings
+from newpat_scientific.presentation import step_presentation, validate_request_presentation
 
 
 def plan_for(marker="SNP", *, called=True):
@@ -67,7 +67,7 @@ class FiveModulePlans(unittest.TestCase):
                     if field in step["inputs"]:
                         step["inputs"][field] = str(inputs / name)
             scripts = {workflow: Path(__file__) for workflow in ("cpi", "cpin", "contamination")}
-            with patch("nipat_scientific.executor.require_count_input", wraps=require_count_input) as scan:
+            with patch("newpat_scientific.executor.require_count_input", wraps=require_count_input) as scan:
                 _preflight(source, root / "run", scripts)
             keys = [(call.args[0], call.kwargs["marker_type"], call.kwargs["cpi"]) for call in scan.call_args_list]
             self.assertEqual(len(keys), 7)  # 3 contamination contracts + 4 CPI/CPIN contracts.

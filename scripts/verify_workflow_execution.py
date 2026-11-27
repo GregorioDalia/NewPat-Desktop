@@ -452,10 +452,10 @@ def check_cpi_chains(identifier: str, root: Path, dnp_inputs: Path, *, run_image
     """Exercise public CLI presets with an installed-client layout and real R."""
     import os
     from unittest.mock import patch
-    from nipat.execution.runner import DockerComposeRunner
-    from nipat.execution.workflows import Workflows
-    from nipat.paths import ProjectLayout
-    from nipat.validation.self_test import compare_snp_outputs
+    from newpat.experiments.runner import DockerComposeRunner
+    from newpat.experiments.workflows import Workflows
+    from newpat.paths import ProjectLayout
+    from newpat.validation.self_test import compare_snp_outputs
     from verify_cpi_engine import NO_SITES
 
     project = root / "workflow client without scientific sources"

@@ -1,6 +1,6 @@
 # Scientific engine interface
 
-The NewPat image installs the engine in `/opt/nipat/engine`, the R scripts in `/opt/nipat/scientific` and the preparation library in `/opt/nipat/lib/nipat_scientific`. The engine runs independently of the working directory, client source tree and desktop installation directory. Its Python code uses the standard library. The image supplies R, samtools and their dependencies.
+The NewPat image installs the engine in `/opt/nipat/engine`, the R scripts in `/opt/nipat/scientific` and the preparation library in `/opt/nipat/lib/newpat_scientific`. The engine runs independently of the working directory, client source tree and desktop installation directory. Its Python code uses the standard library. The image supplies R, samtools and their dependencies.
 
 This document describes the engine interface inside the container. The [desktop CLI and guided menu](../docs/USER_GUIDE.md) prepare requests and mounts and record run metadata for ordinary use.
 

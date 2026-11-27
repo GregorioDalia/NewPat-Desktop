@@ -32,7 +32,7 @@ GUIDE = "docs/LINUX_INSTALLER.md"
 SETUP_CHECK_TIMEOUTS = {"doctor": 300, "self-test": 1800}
 CLI_CODE = (
     "import sys; sys.path.insert(0, sys.argv.pop(1)); "
-    "from nipat.cli import main; raise SystemExit(main())"
+    "from newpat.cli import main; raise SystemExit(main())"
 )
 
 
@@ -79,7 +79,7 @@ def clean_environment(app: Path, data: Path, state: Path,
                       inherited: Mapping[str, str]) -> dict[str, str]:
     environment = {
         key: value for key, value in inherited.items()
-        if not key.startswith(("NIPAT_", "PYTHON", "DOCKER", "COMPOSE"))
+        if not key.startswith(("NEWPAT_", "NIPAT_", "PYTHON", "DOCKER", "COMPOSE"))
     }
     environment.update({
         "PATH": "/usr/bin:/bin",
@@ -400,7 +400,7 @@ def gui_startup(app: Path):
     source = str(app / "src")
     if source not in sys.path:
         sys.path.insert(0, source)
-    from nipat.gui import startup
+    from newpat.desktop import startup
     return startup
 
 

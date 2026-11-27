@@ -4,8 +4,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from nipat_scientific.errors import ValidationError
-from nipat_scientific.scratch import dnp_environment
+from newpat_scientific.errors import ValidationError
+from newpat_scientific.scratch import dnp_environment
 
 
 class ScientificScratchTests(unittest.TestCase):

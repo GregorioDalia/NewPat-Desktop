@@ -9,10 +9,10 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from nipat.branding import PRODUCT_NAME, canonical_asset_name
-from nipat.cli import build_parser
-from nipat.distribution import is_experimental_version, WINDOWS_DIRECTORY, UNIX_DIRECTORY
-from nipat.updates import UpdateAsset, UpdateError, WEB, _public_asset, _validated_asset
+from newpat.branding import PRODUCT_NAME, canonical_asset_name
+from newpat.cli import build_parser
+from newpat.distribution import is_experimental_version, WINDOWS_DIRECTORY, UNIX_DIRECTORY
+from newpat.updates import UpdateAsset, UpdateError, WEB, _public_asset, _validated_asset
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("newpat_migrate", ROOT / "installer/macos/migrate_legacy.py")

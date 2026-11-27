@@ -19,10 +19,10 @@ import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from nipat.errors import NipatError
-from nipat.execution.options import ExecutionOptions
-from nipat.execution.runner import PLAN_WORKFLOWS, _finish_cleanup
-from nipat.execution.workflows import _select_bams
+from newpat.errors import NipatError
+from newpat.experiments.options import ExecutionOptions
+from newpat.experiments.runner import PLAN_WORKFLOWS, _finish_cleanup
+from newpat.experiments.workflows import _select_bams
 
 
 def _reported_ram(log: str) -> list[float]:
@@ -238,7 +238,7 @@ def main(argv=None) -> int:
                 name = f"benchmark-{count}-{repeat}-{uuid.uuid4().hex[:8]}"
                 command = [sys.executable, "-I", "-c",
                            "import runpy,sys;sys.path.insert(0,sys.argv.pop(1));"
-                           "runpy.run_module('nipat',run_name='__main__')",
+                           "runpy.run_module('newpat',run_name='__main__')",
                            str(Path(__file__).resolve().parents[1] / "src"), "--runs-dir", str(runs),
                            "--input-hashes", args.input_hashes,
                            "--execution-mode", options.execution_mode,

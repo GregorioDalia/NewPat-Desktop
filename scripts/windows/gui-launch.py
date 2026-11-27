@@ -19,17 +19,17 @@ def main() -> int:
         stream = log_path.open("a", encoding="utf-8", buffering=1)
         sys.stdout = sys.stderr = stream
         print(f"\nNewPat desktop launch: {datetime.now().isoformat(timespec='seconds')}")
-        from nipat.cli import main as cli_main
+        from newpat.cli import main as cli_main
         code = cli_main(["gui"])
         if code:
-            from nipat.gui.windows_host import notify
+            from newpat.desktop.windows_host import notify
             notify("NewPat · avvio non riuscito", f"NewPat non si è avviato correttamente.\nRegistro di avvio: {log_path}")
         return code
     except Exception as exc:
         if stream:
             traceback.print_exc(file=stream)
         try:
-            from nipat.gui.windows_host import notify
+            from newpat.desktop.windows_host import notify
             notify("NewPat · avvio non riuscito", f"{exc}\n\nRegistro di avvio: {log_path}")
         except Exception:
             # Last resort still uses a built-in Windows dialog if application

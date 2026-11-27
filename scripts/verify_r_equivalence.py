@@ -54,7 +54,7 @@ SCRIPTS = dict(zip(("dnp-call", "snp-call"), (
     "scientific/vendor/DNPcall/DNPcall.R",
     "scientific/vendor/NEWPAT/SNPcall/SNPcall.R",
 )))
-SUPPORTING_SOURCES = tuple(f"src/nipat_scientific/{name}" for name in (
+SUPPORTING_SOURCES = tuple(f"src/newpat_scientific/{name}" for name in (
     "dnp_blocks.R", "dnp_pileup.py", "scratch.py", "progress.py", "progress.R", "parallel.R", "parallel.py", "plots.R",
     "settings.py", "settings.R", "settings_data.json",
 ))
@@ -162,7 +162,7 @@ def verify_image_sources(image: str, root: Path) -> dict[str, str]:
 
 
 def verify_supporting_sources(image: str, root: Path) -> dict[str, str]:
-    bundled = {path: f"/opt/nipat/lib/nipat_scientific/{Path(path).name}" for path in SUPPORTING_SOURCES}
+    bundled = {path: f"/opt/nipat/lib/newpat_scientific/{Path(path).name}" for path in SUPPORTING_SOURCES}
     code = ("import hashlib,json; p=" + repr(bundled) + "; "
             "print(json.dumps({k:hashlib.sha256(open(v,'rb').read()).hexdigest() for k,v in p.items()}))")
     actual = json.loads(run(image, ["python3", "-c", code], inputs=root, results=root))

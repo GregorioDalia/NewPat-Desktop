@@ -6,9 +6,9 @@ import argparse
 import sys
 from pathlib import Path
 
-from nipat.errors import NipatError, ValidationError
-from nipat.paths import ProjectLayout
-from nipat.validation.self_test import run_snp_example
+from newpat.errors import NipatError, ValidationError
+from newpat.paths import ProjectLayout
+from newpat.validation.self_test import run_snp_example
 
 
 def main() -> int:

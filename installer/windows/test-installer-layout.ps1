@@ -140,8 +140,8 @@ public static class NipatInstallerActivityContract {
     Write-Host 'PASS: validation returns a fresh setup nonce for each successful attempt.'
     Write-Host 'PASS: update defaults preserve the selected application layout and reject a foreign channel or redirected application.'
     Copy-Item -LiteralPath (Join-Path $project 'LICENSE') -Destination (Join-Path $app 'LICENSE')
-    Copy-Item -LiteralPath (Join-Path $project 'assets\branding\nipat-icon.ico') `
-        -Destination (Join-Path $app 'assets\branding\nipat-icon.ico')
+    Copy-Item -LiteralPath (Join-Path $project 'assets\branding\newpat-icon.ico') `
+        -Destination (Join-Path $app 'assets\branding\newpat-icon.ico')
     foreach ($name in @('install-profile.ps1', 'install-profile.json', 'install-layout.ps1',
         'validate-install-layout.ps1', 'repair-installation.ps1')) {
         Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) `
@@ -199,7 +199,7 @@ public static class NipatInstallerActivityContract {
     # Python. The packaged-client job exercises the real embedded interpreter.
     [IO.File]::WriteAllText((Join-Path $bootstrapStage 'python\python.exe'), 'compile-only interpreter fixture')
     & $CompilerPath '/Qp' "/DStageDir=$stage" "/DRuntimeAssetsDir=$assets" "/DOutputDir=$output" `
-        (Join-Path $PSScriptRoot 'NIPAT.iss')
+        (Join-Path $PSScriptRoot 'NewPat.iss')
     if ($LASTEXITCODE -ne 0) { throw 'La compilazione della definizione installer e fallita.' }
     $setup = Join-Path $output 'NIPAT-Setup.exe'
     if (-not (Test-Path -LiteralPath $setup -PathType Leaf) -or

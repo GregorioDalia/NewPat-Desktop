@@ -1,6 +1,6 @@
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/branding/nipat-logo-dark.svg">
-  <img src="assets/branding/nipat-logo.svg" alt="NewPat" width="335">
+  <source media="(prefers-color-scheme: dark)" srcset="assets/branding/newpat-logo-dark.svg">
+  <img src="assets/branding/newpat-logo.svg" alt="NewPat" width="335">
 </picture>
 
 # NewPat
@@ -15,12 +15,12 @@ Choose your **NewPat 0.9.10** download. For a fresh Windows 11 installation from
 
 | System | Download | Installation guide |
 | --- | --- | --- |
-| Windows 11 x64 or Windows 10 22H2 x64 (build 19045) | [Complete Windows ZIP](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.10/NewPat-0.9.10-Windows-complete.zip) · [Guided setup (EXE)](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.10/NewPat-Setup.exe) | [Windows and WSL2](docs/WINDOWS_INSTALLER.md) |
-| macOS 14 or later, Apple Silicon (M-series) | [Apple Silicon installer (PKG)](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.10/NewPat-0.9.10-macos-arm64.pkg) | [macOS and Lima](docs/MACOS_INSTALLER.md) |
-| macOS 14 or later, Intel | [Intel installer (PKG)](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.10/NewPat-0.9.10-macos-x86_64.pkg) | [macOS and Lima](docs/MACOS_INSTALLER.md) |
-| Ubuntu 24.04 LTS, x86_64 | [Ubuntu installer (DEB)](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.10/newpat-desktop_0.9.10_amd64.deb) | [Ubuntu and Docker Engine](docs/LINUX_INSTALLER.md) |
+| Windows 11 x64 or Windows 10 22H2 x64 (build 19045) | [Complete Windows ZIP](https://github.com/GregorioDalia/NewPat-Desktop/releases/download/v0.9.10/NewPat-0.9.10-Windows-complete.zip) · [Guided setup (EXE)](https://github.com/GregorioDalia/NewPat-Desktop/releases/download/v0.9.10/NewPat-Setup.exe) | [Windows and WSL2](docs/WINDOWS_INSTALLER.md) |
+| macOS 14 or later, Apple Silicon (M-series) | [Apple Silicon installer (PKG)](https://github.com/GregorioDalia/NewPat-Desktop/releases/download/v0.9.10/NewPat-0.9.10-macos-arm64.pkg) | [macOS and Lima](docs/MACOS_INSTALLER.md) |
+| macOS 14 or later, Intel | [Intel installer (PKG)](https://github.com/GregorioDalia/NewPat-Desktop/releases/download/v0.9.10/NewPat-0.9.10-macos-x86_64.pkg) | [macOS and Lima](docs/MACOS_INSTALLER.md) |
+| Ubuntu 24.04 LTS, x86_64 | [Ubuntu installer (DEB)](https://github.com/GregorioDalia/NewPat-Desktop/releases/download/v0.9.10/newpat-desktop_0.9.10_amd64.deb) | [Ubuntu and Docker Engine](docs/LINUX_INSTALLER.md) |
 
-[SHA-256 checksums](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.10/SHA256SUMS) · [0.9.10 release notes](docs/RELEASE_0.9.10.md) · [All 0.9.10 release assets](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.9.10)
+[SHA-256 checksums](https://github.com/GregorioDalia/NewPat-Desktop/releases/download/v0.9.10/SHA256SUMS) · [0.9.10 release notes](docs/RELEASE_0.9.10.md) · [All 0.9.10 release assets](https://github.com/GregorioDalia/NewPat-Desktop/releases/tag/v0.9.10)
 
 ## What you can analyze
 

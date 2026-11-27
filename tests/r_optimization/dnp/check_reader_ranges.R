@@ -2,7 +2,7 @@
 # Compare byte-range reads with the 0.8.13 per-row reader, including inputs
 # for which base R warns or fails. The whole-column type/index policy is shared.
 root <- normalizePath(commandArgs(trailingOnly = TRUE)[[1L]], mustWork = TRUE)
-source(file.path(root, "src/nipat_scientific/dnp_blocks.R"))
+source(file.path(root, "src/newpat_scientific/dnp_blocks.R"))
 
 # Frozen low-level read algorithm from d607f818 (0.8.13); no scientific formula
 # is copied or replaced. Full pipeline checks still use the immutable 0.8.5.
@@ -125,7 +125,7 @@ check_arm_decoder <- function() {
   previous <- Sys.getenv(flag, unset = NA_character_)
   on.exit(if (is.na(previous)) Sys.unsetenv(flag) else Sys.setenv(NIPAT_DNP_OPTIMIZED_IO = previous))
   api <- new.env(parent = globalenv())
-  sys.source(file.path(root, "src/nipat_scientific/dnp_blocks.R"), api)
+  sys.source(file.path(root, "src/newpat_scientific/dnp_blocks.R"), api)
   scans <- 0L
   api$read.csv <- function(...) {
     scans <<- scans + 1L

@@ -6,8 +6,8 @@ import shutil
 
 import pytest
 
-from nipat_scientific.cpin import normalize_trios, prepare_cpin
-from nipat_scientific.errors import ValidationError
+from newpat_scientific.cpin import normalize_trios, prepare_cpin
+from newpat_scientific.errors import ValidationError
 
 FIXTURE = Path(__file__).parent / "fixtures/cpin"
 

@@ -17,7 +17,7 @@ from unittest.mock import Mock, patch
 
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / "src"))
-from nipat import linux_update as update
+from newpat import linux_update as update
 SPEC = importlib.util.spec_from_file_location("linux_update_builder", PROJECT / "scripts/build_linux_installer.py")
 builder = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(builder)
@@ -159,7 +159,7 @@ class LinuxUpdateTests(unittest.TestCase):
         script = (
             "import pathlib, subprocess, sys, time; "
             f"sys.path.insert(0,{str(PROJECT / 'src')!r}); "
-            "from nipat import linux_update as m; "
+            "from newpat import linux_update as m; "
             f"root=pathlib.Path({str(self.root)!r}); "
             "m.require_supported_host=lambda:None; m.wait_for_parents=lambda *a,**k:None; "
             "m._other_sessions_running=lambda:False; original_verify=m.verify_package; "
@@ -279,7 +279,7 @@ class LinuxUpdateTests(unittest.TestCase):
         script = (
             "import pathlib, subprocess, sys, os; "
             f"sys.path.insert(0,{str(PROJECT / 'src')!r}); "
-            "from nipat import linux_update as m; "
+            "from newpat import linux_update as m; "
             f"root=pathlib.Path({str(self.root)!r}); "
             "m.require_supported_host=lambda:None; m.wait_for_parents=lambda *a,**k:None; "
             "m._other_sessions_running=lambda:False; m.MARKER=root/'activity/update-in-progress'; "

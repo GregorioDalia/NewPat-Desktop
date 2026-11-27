@@ -32,9 +32,9 @@ try {
     }
     Initialize-NipatWritableDirectory $env:NIPAT_RUNS_DIR "dei risultati"
     $python = Install-NipatPython $project
-    & $python -m nipat doctor --runtime
+    & $python -m newpat doctor --runtime
     if ($LASTEXITCODE -ne 0) { throw 'Controllo runtime WSL non superato. Consultare .runtime\setup.log.' }
-    & $python -m nipat self-test
+    & $python -m newpat self-test
     if ($LASTEXITCODE -ne 0) { throw 'Autotest non superati. Consultare .runtime\setup.log e la cartella risultati.' }
     Write-Host "Client pronto. Aprire 2_LAUNCH.cmd per scegliere un'analisi."
     $result = 0

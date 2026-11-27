@@ -3,12 +3,12 @@ import subprocess
 import sys
 from unittest.mock import patch
 
-from nipat.processes import background_process_options
-from nipat.execution.transport import cleanup_process_options
+from newpat.processes import background_process_options
+from newpat.experiments.transport import cleanup_process_options
 
 
 def test_windows_cleanup_preserves_process_group_and_hides_console():
-    with patch("nipat.processes.os.name", "nt"):
+    with patch("newpat.processes.os.name", "nt"):
         options = background_process_options()
         cleanup = cleanup_process_options()
     assert options == {"creationflags": 0x08000000}
@@ -16,7 +16,7 @@ def test_windows_cleanup_preserves_process_group_and_hides_console():
 
 
 def test_posix_cleanup_keeps_session_and_normal_children_unchanged():
-    with patch("nipat.processes.os.name", "posix"):
+    with patch("newpat.processes.os.name", "posix"):
         assert background_process_options() == {}
         assert cleanup_process_options() == {"start_new_session": True}
 

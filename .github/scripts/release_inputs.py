@@ -11,7 +11,7 @@ import urllib.parse
 import urllib.request
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
-from nipat.repository import OFFICIAL_REPOSITORIES, REPOSITORY_ID, REPOSITORY_INFO_URL, build_repository
+from newpat.repository import OFFICIAL_REPOSITORIES, REPOSITORY_ID, REPOSITORY_INFO_URL, build_repository
 
 REPOSITORY = build_repository()
 MAX_BYTES = 2 * 1024**3

@@ -1,8 +1,8 @@
 # Install NewPat on Windows
 
-For a fresh installation from a ZIP, download the complete archive, extract it on a local disk and run `1_INSTALL.cmd`. The separate file ending in `-payload.zip` is used by the guided installer. [NewPat-0.9.10-Windows-complete.zip](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.10/NewPat-0.9.10-Windows-complete.zip) · [ZIP instructions](#complete-zip-installation)
+For a fresh installation from a ZIP, download the complete archive, extract it on a local disk and run `1_INSTALL.cmd`. The separate file ending in `-payload.zip` is used by the guided installer. [NewPat-0.9.10-Windows-complete.zip](https://github.com/GregorioDalia/NewPat-Desktop/releases/download/v0.9.10/NewPat-0.9.10-Windows-complete.zip) · [ZIP instructions](#complete-zip-installation)
 
-For guided setup, run the installer from your regular Windows account. It installs the latest compatible stable release, preserves the paths of a recognized installation and adds a Start menu shortcut. [NewPat-Setup.exe](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.10/NewPat-Setup.exe)
+For guided setup, run the installer from your regular Windows account. It installs the latest compatible stable release, preserves the paths of a recognized installation and adds a Start menu shortcut. [NewPat-Setup.exe](https://github.com/GregorioDalia/NewPat-Desktop/releases/download/v0.9.10/NewPat-Setup.exe)
 
 ## Requirements
 
@@ -45,7 +45,7 @@ If the event names a temporary setup executable, include both that filename and 
 
 ## Complete ZIP installation
 
-1. Download the complete Windows ZIP and compare its SHA-256 with the entry for the same filename in the published checksums. In PowerShell, use `Get-FileHash -Algorithm SHA256 -LiteralPath` followed by the actual download path. [NewPat-0.9.10-Windows-complete.zip](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.10/NewPat-0.9.10-Windows-complete.zip) · [SHA256SUMS](https://github.com/GregorioDalia/nipat-desktop/releases/download/v0.9.10/SHA256SUMS)
+1. Download the complete Windows ZIP and compare its SHA-256 with the entry for the same filename in the published checksums. In PowerShell, use `Get-FileHash -Algorithm SHA256 -LiteralPath` followed by the actual download path. [NewPat-0.9.10-Windows-complete.zip](https://github.com/GregorioDalia/NewPat-Desktop/releases/download/v0.9.10/NewPat-0.9.10-Windows-complete.zip) · [SHA256SUMS](https://github.com/GregorioDalia/NewPat-Desktop/releases/download/v0.9.10/SHA256SUMS)
 2. Extract the entire archive into its final location on a local fixed disk. Close the compressed-folder view and open the extracted files.
 3. Run `1_INSTALL.cmd` (`1_INSTALLA.cmd` in 0.9.9) as your regular user. Wait for **NewPat: ready**, including any required restart.
 4. If Windows asks for a reboot, restart, sign back in and open `NIPAT\NewPat.lnk` **inside the extracted folder** to resume ZIP preparation. Once ready, the same shortcut opens the application. A normal first installation from the ZIP also opens NewPat when preparation succeeds.

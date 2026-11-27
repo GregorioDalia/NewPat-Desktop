@@ -28,9 +28,9 @@ using System.Reflection;
 [assembly: AssemblyFileVersion("$numeric")]
 [assembly: AssemblyInformationalVersion("$version")]
 "@ | Set-Content -LiteralPath $assemblyInfo -Encoding UTF8
-    $source = Join-Path $PSScriptRoot 'NipatLauncher.cs'
-    $manifest = Join-Path $PSScriptRoot 'NipatLauncher.manifest'
-    $icon = Join-Path $project 'assets\branding\nipat-icon.ico'
+    $source = Join-Path $PSScriptRoot 'NewPatLauncher.cs'
+    $manifest = Join-Path $PSScriptRoot 'NewPatLauncher.manifest'
+    $icon = Join-Path $project 'assets\branding\newpat-icon.ico'
     if (-not (Test-Path -LiteralPath $icon -PathType Leaf)) { throw 'Icona NewPat mancante.' }
     & $compiler /nologo /target:exe /platform:x64 /optimize+ /deterministic+ /debug- "/pathmap:$temporary=/_/generated,$project=/_/src" "/win32manifest:$manifest" "/win32icon:$icon" "/out:$target" $source $assemblyInfo
     if ($LASTEXITCODE -ne 0) { throw 'Compilazione di NIPAT.exe fallita.' }

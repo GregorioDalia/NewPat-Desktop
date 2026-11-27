@@ -11,19 +11,19 @@ from contextlib import redirect_stdout
 from pathlib import Path, PureWindowsPath
 from unittest.mock import MagicMock, patch
 
-from nipat.errors import RuntimeExecutionError, ValidationError
-from nipat.execution.mounts import InputMounts
-from nipat.execution.runner import DockerComposeRunner
-from nipat.execution.transport import DockerTransport, WslDockerTransport, _windows_path
-from nipat.paths import ProjectLayout
+from newpat.errors import RuntimeExecutionError, ValidationError
+from newpat.experiments.mounts import InputMounts
+from newpat.experiments.runner import DockerComposeRunner
+from newpat.experiments.transport import DockerTransport, WslDockerTransport, _windows_path
+from newpat.paths import ProjectLayout
 
 
 class WslTransportTests(unittest.TestCase):
     def test_native_is_default_on_linux_and_preserves_arguments_and_paths(self):
-        with patch.dict(os.environ, {}, clear=True), patch("nipat.execution.transport.os.name", "posix"):
+        with patch.dict(os.environ, {}, clear=True), patch("newpat.experiments.transport.os.name", "posix"):
             transport = DockerTransport.from_environment()
         argv = ["docker", "compose", "-f", r"D:\NIPAT app\compose.yaml"]
-        with patch("nipat.execution.transport.subprocess.run") as run:
+        with patch("newpat.experiments.transport.subprocess.run") as run:
             self.assertEqual(transport.command(argv, {}), argv)
             self.assertEqual(transport.host_path(argv[-1]), argv[-1])
             self.assertIsNone(transport.ensure_command())
@@ -35,8 +35,8 @@ class WslTransportTests(unittest.TestCase):
                 environment = {} if backend is None else {"NIPAT_BACKEND": backend}
                 with self.subTest(backend=backend, dry_run=dry_run), patch.dict(
                     os.environ, environment, clear=True,
-                ), patch("nipat.execution.transport.os.name", "nt"), patch(
-                    "nipat.execution.transport.subprocess.run",
+                ), patch("newpat.experiments.transport.os.name", "nt"), patch(
+                    "newpat.experiments.transport.subprocess.run",
                 ) as run:
                     with self.assertRaisesRegex(ValidationError, "runtime WSL dedicato"):
                         DockerTransport.from_environment(dry_run=dry_run)
@@ -45,8 +45,8 @@ class WslTransportTests(unittest.TestCase):
     def test_windows_selects_its_explicit_wsl_identity_without_starting_a_process(self):
         with patch.dict(os.environ, {
             "NIPAT_BACKEND": "wsl", "NIPAT_WSL_DISTRO": "NIPAT-05-Preview-test",
-        }, clear=True), patch("nipat.execution.transport.os.name", "nt"), patch(
-            "nipat.execution.transport.subprocess.run",
+        }, clear=True), patch("newpat.experiments.transport.os.name", "nt"), patch(
+            "newpat.experiments.transport.subprocess.run",
         ) as run:
             transport = DockerTransport.from_environment(dry_run=True)
         self.assertIsInstance(transport, WslDockerTransport)
@@ -60,7 +60,7 @@ class WslTransportTests(unittest.TestCase):
         }):
             self.assertEqual(DockerTransport.from_environment().distro, "NIPAT-Test_2.0")
         with patch.dict(os.environ, {"NIPAT_BACKEND": "remote"}):
-            with self.assertRaisesRegex(ValidationError, "NIPAT_BACKEND"):
+            with self.assertRaisesRegex(ValidationError, "NEWPAT_BACKEND"):
                 DockerTransport.from_environment()
         for invalid in ("", "-name", "name space", "name;command", "a\n", "a" * 65):
             with self.subTest(invalid=invalid), self.assertRaises(ValidationError):
@@ -68,9 +68,9 @@ class WslTransportTests(unittest.TestCase):
 
     def test_wsl_requires_explicit_distribution_without_falling_back_to_stable(self):
         with patch.dict(os.environ, {"NIPAT_BACKEND": "wsl"}, clear=True), patch(
-            "nipat.execution.transport.subprocess.run"
+            "newpat.experiments.transport.subprocess.run"
         ) as run:
-            with self.assertRaisesRegex(ValidationError, "NIPAT_WSL_DISTRO"):
+            with self.assertRaisesRegex(ValidationError, "NEWPAT_WSL_DISTRO"):
                 DockerTransport.from_environment()
         run.assert_not_called()
 
@@ -78,8 +78,8 @@ class WslTransportTests(unittest.TestCase):
         transport = WslDockerTransport("NIPAT-Runtime")
         source = r"D:\Caso è, $VALUE & friends\sample.bam"
         translated = "/custom-drive/d/Caso è, $VALUE & friends/sample.bam"
-        with patch("nipat.execution.transport._drive_type", return_value=3) as drive, patch(
-            "nipat.execution.transport.subprocess.run",
+        with patch("newpat.experiments.transport._drive_type", return_value=3) as drive, patch(
+            "newpat.experiments.transport.subprocess.run",
             return_value=subprocess.CompletedProcess([], 0, translated + "\n", ""),
         ) as run:
             self.assertEqual(transport.host_path(source), translated)
@@ -95,27 +95,27 @@ class WslTransportTests(unittest.TestCase):
     def test_relative_paths_are_canonicalized_before_crossing_bridge(self):
         transport = WslDockerTransport("NIPAT-Runtime", dry_run=True)
         with patch(
-            "nipat.execution.transport._resolve_relative_windows_path",
+            "newpat.experiments.transport._resolve_relative_windows_path",
             return_value=r"C:\cases\previous\..\sample è.tsv",
-        ) as resolve, patch("nipat.execution.transport._drive_type", return_value=3):
+        ) as resolve, patch("newpat.experiments.transport._drive_type", return_value=3):
             self.assertEqual(transport.host_path(r".\sample è.tsv"), "/mnt/c/cases/sample è.tsv")
         resolve.assert_called_once_with(r".\sample è.tsv")
 
     def test_unc_device_control_characters_and_network_drives_fail_without_wsl(self):
-        with patch("nipat.execution.transport.subprocess.run") as run:
+        with patch("newpat.experiments.transport.subprocess.run") as run:
             for path in (r"\\server\share\file", r"\\?\C:\file", "//server/share/file", "C:\\bad\nfile"):
                 with self.subTest(path=path), self.assertRaises(ValidationError):
                     WslDockerTransport("NIPAT-Runtime").host_path(path)
             for drive_type in (0, 2, 4, 5):
-                with patch("nipat.execution.transport._drive_type", return_value=drive_type):
+                with patch("newpat.experiments.transport._drive_type", return_value=drive_type):
                     with self.assertRaisesRegex(ValidationError, "disco locale fisso"):
                         WslDockerTransport("NIPAT-Runtime").host_path(r"Z:\sample.bam")
         run.assert_not_called()
 
     def test_dry_run_is_explicit_and_never_launches_wsl(self):
         transport = WslDockerTransport("NIPAT-Runtime", dry_run=True)
-        with patch("nipat.execution.transport._drive_type", return_value=3), patch(
-            "nipat.execution.transport.subprocess.run"
+        with patch("newpat.experiments.transport._drive_type", return_value=3), patch(
+            "newpat.experiments.transport.subprocess.run"
         ) as run:
             self.assertEqual(transport.host_path(r"C:\A $B & è,c\file.txt"), "/mnt/c/A $B & è,c/file.txt")
         self.assertEqual(transport.metadata["path_mapping"], "planned_default_mnt")
@@ -124,7 +124,7 @@ class WslTransportTests(unittest.TestCase):
     def test_bridge_environment_is_allowlisted_and_scientific_argv_is_opaque(self):
         transport = WslDockerTransport("NIPAT-Runtime", dry_run=True)
         scientific = ["docker", "run", "image", "Rscript", "-e", 'cat("$x; &")', r"C:\keep\opaque"]
-        with patch("nipat.execution.transport._drive_type", return_value=3):
+        with patch("newpat.experiments.transport._drive_type", return_value=3):
             command = transport.command(scientific, {
                 "NIPAT_DATA_DIR": r"D:\Dati è & $var, test", "NIPAT_RUNTIME_IMAGE": "sha256:123",
                 "NIPAT_UID": "1001", "DOCKER_HOST": "tcp://remote:2375",
@@ -141,8 +141,8 @@ class WslTransportTests(unittest.TestCase):
         self.assertFalse(any("secret" in value or "remote:2375" in value for value in command))
 
     def test_failed_path_translation_is_actionable(self):
-        with patch("nipat.execution.transport._drive_type", return_value=3), patch(
-            "nipat.execution.transport.subprocess.run",
+        with patch("newpat.experiments.transport._drive_type", return_value=3), patch(
+            "newpat.experiments.transport.subprocess.run",
             return_value=subprocess.CompletedProcess([], 1, "", "not mounted"),
         ):
             with self.assertRaisesRegex(RuntimeExecutionError, "not mounted"):
@@ -178,9 +178,9 @@ class WslRunnerTests(unittest.TestCase):
             return _windows_path(path)
         self.addCleanup(patch.stopall)
         patch.dict(os.environ, {"NIPAT_BACKEND": "wsl", "NIPAT_WSL_DISTRO": "NIPAT-Test"}).start()
-        patch("nipat.execution.transport._windows_path", side_effect=simulated_windows_path).start()
-        patch("nipat.execution.transport._drive_type", return_value=3).start()
-        patch("nipat.execution.tracking.platform.platform", return_value="Windows-test-fixture").start()
+        patch("newpat.experiments.transport._windows_path", side_effect=simulated_windows_path).start()
+        patch("newpat.experiments.transport._drive_type", return_value=3).start()
+        patch("newpat.experiments.tracking.platform.platform", return_value="Windows-test-fixture").start()
         # This fixture models the WSL command bridge, not the CI host's resource
         # discovery. ResourceManager has its own platform-specific tests; its
         # sysctl/WSL-list probes must not enter the Docker-only command mock.
@@ -194,9 +194,9 @@ class WslRunnerTests(unittest.TestCase):
             "suggested": {"memory_mib": 4096, "cpus": 3}, "warnings": [],
         }
         self.resource_probe = patch(
-            "nipat.resources.ResourceManager.snapshot", return_value=self.resource_snapshot,
+            "newpat.resources.ResourceManager.snapshot", return_value=self.resource_snapshot,
         ).start()
-        self.subprocess_run = patch("nipat.execution.runner.subprocess.run", side_effect=self.execute).start()
+        self.subprocess_run = patch("newpat.experiments.runner.subprocess.run", side_effect=self.execute).start()
         self.runner = DockerComposeRunner(self.layout)
         self.stdout = io.StringIO()
 
@@ -251,7 +251,7 @@ class WslRunnerTests(unittest.TestCase):
 
     def test_doctor_needs_only_wsl_and_ensures_engine_before_docker(self):
         with redirect_stdout(self.stdout), patch(
-            "nipat.execution.runner.shutil.which", return_value="wsl.exe"
+            "newpat.experiments.runner.shutil.which", return_value="wsl.exe"
         ) as which, patch.object(self.runner, "_describe_bundled_engine") as describe:
             self.runner.doctor(check_runtime=True)
         describe.assert_called_once_with()
@@ -267,7 +267,7 @@ class WslRunnerTests(unittest.TestCase):
         run = self.layout.new_run_dir("test", "wsl-record")
         scientific = ["Rscript", "-e", 'cat("$input & comma,")', str(target)]
         with redirect_stdout(self.stdout), patch(
-            "nipat.execution.runner.subprocess.Popen", return_value=self.process()
+            "newpat.experiments.runner.subprocess.Popen", return_value=self.process()
         ) as popen:
             with self.runner.record_run(run, workflow="test", inputs=[self.source], parameters={}, mounts=mounts):
                 self.runner.run(scientific)
@@ -297,7 +297,7 @@ class WslRunnerTests(unittest.TestCase):
 
     def test_each_analysis_rechecks_engine_even_when_wizard_reuses_runner(self):
         with redirect_stdout(self.stdout), patch(
-            "nipat.execution.runner.subprocess.Popen", side_effect=lambda *args, **kwargs: self.process()
+            "newpat.experiments.runner.subprocess.Popen", side_effect=lambda *args, **kwargs: self.process()
         ):
             for name in ("first", "after-wsl-stop"):
                 run = self.layout.new_run_dir("test", name)
@@ -312,7 +312,7 @@ class WslRunnerTests(unittest.TestCase):
         process.poll.return_value = 130
         run = self.layout.new_run_dir("test", "interrupted")
         with redirect_stdout(self.stdout), patch(
-            "nipat.execution.runner.subprocess.Popen", return_value=process
+            "newpat.experiments.runner.subprocess.Popen", return_value=process
         ), self.assertRaises(KeyboardInterrupt):
             with self.runner.record_run(run, workflow="test", inputs=[], parameters={}):
                 self.runner.run(["Rscript", "test.R"])
@@ -333,7 +333,7 @@ class WslRunnerTests(unittest.TestCase):
                 raise subprocess.TimeoutExpired(argv, 90)
             return original_execute(argv, **kwargs)
         with redirect_stdout(self.stdout), patch(
-            "nipat.execution.runner.subprocess.run", side_effect=timeout_probe
+            "newpat.experiments.runner.subprocess.run", side_effect=timeout_probe
         ), self.assertRaisesRegex(RuntimeExecutionError, "90 secondi"):
             self.runner._capture(["docker", "run", "--name", name, "image", "Rscript"], container_name=name)
         self.assertEqual(self.calls[-1][0][-5:], ["docker", "rm", "--force", "--volumes", name])
@@ -343,7 +343,7 @@ class WslRunnerTests(unittest.TestCase):
         run = self.layout.new_run_dir("test", "planned")
         mounts = InputMounts(self.layout)
         target = mounts.bind_file(self.source)
-        with redirect_stdout(self.stdout), patch("nipat.execution.runner.subprocess.Popen") as popen:
+        with redirect_stdout(self.stdout), patch("newpat.experiments.runner.subprocess.Popen") as popen:
             with runner.record_run(run, workflow="test", inputs=[self.source], parameters={}, mounts=mounts):
                 runner.run(["Rscript", "test.R", target])
         popen.assert_not_called()

@@ -4,10 +4,10 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from nipat.cli import build_parser
-from nipat.errors import ValidationError
-from nipat.execution.workflows import Workflows
-from nipat.paths import ProjectLayout
+from newpat.cli import build_parser
+from newpat.errors import ValidationError
+from newpat.experiments.workflows import Workflows
+from newpat.paths import ProjectLayout
 from test_workflow_client import RecordingRunner
 
 

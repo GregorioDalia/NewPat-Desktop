@@ -5,8 +5,8 @@ import unittest
 from contextlib import contextmanager
 from unittest.mock import Mock, patch
 
-from nipat.terminal import Terminal, _clean, _clip, _decode_key, _posix_reader, _posix_line_input
-from nipat.errors import Cancelled
+from newpat.terminal import Terminal, _clean, _clip, _decode_key, _posix_reader, _posix_line_input
+from newpat.errors import Cancelled
 
 
 CHOICES = [("1", "DNPcall", "BAM"), ("2", "SNPcall", "BAM o pileup"), ("0", "Esci", "")]
@@ -88,7 +88,7 @@ class TerminalTests(unittest.TestCase):
     def test_no_color_and_dumb_terminal_do_not_touch_console_modes(self):
         for environment in ({"NO_COLOR": ""}, {"TERM": "dumb"}):
             with self.subTest(environment=environment), patch.dict(os.environ, environment):
-                with patch("nipat.terminal._WindowsConsole") as console:
+                with patch("newpat.terminal._WindowsConsole") as console:
                     terminal = Terminal()
                 self.assertFalse(terminal._live)
                 self.assertFalse(terminal._color)
@@ -233,7 +233,7 @@ class TerminalTests(unittest.TestCase):
                 output += os.read(master, 65536)
 
         script = (
-            "from nipat.terminal import Terminal\n"
+            "from newpat.terminal import Terminal\n"
             "choices=[('1','DNPcall',''),('2','SNPcall',''),('W','Workflow','')]\n"
             "with Terminal(cancel_to_menu=True) as ui:\n"
             " print('RESULT1='+ui.menu('First menu',choices), flush=True)\n"

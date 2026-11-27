@@ -11,17 +11,17 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from nipat.errors import RuntimeExecutionError, ValidationError
-from nipat.execution.runner import DockerComposeRunner
-from nipat.execution.transport import DockerTransport
-from nipat.execution.tracking import HASH_LIMIT_BYTES, file_evidence
-from nipat.execution.workflows import Workflows
-from nipat.paths import ProjectLayout
+from newpat.errors import RuntimeExecutionError, ValidationError
+from newpat.experiments.runner import DockerComposeRunner
+from newpat.experiments.transport import DockerTransport
+from newpat.experiments.tracking import HASH_LIMIT_BYTES, file_evidence
+from newpat.experiments.workflows import Workflows
+from newpat.paths import ProjectLayout
 
 
 class RunTrackingTests(unittest.TestCase):
     def setUp(self):
-        self.enterContext(patch("nipat.execution.tracking.platform.platform", return_value="test-host"))
+        self.enterContext(patch("newpat.experiments.tracking.platform.platform", return_value="test-host"))
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         root = Path(self.temp.name)
@@ -38,14 +38,14 @@ class RunTrackingTests(unittest.TestCase):
         self.runner = DockerComposeRunner(self.layout, transport=DockerTransport())
         self.enterContext(patch.object(self.runner, "_record_resource_snapshot"))
         self.inspection = self.enterContext(patch(
-            "nipat.execution.runner.inspect_container",
+            "newpat.experiments.runner.inspect_container",
             side_effect=lambda *_: {"availability": "absent", "owned": False},
         ))
         self.input = data / "input.txt"
         self.input.write_text("original data\n", encoding="utf-8")
         self.output = io.StringIO()
         self.addCleanup(patch.stopall)
-        patch("nipat.execution.runner.DockerComposeRunner._prepare_runtime", self.prepare).start()
+        patch("newpat.experiments.runner.DockerComposeRunner._prepare_runtime", self.prepare).start()
 
     @staticmethod
     def prepare(runner):
@@ -70,7 +70,7 @@ class RunTrackingTests(unittest.TestCase):
         run = self.layout.new_run_dir("test", "success")
         original = self.input.read_bytes()
         with redirect_stdout(self.output), patch(
-            "nipat.execution.runner.subprocess.Popen",
+            "newpat.experiments.runner.subprocess.Popen",
             side_effect=self.popen_factory(["import sys; print('out'); print('err', file=sys.stderr)"]),
         ):
             with self.runner.record_run(run, workflow="test", inputs=[self.input], parameters={"x": 2}):
@@ -98,7 +98,7 @@ class RunTrackingTests(unittest.TestCase):
 
         self.runner._run_finished_callback = finished
         with redirect_stdout(None), patch(
-            "nipat.execution.runner.subprocess.Popen", side_effect=self.popen_factory(["print('out')"]),
+            "newpat.experiments.runner.subprocess.Popen", side_effect=self.popen_factory(["print('out')"]),
         ), self.assertRaisesRegex(ValidationError, "Input modificato"):
             with self.runner.record_run(run, workflow="test", inputs=[self.input], parameters={}):
                 self.runner.run(["Rscript", "example.R"])
@@ -128,7 +128,7 @@ class RunTrackingTests(unittest.TestCase):
                                                  "container_id": "a" * 64}
         bam, reference, panel = self.bam_inputs()
         with redirect_stdout(self.output), patch(
-            "nipat.execution.runner.subprocess.Popen",
+            "newpat.experiments.runner.subprocess.Popen",
             side_effect=self.popen_factory(["import sys; print('pileup ready'); print('R failed'); sys.exit(7)"]),
         ), patch.object(self.runner, "_describe_bundled_engine"), patch.object(
             self.runner, "_stop_container", return_value={"status": "absent"},
@@ -150,7 +150,7 @@ class RunTrackingTests(unittest.TestCase):
         bam, reference, panel = self.bam_inputs()
         self.runner.dry_run = True
         with redirect_stdout(self.output), patch.object(self.runner, "_prepare_runtime") as prepare, patch(
-            "nipat.execution.runner.subprocess.Popen"
+            "newpat.experiments.runner.subprocess.Popen"
         ) as popen:
             Workflows(self.layout, self.runner).snp_call(
                 bam=bam, reference=reference, panel=panel, run_name="planned"
@@ -178,7 +178,7 @@ class RunTrackingTests(unittest.TestCase):
         process.stdout.__iter__.side_effect = KeyboardInterrupt()
         process.poll.return_value = 130
         with redirect_stdout(self.output), patch(
-            "nipat.execution.runner.subprocess.Popen", return_value=process
+            "newpat.experiments.runner.subprocess.Popen", return_value=process
         ), patch.object(self.runner, "_stop_container", return_value={"status": "removed"}) as stop:
             with self.assertRaises(KeyboardInterrupt):
                 with self.runner.record_run(run, workflow="test", inputs=[], parameters={}):
@@ -211,8 +211,8 @@ class RunTrackingTests(unittest.TestCase):
             return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
 
         with redirect_stdout(self.output), patch(
-            "nipat.execution.runner.subprocess.Popen", return_value=process,
-        ), patch("nipat.execution.runner.subprocess.run", side_effect=cleanup) as stop:
+            "newpat.experiments.runner.subprocess.Popen", return_value=process,
+        ), patch("newpat.experiments.runner.subprocess.run", side_effect=cleanup) as stop:
             with self.assertRaises(KeyboardInterrupt):
                 with self.runner.record_run(run, workflow="test", inputs=[], parameters={}):
                     self.runner._bundled_workflow = "workflow-plan"
@@ -237,7 +237,7 @@ class RunTrackingTests(unittest.TestCase):
         process.wait.side_effect = [subprocess.TimeoutExpired("client", 10),
                                     subprocess.TimeoutExpired("client", 5)]
         with redirect_stdout(self.output), patch(
-            "nipat.execution.runner.subprocess.Popen", return_value=process,
+            "newpat.experiments.runner.subprocess.Popen", return_value=process,
         ), patch.object(self.runner, "_stop_container", return_value={"status": "removed"}):
             with self.assertRaises(KeyboardInterrupt):
                 with self.runner.record_run(run, workflow="test", inputs=[], parameters={}):
@@ -263,7 +263,7 @@ class RunTrackingTests(unittest.TestCase):
             return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
 
         with redirect_stdout(self.output), patch(
-            "nipat.execution.runner.subprocess.run", side_effect=execute,
+            "newpat.experiments.runner.subprocess.run", side_effect=execute,
         ), self.assertRaises(KeyboardInterrupt):
             with self.runner.record_run(run, workflow="test", inputs=[], parameters={}):
                 self.runner._capture_process(["docker", "run", "--name", probe, "image"],
@@ -306,7 +306,7 @@ class RunTrackingTests(unittest.TestCase):
         panel.write_text("chr1\t100\t101\tAA\tCC\n")
         self.input.write_text("chr\tpos1\tpos2\tN_REF\tN_ALT\tN_Other\nchr1\t100\t101\t95\t5\t0\n")
         with redirect_stdout(self.output), patch(
-            "nipat.execution.workflows._write_engine_request", side_effect=OSError("disk full")
+            "newpat.experiments.workflows._write_engine_request", side_effect=OSError("disk full")
         ), patch.object(self.runner, "_describe_bundled_engine"):
             with self.assertRaisesRegex(OSError, "disk full"):
                 Workflows(self.layout, self.runner).contamination(

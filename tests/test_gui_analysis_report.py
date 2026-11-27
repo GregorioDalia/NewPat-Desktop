@@ -3,8 +3,8 @@ import json
 
 import pytest
 
-from nipat.gui.analysis_report import build_report, report_case_options, report_cases
-from nipat.gui.results import ResultsStore
+from newpat.desktop.analysis_report import build_report, report_case_options, report_cases
+from newpat.desktop.results import ResultsStore
 from test_gui_results import artifact, make_run, table, validation, write_json
 
 
@@ -213,7 +213,7 @@ def test_prenatal_chart_does_not_interpolate_across_an_absent_threshold(tmp_path
 
 
 def test_large_summary_exposes_partial_list_without_blocking_visible_results(tmp_path, monkeypatch):
-    from nipat.gui import results
+    from newpat.desktop import results
 
     run = make_run(tmp_path)
     table(run / "output/contamination_summary.txt", ["individuo", "informative_sites", "mean_contamination"],

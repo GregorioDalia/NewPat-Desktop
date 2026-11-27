@@ -1,6 +1,8 @@
 """Prepare, reuse and bind the stable online installer independently of app versions."""
 from __future__ import annotations
 
+from release_layout import source_path
+
 import argparse
 import hashlib
 import importlib.util
@@ -40,7 +42,8 @@ def digest(path):
 
 
 def identities(manifest):
-    result = {name: manifest["source_sha256"][name] for name in BOOTSTRAP_SOURCES}
+    names = [source_path(path, manifest["version"]) for path in BOOTSTRAP_SOURCES]
+    result = {name: manifest["source_sha256"][name] for name in names}
     result[".distribution/" + PYTHON_NAME] = PYTHON_SHA256
     require(all(isinstance(value, str) and re.fullmatch(r"[a-f0-9]{64}", value)
                 for value in result.values()), "Invalid stable bootstrap inputs")

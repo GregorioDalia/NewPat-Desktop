@@ -16,7 +16,7 @@ import stat
 import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
-from nipat.branding import windows_complete_filename, windows_package_generation
+from newpat.branding import windows_complete_filename, windows_package_generation
 
 MAX_BYTES = 2**31 - 1
 MAX_EXPANDED = 3 * 1024**3

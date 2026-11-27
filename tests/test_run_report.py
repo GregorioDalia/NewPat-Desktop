@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from nipat.run_report import sample_rows, write_run_report
+from newpat.run_report import sample_rows, write_run_report
 
 
 class RunReportTests(unittest.TestCase):
@@ -21,14 +21,14 @@ class RunReportTests(unittest.TestCase):
 
     def test_report_write_error_allows_retry_without_removing_scientific_files(self):
         self.save()
-        from nipat.run_report import _write_exclusive
+        from newpat.run_report import _write_exclusive
 
         def fail_page(path, content):
             if path.name == "run-report.html":
                 raise OSError("simulated write failure")
             _write_exclusive(path, content)
 
-        with mock.patch("nipat.run_report._write_exclusive", side_effect=fail_page):
+        with mock.patch("newpat.run_report._write_exclusive", side_effect=fail_page):
             with self.assertRaisesRegex(OSError, "simulated write failure"):
                 write_run_report(self.root)
         self.assertFalse((self.root / "sample-map.tsv").exists())
@@ -144,7 +144,7 @@ class RunReportTests(unittest.TestCase):
         self.metadata["execution_options"] = {"execution_mode": "auto"}
         self.parallel_events(self.root / "work/parallel")
         self.save()
-        with mock.patch("nipat.run_report._MAX_PARALLEL_BYTES", 8):
+        with mock.patch("newpat.run_report._MAX_PARALLEL_BYTES", 8):
             write_run_report(self.root)
         page = (self.root / "run-report.html").read_text(encoding="utf-8")
         self.assertIn("Decisioni e attività dei processi non disponibili", page)

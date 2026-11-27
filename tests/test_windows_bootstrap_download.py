@@ -146,7 +146,7 @@ def test_unapproved_download_locations_rejected(url):
 @pytest.mark.parametrize("active", bootstrap.OFFICIAL_REPOSITORIES)
 @pytest.mark.parametrize("recorded", bootstrap.OFFICIAL_REPOSITORIES)
 def test_manual_setup_downloads_from_current_verified_repository(monkeypatch, active, recorded):
-    from nipat.repository import REPOSITORY_ID, OFFICIAL_REPOSITORIES
+    from newpat.repository import REPOSITORY_ID, OFFICIAL_REPOSITORIES
     assert bootstrap.REPOSITORY_ID == int(REPOSITORY_ID)
     assert bootstrap.OFFICIAL_REPOSITORIES == OFFICIAL_REPOSITORIES
     manifest = json.loads(json.dumps(feed()).replace(bootstrap.REPOSITORY, "https://github.com/" + recorded))

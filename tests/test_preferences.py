@@ -9,10 +9,10 @@ from contextlib import chdir, redirect_stdout
 from dataclasses import replace
 from unittest.mock import Mock, patch
 
-from nipat.cli import DEFAULT_ERR_CONST, main
-from nipat.errors import ValidationError
-from nipat.paths import ProjectLayout
-from nipat.preferences import (
+from newpat.cli import DEFAULT_ERR_CONST, main
+from newpat.errors import ValidationError
+from newpat.paths import ProjectLayout
+from newpat.preferences import (
     Preferences, PreferencesStore, _path, _validate_windows_storage_path, preferences_path,
 )
 
@@ -176,10 +176,10 @@ class PreferencesTests(unittest.TestCase):
     def test_windows_unc_and_device_destinations_are_rejected_before_resolution(self):
         for value in (r"\\server\share\results", "//server/share/results",
                       r"\\?\C:\results", r"\\.\C:\results"):
-            with self.subTest(value=value), patch("nipat.preferences.sys.platform", "win32"), \
-                    patch("nipat.preferences.Path.resolve") as resolve, \
-                    patch("nipat.execution.transport._drive_type") as drive, \
-                    patch("nipat.execution.transport.subprocess.run") as process:
+            with self.subTest(value=value), patch("newpat.preferences.sys.platform", "win32"), \
+                    patch("newpat.preferences.Path.resolve") as resolve, \
+                    patch("newpat.experiments.transport._drive_type") as drive, \
+                    patch("newpat.experiments.transport.subprocess.run") as process:
                 with self.assertRaisesRegex(ValidationError, "UNC|dispositivo"):
                     _path(value, "runs_dir")
                 resolve.assert_not_called()
@@ -189,36 +189,36 @@ class PreferencesTests(unittest.TestCase):
     def test_windows_network_and_removable_drives_are_rejected_before_resolution(self):
         for drive_type in (0, 1, 2, 4, 5, 6):
             with self.subTest(drive_type=drive_type), \
-                    patch("nipat.preferences.sys.platform", "win32"), \
-                    patch("nipat.preferences.Path.resolve") as resolve, \
-                    patch("nipat.execution.transport._drive_type", return_value=drive_type), \
-                    patch("nipat.execution.transport.subprocess.run") as process:
+                    patch("newpat.preferences.sys.platform", "win32"), \
+                    patch("newpat.preferences.Path.resolve") as resolve, \
+                    patch("newpat.experiments.transport._drive_type", return_value=drive_type), \
+                    patch("newpat.experiments.transport.subprocess.run") as process:
                 with self.assertRaisesRegex(ValidationError, "disco locale fisso"):
                     _path(r"E:\research\results", "data_dir")
                 resolve.assert_not_called()
                 process.assert_not_called()
 
     def test_windows_local_fixed_drive_check_does_not_start_wsl(self):
-        with patch("nipat.preferences.sys.platform", "win32"), \
-                patch("nipat.execution.transport._drive_type", return_value=3) as drive, \
-                patch("nipat.execution.transport.subprocess.run") as process:
+        with patch("newpat.preferences.sys.platform", "win32"), \
+                patch("newpat.experiments.transport._drive_type", return_value=3) as drive, \
+                patch("newpat.experiments.transport.subprocess.run") as process:
             _validate_windows_storage_path(Path(r"D:\research\results"))
         drive.assert_called_once_with("D:\\")
         process.assert_not_called()
 
     def test_windows_destination_is_checked_again_after_link_resolution(self):
-        with patch("nipat.preferences.sys.platform", "win32"), \
-                patch("nipat.preferences.Path.resolve", return_value=Path(r"\\server\share\results")), \
-                patch("nipat.execution.transport._drive_type", return_value=3), \
-                patch("nipat.execution.transport.subprocess.run") as process:
+        with patch("newpat.preferences.sys.platform", "win32"), \
+                patch("newpat.preferences.Path.resolve", return_value=Path(r"\\server\share\results")), \
+                patch("newpat.experiments.transport._drive_type", return_value=3), \
+                patch("newpat.experiments.transport.subprocess.run") as process:
             with self.assertRaisesRegex(ValidationError, "UNC"):
                 _path(r"D:\linked-results", "runs_dir")
         process.assert_not_called()
 
     def test_linux_storage_does_not_use_windows_drive_restrictions(self):
         target = self.root / "mounted-results"
-        with patch("nipat.preferences.sys.platform", "linux"), \
-                patch("nipat.execution.transport._drive_type") as drive:
+        with patch("newpat.preferences.sys.platform", "linux"), \
+                patch("newpat.experiments.transport._drive_type") as drive:
             prefs = Preferences(runs_dir=target)
             self.assertEqual(prefs.effective_layout(self.layout).runs_dir, target)
         drive.assert_not_called()
@@ -320,7 +320,7 @@ class PreferencesTests(unittest.TestCase):
         before = Preferences(runs_dir=self.root / "first")
         self.store.save(before)
         original = self.store.path.read_bytes()
-        with patch("nipat.preferences.os.replace", side_effect=OSError("disk unavailable")):
+        with patch("newpat.preferences.os.replace", side_effect=OSError("disk unavailable")):
             with self.assertRaisesRegex(ValidationError, "disk unavailable"):
                 self.store.save(Preferences(runs_dir=self.root / "second"))
         self.assertEqual(self.store.path.read_bytes(), original)
@@ -409,9 +409,9 @@ class PreferencesTests(unittest.TestCase):
     def test_platform_user_config_paths_are_isolated_and_do_not_create_files(self):
         with patch.dict(os.environ, {"LOCALAPPDATA": str(self.root),
                                      "XDG_CONFIG_HOME": str(self.root / "xdg")}, clear=True):
-            with patch("nipat.preferences.sys.platform", "win32"):
+            with patch("newpat.preferences.sys.platform", "win32"):
                 self.assertEqual(preferences_path(), self.root / "NIPAT-Desktop" / "preferences.json")
-            with patch("nipat.preferences.sys.platform", "linux"):
+            with patch("newpat.preferences.sys.platform", "linux"):
                 self.assertEqual(preferences_path(), self.root / "xdg" / "nipat-desktop" / "preferences.json")
         self.assertFalse((self.root / "NIPAT-Desktop").exists())
         self.assertFalse((self.root / "xdg").exists())
@@ -419,10 +419,10 @@ class PreferencesTests(unittest.TestCase):
             self.assertEqual(preferences_path(), self.store.path)
 
     def test_guided_cli_passes_explicit_directory_overrides_to_preferences_layer(self):
-        with patch("nipat.cli.ProjectLayout.discover", return_value=self.layout), \
-                patch("nipat.cli.DockerComposeRunner"), patch("nipat.cli.Workflows"), \
-                patch("nipat.cli.PreferencesStore", return_value=self.store), \
-                patch("nipat.cli.run_wizard", return_value=0) as wizard:
+        with patch("newpat.cli.ProjectLayout.discover", return_value=self.layout), \
+                patch("newpat.cli.DockerComposeRunner"), patch("newpat.cli.Workflows"), \
+                patch("newpat.cli.PreferencesStore", return_value=self.store), \
+                patch("newpat.cli.run_wizard", return_value=0) as wizard:
             result = main(["--runs-dir", str(self.root / "explicit"), "wizard"])
         self.assertEqual(result, 0)
         self.assertIs(wizard.call_args.kwargs["preferences_store"], self.store)
@@ -434,10 +434,10 @@ class PreferencesTests(unittest.TestCase):
         self.write_document({"schema_version": 1, "workflows": {"4": {"err_const": 0.5}}})
         workflows = Mock()
         with patch.dict(os.environ, {"NIPAT_SETTINGS_FILE": str(self.store.path)}), \
-                patch("nipat.cli.ProjectLayout.discover", return_value=self.layout), \
-                patch("nipat.cli.DockerComposeRunner"), \
-                patch("nipat.cli.Workflows", return_value=workflows), \
-                patch("nipat.cli.PreferencesStore") as store, redirect_stdout(io.StringIO()):
+                patch("newpat.cli.ProjectLayout.discover", return_value=self.layout), \
+                patch("newpat.cli.DockerComposeRunner"), \
+                patch("newpat.cli.Workflows", return_value=workflows), \
+                patch("newpat.cli.PreferencesStore") as store, redirect_stdout(io.StringIO()):
             result = main(["cpi", "--input-dir", "samples", "--pairs", "A:A", "--popfreq", "pop.txt"])
         self.assertEqual(result, 0)
         store.assert_not_called()

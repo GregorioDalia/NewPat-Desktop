@@ -59,25 +59,25 @@ files used by NewPat. Preserve these records when distributing a modified copy.
 
 The desktop client creates analysis PDFs offline using the MIT-licensed pdfmake
 0.3.15 browser build and its embedded Roboto fonts under the SIL Open Font
-License 1.1. The [asset manifest](src/nipat/gui/web/vendor/pdfmake/manifest.json)
+License 1.1. The [asset manifest](src/newpat/desktop/web/vendor/pdfmake/manifest.json)
 identifies the upstream archive and the exact distributed files.
-[pdfmake license](src/nipat/gui/web/vendor/pdfmake/pdfmake.LICENSE.txt) ·
-[Font license](src/nipat/gui/web/vendor/pdfmake/Roboto.OFL.txt) ·
-[Bundled component notices](src/nipat/gui/web/vendor/pdfmake/BUNDLED-NOTICES.txt)
+[pdfmake license](src/newpat/desktop/web/vendor/pdfmake/pdfmake.LICENSE.txt) ·
+[Font license](src/newpat/desktop/web/vendor/pdfmake/Roboto.OFL.txt) ·
+[Bundled component notices](src/newpat/desktop/web/vendor/pdfmake/BUNDLED-NOTICES.txt)
 
 The desktop interface includes the following components:
 
 - **igv.js 3.8.9:** the unmodified browser bundle from
   <https://github.com/igvteam/igv.js/releases/tag/v3.8.9>, distributed under
-  the [MIT license](src/nipat/gui/web/vendor/igv.LICENSE.txt). The bundled
+  the [MIT license](src/newpat/desktop/web/vendor/igv.LICENSE.txt). The bundled
   dependency notices are preserved in
-  [web/vendor/licenses](src/nipat/gui/web/vendor/licenses); the adjacent
-  [manifest](src/nipat/gui/web/vendor/manifest.json) records provenance and
+  [web/vendor/licenses](src/newpat/desktop/web/vendor/licenses); the adjacent
+  [manifest](src/newpat/desktop/web/vendor/manifest.json) records provenance and
   digests. NewPat's integration adapter is separate from the upstream bundle.
 - **Microsoft WebView2 SDK loader:** the x64 loader from the
   Microsoft.Web.WebView2 1.0.4314.35 NuGet package is included for Windows.
   The package's `.nuspec` declares its unchanged
-  [LICENSE.txt](src/nipat/gui/native/windows/LICENSE.txt), containing the
+  [LICENSE.txt](src/newpat/desktop/native/windows/LICENSE.txt), containing the
   Microsoft BSD-style redistribution terms supplied with that SDK.
 - **Microsoft WebView2 Evergreen Runtime bootstrap:** this official
   Microsoft installer is a separate component, governed by the
@@ -87,7 +87,7 @@ The desktop interface includes the following components:
   The SDK license above does not apply to the Runtime. Microsoft documents
   [packaging the bootstrapper with an application](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution).
   NewPat's GPL does not relicense Microsoft binaries. The
-  [dependency manifest](src/nipat/gui/native/windows/dependencies.json)
+  [dependency manifest](src/newpat/desktop/native/windows/dependencies.json)
   records exact source locations, sizes and SHA-256 digests. The runtime
   bootstrap is used only when the Microsoft runtime is absent.
 - **System GUI frameworks:** macOS uses Cocoa and WKWebView supplied by
@@ -142,7 +142,7 @@ for the license and notice files of every dependency in a runtime image.
 Distribute this notice, the root LICENSE and the original third-party license
 files with the Windows installer, Ubuntu package and macOS installer. The release's source commit identifies
 the matching NewPat source, including launcher and build scripts, at
-<https://github.com/GregorioDalia/nipat-desktop>.
+<https://github.com/GregorioDalia/NewPat-Desktop>.
 
 For binary runtime components, retain the notices for the exact distributed
 versions and provide corresponding source wherever their licenses require it.

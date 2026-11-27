@@ -9,7 +9,7 @@ newpat parameters snp-call --section preparation --lang en
 newpat parameters --json
 ```
 
-In a source checkout use `python -m nipat`. The packaged Windows wrapper and macOS command launcher accept the same arguments. JSON includes both languages. The `--lang` and `--section` options control text display. [Platform launchers](USER_GUIDE.md)
+In a source checkout use `python -m newpat`. The packaged Windows wrapper and macOS command launcher accept the same arguments. JSON includes both languages. The `--lang` and `--section` options control text display. [Platform launchers](USER_GUIDE.md)
 
 ## Reading an entry
 

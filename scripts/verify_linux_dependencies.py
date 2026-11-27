@@ -159,7 +159,7 @@ def verify(package: Path, manifest_path: Path, output: Path) -> None:
         "base_image": BASE_IMAGE, "checks": dict.fromkeys(CHECKS, False),
     }
     environment = {key: value for key, value in os.environ.items()
-                   if not key.startswith(("DOCKER", "COMPOSE", "NIPAT_", "PYTHON"))}
+                   if not key.startswith(("DOCKER", "COMPOSE", "NEWPAT_", "NIPAT_", "PYTHON"))}
     output.parent.mkdir(parents=True, exist_ok=True)
     try:
         with tempfile.TemporaryDirectory(prefix="nipat-dependency-docker-") as configuration:

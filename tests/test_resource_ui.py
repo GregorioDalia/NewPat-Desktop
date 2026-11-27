@@ -6,11 +6,11 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-from nipat.cli import main
-from nipat.execution.options import ExecutionOptions
-from nipat.paths import ProjectLayout
-from nipat.resource_ui import configure_resources, memory_label, resource_lines
-from nipat.wizard_forms import Cancelled
+from newpat.cli import main
+from newpat.experiments.options import ExecutionOptions
+from newpat.paths import ProjectLayout
+from newpat.resource_ui import configure_resources, memory_label, resource_lines
+from newpat.wizard_forms import Cancelled
 
 
 class FakeUI:
@@ -189,10 +189,10 @@ class ResourceCLITests(unittest.TestCase):
 
     def invoke(self, arguments):
         output = io.StringIO()
-        with patch("nipat.cli.ProjectLayout.discover", return_value=self.layout), \
-             patch("nipat.cli.activity_session", return_value=nullcontext()), \
-             patch("nipat.resources.ResourceManager.from_environment", return_value=self.backend), \
-             patch("nipat.cli.DockerComposeRunner") as runner, redirect_stdout(output):
+        with patch("newpat.cli.ProjectLayout.discover", return_value=self.layout), \
+             patch("newpat.cli.activity_session", return_value=nullcontext()), \
+             patch("newpat.resources.ResourceManager.from_environment", return_value=self.backend), \
+             patch("newpat.cli.DockerComposeRunner") as runner, redirect_stdout(output):
             code = main(arguments)
         runner.assert_not_called()
         return code, json.loads(output.getvalue())
@@ -237,9 +237,9 @@ class ResourceCLITests(unittest.TestCase):
     def test_failed_resource_restart_preserves_diagnostics_without_json(self):
         self.backend.apply.return_value = {"status": "verification-required", "warnings": ["restart failed"]}
         output = io.StringIO()
-        with patch("nipat.cli.ProjectLayout.discover", return_value=self.layout), \
-             patch("nipat.cli.activity_session", return_value=nullcontext()), \
-             patch("nipat.resources.ResourceManager.from_environment", return_value=self.backend), \
+        with patch("newpat.cli.ProjectLayout.discover", return_value=self.layout), \
+             patch("newpat.cli.activity_session", return_value=nullcontext()), \
+             patch("newpat.resources.ResourceManager.from_environment", return_value=self.backend), \
              redirect_stdout(output):
             code = main(["resources", "configure", "--memory-mib", "8192", "--vm-cpus", "4",
                          "--apply", "--yes", "--restart"])

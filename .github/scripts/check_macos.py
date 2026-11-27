@@ -29,7 +29,7 @@ def main():
         commands.extend((
             [sys.executable, "-m", "pytest", "tests"],
             [sys.executable, "-m", "unittest", "discover", "-s", ".github/scripts", "-p", "test_*.py", "-v"],
-            [sys.executable, "-m", "nipat", "--help"],
+            [sys.executable, "-m", "newpat", "--help"],
         ))
     for command in commands:
         subprocess.run(command, check=True)

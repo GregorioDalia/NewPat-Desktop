@@ -67,7 +67,7 @@ def verify_report_igv_capture(page, app, check):
 
 def verify_archived_report_pdf(page, app, check):
     """Native-shaped synthetic oracle archive plus the shipped indexed BAMs, through the save dialog."""
-    from nipat.execution.tracking import file_evidence
+    from newpat.experiments.tracking import file_evidence
     from test_gui_results import artifact, table, validation, write_json
 
     data = ROOT / "examples" / "synthetic-trio"
@@ -126,11 +126,11 @@ def test_offline_report_igv_capture(tmp_path):
                      if (exe := shutil.which(name))), None)
     if not chromium:
         pytest.skip("System Chromium is required for this browser test")
-    from nipat.gui.app import DesktopApplication
+    from newpat.desktop.app import DesktopApplication
 
-    from nipat.gui.service import GuiService
-    from nipat.paths import ProjectLayout
-    from nipat.preferences import PreferencesStore
+    from newpat.desktop.service import GuiService
+    from newpat.paths import ProjectLayout
+    from newpat.preferences import PreferencesStore
 
     layout = ProjectLayout.discover(runs_dir=tmp_path / "runs", data_dir=tmp_path / "data")
     app = DesktopApplication(host=object(), service=GuiService(layout, preferences_store=PreferencesStore(tmp_path / "settings.json")))

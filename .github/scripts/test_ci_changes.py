@@ -48,7 +48,7 @@ class ScientificSelection(unittest.TestCase):
     def test_acceptance_classification_requires_only_versioned_records(self):
         path = ".github/release-acceptance/v0.8.60.json"
         self.assertTrue(changes.acceptance_only([path]))
-        for paths in (None, [], [path, "src/nipat/cli.py"], [path, ".github/scripts/ci_control.py"],
+        for paths in (None, [], [path, "src/newpat/cli.py"], [path, ".github/scripts/ci_control.py"],
                       [".github/release-acceptance/notes.json"], [path + "/other"]):
             self.assertFalse(changes.acceptance_only(paths))
 
@@ -130,7 +130,7 @@ class ScientificSelection(unittest.TestCase):
         self.assertTrue(all(values[layer] == "true" for layer in changes.LAYERS))
         for path in ("docs/validation/record.json", "new-area/README.md", "new-code/tool.py"):
             self.assertEqual(changes.layers_for_path(path), set(changes.LAYERS))
-        for path in ("tests/fixtures/cpi/samples/example.md", "src/nipat/gui/web/vendor/README.md",
+        for path in ("tests/fixtures/cpi/samples/example.md", "src/newpat/desktop/web/vendor/README.md",
                      "scientific/vendor/unknown/README.md"):
             self.assertFalse(changes.is_documentation(path))
             self.assertIn("scientific", changes.layers_for_path(path))
@@ -189,7 +189,7 @@ class ScientificSelection(unittest.TestCase):
         self.assertTrue(self.selected())
 
     def test_wrapper_runtime_and_fixture_changes_require_integration(self):
-        for name in ("src/nipat/execution/runner.py", "docker/scientific-runtime/dependencies.lock.json",
+        for name in ("src/newpat/experiments/runner.py", "docker/scientific-runtime/dependencies.lock.json",
                      "tests/fixtures/new sample/input.txt", "scripts/verify_input_modes.py"):
             with self.subTest(path=name):
                 self.write(name, "changed\n")
@@ -274,15 +274,15 @@ class ScientificSelection(unittest.TestCase):
         for path in changes.PRESENTATION_FILES:
             self.assertEqual(selection(path), (False, "focused", False), path)
         for path in changes.CALLER_INTEGRATION_FILES:
-            self.assertEqual(selection(path, "src/nipat/gui/web/style.css", "docs/GUI.md"),
+            self.assertEqual(selection(path, "src/newpat/desktop/web/style.css", "docs/GUI.md"),
                              (False, "focused", True), path)
-        presentation = "src/nipat/gui/web/i18n.js"
-        reference = "src/nipat/gui/references.py"
+        presentation = "src/newpat/desktop/web/i18n.js"
+        reference = "src/newpat/desktop/references.py"
         self.assertEqual(selection(reference, "installer/windows/setup.iss"), (False, "standard", True))
-        for path in ("src/nipat/gui/plan.py", "src/nipat/gui/new_capability.py",
-                     "src/nipat/gui/jobs.py", "src/nipat/gui/admission.py",
-                     "src/nipat_scientific/desktop_scheduling.py", "src/nipat_scientific/settings_data.json",
-                     "src/nipat_scientific/dnp.py", "src/nipat/resources.py", "config/defaults.toml",
+        for path in ("src/newpat/desktop/plan.py", "src/newpat/desktop/new_capability.py",
+                     "src/newpat/desktop/jobs.py", "src/newpat/desktop/admission.py",
+                     "src/newpat_scientific/desktop_scheduling.py", "src/newpat_scientific/settings_data.json",
+                     "src/newpat_scientific/dnp.py", "src/newpat/resources.py", "config/defaults.toml",
                      "installer/runtime/Dockerfile", "engine/main.py", ".github/workflows/ci.yml",
                      "new-area/something", ".github/scripts/verify_caller_smoke.py",
                      ".github/scripts/verify_caller_edges.py", ".github/scripts/test_verify_caller_smoke.py"):
@@ -290,25 +290,25 @@ class ScientificSelection(unittest.TestCase):
         self.assertEqual(selection(reference, force=True), (True, "standard", False))
 
     def test_pr_and_main_classify_the_entire_comparison_including_earlier_commits(self):
-        self.write("src/nipat/gui/references.py", "new reference import")
+        self.write("src/newpat/desktop/references.py", "new reference import")
         self.commit()
-        self.write("src/nipat/gui/web/style.css", "new color")
+        self.write("src/newpat/desktop/web/style.css", "new color")
         values = self.selection()
         self.assertEqual((values["desktop_scope"], values["caller_smoke"]), ("focused", "true"))
         self.write("docs/GUI.md", "guide")
         values = self.selection(event="push")
         self.assertEqual((values["desktop_scope"], values["caller_smoke"]), ("focused", "true"))
-        self.write("src/nipat/gui/plan.py", "changed parameters")
+        self.write("src/newpat/desktop/plan.py", "changed parameters")
         self.commit()
-        self.write("src/nipat/gui/web/style.css", "another color")
+        self.write("src/newpat/desktop/web/style.css", "another color")
         values = self.selection()
         self.assertEqual((values["scientific"], values["desktop_scope"], values["caller_smoke"]),
                          ("true", "standard", "false"))
 
     def test_catalog_and_plan_changes_require_real_engine_checks(self):
         for name in (
-            "src/nipat_scientific/catalog_data/dnp-call.json",
-            "src/nipat_scientific/catalog.py", "src/nipat_scientific/plan.py",
+            "src/newpat_scientific/catalog_data/dnp-call.json",
+            "src/newpat_scientific/catalog.py", "src/newpat_scientific/plan.py",
             "tests/test_scientific_catalog.py", "tests/test_workflow_plan.py",
         ):
             with self.subTest(path=name):

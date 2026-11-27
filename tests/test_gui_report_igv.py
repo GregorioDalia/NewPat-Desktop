@@ -6,10 +6,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from nipat.execution.tracking import file_evidence
-from nipat.gui.analysis_report import report_cases
-from nipat.gui.app import DesktopApplication
-from nipat.gui.results import ResultsStore
+from newpat.experiments.tracking import file_evidence
+from newpat.desktop.analysis_report import report_cases
+from newpat.desktop.app import DesktopApplication
+from newpat.desktop.results import ResultsStore
 from test_gui_igv import _bam, _reference
 from test_gui_results import artifact, make_run, table, validation, write_json
 
@@ -53,7 +53,7 @@ def test_batch_uses_only_correct_caller_bam_and_site_and_verifies_reference_once
         tables.append(artifact(run, relative, sample=name))
     validation(run, "dnp-call", {"dnp-tables": tables})
     first, second = report_cases(store, "example")
-    from nipat.gui import references
+    from newpat.desktop import references
     checked = []
     original = references.indexed_reference_identity
 

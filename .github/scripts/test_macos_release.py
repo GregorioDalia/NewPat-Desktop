@@ -3,6 +3,9 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+import zipfile
+
+import macos_trial
 
 SPEC = importlib.util.spec_from_file_location("macos_release", Path(__file__).with_name("macos_release.py"))
 release = importlib.util.module_from_spec(SPEC)
@@ -32,6 +35,34 @@ def native_fixture(root, architecture, manifest):
 
 
 class MacosReleaseTests(unittest.TestCase):
+    def test_final_trial_binds_the_archived_bytes_commit_and_clickable_launcher(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            package = folder / macos_trial.PACKAGE
+            package.write_bytes(b"reviewed arm64 package")
+            commit = "a" * 40
+            sha = release.digest(package)
+            record = {"version": "0.9.99", "source_commit": commit, "publication_authorized": False,
+                      "macos_arm64": {"file": package.name, "size": package.stat().st_size, "sha256": sha}}
+            evidence = folder / "installer-set-check.json"
+            evidence.write_text(json.dumps(record))
+            output = folder / "trial.zip"
+            macos_trial.build_kit(evidence, folder, commit, output)
+            with zipfile.ZipFile(output) as kit:
+                self.assertEqual(set(kit.namelist()), {package.name, macos_trial.LAUNCHER, "LEGGIMI.txt",
+                                                       "mini_suite_macos.py", "source-commit", "SHA256SUMS"})
+                self.assertEqual(kit.read(package.name), package.read_bytes())
+                self.assertEqual(kit.read("source-commit").decode(), commit + "\n")
+                self.assertEqual(kit.read("SHA256SUMS").decode(), f"{sha}  {package.name}\n")
+                self.assertTrue(kit.getinfo(macos_trial.LAUNCHER).external_attr >> 16 & 0o100)
+            output.unlink()
+            with self.assertRaisesRegex(ValueError, "exact source"):
+                macos_trial.build_kit(evidence, folder, "b" * 40, output)
+            package.write_bytes(b"X" * package.stat().st_size)
+            with self.assertRaisesRegex(ValueError, "SHA-256"):
+                macos_trial.build_kit(evidence, folder, commit, output)
+            self.assertFalse(output.exists())
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)

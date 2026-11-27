@@ -114,9 +114,9 @@ def verified_inputs(project: Path, manifest_path: Path, description_path: Path, 
     if hashes != manifest.get("source_sha256"):
         raise ValueError("Source inventory differs from the verified scientific build.")
     required = {"installer/macos/dependencies.json", "installer/macos/launch.py",
-                "installer/macos/NIPAT.command", "installer/macos/launcher.c",
+                "installer/macos/NewPat.command", "installer/macos/launcher.c",
                 "installer/macos/migrate_legacy.py",
-                "installer/macos/package-guard.c", "src/nipat/macos_runtime.py",
+                "installer/macos/package-guard.c", "src/newpat/macos_runtime.py",
                 "LICENSE", "THIRD_PARTY_NOTICES.md"}
     if not required.issubset(hashes):
         raise ValueError("The distribution allowlist is missing macOS package sources.")
@@ -299,11 +299,11 @@ def stage_payload(project: Path, root: Path, manifest: dict, files: list[Path], 
     metadata = mac_manifest(manifest, architecture, dependencies, description)
     (source_root / ".distribution/macos-manifest.json").write_text(
         json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
-    shutil.copyfile(project / "installer/macos/NIPAT.command", resources / "NIPAT.command")
-    (resources / "NIPAT.command").chmod(0o755)
-    # Canonical public CLI; retain the original entrypoint for existing scripts.
-    shutil.copyfile(resources / "NIPAT.command", resources / "NewPat.command")
+    shutil.copyfile(project / "installer/macos/NewPat.command", resources / "NewPat.command")
     (resources / "NewPat.command").chmod(0o755)
+    # Keep the previous entrypoint available to installed scripts.
+    shutil.copyfile(resources / "NewPat.command", resources / "NIPAT.command")
+    (resources / "NIPAT.command").chmod(0o755)
     (app / "Contents/MacOS").mkdir()
     plist = {
         "CFBundleIdentifier": IDENTIFIER, "CFBundleName": "NewPat",
@@ -347,7 +347,7 @@ def build(project: Path, manifest_path: Path, output: Path, architecture: str,
         icons = work / "NIPAT.iconset"
         icons.mkdir()
         for size in (16, 32, 128, 256, 512):
-            source = "newpat-icon-small.png" if size == 16 else "nipat-icon.png"
+            source = "newpat-icon-small.png" if size == 16 else "newpat-icon.png"
             for scale in (1, 2):
                 destination = icons / f"icon_{size}x{size}{'@2x' if scale == 2 else ''}.png"
                 subprocess.run(["/usr/bin/sips", "-z", str(size * scale), str(size * scale),

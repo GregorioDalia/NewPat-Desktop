@@ -7,7 +7,7 @@ The repository separates source verification, installer construction and publica
 | [CI](../.github/workflows/ci.yml) | Pull request, push to `main`, or manual dispatch | Required checks for the changed files, with dedicated Linux jobs for documentation and release acceptance |
 | [Installers (review build)](../.github/workflows/windows-installer.yml) | Manual dispatch on a reviewed release revision | Full installer set and its qualification by default, or a Windows ZIP for local testing on request |
 | [Prepare or publish verified release](../.github/workflows/publish-windows-release.yml) | Manual dispatch on `main` | Verified draft, publication of a verified draft, or combined preparation and publication |
-| [Publish accepted release](https://github.com/GregorioDalia/nipat-desktop/blob/main/.github/workflows/publish-accepted-release.yml) | Successful qualifying CI push on `main` | Selection of acceptance-only changes and publication of the identified accepted build |
+| [Publish accepted release](https://github.com/GregorioDalia/NewPat-Desktop/blob/main/.github/workflows/publish-accepted-release.yml) | Successful qualifying CI push on `main` | Selection of acceptance-only changes and publication of the identified accepted build |
 | [Published runtime security report](../.github/workflows/security-monitoring.yml) | Scheduled or manual dispatch | Inventory and findings for published images |
 
 ## Source verification
@@ -113,20 +113,20 @@ The recorded `stable` channel publishes a numeric official release. GitHub **Lat
 
 For a transient failure on the same commit, review the job logs and rerun failed jobs. A changed source needs evidence for the new revision. When analyzing build time, distinguish queueing, execution and the dependency chain. Parallel job duration sums exceed elapsed time. The [historical build timing profile](https://github.com/GregorioDalia/nipat-desktop/blob/c2b936b6d581137746b372b9bbade2318bae716c/docs/archive/README.md#timing-of-a-historical-installer-build) provides one recorded example.
 
-## Preparing the GitHub repository rename
+<a id="preparing-the-github-repository-rename"></a>
 
-The published 0.9.9 downloads use `GregorioDalia/nipat-desktop`. The planned name is `GregorioDalia/NewPat-Desktop`. Both identify the same GitHub repository after a rename. Its numeric ID is `1307623649`. The desktop product ID, APT package identity, WSL/Lima ownership, installation directories, image tags and existing release checksums are independent of this name.
+## Repository identity after the rename
 
-Before renaming, distribute a version that recognizes both names. GitHub returns the current repository name in release metadata, including metadata for previously published releases. The 0.9.9 updater compares release and asset URLs against the old name exactly. Its automatic discovery can fail as soon as GitHub starts returning the new name, even if a browser follows the old download links. For the Windows complete ZIP and retained bootstrap, use a fresh 0.9.10 installer or complete ZIP for the English launcher transition. Keep every published 0.9.9 asset and manifest byte-for-byte intact.
+The canonical repository is `GregorioDalia/NewPat-Desktop`. The same repository previously used `GregorioDalia/nipat-desktop`. Its numeric ID is `1307623649`. The release workflows use this ID together with the supported names and source provenance. Published archives and recorded checksums keep their original identities.
 
-1. Merge and test the transition on the existing repository. Verify publication guards against the numeric repository ID, the two allowed names, the required branch/event and source provenance. Publish the intended transition build under the existing name and check the installer and update paths on the supported platforms.
-2. When the maintainer chooses the cutover, change the existing repository name in **Settings → General**. Keep the old repository name unused. GitHub redirects ordinary repository and Git traffic. Project-site URLs and invocations of a hosted Action by its old name have separate behavior. Check external integrations, bookmarks, badges, Pages and invocations outside this repository as applicable. [GitHub's rename documentation](https://docs.github.com/en/repositories/creating-and-managing-repositories/renaming-a-repository)
-3. After the rename, verify the identity and update each existing checkout where `origin` points to the official repository. These read-only checks and local remote update work in PowerShell or a POSIX shell.
+To update a checkout that points to the old GitHub URL, run:
 
-   ```sh
-   gh api repos/GregorioDalia/NewPat-Desktop --jq '[.id, .full_name]'
-   git remote set-url origin https://github.com/GregorioDalia/NewPat-Desktop.git
-   git ls-remote origin refs/heads/main refs/tags/v0.9.9
-   ```
+```sh
+gh api repos/GregorioDalia/NewPat-Desktop --jq '[.id, .full_name]'
+git remote set-url origin https://github.com/GregorioDalia/NewPat-Desktop.git
+git ls-remote origin refs/heads/main refs/tags/v0.9.10
+```
 
-4. Confirm the API reports `1307623649` and `GregorioDalia/NewPat-Desktop`. Check the 0.9.9 tag, old release links, canonical provider URLs, downloads and recorded checksums. Test a fresh install, a transition-version update check, and a local update from each active packaging channel. Run CI and the installer build under the renamed repository before the next publication. Update active public download links and the default repository hint to the new address once it resolves. Historical evidence retains its original links.
+The published 0.9.10 transition release recognizes both repository names. The older 0.9.9 updater compares release and asset URLs against the old name. If it cannot discover an update, use the installer or complete ZIP from the [release page](https://github.com/GregorioDalia/NewPat-Desktop/releases). Continue to use the established desktop workspace, APT package and WSL/Lima ownership records when upgrading an existing installation. [GitHub’s rename documentation](https://docs.github.com/en/repositories/creating-and-managing-repositories/renaming-a-repository)
+
+Before the next publication, verify previous release tags, download URLs and checksums, the transition-version update check and installation from each active packaging channel. Build the final installer set from the renamed repository and associate all device observations with its commit and package hashes.

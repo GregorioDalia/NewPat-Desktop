@@ -11,12 +11,12 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from nipat_scientific.errors import ValidationError
-from nipat_scientific.settings import (
+from newpat_scientific.errors import ValidationError
+from newpat_scientific.settings import (
     REGISTRY, defaults, describe_settings, normalize_settings, samtools_options,
     settings_context, settings_from_environment,
 )
-from nipat_scientific.snp import prepare_snp
+from newpat_scientific.snp import prepare_snp
 
 
 def r_jsonlite_available():

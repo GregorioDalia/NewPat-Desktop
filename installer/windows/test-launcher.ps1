@@ -218,6 +218,9 @@ using System.Linq;
 using System.Text;
 class FixturePython {
     static string Encode(string value) { return Convert.ToBase64String(Encoding.UTF8.GetBytes(value ?? "")); }
+    static string Setting(string name) {
+        return Environment.GetEnvironmentVariable("NEWPAT_" + name) ?? Environment.GetEnvironmentVariable("NIPAT_" + name);
+    }
     static int Main(string[] args) {
         if (String.Equals(Path.GetFileName(Environment.GetCommandLineArgs()[0]), "powershell.exe", StringComparison.OrdinalIgnoreCase)) {
             File.AppendAllText(Environment.GetEnvironmentVariable("NIPAT_FIXTURE_EVENTS"), "decoy:powershell\n");
@@ -229,13 +232,13 @@ class FixturePython {
         if (command == "self-test" && File.Exists(Environment.GetEnvironmentVariable("NIPAT_FIXTURE_FAIL"))) return 17;
         if (command == "wizard" || command == "gui") {
             string[] record = new string[] { Directory.GetCurrentDirectory(),
-                Environment.GetEnvironmentVariable("NIPAT_BACKEND"),
-                Environment.GetEnvironmentVariable("NIPAT_DATA_DIR"),
-                Environment.GetEnvironmentVariable("NIPAT_RUNS_DIR"),
-                Environment.GetEnvironmentVariable("NIPAT_WORKSPACE_DIR"),
-                Environment.GetEnvironmentVariable("NIPAT_WSL_DISTRO"),
-                Environment.GetEnvironmentVariable("NIPAT_RUNTIME_IMAGE"),
-                Environment.GetEnvironmentVariable("NIPAT_PROJECT_DIR") }.Concat(args).Select(Encode).ToArray();
+                Setting("BACKEND"),
+                Setting("DATA_DIR"),
+                Setting("RUNS_DIR"),
+                Setting("WORKSPACE_DIR"),
+                Setting("WSL_DISTRO"),
+                Setting("RUNTIME_IMAGE"),
+                Setting("PROJECT_DIR") }.Concat(args).Select(Encode).ToArray();
             string capture = Environment.GetEnvironmentVariable("NIPAT_LAUNCH_TEST_CAPTURE");
             File.WriteAllLines(capture + ".tmp", record);
             File.Move(capture + ".tmp", capture);
@@ -264,9 +267,9 @@ class FixturePython {
     foreach ($name in @('bootstrap-common.ps1', 'install-profile.ps1', 'install-profile.json', 'install-layout.ps1')) {
         Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $app "installer\windows\$name")
     }
-    $versionFile = Join-Path $app 'src\nipat\__init__.py'
+    $versionFile = Join-Path $app 'src\newpat\__init__.py'
     [IO.Directory]::CreateDirectory((Split-Path -Parent $versionFile)) | Out-Null
-    Copy-Item -LiteralPath (Join-Path $project 'src\nipat\__init__.py') -Destination $versionFile
+    Copy-Item -LiteralPath (Join-Path $project 'src\newpat\__init__.py') -Destination $versionFile
     $profile = Get-Content -LiteralPath (Join-Path $app 'installer\windows\install-profile.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     $profileChannel = [string]$profile.channel
     $candidateBase = Join-Path $localAppData $profile.data_dir_name
@@ -325,13 +328,18 @@ class FixturePython {
     $environment.NIPAT_BACKEND = 'native'
     $environment.NIPAT_WSL_DISTRO = 'NIPAT-Runtime'
     $environment.NIPAT_RUNTIME_IMAGE = 'sha256:' + ('c' * 64)
-    $result = Invoke-TestLauncher -Executable $executable -Environment $environment
+    $mixedEnvironment = $environment.Clone()
+    $mixedEnvironment.NEWPAT_BACKEND = 'native'
+    $mixedEnvironment.NEWPAT_WORKSPACE_DIR = $stableBase
+    $mixedEnvironment.NEWPAT_WSL_DISTRO = 'unrelated-canonical-distro'
+    $mixedEnvironment.NEWPAT_RUNTIME_IMAGE = 'mutable:tag'
+    $result = Invoke-TestLauncher -Executable $executable -Environment $mixedEnvironment
     Assert-Test ($result.ExitCode -eq 0) ('ready Desktop launches from a stable configured shell: ' + $result.Output)
     $capture = @(Get-Content -LiteralPath $script:CapturePath | ForEach-Object { [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($_)) })
     Assert-Test ($capture[1] -ceq 'wsl' -and $capture[5] -ceq $distro -and $capture[6] -ceq $backend.runtime_image) 'Desktop selects only its verified WSL distribution and image'
     Assert-Test ((Test-SamePath $capture[2] $candidateData) -and (Test-SamePath $capture[3] $candidateRuns) -and
         (Test-SamePath $capture[4] $candidateBase) -and (Test-SamePath $capture[7] $app)) 'installed Desktop resets inherited stable project, workspace, data and runs'
-    Assert-Test ($capture[8] -ceq '-m' -and $capture[9] -ceq 'nipat' -and $capture[10] -ceq 'wizard') 'ready Desktop opens the guided CLI without preparation'
+    Assert-Test ($capture[8] -ceq '-m' -and $capture[9] -ceq 'newpat' -and $capture[10] -ceq 'wizard') 'ready Desktop opens the guided CLI without preparation'
 
     # A researcher may launch from a data folder containing executables. The
     # command must use Windows PowerShell itself, not a same-named local file.
@@ -526,6 +534,12 @@ exit 3010
     Assert-Test ((Test-SamePath $capture[2] $stableData) -and (Test-SamePath $capture[3] $stableRuns) -and
         (Test-SamePath $capture[4] $stableBase)) 'source checkouts retain deliberate environment data, results and workspace'
     Assert-Test ($capture[1] -ceq 'wsl' -and $capture[5] -ceq 'NIPAT-Development') 'source launch preserves the explicit WSL distribution'
+    $mixedEnvironment = $environment.Clone()
+    $mixedEnvironment.NEWPAT_WSL_DISTRO = 'NewPat-Development'
+    $result = Invoke-TestLauncher -Executable $executable -Environment $mixedEnvironment
+    Assert-Test ($result.ExitCode -eq 0) ('source launch accepts the public WSL override: ' + $result.Output)
+    $capture = @(Get-Content -LiteralPath $script:CapturePath | ForEach-Object { [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($_)) })
+    Assert-Test ($capture[5] -ceq 'NewPat-Development') 'source launch gives the canonical setting precedence over the legacy value'
     @'
 
 # Offline replacement of the external Python download/install boundary.

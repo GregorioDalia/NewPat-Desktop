@@ -22,11 +22,11 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from nipat.errors import RuntimeExecutionError
-from nipat.execution.options import ExecutionOptions
-from nipat.execution.runner import DockerComposeRunner
-from nipat.execution.workflows import Workflows
-from nipat.paths import ProjectLayout
+from newpat.errors import RuntimeExecutionError
+from newpat.experiments.options import ExecutionOptions
+from newpat.experiments.runner import DockerComposeRunner
+from newpat.experiments.workflows import Workflows
+from newpat.paths import ProjectLayout
 from verify_dnp_engine import check_dnp_outputs, compare_dnp_tables
 from verify_engine_package import docker, image_id
 from verify_presentation import fixtures

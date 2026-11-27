@@ -3,7 +3,7 @@
 # Scheduler checks below use the production helper, real resource discovery,
 # real forked R processes, and actual child cleanup.
 root <- normalizePath(commandArgs(trailingOnly = TRUE)[[1L]], mustWork = TRUE)
-helper <- file.path(root, "src/nipat_scientific/parallel.R")
+helper <- file.path(root, "src/newpat_scientific/parallel.R")
 
 main <- function() {
   variables <- c("NIPAT_EXECUTION_MODE", "NIPAT_MAX_WORKERS", "NIPAT_CPU_LIMIT",
@@ -189,12 +189,12 @@ main <- function() {
     if (path == "/proc/self/status") "VmRSS: 262144 kB" else character()
   }
   check(identical(before, fixed$nipat_parallel_budget(20, memory_mib = 1024)))
-  sys.source(file.path(root, "src/nipat_scientific/dnp_blocks.R"), fixed)
+  sys.source(file.path(root, "src/newpat_scientific/dnp_blocks.R"), fixed)
   target <- fixed$nipat_dnp_target_bytes(32 * MiB)
   check(target > 0 && target < 32 * MiB)
   check(fixed$nipat_dnp_target_bytes(1 * MiB) == 1 * MiB)
   tight <- new.env(parent = fixed)
-  sys.source(file.path(root, "src/nipat_scientific/dnp_blocks.R"), tight)
+  sys.source(file.path(root, "src/newpat_scientific/dnp_blocks.R"), tight)
   tight$nipat_parallel_budget <- function(...) list(memory_budget_mib = remaining + 100,
     coordinator_rss_mib = 100, workers = 1L)
   # A budget at the base footprint must not jump back to a full 32 MiB block.

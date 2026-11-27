@@ -16,7 +16,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'ZIP double-click entry validation failed.' }
     . (Join-Path $app 'scripts\windows\common.ps1')
     $python = Install-NipatPython $app
-    & $python -m nipat --version
+    & $python -m newpat --version
     if ($LASTEXITCODE -ne 0) { throw 'ZIP embedded Python client failed.' }
     $record = [ordered]@{
         schema_version = 1; version = $manifest.version; source_commit = $manifest.source_commit

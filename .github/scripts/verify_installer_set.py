@@ -1,5 +1,7 @@
 """Verify a Windows/Linux review build without authorizing publication."""
 
+from release_layout import source_path
+
 import argparse
 import hashlib
 import importlib.util
@@ -12,7 +14,7 @@ import tempfile
 
 PROJECT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT / "src"))
-from nipat.branding import windows_package_generation
+from newpat.branding import windows_package_generation
 
 INSTALLATION_CHECKS = {
     "package_installation", "initial_setup", "immutable_runtime_binding",
@@ -81,7 +83,7 @@ def verify_windows_installer_fixture(evidence, manifest):
             and type(evidence.get("schema_version")) is int
             and evidence.get("scenario") == "compiled-installer-fixture-on-server-2022"
             and evidence.get("source_commit") == manifest["source_commit"]
-            and evidence.get("source_definition_sha256") == manifest["source_sha256"]["installer/windows/NIPAT.iss"]
+            and evidence.get("source_definition_sha256") == manifest["source_sha256"][source_path("installer/windows/NIPAT.iss", manifest["version"])]
             and evidence.get("status") == "passed"
             and evidence.get("production_setup_executed") is False
             and evidence.get("wsl_execution") is False

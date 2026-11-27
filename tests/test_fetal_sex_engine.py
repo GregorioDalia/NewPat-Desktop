@@ -6,9 +6,9 @@ import shutil
 
 import pytest
 
-from nipat_scientific.errors import ValidationError
-from nipat_scientific.fetal_sex import prepare_fetal_sex, validate_tables
-from nipat_scientific.plan import validate_plan
+from newpat_scientific.errors import ValidationError
+from newpat_scientific.fetal_sex import prepare_fetal_sex, validate_tables
+from newpat_scientific.plan import validate_plan
 
 FIXTURE = Path(__file__).parent / "fixtures/fetal_sex"
 ROLES = {"autosomes": "autosomes", "x": "X", "y": "Y"}
@@ -140,8 +140,8 @@ def test_combined_plan_accepts_only_the_explicit_two_table_layout(tmp_path):
 
 
 def test_generated_tables_are_ordered_by_producers_and_bound_to_one_bam():
-    from nipat_scientific.presentation import step_presentation
-    from nipat_scientific.progress import step_sample_ids
+    from newpat_scientific.presentation import step_presentation
+    from newpat_scientific.progress import step_sample_ids
 
     mother = "Maternal"
     inputs = {"dnp": {"step": "dnpcall", "output": "dnp-tables", "sample": mother},
@@ -170,7 +170,7 @@ def test_generated_tables_are_ordered_by_producers_and_bound_to_one_bam():
 
 
 def test_generated_tables_project_only_required_regions_and_audit_uncovered_loci(tmp_path):
-    from nipat_scientific.fetal_sex import stage_calling_tables
+    from newpat_scientific.fetal_sex import stage_calling_tables
 
     inputs = combined_request(tmp_path)
     dnp = Path(inputs["dnp"])
@@ -200,7 +200,7 @@ def test_generated_tables_project_only_required_regions_and_audit_uncovered_loci
 
 
 def test_generated_tables_require_y_markers_and_reject_missing_counts_with_reads(tmp_path):
-    from nipat_scientific.fetal_sex import stage_calling_tables
+    from newpat_scientific.fetal_sex import stage_calling_tables
 
     inputs = combined_request(tmp_path)
     dnp = Path(inputs["dnp"])
@@ -218,7 +218,7 @@ def test_generated_tables_require_y_markers_and_reject_missing_counts_with_reads
 
 
 def test_registered_split_tables_normalize_only_zero_dnp_rows_and_keep_region_assignments(tmp_path):
-    from nipat_scientific.fetal_sex import stage_calling_tables, validate_inputs
+    from newpat_scientific.fetal_sex import stage_calling_tables, validate_inputs
 
     tables = {}
     for role in ROLES:

@@ -6,13 +6,13 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 
-from nipat.cli import DEFAULT_ERR_CONST
-from nipat.errors import ValidationError
-from nipat.paths import ProjectLayout
-from nipat.preferences import Preferences, PreferencesStore
-from nipat.terminal import Terminal
-from nipat.update_ui import DownloadProgress, HANDOFF_EXIT_CODE, run_updates
-from nipat.wizard import run_wizard
+from newpat.cli import DEFAULT_ERR_CONST
+from newpat.errors import ValidationError
+from newpat.paths import ProjectLayout
+from newpat.preferences import Preferences, PreferencesStore
+from newpat.terminal import Terminal
+from newpat.update_ui import DownloadProgress, HANDOFF_EXIT_CODE, run_updates
+from newpat.wizard import run_wizard
 
 
 class UpdateUITests(unittest.TestCase):
@@ -168,7 +168,7 @@ class UpdateUITests(unittest.TestCase):
         return status, store, workflows
 
     def test_wizard_default_startup_does_not_check_and_menu_handoff_returns_exit85(self):
-        with patch("nipat.wizard.run_updates", return_value=True) as updater:
+        with patch("newpat.wizard.run_updates", return_value=True) as updater:
             status, _, _ = self.wizard(["0"])
             self.assertEqual(status, 0)
             updater.assert_not_called()
@@ -178,7 +178,7 @@ class UpdateUITests(unittest.TestCase):
             updater.assert_called_once()
 
     def test_enabled_startup_check_is_notification_only(self):
-        with patch("nipat.wizard.run_updates", return_value=False) as updater:
+        with patch("newpat.wizard.run_updates", return_value=False) as updater:
             status, _, workflows = self.wizard(["0"], Preferences(check_updates_on_startup=True))
         self.assertEqual(status, 0)
         updater.assert_called_once()
@@ -186,24 +186,24 @@ class UpdateUITests(unittest.TestCase):
         workflows.dnp_call.assert_not_called()
 
     def test_failed_update_check_does_not_change_wizard_exit_status(self):
-        with patch("nipat.wizard.run_updates", return_value=False):
+        with patch("newpat.wizard.run_updates", return_value=False):
             status, _, _ = self.wizard(["9", "0"])
         self.assertEqual(status, 0)
 
     def test_update_settings_save_explicitly_and_cancel_discards_edits(self):
-        with patch("nipat.wizard.run_updates") as updater:
+        with patch("newpat.wizard.run_updates") as updater:
             status, store, _ = self.wizard(["5", "8", "1", "2", "2", "1", "9", "0", "0"])
         self.assertEqual(status, 0)
         prefs = store.load()
         self.assertEqual(prefs.update_channel, "stable")
         self.assertTrue(prefs.check_updates_on_startup)
         updater.assert_not_called()  # Changing a setting does not trigger a check immediately.
-        with patch("nipat.wizard.run_updates", return_value=False):
+        with patch("newpat.wizard.run_updates", return_value=False):
             self.wizard(["5", "8", "1", "1", "2", "2", "0", "0", "0"])
         self.assertEqual(store.load(), prefs)
 
     def test_update_menu_can_switch_from_stable_to_testing_and_back(self):
-        with patch("nipat.wizard.run_updates") as updater:
+        with patch("newpat.wizard.run_updates") as updater:
             status, store, _ = self.wizard(["5", "8", "1", "1", "9", "0", "0"])
             self.assertEqual(status, 0)
             self.assertEqual(store.load().update_channel, "testing")

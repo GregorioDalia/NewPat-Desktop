@@ -3,7 +3,7 @@
 # Optional second argument is a benchmark locus count; timings never gate CI.
 arguments <- commandArgs(trailingOnly=TRUE)
 root <- normalizePath(arguments[[1L]], mustWork=TRUE)
-source(file.path(root, "src/nipat_scientific/dnp_blocks.R"))
+source(file.path(root, "src/newpat_scientific/dnp_blocks.R"))
 
 reference_plan <- function(index, labels, ref_alt, max_loci=64, max_bytes=32*1024^2) {
   keys <- paste(index$chromosomes[index$chromosome], index$positions, sep=":")

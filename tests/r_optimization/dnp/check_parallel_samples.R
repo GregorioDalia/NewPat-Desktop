@@ -7,8 +7,8 @@ root <- normalizePath(commandArgs(trailingOnly = TRUE)[[1L]], mustWork = TRUE)
 
 main <- function() {
   environment <- new.env(parent = globalenv())
-  sys.source(file.path(root, "src/nipat_scientific/parallel.R"), environment)
-  sys.source(file.path(root, "src/nipat_scientific/dnp_blocks.R"), environment)
+  sys.source(file.path(root, "src/newpat_scientific/parallel.R"), environment)
+  sys.source(file.path(root, "src/newpat_scientific/dnp_blocks.R"), environment)
   variables <- c("NIPAT_EXECUTION_MODE", "NIPAT_PARALLEL_CHILD", "NIPAT_PARALLEL_LOG_DIR",
                  "NIPAT_DNP_OPTIMIZED_IO", "NIPAT_DNP_LIMA_ARM64", "NIPAT_MAX_WORKERS", "NIPAT_PERFORMANCE_DIR")
   previous <- Sys.getenv(variables, unset = NA_character_)

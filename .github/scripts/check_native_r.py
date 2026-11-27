@@ -77,8 +77,8 @@ def main():
                                            "status": "incomplete"}) + "\n", encoding="utf-8")
     # Host R can be incomplete and native unit tests then explicitly skip.
     # The packaged-image gate must instead fail missing tools/dependencies.
-    from nipat_scientific.settings import REGISTRY
-    if REGISTRY.resolve() != PAYLOAD / "lib/nipat_scientific/settings_data.json":
+    from newpat_scientific.settings import REGISTRY
+    if REGISTRY.resolve() != PAYLOAD / "lib/newpat_scientific/settings_data.json":
         raise RuntimeError("Native regressions must use the installed scientific settings")
     sys.path.insert(0, str(ROOT / "tests"))
     from native_r_helpers import NATIVE_R_AVAILABLE, NATIVE_R_REASON
@@ -90,9 +90,9 @@ def main():
                               for pattern in ("test_native_r_*.py", "test_scientific_settings.py"))
     result = unittest.TextTestRunner(verbosity=2, resultclass=EvidenceResult).run(suite)
     for name, module in tuple(sys.modules.items()):
-        if name == "nipat_scientific" or name.startswith("nipat_scientific."):
+        if name == "newpat_scientific" or name.startswith("newpat_scientific."):
             source = getattr(module, "__file__", None)
-            if source is not None and not Path(source).resolve().is_relative_to(PAYLOAD / "lib/nipat_scientific"):
+            if source is not None and not Path(source).resolve().is_relative_to(PAYLOAD / "lib/newpat_scientific"):
                 raise RuntimeError(f"Native regressions imported a checkout replacement: {name}")
     report = result.report(ORACLE_MODULES)
     if args.report:

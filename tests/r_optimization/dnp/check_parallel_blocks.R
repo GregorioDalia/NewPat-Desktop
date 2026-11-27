@@ -3,7 +3,7 @@
 # scientific calculation. The complete scientific equations are qualified by
 # check_blocks.R and the frozen 0.8.5 end-to-end comparisons.
 root <- normalizePath(commandArgs(trailingOnly = TRUE)[[1L]], mustWork = TRUE)
-source(file.path(root, "src/nipat_scientific/dnp_blocks.R"))
+source(file.path(root, "src/newpat_scientific/dnp_blocks.R"))
 
 main <- function() {
   path <- tempfile(fileext = ".pileup")
@@ -79,7 +79,7 @@ main <- function() {
   # Integrate with the production scheduler as well. The host may legitimately
   # allow only one worker; when resources permit, this executes real child
   # processes and confirms the global outer/inner budget is never multiplied.
-  source(file.path(root, "src/nipat_scientific/parallel.R"), local = .GlobalEnv)
+  source(file.path(root, "src/newpat_scientific/parallel.R"), local = .GlobalEnv)
   policy_names <- c("NIPAT_EXECUTION_MODE", "NIPAT_MAX_WORKERS", "NIPAT_PARALLEL_CHILD")
   policy <- Sys.getenv(policy_names, unset = NA_character_)
   on.exit(for (name in names(policy)) {
@@ -167,8 +167,8 @@ main <- function() {
   planning_index$lengths[] <- 1024^2
   resource_env <- function(memory, cpus, rss_kib) {
     env <- new.env(parent = globalenv())
-    sys.source(file.path(root, "src/nipat_scientific/parallel.R"), env)
-    sys.source(file.path(root, "src/nipat_scientific/dnp_blocks.R"), env)
+    sys.source(file.path(root, "src/newpat_scientific/parallel.R"), env)
+    sys.source(file.path(root, "src/newpat_scientific/dnp_blocks.R"), env)
     env$nipat_parallel_cpu_count <- function() cpus
     env$nipat_parallel_lines <- function(path) {
       if (path == "/proc/self/status") paste("VmRSS:", rss_kib, "kB") else character()

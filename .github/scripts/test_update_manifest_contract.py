@@ -11,8 +11,8 @@ from unittest.mock import patch
 
 PROJECT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT / "src"))
-from nipat.repository import LEGACY_REPOSITORY, RENAMED_REPOSITORY, REPOSITORY_ID, REPOSITORY_INFO_URL
-from nipat.updates import UpdateClient
+from newpat.repository import LEGACY_REPOSITORY, RENAMED_REPOSITORY, REPOSITORY_ID, REPOSITORY_INFO_URL
+from newpat.updates import UpdateClient
 
 SPEC = importlib.util.spec_from_file_location("update_publisher", Path(__file__).with_name("publish_windows_release.py"))
 publisher = importlib.util.module_from_spec(SPEC)

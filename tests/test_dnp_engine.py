@@ -6,8 +6,8 @@ import re
 import tempfile
 import unittest
 
-from nipat_scientific.dnp import prepare_dnp
-from nipat_scientific.errors import ValidationError
+from newpat_scientific.dnp import prepare_dnp
+from newpat_scientific.errors import ValidationError
 
 
 class DnpEngineTests(unittest.TestCase):

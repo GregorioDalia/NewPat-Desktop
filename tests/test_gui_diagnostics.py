@@ -9,10 +9,10 @@ import subprocess
 
 import pytest
 
-from nipat.errors import ValidationError
-from nipat.gui.app import DesktopApplication
-from nipat.gui import diagnostics
-from nipat.gui.results import ResultsStore
+from newpat.errors import ValidationError
+from newpat.desktop.app import DesktopApplication
+from newpat.desktop import diagnostics
+from newpat.desktop.results import ResultsStore
 
 
 @pytest.fixture

@@ -84,13 +84,15 @@ COPY scientific/vendor/NEWPAT/contamination/detect_contamination.R /opt/nipat/sc
 COPY scientific/vendor/NEWPAT/CPI_from_cffDNA/cfDNA_CPI_estimator.R /opt/nipat/scientific/vendor/NEWPAT/CPI_from_cffDNA/cfDNA_CPI_estimator.R
 COPY scientific/vendor/NEWPAT/CPI_postnatal/Postnatal_CPI.R /opt/nipat/scientific/vendor/NEWPAT/CPI_postnatal/Postnatal_CPI.R
 COPY scientific/vendor/NEWPAT/Fetal_sex/Fetal_sex.R /opt/nipat/scientific/vendor/NEWPAT/Fetal_sex/Fetal_sex.R
-COPY src/nipat_scientific/fetal_sex.py src/nipat_scientific/cpin.py src/nipat_scientific/settings.py src/nipat_scientific/settings.R src/nipat_scientific/settings_data.json /opt/nipat/lib/nipat_scientific/
+COPY src/newpat_scientific/fetal_sex.py src/newpat_scientific/cpin.py src/newpat_scientific/settings.py src/newpat_scientific/settings.R src/newpat_scientific/settings_data.json /opt/nipat/lib/newpat_scientific/
 COPY engine/main.py /opt/nipat/engine/main.py
-COPY src/nipat_scientific/__init__.py src/nipat_scientific/errors.py src/nipat_scientific/panels.py src/nipat_scientific/files.py src/nipat_scientific/contamination.py src/nipat_scientific/snp.py src/nipat_scientific/snp_summary.py src/nipat_scientific/snp_parallel.py src/nipat_scientific/dnp.py src/nipat_scientific/cpi.py src/nipat_scientific/catalog.py src/nipat_scientific/plan.py src/nipat_scientific/executor.py src/nipat_scientific/desktop_scheduling.py src/nipat_scientific/outputs.py src/nipat_scientific/presentation.py src/nipat_scientific/presentation.R src/nipat_scientific/plots.R src/nipat_scientific/performance.py /opt/nipat/lib/nipat_scientific/
-COPY src/nipat_scientific/catalog_data/ /opt/nipat/lib/nipat_scientific/catalog_data/
-COPY src/nipat_scientific/scratch.py src/nipat_scientific/dnp_pileup.py src/nipat_scientific/dnp_blocks.R src/nipat_scientific/progress.py src/nipat_scientific/progress.R /opt/nipat/lib/nipat_scientific/
-COPY src/nipat_scientific/parallel.py src/nipat_scientific/parallel.R /opt/nipat/lib/nipat_scientific/
-RUN python3 /opt/nipat/engine/main.py verify \
+COPY src/newpat_scientific/__init__.py src/newpat_scientific/errors.py src/newpat_scientific/panels.py src/newpat_scientific/files.py src/newpat_scientific/contamination.py src/newpat_scientific/snp.py src/newpat_scientific/snp_summary.py src/newpat_scientific/snp_parallel.py src/newpat_scientific/dnp.py src/newpat_scientific/cpi.py src/newpat_scientific/catalog.py src/newpat_scientific/plan.py src/newpat_scientific/executor.py src/newpat_scientific/desktop_scheduling.py src/newpat_scientific/outputs.py src/newpat_scientific/presentation.py src/newpat_scientific/presentation.R src/newpat_scientific/plots.R src/newpat_scientific/performance.py /opt/nipat/lib/newpat_scientific/
+COPY src/newpat_scientific/catalog_data/ /opt/nipat/lib/newpat_scientific/catalog_data/
+COPY src/newpat_scientific/scratch.py src/newpat_scientific/dnp_pileup.py src/newpat_scientific/dnp_blocks.R src/newpat_scientific/progress.py src/newpat_scientific/progress.R /opt/nipat/lib/newpat_scientific/
+COPY src/newpat_scientific/parallel.py src/newpat_scientific/parallel.R /opt/nipat/lib/newpat_scientific/
+# Retain the absolute helper paths embedded in the pinned R programs.
+RUN ln -s newpat_scientific /opt/nipat/lib/nipat_scientific \
+    && python3 /opt/nipat/engine/main.py verify \
     && python3 /opt/nipat/engine/main.py catalog --json > /tmp/nipat-catalog-check.json \
     && rm /tmp/nipat-catalog-check.json
 

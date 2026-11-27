@@ -9,15 +9,15 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-from nipat.cli import main
-from nipat.errors import RuntimeExecutionError, ValidationError
-from nipat.execution.options import ExecutionOptions
-from nipat.execution.transport import DockerTransport
-from nipat.i18n import MESSAGES, translate
-from nipat.paths import ProjectLayout
-from nipat.preferences import Preferences, PreferencesStore
-from nipat.recovery_ui import recovery_lines, show_incomplete_runs
-from nipat.terminal import Terminal
+from newpat.cli import main
+from newpat.errors import RuntimeExecutionError, ValidationError
+from newpat.experiments.options import ExecutionOptions
+from newpat.experiments.transport import DockerTransport
+from newpat.i18n import MESSAGES, translate
+from newpat.paths import ProjectLayout
+from newpat.preferences import Preferences, PreferencesStore
+from newpat.recovery_ui import recovery_lines, show_incomplete_runs
+from newpat.terminal import Terminal
 import test_cli_validation as cli_cases
 import test_wizard_settings as settings_cases
 import test_installation_client as maintenance_cases
@@ -42,7 +42,7 @@ class FailedRunTests(unittest.TestCase):
             return path
 
         self.workflows.snp_call.side_effect = execute
-        with patch("nipat.wizard.show_results") as show:
+        with patch("newpat.wizard.show_results") as show:
             status, messages = self.invoke(self.snp_answers() + ["1"] +
                                            self.snp_answers() + ["1", "0", "6", "0"])
         self.assertEqual(status, 2)
@@ -57,7 +57,7 @@ class FailedRunTests(unittest.TestCase):
             raise RuntimeExecutionError("scientific failure")
 
         self.workflows.snp_call.side_effect = fail
-        with patch("nipat.wizard.show_results") as show:
+        with patch("newpat.wizard.show_results") as show:
             status, _ = self.invoke(self.snp_answers() + ["1", "0", "6", "0"])
         self.assertEqual(status, 2)
         show.assert_called_once()
@@ -66,7 +66,7 @@ class FailedRunTests(unittest.TestCase):
     def test_failure_before_run_creation_does_not_adopt_stale_path(self):
         self.workflows.runner.last_run_dir = self.run
         self.workflows.snp_call.side_effect = ValidationError("invalid input")
-        with patch("nipat.wizard.show_results") as show:
+        with patch("newpat.wizard.show_results") as show:
             status, messages = self.invoke(self.snp_answers() + ["1", "0", "6", "0"])
         self.assertEqual(status, 2)
         show.assert_not_called()
@@ -151,7 +151,7 @@ class DirectInputErrorsTests(unittest.TestCase):
                     panel.write_bytes(content)
                     stderr = io.StringIO()
                     with redirect_stderr(stderr), redirect_stdout(io.StringIO()), \
-                            patch("nipat.execution.runner.DockerTransport.from_environment",
+                            patch("newpat.experiments.runner.DockerTransport.from_environment",
                                   return_value=transport):
                         result = main(arguments)
                     self.assertEqual(result, 2)
@@ -163,7 +163,7 @@ class DirectInputErrorsTests(unittest.TestCase):
             panel.write_text("pos\tref\talt\nchr1:2\tC\tG\n", encoding="utf-8")
             stderr = io.StringIO()
             with redirect_stderr(stderr), redirect_stdout(io.StringIO()), \
-                    patch("nipat.execution.runner.DockerTransport.from_environment",
+                    patch("newpat.experiments.runner.DockerTransport.from_environment",
                           return_value=transport):
                 result = main(arguments)
             self.assertEqual(result, 0, stderr.getvalue())
@@ -278,16 +278,16 @@ class ClientRoutingTests(unittest.TestCase):
                                     root / "app" / "compose.yaml")
         self.layout.project_dir.mkdir()
         self.runner = Mock()
-        self.runner_factory = self.enterContext(patch("nipat.cli.DockerComposeRunner", return_value=self.runner))
-        self.enterContext(patch("nipat.cli.ProjectLayout.discover", return_value=self.layout))
-        self.enterContext(patch("nipat.cli.activity_session", return_value=nullcontext()))
-        self.workflows = self.enterContext(patch("nipat.cli.Workflows"))
+        self.runner_factory = self.enterContext(patch("newpat.cli.DockerComposeRunner", return_value=self.runner))
+        self.enterContext(patch("newpat.cli.ProjectLayout.discover", return_value=self.layout))
+        self.enterContext(patch("newpat.cli.activity_session", return_value=nullcontext()))
+        self.workflows = self.enterContext(patch("newpat.cli.Workflows"))
         self.output = io.StringIO()
         self.enterContext(redirect_stdout(self.output))
         self.enterContext(redirect_stderr(io.StringIO()))
 
     def test_direct_analysis_uses_explicit_options_without_loading_guided_defaults(self):
-        with patch("nipat.cli.PreferencesStore") as store:
+        with patch("newpat.cli.PreferencesStore") as store:
             result = main(["--input-hashes", "full", "--cpus", "2", "--memory-mb", "4096",
                            "--pids-limit", "256", "snp-call", "--pileup", "input.txt", "--panel", "panel.tsv"])
         self.assertEqual(result, 0)
@@ -317,7 +317,7 @@ class ClientRoutingTests(unittest.TestCase):
         self.runner.reconcile_run.assert_called_with(Path(report["run_dir"]), stop=False)
 
     def test_declining_stop_never_requests_runtime_mutation(self):
-        with patch("nipat.terminal.Terminal.prompt", return_value=""):
+        with patch("newpat.terminal.Terminal.prompt", return_value=""):
             self.assertEqual(main(["runs", "stop", "--run", "case"]), 0)
         self.runner.reconcile_run.assert_not_called()
 
@@ -349,17 +349,17 @@ class ClientRoutingTests(unittest.TestCase):
                 self.assertEqual(json.loads(self.output.getvalue()), [report])
 
     def test_cli_maintenance_handoff_requires_explicit_confirmation(self):
-        with patch("nipat.installation.installation_inventory", return_value=maintenance_cases.inventory()), \
-                patch("nipat.installation.start_maintenance", return_value=Path("result.json")) as start, \
-                patch("nipat.terminal.Terminal.prompt", return_value=""):
+        with patch("newpat.installation.installation_inventory", return_value=maintenance_cases.inventory()), \
+                patch("newpat.installation.start_maintenance", return_value=Path("result.json")) as start, \
+                patch("newpat.terminal.Terminal.prompt", return_value=""):
             self.assertEqual(main(["installation", "cleanup", "--target", "old"]), 0)
             start.assert_not_called()
             self.assertEqual(main(["installation", "cleanup", "--target", "old", "--yes"]), 85)
         start.assert_called_once_with(self.layout.project_dir, "cleanup", "old")
 
     def test_cli_cannot_force_cleanup_of_protected_component(self):
-        with patch("nipat.installation.installation_inventory", return_value=maintenance_cases.inventory()), \
-                patch("nipat.installation.start_maintenance") as start:
+        with patch("newpat.installation.installation_inventory", return_value=maintenance_cases.inventory()), \
+                patch("newpat.installation.start_maintenance") as start:
             self.assertEqual(main(["installation", "cleanup", "--target", "active", "--yes"]), 2)
         start.assert_not_called()
 
@@ -386,7 +386,7 @@ class GuidedExecutionTests(unittest.TestCase):
         self.assertEqual(self.workflows.runner.options, ExecutionOptions(cpus=1.0))
 
     def test_guide_handoff_exits_only_after_worker_acknowledgement(self):
-        with patch("nipat.wizard.show_installation", return_value=True) as maintenance:
+        with patch("newpat.wizard.show_installation", return_value=True) as maintenance:
             status, _ = self.invoke(["7", "8"])
         self.assertEqual(status, 85)
         maintenance.assert_called_once_with(unittest.mock.ANY, self.layout.project_dir, dry_run=False)

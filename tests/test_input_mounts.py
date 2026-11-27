@@ -7,11 +7,11 @@ from contextlib import redirect_stdout
 from pathlib import Path, PurePosixPath
 from unittest.mock import patch
 
-from nipat.errors import ValidationError
-from nipat.execution.mounts import INPUT_ROOT, InputMounts
-from nipat.execution.runner import DockerComposeRunner
-from nipat.execution.transport import DockerTransport
-from nipat.paths import ProjectLayout
+from newpat.errors import ValidationError
+from newpat.experiments.mounts import INPUT_ROOT, InputMounts
+from newpat.experiments.runner import DockerComposeRunner
+from newpat.experiments.transport import DockerTransport
+from newpat.paths import ProjectLayout
 
 
 class InputMountTests(unittest.TestCase):
@@ -169,7 +169,7 @@ class InputMountTests(unittest.TestCase):
     def test_doctor_creates_only_required_static_mount_directories(self):
         self.layout.compose_file.write_text("services: {}\n")
         runner = DockerComposeRunner(self.layout, transport=DockerTransport())
-        with patch("nipat.execution.runner.shutil.which", return_value="docker"), patch.object(
+        with patch("newpat.experiments.runner.shutil.which", return_value="docker"), patch.object(
             runner, "_capture", return_value="Docker Compose"
         ):
             runner.doctor(check_runtime=False)

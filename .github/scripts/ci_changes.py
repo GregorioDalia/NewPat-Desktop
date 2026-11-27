@@ -29,13 +29,13 @@ def is_documentation(path):
 # Only reviewed desktop inputs can use the smaller cross-platform suite.
 # The browser application and reference catalog also choose inputs for the callers.
 PRESENTATION_FILES = {
-    "src/nipat/gui/web/style.css", "src/nipat/gui/web/i18n.js",
-    "src/nipat/gui/web/index.html", "src/nipat/gui/web/newpat-wordmark.svg",
+    "src/newpat/desktop/web/style.css", "src/newpat/desktop/web/i18n.js",
+    "src/newpat/desktop/web/index.html", "src/newpat/desktop/web/newpat-wordmark.svg",
     "tests/test_gui_frontend.py", ".github/gui-test-requirements.txt",
 }
 CALLER_INTEGRATION_FILES = {
-    "src/nipat/gui/web/app.js", "scripts/test_gui_frontend.cjs",
-    "src/nipat/gui/references.py", "src/nipat/gui/reference_downloads.py",
+    "src/newpat/desktop/web/app.js", "scripts/test_gui_frontend.cjs",
+    "src/newpat/desktop/references.py", "src/newpat/desktop/reference_downloads.py",
     "tests/test_gui_references.py", "tests/test_gui_reference_downloads.py",
 }
 SMOKE_HARNESS = {
@@ -54,6 +54,7 @@ SCIENTIFIC_FILES = {
     ".github/scripts/check_native_r.py", ".github/scripts/qualification_evidence.py",
     ".github/scripts/native_evidence.py", ".github/scripts/test_native_evidence.py",
     ".github/scripts/test_qualification_evidence.py", ".github/scripts/release_acceptance.py",
+    ".github/scripts/release_layout.py",
     ".github/scripts/test_release_acceptance.py",
     ".github/scripts/installer_science_wait.py", ".github/scripts/test_installer_science_wait.py",
     ".github/scripts/scientific_reuse.py", ".github/scripts/test_scientific_reuse.py",
@@ -78,7 +79,7 @@ def layers_for_path(path):
         return {"client"}
     if path in SMOKE_HARNESS:
         return set(LAYERS)
-    if (path.startswith(("src/nipat/", "tests/test_", "scripts/windows/", "scripts/acceptance/"))
+    if (path.startswith(("src/newpat/", "tests/test_", "scripts/windows/", "scripts/acceptance/"))
             or path.startswith("config/")):
         layers.add("client")
     if affects_scientific(path):

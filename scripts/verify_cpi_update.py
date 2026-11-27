@@ -13,10 +13,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from acceptance.installed_models import check_prenatal_example, copy_prenatal_fixtures, prenatal_outputs
-from nipat.errors import NipatError, ValidationError
-from nipat.execution.runner import DockerComposeRunner
-from nipat.execution.workflows import Workflows
-from nipat.paths import ProjectLayout
+from newpat.errors import NipatError, ValidationError
+from newpat.experiments.runner import DockerComposeRunner
+from newpat.experiments.workflows import Workflows
+from newpat.paths import ProjectLayout
 from verify_contamination_update import check_bundled_run
 
 

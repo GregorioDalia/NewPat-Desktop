@@ -3,7 +3,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 function Get-NipatOfficialRepositories {
-    return 'GregorioDalia/nipat-desktop', 'GregorioDalia/NewPat-Desktop'
+    return 'GregorioDalia/NewPat-Desktop', 'GregorioDalia/nipat-desktop'
 }
 
 function Get-NipatOnlineRepository {

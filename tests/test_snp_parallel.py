@@ -15,9 +15,9 @@ import time
 import unittest
 from unittest.mock import Mock, patch
 
-from nipat_scientific.executor import _atomic_json, _Cancellation, execute_plan
-from nipat_scientific.parallel import THREAD_LIMITS
-from nipat_scientific.snp_parallel import (
+from newpat_scientific.executor import _atomic_json, _Cancellation, execute_plan
+from newpat_scientific.parallel import THREAD_LIMITS
+from newpat_scientific.snp_parallel import (
     _indexed_observations, _kill_group, _ProbeWindow, _query_budget, _sample_estimate, execute_independent_snp_steps,
 )
 
@@ -101,7 +101,7 @@ class SnpParallelTests(unittest.TestCase):
 
     def execute(self, run, **environment):
         with patch.dict(os.environ, {**self.environment, **environment}), \
-                patch("nipat_scientific.snp_summary.finalize_snp_summaries", return_value=[]):
+                patch("newpat_scientific.snp_summary.finalize_snp_summaries", return_value=[]):
             return execute_plan(self.plan, run_dir=run, script_paths={"snp-call": self.script})
 
     def table_values(self, state, run):
@@ -182,7 +182,7 @@ class SnpParallelTests(unittest.TestCase):
         def estimate(step, source, directory, probe):
             return sizes[int(step["id"][-1])] * 1024**2, {"basis": "fixture"}
         run = self.root / "weighted"
-        with patch("nipat_scientific.snp_parallel._sample_estimate", side_effect=estimate):
+        with patch("newpat_scientific.snp_parallel._sample_estimate", side_effect=estimate):
             state = self.execute(run, NIPAT_MAX_WORKERS="4", SNP_FIXTURE_MEMORY_MIB="1900")
         self.assertEqual(state["status"], "succeeded", state)
         self.assertEqual(state["snp_parallel"]["workers"], 3)
@@ -196,7 +196,7 @@ class SnpParallelTests(unittest.TestCase):
         def estimate(step, source, directory, probe):
             size = None if step["id"] == "snp0" else 800 * 1024**2
             return size, {"basis": "fixture"}
-        with patch("nipat_scientific.snp_parallel._sample_estimate", side_effect=estimate):
+        with patch("newpat_scientific.snp_parallel._sample_estimate", side_effect=estimate):
             state = self.execute(run, NIPAT_MAX_WORKERS="3", SNP_FIXTURE_MEMORY_MIB="2200")
         self.assertEqual(state["status"], "succeeded", state)
         self.assertEqual(state["snp_parallel"]["workers"], 2)
@@ -242,18 +242,18 @@ class SnpParallelTests(unittest.TestCase):
             self.assertEqual(command[-1], str(source))
             return 0
 
-        with patch("nipat_scientific.executor._run_process", side_effect=count):
+        with patch("newpat_scientific.executor._run_process", side_effect=count):
             _, counted = _sample_estimate(step, source, self.root, _Cancellation())
         self.assertEqual((counted["basis"], counted["observations"]), ("indexed-window-coverage", 31))
         self.assertEqual(counted["peak_depth_bound"], 12)
         os.utime(source.with_suffix(".bai"), ns=(1, 1))
-        with patch("nipat_scientific.executor._run_process") as probe:
+        with patch("newpat_scientific.executor._run_process") as probe:
             self.assertIsNone(_sample_estimate(step, source, self.root, _Cancellation())[0])
             probe.assert_not_called()
         source.with_suffix(".bai").touch()
         panel = Path(step["inputs"]["panel"])
         panel.write_text("chr\tpos\tref\talt\n" + "".join(f"chr1\t{i}\tA\tG\n" for i in range(10, 2059)))
-        with patch("nipat_scientific.executor._run_process") as probe:
+        with patch("newpat_scientific.executor._run_process") as probe:
             self.assertIsNone(_sample_estimate(step, source, self.root, _Cancellation())[0])
             probe.assert_not_called()
 
@@ -267,7 +267,7 @@ class SnpParallelTests(unittest.TestCase):
         steps = [{**step, "inputs": {**step["inputs"], "reference": str(reference)},
                   "parameters": {"mode": "bam"}} for step in self.plan["steps"]]
         source = {step["inputs"]["sample"]: str(path) for step in steps}
-        from nipat_scientific.executor import _run_process
+        from newpat_scientific.executor import _run_process
         for case in ("header-length", "unsorted", "samtools-error", "wrong-region", "io"):
             with self.subTest(case=case):
                 directory = self.root / case
@@ -289,7 +289,7 @@ class SnpParallelTests(unittest.TestCase):
                     return 0
 
                 with patch.dict(os.environ, self.environment), patch(
-                        "nipat_scientific.executor._run_process", side_effect=run):
+                        "newpat_scientific.executor._run_process", side_effect=run):
                     result, _ = _query_budget(steps, source, directory, _Cancellation())
                 self.assertEqual(result["workers"], 1)
                 estimates = json.loads((directory / "sample-estimates.json").read_text())
@@ -336,7 +336,7 @@ class SnpParallelTests(unittest.TestCase):
         """))
         fake.chmod(0o755)
         real = _Cancellation()
-        with patch.dict(os.environ, self.environment), patch("nipat_scientific.snp_parallel._PROBE_SECONDS", .7):
+        with patch.dict(os.environ, self.environment), patch("newpat_scientific.snp_parallel._PROBE_SECONDS", .7):
             self.assertIsNone(_indexed_observations(source, [("chr1", 12)], {"chr1": 100}, self.root,
                                                     "timeout", _ProbeWindow(real)))
         self.assertIsNone(real.signum)
@@ -348,7 +348,7 @@ class SnpParallelTests(unittest.TestCase):
         directory.mkdir()
         paths = {item["id"]: item["path"] for item in self.plan["samples"]}
         with patch.dict(os.environ, self.environment), patch(
-                "nipat_scientific.snp_parallel._sample_estimate", return_value=(None, {"basis": "unknown"})
+                "newpat_scientific.snp_parallel._sample_estimate", return_value=(None, {"basis": "unknown"})
         ) as estimate:
             budget, _ = _query_budget(self.plan["steps"], paths, directory, _Cancellation())
         self.assertEqual(estimate.call_count, 3)
@@ -364,7 +364,7 @@ class SnpParallelTests(unittest.TestCase):
                         {"sample": "sample0", "step": "snp0", "output": "snp-tables"}],
             "panel": str(panel)}, "parameters": {}})
         with patch.dict(os.environ, {**self.environment, "NIPAT_MAX_WORKERS": "2"}), \
-                patch("nipat_scientific.snp_summary.finalize_snp_summaries", return_value=[]):
+                patch("newpat_scientific.snp_summary.finalize_snp_summaries", return_value=[]):
             run = self.root / "mixed"
             state = execute_plan(self.plan, run_dir=run,
                 script_paths={"snp-call": self.script, "contamination": script})
@@ -383,7 +383,7 @@ class SnpParallelTests(unittest.TestCase):
                      ({"NIPAT_MAX_WORKERS": "1"}, self.plan),
                      ({"NIPAT_PARALLEL_CHILD": "1"}, self.plan),
                      ({}, {"steps": self.plan["steps"][:1]})]
-        with patch("nipat_scientific.snp_parallel._query_budget") as budget:
+        with patch("newpat_scientific.snp_parallel._query_budget") as budget:
             for environment, plan in scenarios:
                 with self.subTest(environment=environment, plan=plan), patch.dict(os.environ, {**self.environment, **environment}):
                     self.assertFalse(execute_independent_snp_steps(plan, {"steps": [{"id": step["id"], "status": "pending"} for step in plan["steps"]]}, self.root / "unused", {}, _Cancellation(),
@@ -394,8 +394,8 @@ class SnpParallelTests(unittest.TestCase):
         for platform, returncode in (("darwin", 0), ("darwin", 17), ("darwin", None), ("linux", 0)):
             with self.subTest(platform=platform, returncode=returncode):
                 worker = Mock(pid=123, poll=Mock(return_value=returncode))
-                with patch("nipat_scientific.snp_parallel.sys.platform", platform), \
-                        patch("nipat_scientific.snp_parallel.os.killpg", side_effect=PermissionError(errno.EPERM, "no signalable members")):
+                with patch("newpat_scientific.snp_parallel.sys.platform", platform), \
+                        patch("newpat_scientific.snp_parallel.os.killpg", side_effect=PermissionError(errno.EPERM, "no signalable members")):
                     if platform == "darwin" and returncode is not None:
                         _kill_group(worker, signal.SIGTERM)
                     else:
@@ -424,7 +424,7 @@ class SnpParallelTests(unittest.TestCase):
             return original_read(path, *args, **kwargs)
 
         run = self.root / "concurrent-replacement"
-        with patch("nipat_scientific.snp_parallel.subprocess.Popen", side_effect=start), \
+        with patch("newpat_scientific.snp_parallel.subprocess.Popen", side_effect=start), \
                 patch.object(Path, "read_text", read):
             state = self.execute(run)
         self.assertEqual(state["status"], "succeeded", state)
@@ -484,7 +484,7 @@ class SnpParallelTests(unittest.TestCase):
 
     def test_insufficient_shared_budget_falls_back_to_serial_execution(self):
         run = self.root / "limited"
-        with patch("nipat_scientific.snp_parallel._query_budget", return_value=({"workers": 1, "tasks": 3, "reason": "memory"}, {})):
+        with patch("newpat_scientific.snp_parallel._query_budget", return_value=({"workers": 1, "tasks": 3, "reason": "memory"}, {})):
             state = self.execute(run)
         self.assertEqual(state["status"], "succeeded", state)
         self.assertFalse(list((run / "parallel/snp").glob("job-*.json")))
@@ -539,8 +539,8 @@ class SnpParallelTests(unittest.TestCase):
         config = self.root / "config.json"
         config.write_text(json.dumps({"plan": self.plan, "run": str(run), "script": str(self.script)}))
         code = ("import json,sys; from pathlib import Path; from unittest.mock import patch; "
-                "from nipat_scientific.executor import execute_plan; c=json.load(open(sys.argv[1])); "
-                "p=patch('nipat_scientific.snp_summary.finalize_snp_summaries',return_value=[]); p.start(); "
+                "from newpat_scientific.executor import execute_plan; c=json.load(open(sys.argv[1])); "
+                "p=patch('newpat_scientific.snp_summary.finalize_snp_summaries',return_value=[]); p.start(); "
                 "execute_plan(c['plan'],run_dir=Path(c['run']),script_paths={'snp-call':Path(c['script'])})")
         environment = {**os.environ, **self.environment, "NIPAT_MAX_WORKERS": "2", "SNP_FIXTURE_MODE": "cancel"}
         with (self.root / "coordinator.log").open("wb") as log:

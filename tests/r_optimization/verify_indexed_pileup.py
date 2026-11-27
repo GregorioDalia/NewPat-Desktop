@@ -214,7 +214,7 @@ def audit(project: Path, root: Path, samtools: str) -> dict:
     os.environ["PATH"] = str(Path(samtools).parent) + os.pathsep + os.environ.get("PATH", "")
     root.mkdir(parents=True, exist_ok=False)
     paths = fixture(root, samtools)
-    helper = project / "src/nipat_scientific/dnp_pileup.py"
+    helper = project / "src/newpat_scientific/dnp_pileup.py"
     helper_sha256 = hashlib.sha256(helper.read_bytes()).hexdigest()
     mpileup = [samtools, "mpileup", "-l", str(paths["bed"]), "-f", str(paths["reference"]),
                "--output-QNAME", "--no-output-ins", "--no-output-del", "--no-output-ends", "-d", "2147483647"]
@@ -248,7 +248,7 @@ def audit(project: Path, root: Path, samtools: str) -> dict:
         if depth is None:
             execute(command, output=work / "helper.stdout")
         else:
-            registry = json.loads((project / "src/nipat_scientific/settings_data.json").read_text())
+            registry = json.loads((project / "src/newpat_scientific/settings_data.json").read_text())
             caller = registry["workflows"]["dnp-call"]
             parameters = {key: entry["default"] for key, entry in caller["parameters"].items()}
             parameters["max_depth"] = depth

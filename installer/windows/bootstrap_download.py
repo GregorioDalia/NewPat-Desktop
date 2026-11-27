@@ -23,7 +23,7 @@ import zipfile
 
 BOOTSTRAP_VERSION = "1.2.0"
 REPOSITORY_ID = 1307623649
-OFFICIAL_REPOSITORIES = ("GregorioDalia/nipat-desktop", "GregorioDalia/NewPat-Desktop")
+OFFICIAL_REPOSITORIES = ("GregorioDalia/NewPat-Desktop", "GregorioDalia/nipat-desktop")
 REPOSITORY = "https://github.com/" + OFFICIAL_REPOSITORIES[0]
 REPOSITORY_API = f"https://api.github.com/repositories/{REPOSITORY_ID}"
 FEED_NAME = "update-manifest-windows-bootstrap-v2.json"

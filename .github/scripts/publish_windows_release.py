@@ -1,5 +1,7 @@
 """Prepare a verified draft, or explicitly prepare and publish without rebuilding."""
 
+from release_layout import source_path
+
 import argparse
 import hashlib
 import importlib.util
@@ -20,11 +22,11 @@ import zipfile
 
 PROJECT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
-from nipat.branding import (windows_complete_filename, windows_feed_filename, windows_package_generation,
+from newpat.branding import (windows_complete_filename, windows_feed_filename, windows_package_generation,
                             windows_testing_filename)
 
-from nipat.updates import version_key
-from nipat.repository import OFFICIAL_REPOSITORIES, REPOSITORY_ID, build_repository, official_actions_context, release_urls
+from newpat.updates import version_key
+from newpat.repository import OFFICIAL_REPOSITORIES, REPOSITORY_ID, build_repository, official_actions_context, release_urls
 
 REPO = build_repository()
 MANIFEST = "installer-manifest.json"
@@ -539,7 +541,8 @@ def verify_installer_build(setup, manifest, manifest_bytes, commit):
         require(0 < installer.stat().st_size < 64 * 1024 * 1024,
                 "Online bootstrap exceeds its 64 MiB size limit")
         payload = verify_windows_payload(setup, manifest)
-        inputs = {path: manifest["source_sha256"][path] for path in BOOTSTRAP_SOURCES}
+        paths = [source_path(name, manifest["version"]) for name in BOOTSTRAP_SOURCES]
+        inputs = {path: manifest["source_sha256"][path] for path in paths}
         inputs[f".distribution/{PYTHON_NAME}"] = PYTHON_SHA256
         expected = {
             "schema_version": 2, "distribution": "online-bootstrap",

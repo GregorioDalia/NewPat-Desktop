@@ -14,8 +14,8 @@ from check_docs import local_links
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path[:0] = [str(ROOT / "src"), str(ROOT)]
-from nipat import __version__
-from nipat.cli import build_parser
+from newpat import __version__
+from newpat.cli import build_parser
 from installer.windows import testing_package, zip_package
 from scripts.distribution_support import sha256_file, source_files
 
@@ -28,7 +28,7 @@ GUIDES = ("README.md", "OVERVIEW.md", "docs/README.md", "docs/QUICKSTART_IT.md",
           "docs/RESOURCES.md", "docs/CODE_GUIDE.md", "docs/ARCHITECTURE.md", "docs/ROADMAP.md", "docs/CI_CD.md",
           "docs/VALIDATION.md", "docs/WORKFLOW_CONTRACT.md", "docs/INSTALLER_ACCEPTANCE.md",
           ".github/RELEASE.md", "scientific/README.md", "engine/README.md", f"docs/RELEASE_{__version__}.md")
-LAUNCH = re.compile(r"^(?:newpat|\.\\newpat\.cmd|python -m nipat|& \$newpat)(?:\s+|$)")
+LAUNCH = re.compile(r"^(?:newpat|\.\\newpat\.cmd|python -m (?:newpat|nipat)|& \$newpat)(?:\s+|$)")
 
 
 def commands(text):

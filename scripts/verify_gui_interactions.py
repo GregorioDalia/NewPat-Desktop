@@ -29,19 +29,19 @@ import xml.etree.ElementTree as ET
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "src"), str(ROOT / "tests")]
 
-from nipat import __version__
-from nipat.errors import ValidationError
-from nipat.execution.progress import ProgressSnapshot
-from nipat.gui.app import DesktopApplication
-from nipat.gui.jobs import Job
-from nipat.gui.plan import prepare_analysis
-from nipat.gui.service import GuiService
-from nipat.paths import ProjectLayout
-from nipat.preferences import PreferencesStore
+from newpat import __version__
+from newpat.errors import ValidationError
+from newpat.experiments.progress import ProgressSnapshot
+from newpat.desktop.app import DesktopApplication
+from newpat.desktop.jobs import Job
+from newpat.desktop.plan import prepare_analysis
+from newpat.desktop.service import GuiService
+from newpat.paths import ProjectLayout
+from newpat.preferences import PreferencesStore
 from test_gui_igv import create_alignment_fixture
 from test_gui_report_igv_capture import verify_report_igv_capture
 from test_workflow_five_modules import plan_for
-from nipat_scientific.plan import validate_plan
+from newpat_scientific.plan import validate_plan
 
 
 class FixturePicker:
@@ -776,7 +776,7 @@ def run_verification(report_path, executable):
                       page.locator('h1 + [data-action="igv-about"]').count() == 1,
                       "IGV heading has an accessible information button beside its title")
                 local_url = page.url
-                with patch("nipat.gui.app.webbrowser.open_new_tab", return_value=True) as open_guide:
+                with patch("newpat.desktop.app.webbrowser.open_new_tab", return_value=True) as open_guide:
                     with page.expect_response(lambda r: r.url == app.server.base_url + "api" and
                                                r.request.post_data_json.get("method") == "igv.about"):
                         info.focus()

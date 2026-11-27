@@ -28,7 +28,7 @@ def signature_observations(encoded: str) -> list[dict]:
 
 def verify(root: Path, *, signatures: bool = False) -> dict:
     root = root.resolve()
-    directory = root / "src/nipat/gui/native/windows"
+    directory = root / "src/newpat/desktop/native/windows"
     manifest = json.loads((directory / "dependencies.json").read_text(encoding="utf-8"))
     if manifest.get("schema_version") != 1 or manifest.get("sdk", {}).get("name") != "Microsoft.Web.WebView2":
         raise ValueError("Invalid native GUI dependency manifest")

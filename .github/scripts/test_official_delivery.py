@@ -62,6 +62,37 @@ class OfficialDeliveryTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Missing distribution files"):
                 source.check_reviewable_delta("0.9.10", baseline, missing, repository=repository)
 
+    def test_apple_silicon_reference_can_only_be_admitted_with_its_recorded_bytes(self):
+        import hashlib
+        contract = source.acceptance
+        path = contract.MAC_TIMING_BASELINE
+        sha = hashlib.sha256((Path(__file__).resolve().parents[2] / path).read_bytes()).hexdigest()
+        self.assertTrue(contract.reviewable_path(path, version="0.9.99", revised_r=True, after_sha256=sha))
+        for version, digest, removed in (("0.9.10", sha, False), ("0.9.99", "a" * 64, False),
+                                         ("0.9.99", sha, True)):
+            with self.subTest(version=version, digest=digest, removed=removed):
+                self.assertFalse(contract.reviewable_path(path, version=version, revised_r=True,
+                                                          after_sha256=digest, removed=removed))
+
+    def test_refactor_keeps_both_historical_and_current_inventory_strict(self):
+        acceptance = source.acceptance
+        old = set(acceptance.REQUIRED_OPERATIVE_PATHS) | {"distribution-files.txt"}
+        new = {acceptance.source_path(path, "0.9.99") for path in old}
+        def inventory(paths):
+            return "\n".join(sorted(paths)).encode()
+        for paths, version in ((old, "0.9.10"), (new, "0.9.99")):
+            self.assertTrue(acceptance.operative_inventory(inventory(paths), version=version))
+            self.assertTrue(acceptance.operative_inventory(inventory(paths)))  # Historical baseline.
+        for paths, version in ((old, "0.9.99"), (new, "0.9.10"),
+                               (new - {"installer/windows/NewPat.iss"}, "0.9.99")):
+            with self.subTest(version=version), self.assertRaisesRegex(ValueError, "required operative inputs"):
+                acceptance.operative_inventory(inventory(paths), version=version)
+        for old_path in ("assets/branding/nipat-icon.ico", "assets/branding/nipat-logo.svg"):
+            canonical = acceptance.source_path(old_path, "0.9.99")
+            self.assertNotEqual(old_path, canonical)
+            self.assertFalse(acceptance.reviewable_path(canonical, revised_r=True, version="0.9.10"))
+            self.assertTrue(acceptance.reviewable_path(canonical, revised_r=True, version="0.9.99"))
+
     def test_source_preflight_uses_observation_from_last_accepted_version(self):
         with tempfile.TemporaryDirectory() as temp:
             records = Path(temp)

@@ -8,8 +8,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from nipat.errors import ValidationError
-from nipat.execution.transport import DockerTransport, LimaDockerTransport
+from newpat.errors import ValidationError
+from newpat.experiments.transport import DockerTransport, LimaDockerTransport
 
 
 @unittest.skipUnless(os.name == "posix", "Lima transport targets POSIX hosts")
@@ -27,7 +27,7 @@ class LimaTransportTests(unittest.TestCase):
             "LIMA_HOME": str(self.home / ".nipat/lima"),
         }
         self.enterContext(patch.dict(os.environ, self.environment, clear=True))
-        self.enterContext(patch("nipat.macos_runtime.Path.home", return_value=self.home))
+        self.enterContext(patch("newpat.macos_runtime.Path.home", return_value=self.home))
 
     def test_backend_selection_requires_explicit_private_home(self):
         transport = DockerTransport.from_environment(dry_run=True)
@@ -52,7 +52,7 @@ class LimaTransportTests(unittest.TestCase):
         self.assertEqual(command[-2:], ["compose", "version"])
 
     def test_prepare_command_bootstraps_src_with_isolated_python(self):
-        package = self.project / "src/nipat"
+        package = self.project / "src/newpat"
         package.mkdir(parents=True)
         (package / "__init__.py").write_text("")
         (package / "macos_runtime.py").write_text("import sys; print('fixture:' + ','.join(sys.argv[1:]))")

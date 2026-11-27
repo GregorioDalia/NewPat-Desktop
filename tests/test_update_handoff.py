@@ -8,8 +8,8 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
-from nipat.errors import NipatError
-from nipat.update_handoff import (HANDOFF_EXIT_CODE, _start_windows_update, _verify_package,
+from newpat.errors import NipatError
+from newpat.update_handoff import (HANDOFF_EXIT_CODE, _start_windows_update, _verify_package,
                                  _windows_layout, begin_update, update_cache_directory,
                                  windows_installation_platform, windows_zip_root)
 
@@ -43,14 +43,14 @@ class HandoffTests(unittest.TestCase):
     def test_installed_layout_preserves_all_custom_paths(self):
         layout = _windows_layout(self.project)
         self.assertEqual(layout['cache_dir'], self.root / 'cache')
-        with patch('nipat.update_handoff.sys.platform', 'win32'):
+        with patch('newpat.update_handoff.sys.platform', 'win32'):
             self.assertEqual(update_cache_directory(self.project), self.cache)
         self.assertEqual(HANDOFF_EXIT_CODE, 85)
 
     def test_relative_linux_cache_rejected_before_directory_creation(self):
-        with patch('nipat.update_handoff.sys.platform', 'linux'), \
+        with patch('newpat.update_handoff.sys.platform', 'linux'), \
                 patch.dict(os.environ, {'XDG_CACHE_HOME': 'relative-cache'}), \
-                patch('nipat.update_handoff.Path.mkdir') as mkdir:
+                patch('newpat.update_handoff.Path.mkdir') as mkdir:
             with self.assertRaisesRegex(NipatError, 'XDG_CACHE_HOME'):
                 update_cache_directory(self.project)
             mkdir.assert_not_called()
@@ -65,7 +65,7 @@ class HandoffTests(unittest.TestCase):
 
     def test_modified_installer_never_reaches_platform_handoff(self):
         self.package.write_bytes(b'changed')
-        with patch('nipat.update_handoff._start_windows_update') as start:
+        with patch('newpat.update_handoff._start_windows_update') as start:
             with self.assertRaises(NipatError):
                 begin_update(self.offer, self.package, self.project)
             start.assert_not_called()
@@ -97,7 +97,7 @@ class HandoffTests(unittest.TestCase):
                 dict(schema_version=1, worker_pid=12345, parent_pid=os.getpid())))
             return MagicMock(pid=12345)
 
-        with patch('nipat.update_handoff.subprocess.Popen', side_effect=started):
+        with patch('newpat.update_handoff.subprocess.Popen', side_effect=started):
             self.assertTrue(begin_update(self.offer, alias, self.project))
             self.assertTrue(_start_windows_update(self.offer, alias, self.project))
 
@@ -107,7 +107,7 @@ class HandoffTests(unittest.TestCase):
             link.symlink_to(self.package)
         except OSError:
             self.skipTest('symlink creation unavailable')
-        with patch('nipat.update_handoff._start_windows_update') as start:
+        with patch('newpat.update_handoff._start_windows_update') as start:
             with self.assertRaises(NipatError):
                 begin_update(self.offer, link, self.project)
             start.assert_not_called()
@@ -127,8 +127,8 @@ class HandoffTests(unittest.TestCase):
             descriptor.with_name('ready.json').write_text(json.dumps(
                 dict(schema_version=1, worker_pid=12345, parent_pid=os.getpid())))
             return process
-        with patch('nipat.update_handoff.sys.platform', 'win32'), \
-                patch('nipat.update_handoff.subprocess.Popen', side_effect=started):
+        with patch('newpat.update_handoff.sys.platform', 'win32'), \
+                patch('newpat.update_handoff.subprocess.Popen', side_effect=started):
             self.assertTrue(begin_update(self.offer, self.package, self.project))
         self.assertEqual(len(list(self.cache.glob('handoff-*/cancel'))), 0)
 
@@ -172,15 +172,15 @@ class HandoffTests(unittest.TestCase):
                 dict(schema_version=1, worker_pid=12345, parent_pid=os.getpid())))
             return MagicMock(pid=12345)
 
-        with patch('nipat.update_handoff.sys.platform', 'win32'), \
-                patch('nipat.update_handoff.subprocess.Popen', side_effect=started):
+        with patch('newpat.update_handoff.sys.platform', 'win32'), \
+                patch('newpat.update_handoff.subprocess.Popen', side_effect=started):
             self.assertTrue(begin_update(self.offer, self.package, self.project))
 
     def test_classic_bootstrap_rejects_zip_channel_before_starting_worker(self):
         self.install_bootstrap_marker()
         self.offer.asset.platform = 'windows-zip-x86_64'
-        with patch('nipat.update_handoff.sys.platform', 'win32'), \
-                patch('nipat.update_handoff._start_windows_update') as start:
+        with patch('newpat.update_handoff.sys.platform', 'win32'), \
+                patch('newpat.update_handoff._start_windows_update') as start:
             with self.assertRaises(NipatError):
                 begin_update(self.offer, self.package, self.project)
             start.assert_not_called()
@@ -223,9 +223,9 @@ class HandoffTests(unittest.TestCase):
     def test_timeout_cancels_worker_before_future_parent_exit(self):
         process = MagicMock(pid=12345)
         process.poll.return_value = None
-        with patch('nipat.update_handoff.sys.platform', 'win32'), \
-                patch('nipat.update_handoff.subprocess.Popen', return_value=process), \
-                patch('nipat.update_handoff.time.monotonic', side_effect=[0, 20]):
+        with patch('newpat.update_handoff.sys.platform', 'win32'), \
+                patch('newpat.update_handoff.subprocess.Popen', return_value=process), \
+                patch('newpat.update_handoff.time.monotonic', side_effect=[0, 20]):
             with self.assertRaises(NipatError):
                 _start_windows_update(self.offer, self.package, self.project)
         self.assertEqual(len(list(self.cache.glob('handoff-*/cancel'))), 1)
@@ -233,9 +233,9 @@ class HandoffTests(unittest.TestCase):
     def test_keyboard_interrupt_also_cancels_pending_worker(self):
         process = MagicMock(pid=12345)
         process.poll.return_value = None
-        with patch('nipat.update_handoff.sys.platform', 'win32'), \
-                patch('nipat.update_handoff.subprocess.Popen', return_value=process), \
-                patch('nipat.update_handoff.time.sleep', side_effect=KeyboardInterrupt):
+        with patch('newpat.update_handoff.sys.platform', 'win32'), \
+                patch('newpat.update_handoff.subprocess.Popen', return_value=process), \
+                patch('newpat.update_handoff.time.sleep', side_effect=KeyboardInterrupt):
             with self.assertRaises(KeyboardInterrupt):
                 _start_windows_update(self.offer, self.package, self.project)
         self.assertEqual(len(list(self.cache.glob('handoff-*/cancel'))), 1)
@@ -244,17 +244,17 @@ class HandoffTests(unittest.TestCase):
         def started(argv, **kwargs):
             Path(argv[-1]).with_name('ready.json').write_text('{malformed')
             return MagicMock(pid=12345)
-        with patch('nipat.update_handoff.sys.platform', 'win32'), \
-                patch('nipat.update_handoff.subprocess.Popen', side_effect=started):
+        with patch('newpat.update_handoff.sys.platform', 'win32'), \
+                patch('newpat.update_handoff.subprocess.Popen', side_effect=started):
             with self.assertRaises(NipatError):
                 _start_windows_update(self.offer, self.package, self.project)
         self.assertEqual(len(list(self.cache.glob('handoff-*/cancel'))), 1)
 
     def test_linux_dispatches_explicit_offer_without_shell(self):
         self.offer.asset.platform = 'linux-x86_64'
-        with patch('nipat.update_handoff.sys.platform', 'linux'), \
-                patch('nipat.update_handoff._verify_package') as duplicate_verification, \
-                patch('nipat.linux_update.start_linux_update', return_value=True) as launch:
+        with patch('newpat.update_handoff.sys.platform', 'linux'), \
+                patch('newpat.update_handoff._verify_package') as duplicate_verification, \
+                patch('newpat.linux_update.start_linux_update', return_value=True) as launch:
             self.assertTrue(begin_update(self.offer, self.package, self.project))
             self.assertEqual(launch.call_args.kwargs['parent_pid'], os.getpid())
             self.assertEqual(launch.call_args.kwargs['project_dir'], self.project)

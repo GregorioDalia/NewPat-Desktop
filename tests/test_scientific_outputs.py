@@ -8,8 +8,8 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from nipat_scientific.errors import PlanExecutionError
-from nipat_scientific.outputs import validate_standalone_outputs
+from newpat_scientific.errors import PlanExecutionError
+from newpat_scientific.outputs import validate_standalone_outputs
 from snp_output_helpers import write_snp_auxiliary
 
 
@@ -26,7 +26,7 @@ class ScientificOutputTests(unittest.TestCase):
                         "work_dir": str(self.root / "work"), "out_dir": str(self.output)}
 
     def settings(self, workflow):
-        from nipat_scientific.settings import defaults, describe_settings
+        from newpat_scientific.settings import defaults, describe_settings
         (self.output / "scientific-settings.json").write_text(json.dumps({
             "schema_version": 1, "workflow": workflow, "parameters": defaults(workflow),
             "constants": describe_settings(workflow)["constants"]}))
@@ -41,7 +41,7 @@ class ScientificOutputTests(unittest.TestCase):
         return path
 
     def test_scientific_settings_sidecar_must_match_schema_parameters_and_constants(self):
-        from nipat_scientific.settings import normalize_settings, describe_settings
+        from newpat_scientific.settings import normalize_settings, describe_settings
         self.snp("1")
         self.request["scientific_settings"] = {"other_fraction_max": 0.25}
         document = {"schema_version": 1, "workflow": "snp-call",
@@ -148,7 +148,7 @@ class ScientificOutputTests(unittest.TestCase):
             validate_standalone_outputs(request)
 
     def test_cpin_summary_and_provenance_must_match_requested_settings(self):
-        from nipat_scientific.settings import normalize_settings, describe_settings
+        from newpat_scientific.settings import normalize_settings, describe_settings
         request = {"workflow": "cpin", "trios": "M:F:C", "marker_type": "SNP",
             "scientific_settings": {"min_coverage": 5, "mismatch_probability_snp": 0.02},
             "work_dir": str(self.root / "work"), "out_dir": str(self.output)}

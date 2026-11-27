@@ -6,8 +6,8 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from nipat_scientific.cpi import normalize_pairs, prepare_cpi
-from nipat_scientific.errors import ValidationError
+from newpat_scientific.cpi import normalize_pairs, prepare_cpi
+from newpat_scientific.errors import ValidationError
 
 
 class CpiEngineTests(unittest.TestCase):

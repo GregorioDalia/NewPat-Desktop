@@ -14,9 +14,9 @@ from pathlib import Path
 import shutil
 from unittest.mock import patch
 
-from nipat.execution.runner import DockerComposeRunner
-from nipat.execution.workflows import Workflows
-from nipat.paths import ProjectLayout
+from newpat.experiments.runner import DockerComposeRunner
+from newpat.experiments.workflows import Workflows
+from newpat.paths import ProjectLayout
 from verify_contamination_update import check_bundled_run
 
 

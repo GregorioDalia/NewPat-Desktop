@@ -1,6 +1,6 @@
 # Install NewPat on Ubuntu
 
-The supported system is **Ubuntu 24.04 LTS on x86_64/amd64**. Download the `newpat-desktop_<version>_amd64.deb` package from the [stable release](https://github.com/GregorioDalia/nipat-desktop/releases/latest). The package contains the desktop client, documentation and the Linux image with R, samtools and the scientific dependencies. Its APT package name remains `nipat-desktop` so existing systems can upgrade in place.
+The supported system is **Ubuntu 24.04 LTS on x86_64/amd64**. Download the `newpat-desktop_<version>_amd64.deb` package from the [stable release](https://github.com/GregorioDalia/NewPat-Desktop/releases/latest). The package contains the desktop client, documentation and the Linux image with R, samtools and the scientific dependencies. Its APT package name remains `nipat-desktop` so existing systems can upgrade in place.
 
 ## Install and start
 

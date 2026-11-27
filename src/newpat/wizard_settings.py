@@ -1,0 +1,433 @@
+"""Persistent, reviewed defaults for the guided interface."""
+
+from __future__ import annotations
+
+import csv
+from dataclasses import replace
+from pathlib import Path
+from typing import Any
+
+from newpat.errors import NipatError, ValidationError
+from newpat.scientific_options import edit_scientific_settings, settings_lines
+from newpat.experiments.options import ExecutionOptions
+from newpat.paths import ProjectLayout
+from newpat.preferences import Preferences, PreferencesStore
+from newpat.terminal import Terminal
+from newpat.validation.files import require_file
+from newpat.wizard_forms import (
+    Back, Cancelled, Field, WorkflowForm, check_count_panel, edit_parallel_options, navigation,
+    parallel_summary, unquote,
+)
+
+
+_DEFAULT_KEYS = {
+    "1": {"mode", "reference", "panel"},
+    "2": {"mode", "reference", "panel"},
+    "3": {"mode", "panel"},
+    "4": {"mother_prefix", "father_prefix", "popfreq", "cutoff_mode", "panel",
+          "cutoffs", "cutoff_map", "err_const"},
+}
+
+
+def _native_cutoffs(value: str) -> str:
+    """Validate and anchor saved cutoff paths to their selection directory."""
+    if not value:
+        return ""
+    entries, labels = [], set()
+    for item in value.split(","):
+        if "=" not in item:
+            raise ValidationError("Usare etichetta=percorso per ogni cutoff predefinito.")
+        label, filename = (part.strip() for part in item.split("=", 1))
+        if (not label or label in labels or any(c in label for c in ",=")
+                or any(ord(c) < 32 for c in label)):
+            raise ValidationError("Ogni cutoff richiede un'etichetta valida e distinta.")
+        labels.add(label)
+        path = require_file(Path(unquote(filename)), "Pannello cutoff")
+        check_count_panel(path)
+        if "," in str(path):
+            raise ValidationError("Per percorsi con virgole usare 'Etichette e file'.")
+        entries.append(f"{label}={path}")
+    return ",".join(entries)
+
+
+def _menu(ui: Terminal, title: str, choices: list[tuple[str, str, str]],
+          *, default: str) -> str:
+    """Keep local back navigation separate from cancellation to the main menu."""
+    selected = ui.menu(title, choices, default=default).strip().casefold()
+    if selected == ":annulla":
+        raise Cancelled
+    return selected
+
+
+class DefaultsForm(WorkflowForm):
+    """Reuse workflow labels, choices and validation without collecting samples."""
+
+    def fields(self) -> list[Field]:
+        result = []
+        for field in super().fields():
+            if field.key not in _DEFAULT_KEYS[self.choice]:
+                continue
+            if field.kind in {"file", "cutoffs"} or field.key == "cutoff_map":
+                field = replace(field, required=False)
+            result.append(field)
+        return result
+
+    def read_default(self, field: Field) -> Any:
+        if not field.required:
+            self.ui.message("Questo valore e' facoltativo nella configurazione. :vuoto lo rimuove; gli input richiesti saranno chiesti durante l'analisi.", kind="muted")
+        if field.key == "cutoff_map":
+            while True:
+                value = self._read(field)
+                try:
+                    return _native_cutoffs(value)
+                except (ValidationError, OSError, csv.Error) as exc:
+                    self.ui.message(str(exc), kind="error")
+        return self._read(field)
+
+    def display_value(self, field: Field) -> str:
+        value = self.values.get(field.key, field.default)
+        if field.options:
+            return next((label for key, label, _ in field.options if key == value), str(value))
+        if value in (None, "") and field.kind in {"file", "cutoffs"}:
+            return "Da selezionare durante l'analisi"
+        if value == "":
+            return "(vuoto)"
+        return self.format_value(value)
+
+
+class GuidedSettings:
+    """Own saved defaults and the effective layout, leaving runtime bindings intact."""
+
+    def __init__(self, layout: ProjectLayout, store: PreferencesStore | None = None,
+                 directory_overrides: dict[str, Path] | None = None,
+                 execution_overrides: dict[str, Any] | None = None):
+        self.base_layout = self.layout = layout
+        self.store = store
+        self.execution_overrides = dict(execution_overrides or {})
+        self.directory_overrides = directory_overrides or {}
+        self.preferences = Preferences()
+        self.load_error: str | None = None
+        self.layout_error: str | None = None
+        if store is not None:
+            try:
+                self.preferences = store.load()
+            except (NipatError, OSError, ValueError) as exc:
+                self.load_error = str(exc)
+        self.refresh_layout()
+
+    @property
+    def error(self) -> str | None:
+        return self.load_error or self.layout_error
+
+    def refresh_layout(self) -> None:
+        try:
+            self.layout = self.preferences.effective_layout(self.base_layout, self.directory_overrides)
+            self.layout_error = None
+        except (NipatError, OSError, ValueError) as exc:
+            self.layout = self.base_layout
+            self.layout_error = str(exc)
+
+    def explain(self, ui: Terminal) -> None:
+        if self.error:
+            ui.message(f"Impostazioni da correggere: {self.error}", kind="warning")
+            ui.message("Aprire Configura prima di avviare un'analisi. Il file delle impostazioni non e' stato modificato.", kind="muted")
+        if self.directory_overrides:
+            names = ", ".join("dati" if key == "data_dir" else "risultati"
+                              for key in self.directory_overrides)
+            ui.message(f"Cartelle {names}: in questa sessione prevalgono le opzioni esplicite di avvio. Le preferenze salvate saranno utilizzate alla riapertura senza tali opzioni.", kind="muted")
+        if self.execution_overrides:
+            ui.message("Esecuzione e provenienza: le opzioni esplicite di avvio prevalgono sulle preferenze salvate. Il riepilogo permette ulteriori modifiche a parallelismo e blocchi per la singola analisi.", kind="muted")
+
+    def execution_options(self) -> ExecutionOptions:
+        return self.preferences.execution_options(self.execution_overrides)
+
+    def _save(self, preferences: Preferences) -> None:
+        if self.load_error:
+            raise ValidationError("Il file delle impostazioni non e' leggibile. Usare Ripristina impostazioni per sostituirlo esplicitamente.")
+        def validate(candidate: Preferences) -> None:
+            # Validate the merged layout even when a CLI override masks it.
+            candidate.effective_layout(self.base_layout)
+            candidate.effective_layout(self.base_layout, self.directory_overrides).ensure_storage_dirs()
+
+        if self.store is not None:
+            preferences = self.store.save(preferences, baseline=self.preferences, validate=validate)
+        else:
+            validate(preferences)
+        self.preferences = preferences
+        self.layout = preferences.effective_layout(self.base_layout, self.directory_overrides)
+        self.layout_error = None
+
+    def _saved_message(self, ui: Terminal) -> None:
+        ui.message("Impostazioni salvate: saranno proposte anche ai prossimi avvii." if self.store else
+                   "Impostazioni applicate a questa sessione guidata.", kind="success")
+        self.explain(ui)
+
+    def _directories(self, ui: Terminal) -> None:
+        values = {"data_dir": self.preferences.data_dir or self.base_layout.data_dir,
+                  "runs_dir": self.preferences.runs_dir or self.base_layout.runs_dir}
+        initial = values.copy()
+        while True:
+            ui.message("Le cartelle impostate vengono utilizzate dalle prossime analisi guidate. I file esistenti non vengono spostati o eliminati.", kind="muted")
+            ui.message("La cartella dati e' una destinazione di lavoro indicata da NewPat; i file di input possono essere scelti anche altrove. I percorsi relativi partono dalla cartella corrente.", kind="muted")
+            ui.message("Selezionare un campo da modificare, poi 9 per salvare. 0 torna a Configura senza salvare; :annulla o Ctrl+C tornano al menu principale senza salvare le modifiche di questa schermata.", kind="muted")
+            action = _menu(ui, "Configura / Cartelle dati e risultati", [
+                ("1", "Cartella dati", str(values["data_dir"])),
+                ("2", "Cartella risultati", str(values["runs_dir"])),
+                ("9", "Salva modifiche", "Per i prossimi avvii della CLI guidata"),
+                ("0", "Annulla modifiche", "Torna a Configura"),
+            ], default="0")
+            if action in {"0", ":indietro"}:
+                return
+            if action == "9":
+                try:
+                    self._save(self.preferences.with_directories(
+                        **{key: value for key, value in values.items() if value != initial[key]}))
+                except (NipatError, OSError, ValueError) as exc:
+                    ui.message(str(exc), kind="error")
+                    continue
+                self._saved_message(ui)
+                return
+            if action not in {"1", "2"}:
+                ui.message("Scegliere 1 o 2 per modificare, 9 per salvare oppure 0 per annullare.", kind="muted")
+                continue
+            key = "data_dir" if action == "1" else "runs_dir"
+            ui.message("Incollare il percorso, anche tra virgolette. Invio mantiene il valore; :indietro torna a questa schermata; :annulla o Ctrl+C tornano al menu principale.", kind="muted")
+            try:
+                answer = navigation(ui.prompt("Cartella dati" if action == "1" else "Cartella risultati",
+                                              default=str(values[key]), path=True))
+                candidate = Path(unquote(answer or str(values[key]))).expanduser()
+                values[key] = candidate
+            except Back:
+                continue
+            except (OSError, ValueError) as exc:
+                ui.message(str(exc), kind="error")
+
+    def _workflow(self, ui: Terminal, choice: str, err_const: float) -> None:
+        form = DefaultsForm(choice, ui, self.layout, err_const,
+                            defaults=self.preferences.workflow_defaults(choice))
+        while True:
+            ui.message("Questi valori saranno proposti all'apertura dell'analisi e potranno essere modificati nel suo riepilogo.", kind="muted")
+            ui.message("Campioni, coppie CPI e nome dell'esecuzione vengono scelti per ogni analisi. Le costanti interne degli script R non sono modificate.", kind="muted")
+            ui.message("Selezionare un campo da modificare, poi 9 per salvare. 0 torna a Configura senza salvare; :annulla o Ctrl+C tornano al menu principale senza salvare le modifiche di questa schermata.", kind="muted")
+            fields = form.fields()
+            action = _menu(ui, f"Configura / {form.title}", [
+                (str(index + 1), field.label, form.display_value(field))
+                for index, field in enumerate(fields)
+            ] + [("9", "Salva modifiche", "Per i prossimi avvii della CLI guidata"),
+                 ("0", "Annulla modifiche", "Torna a Configura")], default="0")
+            if action in {"0", ":indietro"}:
+                return
+            if action == "9":
+                try:
+                    values = {key: value for key, value in form.values.items()
+                              if value is not None and not (key in {"cutoffs", "cutoff_map"} and not value)}
+                    self._save(self.preferences.with_workflow(choice, values))
+                except (NipatError, OSError, ValueError) as exc:
+                    ui.message(str(exc), kind="error")
+                    continue
+                self._saved_message(ui)
+                return
+            numbers = {str(index + 1): field for index, field in enumerate(fields)}
+            if action not in numbers:
+                ui.message("Scegliere uno dei campi indicati, 9 per salvare oppure 0 per annullare.", kind="muted")
+                continue
+            field = numbers[action]
+            try:
+                form.values[field.key] = form.read_default(field)
+            except Back:
+                continue
+
+    def _summary(self, ui: Terminal, err_const: float) -> None:
+        ui.heading("Configura / Riepilogo impostazioni")
+        ui.message(f"Cartella dati in uso: {self.layout.data_dir}")
+        ui.message(f"Cartella risultati in uso: {self.layout.runs_dir}")
+        ui.message("Canale aggiornamenti: " + ("Testing" if self.preferences.update_channel == "testing" else "Stabile"))
+        ui.message("Verifica aggiornamenti all'avvio: " + ("attivata" if self.preferences.check_updates_on_startup else "disattivata"))
+        options = self.execution_options()
+        ui.message(parallel_summary(options))
+        ui.message("Checksum input: " + ("completi" if options.input_hashes == "full" else "automatici fino a 16 MiB"))
+        for label, value in (("Quota CPU", options.cpus), ("Memoria MiB", options.memory_mb),
+                             ("Numero processi", options.pids_limit)):
+            ui.message(f"{label}: {value if value is not None else 'nessun limite NewPat'}")
+        if self.store:
+            ui.message(f"File delle preferenze: {self.store.path}", kind="muted")
+        for choice in ("1", "2", "3", "4"):
+            form = DefaultsForm(choice, ui, self.layout, err_const,
+                                defaults=self.preferences.workflow_defaults(choice))
+            ui.heading(form.title)
+            for field in form.fields():
+                ui.message(f"{field.label}: {form.display_value(field)}")
+        if self.preferences.scientific_settings:
+            for workflow in self.preferences.scientific_settings:
+                for line in settings_lines(workflow, self.preferences.scientific_settings):
+                    ui.message(line)
+        self.explain(ui)
+        ui.message("Cartella dell'applicazione, runtime e cache di installazione: per cambiarle eseguire nuovamente il programma di installazione. Configura non sposta questi componenti.", kind="muted")
+
+    def _updates(self, ui: Terminal) -> None:
+        channel = self.preferences.update_channel
+        startup = self.preferences.check_updates_on_startup
+        while True:
+            ui.message("La verifica consulta le release pubblicate su GitHub. Download e installazione richiedono sempre una scelta esplicita. :annulla o Ctrl+C tornano al menu principale senza salvare le modifiche di questa schermata.", kind="muted")
+            ui.message("La verifica all'avvio mostra soltanto un avviso e non avvia download. Si puo' verificare in qualsiasi momento dal punto 9 del menu principale.", kind="muted")
+            action = _menu(ui, "Configura / Aggiornamenti", [
+                ("1", "Canale", "Testing" if channel == "testing" else "Stabile"),
+                ("2", "Verifica all'avvio", "Attivata" if startup else "Disattivata"),
+                ("9", "Salva modifiche", "Per i prossimi avvii della CLI guidata"),
+                ("0", "Annulla modifiche", "Torna a Configura"),
+            ], default="0")
+            if action in {"0", ":indietro"}:
+                return
+            if action == "9":
+                self._save(replace(self.preferences, update_channel=channel,
+                                   check_updates_on_startup=startup))
+                self._saved_message(ui)
+                return
+            if action == "1":
+                selected = _menu(ui, "Canale degli aggiornamenti", [
+                    ("1", "Testing", "Release di test e release stabili"),
+                    ("2", "Stabile", "Solo release pubblicate come stabili"),
+                    ("0", "Indietro", "Mantiene la scelta attuale"),
+                ], default="1" if channel == "testing" else "2")
+                if selected in {"1", "2"}:
+                    channel = "testing" if selected == "1" else "stable"
+            elif action == "2":
+                selected = _menu(ui, "Verificare gli aggiornamenti all'avvio?", [
+                    ("1", "Attiva", "Solo avviso; richiede una connessione a GitHub"),
+                    ("2", "Disattiva", "Verifica manuale dal menu principale"),
+                    ("0", "Indietro", "Mantiene la scelta attuale"),
+                ], default="1" if startup else "2")
+                if selected in {"1", "2"}:
+                    startup = selected == "1"
+            else:
+                ui.message("Scegliere 1 o 2 per modificare, 9 per salvare oppure 0 per annullare.", kind="muted")
+
+    def _reset(self, ui: Terminal) -> None:
+        ui.message("Il ripristino elimina solo le preferenze della CLI guidata. Dati, risultati e installazione restano disponibili; nessun file di analisi viene spostato o cancellato.", kind="muted")
+        action = _menu(ui, "Ripristinare le impostazioni iniziali?", [
+            ("1", "Ripristina impostazioni", "Cartelle di installazione e parametri iniziali"),
+            ("0", "Annulla", "Conserva le preferenze attuali"),
+        ], default="0")
+        if action != "1":
+            return
+        if self.store:
+            self.store.reset()
+        self.preferences = Preferences()
+        self.load_error = None
+        self.refresh_layout()
+        ui.message("Impostazioni ripristinate. Dati e risultati non sono stati modificati.", kind="success")
+        self.explain(ui)
+
+    def _execution(self, ui: Terminal) -> None:
+        from dataclasses import asdict
+
+        # One-run diagnostics must not become a persistent execution default.
+        values = {key: value for key, value in asdict(self.preferences.execution_options()).items()
+                  if key != "performance_diagnostics"}
+        initial = values.copy()
+        labels = {"cpus": "Quota CPU per analisi", "memory_mb": "Limite RAM per analisi (MiB)",
+                  "pids_limit": "Limite processi del container"}
+        while True:
+            ui.message("Le opzioni regolano risorse, distribuzione del calcolo e provenienza dei file. I criteri scientifici restano invariati.", kind="muted")
+            ui.message("Il limite RAM dell'analisi non aumenta la RAM di Lima o WSL. Scegliere 5 per vedere le risorse disponibili e configurare l'ambiente di calcolo.", kind="muted")
+            ui.message("SHA-256 completo legge tutti i BAM e FASTA: puo' richiedere tempo. Ctrl+C annulla. Il parallelismo automatico rispetta la quota CPU e adatta il numero di processi di calcolo alla memoria disponibile.", kind="muted")
+            ui.message("Il limite processi del container include coordinatori e altri programmi. Il massimo processi di calcolo si modifica in 6 - Parallelismo e blocchi.", kind="muted")
+            ui.message("Un limite insufficiente di memoria o processi puo' interrompere un'analisi. :vuoto rimuove un limite; 9 salva, 0 scarta le modifiche.", kind="muted")
+            action = _menu(ui, "Configura / Risorse e provenienza", [
+                ("1", "Checksum degli input", "Completi" if values["input_hashes"] == "full" else "Automatici fino a 16 MiB"),
+                *[(str(index), labels[key], str(values[key]) if values[key] is not None else "Nessun limite NewPat")
+                  for index, key in enumerate(("cpus", "memory_mb", "pids_limit"), 2)],
+                ("5", "Risorse dell'ambiente di calcolo", "RAM e CPU del computer, Lima o WSL e limiti per analisi"),
+                ("6", "Parallelismo e blocchi", parallel_summary(ExecutionOptions(**values))),
+                ("9", "Salva modifiche", "Per le prossime analisi guidate"),
+                ("0", "Annulla modifiche", "Torna a Configura"),
+            ], default="0")
+            if action in {"0", ":indietro"}:
+                return
+            if action == "9":
+                execution = dict(self.preferences.execution)
+                execution.update({key: value for key, value in values.items() if value != initial[key]})
+                self._save(replace(self.preferences, execution=execution))
+                self._saved_message(ui)
+                return
+            if action == "1":
+                selected = _menu(ui, "Checksum degli input", [
+                    ("1", "Automatici", "SHA-256 fino a 16 MiB; dimensione e data per gli altri file"),
+                    ("2", "Completi", "SHA-256 di tutti gli input selezionati"),
+                    ("0", "Indietro", "Mantiene la scelta"),
+                ], default="2" if values["input_hashes"] == "full" else "1")
+                if selected in {"1", "2"}:
+                    values["input_hashes"] = "auto" if selected == "1" else "full"
+                continue
+            if action == "5":
+                from newpat.resource_ui import configure_resources
+                configure_resources(ui, self.layout, ExecutionOptions(**values))
+                continue
+            if action == "6":
+                edited = edit_parallel_options(ui, ExecutionOptions(**values))
+                values = {key: value for key, value in asdict(edited).items()
+                          if key != "performance_diagnostics"}
+                continue
+            key = {"2": "cpus", "3": "memory_mb", "4": "pids_limit"}.get(action)
+            if key is None:
+                continue
+            try:
+                answer = navigation(ui.prompt(labels[key], default=str(values[key]) if values[key] is not None else ""))
+                if answer == ":vuoto":
+                    value = None
+                elif not answer:
+                    continue
+                else:
+                    value = float(answer) if key == "cpus" else int(answer)
+                candidate = {**values, key: value}
+                ExecutionOptions(**candidate)
+                values = candidate
+            except Back:
+                continue
+            except (NipatError, ValueError) as exc:
+                ui.message(f"Valore non valido: {exc}", kind="error")
+
+    def configure(self, ui: Terminal, *, err_const: float) -> ProjectLayout:
+        while True:
+            ui.message("Impostare cartelle e valori predefiniti della CLI guidata. Ogni analisi permette ancora di modificare gli input e i parametri prima dell'avvio.", kind="muted")
+            ui.message("I comandi diretti conservano le proprie opzioni e i propri valori predefiniti; queste preferenze riguardano il menu guidato. :annulla o Ctrl+C tornano al menu principale.", kind="muted")
+            self.explain(ui)
+            action = _menu(ui, "Configura", [
+                ("1", "Cartelle dati e risultati", "Destinazioni delle analisi guidate"),
+                ("2", "DNPcall", "Input, riferimento e pannello"),
+                ("3", "SNPcall", "Input, riferimento e pannello"),
+                ("4", "Contamination", "Input e pannello"),
+                ("5", "CPI", "Prefissi, frequenze, siti e costante di errore"),
+                ("6", "Riepilogo impostazioni", "Valori in uso e file delle preferenze"),
+                ("7", "Ripristina impostazioni", "Conferma richiesta; dati conservati"),
+                ("8", "Aggiornamenti", "Canale e verifica all'avvio"),
+                ("9", "Risorse, prestazioni e provenienza", "Parallelismo, blocchi, RAM, CPU e checksum degli input"),
+                ("s", "Parametri scientifici e costanti", "Valori dei moduli, salvati per i prossimi avvii"),
+                ("0", "Torna al menu", ""),
+            ], default="0")
+            if action in {"0", ":indietro"}:
+                return self.layout
+            try:
+                if action == "6":
+                    self._summary(ui, err_const)
+                elif action == "7":
+                    self._reset(ui)
+                elif self.load_error:
+                    ui.message("Impostazioni non leggibili: consultare il riepilogo o scegliere Ripristina impostazioni per correggerle.", kind="warning")
+                elif action == "8":
+                    self._updates(ui)
+                elif action == "9":
+                    self._execution(ui)
+                elif action == "s":
+                    candidate = edit_scientific_settings(ui, self.preferences.scientific_settings)
+                    if candidate != self.preferences.scientific_settings:
+                        self._save(replace(self.preferences, scientific_settings=candidate))
+                        self._saved_message(ui)
+                elif action == "1":
+                    self._directories(ui)
+                elif action in {"2", "3", "4", "5"}:
+                    self._workflow(ui, str(int(action) - 1), err_const)
+                else:
+                    ui.message("Scegliere una delle opzioni indicate (0-9).", kind="muted")
+            except (NipatError, OSError, ValueError) as exc:
+                ui.message(str(exc), kind="error")

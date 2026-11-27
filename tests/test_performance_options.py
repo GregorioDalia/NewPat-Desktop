@@ -10,10 +10,10 @@ import test_cli_validation as cli_cases
 import test_client_reliability as client_cases
 import test_workflow_wizard as workflow_cases
 
-from nipat.cli import build_parser, main
-from nipat.errors import RuntimeExecutionError, ValidationError
-from nipat.execution.options import ExecutionOptions
-from nipat.preferences import Preferences, PreferencesStore
+from newpat.cli import build_parser, main
+from newpat.errors import RuntimeExecutionError, ValidationError
+from newpat.experiments.options import ExecutionOptions
+from newpat.preferences import Preferences, PreferencesStore
 
 
 class PerformanceOptionsTests(unittest.TestCase):
@@ -56,7 +56,7 @@ class DiagnosticCliTests(unittest.TestCase):
         self.runner_factory.assert_not_called()
 
     def test_wizard_receives_one_run_request(self):
-        with patch("nipat.cli.run_wizard", return_value=0) as wizard:
+        with patch("newpat.cli.run_wizard", return_value=0) as wizard:
             self.assertEqual(main(["--performance-diagnostics", "wizard"]), 0)
         self.assertEqual(wizard.call_args.kwargs["execution_overrides"], {"performance_diagnostics": True})
 

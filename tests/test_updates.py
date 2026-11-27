@@ -9,8 +9,8 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request
 from unittest.mock import Mock, patch
 
-from nipat.repository import LEGACY_REPOSITORY, RENAMED_REPOSITORY, REPOSITORY_ID
-from nipat.updates import (
+from newpat.repository import LEGACY_REPOSITORY, RENAMED_REPOSITORY, REPOSITORY_ID
+from newpat.updates import (
     API, WEB, REPOSITORY_INFO_URL, UpdateAsset, UpdateClient, UpdateError, UpdateOffer,
     _SafeRedirectHandler, detect_platform, version_key, manifest_filename,
 )
@@ -34,7 +34,7 @@ class FakeNetwork:
     def __init__(self):
         self.routes = {}
         self.calls = []
-        self.add_json(REPOSITORY_INFO_URL, {"id": int(REPOSITORY_ID), "full_name": LEGACY_REPOSITORY})
+        self.add_json(REPOSITORY_INFO_URL, {"id": int(REPOSITORY_ID), "full_name": RENAMED_REPOSITORY})
 
     def add_json(self, url, data):
         self.routes[url] = json.dumps(data).encode()
@@ -103,17 +103,21 @@ class UpdateDiscoveryTests(unittest.TestCase):
     def test_renamed_repository_can_serve_unchanged_historical_manifests(self):
         for platform in ("windows-x86_64", "windows-zip-x86_64", "windows-bootstrap-x86_64",
                          "linux-x86_64", "darwin-arm64", "darwin-x86_64"):
-            for historical in (True, False):
-                with self.subTest(platform=platform, historical=historical):
+            legacy_web = f"https://github.com/{LEGACY_REPOSITORY}"
+            for active, historical in ((LEGACY_REPOSITORY, True), (RENAMED_REPOSITORY, True),
+                                       (RENAMED_REPOSITORY, False)):
+                with self.subTest(platform=platform, active=active, historical=historical):
                     release, manifest = release_fixture("0.9.9", platform=platform)
-                    self.network.add_json(REPOSITORY_INFO_URL, {"id": int(REPOSITORY_ID), "full_name": RENAMED_REPOSITORY})
-                    new_web = f"https://github.com/{RENAMED_REPOSITORY}"
-                    new_api = f"https://api.github.com/repos/{RENAMED_REPOSITORY}"
-                    release = json.loads(json.dumps(release).replace(WEB, new_web))
-                    if not historical:
-                        manifest = json.loads(json.dumps(manifest).replace(WEB, new_web))
-                    self.network.add_json(new_api + "/releases?per_page=100&page=1", [release])
-                    self.network.add_json(new_api + "/git/ref/tags/v0.9.9",
+                    self.network.add_json(REPOSITORY_INFO_URL, {"id": int(REPOSITORY_ID), "full_name": active})
+                    active_web = f"https://github.com/{active}"
+                    active_api = f"https://api.github.com/repos/{active}"
+                    release = json.loads(json.dumps(release).replace(WEB, active_web))
+                    if historical:
+                        manifest = json.loads(json.dumps(manifest).replace(WEB, legacy_web))
+                        self.assertTrue(manifest["release_notes_url"].startswith(legacy_web + "/"))
+                    release["assets"][0]["size"] = len(json.dumps(manifest).encode())
+                    self.network.add_json(active_api + "/releases?per_page=100&page=1", [release])
+                    self.network.add_json(active_api + "/git/ref/tags/v0.9.9",
                                           {"ref": "refs/tags/v0.9.9", "object": {"type": "commit", "sha": SOURCE}})
                     self.network.add_json(release["assets"][0]["browser_download_url"], manifest)
                     offer = self.check(channel="stable", current="0.9.8", platform=platform).offer
@@ -157,8 +161,8 @@ class UpdateDiscoveryTests(unittest.TestCase):
 
     def test_mac_architecture_detection_and_legacy_feed_selection(self):
         for architecture in ("arm64", "x86_64"):
-            with patch("nipat.updates.sys.platform", "darwin"), patch(
-                    "nipat.updates.host_platform.machine", return_value=architecture):
+            with patch("newpat.updates.sys.platform", "darwin"), patch(
+                    "newpat.updates.host_platform.machine", return_value=architecture):
                 self.assertEqual(detect_platform(), "darwin-" + architecture)
         self.assertEqual(manifest_filename("windows-x86_64"), "update-manifest.json")
         self.assertEqual(manifest_filename("linux-x86_64"), "update-manifest.json")
@@ -366,13 +370,13 @@ class UpdateDiscoveryTests(unittest.TestCase):
         self.assertTrue(redirected.full_url.startswith("https://release-assets.githubusercontent.com/"))
 
     def test_platform_detection_rejects_unsupported_architecture(self):
-        with patch("nipat.updates.sys.platform", "win32"), patch("nipat.updates.host_platform.machine", return_value="AMD64"):
+        with patch("newpat.updates.sys.platform", "win32"), patch("newpat.updates.host_platform.machine", return_value="AMD64"):
             self.assertEqual(detect_platform(), "windows-x86_64")
         for operating_system, architecture in (("win32", "arm64"), ("linux", "arm64"),
                                                 ("darwin", "i386"), ("freebsd", "x86_64")):
             with self.subTest(operating_system=operating_system, architecture=architecture), \
-                    patch("nipat.updates.sys.platform", operating_system), \
-                    patch("nipat.updates.host_platform.machine", return_value=architecture), \
+                    patch("newpat.updates.sys.platform", operating_system), \
+                    patch("newpat.updates.host_platform.machine", return_value=architecture), \
                     self.assertRaises(UpdateError) as rejected:
                 detect_platform()
             self.assertEqual(rejected.exception.status, "unsupported_platform")

@@ -35,10 +35,10 @@ class DistributionTests(unittest.TestCase):
         project = root / "project"
         project.mkdir()
         (project / "pyproject.toml").write_text('[project]\nversion = "0.5.0a1"\n', encoding="utf-8")
-        (project / "src" / "nipat").mkdir(parents=True)
-        (project / "src" / "nipat" / "cli.py").write_text("pass\n", encoding="utf-8")
+        (project / "src" / "newpat").mkdir(parents=True)
+        (project / "src" / "newpat" / "cli.py").write_text("pass\n", encoding="utf-8")
         (project / "distribution-files.txt").write_text(
-            "pyproject.toml\nsrc/nipat/cli.py\ndistribution-files.txt\n", encoding="utf-8",
+            "pyproject.toml\nsrc/newpat/cli.py\ndistribution-files.txt\n", encoding="utf-8",
         )
         return project
 
@@ -48,7 +48,7 @@ class DistributionTests(unittest.TestCase):
             unwanted = [
                 "data/sample.txt", "runs/private.txt", ".env", ".git/config",
                 ".venv/Lib/secret.txt", "docs/sample.bam", "docs/.env",
-                "src/nipat/__pycache__/cli.pyc", "docs/credentials.txt",
+                "src/newpat/__pycache__/cli.pyc", "docs/credentials.txt",
                 "docs/secrets/token.json", "scripts/.runtime/python.exe",
                 "docs/pazienti.tsv", "config/api_keys.json",
                 "scientific/private_samples.txt", "scripts/debug_output.txt",
@@ -63,7 +63,7 @@ class DistributionTests(unittest.TestCase):
                 manifest.write("scientific/vendor/LICENSE\n")
             names = {path.relative_to(project.resolve()).as_posix()
                      for path in distribution.source_files(project)}
-            self.assertEqual(names, {"pyproject.toml", "src/nipat/cli.py", "distribution-files.txt",
+            self.assertEqual(names, {"pyproject.toml", "src/newpat/cli.py", "distribution-files.txt",
                                      "scientific/vendor/LICENSE"})
             self.assertFalse(names.intersection(unwanted))
 
@@ -111,7 +111,7 @@ class DistributionTests(unittest.TestCase):
             self.assertTrue(clean["available"])
             self.assertFalse(clean["dirty"])
             self.assertRegex(clean["commit"], r"^[a-f0-9]{40}$")
-            (project / "src/nipat/cli.py").write_text("changed\n", encoding="utf-8")
+            (project / "src/newpat/cli.py").write_text("changed\n", encoding="utf-8")
             changed = distribution.git_source(project)
             self.assertTrue(changed["dirty"])
             self.assertEqual(changed["commit"], clean["commit"])
@@ -145,7 +145,7 @@ class DistributionTests(unittest.TestCase):
             manifest = project / "distribution-files.txt"
             valid = manifest.read_text(encoding="utf-8")
             for bad in ("../outside.txt", "/absolute.txt", "C:/private.txt",
-                        "src\\private.txt", "src/./nipat/cli.py", "src//nipat/cli.py",
+                        "src\\private.txt", "src/./newpat/cli.py", "src//newpat/cli.py",
                         "pyproject.toml", "PYPROJECT.TOML", "not-existing.py", "data/sample.txt"):
                 with self.subTest(entry=bad):
                     manifest.write_text(valid + bad + "\n", encoding="utf-8")

@@ -7,17 +7,17 @@ import unittest
 from contextlib import redirect_stdout
 from unittest.mock import Mock, patch
 
-from nipat.errors import RuntimeExecutionError, ValidationError
-from nipat.execution.options import ExecutionOptions
-from nipat.execution.runner import DockerComposeRunner
-from nipat.execution.tracking import HASH_LIMIT_BYTES, file_evidence, verify_input_evidence
-from nipat.execution.transport import DockerTransport
-from nipat.paths import ProjectLayout
+from newpat.errors import RuntimeExecutionError, ValidationError
+from newpat.experiments.options import ExecutionOptions
+from newpat.experiments.runner import DockerComposeRunner
+from newpat.experiments.tracking import HASH_LIMIT_BYTES, file_evidence, verify_input_evidence
+from newpat.experiments.transport import DockerTransport
+from newpat.paths import ProjectLayout
 
 
 class ExecutionPolicyTests(unittest.TestCase):
     def setUp(self):
-        self.enterContext(patch("nipat.execution.tracking.platform.platform", return_value="test-host"))
+        self.enterContext(patch("newpat.experiments.tracking.platform.platform", return_value="test-host"))
         self.temp = self.enterContext(tempfile.TemporaryDirectory())
         root = Path(self.temp)
         self.project = root / "project"
@@ -104,7 +104,7 @@ class ExecutionPolicyTests(unittest.TestCase):
         self.runner.options = ExecutionOptions(input_hashes="full")
         with redirect_stdout(io.StringIO()), patch.object(
             self.runner, "_hash_progress", side_effect=KeyboardInterrupt,
-        ), patch("nipat.execution.runner.subprocess.Popen") as process:
+        ), patch("newpat.experiments.runner.subprocess.Popen") as process:
             with self.assertRaises(KeyboardInterrupt):
                 with self.runner.record_run(run, workflow="snp-call", inputs=[path], parameters={},
                                              bundled_workflow="snp-call"):
@@ -118,7 +118,7 @@ class ExecutionPolicyTests(unittest.TestCase):
         path = Path(self.temp) / "input.txt"
         path.write_text("original")
         run = self.layout.new_run_dir("test", "changed-before")
-        with redirect_stdout(io.StringIO()), patch("nipat.execution.runner.subprocess.Popen") as process:
+        with redirect_stdout(io.StringIO()), patch("newpat.experiments.runner.subprocess.Popen") as process:
             with self.assertRaisesRegex(ValidationError, "Input modificato"):
                 with self.runner.record_run(run, workflow="snp-call", inputs=[path], parameters={},
                                              bundled_workflow="snp-call"):
@@ -147,8 +147,8 @@ class ExecutionPolicyTests(unittest.TestCase):
                 process.stdout = io.StringIO("client disconnected\n")
                 process.wait.return_value = process.poll.return_value = 7
                 with redirect_stdout(io.StringIO()), patch(
-                    "nipat.execution.runner.subprocess.Popen", return_value=process,
-                ), patch("nipat.execution.runner.inspect_container", return_value={
+                    "newpat.experiments.runner.subprocess.Popen", return_value=process,
+                ), patch("newpat.experiments.runner.inspect_container", return_value={
                     "availability": "available", "owned": True, "container_id": "a" * 64,
                 }), patch.object(self.runner, "_stop_container", return_value={
                     "status": cleanup_status,

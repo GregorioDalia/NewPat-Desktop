@@ -8,8 +8,8 @@ import zipfile
 
 import pytest
 
-from nipat.errors import NipatError
-from nipat.update_handoff import windows_installation_platform
+from newpat.errors import NipatError
+from newpat.update_handoff import windows_installation_platform
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("windows_zip", ROOT / "installer/windows/zip_package.py")
@@ -33,7 +33,7 @@ def package(tmp_path, request):
         data = (key + " scientific fixture").encode()
         (assets / (key + ".tar.gz")).write_bytes(data)
         manifest["assets"][key] = {"file": key + ".tar.gz", "sha256": sha(data), "size": len(data)}
-    files = {"src/nipat/__init__.py": ('__version__ = "' + version + '"\n').encode()}
+    files = {"src/newpat/__init__.py": ('__version__ = "' + version + '"\n').encode()}
     files.update({path: (ROOT / path).read_bytes() for path in ZIP.root_files(version).values()})
     manifest["source_sha256"] = {name: sha(data) for name, data in files.items()}
     files[".distribution/installer-manifest.json"] = json.dumps(manifest).encode()
@@ -140,7 +140,7 @@ def test_update_channel_is_bound_to_managed_installation(tmp_path, monkeypatch):
 
 
 def test_zip_preferences_are_separate_and_survive_application_versions(tmp_path, monkeypatch):
-    from nipat import preferences
+    from newpat import preferences
     monkeypatch.setattr(preferences.sys, "platform", "win32")
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
     monkeypatch.delenv("NIPAT_SETTINGS_FILE", raising=False)
@@ -171,7 +171,7 @@ def test_installed_zip_extractor_accepts_future_stable_release(package, tmp_path
         "--source", manifest["source_commit"], "--sha256", record["sha256"],
     ])
     ZIP.main()
-    assert manifest["version"] in (destination / "app/src/nipat/__init__.py").read_text()
+    assert manifest["version"] in (destination / "app/src/newpat/__init__.py").read_text()
     assert all((destination / "assets" / asset["file"]).is_file()
                for asset in manifest["assets"].values())
 

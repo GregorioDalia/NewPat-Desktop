@@ -21,7 +21,7 @@ function Set-FixtureFunction([string] $Path, [string] $Name, [string] $Body) {
     [IO.File]::WriteAllText($Path, $source, (New-Object Text.UTF8Encoding($false)))
 }
 function Write-FixtureManifest([string] $App, [string] $Assets, [string] $Version, [string] $Commit) {
-    [IO.File]::WriteAllText((Join-Path $App 'src\nipat\__init__.py'), ('__version__ = "' + $Version + '"'))
+    [IO.File]::WriteAllText((Join-Path $App 'src\newpat\__init__.py'), ('__version__ = "' + $Version + '"'))
     $distribution = Join-Path $App '.distribution'
     if (Test-Path -LiteralPath $distribution) { Remove-Item -LiteralPath $distribution -Recurse -Force }
     $sourceHashes = [ordered]@{}
@@ -106,8 +106,8 @@ try {
         'installer/windows/bootstrap-common.ps1', 'installer/windows/activity-lock.ps1',
         'installer/windows/repair-installation.ps1', 'installer/windows/install-profile.ps1',
         'installer/windows/install-layout.ps1', 'installer/windows/install-profile.json',
-        'src/nipat/windows_install_activity.py', 'scripts/windows/common.ps1', 'src/nipat/__init__.py',
-        'assets/branding/nipat-icon.ico')
+        'src/newpat/windows_install_activity.py', 'scripts/windows/common.ps1', 'src/newpat/__init__.py',
+        'assets/branding/newpat-icon.ico')
     foreach ($relative in $relativeFiles) {
         $target = Join-Path $app $relative
         [IO.Directory]::CreateDirectory((Split-Path -Parent $target)) | Out-Null
@@ -118,7 +118,7 @@ try {
 function Get-NipatActivityRuntime([string] $Directory = $PSScriptRoot) {
     return [pscustomobject]@{
         Python = (Get-Command python.exe -CommandType Application).Source
-        Helper = (Join-Path (Split-Path -Parent (Split-Path -Parent $Directory)) 'src\nipat\windows_install_activity.py')
+        Helper = (Join-Path (Split-Path -Parent (Split-Path -Parent $Directory)) 'src\newpat\windows_install_activity.py')
         Temporary = $null
     }
 }
@@ -222,7 +222,7 @@ exit 1
     $appShortcut = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path $root 'NewPat.lnk'))
     Assert-Test ($appShortcut.Arguments.Contains('0.9.10-' + ('b' * 40))) 'app shortcut follows the activated version'
     $activated = (Read-NipatZipPointer $root).app_dir
-    $icon = Join-Path $activated 'assets\branding\nipat-icon.ico'
+    $icon = Join-Path $activated 'assets\branding\newpat-icon.ico'
     $shortcutIcon = ($appShortcut.IconLocation -replace ',\s*0$', '').Trim('"')
     Assert-Test ($shortcutIcon -ieq $icon -and (Test-Path -LiteralPath $icon -PathType Leaf)) 'shortcut uses the icon in the activated installation'
     $layout = Read-NipatInstallLayout $activated

@@ -16,4 +16,9 @@ The candidate also includes the experiment status and archive display fixes, dir
 
 On macOS, if the launch command exits with code 255 and NewPat confirms the VM stopped, the experiment is recorded as interrupted. A subsequent analysis checks and starts the managed VM through the usual launcher. NewPat retains available timestamped VM lifecycle events for diagnostic export with the default execution settings. Collecting these events does not require turning on performance measurements.
 
-The Apple Silicon candidate packages the Linux ARM64 image tested by the native scientific oracles. An owned 0.9.10 Lima guest migrates with its disk and allocation preserved. Both R and samtools run natively. The [Apple Silicon trial](MACOS_CANDIDATE_TEST.md) checks the installed upgrade, native execution and timing against the previous synthetic runs. Physical qualification, the remaining platforms and the complete NewPat rename are tracked in the [release roadmap](ROADMAP.md).
+The Apple Silicon candidate packages the Linux ARM64 image tested by the native scientific oracles. An owned 0.9.10 Lima guest migrates with its disk and allocation preserved. Both R and samtools run natively. The [Apple Silicon trial](MACOS_CANDIDATE_TEST.md) checks the installed upgrade, native execution and timing against the previous synthetic runs. The [release roadmap](ROADMAP.md) tracks the final installer build, upgrade checks and physical qualification.
+
+
+## Source layout
+
+The desktop client now lives under `src/newpat`, with screen code in `desktop/` and experiment planning and execution in `experiments/`. Shared scientific input preparation and engine helpers live in `src/newpat_scientific`. [Code guide](CODE_GUIDE.md)

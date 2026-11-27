@@ -10,13 +10,13 @@ from unittest.mock import Mock
 
 import pytest
 
-from nipat.errors import ValidationError
-from nipat.gui.lifecycle import RunObserver
-from nipat.gui.results import ResultsStore
-from nipat.gui.service import GuiService
-from nipat.paths import ProjectLayout
-from nipat.preferences import PreferencesStore
-from nipat.resources import _resource_lock
+from newpat.errors import ValidationError
+from newpat.desktop.lifecycle import RunObserver
+from newpat.desktop.results import ResultsStore
+from newpat.desktop.service import GuiService
+from newpat.paths import ProjectLayout
+from newpat.preferences import PreferencesStore
+from newpat.resources import _resource_lock
 
 
 def write(path, value):

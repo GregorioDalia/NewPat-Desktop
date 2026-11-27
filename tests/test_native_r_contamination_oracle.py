@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 import unittest
 
-from nipat_scientific.settings import settings_context
+from newpat_scientific.settings import settings_context
 
 from downstream_oracle_tables import alleles, coordinate, coordinate_header, write_table
 from native_r_helpers import NATIVE_R_AVAILABLE, NATIVE_R_REASON

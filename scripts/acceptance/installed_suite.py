@@ -11,6 +11,7 @@ import csv
 from datetime import datetime, timezone
 import hashlib
 import html
+import importlib
 import inspect
 import io
 import json
@@ -153,6 +154,11 @@ class SuiteStopped(RuntimeError):
 class Suite:
     def __init__(self, app, session, commit, *, installation_version="0.8.50", installation_commit=BASE_COMMIT):
         self.app, self.session, self.commit = app.resolve(), session.resolve(), commit
+        # An external harness may verify the installed historical baseline or the refactored client.
+        legacy_client = ((self.app / "src/nipat/__init__.py").is_file()
+                         and not (self.app / "src/newpat/__init__.py").is_file())
+        self.client_package = "nipat" if legacy_client else "newpat"
+        self.experiments_package = self.client_package + (".experiments" if self.client_package == "newpat" else ".execution")
         if (not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", installation_version)
                 or not re.fullmatch(r"[a-f0-9]{40}", installation_commit)):
             raise ValueError("Identita attesa dell'installazione non valida.")
@@ -164,7 +170,7 @@ class Suite:
         self.powershell = str(Path(os.environ.get("WINDIR", "C:/Windows")) /
                               "System32/WindowsPowerShell/v1.0/powershell.exe")
         self.environment = {key: value for key, value in os.environ.items()
-                            if not key.upper().startswith("NIPAT_") and key.upper() not in {"PYTHONPATH", "PYTHONHOME"}}
+                            if not key.upper().startswith(("NEWPAT_", "NIPAT_")) and key.upper() not in {"PYTHONPATH", "PYTHONHOME"}}
         self.report = {"schema_version": 1, "suite": f"NIPAT installed synthetic acceptance {installation_version}",
                        "expected_installation": {"version": installation_version, "source_commit": installation_commit},
                        "started_utc": utc(), "harness_source_commit": commit,
@@ -309,8 +315,8 @@ class Suite:
 
     def snapshot_installation(self):
         # Resolve the path using the installed client's own channel and environment.
-        from nipat.preferences import preferences_path
-        self.identity_paths.append(preferences_path())
+        preferences = importlib.import_module(self.client_package + ".preferences")
+        self.identity_paths.append(preferences.preferences_path())
         self.identity_before = snapshot(self.identity_paths)
         self.report["installation_file_sha256"] = self.identity_before
 
@@ -477,10 +483,10 @@ class Suite:
         try:
             self.check("identita-installazione", self.preflight, fatal=True)
             sys.path.insert(0, str(self.app / "src"))
-            import nipat
-            from nipat.activity import activity_session
-            from nipat.execution.transport import DockerTransport
-            if not Path(nipat.__file__).resolve().is_relative_to(self.app / "src"):
+            client = importlib.import_module(self.client_package)
+            activity_session = importlib.import_module(self.client_package + ".activity").activity_session
+            DockerTransport = importlib.import_module(self.experiments_package + ".transport").DockerTransport
+            if not Path(client.__file__).resolve().is_relative_to(self.app / "src"):
                 raise ValueError("Il client importato non appartiene all'installazione selezionata.")
             os.environ.clear()
             os.environ.update(self.environment)
@@ -506,7 +512,7 @@ class Suite:
                 fetal_sex = self.fixtures / "fetal_sex"
                 hashes = installed_models.copy_fetal_sex_fixtures(self.app / "tests/fixtures/fetal_sex", fetal_sex)
                 self.report["fixture_sha256"].update({"fetal_sex/" + name: value for name, value in hashes.items()})
-                from nipat.execution.workflows import Workflows
+                Workflows = importlib.import_module(self.experiments_package + ".workflows").Workflows
                 self.report["combined_fetal_dnp"] = "dnp" in inspect.signature(Workflows.fetal_sex).parameters
                 combined_dir = self.generated / "fetal-sex" if self.report["combined_fetal_dnp"] else None
                 self.cases.extend(installed_models.fetal_sex_cases(fetal_sex, combined_dir))

@@ -11,10 +11,10 @@ import zlib
 
 import pytest
 
-from nipat.errors import ValidationError
-from nipat.gui.app import DesktopApplication
-from nipat.gui import references
-from nipat.gui.references import ReferenceCatalog, build_fasta_index
+from newpat.errors import ValidationError
+from newpat.desktop.app import DesktopApplication
+from newpat.desktop import references
+from newpat.desktop.references import ReferenceCatalog, build_fasta_index
 
 
 @pytest.fixture
@@ -316,7 +316,7 @@ def test_interior_gzi_entry_checked_even_in_one_contig(tmp_path, catalog):
 
 
 def test_existing_index_with_long_lines_and_sam_contig_name(tmp_path):
-    from nipat.gui.references import indexed_reference_identity
+    from newpat.desktop.references import indexed_reference_identity
     count = 1024 * 1024 + 1
     path = tmp_path / "long.fa"
     path.write_bytes(b">chr@10|test\n" + (b"A" * count + b"\r\n") * 2 + b"GT")

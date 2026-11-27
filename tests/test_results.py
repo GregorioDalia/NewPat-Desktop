@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from nipat.results import open_local_path, show_results
+from newpat.results import open_local_path, show_results
 
 
 class FakeTerminal:
@@ -46,8 +46,8 @@ class ResultsTests(unittest.TestCase):
 
     def test_five_module_analysis_uses_validated_plan_and_shows_cpin_roles(self):
         from test_workflow_five_modules import plan_for
-        from nipat_scientific.plan import validate_plan
-        from nipat.results import _workflow_steps
+        from newpat_scientific.plan import validate_plan
+        from newpat.results import _workflow_steps
         plan = validate_plan(plan_for("SNP", called=False))["plan"]
         expected = [{"id": step["id"], "workflow": step["workflow"]} for step in plan["steps"]]
         self.metadata.update(workflow="analysis", parameters={"plan": plan, "expected_steps": expected,
@@ -282,7 +282,7 @@ class ResultsTests(unittest.TestCase):
                 opener.assert_called_once_with(self.run)
 
     def test_step_metadata_read_is_bounded(self):
-        from nipat.execution.tracking import MAX_RUN_METADATA_BYTES
+        from newpat.experiments.tracking import MAX_RUN_METADATA_BYTES
         _, path, _ = self.prepare_workflow()
         with path.open("r+b") as stream:
             stream.truncate(MAX_RUN_METADATA_BYTES + 1)
@@ -308,7 +308,7 @@ class ResultsTests(unittest.TestCase):
     def test_dry_run_does_not_read_or_claim_step_results(self):
         self.prepare_workflow()
         ui = FakeTerminal(["2", "0"])
-        with patch("nipat.results._workflow_state") as read:
+        with patch("newpat.results._workflow_state") as read:
             show_results(ui, self.run, dry_run=True)
         read.assert_not_called()
         self.assertNotIn("Passaggi del workflow automatico:", ui.lines)
@@ -509,9 +509,9 @@ class DesktopOpenerTests(unittest.TestCase):
         self.directory = Path(self.temporary.name).resolve()
 
     def test_windows_uses_shell_association_for_directory_without_shell_command(self):
-        with patch("nipat.results.sys.platform", "win32"), \
-                patch("nipat.results.os.startfile", create=True) as start, \
-                patch("nipat.results.subprocess.Popen") as process:
+        with patch("newpat.results.sys.platform", "win32"), \
+                patch("newpat.results.os.startfile", create=True) as start, \
+                patch("newpat.results.subprocess.Popen") as process:
             open_local_path(self.directory)
         start.assert_called_once_with(str(self.directory), "open")
         process.assert_not_called()
@@ -519,8 +519,8 @@ class DesktopOpenerTests(unittest.TestCase):
     def test_posix_directory_is_a_single_argument_and_shell_is_disabled(self):
         directory = self.directory / "results with spaces & characters"
         directory.mkdir()
-        with patch("nipat.results.sys.platform", "linux"), \
-                patch("nipat.results.subprocess.Popen") as process:
+        with patch("newpat.results.sys.platform", "linux"), \
+                patch("newpat.results.subprocess.Popen") as process:
             open_local_path(directory)
         process.assert_called_once_with(
             ["xdg-open", str(directory)], shell=False, stdin=subprocess.DEVNULL,
@@ -530,7 +530,7 @@ class DesktopOpenerTests(unittest.TestCase):
     def test_opening_arbitrary_files_is_rejected(self):
         script = self.directory / "analysis.cmd"
         script.write_text("echo should not execute", encoding="utf-8")
-        with patch("nipat.results.subprocess.Popen") as process:
+        with patch("newpat.results.subprocess.Popen") as process:
             with self.assertRaises(OSError):
                 open_local_path(script)
         process.assert_not_called()
@@ -538,8 +538,8 @@ class DesktopOpenerTests(unittest.TestCase):
     def test_existing_execution_log_can_be_opened_on_macos(self):
         log = self.directory / "execution.log"
         log.write_text("log", encoding="utf-8")
-        with patch("nipat.results.sys.platform", "darwin"), \
-                patch("nipat.results.subprocess.Popen") as process:
+        with patch("newpat.results.sys.platform", "darwin"), \
+                patch("newpat.results.subprocess.Popen") as process:
             open_local_path(log)
         self.assertEqual(process.call_args.args[0], ["open", str(log)])
 

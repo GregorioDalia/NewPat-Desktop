@@ -133,7 +133,7 @@ def verify(package: Path, common_manifest: Path, *, build_record: Path | None = 
         require_virtualization_entitlement(entitlements.stdout, entitlements.stderr)
         cli_version = subprocess.check_output([
             str(python), "-I", "-B", "-c",
-            "import sys;sys.path.insert(0,sys.argv.pop(1));from nipat.cli import main;raise SystemExit(main())",
+            "import sys;sys.path.insert(0,sys.argv.pop(1));from newpat.cli import main;raise SystemExit(main())",
             str(resources / "app/src"), "--version"], text=True).strip()
         if cli_version != "NewPat " + common["version"]:
             raise ValueError("Packaged CLI does not report the expected version.")
@@ -150,7 +150,7 @@ def verify(package: Path, common_manifest: Path, *, build_record: Path | None = 
             ], check=True, timeout=180)
         validate_template = '''import json, os, pathlib, subprocess, sys, tempfile
 sys.path.insert(0, sys.argv.pop(1))
-from nipat.macos_runtime import LimaRuntime
+from newpat.macos_runtime import LimaRuntime
 project, executable, destination = map(pathlib.Path, sys.argv[1:])
 home = pathlib.Path.home()
 runtime = LimaRuntime(project, home / "Library/Application Support/NIPAT-Desktop",
@@ -180,7 +180,7 @@ with tempfile.TemporaryDirectory(prefix="np-", dir="/private/tmp") as directory:
         raise ValueError("Stopped package fixture was not preserved")
     if manifest["architecture"] == "arm64":
         from unittest.mock import patch
-        from nipat.macos_runtime import CHANNEL, INSTANCE, _write_json, rosetta_enabled
+        from newpat.macos_runtime import CHANNEL, INSTANCE, _write_json, rosetta_enabled
         owner = {"channel": CHANNEL, "instance": INSTANCE, "lima_home": str(previous.lima_home),
                  "token": "e" * 32, "mounts": previous.default_mounts()}
         legacy = previous.template(manifest, owner)

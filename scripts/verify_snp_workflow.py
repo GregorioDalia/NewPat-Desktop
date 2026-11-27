@@ -14,12 +14,12 @@ from pathlib import Path
 import shutil
 from unittest.mock import patch
 
-from nipat.execution.options import ExecutionOptions
-from nipat.execution.runner import DockerComposeRunner
-from nipat.execution.workflows import Workflows
-from nipat.paths import ProjectLayout
-from nipat.validation.files import require_snp_pileup
-from nipat.validation.self_test import compare_snp_outputs
+from newpat.experiments.options import ExecutionOptions
+from newpat.experiments.runner import DockerComposeRunner
+from newpat.experiments.workflows import Workflows
+from newpat.paths import ProjectLayout
+from newpat.validation.files import require_snp_pileup
+from newpat.validation.self_test import compare_snp_outputs
 from verify_dnp_engine import check_dnp_outputs, compare_dnp_tables
 from verify_workflow_execution import _artifact, _state
 

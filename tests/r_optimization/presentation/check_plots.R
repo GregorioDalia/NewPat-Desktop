@@ -3,7 +3,7 @@
 arguments <- commandArgs(trailingOnly = TRUE)
 if (length(arguments) != 1L) stop("Expected one repository root argument")
 repository <- normalizePath(arguments[[1L]], mustWork = TRUE)
-source(file.path(repository, "src/nipat_scientific/plots.R"))
+source(file.path(repository, "src/newpat_scientific/plots.R"))
 suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(ComplexUpset))
 stopifnot(all(c(0, 1) %in% nipat_integer_breaks(c(-0.05, 1.05))))

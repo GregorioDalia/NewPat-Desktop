@@ -65,7 +65,7 @@ def prepare_cases(project, data):
     from installed_models import (check_fetal_sex, combined_fetal_dnp, copy_fetal_sex_fixtures,
                                   fetal_sex_inputs)
     from installed_workflows import check_plan, check_positive_cpi
-    from nipat.gui.examples import save_example_data
+    from newpat.desktop.examples import save_example_data
 
     trio = save_example_data(project, data, "it")
     timing = trio / "timing"
@@ -131,7 +131,7 @@ def parallel_verdict(observations):
 
 
 def measurements(run):
-    from nipat.run_report import _parallel_section
+    from newpat.run_report import _parallel_section
 
     record = optional(run / "run.json")
     root = run / "output/workflow"

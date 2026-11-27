@@ -8,8 +8,8 @@ import zipfile
 
 import pytest
 
-from nipat.gui.app import DesktopApplication
-from nipat.errors import ValidationError
+from newpat.desktop.app import DesktopApplication
+from newpat.errors import ValidationError
 
 
 class FakeHost:
@@ -85,7 +85,7 @@ def test_pdf_export_uses_the_native_save_dialog_and_preserves_source(app, tmp_pa
 @pytest.mark.parametrize("outcome", [True, False, OSError("No browser available")])
 def test_igv_guide_opens_only_its_public_page(app, monkeypatch, outcome):
     open_tab = Mock(side_effect=outcome) if isinstance(outcome, OSError) else Mock(return_value=outcome)
-    monkeypatch.setattr("nipat.gui.app.webbrowser.open_new_tab", open_tab)
+    monkeypatch.setattr("newpat.desktop.app.webbrowser.open_new_tab", open_tab)
     assert app.call("igv.about", {}) == {"opened": outcome is True}
     with pytest.raises(ValidationError):
         app.call("igv.about", {"url": app.server.url})
@@ -153,7 +153,7 @@ def test_export_preserves_sibling_results_and_existing_copy_on_failure(app, tmp_
     def incomplete_copy(_source, temporary):
         temporary.write_bytes(b"partial")
         raise OSError("disk full")
-    monkeypatch.setattr("nipat.gui.app.shutil.copyfile", incomplete_copy)
+    monkeypatch.setattr("newpat.desktop.app.shutil.copyfile", incomplete_copy)
     with pytest.raises(OSError):
         app.export_file({"run_id": "run", "file_id": "file"})
     assert destination.read_bytes() == b"previous"

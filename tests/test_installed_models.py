@@ -40,7 +40,7 @@ class InstalledModelsTests(unittest.TestCase):
 
     def settings(self, workflow, **overrides):
         # These are observed payload metadata, not expected numerical answers.
-        registry = json.loads((ROOT / "src/nipat_scientific/settings_data.json").read_text())
+        registry = json.loads((ROOT / "src/newpat_scientific/settings_data.json").read_text())
         module = registry["workflows"][workflow]
         parameters = {name: entry["default"] for name, entry in module["parameters"].items()}
         parameters.update(overrides)
@@ -147,7 +147,7 @@ class InstalledModelsTests(unittest.TestCase):
             environment.update(NIPAT_BACKEND="wsl", NIPAT_WSL_DISTRO="NIPAT-Desktop-test")
         for case in (item for item in cases if item.get("expect_failure")):
             with self.subTest(case=case["id"]):
-                result = subprocess.run([sys.executable, "-m", "nipat", "--dry-run", *map(str, case["args"]),
+                result = subprocess.run([sys.executable, "-m", "newpat", "--dry-run", *map(str, case["args"]),
                                          "--run-name", case["id"]],
                                         env=environment, capture_output=True, text=True, encoding="utf-8", timeout=30)
                 self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)

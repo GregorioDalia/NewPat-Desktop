@@ -14,6 +14,7 @@ import zipfile
 from urllib.parse import urlsplit
 
 import native_evidence
+from release_layout import source_path, uses_newpat_layout
 
 SCENARIOS = {
     "windows_clean_wsl", "windows_stable_coexistence", "windows_reinstall_removal",
@@ -121,6 +122,10 @@ NEWPAT_BRANDING_FILES = {
     "assets/branding/build_assets.py", "assets/branding/nipat-logo-dark.svg",
     "assets/branding/nipat-logo.svg", "assets/branding/nipat-symbol.svg", "newpat.cmd",
 }
+# Apple Silicon 0.9.10 observations and the calling-table oracle used by the
+# 0.9.99 mini-suite were recorded in f106f3e. Only these exact bytes qualify.
+MAC_TIMING_BASELINE = "docs/validation/0.9.10-apple-silicon-timing.json"
+MAC_TIMING_SHA256 = "f025a1a735fc0accc4cf02707678c41360d4e553dc205601b9c573c5167d0d29"
 SYNTHETIC_TRIO_FILES = {"examples/newpat-synthetic-trio.zip", "examples/newpat-synthetic-trio.zip.sha256"}
 INTRECCIO_BRANDING_FILES = {
     "assets/branding/newpat-app-icon.svg", "assets/branding/newpat-app-icon-small.svg",
@@ -301,7 +306,10 @@ def verify_multibam_variants(case):
 
 
 def reviewable_path(path, *, reliability=False, multiplatform=False, revised_r=False, version=None,
-                    removed=False):
+                    removed=False, after_sha256=None):
+    if path == MAC_TIMING_BASELINE:
+        return bool(revised_r and version and uses_newpat_layout(version) and not removed
+                    and after_sha256 == MAC_TIMING_SHA256)
     if path in {"2_AVVIA.cmd", "2_LAUNCH.cmd"}:
         match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:(?:a|b|rc)\d+)?", version or "")
         english_launcher = match and tuple(map(int, match.groups())) >= (0, 9, 10)
@@ -310,6 +318,10 @@ def reviewable_path(path, *, reliability=False, multiplatform=False, revised_r=F
         return bool(english_launcher)
     # Permit the listed artwork, examples and scheduling report from their introduction; exact before/after
     # hashes still belong to the reviewed source delta.
+    if revised_r and version and path in {
+            source_path(name, version) for name in NEWPAT_BRANDING_FILES | INTRECCIO_BRANDING_FILES
+            if source_path(name, version) != name}:
+        return True
     if revised_r and path in (NEWPAT_BRANDING_FILES | INTRECCIO_BRANDING_FILES | SYNTHETIC_TRIO_FILES
                               | {"docs/validation/0.9.10-desktop-scheduling.json"}):
         match = re.fullmatch(r"([0-9]+)\.([0-9]+)\.([0-9]+)(?:(?:a|b|rc)[0-9]+)?", version or "")
@@ -608,7 +620,8 @@ def validate_research(record, version, commit, run_id, installer_set=None):
                     and "\\" not in path and not any(character.isspace() for character in path)
                     and PurePosixPath(path).suffix.casefold() != ".md"
                     and reviewable_path(path, reliability=reliability, multiplatform=multiplatform,
-                                        revised_r=revised_r, version=version, removed=item["after_sha256"] is None),
+                                        revised_r=revised_r, version=version, removed=item["after_sha256"] is None,
+                                        after_sha256=item["after_sha256"]),
                     ("Only known scientific scripts and explicit operative sources can be reviewed" if revised_r
                      else "Only operative source changes outside protected vendored R can be reviewed" if multiplatform
                      else "Only explicit non-R operative source changes can be reviewed" if reliability
@@ -843,7 +856,7 @@ def verify_analysis_qualification(record, evidence_directory, read_source):
             "Local R evidence cannot qualify the packaged scientific image")
     installed = {"scientific/vendor/NEWPAT/" + name: "scientific/vendor/NEWPAT/" + name
                  for name in source_hashes}
-    installed.update({"lib/nipat_scientific/" + name: "src/nipat_scientific/" + name
+    installed.update({source_path("lib/nipat_scientific/" + name, version): source_path("src/nipat_scientific/" + name, version)
                       for name in ANALYSIS_HELPERS})
     require(runtime.get("candidate_and_helper_sha256") == {
         installed_path: hashlib.sha256(source(git_path)).hexdigest()
@@ -872,7 +885,7 @@ def verify_analysis_qualification(record, evidence_directory, read_source):
     for path, digest in fixtures.items():
         require(hashlib.sha256(source("tests/fixtures/five_modules/" + path)).hexdigest() == digest,
                 "Downstream fixture differs from the reviewed source")
-    registry = json.loads(source("src/nipat_scientific/settings_data.json"))["workflows"]
+    registry = json.loads(source(source_path("src/nipat_scientific/settings_data.json", version)))["workflows"]
     expected = analysis_expected_cases()
     results = report.get("results")
     require(isinstance(results, list) and all(isinstance(row, dict) for row in results)
@@ -1189,12 +1202,14 @@ def verify_scientific_equivalence(record, evidence_directory, manifest, read_sou
                 == SNP2_REFERENCE["sha256"],
                 "Frozen SNPcall 2.0 reference differs from the pinned upstream bytes")
         supporting = report.get("supporting_source_sha256")
-        require(isinstance(supporting, dict) and supporting.get(PRESENTATION_SOURCE)
-                == hashlib.sha256(source(commit, PRESENTATION_SOURCE)).hexdigest(),
+        presentation = source_path(PRESENTATION_SOURCE, record["version"])
+        require(isinstance(supporting, dict) and supporting.get(presentation)
+                == hashlib.sha256(source(commit, presentation)).hexdigest(),
                 "Scientific presentation evidence used different plotting sources")
     if five_modules:
         require(report.get("supporting_source_sha256") == {
-            path: hashlib.sha256(source(commit, path)).hexdigest() for path in CALLER_SUPPORTING_SOURCES},
+            path: hashlib.sha256(source(commit, path)).hexdigest()
+            for path in (source_path(name, record["version"]) for name in CALLER_SUPPORTING_SOURCES)},
             "Caller qualification used different installed scientific helpers")
     workflows = {path: workflow for path, workflow in R_WORKFLOWS.items()
                  if not five_modules or workflow in {"dnp-call", "snp-call"}}
@@ -1298,7 +1313,7 @@ def verify_scientific_equivalence(record, evidence_directory, manifest, read_sou
             "scope": "synthetic-equivalence-only", "domain_validation_claimed": False}
 
 
-def operative_inventory(data):
+def operative_inventory(data, *, version=None):
     try:
         lines = data.decode("utf-8").splitlines()
     except UnicodeError as error:
@@ -1312,7 +1327,11 @@ def operative_inventory(data):
         require(not path.is_absolute() and path.as_posix() == value and ".." not in path.parts
                 and "\\" not in value and value not in paths, "Invalid or duplicate source inventory path")
         paths.add(value)
-    require("distribution-files.txt" in paths and REQUIRED_OPERATIVE_PATHS <= paths,
+    # The baseline can predate the package rename. A candidate must satisfy the
+    # exact contract for its own version, including both CLI and Inno sources.
+    layouts = (version,) if version is not None else ("0.9.10", "0.9.99")
+    require("distribution-files.txt" in paths and any(
+        {source_path(path, layout) for path in REQUIRED_OPERATIVE_PATHS} <= paths for layout in layouts),
             "Source inventory omits required operative inputs")
     return {path for path in paths if path != "distribution-files.txt"
             and not path.startswith(".github/") and PurePosixPath(path).suffix.casefold() != ".md"}
@@ -1359,7 +1378,7 @@ def verify_baseline(record, read_source):
         return result
 
     before = operative_inventory(read(baseline, "distribution-files.txt"))
-    after = operative_inventory(read(candidate, "distribution-files.txt"))
+    after = operative_inventory(read(candidate, "distribution-files.txt"), version=record["version"])
     if reviewed_delta:
         changes = []
         unchanged = 0
@@ -1369,12 +1388,14 @@ def verify_baseline(record, read_source):
             if old == new:
                 unchanged += 1
                 continue
+            after_sha256 = hashlib.sha256(new).hexdigest() if new is not None else None
             require(reviewable_path(path, reliability=reliability, multiplatform=multiplatform,
-                                    revised_r=revised_r, version=record["version"], removed=new is None),
+                                    revised_r=revised_r, version=record["version"], removed=new is None,
+                                    after_sha256=after_sha256),
                     f"Protected scientific or runtime source differs: {path}")
             changes.append({"path": path,
                             "before_sha256": hashlib.sha256(old).hexdigest() if old is not None else None,
-                            "after_sha256": hashlib.sha256(new).hexdigest() if new is not None else None})
+                            "after_sha256": after_sha256})
         require(record["reviewed_source_changes"] == changes,
                 "Reviewed source changes do not match the exact baseline-to-candidate delta")
         return {"baseline_source_commit": baseline, "source_commit": candidate,

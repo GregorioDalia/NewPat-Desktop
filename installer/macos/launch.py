@@ -15,9 +15,9 @@ import sys
 STATE = Path("/Library/Application Support/NIPAT-Desktop Installer")
 SHA256 = re.compile(r"[a-f0-9]{64}\Z")
 CLI_CODE = ("import sys; sys.path.insert(0, sys.argv.pop(1)); "
-            "from nipat.cli import main; raise SystemExit(main())")
+            "from newpat.cli import main; raise SystemExit(main())")
 RUNTIME_CODE = ("import sys; sys.path.insert(0, sys.argv.pop(1)); "
-                "from nipat.macos_runtime import main; raise SystemExit(main())")
+                "from newpat.macos_runtime import main; raise SystemExit(main())")
 
 
 def load_manifest(app: Path) -> dict:
@@ -49,7 +49,7 @@ def load_manifest(app: Path) -> dict:
 def environment(app: Path, resources: Path, inherited: dict[str, str]) -> dict[str, str]:
     workspace = Path.home() / "Library/Application Support/NIPAT-Desktop"
     clean = {key: value for key, value in inherited.items()
-             if not key.startswith(("NIPAT_", "PYTHON", "DOCKER", "COMPOSE", "LIMA_"))}
+             if not key.startswith(("NEWPAT_", "NIPAT_", "PYTHON", "DOCKER", "COMPOSE", "LIMA_"))}
     clean.update({
         "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
         "NIPAT_PROJECT_DIR": str(app), "NIPAT_BACKEND": "lima",
@@ -86,8 +86,8 @@ def mount_repair_required(app: Path, resources: Path, workspace: Path) -> bool:
     source = str(app / "src")
     if source not in sys.path:
         sys.path.insert(0, source)
-    from nipat.macos_runtime import LimaRuntime
-    from nipat.errors import NipatError
+    from newpat.macos_runtime import LimaRuntime
+    from newpat.errors import NipatError
     try:
         runtime = LimaRuntime(app, workspace, resources / "lima/bin/limactl")
         return runtime.requires_mount_repair()
@@ -114,7 +114,7 @@ def gui_startup(app: Path):
     source = str(app / "src")
     if source not in sys.path:
         sys.path.insert(0, source)
-    from nipat.gui import startup
+    from newpat.desktop import startup
     return startup
 
 

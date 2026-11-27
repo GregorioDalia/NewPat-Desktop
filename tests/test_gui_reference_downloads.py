@@ -9,8 +9,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from nipat.errors import ValidationError
-from nipat.gui import reference_downloads as downloads
+from newpat.errors import ValidationError
+from newpat.desktop import reference_downloads as downloads
 
 
 FASTA = b">chrExample\nACGTACGT\nACGTACGT\n"
@@ -145,7 +145,7 @@ def test_recovery_keeps_an_altered_installed_file_and_gives_a_repair_path(downlo
 
 
 def test_desktop_rpc_calls_use_the_catalog_and_local_cache(downloads_manager):
-    from nipat.gui.app import DesktopApplication
+    from newpat.desktop.app import DesktopApplication
 
     _, catalog = downloads_manager
     app = DesktopApplication(host=object(), service=SimpleNamespace(reference_catalog=lambda lang: catalog))
@@ -177,7 +177,7 @@ def test_changed_cached_index_is_detected_before_reregistration(downloads_manage
 
 
 def test_close_during_indexing_leaves_no_partial_bundle(downloads_manager, monkeypatch):
-    from nipat.gui import references
+    from newpat.desktop import references
 
     manager, catalog = downloads_manager
     entered, unblock = Event(), Event()

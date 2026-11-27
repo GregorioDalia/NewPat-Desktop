@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = ROOT / "tests/fixtures"
 sys.path[:0] = [str(ROOT / "src"), str(ROOT / "scripts")]
 
-from nipat.validation.self_test import compare_snp_outputs
+from newpat.validation.self_test import compare_snp_outputs
 from verify_dnp_engine import expected_rows, keyed_rows
 from verify_engine_package import run_container, write_request
 

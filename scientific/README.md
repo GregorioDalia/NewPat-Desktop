@@ -1,6 +1,6 @@
 # Scientific programs and reference models
 
-NewPat packages six R programs from [DNPcall](https://github.com/fravasini/DNPcall) and [NEWPAT](https://github.com/lpistacchia/NEWPAT). The image includes R, samtools, their dependencies and the `nipat_scientific` preparation library. Before execution the engine checks all six operational scripts against [SHA256SUMS](SHA256SUMS). Analyses use the copies inside the verified image. The host client owns file selection and run records.
+NewPat packages six R programs from [DNPcall](https://github.com/fravasini/DNPcall) and [NEWPAT](https://github.com/lpistacchia/NEWPAT). The image includes R, samtools, their dependencies and the `newpat_scientific` preparation library. Before execution the engine checks all six operational scripts against [SHA256SUMS](SHA256SUMS). Analyses use the copies inside the verified image. The host client owns file selection and run records.
 
 | Workflow | Bundled source |
 | --- | --- |

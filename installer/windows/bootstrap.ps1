@@ -101,7 +101,7 @@ try {
         Write-Host 'Windows richiedera UAC per abilitare o aggiornare WSL2 da Microsoft. Solo i comandi Windows DISM/WSL vengono elevati; NewPat resta nell account normale. Possono essere richieste piu conferme UAC.'
         $prerequisites = $null
         try {
-            $prerequisites = Get-NipatActivityRuntime -HelperRelativePath 'src/nipat/windows_wsl_prerequisites.py'
+            $prerequisites = Get-NipatActivityRuntime -HelperRelativePath 'src/newpat/windows_wsl_prerequisites.py'
             & $prerequisites.Python -B -X utf8 -u $prerequisites.Helper
             $prerequisiteCode = $LASTEXITCODE
         } finally {
@@ -158,8 +158,8 @@ try {
         Save-NipatPhase 'verifying_installation'
         Complete-NipatRuntimeActivation $project $statePath $state $configuration {
             $checkLogs = Split-Path -Parent $statePath
-            Invoke-NipatSetupCheck $python @('-X', 'utf8', '-u', '-m', 'nipat', 'doctor', '--runtime') $checkLogs 'doctor'
-            Invoke-NipatSetupCheck $python @('-X', 'utf8', '-u', '-m', 'nipat', 'self-test') $checkLogs 'self-test'
+            Invoke-NipatSetupCheck $python @('-X', 'utf8', '-u', '-m', 'newpat', 'doctor', '--runtime') $checkLogs 'doctor'
+            Invoke-NipatSetupCheck $python @('-X', 'utf8', '-u', '-m', 'newpat', 'self-test') $checkLogs 'self-test'
         }
         if (-not $ManualResume) { Unregister-NipatResume }
         if ($ManualResume) { Write-Host 'Preparazione del runtime ZIP completata.' }

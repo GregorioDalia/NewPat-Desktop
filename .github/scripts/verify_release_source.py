@@ -1,5 +1,6 @@
 """Allow deliberate candidate builds on main or the matching release branch."""
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -60,8 +61,8 @@ def check_reviewable_delta(version, baseline, candidate, *, repository=Path(".")
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if present.returncode:
         git("fetch", "--no-tags", "--depth=1", "origin", baseline)
-    def inventory_blobs(commit):
-        inventory = acceptance.operative_inventory(git("show", f"{commit}:distribution-files.txt"))
+    def inventory_blobs(commit, *, layout_version=None):
+        inventory = acceptance.operative_inventory(git("show", f"{commit}:distribution-files.txt"), version=layout_version)
         blobs = {}
         for entry in git("ls-tree", "-r", "-z", commit).split(b"\0"):
             if entry:
@@ -75,10 +76,14 @@ def check_reviewable_delta(version, baseline, candidate, *, repository=Path(".")
             raise ValueError(f"Missing distribution files in {commit}: " + ", ".join(sorted(missing)))
         return blobs
 
-    before, after = inventory_blobs(baseline), inventory_blobs(candidate)
+    before, after = inventory_blobs(baseline), inventory_blobs(candidate, layout_version=version)
     changes = {path for path in before.keys() | after.keys() if before.get(path) != after.get(path)}
+    timing_sha256 = None
+    if acceptance.MAC_TIMING_BASELINE in changes and acceptance.MAC_TIMING_BASELINE in after:
+        timing_sha256 = hashlib.sha256(git("show", f"{candidate}:{acceptance.MAC_TIMING_BASELINE}")).hexdigest()
     rejected = sorted(path for path in changes if not acceptance.reviewable_path(
-        path, version=version, removed=path not in after, reliability=acceptance.reliability_contract(version),
+        path, version=version, removed=path not in after, after_sha256=timing_sha256,
+        reliability=acceptance.reliability_contract(version),
         multiplatform=acceptance.multiplatform_contract(version), revised_r=acceptance.revised_r_contract(version)))
     if rejected:
         raise ValueError("Protected distribution inputs differ from the observed baseline: " + ", ".join(rejected))

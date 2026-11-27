@@ -32,6 +32,8 @@ concurrency:
 jobs:
   release-source:
     if: ${{ !inputs.windows_zip_only }}
+    outputs:
+      version: ${{ steps.source-version.outputs.version }}
     env:
       NIPAT_CHECK_ACCEPTANCE_DELTA: '1'
       NIPAT_OBSERVED_BASELINE: ${{ inputs.observed_baseline }}
@@ -51,6 +53,14 @@ jobs:
       - &review-source
         name: Require a deliberate official release candidate
         run: python .github/scripts/verify_release_source.py
+      - name: Identify the release version for field trials
+        id: source-version
+        run: |
+          python - <<'PYTHON' >> "$GITHUB_OUTPUT"
+          import tomllib
+          from pathlib import Path
+          print("version=" + tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"])
+          PYTHON
 
   windows-checks:
     # The release verifier binds the jobs API display name to this stable identity.
@@ -187,8 +197,8 @@ jobs:
           NIPAT_RUNS_DIR: ${{ runner.temp }}/nipat-validation/runs
         run: |
           mkdir -p "$NIPAT_DATA_DIR" "$NIPAT_RUNS_DIR"
-          python -m nipat doctor --runtime
-          python -m nipat self-test
+          python -m newpat doctor --runtime
+          python -m newpat self-test
       - name: Verify optional performance evidence and unchanged DNP results
         if: steps.scientific_reuse.outputs.reused != 'true'
         env:
@@ -409,7 +419,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $stage = (Resolve-Path 'build/windows-installer').Path
           $bootstrap = (Resolve-Path 'build/windows-installer/bootstrap').Path
-          $script = (Resolve-Path 'installer/windows/NIPAT.iss').Path
+          $script = (Resolve-Path 'installer/windows/NewPat.iss').Path
           $output = (Resolve-Path 'build/output').Path
           & $env:NIPAT_ISCC "/DStageDir=$stage" "/DBootstrapDir=$bootstrap" "/DOutputDir=$output" $script
           if ($LASTEXITCODE -ne 0) { throw 'Inno Setup bootstrap compilation failed.' }
@@ -799,6 +809,44 @@ jobs:
           ACCEPTANCE_TEMPLATE_URL: ${{ steps.acceptance_template.outputs.artifact-url }}
         run: |
           python .github/scripts/installer_downloads.py --evidence build/verified-installers/installer-set-check.json
+
+  macos-final-trial:
+    needs: [installer-required, release-source]
+    if: needs.release-source.outputs.version == '0.9.99'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - *review-checkout
+      - *review-python
+      - name: Download the reviewed Apple Silicon package
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: nipat-macos-setup-arm64
+          path: build/macos-arm64
+      - name: Download the verified installer set from the same build
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: nipat-installer-set-evidence
+          path: build/evidence
+      - name: Assemble the mini-suite and verify the packaged installer bytes
+        run: |
+          python .github/scripts/macos_trial.py --commit "$GITHUB_SHA" \
+            --evidence build/evidence/installer-set-check.json --packages build/macos-arm64 \
+            --output build/NewPat-Mac-Final-Trial.zip
+      - name: Retain the Apple Silicon field trial
+        id: trial
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: NewPat-Mac-Final-Trial
+          path: build/NewPat-Mac-Final-Trial.zip
+          compression-level: 0
+          retention-days: 14
+          if-no-files-found: error
+      - name: Provide the final field-trial download
+        env:
+          TRIAL_URL: ${{ steps.trial.outputs.artifact-url }}
+        run: |
+          echo "[NewPat 0.9.99 · Kit finale Mac Apple Silicon]($TRIAL_URL)" >> "$GITHUB_STEP_SUMMARY"
 
   macos-runtime:
     # Only a deliberate dispatch of the reviewed release source may reach trusted

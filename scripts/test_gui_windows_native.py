@@ -12,7 +12,7 @@ import secrets
 import tempfile
 import threading
 
-from nipat.gui.windows_host import run_window
+from newpat.desktop.windows_host import run_window
 
 
 def main(run_native_window=run_window, expected_host="win32-webview2"):

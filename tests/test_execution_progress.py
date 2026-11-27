@@ -10,13 +10,13 @@ import threading
 import unittest
 from unittest.mock import MagicMock, patch
 
-from nipat.errors import RuntimeExecutionError
-from nipat.execution.options import ExecutionOptions
-from nipat.execution.progress import ProgressObserver, ProgressRenderer, ProgressSnapshot
-from nipat.execution.runner import DockerComposeRunner
-from nipat.execution.transport import DockerTransport
-from nipat.paths import ProjectLayout
-from nipat_scientific.progress import INTERFACE, MAX_LINE_BYTES
+from newpat.errors import RuntimeExecutionError
+from newpat.experiments.options import ExecutionOptions
+from newpat.experiments.progress import ProgressObserver, ProgressRenderer, ProgressSnapshot
+from newpat.experiments.runner import DockerComposeRunner
+from newpat.experiments.transport import DockerTransport
+from newpat.paths import ProjectLayout
+from newpat_scientific.progress import INTERFACE, MAX_LINE_BYTES
 
 
 def event(sequence=1, **changes):
@@ -75,7 +75,7 @@ class ProgressReaderTests(unittest.TestCase):
             (self.root / "linked.jsonl").symlink_to(outside)
         except OSError:
             self.skipTest("Creating symbolic links is unavailable on this platform")
-        with patch("nipat.execution.progress.MAX_TOTAL_BYTES", 40):
+        with patch("newpat.experiments.progress.MAX_TOTAL_BYTES", 40):
             for _ in range(3):
                 self.observer.poll()
         self.assertEqual(self.observer.bytes_read, 40)
@@ -189,11 +189,11 @@ class QuietRunnerProgressTests(unittest.TestCase):
                          "state": {"status": "running", "oom_killed": False}}
                 with redirect_stdout(io.StringIO()), patch.object(runner, "_ensure_backend"), \
                         patch.object(runner, "_verify_inputs"), \
-                        patch("nipat.execution.runner.ProgressObserver", side_effect=factory), \
-                        patch("nipat.execution.runner.ContainerPerformanceObserver") as diagnostics, \
-                        patch("nipat.execution.runner.inspect_container", return_value=owned), \
+                        patch("newpat.experiments.runner.ProgressObserver", side_effect=factory), \
+                        patch("newpat.experiments.runner.ContainerPerformanceObserver") as diagnostics, \
+                        patch("newpat.experiments.runner.inspect_container", return_value=owned), \
                         patch.object(runner, "_stop_container", side_effect=lambda _: order.append("cleanup")), \
-                        patch("nipat.execution.runner.subprocess.Popen", return_value=process) as launched:
+                        patch("newpat.experiments.runner.subprocess.Popen", return_value=process) as launched:
                     if interrupted:
                         with self.assertRaises(KeyboardInterrupt):
                             runner._run_command(["python3", "engine"])

@@ -15,7 +15,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from nipat import __version__
+from newpat import __version__
 
 
 SPEC = importlib.util.spec_from_file_location(
@@ -55,7 +55,7 @@ class InstallerAssetTests(unittest.TestCase):
 
     def test_windows_entry_points_keep_the_same_supported_client_builds(self):
         root = Path(__file__).resolve().parents[1] / "installer/windows"
-        inno = (root / "NIPAT.iss").read_text()
+        inno = (root / "NewPat.iss").read_text()
         self.assertIn("MinVersion=10.0.19045", inno)
         self.assertIn("ArchitecturesAllowed=x64compatible and not arm64", inno)
         self.assertIn("Version.ProductType = VER_NT_WORKSTATION", inno)
@@ -69,7 +69,7 @@ class InstallerAssetTests(unittest.TestCase):
         self.assertIn("$RootfsSha256.Substring(0, 32)", layout)
         self.assertIn("@{ Channel = 'experimental08'; Directory = 'NIPAT-Experimental08' }", layout)
         self.assertNotIn("@{ Channel = 'desktop'; Directory = 'NIPAT-Desktop' }", layout)
-        inno = (root / "NIPAT.iss").read_text()
+        inno = (root / "NewPat.iss").read_text()
         self.assertIn("Programs\\NIPAT-Experimental08", inno)
         self.assertNotIn("NipatPathsOverlap(Path, ExpandConstant('{localappdata}\\Programs\\NIPAT-Desktop'))", inno)
 
@@ -81,7 +81,7 @@ class InstallerAssetTests(unittest.TestCase):
         self.assertEqual(__version__, version)
         bootstrap = (project / "installer/windows/bootstrap-common.ps1").read_text(encoding="utf-8")
         self.assertIn("$manifest.version -cne (Get-NipatApplicationVersion)", bootstrap)
-        setup = (project / "installer/windows/NIPAT.iss").read_text(encoding="utf-8")
+        setup = (project / "installer/windows/NewPat.iss").read_text(encoding="utf-8")
         self.assertIn('#include BootstrapDir + "\\bootstrap-profile.iss"', setup)
         definition = assets.installation_profile_include(dict(
             self.manifest, version=version, release_tag=f"v{version}",
@@ -285,7 +285,7 @@ class InstallerAssetTests(unittest.TestCase):
             assets.installation_profile_include(bad)
 
     def test_setup_validates_selected_paths_before_copying_and_preserves_channel(self):
-        setup = (Path(__file__).resolve().parents[1] / "installer/windows/NIPAT.iss").read_text(encoding="utf-8")
+        setup = (Path(__file__).resolve().parents[1] / "installer/windows/NewPat.iss").read_text(encoding="utf-8")
         self.assertIn("DisableDirPage=no", setup)
         self.assertIn("UsePreviousAppDir=yes", setup)
         self.assertIn("UsePreviousGroup=no", setup)

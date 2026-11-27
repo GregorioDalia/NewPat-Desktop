@@ -5,5 +5,5 @@
 compose_service = "scientific"
 
 [scientific_registry]
-path = "src/nipat_scientific/settings_data.json"
+path = "src/newpat_scientific/settings_data.json"
 interface = "scientific-settings-v1"

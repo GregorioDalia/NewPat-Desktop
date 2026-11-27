@@ -327,7 +327,7 @@ def verify(package: Path, manifest_path: Path, work: Path, output: Path) -> None
     work.mkdir(parents=True, mode=0o700)
     work.chmod(0o700)
     environment = {key: value for key, value in os.environ.items()
-                   if not key.startswith(("NIPAT_", "PYTHON", "DOCKER_", "COMPOSE_"))}
+                   if not key.startswith(("NEWPAT_", "NIPAT_", "PYTHON", "DOCKER_", "COMPOSE_"))}
     environment.update({"XDG_DATA_HOME": str(work / "user data with spaces"),
                         "XDG_STATE_HOME": str(work / "user state with spaces"),
                         "XDG_CONFIG_HOME": str(work / "user configuration è"),

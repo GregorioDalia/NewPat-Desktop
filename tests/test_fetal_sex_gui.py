@@ -4,15 +4,15 @@ from pathlib import Path
 
 import pytest
 
-from nipat.errors import ValidationError
-from nipat.execution.runner import DockerComposeRunner
-from nipat.execution.transport import DockerTransport
-from nipat.execution.workflows import Workflows
-from nipat.gui.jobs import Job
-from nipat.gui.plan import prepare_analysis
-from nipat.gui.service import GuiService
-from nipat.paths import ProjectLayout
-from nipat.preferences import Preferences, PreferencesStore
+from newpat.errors import ValidationError
+from newpat.experiments.runner import DockerComposeRunner
+from newpat.experiments.transport import DockerTransport
+from newpat.experiments.workflows import Workflows
+from newpat.desktop.jobs import Job
+from newpat.desktop.plan import prepare_analysis
+from newpat.desktop.service import GuiService
+from newpat.paths import ProjectLayout
+from newpat.preferences import Preferences, PreferencesStore
 
 ROOT = Path(__file__).resolve().parents[1]
 

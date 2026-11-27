@@ -10,8 +10,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from nipat_scientific.errors import ValidationError
-from nipat_scientific.executor import PlanExecutionError, execute_plan
+from newpat_scientific.errors import ValidationError
+from newpat_scientific.executor import PlanExecutionError, execute_plan
 from snp_output_helpers import write_snp_auxiliary
 
 
@@ -391,7 +391,7 @@ class SnpQualificationPolicyTests(unittest.TestCase):
                           coordinator=10, indices=(1, 2))
 
     def check(self, mode="auto", *, require_inner=True):
-        from nipat.execution.options import ExecutionOptions
+        from newpat.experiments.options import ExecutionOptions
         return self.verifier.check_snp_execution_policy(self.root, self.state, count=len(self.state["steps"]),
             options=ExecutionOptions(execution_mode=mode, max_workers=2), require_inner=require_inner)
 

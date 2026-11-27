@@ -18,8 +18,8 @@ sys.path.insert(0, str(PROJECT / "src"))
 sys.path.insert(0, str(PROJECT / "scripts/acceptance"))
 from installed_suite import verify_run
 from installed_workflows import check_plan
-from nipat.errors import NipatError
-from nipat.macos_runtime import LimaRuntime, rosetta_enabled
+from newpat.errors import NipatError
+from newpat.macos_runtime import LimaRuntime, rosetta_enabled
 
 
 def read(path):

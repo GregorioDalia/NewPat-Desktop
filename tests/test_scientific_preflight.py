@@ -5,13 +5,13 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from nipat_scientific.errors import ValidationError
-from nipat_scientific.files import (
+from newpat_scientific.errors import ValidationError
+from newpat_scientific.files import (
     require_contamination_input, require_dnp_input, require_population_frequencies,
     require_snp_pileup,
 )
-from nipat_scientific.panels import read_snp_list
-from nipat_scientific.snp import prepare_snp
+from newpat_scientific.panels import read_snp_list
+from newpat_scientific.snp import prepare_snp
 
 
 class ScientificPreflightTests(unittest.TestCase):

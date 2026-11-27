@@ -15,7 +15,7 @@ import time
 import unittest
 from unittest.mock import patch
 
-from nipat import __version__
+from newpat import __version__
 
 
 PROJECT = Path(__file__).resolve().parents[1]

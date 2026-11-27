@@ -10,7 +10,7 @@ FALLBACK = "steps.scientific_reuse.outputs.reused != 'true'"
 CHECKS = {
     "Verify bundled scientific scripts without host sources": ("scripts/verify_engine_package.py",),
     "Verify original sample labels and unchanged scientific results": ("scripts/verify_presentation.py",),
-    "Scientific regression and input-mode checks": ("python -m nipat doctor --runtime", "python -m nipat self-test"),
+    "Scientific regression and input-mode checks": ("python -m newpat doctor --runtime", "python -m newpat self-test"),
     "Verify optional performance evidence and unchanged DNP results": ("scripts/verify_performance.py",),
     "Verify native scientific edge cases and settings in the installed image": ("/qualification/.github/scripts/check_native_r.py",),
     "Verify updated CPI Contamination and CPIN models": ("scripts/verify_five_modules.py", '--output "$TMPDIR/artifacts" --full'),

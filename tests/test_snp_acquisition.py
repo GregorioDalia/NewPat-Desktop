@@ -11,7 +11,7 @@ import time
 import unittest
 from unittest.mock import patch
 
-from nipat_scientific import snp
+from newpat_scientific import snp
 
 
 class SnpAcquisitionTests(unittest.TestCase):

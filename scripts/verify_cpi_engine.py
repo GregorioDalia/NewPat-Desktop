@@ -13,10 +13,10 @@ from pathlib import Path
 import shutil
 from unittest.mock import patch
 
-from nipat.cli import DEFAULT_ERR_CONST
-from nipat.execution.runner import DockerComposeRunner
-from nipat.execution.workflows import Workflows
-from nipat.paths import ProjectLayout
+from newpat.cli import DEFAULT_ERR_CONST
+from newpat.experiments.runner import DockerComposeRunner
+from newpat.experiments.workflows import Workflows
+from newpat.paths import ProjectLayout
 from verify_contamination_update import check_bundled_run
 from verify_cpi_update import EXPECTED_INFORMATIVE, INFORMATIVE_PAIR, NO_SITES_PAIR, check_number, verify_prenatal_examples
 from verify_input_modes import EXPECTED_FIRST_TWO
@@ -291,7 +291,7 @@ def check_cpi_error_constant(identifier: str, root: Path, workflow: Workflows, l
                         if Path(entry["host_path"]).name in ("M.txt", "P.txt", "Q.txt")]
             if len(selected) != 3:
                 raise ValueError("CPI must mount each selected sample once despite reused maternal input.")
-        from nipat.errors import ValidationError
+        from newpat.errors import ValidationError
         try:
             workflow.cpi(input_dir=inputs, pairs="M:P", mother_prefix="", father_prefix="",
                          popfreq=inputs / "population.tsv", err_const=0,

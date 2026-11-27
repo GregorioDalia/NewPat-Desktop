@@ -12,10 +12,10 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-from nipat.errors import RuntimeExecutionError, ValidationError
-from nipat.execution.options import ExecutionOptions
-from nipat.execution.transport import DockerTransport, WslDockerTransport
-from nipat.resources import (
+from newpat.errors import RuntimeExecutionError, ValidationError
+from newpat.experiments.options import ExecutionOptions
+from newpat.experiments.transport import DockerTransport, WslDockerTransport
+from newpat.resources import (
     ResourceManager, _decode_output, _lima_configuration, _memory_mib, _resource_lock,
     analysis_session, host_resources, suggested_resources, wsl_configuration,
 )
@@ -87,7 +87,7 @@ class WslResourcesTests(unittest.TestCase):
         self.original = b"# user configuration\r\n[wsl2]\r\nmemory=4GB\r\nprocessors=2\r\n# retain\r\n[experimental]\r\nnetworkingMode=mirrored\r\n"
         self.config.write_bytes(self.original)
         self.manager = ResourceManager(WslDockerTransport("NIPAT-Desktop"), home=self.home)
-        self.host_patch = patch("nipat.resources.host_resources", return_value=HOST)
+        self.host_patch = patch("newpat.resources.host_resources", return_value=HOST)
         self.host_patch.start()
         self.addCleanup(self.host_patch.stop)
         self.running_patch = patch.object(self.manager, "_running", return_value=("NIPAT-Desktop", "Ubuntu"))
@@ -250,10 +250,10 @@ class LimaResourcesTests(unittest.TestCase):
                                        _assert_owned=Mock(), _host_check=Mock(), lock=nullcontext, start_existing=Mock(),
                                        host_prefix=lambda: ["limactl"], _run=Mock(side_effect=self.execute))
         self.manager = ResourceManager(SimpleNamespace(backend="lima", runtime=self.runtime), home=self.home)
-        self.patch_host = patch("nipat.resources.host_resources", return_value=HOST)
+        self.patch_host = patch("newpat.resources.host_resources", return_value=HOST)
         self.patch_host.start()
         self.addCleanup(self.patch_host.stop)
-        self.patch_manifest = patch("nipat.macos_runtime.read_manifest", return_value={})
+        self.patch_manifest = patch("newpat.macos_runtime.read_manifest", return_value={})
         self.patch_manifest.start()
         self.addCleanup(self.patch_manifest.stop)
         self.patch_idle = patch.object(self.manager, "_assert_idle")
@@ -261,7 +261,7 @@ class LimaResourcesTests(unittest.TestCase):
         self.addCleanup(self.patch_idle.stop)
 
     def execute(self, argv, **kwargs):
-        from nipat.macos_runtime import INSTANCE
+        from newpat.macos_runtime import INSTANCE
         if "list" in argv:
             return json.dumps({"name": INSTANCE, "status": "Running"})
         if "edit" in argv:
@@ -312,14 +312,14 @@ class NativeResourceTests(unittest.TestCase):
 
     def test_native_snapshot_uses_local_engine_and_preserves_unknowns(self):
         manager = ResourceManager(DockerTransport())
-        with patch("nipat.resources._run", side_effect=RuntimeExecutionError("engine unavailable")) as run:
+        with patch("newpat.resources._run", side_effect=RuntimeExecutionError("engine unavailable")) as run:
             snapshot = manager.snapshot()
         self.assertEqual(run.call_args.args[0][:3], ["docker", "--host", "unix:///var/run/docker.sock"])
         self.assertIsNone(snapshot["runtime"]["effective"]["memory_mib"])
         self.assertTrue(snapshot["warnings"])
 
     def test_analysis_lock_is_nested_and_excludes_resource_change(self):
-        with tempfile.TemporaryDirectory() as temporary, patch("nipat.resources.Path.home", return_value=Path(temporary)), patch.dict(os.environ, {"NIPAT_BACKEND": "native"}):
+        with tempfile.TemporaryDirectory() as temporary, patch("newpat.resources.Path.home", return_value=Path(temporary)), patch.dict(os.environ, {"NIPAT_BACKEND": "native"}):
             with analysis_session(), analysis_session():
                 with self.assertRaises(RuntimeExecutionError):
                     with _resource_lock(Path(temporary), "native", exclusive=True):
@@ -332,8 +332,8 @@ class NativeResourceTests(unittest.TestCase):
     def test_native_os_lock_excludes_other_process_resource_change(self):
         script = """import sys
 from pathlib import Path
-from nipat.resources import _resource_lock
-from nipat.errors import RuntimeExecutionError
+from newpat.resources import _resource_lock
+from newpat.errors import RuntimeExecutionError
 try:
     with _resource_lock(Path(sys.argv[1]), 'native', exclusive=sys.argv[2]=='exclusive'):
         print('acquired')

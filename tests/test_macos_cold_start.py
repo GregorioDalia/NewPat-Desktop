@@ -6,7 +6,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from nipat.cli import build_parser
+from newpat.cli import build_parser
 
 
 ROOT = Path(__file__).resolve().parents[1]

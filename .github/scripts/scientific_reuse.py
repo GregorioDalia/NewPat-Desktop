@@ -31,7 +31,7 @@ import native_evidence
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
-from nipat.repository import REPOSITORY_ID, build_repository, official_actions_context
+from newpat.repository import REPOSITORY_ID, build_repository, official_actions_context
 
 REPOSITORY = build_repository()
 API_ROOT = f"https://api.github.com/repos/{REPOSITORY}/"

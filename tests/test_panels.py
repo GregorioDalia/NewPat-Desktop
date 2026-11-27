@@ -2,13 +2,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from nipat.adapters.panels import (
+from newpat.adapters.panels import (
     read_dnp_list,
     read_snp_positions,
     write_position_panel,
     write_snp_bed,
 )
-from nipat.errors import ValidationError
+from newpat.errors import ValidationError
 
 
 class PanelTests(unittest.TestCase):

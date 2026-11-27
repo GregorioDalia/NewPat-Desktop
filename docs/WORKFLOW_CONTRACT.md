@@ -1,6 +1,6 @@
 # Scientific workflow plan contract
 
-A plan identifies samples, analysis steps and their input and output relationships. The Linux image contains the `nipat_scientific` engine, which implements `schema_version: 1` independently of the host OS or interface language.
+A plan identifies samples, analysis steps and their input and output relationships. The Linux image contains the `newpat_scientific` engine, which implements `schema_version: 1` independently of the host OS or interface language.
 
 `validate-plan --plan FILE` checks the structure and dependencies and returns JSON. It works without the sample files and starts no R or samtools process. File content, reference compatibility and output checks belong to execution.
 
@@ -135,7 +135,7 @@ This plan calls two BAMs once and passes the resulting counts to both downstream
 
 ## Validation result
 
-The Python API `nipat_scientific.plan.validate_plan(document)` returns a new object and leaves its input intact.
+The Python API `newpat_scientific.plan.validate_plan(document)` returns a new object and leaves its input intact.
 
 - `schema_version: 1` identifies the report format.
 - `plan` contains the canonical request.

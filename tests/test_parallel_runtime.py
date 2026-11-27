@@ -8,12 +8,12 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-from nipat.errors import RuntimeExecutionError
-from nipat.execution.options import ExecutionOptions
-from nipat.execution.runner import DockerComposeRunner
-from nipat.execution.transport import DockerTransport
-from nipat.paths import ProjectLayout
-from nipat_scientific.parallel import THREAD_LIMITS, execution_environment
+from newpat.errors import RuntimeExecutionError
+from newpat.experiments.options import ExecutionOptions
+from newpat.experiments.runner import DockerComposeRunner
+from newpat.experiments.transport import DockerTransport
+from newpat.paths import ProjectLayout
+from newpat_scientific.parallel import THREAD_LIMITS, execution_environment
 from test_bundled_runner import engine_metadata
 
 
@@ -71,7 +71,7 @@ class ParallelRuntimeTests(unittest.TestCase):
                 runner._record = Mock(run_dir=run, data={"resource_snapshot": {
                     "host": {"memory_mib": host, "cpus": 8}, "runtime": {"effective": {"memory_mib": guest, "cpus": 4}},
                 }})
-                with patch("nipat.execution.runner.platform.machine", return_value=arch), patch("sys.platform", system):
+                with patch("newpat.experiments.runner.platform.machine", return_value=arch), patch("sys.platform", system):
                     runner._write_engine_compose("sha256:" + "a" * 64)
                 compose = json.loads((run / "work/engine-compose.json").read_text())
                 env = compose["services"]["scientific"]["environment"]
@@ -92,7 +92,7 @@ class ParallelRuntimeTests(unittest.TestCase):
                 if change == "capability":
                     del metadata["parallel_execution"]
                 elif change == "module":
-                    del metadata["preparation"]["file_sha256"]["lib/nipat_scientific/parallel.R"]
+                    del metadata["preparation"]["file_sha256"]["lib/newpat_scientific/parallel.R"]
                 elif change == "workflow":
                     metadata["parallel_execution"]["workflows"].remove("snp-call")
                 else:

@@ -4,13 +4,13 @@ from contextlib import chdir
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from nipat.cli import DEFAULT_ERR_CONST
-from nipat.paths import ProjectLayout
-from nipat.errors import ValidationError
-from nipat.preferences import Preferences, PreferencesStore
-from nipat.wizard import run_wizard
-from nipat.wizard_forms import Cancelled, Field, WorkflowForm, check_reference
-from nipat.workflow_forms import DnpContaminationForm, DnpCpiForm, SnpBatchForm
+from newpat.cli import DEFAULT_ERR_CONST
+from newpat.paths import ProjectLayout
+from newpat.errors import ValidationError
+from newpat.preferences import Preferences, PreferencesStore
+from newpat.wizard import run_wizard
+from newpat.wizard_forms import Cancelled, Field, WorkflowForm, check_reference
+from newpat.workflow_forms import DnpContaminationForm, DnpCpiForm, SnpBatchForm
 
 
 class RecordingUI:
@@ -85,7 +85,7 @@ class WizardGuidanceTests(unittest.TestCase):
                 store.save(Preferences(update_channel=channel))
                 workflows = Mock()
                 messages = []
-                with patch("nipat.wizard.__version__", version), patch("nipat.wizard.run_updates") as updates:
+                with patch("newpat.wizard.__version__", version), patch("newpat.wizard.run_updates") as updates:
                     status = run_wizard(
                         workflows, self.layout, err_const=DEFAULT_ERR_CONST,
                         preferences_store=store,

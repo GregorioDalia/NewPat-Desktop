@@ -4,8 +4,8 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from nipat_scientific.errors import ValidationError
-from nipat_scientific.snp import prepare_snp
+from newpat_scientific.errors import ValidationError
+from newpat_scientific.snp import prepare_snp
 
 
 class SnpEngineTests(unittest.TestCase):

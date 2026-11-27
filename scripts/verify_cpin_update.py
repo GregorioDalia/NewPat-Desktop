@@ -10,10 +10,10 @@ import sys
 # Embedded Python excludes the script directory from its default search path.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from nipat.errors import NipatError, ValidationError
-from nipat.execution.runner import DockerComposeRunner
-from nipat.execution.workflows import Workflows
-from nipat.paths import ProjectLayout
+from newpat.errors import NipatError, ValidationError
+from newpat.experiments.runner import DockerComposeRunner
+from newpat.experiments.workflows import Workflows
+from newpat.paths import ProjectLayout
 from verify_contamination_update import check_bundled_run, check_number, read_tsv
 
 

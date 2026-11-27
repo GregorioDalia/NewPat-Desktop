@@ -4,8 +4,8 @@ arguments <- commandArgs(trailingOnly = TRUE)
 if (length(arguments) != 1L) stop("Expected one repository root argument")
 repository <- normalizePath(arguments[[1L]], mustWork = TRUE)
 relative <- "scientific/vendor/NEWPAT/contamination/detect_contamination.R"
-Sys.setenv(NIPAT_PARALLEL_HELPER = file.path(repository, "src/nipat_scientific/parallel.R"),
-           NIPAT_SETTINGS_HELPER = file.path(repository, "src/nipat_scientific/settings.R"),
+Sys.setenv(NIPAT_PARALLEL_HELPER = file.path(repository, "src/newpat_scientific/parallel.R"),
+           NIPAT_SETTINGS_HELPER = file.path(repository, "src/newpat_scientific/settings.R"),
            NIPAT_MAX_WORKERS = "2")
 source(Sys.getenv("NIPAT_PARALLEL_HELPER"))
 root <- tempfile("nipat-contamination-parallel-")

@@ -13,8 +13,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from nipat.errors import RuntimeExecutionError, ValidationError
-from nipat.macos_runtime import (
+from newpat.errors import RuntimeExecutionError, ValidationError
+from newpat.macos_runtime import (
     CHANNEL, INSTANCE, LIMA_VERSION, LimaRuntime, _write_json, file_sha256,
     loaded_image_id, read_manifest,
 )
@@ -267,11 +267,11 @@ class MacRuntimeTests(unittest.TestCase):
         self.assertEqual(self.runtime._assert_owned(), self.owner)
 
     def test_initial_vm_budget_leaves_host_memory_available(self):
-        with patch("nipat.resources.host_resources", return_value={"memory_mib": 8192, "cpus": 4}):
+        with patch("newpat.resources.host_resources", return_value={"memory_mib": 8192, "cpus": 4}):
             config = self.runtime.template(self.manifest, self.owner)
         self.assertEqual(config["memory"], "4096MiB")
         self.assertEqual(config["cpus"], 3)
-        with patch("nipat.resources.host_resources", return_value={"memory_mib": 32768, "cpus": 24}):
+        with patch("newpat.resources.host_resources", return_value={"memory_mib": 32768, "cpus": 24}):
             config = self.runtime.template(self.manifest, self.owner)
         self.assertEqual(config["memory"], "8192MiB")
         self.assertEqual(config["cpus"], 4)
@@ -533,8 +533,8 @@ class MacRuntimeTests(unittest.TestCase):
         state = self.ready_state()
         with (patch.object(self.runtime, "_host_check"),
               patch("fcntl.flock", side_effect=[BlockingIOError(), None, None]),
-              patch("nipat.macos_runtime.time.monotonic", side_effect=[0.0, 20.0]),
-              patch("nipat.macos_runtime.time.sleep"),
+              patch("newpat.macos_runtime.time.monotonic", side_effect=[0.0, 20.0]),
+              patch("newpat.macos_runtime.time.sleep"),
               patch.object(self.runtime, "_run", side_effect=["started", self.application_digest()]),
               patch.object(self.runtime, "_verify_image") as verify):
             self.assertEqual(self.runtime.ensure(), state)
@@ -729,7 +729,7 @@ class MacRuntimeTests(unittest.TestCase):
 
     def test_paths_preserve_spaces_and_special_characters_without_shell_commands(self):
         value = self.home / "Case $HOME; $(touch nope), è" / "sample.bam"
-        with patch("nipat.macos_runtime.subprocess.run") as run:
+        with patch("newpat.macos_runtime.subprocess.run") as run:
             self.assertEqual(self.runtime.host_path(value), str(value))
             command = self.runtime.docker_command(["image", "load", "--input", str(value)])
         run.assert_not_called()
@@ -740,7 +740,7 @@ class MacRuntimeTests(unittest.TestCase):
         self.assertIn("SSH=/usr/bin/ssh", command)
         self.assertIn("--workdir=/", command)
         from platform import machine
-        from nipat.macos_runtime import scientific_platform
+        from newpat.macos_runtime import scientific_platform
         self.assertIn("DOCKER_DEFAULT_PLATFORM=" + scientific_platform(machine()), command)
 
     def test_paths_outside_mounts_and_escaping_symlinks_are_rejected(self):
@@ -763,20 +763,20 @@ class MacRuntimeTests(unittest.TestCase):
         execute.assert_not_called()
 
     def test_host_check_rejects_foreign_lima_version_and_global_overrides(self):
-        with patch("nipat.macos_runtime.sys.platform", "darwin"), patch("nipat.macos_runtime.platform.mac_ver", return_value=("14.7", (), "")), patch("nipat.macos_runtime.platform.machine", return_value="x86_64"), patch.object(self.runtime, "_run", return_value="limactl version 99.0.0"):
+        with patch("newpat.macos_runtime.sys.platform", "darwin"), patch("newpat.macos_runtime.platform.mac_ver", return_value=("14.7", (), "")), patch("newpat.macos_runtime.platform.machine", return_value="x86_64"), patch.object(self.runtime, "_run", return_value="limactl version 99.0.0"):
             with self.assertRaisesRegex(ValidationError, "versione Lima"):
                 self.runtime._host_check(self.manifest)
         override = self.runtime.lima_home / "_config" / "override.yaml"
         override.parent.mkdir(parents=True)
         override.write_text("vmType: qemu")
-        with patch("nipat.macos_runtime.sys.platform", "darwin"), patch("nipat.macos_runtime.platform.mac_ver", return_value=("14.7", (), "")), patch("nipat.macos_runtime.platform.machine", return_value="x86_64"), patch.object(self.runtime, "_run") as execute:
+        with patch("newpat.macos_runtime.sys.platform", "darwin"), patch("newpat.macos_runtime.platform.mac_ver", return_value=("14.7", (), "")), patch("newpat.macos_runtime.platform.machine", return_value="x86_64"), patch.object(self.runtime, "_run") as execute:
             with self.assertRaisesRegex(ValidationError, "Override"):
                 self.runtime._host_check(self.manifest)
         execute.assert_not_called()
 
     def test_process_failure_is_logged_and_reported(self):
         failed = subprocess.CompletedProcess([], 7, "", "VZ not available")
-        with patch("nipat.macos_runtime.subprocess.run", return_value=failed) as run:
+        with patch("newpat.macos_runtime.subprocess.run", return_value=failed) as run:
             with self.assertRaisesRegex(RuntimeExecutionError, "VZ not available"):
                 self.runtime._run(["limactl", "start", INSTANCE])
         self.assertEqual(run.call_args.kwargs["stdin"], subprocess.DEVNULL)
@@ -790,7 +790,7 @@ class MacRuntimeTests(unittest.TestCase):
         app = self.home / "Fixture.app"
         resources = app / "Contents/Resources"
         (resources / "app/.distribution").mkdir(parents=True)
-        (resources / "NIPAT.command").write_text("fixture")
+        (resources / "NewPat.command").write_text("fixture")
         _write_json(resources / "app/.distribution/macos-manifest.json", self.manifest)
         self.ready_state()
         report_path = self.home / "evidence/report.json"

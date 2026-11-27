@@ -32,7 +32,7 @@ class WindowsPayloadTests(unittest.TestCase):
         return path
 
     def package(self):
-        source = "src/nipat/__init__.py"
+        source = "src/newpat/__init__.py"
         self.write(source, '__version__ = "0.7.0a1"\n')
         self.write("NIPAT.exe", "fixture launcher")
         self.write("installer/windows/EnableWsl.exe", "fixture helper")
@@ -63,7 +63,7 @@ class WindowsPayloadTests(unittest.TestCase):
     def test_payload_rejects_tampering_even_if_source_is_reinventoried(self):
         manifest = self.package()
         self.assertEqual(check.verify_payload(self.app)[0], manifest)
-        self.write("src/nipat/__init__.py", "changed\n")
+        self.write("src/newpat/__init__.py", "changed\n")
         with self.assertRaisesRegex(ValueError, "Changed packaged file"):
             check.verify_payload(self.app)
         self.reinventory(manifest)
@@ -102,7 +102,7 @@ class WindowsPayloadTests(unittest.TestCase):
         shutil.copytree(ROOT / "src", self.app / "src", ignore=shutil.ignore_patterns("__pycache__"))
         shutil.copytree(ROOT / "scripts", self.app / "scripts", ignore=shutil.ignore_patterns("__pycache__"))
         self.write("scripts/verify_cpin_update.py", "import missing_packaged_self_test_helper\n")
-        manifest = {"version": __import__("nipat").__version__, "runtime_image": "sha256:" + "b" * 64}
+        manifest = {"version": __import__("newpat").__version__, "runtime_image": "sha256:" + "b" * 64}
         original_run = subprocess.run
 
         def packaged_run(*args, **kwargs):
@@ -126,7 +126,7 @@ class WindowsPayloadTests(unittest.TestCase):
         shutil.copytree(ROOT / "scripts", self.app / "scripts", ignore=shutil.ignore_patterns("__pycache__"))
         shutil.copyfile(ROOT / "compose.yaml", self.app / "compose.yaml")
         shutil.copytree(ROOT / "tests/fixtures/cpin", self.app / "tests/fixtures/cpin")
-        manifest = {"version": __import__("nipat").__version__, "source_commit": "a" * 40,
+        manifest = {"version": __import__("newpat").__version__, "source_commit": "a" * 40,
                     "runtime_image": "sha256:" + "b" * 64}
         self.write("release.json", json.dumps({"source_git": {"commit": manifest["source_commit"]}}))
         original_run = subprocess.run

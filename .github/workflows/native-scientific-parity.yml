@@ -15,11 +15,11 @@ on:
       - 'scripts/mini_suite_macos.py'
       - 'docs/MINI_SUITE_MAC.md'
       - 'installer/macos/**'
-      - 'src/nipat/macos_runtime.py'
-      - 'src/nipat/execution/transport.py'
-      - 'src/nipat/execution/runner.py'
+      - 'src/newpat/macos_runtime.py'
+      - 'src/newpat/experiments/transport.py'
+      - 'src/newpat/experiments/runner.py'
       - 'scientific/**'
-      - 'src/nipat_scientific/**'
+      - 'src/newpat_scientific/**'
   workflow_call:
   workflow_dispatch:
 

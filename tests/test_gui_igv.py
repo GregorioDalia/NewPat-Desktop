@@ -11,11 +11,11 @@ from pathlib import Path
 
 import pytest
 
-from nipat.errors import ValidationError
-from nipat.gui.igv import LocalIGV
+from newpat.errors import ValidationError
+from newpat.desktop.igv import LocalIGV
 
 ROOT = Path(__file__).resolve().parents[1]
-WEB = ROOT / "src" / "nipat" / "gui" / "web"
+WEB = ROOT / "src" / "newpat" / "desktop" / "web"
 
 
 def test_igv_assets_are_pinned_and_complete():
@@ -316,8 +316,8 @@ def test_real_alignment_fixture_has_indexed_records_and_matching_dictionary(loca
 
 
 def test_archived_fasta_same_layout_rejected_and_legacy_disclosed(local_igv, tmp_path):
-    from nipat.gui.results import ResultsStore
-    from nipat.gui.references import ReferenceCatalog
+    from newpat.desktop.results import ResultsStore
+    from newpat.desktop.references import ReferenceCatalog
 
     fasta = _reference(tmp_path)
     ref = ReferenceCatalog(tmp_path / "catalog.json").register("custom", fasta)
@@ -344,7 +344,7 @@ def test_archived_fasta_same_layout_rejected_and_legacy_disclosed(local_igv, tmp
 
 
 def test_archived_bgzf_rejects_valid_but_replaced_gzi(local_igv, tmp_path):
-    from nipat.gui.references import ReferenceCatalog
+    from newpat.desktop.references import ReferenceCatalog
 
     plain = _reference(tmp_path)
     first = _bgzf(plain.read_bytes())

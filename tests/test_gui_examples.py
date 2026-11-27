@@ -7,9 +7,9 @@ from unittest.mock import Mock
 
 import pytest
 
-from nipat.errors import ValidationError
-from nipat.gui.app import DesktopApplication
-from nipat.gui.examples import ARCHIVE_NAME, save_example_data
+from newpat.errors import ValidationError
+from newpat.desktop.app import DesktopApplication
+from newpat.desktop.examples import ARCHIVE_NAME, save_example_data
 
 
 PROJECT = Path(__file__).resolve().parents[1]
@@ -73,7 +73,7 @@ def test_io_failure_removes_only_files_of_this_export(tmp_path, monkeypatch):
         destination.write(b"partial")
         (tmp_path / "synthetic-trio" / "independent.txt").write_text("mine")
         raise OSError("disk full")
-    monkeypatch.setattr("nipat.gui.examples.shutil.copyfileobj", fail)
+    monkeypatch.setattr("newpat.desktop.examples.shutil.copyfileobj", fail)
     with pytest.raises(ValidationError, match="disk full"):
         save_example_data(PROJECT, tmp_path, "en")
     remaining = list((tmp_path / "synthetic-trio").rglob("*"))
@@ -82,11 +82,11 @@ def test_io_failure_removes_only_files_of_this_export(tmp_path, monkeypatch):
 
 
 def test_demo_validates_with_factory_settings_even_with_personal_preferences(tmp_path):
-    from nipat.execution.options import ExecutionOptions
-    from nipat.gui.service import GuiService
-    from nipat.paths import ProjectLayout
-    from nipat.preferences import Preferences, PreferencesStore
-    from nipat.scientific_options import effective_config
+    from newpat.experiments.options import ExecutionOptions
+    from newpat.desktop.service import GuiService
+    from newpat.paths import ProjectLayout
+    from newpat.preferences import Preferences, PreferencesStore
+    from newpat.scientific_options import effective_config
 
     layout = ProjectLayout(PROJECT, tmp_path, tmp_path / "data", tmp_path / "runs", PROJECT / "compose.yaml")
     store = PreferencesStore(tmp_path / "preferences.json")
@@ -113,7 +113,7 @@ def test_demo_validates_with_factory_settings_even_with_personal_preferences(tmp
 
 
 def test_demo_reuses_intact_inputs_and_preserves_altered_copies(tmp_path):
-    from nipat.gui.examples import demo_draft
+    from newpat.desktop.examples import demo_draft
 
     layout = SimpleNamespace(project_dir=PROJECT, workspace_dir=tmp_path)
     with ThreadPoolExecutor(max_workers=4) as pool:
@@ -131,7 +131,7 @@ def test_demo_reuses_intact_inputs_and_preserves_altered_copies(tmp_path):
 
 
 def test_demo_refuses_damaged_distribution_even_when_previous_inputs_exist(tmp_path):
-    from nipat.gui.examples import demo_draft
+    from newpat.desktop.examples import demo_draft
 
     layout = SimpleNamespace(project_dir=PROJECT, workspace_dir=tmp_path)
     draft = demo_draft(layout, "it")

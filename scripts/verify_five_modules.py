@@ -42,7 +42,7 @@ REFERENCE_SHA256 = {
 HELPERS = ("__init__.py", "errors.py", "settings.py", "settings.R", "settings_data.json",
            "parallel.R", "plots.R")
 CANDIDATE_ROOT = PROJECT / "scientific/vendor/NEWPAT"
-HELPER_ROOT = PROJECT / "src/nipat_scientific"
+HELPER_ROOT = PROJECT / "src/newpat_scientific"
 REPORT_NAME = "five-module-qualification.json"
 SUMMARIES = {"cpin": "Summary_Postnatal_CPI.txt", "cpi": "Summary_FetalFraction_CPI.csv",
              "contamination": "contamination_summary.txt"}
@@ -73,8 +73,8 @@ def verify_installed_payload(bundle):
     hashes = {}
     mappings = [(PROJECT / "scientific/vendor/NEWPAT" / path,
                  bundle / "scientific/vendor/NEWPAT" / path) for path in SOURCES.values()]
-    mappings.extend((PROJECT / "src/nipat_scientific" / name,
-                     bundle / "lib/nipat_scientific" / name) for name in HELPERS)
+    mappings.extend((PROJECT / "src/newpat_scientific" / name,
+                     bundle / "lib/newpat_scientific" / name) for name in HELPERS)
     for checkout, installed in mappings:
         require(installed.is_file(), f"Installed payload missing: {installed}")
         actual = hashlib.sha256(installed.read_bytes()).hexdigest()
@@ -97,9 +97,9 @@ def snapshot_local_payload(destination):
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(PROJECT / "scientific/vendor/NEWPAT" / name, target)
     for name in HELPERS:
-        target = bundle / "lib/nipat_scientific" / name
+        target = bundle / "lib/newpat_scientific" / name
         target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(PROJECT / "src/nipat_scientific" / name, target)
+        shutil.copyfile(PROJECT / "src/newpat_scientific" / name, target)
     return bundle, verify_installed_payload(bundle)
 
 
@@ -398,7 +398,7 @@ def prepare_inputs(root, marker, workflow, families=1, metadata=False, mismatch=
 
 def run_case(root, name, workflow, marker, *, candidate=True, minimum=2,
              include_zero=True, families=1, mode="serial", cap=None, metadata=False, mismatch=False):
-    from nipat_scientific.settings import settings_context
+    from newpat_scientific.settings import settings_context
 
     destination = root / name
     destination.mkdir()
@@ -594,7 +594,7 @@ def main():
             bundle, hashes = snapshot_local_payload(destination)
             runtime["candidate_and_helper_sha256"] = hashes
         CANDIDATE_ROOT = bundle / "scientific/vendor/NEWPAT"
-        HELPER_ROOT = bundle / "lib/nipat_scientific"
+        HELPER_ROOT = bundle / "lib/newpat_scientific"
         sys.path.insert(0, str(bundle / "lib"))
         runtime.update({"candidate_root": str(CANDIDATE_ROOT), "helper_root": str(HELPER_ROOT)})
         version = subprocess.run(["Rscript", "--version"], capture_output=True, text=True, check=True)

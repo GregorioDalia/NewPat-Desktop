@@ -10,10 +10,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from acceptance.installed_models import (FETAL_SEX_EXAMPLES, check_fetal_sex,
                                         combined_fetal_dnp, copy_fetal_sex_fixtures, fetal_sex_inputs, tree_hashes)
-from nipat.errors import NipatError
-from nipat.execution.runner import DockerComposeRunner
-from nipat.execution.workflows import Workflows
-from nipat.paths import ProjectLayout
+from newpat.errors import NipatError
+from newpat.experiments.runner import DockerComposeRunner
+from newpat.experiments.workflows import Workflows
+from newpat.paths import ProjectLayout
 from verify_contamination_update import check_bundled_run
 
 

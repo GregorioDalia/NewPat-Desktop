@@ -7,9 +7,9 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from nipat_scientific.contamination import prepare_contamination
-from nipat_scientific.cpi import prepare_cpi
-from nipat_scientific.errors import ValidationError
+from newpat_scientific.contamination import prepare_contamination
+from newpat_scientific.cpi import prepare_cpi
+from newpat_scientific.errors import ValidationError
 
 
 class MarkerAwareAdaptersTests(unittest.TestCase):

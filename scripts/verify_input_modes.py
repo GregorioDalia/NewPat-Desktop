@@ -14,12 +14,12 @@ from pathlib import Path
 # Resolve sibling verification modules from this file, independently of cwd.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from nipat.cli import DEFAULT_ERR_CONST
-from nipat.errors import NipatError, ValidationError
-from nipat.execution.runner import DockerComposeRunner
-from nipat.execution.workflows import Workflows
-from nipat.paths import ProjectLayout
-from nipat.validation.self_test import compare_snp_outputs
+from newpat.cli import DEFAULT_ERR_CONST
+from newpat.errors import NipatError, ValidationError
+from newpat.experiments.runner import DockerComposeRunner
+from newpat.experiments.workflows import Workflows
+from newpat.paths import ProjectLayout
+from newpat.validation.self_test import compare_snp_outputs
 from verify_contamination_update import check_outputs as check_contamination_outputs
 from verify_contamination_update import check_bundled_run
 from verify_cpi_update import (

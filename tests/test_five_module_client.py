@@ -10,16 +10,16 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-from nipat.analysis_forms import AnalysisForm
-from nipat.cli import main
-from nipat.errors import ValidationError
-from nipat.execution.workflows import Workflows
-from nipat.paths import ProjectLayout
-from nipat.preferences import Preferences, PreferencesStore
-from nipat.scientific_options import load_scientific_config, edit_scientific_settings
-from nipat.terminal import Terminal
-from nipat.wizard import run_wizard
-from nipat_scientific.settings import normalize_settings
+from newpat.analysis_forms import AnalysisForm
+from newpat.cli import main
+from newpat.errors import ValidationError
+from newpat.experiments.workflows import Workflows
+from newpat.paths import ProjectLayout
+from newpat.preferences import Preferences, PreferencesStore
+from newpat.scientific_options import load_scientific_config, edit_scientific_settings
+from newpat.terminal import Terminal
+from newpat.wizard import run_wizard
+from newpat_scientific.settings import normalize_settings
 
 
 class RecordingRunner:
@@ -224,7 +224,7 @@ class FiveModuleClientTests(unittest.TestCase):
             self.assertEqual({ref["output"] for ref in refs}, {marker + "-tables"})
 
     def test_html_report_preserves_explicit_families_for_asymmetric_branches(self):
-        from nipat.run_report import write_run_report
+        from newpat.run_report import write_run_report
         arguments = self.arguments()
         arguments.update(dnp_analyses=["cpin"], snp_analyses=["cpi"])
         run = self.workflows.analyze(**arguments)
@@ -246,7 +246,7 @@ class FiveModuleClientTests(unittest.TestCase):
         self.assertNotIn("snp_cpin</pre>", page)
 
     def test_html_report_does_not_infer_families_from_inconsistent_plan_metadata(self):
-        from nipat.run_report import write_run_report
+        from newpat.run_report import write_run_report
         run = self.workflows.analyze(**self.arguments())
         metadata = {"schema_version": 1, "workflow": "analysis", "status": "planned",
                     "parameters": self.runner.records[-1][1]["parameters"]}
@@ -259,7 +259,7 @@ class FiveModuleClientTests(unittest.TestCase):
 
     @unittest.skipIf(os.name == "nt", "Engine preflight uses Linux container paths; exercised on Linux")
     def test_generated_plan_passes_engine_file_preflight_with_arbitrary_biological_ids(self):
-        from nipat_scientific.executor import _preflight
+        from newpat_scientific.executor import _preflight
         run = self.workflows.analyze(**self.arguments())
         plan = self.plan(run)
         runtime = self.root / "runtime"
@@ -335,7 +335,7 @@ class FiveModuleClientTests(unittest.TestCase):
 
     def test_settings_cli_exports_valid_config_without_runtime(self):
         export = self.root / "science.json"
-        with patch("nipat.cli.DockerComposeRunner") as runner, redirect_stdout(io.StringIO()):
+        with patch("newpat.cli.DockerComposeRunner") as runner, redirect_stdout(io.StringIO()):
             result = main(["--set", "snp-call.min_base_quality=23", "settings", "--export", str(export)])
         self.assertEqual(result, 0)
         runner.assert_not_called()
@@ -355,8 +355,8 @@ class FiveModuleClientTests(unittest.TestCase):
 
     def test_cli_scientific_config_and_generic_roles_dispatch(self):
         config = self.file("config.json", '{"cpin":{"min_coverage":9}}')
-        with patch("nipat.cli.ProjectLayout.discover", return_value=self.layout), \
-                patch("nipat.cli.DockerComposeRunner"), patch("nipat.cli.Workflows") as workflows, redirect_stdout(io.StringIO()):
+        with patch("newpat.cli.ProjectLayout.discover", return_value=self.layout), \
+                patch("newpat.cli.DockerComposeRunner"), patch("newpat.cli.Workflows") as workflows, redirect_stdout(io.StringIO()):
             self.assertEqual(main(["--scientific-config", str(config), "--set", "snp-call.min_base_quality=21",
                 "workflow", "analyze", "--caller", "snp", "--analyses", "cpi,cpin", "--sample", "M", "m.bam",
                 "--pair", "P", "M", "F", "--trio", "T", "M", "F", "C"]), 0)

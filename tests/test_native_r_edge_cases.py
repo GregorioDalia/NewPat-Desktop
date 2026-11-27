@@ -15,15 +15,15 @@ import subprocess
 import tempfile
 import unittest
 
-from nipat_scientific.errors import PlanExecutionError
-from nipat_scientific.outputs import validate_standalone_outputs
+from newpat_scientific.errors import PlanExecutionError
+from newpat_scientific.outputs import validate_standalone_outputs
 
 from native_r_helpers import NATIVE_R_AVAILABLE, NATIVE_R_REASON
 
 
 ROOT = Path(__file__).resolve().parents[1]
 PAYLOAD = Path(os.environ.get("NIPAT_NATIVE_TEST_PAYLOAD_ROOT", ROOT))
-HELPERS = PAYLOAD / ("lib" if "NIPAT_NATIVE_TEST_PAYLOAD_ROOT" in os.environ else "src") / "nipat_scientific"
+HELPERS = PAYLOAD / ("lib" if "NIPAT_NATIVE_TEST_PAYLOAD_ROOT" in os.environ else "src") / "newpat_scientific"
 
 
 def table(path, delimiter="\t"):

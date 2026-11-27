@@ -19,10 +19,10 @@ MARKERS = ("dnp", "snp")
 VALUE_FIELDS = ("REF", "ALT", "N_REF", "N_ALT", "N_Other", "total_count", "GT")
 
 sys.path.insert(0, str(ROOT / "src"))
-from nipat.execution.runner import DockerComposeRunner
-from nipat.execution.workflows import Workflows
-from nipat.gui.plan import prepare_analysis
-from nipat.paths import ProjectLayout
+from newpat.experiments.runner import DockerComposeRunner
+from newpat.experiments.workflows import Workflows
+from newpat.desktop.plan import prepare_analysis
+from newpat.paths import ProjectLayout
 from verify_caller_edges import verify_edges
 
 

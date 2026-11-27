@@ -19,7 +19,7 @@ from unittest.mock import patch
 
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / "src"))
-from nipat_scientific.executor import execute_plan
+from newpat_scientific.executor import execute_plan
 
 
 def digest(path):
@@ -93,7 +93,7 @@ def check_bundled_client(parent: Path, layout, identifier: str) -> dict:
 
 
 def check_step_outputs(run: Path, plan: dict) -> None:
-    from nipat.validation.self_test import compare_snp_outputs
+    from newpat.validation.self_test import compare_snp_outputs
     from verify_dnp_engine import check_dnp_outputs
 
     check_dnp_outputs(run / "steps/dnp", ("A", "B", "A"))
@@ -109,7 +109,7 @@ def check_step_outputs(run: Path, plan: dict) -> None:
 
 
 def qualify(destination: Path):
-    from nipat.execution.options import ExecutionOptions
+    from newpat.experiments.options import ExecutionOptions
     from verify_snp_workflow import check_snp_execution_policy
 
     destination = destination.resolve()
@@ -142,7 +142,7 @@ def qualify(destination: Path):
                 "trios": [{"id": marker + "_postnatal", "mother": ref("mother"), "father": ref("father"), "child": ref("child")}],
                 "popfreq": str(inputs / (marker + "-frequency.tsv")), "markers": str(inputs / (marker + "-panel.tsv"))}, "parameters": {}},
         ])
-    helper = PROJECT / "src/nipat_scientific"
+    helper = PROJECT / "src/newpat_scientific"
     os.environ.update({"NIPAT_PARALLEL_HELPER": str(helper / "parallel.R"), "NIPAT_PLOTS_HELPER": str(helper / "plots.R"),
                        "NIPAT_DNP_BLOCKS_HELPER": str(helper / "dnp_blocks.R"), "NIPAT_DNP_PILEUP_HELPER": str(helper / "dnp_pileup.py")})
     scripts = {"dnp-call": PROJECT / "scientific/vendor/DNPcall/DNPcall.R", "snp-call": PROJECT / "scientific/vendor/NEWPAT/SNPcall/SNPcall.R",
@@ -182,10 +182,10 @@ def qualify_image(identifier: str, destination: Path, *, run_container) -> dict:
     downstream output contracts/settings are checked by the bundled engine and
     all scientific tables must agree between serial and bounded parallel runs.
     """
-    from nipat.execution.options import ExecutionOptions
-    from nipat.execution.runner import DockerComposeRunner
-    from nipat.execution.workflows import Workflows
-    from nipat.paths import ProjectLayout
+    from newpat.experiments.options import ExecutionOptions
+    from newpat.experiments.runner import DockerComposeRunner
+    from newpat.experiments.workflows import Workflows
+    from newpat.paths import ProjectLayout
     from verify_snp_workflow import check_snp_execution_policy
 
     destination = destination.resolve()

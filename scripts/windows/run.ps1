@@ -38,7 +38,7 @@ try {
         Start-Process -FilePath $windowedPython -ArgumentList ('"' + $guiLauncher + '"') -WorkingDirectory (Get-Location).Path | Out-Null
         exit 0
     }
-    & $python -m nipat @nipatCliArguments
+    & $python -m newpat @nipatCliArguments
     exit $LASTEXITCODE
 } catch {
     Write-Host ("ERRORE: " + $_.Exception.Message) -ForegroundColor Red

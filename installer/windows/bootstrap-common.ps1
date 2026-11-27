@@ -3,7 +3,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'install-profile.ps1')
 
 function Get-NipatApplicationVersion {
-    $versionFile = Join-Path $PSScriptRoot '../../src/nipat/__init__.py'
+    $versionFile = Join-Path $PSScriptRoot '../../src/newpat/__init__.py'
     $source = Get-Content -LiteralPath $versionFile -Raw -Encoding UTF8
     $match = [regex]::Match($source, '(?m)^__version__ = "((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))"\s*$')
     if (-not $match.Success) { throw 'Identita della build NewPat non valida.' }
@@ -191,7 +191,7 @@ function Invoke-NipatSetupCheck([string] $Executable, [string[]] $Arguments,
     $waitMilliseconds = $TimeoutSeconds * 1000
     if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
         $source = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-        $supervisor = Join-Path $source 'src\nipat\windows_setup_check.py'
+        $supervisor = Join-Path $source 'src\newpat\windows_setup_check.py'
         $start.FileName = $SupervisorPython
         $Arguments = @('-X', 'utf8', '-u', $supervisor, [string]$TimeoutSeconds, '--', $Executable) + $Arguments
         # The supervisor enforces the check deadline. Allow bounded time for

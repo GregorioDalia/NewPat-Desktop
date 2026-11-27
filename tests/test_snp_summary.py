@@ -7,8 +7,8 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from nipat_scientific.errors import PlanExecutionError
-from nipat_scientific.snp_summary import finalize_snp_summaries
+from newpat_scientific.errors import PlanExecutionError
+from newpat_scientific.snp_summary import finalize_snp_summaries
 
 
 def rows(path):

@@ -1,9 +1,9 @@
 """Charts use values and identities from the selected archived result."""
 import pytest
 
-from nipat.gui.analysis_report import build_report, report_cases
-from nipat.gui.report_charts import detail_charts
-from nipat.gui.results import ResultsStore
+from newpat.desktop.analysis_report import build_report, report_cases
+from newpat.desktop.report_charts import detail_charts
+from newpat.desktop.results import ResultsStore
 from test_gui_results import artifact, make_run, table, validation
 
 

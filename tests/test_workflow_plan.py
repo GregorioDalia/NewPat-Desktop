@@ -7,7 +7,7 @@ import re
 import unittest
 from unittest.mock import patch
 
-from nipat_scientific.plan import PlanValidationError, validate_plan
+from newpat_scientific.plan import PlanValidationError, validate_plan
 
 
 def table(sample: str, step: str = "dnp") -> dict:

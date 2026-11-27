@@ -28,7 +28,7 @@ component = importlib.util.module_from_spec(_COMPONENT_SPEC)
 _COMPONENT_SPEC.loader.exec_module(component)
 
 _REPO_SPEC = importlib.util.spec_from_file_location(
-    "nipat_repository_identity", Path(__file__).resolve().parents[1] / "src/nipat/repository.py"
+    "nipat_repository_identity", Path(__file__).resolve().parents[1] / "src/newpat/repository.py"
 )
 repository = importlib.util.module_from_spec(_REPO_SPEC)
 _REPO_SPEC.loader.exec_module(repository)

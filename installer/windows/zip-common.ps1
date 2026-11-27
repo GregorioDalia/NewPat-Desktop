@@ -190,7 +190,7 @@ function Set-NipatZipShortcuts([string] $Root, [string] $Project) {
             $link.TargetPath = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
             $link.Arguments = '-NoLogo -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + (Join-Path $shortcutProject 'installer\windows\zip-entry.ps1') + '" -Mode auto'
             $link.WorkingDirectory = $Root
-            $link.IconLocation = (Join-Path $shortcutProject 'assets\branding\nipat-icon.ico') + ',0'
+            $link.IconLocation = (Join-Path $shortcutProject 'assets\branding\newpat-icon.ico') + ',0'
             $link.Description = 'Apri NewPat o completa automaticamente la preparazione dopo un riavvio.'
             $link.Save()
             # Replace only a legacy shortcut owned by this same ZIP installation.

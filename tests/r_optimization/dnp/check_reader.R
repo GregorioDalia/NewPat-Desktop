@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 # Compare bounded parsing and planning with base R's original whole-file import.
 root <- normalizePath(commandArgs(trailingOnly = TRUE)[[1L]], mustWork = TRUE)
-source(file.path(root, "src/nipat_scientific/dnp_blocks.R"))
+source(file.path(root, "src/newpat_scientific/dnp_blocks.R"))
 checks <- 0L
 compare_reader <- function(lines) {
   path <- tempfile(fileext = ".pileup")

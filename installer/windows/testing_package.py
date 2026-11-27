@@ -10,7 +10,7 @@ import sys
 import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
-from nipat.branding import windows_complete_filename, windows_package_generation, windows_testing_filename
+from newpat.branding import windows_complete_filename, windows_package_generation, windows_testing_filename
 
 
 def sources(version):

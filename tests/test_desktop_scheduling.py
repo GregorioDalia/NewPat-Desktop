@@ -9,13 +9,13 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from nipat.execution.options import ExecutionOptions
-from nipat.gui.admission import DesktopAdmission, DesktopStepScheduler
-from nipat.resources import fixed_execution_budget
-from nipat_scientific.desktop_scheduling import DesktopStepBudget, INTERFACE
-from nipat_scientific.errors import PlanExecutionError
-from nipat_scientific.executor import _Cancellation, _atomic_json, execute_plan
-from nipat_scientific.files import require_file
+from newpat.experiments.options import ExecutionOptions
+from newpat.desktop.admission import DesktopAdmission, DesktopStepScheduler
+from newpat.resources import fixed_execution_budget
+from newpat_scientific.desktop_scheduling import DesktopStepBudget, INTERFACE
+from newpat_scientific.errors import PlanExecutionError
+from newpat_scientific.executor import _Cancellation, _atomic_json, execute_plan
+from newpat_scientific.files import require_file
 
 
 def budget(cpus=4, memory=4096, **options):
@@ -103,7 +103,7 @@ class DesktopStepBudgetTests(unittest.TestCase):
     def test_matching_grant_is_required_before_any_new_work(self):
         self.message("request.json", self.first)
         self.message("grant.json", self.second, budget=budget(1, 256))
-        with patch("nipat_scientific.desktop_scheduling._GRANT_TIMEOUT", 0), self.assertRaisesRegex(PlanExecutionError, "Timed out"):
+        with patch("newpat_scientific.desktop_scheduling._GRANT_TIMEOUT", 0), self.assertRaisesRegex(PlanExecutionError, "Timed out"):
             self.scheduler.boundary(self.cancellation)
         self.assertEqual(json.loads((self.control / "ack.json").read_text())["token"], self.first)
         self.assertEqual(os.environ["NIPAT_FIXED_RESOURCE_BUDGET"], self.initial_env["NIPAT_FIXED_RESOURCE_BUDGET"])
@@ -121,7 +121,7 @@ class DesktopStepBudgetTests(unittest.TestCase):
                 path = self.root / path.name
             return require_file(path, label)
 
-        self.enterContext(patch("nipat_scientific.executor.require_file", new=mounted_file))
+        self.enterContext(patch("newpat_scientific.executor.require_file", new=mounted_file))
         panel = self.root / "panel.tsv"
         panel.write_text("chr\tpos\tref\talt\nchr1\t10\tA\tG\n")
         plan = {"schema_version": 1, "samples": [], "steps": []}
@@ -149,8 +149,8 @@ class DesktopStepBudgetTests(unittest.TestCase):
             before_group()
             self.assertEqual(os.environ["NIPAT_MEMORY_LIMIT_MIB"], "1000")
             return []
-        with patch("nipat_scientific.snp_parallel.execute_independent_snp_steps", side_effect=batch), \
-                patch("nipat_scientific.snp_summary.finalize_snp_summaries", side_effect=summary):
+        with patch("newpat_scientific.snp_parallel.execute_independent_snp_steps", side_effect=batch), \
+                patch("newpat_scientific.snp_summary.finalize_snp_summaries", side_effect=summary):
             state = execute_plan(plan, run_dir=self.root / "workflow", script_paths=scripts)
         self.assertEqual(state["status"], "succeeded", state)
         self.assertEqual([grant["next_phase"] for grant in state["desktop_resource_grants"]], ["snp-batch", "snp-summary"])
@@ -163,7 +163,7 @@ class DesktopStepBudgetTests(unittest.TestCase):
         def final_step(plan, step, record, *args):
             self.message("request.json", self.first)
             record.update(status="succeeded", artifacts={"snp-tables": []})
-        with patch("nipat_scientific.executor._execute_step", side_effect=final_step):
+        with patch("newpat_scientific.executor._execute_step", side_effect=final_step):
             state = execute_plan(plan, run_dir=self.root / "workflow", script_paths=scripts)
         self.assertEqual(state["status"], "succeeded", state)
         self.assertFalse((self.control / "ack.json").exists())
@@ -176,7 +176,7 @@ class DesktopStepBudgetTests(unittest.TestCase):
             _atomic_json(path, document)
             if path.name == "ack.json":
                 signal.raise_signal(signal.SIGTERM)
-        with patch("nipat_scientific.executor._atomic_json", side_effect=cancel_after_ack):
+        with patch("newpat_scientific.executor._atomic_json", side_effect=cancel_after_ack):
             state = execute_plan(plan, run_dir=self.root / "workflow", script_paths=scripts)
         self.assertEqual((state["status"], state["exit_code"]), ("cancelled", 143), state)
         self.assertEqual([step["status"] for step in state["steps"]], ["blocked", "blocked"])

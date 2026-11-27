@@ -59,8 +59,8 @@ class MacInstallerTests(unittest.TestCase):
         project = self.root / "project"
         project.mkdir()
         for relative, contents in {
-            "installer/macos/NIPAT.command": "#!/bin/sh\nexit 0\n",
-            "src/nipat/__init__.py": '__version__ = "0.8.2"\n',
+            "installer/macos/NewPat.command": "#!/bin/sh\nexit 0\n",
+            "src/newpat/__init__.py": '__version__ = "0.8.2"\n',
             "LICENSE": "Fixture license\n",
         }.items():
             path = project / relative
@@ -158,7 +158,7 @@ class MacInstallerTests(unittest.TestCase):
 
     def test_changed_source_cannot_pass_package_verification(self):
         payload, app, common, record = self.fixture()
-        (app / "Contents/Resources/app/src/nipat/__init__.py").write_text("changed\n")
+        (app / "Contents/Resources/app/src/newpat/__init__.py").write_text("changed\n")
         with self.assertRaisesRegex(ValueError, "source mismatch"):
             verifier.verify_payload(payload, common, record)
 

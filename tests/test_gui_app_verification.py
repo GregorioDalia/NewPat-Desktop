@@ -22,7 +22,7 @@ class NativeAppVerificationTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name).resolve()
         self.app = self.root / "packaged app"
-        assets = self.app / "src/nipat/gui/web"
+        assets = self.app / "src/newpat/desktop/web"
         assets.mkdir(parents=True)
         (assets / "index.html").write_text("<title>NIPAT</title>")
         self.workspace = self.root / "isolated workspace"

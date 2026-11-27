@@ -10,8 +10,8 @@ import time
 
 import pytest
 
-from nipat import cli
-from nipat.gui import windows_host
+from newpat import cli
+from newpat.desktop import windows_host
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -65,13 +65,13 @@ def test_startup_failure_is_visible_even_without_a_console(tmp_path, monkeypatch
 def test_native_window_uses_packaged_nipat_identity_and_icon():
     assert windows_host.APP_USER_MODEL_ID == "NIPAT.Desktop"
     icon = windows_host.application_icon()
-    assert icon == ROOT / "assets/branding/nipat-icon.ico"
+    assert icon == ROOT / "assets/branding/newpat-icon.ico"
     assert icon.read_bytes().startswith(b"\x00\x00\x01\x00")
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="requires real Windows pythonw and process leases")
 def test_detached_pythonw_keeps_gui_activity_lease_after_launcher_exits(tmp_path, monkeypatch):
-    from nipat.activity import _windows_kernel, windows_activity_path
+    from newpat.activity import _windows_kernel, windows_activity_path
 
     pythonw = Path(sys.executable).with_name("pythonw.exe")
     assert pythonw.is_file(), "Windows qualification requires the official windowed interpreter"
@@ -85,7 +85,7 @@ def test_detached_pythonw_keeps_gui_activity_lease_after_launcher_exits(tmp_path
     child.write_text(f'''
 import ctypes, importlib.util, json, os, time
 from pathlib import Path
-from nipat.gui import app, windows_host
+from newpat.desktop import app, windows_host
 ready, release, finished = map(Path, {list(map(str, (ready, release, finished)))!r})
 windows_host.notify = lambda *args: ready.with_suffix('.error').write_text(str(args))
 def keep_open(*args, **kwargs):

@@ -84,7 +84,7 @@ def verify(previous, candidate, manifest_path, work, output):
     output.parent.mkdir(parents=True, exist_ok=True)
     work.mkdir(parents=True, mode=0o700)
     environment = {key: value for key, value in os.environ.items()
-                   if not key.startswith(("NIPAT_", "PYTHON", "DOCKER_", "COMPOSE_"))}
+                   if not key.startswith(("NEWPAT_", "NIPAT_", "PYTHON", "DOCKER_", "COMPOSE_"))}
     environment.update({"XDG_DATA_HOME": str(work / "data è"), "XDG_STATE_HOME": str(work / "state è"),
                         "XDG_CONFIG_HOME": str(work / "config è"), "DEBIAN_FRONTEND": "noninteractive",
                         "LC_ALL": "C.UTF-8"})

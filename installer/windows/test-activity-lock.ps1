@@ -22,17 +22,17 @@ try {
     $distribution = Join-Path $fixture '.distribution'
     [IO.Directory]::CreateDirectory($helperDirectory) | Out-Null
     [IO.Directory]::CreateDirectory($distribution) | Out-Null
-    $helper = Join-Path $fixture 'src\nipat\windows_install_activity.py'
+    $helper = Join-Path $fixture 'src\newpat\windows_install_activity.py'
     Assert-Rejected { Get-NipatActivityRuntime $helperDirectory } 'missing Python helper never triggers local compilation'
     [IO.Directory]::CreateDirectory((Split-Path -Parent $helper)) | Out-Null
-    Copy-Item -LiteralPath (Join-Path $PSScriptRoot '../../src/nipat/windows_install_activity.py') -Destination $helper
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot '../../src/newpat/windows_install_activity.py') -Destination $helper
     $manifestPath = Join-Path $distribution 'installer-manifest.json'
     $inventoryPath = Join-Path $distribution 'application-files.json'
     [IO.File]::WriteAllText($manifestPath, ('{"source_commit":"' + ('a' * 40) + '"}'))
     Assert-Rejected { Get-NipatActivityRuntime $helperDirectory } 'installed helper requires its package inventory'
     $record = [ordered]@{
         schema_version = 1; installation_channel = 'desktop'; source_commit = 'a' * 40
-        files = @([ordered]@{ path = 'src/nipat/windows_install_activity.py'
+        files = @([ordered]@{ path = 'src/newpat/windows_install_activity.py'
             sha256 = (Get-FileHash -LiteralPath $helper -Algorithm SHA256).Hash.ToLowerInvariant() })
     }
     $record | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $inventoryPath -Encoding UTF8

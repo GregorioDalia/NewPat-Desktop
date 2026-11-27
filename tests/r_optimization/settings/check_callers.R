@@ -1,9 +1,9 @@
 #!/usr/bin/env Rscript
 # The configurable Other threshold changes GT only, including its exact boundary.
 root <- normalizePath(commandArgs(TRUE)[[1]], mustWork=TRUE)
-Sys.setenv(NIPAT_PARALLEL_HELPER=file.path(root, "src/nipat_scientific/parallel.R"),
-           NIPAT_SETTINGS_HELPER=file.path(root, "src/nipat_scientific/settings.R"),
-           NIPAT_SETTINGS_REGISTRY=file.path(root, "src/nipat_scientific/settings_data.json"),
+Sys.setenv(NIPAT_PARALLEL_HELPER=file.path(root, "src/newpat_scientific/parallel.R"),
+           NIPAT_SETTINGS_HELPER=file.path(root, "src/newpat_scientific/settings.R"),
+           NIPAT_SETTINGS_REGISTRY=file.path(root, "src/newpat_scientific/settings_data.json"),
            NIPAT_EXECUTION_MODE="serial")
 Sys.unsetenv("NIPAT_SCIENTIFIC_SETTINGS")
 source(Sys.getenv("NIPAT_SETTINGS_HELPER"))

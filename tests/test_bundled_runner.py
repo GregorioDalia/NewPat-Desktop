@@ -10,12 +10,12 @@ from contextlib import redirect_stdout
 from pathlib import Path, PureWindowsPath
 from unittest.mock import MagicMock, patch
 
-from nipat import __version__
-from nipat.errors import RuntimeExecutionError, ValidationError
-from nipat.execution.mounts import InputMounts
-from nipat.execution.runner import DockerComposeRunner
-from nipat.execution.transport import DockerTransport, WslDockerTransport, _windows_path
-from nipat.paths import ProjectLayout
+from newpat import __version__
+from newpat.errors import RuntimeExecutionError, ValidationError
+from newpat.experiments.mounts import InputMounts
+from newpat.experiments.runner import DockerComposeRunner
+from newpat.experiments.transport import DockerTransport, WslDockerTransport, _windows_path
+from newpat.paths import ProjectLayout
 
 
 IMAGE_ID = "sha256:" + "a" * 64
@@ -47,18 +47,18 @@ def engine_metadata():
         "preparation": {
             "interface": "workflow-preparation-v1",
             "file_sha256": {name: "d" * 64 for name in (
-                "engine/main.py", "lib/nipat_scientific/__init__.py",
-                "lib/nipat_scientific/errors.py", "lib/nipat_scientific/panels.py",
-                "lib/nipat_scientific/files.py", "lib/nipat_scientific/contamination.py",
-                "lib/nipat_scientific/fetal_sex.py",
-                "lib/nipat_scientific/snp.py", "lib/nipat_scientific/dnp.py",
-                "lib/nipat_scientific/cpi.py", "lib/nipat_scientific/cpin.py",
-                "lib/nipat_scientific/settings.py", "lib/nipat_scientific/settings.R",
-                "lib/nipat_scientific/settings_data.json", "lib/nipat_scientific/outputs.py",
-                "lib/nipat_scientific/presentation.py", "lib/nipat_scientific/presentation.R",
-                "lib/nipat_scientific/parallel.py", "lib/nipat_scientific/parallel.R",
-                "lib/nipat_scientific/plots.R", "lib/nipat_scientific/snp_summary.py",
-                "lib/nipat_scientific/snp_parallel.py",
+                "engine/main.py", "lib/newpat_scientific/__init__.py",
+                "lib/newpat_scientific/errors.py", "lib/newpat_scientific/panels.py",
+                "lib/newpat_scientific/files.py", "lib/newpat_scientific/contamination.py",
+                "lib/newpat_scientific/fetal_sex.py",
+                "lib/newpat_scientific/snp.py", "lib/newpat_scientific/dnp.py",
+                "lib/newpat_scientific/cpi.py", "lib/newpat_scientific/cpin.py",
+                "lib/newpat_scientific/settings.py", "lib/newpat_scientific/settings.R",
+                "lib/newpat_scientific/settings_data.json", "lib/newpat_scientific/outputs.py",
+                "lib/newpat_scientific/presentation.py", "lib/newpat_scientific/presentation.R",
+                "lib/newpat_scientific/parallel.py", "lib/newpat_scientific/parallel.R",
+                "lib/newpat_scientific/plots.R", "lib/newpat_scientific/snp_summary.py",
+                "lib/newpat_scientific/snp_parallel.py",
             )},
         },
     }
@@ -75,7 +75,7 @@ class BundledRunnerTests(unittest.TestCase):
             elif mutation == "workflow":
                 description["scientific_settings"]["workflows"].remove("cpin")
             else:
-                del description["preparation"]["file_sha256"]["lib/nipat_scientific/settings_data.json"]
+                del description["preparation"]["file_sha256"]["lib/newpat_scientific/settings_data.json"]
             with self.subTest(mutation=mutation), self.assertRaises(RuntimeExecutionError):
                 DockerComposeRunner._validate_engine_description(description)
 
@@ -86,14 +86,14 @@ class BundledRunnerTests(unittest.TestCase):
         description["desktop_scheduling"] = "step-budget-v1"
         with self.assertRaises(RuntimeExecutionError):
             validate(description)
-        description["preparation"]["file_sha256"]["lib/nipat_scientific/desktop_scheduling.py"] = "f" * 64
+        description["preparation"]["file_sha256"]["lib/newpat_scientific/desktop_scheduling.py"] = "f" * 64
         self.assertEqual(validate(description), description)
 
     def test_image_missing_original_name_presentation_is_rejected(self):
         for source in ("presentation.py", "presentation.R"):
             with self.subTest(source=source):
                 description = engine_metadata()
-                del description["preparation"]["file_sha256"]["lib/nipat_scientific/" + source]
+                del description["preparation"]["file_sha256"]["lib/newpat_scientific/" + source]
                 with self.assertRaisesRegex(RuntimeExecutionError, "nomi originali"):
                     DockerComposeRunner._validate_engine_description(description)
 
@@ -114,7 +114,7 @@ class BundledRunnerTests(unittest.TestCase):
     def setUp(self):
         # platform.platform() may spawn a process on Linux; keep that host probe
         # separate from the Docker subprocesses controlled by these tests.
-        self.enterContext(patch("nipat.execution.tracking.platform.platform", return_value="test-host"))
+        self.enterContext(patch("newpat.experiments.tracking.platform.platform", return_value="test-host"))
         self.temp = tempfile.TemporaryDirectory(prefix="nipat bundled ")
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name).resolve()
@@ -133,7 +133,7 @@ class BundledRunnerTests(unittest.TestCase):
         self.runner = DockerComposeRunner(self.layout, transport=DockerTransport())
         self.enterContext(patch.object(self.runner, "_record_resource_snapshot"))
         self.inspection = self.enterContext(patch(
-            "nipat.execution.runner.inspect_container",
+            "newpat.experiments.runner.inspect_container",
             side_effect=lambda *_: {"availability": "absent", "owned": False},
         ))
         self.stdout = io.StringIO()
@@ -164,7 +164,7 @@ class BundledRunnerTests(unittest.TestCase):
     def test_doctor_verifies_the_image_without_host_scientific_sources_or_run(self):
         self.assertFalse((self.project / "scientific").exists())
         with redirect_stdout(self.stdout), patch(
-            "nipat.execution.runner.shutil.which", return_value="docker",
+            "newpat.experiments.runner.shutil.which", return_value="docker",
         ), patch.object(self.runner, "_capture", side_effect=["Compose v2", *self.captured()]) as capture:
             self.runner.doctor(check_runtime=True)
         self.assertIsNone(self.runner._record)
@@ -190,7 +190,7 @@ class BundledRunnerTests(unittest.TestCase):
             "workflows": ["dnp-call", "contamination"], "scheduling": "dependency-order-with-bounded-independent-snp", "resume": False,
         }
         for name in ("plan", "executor"):
-            description["preparation"]["file_sha256"][f"lib/nipat_scientific/{name}.py"] = "e" * 64
+            description["preparation"]["file_sha256"][f"lib/newpat_scientific/{name}.py"] = "e" * 64
         return description
 
     def test_plan_negotiates_its_own_contract_before_analysis(self):
@@ -198,7 +198,7 @@ class BundledRunnerTests(unittest.TestCase):
         run, context = self.begin("plan", "workflow-plan")
         with redirect_stdout(self.stdout), patch.object(
             self.runner, "_capture", side_effect=self.captured(description),
-        ), patch("nipat.execution.runner.subprocess.Popen", return_value=self.process()) as popen:
+        ), patch("newpat.experiments.runner.subprocess.Popen", return_value=self.process()) as popen:
             with context:
                 self.runner.run(["python3", "/opt/nipat/engine/main.py", "execute-plan"])
         self.assertEqual(popen.call_count, 1)
@@ -218,14 +218,14 @@ class BundledRunnerTests(unittest.TestCase):
             if key == "workflow_interfaces":
                 description[key]["cpi"] = "cpi-v3"
             else:
-                del description[key]["file_sha256"]["lib/nipat_scientific/cpi.py"]
+                del description[key]["file_sha256"]["lib/newpat_scientific/cpi.py"]
             variants.append(description)
         for index, description in enumerate(variants):
             with self.subTest(index=index):
                 run, context = self.begin(f"cpi-plan-invalid-{index}", "workflow-plan-cpi")
                 with redirect_stdout(self.stdout), patch.object(
                     self.runner, "_capture", side_effect=self.captured(description),
-                ), patch("nipat.execution.runner.subprocess.Popen") as popen:
+                ), patch("newpat.experiments.runner.subprocess.Popen") as popen:
                     with self.assertRaisesRegex(RuntimeExecutionError, "workflow-plan-execution-v2"):
                         with context:
                             self.fail("An image without the complete CPI plan contract must not execute.")
@@ -238,7 +238,7 @@ class BundledRunnerTests(unittest.TestCase):
         run, context = self.begin("cpi-plan", "workflow-plan-cpi")
         with redirect_stdout(self.stdout), patch.object(
             self.runner, "_capture", side_effect=self.captured(description),
-        ), patch("nipat.execution.runner.subprocess.Popen", return_value=self.process()) as popen:
+        ), patch("newpat.experiments.runner.subprocess.Popen", return_value=self.process()) as popen:
             with context:
                 self.runner.run(["python3", "/opt/nipat/engine/main.py", "execute-plan"])
         self.assertEqual(popen.call_count, 1)
@@ -250,7 +250,7 @@ class BundledRunnerTests(unittest.TestCase):
     def test_cpi_plan_uses_graceful_cancellation_before_forced_cleanup(self):
         self.runner._bundled_workflow = "workflow-plan-cpi"
         result = subprocess.CompletedProcess([], 0, stdout="", stderr="")
-        with patch("nipat.execution.runner.subprocess.run", return_value=result) as execute:
+        with patch("newpat.experiments.runner.subprocess.run", return_value=result) as execute:
             self.runner._stop_container("nipat-run-cpi")
         self.assertEqual(execute.call_args_list[0].args[0],
                          ["docker", "stop", "--time", "10", "nipat-run-cpi"])
@@ -263,7 +263,7 @@ class BundledRunnerTests(unittest.TestCase):
                 run, context = self.begin(marker + "-old", marker)
                 with redirect_stdout(self.stdout), patch.object(
                     self.runner, "_capture", side_effect=self.captured(description),
-                ), patch("nipat.execution.runner.subprocess.Popen") as popen:
+                ), patch("newpat.experiments.runner.subprocess.Popen") as popen:
                     with self.assertRaisesRegex(RuntimeExecutionError, "workflow-plan-execution-v2"):
                         with context:
                             self.fail("The preceding runtime cannot execute SNP plan steps.")
@@ -281,7 +281,7 @@ class BundledRunnerTests(unittest.TestCase):
                 run, context = self.begin(marker, marker)
                 with redirect_stdout(self.stdout), patch.object(
                     self.runner, "_capture", side_effect=self.captured(description),
-                ), patch("nipat.execution.runner.subprocess.Popen", return_value=self.process()) as popen:
+                ), patch("newpat.experiments.runner.subprocess.Popen", return_value=self.process()) as popen:
                     with context:
                         self.runner.run(["python3", "/opt/nipat/engine/main.py", "execute-plan"])
                 self.assertEqual(popen.call_count, 1)
@@ -299,7 +299,7 @@ class BundledRunnerTests(unittest.TestCase):
                     description["workflow_interfaces"]["snp-call"] = "snp-call-v1"
                 else:
                     module = "snp" if invalid == "snp-source" else "executor"
-                    del description["preparation"]["file_sha256"][f"lib/nipat_scientific/{module}.py"]
+                    del description["preparation"]["file_sha256"][f"lib/newpat_scientific/{module}.py"]
                 with self.assertRaises(RuntimeExecutionError):
                     self.runner._validate_engine_description(description, "workflow-plan-snp")
 
@@ -308,7 +308,7 @@ class BundledRunnerTests(unittest.TestCase):
             with self.subTest(marker=marker):
                 self.runner._bundled_workflow = marker
                 result = subprocess.CompletedProcess([], 0, stdout="", stderr="")
-                with patch("nipat.execution.runner.subprocess.run", return_value=result) as execute:
+                with patch("newpat.experiments.runner.subprocess.run", return_value=result) as execute:
                     self.runner._stop_container("nipat-run-snp")
                 self.assertEqual(execute.call_args_list[0].args[0],
                                  ["docker", "stop", "--time", "10", "nipat-run-snp"])
@@ -324,7 +324,7 @@ class BundledRunnerTests(unittest.TestCase):
             variants.append(item)
         for name in ("plan", "executor"):
             item = self.plan_metadata()
-            del item["preparation"]["file_sha256"][f"lib/nipat_scientific/{name}.py"]
+            del item["preparation"]["file_sha256"][f"lib/newpat_scientific/{name}.py"]
             variants.append(item)
         for workflow in ("dnp-call", "contamination"):
             item = self.plan_metadata()
@@ -336,7 +336,7 @@ class BundledRunnerTests(unittest.TestCase):
                 run, context = self.begin(f"plan-invalid-{index}", "workflow-plan")
                 with redirect_stdout(self.stdout), patch.object(
                     self.runner, "_capture", side_effect=self.captured(item),
-                ), patch("nipat.execution.runner.subprocess.Popen") as popen:
+                ), patch("newpat.experiments.runner.subprocess.Popen") as popen:
                     with self.assertRaisesRegex(RuntimeExecutionError, "workflow-plan-execution-v2"):
                         with context:
                             self.fail("The incompatible plan engine must not start.")
@@ -347,7 +347,7 @@ class BundledRunnerTests(unittest.TestCase):
     def test_plan_cancellation_allows_state_flush_before_removal(self):
         self.runner._bundled_workflow = "workflow-plan"
         result = subprocess.CompletedProcess([], 0, stdout="", stderr="")
-        with patch("nipat.execution.runner.subprocess.run", return_value=result) as execute:
+        with patch("newpat.experiments.runner.subprocess.run", return_value=result) as execute:
             cleanup = self.runner._stop_container("nipat-run-plan")
         self.assertEqual(execute.call_args_list[0].args[0],
                          ["docker", "stop", "--time", "10", "nipat-run-plan"])
@@ -357,7 +357,7 @@ class BundledRunnerTests(unittest.TestCase):
 
     def test_plan_stop_timeout_still_removes_container(self):
         self.runner._bundled_workflow = "workflow-plan"
-        with patch("nipat.execution.runner.subprocess.run", side_effect=[
+        with patch("newpat.experiments.runner.subprocess.run", side_effect=[
             subprocess.TimeoutExpired("docker stop", 20),
             subprocess.CompletedProcess([], 0, stdout="", stderr=""),
         ]) as execute:
@@ -368,7 +368,7 @@ class BundledRunnerTests(unittest.TestCase):
 
     def test_plan_auto_removal_after_stop_is_not_reported_as_failed_stop(self):
         self.runner._bundled_workflow = "workflow-plan"
-        with redirect_stdout(self.stdout), patch("nipat.execution.runner.subprocess.run", side_effect=[
+        with redirect_stdout(self.stdout), patch("newpat.experiments.runner.subprocess.run", side_effect=[
             subprocess.CompletedProcess([], 0, stdout="nipat-run-plan", stderr=""),
             subprocess.CompletedProcess([], 1, stdout="", stderr="No such container: nipat-run-plan"),
         ]):
@@ -385,7 +385,7 @@ class BundledRunnerTests(unittest.TestCase):
                 else:
                     description["workflow_interfaces"][workflow] = value
                 with self.subTest(workflow=workflow, value=value), redirect_stdout(self.stdout), patch(
-                    "nipat.execution.runner.shutil.which", return_value="docker",
+                    "newpat.experiments.runner.shutil.which", return_value="docker",
                 ), patch.object(self.runner, "_capture", side_effect=["Compose v2", *self.captured(description)]):
                     with self.assertRaisesRegex(RuntimeExecutionError, "moduli scientifici"):
                         self.runner.doctor(check_runtime=True)
@@ -393,9 +393,9 @@ class BundledRunnerTests(unittest.TestCase):
 
     def test_doctor_rejects_incomplete_scientific_identity(self):
         description = engine_metadata()
-        del description["preparation"]["file_sha256"]["lib/nipat_scientific/cpi.py"]
+        del description["preparation"]["file_sha256"]["lib/newpat_scientific/cpi.py"]
         with redirect_stdout(self.stdout), patch(
-            "nipat.execution.runner.shutil.which", return_value="docker",
+            "newpat.experiments.runner.shutil.which", return_value="docker",
         ), patch.object(self.runner, "_capture", side_effect=["Compose v2", *self.captured(description)]):
             with self.assertRaisesRegex(RuntimeExecutionError, "metadati scientifici completi"):
                 self.runner.doctor(check_runtime=True)
@@ -403,7 +403,7 @@ class BundledRunnerTests(unittest.TestCase):
 
     def test_dry_run_doctor_rejects_diagnostics_without_starting_processes(self):
         self.runner.dry_run = True
-        with patch("nipat.execution.runner.subprocess.run") as execute:
+        with patch("newpat.experiments.runner.subprocess.run") as execute:
             with self.assertRaisesRegex(ValidationError, "rimuovere --dry-run"):
                 self.runner.doctor(check_runtime=True)
         execute.assert_not_called()
@@ -415,7 +415,7 @@ class BundledRunnerTests(unittest.TestCase):
         with redirect_stdout(self.stdout), patch.object(
             self.runner, "_capture", side_effect=self.captured(),
         ) as capture, patch(
-            "nipat.execution.runner.subprocess.Popen", return_value=self.process(),
+            "newpat.experiments.runner.subprocess.Popen", return_value=self.process(),
         ) as popen:
             with context:
                 self.runner.run(["python3", "/opt/nipat/engine/main.py", "execute",
@@ -476,7 +476,7 @@ class BundledRunnerTests(unittest.TestCase):
         value["preparation"]["file_sha256"]["engine/main.py"] = "invalid"
         variants.append(value)
         value = engine_metadata()
-        value["preparation"]["file_sha256"]["lib/nipat_scientific/../escape.py"] = "e" * 64
+        value["preparation"]["file_sha256"]["lib/newpat_scientific/../escape.py"] = "e" * 64
         variants.append(value)
         value = engine_metadata()
         del value["workflows"]["cpi"]
@@ -489,7 +489,7 @@ class BundledRunnerTests(unittest.TestCase):
                 run, context = self.begin(f"invalid-{index}")
                 with redirect_stdout(self.stdout), patch.object(
                     self.runner, "_capture", side_effect=answers,
-                ), patch("nipat.execution.runner.subprocess.Popen") as popen:
+                ), patch("newpat.experiments.runner.subprocess.Popen") as popen:
                     with self.assertRaisesRegex(RuntimeExecutionError, "contratto Contamination"):
                         with context:
                             self.fail("An incompatible image must not enter the workflow.")
@@ -505,7 +505,7 @@ class BundledRunnerTests(unittest.TestCase):
                 run, context = self.begin(f"{workflow}-bundled", workflow=workflow)
                 with redirect_stdout(self.stdout), patch.object(
                     self.runner, "_capture", side_effect=self.captured(),
-                ), patch("nipat.execution.runner.subprocess.Popen", return_value=self.process()) as popen:
+                ), patch("newpat.experiments.runner.subprocess.Popen", return_value=self.process()) as popen:
                     with context:
                         self.runner.run(["python3", "/opt/nipat/engine/main.py", "execute",
                                          workflow, "--request", "/workspace/request.json"])
@@ -539,13 +539,13 @@ class BundledRunnerTests(unittest.TestCase):
             wrong_interface = engine_metadata()
             wrong_interface["workflow_interfaces"][workflow] = "contamination-v2"
             missing_source = engine_metadata()
-            del missing_source["preparation"]["file_sha256"][f"lib/nipat_scientific/{module}.py"]
+            del missing_source["preparation"]["file_sha256"][f"lib/newpat_scientific/{module}.py"]
             for index, description in enumerate((missing_interface, wrong_interface, missing_source)):
                 with self.subTest(workflow=workflow, index=index):
                     run, context = self.begin(f"{workflow}-incompatible-{index}", workflow=workflow)
                     with redirect_stdout(self.stdout), patch.object(
                         self.runner, "_capture", side_effect=self.captured(description),
-                    ), patch("nipat.execution.runner.subprocess.Popen") as popen:
+                    ), patch("newpat.experiments.runner.subprocess.Popen") as popen:
                         with self.assertRaisesRegex(RuntimeExecutionError,
                                                     f"contratto {label}.*{engine_metadata()['workflow_interfaces'][workflow]}"):
                             with context:
@@ -574,7 +574,7 @@ class BundledRunnerTests(unittest.TestCase):
         run, context = self.begin("failure")
         with redirect_stdout(self.stdout), patch.object(
             self.runner, "_capture", side_effect=self.captured(),
-        ), patch("nipat.execution.runner.subprocess.Popen", return_value=self.process(7)), patch.object(
+        ), patch("newpat.experiments.runner.subprocess.Popen", return_value=self.process(7)), patch.object(
             self.runner, "_stop_container", return_value={"status": "absent"},
         ) as stop:
             with self.assertRaisesRegex(RuntimeExecutionError, "codice 7"):
@@ -594,7 +594,7 @@ class BundledRunnerTests(unittest.TestCase):
         run, context = self.begin("cancelled")
         with redirect_stdout(self.stdout), patch.object(
             self.runner, "_capture", side_effect=self.captured(),
-        ), patch("nipat.execution.runner.subprocess.Popen", return_value=process), patch.object(
+        ), patch("newpat.experiments.runner.subprocess.Popen", return_value=process), patch.object(
             self.runner, "_stop_container", return_value={"status": "removed"},
         ) as stop:
             with self.assertRaises(KeyboardInterrupt):
@@ -617,10 +617,10 @@ class BundledRunnerTests(unittest.TestCase):
 
         run, context = self.begin("planned")
         with redirect_stdout(self.stdout), patch(
-            "nipat.execution.transport._windows_path", side_effect=windows_path,
-        ), patch("nipat.execution.transport._drive_type", return_value=3), patch(
-            "nipat.execution.runner.subprocess.run",
-        ) as execute, patch("nipat.execution.runner.subprocess.Popen") as popen:
+            "newpat.experiments.transport._windows_path", side_effect=windows_path,
+        ), patch("newpat.experiments.transport._drive_type", return_value=3), patch(
+            "newpat.experiments.runner.subprocess.run",
+        ) as execute, patch("newpat.experiments.runner.subprocess.Popen") as popen:
             with context:
                 self.runner.run(["python3", "/opt/nipat/engine/main.py", "execute"])
         execute.assert_not_called()

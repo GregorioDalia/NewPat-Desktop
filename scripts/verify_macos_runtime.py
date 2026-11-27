@@ -35,7 +35,7 @@ def snapshot(path: Path) -> dict[str, str]:
 def check_cold_start(execute, runtime, project: Path, run_root: Path, image: str) -> dict:
     from installed_suite import verify_run
     from installed_workflows import check_positive_cpi
-    from nipat.gui.examples import save_example_data
+    from newpat.desktop.examples import save_example_data
 
     prior_runs = run_root / "self-tests"
     retained = snapshot(prior_runs)
@@ -72,7 +72,7 @@ def verify(app: Path, output: Path) -> dict:
     if sys.platform != "darwin":
         raise ValueError("This verification requires a real macOS host with Virtualization.framework.")
     app = app.expanduser().resolve()
-    launcher = app / "Contents/Resources/NIPAT.command"
+    launcher = app / "Contents/Resources/NewPat.command"
     manifest_path = app / "Contents/Resources/app/.distribution/macos-manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if not launcher.is_file() or manifest.get("channel") != "desktop":
@@ -119,8 +119,8 @@ def verify(app: Path, output: Path) -> dict:
         execute("doctor", ["doctor", "--runtime"], 600)
         project = app / "Contents/Resources/app"
         sys.path.insert(0, str(project / "src"))
-        from nipat.errors import NipatError
-        from nipat.macos_runtime import LimaRuntime
+        from newpat.errors import NipatError
+        from newpat.macos_runtime import LimaRuntime
         runtime = LimaRuntime(project, workspace, app / "Contents/Resources/lima/bin/limactl")
         try:
             native = runtime.native_evidence(first_state["runtime_image"])

@@ -97,8 +97,8 @@ main <- function() {
     Sys.unsetenv("NIPAT_PARALLEL_CHILD")
     if (configuration$name == "nested") Sys.setenv(NIPAT_PARALLEL_CHILD = "1")
     environment <- new.env(parent = globalenv())
-    sys.source(file.path(root, "src/nipat_scientific/parallel.R"), environment)
-    sys.source(file.path(root, "src/nipat_scientific/dnp_blocks.R"), environment)
+    sys.source(file.path(root, "src/newpat_scientific/parallel.R"), environment)
+    sys.source(file.path(root, "src/newpat_scientific/dnp_blocks.R"), environment)
     # Exercise both measured capacities deterministically, including on CI
     # runners with a smaller allocation. The policy consumes the real R budget.
     limited <- configuration$name %in% c("limited", "multi-limited", "pair-at-budget", "pair-over-budget",

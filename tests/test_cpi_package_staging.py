@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from nipat_scientific.panels import read_position_panel, write_position_panel
+from newpat_scientific.panels import read_position_panel, write_position_panel
 
 
 PROJECT = Path(__file__).resolve().parents[1]

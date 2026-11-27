@@ -10,8 +10,8 @@ import time
 import unittest
 from unittest.mock import patch
 
-from nipat_scientific import dnp_pileup
-from nipat_scientific.settings import settings_context
+from newpat_scientific import dnp_pileup
+from newpat_scientific.settings import settings_context
 
 
 FAKE_SAMTOOLS = r'''

@@ -6,9 +6,9 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from nipat.errors import ValidationError as ClientValidationError
-from nipat_scientific.contamination import prepare_contamination
-from nipat_scientific.errors import ValidationError
+from newpat.errors import ValidationError as ClientValidationError
+from newpat_scientific.contamination import prepare_contamination
+from newpat_scientific.errors import ValidationError
 
 
 class ContaminationEngineTests(unittest.TestCase):
@@ -146,7 +146,7 @@ class ContaminationEngineTests(unittest.TestCase):
 
     def test_copy_error_leaves_original_unchanged_and_cannot_be_retried_in_place(self):
         before = self.sample.read_bytes()
-        with patch("nipat_scientific.contamination.shutil.copy2", side_effect=OSError("disk full")):
+        with patch("newpat_scientific.contamination.shutil.copy2", side_effect=OSError("disk full")):
             with self.assertRaisesRegex(OSError, "disk full"):
                 prepare_contamination(self.request)
         self.assertEqual(self.sample.read_bytes(), before)

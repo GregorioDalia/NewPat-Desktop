@@ -5,9 +5,9 @@ from shutil import copytree
 
 import pytest
 
-from nipat.gui.analysis_report import report_cases
-from nipat.gui.report_bundle import build_bundle
-from nipat.gui.results import ResultsStore
+from newpat.desktop.analysis_report import report_cases
+from newpat.desktop.report_bundle import build_bundle
+from newpat.desktop.results import ResultsStore
 from test_gui_results import artifact, make_run, validation, write_json
 
 
