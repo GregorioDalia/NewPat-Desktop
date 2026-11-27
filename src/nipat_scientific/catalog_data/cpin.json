@@ -896,10 +896,10 @@
           {
             "path": "src/nipat_scientific/executor.py",
             "source_lines": [
-              460,
-              601
+              462,
+              603
             ],
-            "sha256": "f327ca9c8bfcdb86747c83675d0ad9b5fe361ceef10e2177786cdeaada4a9394"
+            "sha256": "5e6a9aae0c75fda1f99daf36951faece74080e47ff7260e3bc5a9bb7c60792e0"
           },
           {
             "path": "src/nipat/execution/runner.py",

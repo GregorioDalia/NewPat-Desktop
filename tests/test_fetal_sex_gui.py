@@ -148,3 +148,96 @@ def test_bam_draft_reuses_selected_mother_in_preview_repeat_and_archive(tmp_path
     draft["fetal_sex"]["y"] = str(snp)
     with pytest.raises(ValidationError, match="maternal BAM or count tables"):
         prepare_analysis(draft, layout, language="en")
+
+
+def registered_draft(tmp_path, combined):
+    draft = maternal_draft(tmp_path / "full_output_Plasma.txt" if combined else None)
+    fetal = draft["fetal_sex"]
+    draft["samples"] = [{"id": fetal["id"], "kind": "snp-table" if role == "y" else "dnp-table",
+                         "path": path} for role, path in fetal.items() if role != "id"]
+    fetal["source"] = "sample-tables"
+    return draft
+
+
+@pytest.mark.parametrize("combined", [False, True])
+def test_registered_tables_share_one_maternal_identity_and_survive_archive_reuse(tmp_path, combined):
+    layout = ProjectLayout(ROOT, tmp_path, tmp_path / "inputs", tmp_path / "runs", ROOT / "compose.yaml")
+    draft = registered_draft(tmp_path, combined)
+    fetal = draft["fetal_sex"]
+    panel = tmp_path / "panel.tsv"
+    panel.write_text("chr\tpos1\tpos2\nchr1\t3010000\t3010001\n")
+    draft.update(branches={"DNP": ["contamination"]}, resources={"DNP": {"contamination_panel": str(panel)}})
+    if not combined:
+        with pytest.raises(ValidationError, match="quale tabella DNP"):
+            prepare_analysis(draft, layout)
+        fetal["downstream_dnp"] = "x"
+    prepared = prepare_analysis(draft, layout)
+    consumer, sex = prepared.preview["steps"]
+    shared_role = "dnp" if combined else "x"
+    assert consumer["inputs"]["samples"] == [{"sample": sex["inputs"][shared_role]}]
+    assert sex["parameters"]["project_regions"] is True
+    assert Job(prepared).snapshot()["sample_count"] == 1
+    assert {r["original_path"] for r in prepared.preview["samples"]} == {r["path"] for r in draft["samples"]}
+    runner = DockerComposeRunner(layout, dry_run=True, transport=DockerTransport(dry_run=True))
+    run = Workflows(layout, runner).analyze(caller="tables", analyses=[], **prepared.inputs)
+    service = GuiService(layout, preferences_store=PreferencesStore(tmp_path / "prefs.json"))
+    # No saved GUI draft: reconstruct all table assignments from the actual runner's record.
+    restored = service.run_reuse(run.name)
+    assert restored["fetal_sex"] == fetal
+    assert sorted(restored["samples"], key=lambda r: r["path"]) == sorted(draft["samples"], key=lambda r: r["path"])
+    assert prepare_analysis(restored, layout).preview["steps"] == prepared.preview["steps"]
+    sex_only = service.run_prepare(run.name, "fetal-sex")
+    assert [s["workflow"] for s in prepare_analysis(sex_only, layout).preview["steps"]] == ["fetal-sex"]
+    downstream = service.run_prepare(run.name, "contamination")
+    assert [r["path"] for r in downstream["samples"] if r["kind"] == "dnp-table"] == [fetal[shared_role]]
+
+
+def test_fetal_only_roles_in_migrated_drafts_preserve_the_original_downstream_inputs(tmp_path):
+    layout = ProjectLayout(ROOT, tmp_path, tmp_path / "inputs", tmp_path / "runs", ROOT / "compose.yaml")
+    draft = registered_draft(tmp_path, combined=False)
+    for row in draft["samples"][1:]:
+        row["fetal_only"] = True
+    panel = tmp_path / "panel.tsv"
+    panel.write_text("chr\tpos1\tpos2\nchr1\t3010000\t3010001\n")
+    draft.update(branches={"DNP": ["contamination"]}, resources={"DNP": {"contamination_panel": str(panel)}})
+    prepared = prepare_analysis(draft, layout)
+    contamination, sex = prepared.preview["steps"]
+    assert contamination["inputs"]["samples"] == [{"sample": sex["inputs"]["autosomes"]}]
+    runner = DockerComposeRunner(layout, dry_run=True, transport=DockerTransport(dry_run=True))
+    run = Workflows(layout, runner).analyze(caller="tables", analyses=[], **prepared.inputs)
+    service = GuiService(layout, preferences_store=PreferencesStore(tmp_path / "prefs.json"))
+    assert service.run_prepare(run.name, "contamination")["samples"] == [draft["samples"][0]]
+    assert [s["workflow"] for s in prepare_analysis(service.run_reuse(run.name), layout).preview["steps"]] == [
+        "contamination", "fetal-sex"]
+
+
+@pytest.mark.parametrize("error", ["unregistered", "different-mother", "wrong-kind", "duplicate"])
+def test_registered_fetal_tables_must_be_unambiguously_assigned_to_one_mother(tmp_path, error):
+    layout = ProjectLayout(ROOT, tmp_path, tmp_path / "inputs", tmp_path / "runs", ROOT / "compose.yaml")
+    draft = registered_draft(tmp_path, combined=True)
+    y = draft["samples"][-1]
+    if error == "unregistered":
+        draft["samples"].remove(y)
+    elif error == "different-mother":
+        y["id"] = "Other"
+    elif error == "wrong-kind":
+        y["kind"] = "dnp-table"
+    else:
+        draft["samples"].append(dict(y))
+    with pytest.raises(ValidationError, match="registered once for the maternal sample"):
+        prepare_analysis(draft, layout, language="en")
+
+
+def test_registered_maternal_tables_remain_independent_of_a_bam_in_a_mixed_experiment(tmp_path):
+    layout = ProjectLayout(ROOT, tmp_path, tmp_path / "inputs", tmp_path / "runs", ROOT / "compose.yaml")
+    draft = registered_draft(tmp_path, combined=True)
+    trio = ROOT / "examples/synthetic-trio"
+    draft.update(caller="dnp", reference=str(trio / "reference/synthetic.fa"),
+                 branches={"DNP": ["contamination"]}, resources={"DNP": {"panel": str(trio / "panels/dnp.tsv")}})
+    draft["samples"].append({"kind": "bam", "id": "Child", "path": str(trio / "alignments/child.bam")})
+    steps = {s["workflow"]: s for s in prepare_analysis(draft, layout).preview["steps"]}
+    assert steps["dnp-call"]["inputs"]["samples"] == ["Child"]
+    maternal = steps["fetal-sex"]["inputs"]
+    assert steps["contamination"]["inputs"]["samples"] == [
+        {"step": "dnp", "output": "dnp-tables", "sample": "Child"}, {"sample": maternal["dnp"]}]
+    assert set(maternal) == {"dnp", "y"} and steps["fetal-sex"]["parameters"]["project_regions"]

@@ -131,6 +131,8 @@ def step_presentation(plan: dict, step: dict, request: dict, bindings: list[dict
         region = step["inputs"]
         if isinstance(region.get("dnp"), dict):
             selected = {role: labels[region["dnp"]["sample"]] for role in ("autosomes", "x", "y")}
+        elif step["parameters"].get("project_regions") and "dnp" in region:
+            selected = {"autosomes": labels[region["dnp"]], "x": labels[region["dnp"]], "y": labels[region["y"]]}
         else:
             selected = {role: labels[identity] for role, identity in region.items()}
     elif workflow == "contamination":

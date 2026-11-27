@@ -170,7 +170,7 @@ def test_generated_tables_are_ordered_by_producers_and_bound_to_one_bam():
 
 
 def test_generated_tables_project_only_required_regions_and_audit_uncovered_loci(tmp_path):
-    from nipat_scientific.fetal_sex import stage_caller_outputs
+    from nipat_scientific.fetal_sex import stage_calling_tables
 
     inputs = combined_request(tmp_path)
     dnp = Path(inputs["dnp"])
@@ -180,7 +180,7 @@ def test_generated_tables_project_only_required_regions_and_audit_uncovered_loci
     snp = tmp_path / "snp.txt"
     snp.write_text(original_y + "chrX\t21\tG\tT\t1\t0\t0\t1\n")
     source_rows = dnp.read_bytes(), snp.read_bytes()
-    targets, warnings, normalized = stage_caller_outputs(dnp, snp, "Maternal", tmp_path / "stage")
+    targets, warnings, normalized = stage_calling_tables({"dnp": dnp, "y": snp}, tmp_path / "stage", sample="Maternal")
     assert targets["autosomes"].name == "full_output_Maternal.txt"
     assert targets["autosomes"].read_text() == (FIXTURE / "inputs/Female_fetus_autosomes.txt").read_text()
     assert targets["x"].read_text() == (FIXTURE / "inputs/Female_fetus_X.txt").read_text() + "chrX\t11\t12\tGA\tTT\t0\t0\t0\t0\n"
@@ -200,7 +200,7 @@ def test_generated_tables_project_only_required_regions_and_audit_uncovered_loci
 
 
 def test_generated_tables_require_y_markers_and_reject_missing_counts_with_reads(tmp_path):
-    from nipat_scientific.fetal_sex import stage_caller_outputs
+    from nipat_scientific.fetal_sex import stage_calling_tables
 
     inputs = combined_request(tmp_path)
     dnp = Path(inputs["dnp"])
@@ -208,10 +208,39 @@ def test_generated_tables_require_y_markers_and_reject_missing_counts_with_reads
     snp.write_text(Path(inputs["y"]).read_text().replace("chrY", "chr1"))
     stage = tmp_path / "regions"
     with pytest.raises(ValidationError, match="no y markers"):
-        stage_caller_outputs(dnp, snp, "Maternal", stage)
+        stage_calling_tables({"dnp": dnp, "y": snp}, stage, sample="Maternal")
     assert not stage.exists()
     with dnp.open("a") as stream:
         stream.write("chrX\t31\t32\tGA\tTT\t1\t0\t0\tNA\n")
     with pytest.raises(ValidationError, match="total_count"):
-        stage_caller_outputs(dnp, Path(inputs["y"]), "Maternal", stage)
+        stage_calling_tables({"dnp": dnp, "y": Path(inputs["y"])}, stage, sample="Maternal")
     assert not stage.exists()
+
+
+def test_registered_split_tables_normalize_only_zero_dnp_rows_and_keep_region_assignments(tmp_path):
+    from nipat_scientific.fetal_sex import stage_calling_tables, validate_inputs
+
+    tables = {}
+    for role in ROLES:
+        src = Path(request_at(tmp_path)[role])
+        tables[role] = tmp_path / src.name
+        shutil.copyfile(src, tables[role])
+    for role, chromosome in (("autosomes", "chr2"), ("x", "chrX")):
+        with tables[role].open("a") as stream:
+            stream.write(f"{chromosome}\t11\t12\tGA\tTT\t0\t0\t0\tNA\n")
+    with tables["y"].open("a") as stream:
+        stream.write("chr2\t14\tG\tT\t8\t4\t0\t12\n")
+    validate_inputs(**tables, project_regions=True)
+    targets, warnings, _ = stage_calling_tables(tables, tmp_path / "stage")
+    for role in ("autosomes", "x"):
+        assert targets[role].read_text().endswith("0\t0\t0\t0\n")
+        assert tables[role].read_text().endswith("0\t0\t0\tNA\n")
+    assert "chr2" not in targets["y"].read_text()
+    assert {w["path"] for w in warnings} == {str(tables["autosomes"]), str(tables["x"])}
+    with pytest.raises(ValidationError, match="does not belong to autosomes"):
+        validate_inputs(autosomes=tables["x"], x=tables["autosomes"], y=tables["y"], project_regions=True)
+    with tables["x"].open("a") as stream:
+        stream.write("chrX\t21\t22\tGA\tTT\t1\t0\t0\tNA\n")
+    with pytest.raises(ValidationError, match="total_count"):
+        stage_calling_tables(tables, tmp_path / "invalid-stage")
+    assert not (tmp_path / "invalid-stage").exists()

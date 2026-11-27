@@ -291,7 +291,12 @@ class GuiService:
         if "bam" in recorded:
             return {"id": recorded["sample_id"], "source": "bam"}
         roles = ("autosomes", "x", "y") if "autosomes" in recorded or "x" in recorded else ("dnp", "y")
-        return {"id": recorded.get("sample_id", ""), **{role: recorded.get(role, "") for role in roles}}
+        fetal = {"id": recorded.get("sample_id", ""), **{role: recorded.get(role, "") for role in roles}}
+        if recorded.get("source") == "sample-tables":
+            fetal["source"] = "sample-tables"
+            if recorded.get("downstream_dnp"):
+                fetal["downstream_dnp"] = recorded["downstream_dnp"]
+        return fetal
 
     def run_prepare(self, run_id: str, module: str) -> dict:
         """Prepare an analysis using its recorded input mode.
@@ -312,10 +317,11 @@ class GuiService:
             except (KeyError, TypeError, ValueError):
                 source = {}
         source = deepcopy(source)
-        if module == "fetal-sex":
+        previous_fetal = source.get("fetal_sex") or {}
+        recorded_fetal = parameters.get("fetal_sex") or {}
+        if module == "fetal-sex" and (previous_fetal or recorded_fetal):
             settings = source.get("scientific_settings", parameters.get("scientific_settings_effective", {}))
-            recorded = parameters.get("fetal_sex") or {}
-            fetal = source.get("fetal_sex") or self._recorded_fetal_inputs(recorded)
+            fetal = previous_fetal or self._recorded_fetal_inputs(recorded_fetal)
             draft = {"name": self._derived_name(run.get("name") or run_id, module),
                      "caller": "tables", "samples": [], "fetal_sex": fetal,
                      "scientific_settings": effective_config(migrate_saved_settings(settings)),
@@ -328,6 +334,9 @@ class GuiService:
                 for key in ("reference", "reference_id", "reference_genome"):
                     if key in source:
                         draft[key] = source[key]
+            elif fetal.get("source") == "sample-tables":
+                paths = {fetal[role] for role in ("dnp", "autosomes", "x", "y") if role in fetal}
+                draft["samples"] = [row for row in source.get("samples", []) if row.get("path") in paths]
             return draft
         mapping = {row["sample_id"]: row.get("biological_id", row["sample_id"])
                    for row in parameters.get("sample_mapping", [])
@@ -347,8 +356,14 @@ class GuiService:
         # without any caller-owned output. These paths were recorded as inputs.
         evidence = {Path(item["path"]): item for item in metadata.get("inputs", [])
                     if isinstance(item, dict) and isinstance(item.get("path"), str)}
+        omitted_dnp = None
+        if previous_fetal.get("source") == "sample-tables" and previous_fetal.get("downstream_dnp") in ("autosomes", "x"):
+            other = "x" if previous_fetal["downstream_dnp"] == "autosomes" else "autosomes"
+            omitted_dnp = previous_fetal.get(other)
         for row in source.get("samples", []):
             if not isinstance(row, dict) or row.get("kind") not in {"dnp-table", "snp-table"}:
+                continue
+            if row.get("fetal_only") or row.get("path") == omitted_dnp:
                 continue
             marker, identifier = row["kind"][:3].upper(), row.get("id")
             path = Path(row.get("path", "")).expanduser()
@@ -362,6 +377,13 @@ class GuiService:
             recorded = evidence.get(path, {})
             store.verify_count_table(path, recorded.get("sha256"), recorded.get("size_bytes"))
             samples[key] = {"id": identifier, "path": str(path), "kind": row["kind"]}
+        if module == "fetal-sex":
+            settings = source.get("scientific_settings", parameters.get("scientific_settings_effective", {}))
+            return {"name": self._derived_name(run.get("name") or run_id, module),
+                    "caller": "tables", "samples": list(samples.values()),
+                    "fetal_sex": {"source": "sample-tables", "id": "", "dnp": "", "y": ""},
+                    "scientific_settings": effective_config(migrate_saved_settings(settings)),
+                    "execution": source.get("execution", self._requested_execution(metadata))}
         if not samples:
             raise ValidationError("Non sono disponibili conteggi completi associati ai campioni. Creare un nuovo esperimento da tabelle esistenti e selezionare i file; i calcoli precedenti non saranno ripetuti.")
         markers = {marker for marker, _identifier in samples}
@@ -408,11 +430,14 @@ class GuiService:
         mounts = {item["container_path"]: item["host_path"] for item in metadata["input_mounts"]}
         mapping = {item["sample_id"]: item for item in p["sample_mapping"]}
         samples = []
+        fetal = p.get("fetal_sex") or {}
         for sample in plan["samples"]:
             row = mapping[sample["id"]]
-            if not row.get("fetal_sex_role") or row.get("shared_fetal_sex_table"):
+            role = row.get("fetal_sex_role")
+            if not role or row.get("shared_fetal_sex_table") or fetal.get("source") == "sample-tables":
                 samples.append({"id": row.get("biological_id", sample["id"]),
-                                "path": row["original_path"], "kind": sample["kind"]})
+                                "path": row["original_path"], "kind": sample["kind"],
+                                **({"fetal_only": True} if role in fetal.get("fetal_only_roles", []) else {})})
         draft = {"name": self._derived_name(metadata.get("run_name", "NewPat")),
                  "caller": p["caller"], "samples": samples, "branches": p["analyses_by_marker"],
                  "resources": {"DNP": {}, "SNP": {}}, "families": {"cpi": [], "cpin": []},

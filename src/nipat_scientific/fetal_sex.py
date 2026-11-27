@@ -9,7 +9,7 @@ import re
 import shutil
 
 from nipat_scientific.errors import ValidationError
-from nipat_scientific.files import nonnegative_integer, require_file, table_rows, write_input_report
+from nipat_scientific.files import detect_marker_type, nonnegative_integer, require_file, table_rows, write_input_report
 from nipat_scientific.settings import normalize_settings
 
 ROLES = ("autosomes", "x", "y")
@@ -51,7 +51,7 @@ def _check_table(path: Path, role: str, split_files=None, *, caller_warnings=Non
     for number, row in table_rows(path, set(markers) | set(COUNTS), f"Maternal cfDNA {role}"):
         region = chromosome_region(row["chr"])
         if region not in regions:
-            if caller_warnings is not None:
+            if caller_warnings is not None and role in {"dnp", "y"}:
                 continue
             raise ValidationError(f"{path.name}: chromosome on line {number} does not belong to {role}.")
         key = tuple(row[col] for col in markers)
@@ -63,7 +63,7 @@ def _check_table(path: Path, role: str, split_files=None, *, caller_warnings=Non
         seen.add(key)
         observed.add(region)
         ref, alt, other = (nonnegative_integer(row[col], path, number, col) for col in COUNTS[:3])
-        if role == "dnp" and caller_warnings is not None and row["total_count"] == "NA" and not (ref or alt or other):
+        if role != "y" and caller_warnings is not None and row["total_count"] == "NA" and not (ref or alt or other):
             # DNPcall outer-joins the panel with its counts of retained reads. An absent group has zero retained reads.
             row["total_count"] = "0"
             empty_totals += 1
@@ -89,13 +89,15 @@ def _check_table(path: Path, role: str, split_files=None, *, caller_warnings=Non
         raise ValidationError(f"{path.name}: combined DNP table is missing {missing} markers.")
 
 
-def validate_inputs(autosomes=None, x=None, y=None, *, dnp=None) -> None:
+def validate_inputs(autosomes=None, x=None, y=None, *, dnp=None, project_regions=False) -> None:
     tables = {key: path for key, path in (("autosomes", autosomes), ("x", x), ("y", y), ("dnp", dnp))
               if path is not None}
     if set(tables) != set(input_roles(tables)):
         raise ValidationError("Provide either combined DNP and Y tables, or autosomes, X and Y tables.")
     for role, path in tables.items():
-        _check_table(path, role)
+        if project_regions and detect_marker_type(path) != ("SNP" if role == "y" else "DNP"):
+            raise ValidationError(f"{path.name}: unexpected marker type for {role}.")
+        _check_table(path, role, caller_warnings=[] if project_regions else None)
 
 
 def _split_dnp(source: Path, work: Path) -> tuple[Path, Path]:
@@ -115,23 +117,31 @@ def _split_dnp(source: Path, work: Path) -> tuple[Path, Path]:
     return autosomes, x
 
 
-def stage_caller_outputs(dnp: Path, snp: Path, sample: str, directory: Path):
-    """Partition one BAM's validated caller outputs, retaining all selected panel loci in input order."""
+def stage_calling_tables(sources: dict[str, Path], directory: Path, *, sample: str | None = None):
+    """Stage the three maternal regions in original row order. Keep declared regional DNP roles strict."""
     directory.mkdir()
     warnings = []
     try:
         (directory / "autosomes").mkdir()
-        tables = {"autosomes": directory / "autosomes" / f"full_output_{sample}.txt",
+        original_autosomes = sources["dnp"] if "dnp" in sources else sources["autosomes"]
+        autosomal_name = f"full_output_{sample}.txt" if sample is not None else original_autosomes.name
+        tables = {"autosomes": directory / "autosomes" / autosomal_name,
                   "x": directory / "X.tsv", "y": directory / "Y.tsv"}
         with tables["autosomes"].open("x", encoding="utf-8", newline="") as autosomes, tables["x"].open(
                 "x", encoding="utf-8", newline="") as x:
-            _check_table(dnp, "dnp", {"autosomes": autosomes, "x": x}, caller_warnings=warnings)
+            if "dnp" in sources:
+                _check_table(sources["dnp"], "dnp", {"autosomes": autosomes, "x": x}, caller_warnings=warnings)
+            else:
+                _check_table(sources["autosomes"], "autosomes", {"autosomes": autosomes}, caller_warnings=warnings)
+                _check_table(sources["x"], "x", {"x": x}, caller_warnings=warnings)
         with tables["y"].open("x", encoding="utf-8", newline="") as y:
-            _check_table(snp, "y", {"y": y}, caller_warnings=warnings)
+            _check_table(sources["y"], "y", {"y": y}, caller_warnings=warnings)
     except BaseException:
         shutil.rmtree(directory)
         raise
-    return tables, warnings, [(dnp, tables["autosomes"]), (dnp, tables["x"]), (snp, tables["y"])]
+    normalizations = [(sources[role] if role in sources else sources["dnp"], output)
+                      for role, output in tables.items()]
+    return tables, warnings, normalizations
 
 
 def prepare_fetal_sex(request: dict, *, caller_warnings=(), caller_normalizations=()) -> list[str]:

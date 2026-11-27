@@ -10,6 +10,8 @@ When memory and CPU allow concurrent DNP chromosome tasks at high depth, NewPat 
 
 ## Integrated changes
 
-The candidate accepts the maternal BAM workflow for fetal sex, the combined autosomal/X DNP table with the Y SNP table, and the three-table workflow. It also includes the experiment status and archive display fixes, direct installer links, and recovery of the managed Lima environment.
+The desktop uses the same calling-table input for fetal sex, parentage and contamination. Add each file once, then choose the analyses and assign the samples and tables they require. For fetal sex, select the maternal cfDNA sample and either its combined autosomal/X DNP table or its two region-specific DNP tables, together with the SNP table for Y. The maternal BAM workflow is also available. [Desktop guide](GUI.md#set-up-an-experiment)
+
+The candidate also includes the experiment status and archive display fixes, direct installer links, and recovery of the managed Lima environment.
 
 The Apple Silicon candidate packages the Linux ARM64 image tested by the native scientific oracles. An owned 0.9.10 Lima guest migrates with its disk and allocation preserved. Both R and samtools run natively. The [Apple Silicon trial](MACOS_CANDIDATE_TEST.md) checks the installed upgrade, native execution and timing against the previous synthetic runs. Physical qualification, the remaining platforms and the complete NewPat rename are tracked in the [release roadmap](ROADMAP.md).

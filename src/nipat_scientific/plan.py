@@ -243,6 +243,10 @@ def validate_plan(document: object) -> dict:
         elif workflow == "fetal-sex":
             roles = fetal_sex_roles(inputs)
             _object(inputs, set(roles), identifier)
+            if "project_regions" in parameters:
+                if parameters.pop("project_regions") is not True or any(isinstance(value, dict) for value in inputs.values()):
+                    _fail("plan.parameter", f"{identifier}: project_regions requires imported calling tables.")
+                values["project_regions"] = True
             _object(parameters, set(), f"{identifier} parameters")
             if marker_type is not None:
                 _fail("plan.marker_type", "Fetal sex requires both DNP and SNP tables.")

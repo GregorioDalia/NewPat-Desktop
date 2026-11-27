@@ -297,18 +297,41 @@ function updateArchiveRows(){
  const container=$('archive-results');
  if(container&&state.view==='archive'&&!state.run)container.innerHTML=archiveRows();
 }
-function normalizeDraft(value){const base=blankDraft(''),draft=clone(value.draft||value);return {...base,...draft,branches:{...base.branches,...draft.branches},resources:{DNP:{...base.resources.DNP,...draft.resources?.DNP},SNP:{...base.resources.SNP,...draft.resources?.SNP}},families:{...base.families,...draft.families},scientific_settings:Object.fromEntries(Object.entries(base.scientific_settings).map(([module,values])=>[module,{...values,...draft.scientific_settings?.[module]}])),execution:{...base.execution,...draft.execution}}}
-function applyDraft(value){state.profileChoice='';++draftLoadVersion;state.draft=normalizeDraft(value);state.source=state.draft.caller==='tables'?(state.draft.fetal_sex&&!state.draft.samples.length?'fetal-sex':'tables'):state.draft.samples.some(sample=>sample.kind.endsWith('-table'))?'mixed':'bam';state.sampleKind=state.source==='tables'?(state.draft.samples.find(s=>s.kind.endsWith('-table'))?.kind||'dnp-table'):'bam';state.step=0;invalidate()}
+function normalizeDraft(value){const base=blankDraft(''),draft=clone(value.draft||value);
+ // Older drafts stored the maternal paths in the analysis alone. Preserve which tables
+ // were shared with other modules and which were used only for fetal sex.
+ const fetal=draft.fetal_sex;
+ if(fetal&&!fetal.source){
+  draft.samples??=[];
+  for(const [role] of fetalRoles(fetal)){
+   const path=fetal[role],kind=fetalTableKind(role);
+   if(path&&!draft.samples.some(row=>row.path===path&&row.kind===kind)){
+    draft.samples.push({id:fetal.id||'',path,kind,fetal_only:true});
+   }
+  }
+  fetal.source='sample-tables';
+ }
+ return {...base,...draft,branches:{...base.branches,...draft.branches},resources:{DNP:{...base.resources.DNP,...draft.resources?.DNP},SNP:{...base.resources.SNP,...draft.resources?.SNP}},families:{...base.families,...draft.families},scientific_settings:Object.fromEntries(Object.entries(base.scientific_settings).map(([module,values])=>[module,{...values,...draft.scientific_settings?.[module]}])),execution:{...base.execution,...draft.execution}}}
+function applyDraft(value){state.profileChoice='';++draftLoadVersion;state.draft=normalizeDraft(value);state.source=state.draft.caller==='tables'?'tables':state.draft.samples.some(sample=>sample.kind.endsWith('-table'))?'mixed':'bam';state.sampleKind=state.source==='tables'?(state.draft.samples.find(s=>s.kind.endsWith('-table'))?.kind||'dnp-table'):'bam';state.step=0;invalidate()}
 function newExperiment(){applyDraft(blankDraft());state.profileChoice=state.baseline?.default_profile||'';closeModal();return navigate('new')}
 function submittedDraft(){const draft=clone(state.draft),markers=activeMarkers();for(const marker of ['DNP','SNP'])if(!markers.includes(marker))draft.branches[marker]=[];const selected=markers.flatMap(marker=>draft.branches[marker]||[]);if(!draft.samples.some(sample=>sample.kind==='bam')){draft.reference=null;delete draft.reference_id;delete draft.reference_genome}for(const module of ['cpi','cpin'])if(!selected.includes(module))draft.families[module]=[];for(const marker of ['DNP','SNP']){const branch=draft.branches[marker],resources=draft.resources[marker];if(!callerRuns(marker)&&!branch.includes('contamination'))delete resources.panel;if(!branch.some(module=>module==='cpi'||module==='cpin'))delete resources.popfreq;if(!branch.includes('contamination'))delete resources.contamination_panel;if(!branch.includes('cpi'))delete resources.cpi_cutoffs;if(!branch.includes('cpin'))delete resources.cpin_panel;}return draft}
-function activeMarkers(){const set=new Set(state.draft.caller==='both'?['DNP','SNP']:state.draft.caller==='tables'?[]:[state.draft.caller.toUpperCase()]);for(const s of state.draft.samples)if(s.kind==='dnp-table')set.add('DNP');else if(s.kind==='snp-table')set.add('SNP');return [...set]}
+function activeMarkers(){
+ const {caller,samples}=state.draft;
+ const markers=new Set(caller==='both'?['DNP','SNP']:caller==='tables'?[]:[caller.toUpperCase()]);
+ for(const row of samples){
+  if(row.fetal_only)continue;
+  if(row.kind==='dnp-table')markers.add('DNP');
+  if(row.kind==='snp-table')markers.add('SNP');
+ }
+ return [...markers];
+}
 function callerRuns(marker){return state.draft.caller==='both'||state.draft.caller===marker.toLowerCase()}
 function selectedModules(){return [...new Set([...(state.draft.caller==='tables'?[]:state.draft.caller==='both'?['dnp-call','snp-call']:[state.draft.caller+'-call']),...activeMarkers().flatMap(m=>state.draft.branches[m]||[]),...(state.draft.fetal_sex?['fetal-sex']:[])])]}
 function invalidate(){++draftRevision;state.preview=null;state.error=''}
-function setPath(key,value){const [root,a,b]=key.split('.');if(root==='reference'){state.draft.reference=value;delete state.draft.reference_id;delete state.draft.reference_genome}else if(root==='fetal')state.draft.fetal_sex[a]=value;else if(root==='resource')state.draft.resources[a][b]=value;else if(root==='preference')state.preferences[a]=value;else if(root==='igv-reference'){++igvLoadVersion;state.igv.reference[a]=value;for(const field of ['index_sha256','fasta_sha256','gzi_sha256','historical_identity_incomplete','build'])delete state.igv.reference[field];referenceForm('igv').build='file';if(a==='fasta'){state.igv.reference.index='';delete state.igv.reference.compressedIndex}}else if(root==='igv-track'){state.igv.tracks[Number(a)][b]=value;if(b==='path')state.igv.tracks[Number(a)].index=''}else if(root==='cutoff')state.draft.resources[a].cpi_cutoffs[Number(b)].path=value;invalidate()}
+function setPath(key,value){const [root,a,b]=key.split('.');if(root==='reference'){state.draft.reference=value;delete state.draft.reference_id;delete state.draft.reference_genome}else if(root==='resource')state.draft.resources[a][b]=value;else if(root==='preference')state.preferences[a]=value;else if(root==='igv-reference'){++igvLoadVersion;state.igv.reference[a]=value;for(const field of ['index_sha256','fasta_sha256','gzi_sha256','historical_identity_incomplete','build'])delete state.igv.reference[field];referenceForm('igv').build='file';if(a==='fasta'){state.igv.reference.index='';delete state.igv.reference.compressedIndex}}else if(root==='igv-track'){state.igv.tracks[Number(a)][b]=value;if(b==='path')state.igv.tracks[Number(a)].index=''}else if(root==='cutoff')state.draft.resources[a].cpi_cutoffs[Number(b)].path=value;invalidate()}
 async function choosePath(key,filter='all',multiple=false){
  const extensions={bam:['bam'],pileup:['txt','tsv','pileup'],table:['txt','tsv','csv'],reference:['fa','fasta','fna'],'igv-reference':['fa','fasta','fna','gz','bgz'],fai:['fai'],bai:['bai','csi'],crai:['crai'],tabix:['tbi','csi'],index:['fai','bai','crai','csi','tbi'],alignment:['bam','cram','vcf','bed','gff','gff3','gtf','bw','bigwig','bb','bigbed','wig','bedgraph','seg','gz','bgz'],all:['*']}[filter]||['*'];
- const draft=state.draft,revision=draftRevision,draftField=!!key&&/^(reference$|fetal\.|resource\.|cutoff\.)/.test(key);
+ const draft=state.draft,revision=draftRevision,draftField=!!key&&/^(reference$|resource\.|cutoff\.)/.test(key);
  const igvForm=key?.startsWith('igv-reference.')?referenceForm('igv'):null,igvToken=igvForm?.token;
  const current=()=>(!draftField||draft===state.draft&&revision===draftRevision)&&(!igvForm||activeReferenceSelection('igv',igvForm,igvToken));
  try{
@@ -397,13 +420,49 @@ function renderHome(){
 function fetalRoles(sample){
  return Object.hasOwn(sample,'dnp')?[['dnp','combinedDnp'],['y','ySnp']]:[['autosomes','autosomalDnp'],['x','xDnp'],['y','ySnp']];
 }
-function emptyFetalSample(){return {id:'',dnp:'',y:''}}
+function fetalTableKind(role){return role==='y'?'snp-table':'dnp-table'}
+function maternalTableIds(){return [...new Set(state.draft.samples.filter(row=>row.kind.endsWith('-table')&&row.id).map(row=>row.id))]}
+function emptyFetalSample(){
+ const ids=maternalTableIds();
+ return {source:'sample-tables',id:ids.length===1?ids[0]:'',dnp:'',y:''};
+}
+function fetalTableRow(role,path){
+ return state.draft.samples.find(row=>row.kind===fetalTableKind(role)&&row.id===state.draft.fetal_sex.id&&row.path===path);
+}
+function needsDownstreamDnp(fetal){
+ return Boolean(fetal&&Object.hasOwn(fetal,'autosomes')&&state.draft.branches.DNP.length&&
+  ['autosomes','x'].every(role=>{const row=fetalTableRow(role,fetal[role]);return row&&!row.fetal_only}));
+}
 function fetalTables(){
  const sample=state.draft.fetal_sex;
- return `<fieldset class="choice-fieldset"><legend>${t('fetalSex')}</legend><p class="help">${t('fetalTablesHelp')}</p>
-  ${input(t('maternalSampleId'),'fetal-sample-id',sample.id,'data-fetal-id="true" maxlength="48"')}
+ const roles=fetalRoles(sample).map(([role,label])=>{
+  const other=role==='autosomes'?sample.x:role==='x'?sample.autosomes:null;
+  const tables=state.draft.samples.filter(row=>sample.id&&row.id===sample.id&&row.kind===fetalTableKind(role));
+  const options=tables.filter(row=>row.path!==other).map(row=>{
+   const name=basename(row.path);
+   const ambiguous=tables.some(candidate=>candidate.path!==row.path&&basename(candidate.path)===name);
+   return [row.path,row.id+' · '+(ambiguous?row.path:name)];
+  });
+  return select(t(label),'fetal-table-'+role,[['',t('chooseLoadedTable')],...options],sample[role],`data-fetal-role="${role}"`);
+ });
+ const downstream=needsDownstreamDnp(sample)?select(t('fetalDownstreamDnp'),'fetal-downstream-dnp',[
+  ['',t('chooseLoadedTable')],['autosomes',t('autosomalDnp')+' · '+basename(sample.autosomes)],['x',t('xDnp')+' · '+basename(sample.x)]],
+  sample.downstream_dnp||'','data-fetal-downstream="true"'):'';
+ return `<fieldset class="choice-fieldset"><legend>${t('maternalTables')}</legend><p class="help">${t('fetalTablesHelp')}</p>
+  ${select(t('maternalSampleId'),'fetal-sample-id',[['',t('assign')],...maternalTableIds().map(id=>[id,id])],sample.id,'data-fetal-id="true"')}
   ${select(t('dnpTableLayout'),'fetal-table-layout',[['combined',t('oneDnpTable')],['separate',t('twoDnpTables')]],Object.hasOwn(sample,'dnp')?'combined':'separate','data-fetal-layout="true"')}
-  <div class="form-row">${fetalRoles(sample).map(([role,label])=>fileField(t(label),'fetal.'+role,sample[role],'table')).join('')}</div></fieldset>`;
+  <div class="form-row">${roles.join('')}</div>${downstream}</fieldset>`;
+}
+function clearMissingFetalInputs(){
+ const fetal=state.draft.fetal_sex;
+ if(!fetal)return;
+ if(fetal.source==='bam'){
+  if(!maternalBams().some(row=>row.id===fetal.id))fetal.id='';
+ }else{
+  if(!maternalTableIds().includes(fetal.id))fetal.id='';
+  for(const [role] of fetalRoles(fetal))if(!fetalTableRow(role,fetal[role]))fetal[role]='';
+  if(!needsDownstreamDnp(fetal))delete fetal.downstream_dnp;
+ }
 }
 function maternalBams(){return state.draft.samples.filter(sample=>sample.kind==='bam')}
 function useFetalBam(){
@@ -413,27 +472,27 @@ function useFetalBam(){
 }
 function fetalInputFields(){
  const fetal=state.draft.fetal_sex,bams=maternalBams(),generated=fetal.source==='bam';
- const source=(bams.length||generated)?select(t('fetalInputSource'),'fetal-input-source',[['bam',t('fromMaternalBam')],['tables',t('fetalTablesSource')]],generated?'bam':'tables','data-fetal-source="true"'):'';
+ const hasTables=state.draft.samples.some(row=>row.kind.endsWith('-table'));
+ const source=(generated?hasTables:bams.length)?select(t('fetalInputSource'),'fetal-input-source',[['bam',t('fromMaternalBam')],['tables',t('callingTables')]],generated?'bam':'tables','data-fetal-source="true"'):'';
  if(!generated)return source+fetalTables();
  return source+`<p class="help">${t('fetalBamHelp')}</p>`+
   select(t('maternalBam'),'fetal-maternal-bam',[['',t('assign')],...bams.map(sample=>[sample.id,sample.id])],fetal.id,'data-fetal-id="true"')+
   `<div class="form-row">${['DNP','SNP'].map(m=>fileField(t('panel')+' '+m,'resource.'+m+'.panel',state.draft.resources[m].panel,'table')).join('')}</div>`;
 }
 function fetalOption(){
- return `<label class="check-row section-gap"><input type="checkbox" data-fetal-option="true" ${state.draft.fetal_sex?'checked':''}><span><b>${t('fetalSex')}</b></span></label>${state.draft.fetal_sex?fetalInputFields():''}`;
+ if(!state.draft.fetal_sex&&!state.draft.samples.some(row=>row.kind==='bam'||row.kind.endsWith('-table')))return '';
+ return `<label class="check-row section-gap"><input type="checkbox" data-fetal-option="true" ${state.draft.fetal_sex?'checked':''}><span><b>${t('fetalSex')}</b>${state.draft.fetal_sex?`<p>${t('fetalOutcomeHelp')}</p>`:''}</span></label>${state.draft.fetal_sex?fetalInputFields():''}`;
 }
 function displayMarkers(){
  return [...new Set([...activeMarkers(),...(state.draft.fetal_sex?['DNP','SNP']:[])])];
 }
 function draftSampleNames(){
- return [...new Set([...state.draft.samples.map(row=>row.id),state.draft.fetal_sex?.id].filter(Boolean))];
+ return [...new Set([...state.draft.samples.filter(row=>!row.fetal_only).map(row=>row.id),state.draft.fetal_sex?.id].filter(Boolean))];
 }
-function renderInputs(){const d=state.draft;const header= `<div class="section-title"><h2>${t('addSamples')}</h2></div><div class="form-row">${input(t('experimentName'),'experiment-name',d.name,'data-draft="name" maxlength="120" placeholder="'+esc(t('experimentPlaceholder'))+'"')}${select(t('inputFiles'),'source',[['bam',t('rawInputs')],['tables',t('callingTables')],['mixed',t('mixedInputs')],['fetal-sex',t('fetalTablesSource')]],state.source,'data-field="source"')}</div>`;
- if(state.source==='fetal-sex')return header+fetalTables();
- return header+`${state.source!=='tables'?`<fieldset class="choice-fieldset"><legend>${t('whichMarkers')}</legend><div class="choices">${[['dnp','onlyDnp','dnpDescription'],['snp','onlySnp','snpDescription'],['both','both','bothDescription']].map(([v,key,help])=>`<label class="choice ${d.caller===v?'selected':''}"><input type="radio" name="caller" value="${v}" data-draft="caller" ${d.fetal_sex?.source==='bam'&&v!=='both'?'disabled':''} ${d.caller===v?'checked':''}><span><b>${t(key)}</b><small>${t(help)}</small></span></label>`).join('')}</div></fieldset>`:''}<div class="toolbar">${select(t('sampleKind'),'sample-kind',(state.source==='tables'?[['dnp-table',t('dnpTable')],['snp-table',t('snpTable')]]:state.source==='bam'?[['bam',t('bam')],['snp-pileup',t('snpPileup')]]:[['bam',t('bam')],['snp-pileup',t('snpPileup')],['dnp-table',t('dnpTable')],['snp-table',t('snpTable')]]),state.sampleKind,'data-field="sampleKind"')}${button(t('addSamples'),'add-samples',{},'primary','plus')}</div><div class="table-scroll"><table class="table"><thead><tr><th>${t('sampleName')}</th><th>${t('sampleFile')}</th><th>${t('fileType')}</th><th></th></tr></thead><tbody>${d.samples.map((s,i)=>`<tr><td class="sample-name"><input class="input" value="${esc(s.id)}" data-sample="${i}" maxlength="48" aria-label="${t('sampleName')} ${i+1}"></td><td><b>${esc(basename(s.path))}</b><details class="file-name"><summary>${t('details')}</summary>${esc(s.path)}</details></td><td>${esc({bam:t('bam'),'snp-pileup':t('snpPileup'),'dnp-table':t('dnpTable'),'snp-table':t('snpTable')}[s.kind])}</td><td>${button(t('remove'),'remove-sample',{index:i},'quiet small','close')}</td></tr>`).join('')}</tbody></table>${!d.samples.length?empty(t('noSamples')):''}</div><p class="help section-gap">${t('sampleIdHelp')}</p>${d.samples.some(s=>s.kind==='bam')||state.source!=='tables'&&state.sampleKind==='bam'?`${renderReferencePicker('new')}<p class="help">${t('referenceHelp')}</p>`:''}${d.caller!=='tables'?`<div class="form-row">${(d.caller==='both'?['DNP','SNP']:[d.caller.toUpperCase()]).map(m=>fileField(t('panel')+' '+m,'resource.'+m+'.panel',d.resources[m].panel,'table')).join('')}</div>`:''}`}
-function renderFamilies(module){const rows=state.draft.families[module],roles=module==='cpi'?['mother','father']:['mother','father','child'];const samples=[...new Set(state.draft.samples.map(s=>s.id))];return `<section class="section-gap"><div class="section-title"><h3>${moduleName(module)} · ${t('family')}</h3>${button(t('addFamily'),'add-family',{module},'small','plus')}</div><p class="help">${t('familyHelp')}</p>${rows.map((r,i)=>`<div class="family-row ${module==='cpi'?'pair':''}">${input(t('familyName'),`${module}-family-${i}`,r.id,`data-family="${module}|${i}|id" maxlength="48"`)}${roles.map(role=>select(t(role==='mother'&&module==='cpi'?'maternalCfdna':role),`${module}-${i}-${role}`,[['',t('assign')],...samples.map(s=>[s,s])],r[role]||'',`data-family="${module}|${i}|${role}"`)).join('')}${button(t('remove'),'remove-family',{module,index:i},'quiet small','close')}</div>`).join('')}</section>`}
+function renderInputs(){const d=state.draft;const header= `<div class="section-title"><h2>${t('addSamples')}</h2></div><div class="form-row">${input(t('experimentName'),'experiment-name',d.name,'data-draft="name" maxlength="120" placeholder="'+esc(t('experimentPlaceholder'))+'"')}${select(t('inputFiles'),'source',[['bam',t('rawInputs')],['tables',t('callingTables')],['mixed',t('mixedInputs')]],state.source,'data-field="source"')}</div>`;
+ return header+`${state.source!=='tables'?`<fieldset class="choice-fieldset"><legend>${t('whichMarkers')}</legend><div class="choices">${[['dnp','onlyDnp','dnpDescription'],['snp','onlySnp','snpDescription'],['both','both','bothDescription']].map(([v,key,help])=>`<label class="choice ${d.caller===v?'selected':''}"><input type="radio" name="caller" value="${v}" data-draft="caller" ${d.fetal_sex?.source==='bam'&&v!=='both'?'disabled':''} ${d.caller===v?'checked':''}><span><b>${t(key)}</b><small>${t(help)}</small></span></label>`).join('')}</div></fieldset>`:''}<div class="toolbar">${select(t('sampleKind'),'sample-kind',(state.source==='tables'?[['dnp-table',t('dnpTable')],['snp-table',t('snpTable')]]:state.source==='bam'?[['bam',t('bam')],['snp-pileup',t('snpPileup')]]:[['bam',t('bam')],['snp-pileup',t('snpPileup')],['dnp-table',t('dnpTable')],['snp-table',t('snpTable')]]),state.sampleKind,'data-field="sampleKind"')}${button(t('addSamples'),'add-samples',{},'primary','plus')}</div><div class="table-scroll"><table class="table"><thead><tr><th>${t('sampleName')}</th><th>${t('sampleFile')}</th><th>${t('fileType')}</th><th></th></tr></thead><tbody>${d.samples.map((s,i)=>`<tr><td class="sample-name"><input class="input" value="${esc(s.id)}" data-sample="${i}" maxlength="48" aria-label="${t('sampleName')} ${i+1}"></td><td><b>${esc(basename(s.path))}</b><details class="file-name"><summary>${t('details')}</summary>${esc(s.path)}</details>${Object.hasOwn(s,'fetal_only')?`<label class="check-row"><input type="checkbox" data-share-fetal-table="${i}" ${s.fetal_only?'':'checked'}><span>${t('shareFetalTable')}</span></label>`:''}</td><td>${esc({bam:t('bam'),'snp-pileup':t('snpPileup'),'dnp-table':t('dnpTable'),'snp-table':t('snpTable')}[s.kind])}</td><td>${button(t('remove'),'remove-sample',{index:i},'quiet small','close')}</td></tr>`).join('')}</tbody></table>${!d.samples.length?empty(t('noSamples')):''}</div><p class="help section-gap">${t('sampleIdHelp')}${state.source==='bam'?'':' '+t('maternalTableIdsHelp')}</p>${d.samples.some(s=>s.kind==='bam')||state.source!=='tables'&&state.sampleKind==='bam'?`${renderReferencePicker('new')}<p class="help">${t('referenceHelp')}</p>`:''}${d.caller!=='tables'?`<div class="form-row">${(d.caller==='both'?['DNP','SNP']:[d.caller.toUpperCase()]).map(m=>fileField(t('panel')+' '+m,'resource.'+m+'.panel',d.resources[m].panel,'table')).join('')}</div>`:''}`}
+function renderFamilies(module){const rows=state.draft.families[module],roles=module==='cpi'?['mother','father']:['mother','father','child'];const samples=[...new Set(state.draft.samples.filter(s=>!s.fetal_only).map(s=>s.id))];return `<section class="section-gap"><div class="section-title"><h3>${moduleName(module)} · ${t('family')}</h3>${button(t('addFamily'),'add-family',{module},'small','plus')}</div><p class="help">${t('familyHelp')}</p>${rows.map((r,i)=>`<div class="family-row ${module==='cpi'?'pair':''}">${input(t('familyName'),`${module}-family-${i}`,r.id,`data-family="${module}|${i}|id" maxlength="48"`)}${roles.map(role=>select(t(role==='mother'&&module==='cpi'?'maternalCfdna':role),`${module}-${i}-${role}`,[['',t('assign')],...samples.map(s=>[s,s])],r[role]||'',`data-family="${module}|${i}|${role}"`)).join('')}${button(t('remove'),'remove-family',{module,index:i},'quiet small','close')}</div>`).join('')}</section>`}
 function renderAnalyses(){const d=state.draft,markers=activeMarkers(),selected=selectedModules();
- if(state.source==='fetal-sex')return `<h2>${t('fetalSex')}</h2><p class="help section-gap">${t('fetalOutcomeHelp')}</p>`;
  return `<h2>${t('whichAnalyses')}</h2><p class="muted section-gap">${t(d.caller==='tables'?'tableAnalyses':'optionalAnalyses')}</p><div class="grid ${markers.length>1?'two-columns':''} section-gap">${markers.map(m=>`<section class="branch"><div class="branch-header"><b>${m}</b><span class="badge neutral">${t(callerRuns(m)?'genotypes':'existingTables')}</span></div><div class="branch-body">${['contamination','cpi','cpin'].map(mod=>`<label class="check-row"><input type="checkbox" data-branch="${m}|${mod}" ${d.branches[m].includes(mod)?'checked':''}><span><b>${moduleName(mod)}</b><p>${t(mod+'Help')}</p></span></label>`).join('')}</div></section>`).join('')}</div>${fetalOption()}${selected.includes('cpi')?renderFamilies('cpi'):''}${selected.includes('cpin')?renderFamilies('cpin'):''}<div class="form-row">${markers.filter(m=>d.branches[m].some(a=>a==='cpi'||a==='cpin')).map(m=>fileField(t('population')+' '+m,'resource.'+m+'.popfreq',d.resources[m].popfreq,'table')).join('')}</div>${selected.some(mod=>mod==='cpi'||mod==='cpin')?`<p class="help">${esc(t('frequencyTableHelp'))}</p>`:''}<details class="disclosure"><summary>${t('optionalPanels')}</summary><div class="details-body">${markers.map(m=>`<h3 class="section-gap">${m}</h3><div class="form-row">${d.branches[m].includes('contamination')?fileField(t('contaminationPanel'),'resource.'+m+'.contamination_panel',d.resources[m].contamination_panel,'table'):''}${d.branches[m].includes('cpin')?fileField(t('cpinPanel'),'resource.'+m+'.cpin_panel',d.resources[m].cpin_panel,'table'):''}</div>${d.branches[m].includes('cpi')?`<div class="section-title"><h3>${t('cpiPanels')}</h3>${button(t('addPanel'),'add-cutoff',{marker:m},'small','plus')}</div><p class="help">${t('allSitesHelp')}</p>${(d.resources[m].cpi_cutoffs||[]).map((c,i)=>`<div class="form-row">${input(t('name'),`cutoff-${m}-${i}`,c.label,`data-cutoff="${m}|${i}"`)}<div class="actions">${fileField(t('panel'),`cutoff.${m}.${i}`,c.path,'table')}${button(t('remove'),'remove-cutoff',{marker:m,index:i},'quiet small','close')}</div></div>`).join('')}`:''}`).join('')}</div></details>`}
 function phase(key){if(['min_base_quality','min_mapping_quality','max_depth','mapping_quality_adjustment','baq','redo_baq','count_overlaps','include_orphans','excluded_flags'].includes(key))return 'phasePileup';if(['err_const_snp','err_const_dnp','min_fetal_reads','min_fetal_percent','mismatch_probability_snp','mismatch_probability_dnp','min_child_reads','include_zero'].includes(key))return 'phaseEstimate';if(['a_threshold','b_female_max','b_male_min','c_female_max','c_male_min'].includes(key))return 'phaseEstimate';if(key.startsWith('log_cpi_'))return 'phasePlot';return 'phaseSelection'}
 function parameterVisible(m,key,all=false){if(all)return true;if(phase(key)==='phasePileup'&&!state.draft.samples.some(s=>s.kind==='bam'))return false;if(['err_const_snp','mismatch_probability_snp'].includes(key)&&!activeMarkers().includes('SNP'))return false;if(['err_const_dnp','mismatch_probability_dnp'].includes(key)&&!activeMarkers().includes('DNP'))return false;return true}
@@ -462,7 +521,7 @@ function renderProfilePicker(){
  return `<div class="section-gap">${select(t('parameterProfile'),'parameter-profile',profileOptions(state.baseline),selected,'data-field="profileChoice"')}<p class="help">${t('profileScope')}</p><div class="actions">${button(t('applyProfile'),'apply-profile')}${button(t('saveAsProfile'),'new-profile',{},'','plus')}${selected?button(t('removeProfile'),'remove-profile',{name:selected},'quiet'):''}</div></div>`;
 }
 function renderParameters(){return `<h2>${t('parameters')}</h2>${renderProfilePicker()}${selectedModules().map(m=>`<details class="disclosure" open><summary>${moduleName(m)}</summary><div class="details-body">${m==='cpin'?`<p class="help">${t('postnatalSelectionHelp')}</p>`:''}${parameterRows(m)}</div></details>`).join('')}<details class="disclosure"><summary>${t('execution')}</summary><div class="details-body">${executionFields(state.draft.execution)}</div></details>`}
-function renderReview(){const d=state.draft,processed=state.preview?.samples,labels=processed?[...new Set(processed.map(sample=>sample.biological_id||sample.id||sample.sample_id))]:draftSampleNames(),branches=state.preview?.analyses_by_marker||d.branches;return `<h2>${t('review')}</h2>${demoRevision===draftRevision?demoExpectedResults():''}${state.jobs.some(job=>!terminal(job))?notice(t('concurrentWarning'),'warning'):''}<div class="review-block"><dl class="review-list"><dt>${t('experimentName')}</dt><dd>${esc(d.name)}</dd><dt>${t('samples')}</dt><dd>${labels.map(esc).join(', ')||t('emptyValue')}</dd><dt>${t('markers')}</dt><dd>${displayMarkers().join(' / ')}</dd>${d.reference&&d.samples.some(s=>s.kind==='bam')?`<dt>${t('reference')}</dt><dd class="path">${esc(d.reference_id?assemblyLabel((state.preview?.reference_genome||d.reference_genome)?.build||referenceForm('new').build)+' · ':'')}${esc(d.reference)}</dd>`:''}</dl></div><div class="review-block"><h3>${t('expectedResults')}</h3>${d.fetal_sex?`<p><b>${t('fetalSex')}</b> · ${esc(d.fetal_sex.id)}</p>`:''}${activeMarkers().map(marker=>{const analyses=[...(callerRuns(marker)?[t('genotypes')]:[]),...(branches[marker]||[]).map(moduleName)];return `<p><b>${marker}</b> · ${analyses.length?analyses.join(' · '):(L.language==='it'?'Nessuna analisi selezionata: queste tabelle non saranno elaborate.':'No analysis selected: these tables will not be processed.')}</p>`}).join('')}</div><div class="review-block"><h3>${t('resultLocation')}</h3><p>${t('archive')} → ${esc(d.name)} → ${t('results')}</p></div>${state.preview?`<div class="section-gap">${notice(t('validated'))}<ol class="plan-list">${state.preview.steps.map(step=>`<li>${esc(moduleName(step.workflow||step.module))}${step.parameters?.marker_type?' · '+esc(step.parameters.marker_type):''}${step.inputs?.sample?' · '+esc(step.inputs.sample):''}</li>`).join('')}</ol></div>`:`<p class="help section-gap">${t('startChecksHelp')}</p>`}<div class="actions section-gap">${startingDraft===d?`<span class="start-check" role="status"><span aria-hidden="true" class="check-spinner ${state.motion?'':'paused'}"></span>${t('checkingPlan')}</span>`:button(t('showPlan'),'validate-plan',{},'quiet small')}</div>`}
+function renderReview(){const d=state.draft,processed=state.preview?.samples,labels=processed?[...new Set(processed.map(sample=>sample.biological_id||sample.id||sample.sample_id))]:draftSampleNames(),branches=state.preview?.analyses_by_marker||d.branches;return `<h2>${t('review')}</h2>${demoRevision===draftRevision?demoExpectedResults():''}${state.jobs.some(job=>!terminal(job))?notice(t('concurrentWarning'),'warning'):''}<div class="review-block"><dl class="review-list"><dt>${t('experimentName')}</dt><dd>${esc(d.name)}</dd><dt>${t('samples')}</dt><dd>${labels.map(esc).join(', ')||t('emptyValue')}</dd><dt>${t('markers')}</dt><dd>${displayMarkers().join(' / ')}</dd>${d.reference&&d.samples.some(s=>s.kind==='bam')?`<dt>${t('reference')}</dt><dd class="path">${esc(d.reference_id?assemblyLabel((state.preview?.reference_genome||d.reference_genome)?.build||referenceForm('new').build)+' · ':'')}${esc(d.reference)}</dd>`:''}</dl></div><div class="review-block"><h3>${t('expectedResults')}</h3>${d.fetal_sex?`<p><b>${t('fetalSex')}</b> · ${esc(d.fetal_sex.id)}</p>`:''}${activeMarkers().map(marker=>{const analyses=[...(callerRuns(marker)?[t('genotypes')]:[]),...(branches[marker]||[]).map(moduleName)];return `<p><b>${marker}</b> · ${analyses.length?analyses.join(' · '):t('noMarkerAnalysis')}</p>`}).join('')}</div><div class="review-block"><h3>${t('resultLocation')}</h3><p>${t('archive')} → ${esc(d.name)} → ${t('results')}</p></div>${state.preview?`<div class="section-gap">${notice(t('validated'))}<ol class="plan-list">${state.preview.steps.map(step=>`<li>${esc(moduleName(step.workflow||step.module))}${step.parameters?.marker_type?' · '+esc(step.parameters.marker_type):''}${step.inputs?.sample?' · '+esc(step.inputs.sample):''}</li>`).join('')}</ol></div>`:`<p class="help section-gap">${t('startChecksHelp')}</p>`}<div class="actions section-gap">${startingDraft===d?`<span class="start-check" role="status"><span aria-hidden="true" class="check-spinner ${state.motion?'':'paused'}"></span>${t('checkingPlan')}</span>`:button(t('showPlan'),'validate-plan',{},'quiet small')}</div>`}
 function renderNew(){const d=state.draft;return heading(t('new'),t('newCopy'))+`${state.error?notice(state.error,'error'):''}<div class="form-layout section-gap"><section class="panel"><div class="steps" role="tablist">${['samples','analysis','parameters','review'].map((key,i)=>`<button class="step ${state.step===i?'active':''}" data-action="step" data-index="${i}" role="tab" aria-selected="${state.step===i}"><span>${i+1}</span>${t(key)}</button>`).join('')}</div><div class="panel-body">${[renderInputs,renderAnalyses,renderParameters,renderReview][state.step]()}</div><div class="form-footer"><span class="help">${state.step+1} / 4</span><div class="actions">${state.step?button(t('back'),'step',{index:state.step-1},'','back'):''}${state.step<3?button(t('continue'),'step',{index:state.step+1},'primary','arrow'):`<button class="button primary" data-action="start-analysis" ${startingDraft?'disabled aria-busy="true"':''}>${icon('play')}${t('startAnalysis')}</button>`}</div></div></section><aside class="side-summary"><h3>${t('review')}</h3><dl><div><dt>${t('name')}</dt><dd>${esc(d.name)||'—'}</dd></div><div><dt>${t('samples')}</dt><dd>${draftSampleNames().length}</dd></div><div><dt>${t('markers')}</dt><dd>${displayMarkers().join(' / ')||'—'}</dd></div><div><dt>${t('expectedResults')}</dt><dd>${selectedModules().map(moduleName).map(esc).join(', ')||'—'}</dd></div></dl></aside></div>`}
 function renderArchive(){if(state.run)return renderRun();return heading(t('archive'),t('archiveCopy'),button(t('openFolder'),'import-run',{},'','archive')+button(t('new'),'navigate',{view:'new'},'primary','plus'))+`<section class="panel"><div class="panel-body"><div class="toolbar"><input class="input stretch" id="archive-search" maxlength="1000" placeholder="${t('archiveSearch')}" aria-label="${t('search')}" value="${esc(state.archiveSearch)}" data-search="archive">${select(t('status'),'archive-status',[['all',t('all')],['succeeded',t('succeeded')],['failed',t('failed')],['running',t('running')],['interrupted',t('interrupted')],['unknown',t('unknown')]],state.archiveStatus,'data-field="archiveStatus"')}${select(t('markers'),'archive-marker',[['all',t('all')],['DNP','DNP'],['SNP','SNP']],state.archiveMarker,'data-field="archiveMarker"')}</div></div><div id="archive-results">${archiveRows()}</div></section>`}
 function jobProgress(job){const p=job.progress;if(p&&Number.isFinite(p.completed)&&Number.isFinite(p.total)&&p.total>0)return Math.max(0,Math.min(100,p.completed/p.total*100));if(typeof p==='number')return Math.max(0,Math.min(100,p));if(p&&typeof p==='object'){const value=p.percent??p.percentage??p.overall_percent;if(Number.isFinite(Number(value)))return Math.max(0,Math.min(100,Number(value)))}return null}
@@ -1045,17 +1104,20 @@ async function action(name,data,element){
  if(name==='modal-backdrop'){closeModal();return}
  if(name==='choose-path'){await choosePath(data.key,data.filter);render();return}
  if(name==='clear-path'){setPath(data.key,null);render();return}
- if(name==='add-samples'){const kind=state.sampleKind,draft=state.draft,revision=draftRevision;let paths;try{paths=await choosePath(null,kind==='bam'?'bam':kind==='snp-pileup'?'pileup':'table',true)}catch(error){if(draft===state.draft&&revision===draftRevision)throw error;return}if(draft!==state.draft||revision!==draftRevision)return;for(const path of paths){if(state.draft.samples.some(s=>s.path===path&&s.kind===kind))continue;state.draft.samples.push({id:safeSampleId(path,kind),path,kind})}if(paths.length)invalidate();render();return}
- if(name==='remove-sample'){const [removed]=state.draft.samples.splice(Number(data.index),1);if(removed?.kind==='bam'&&state.draft.fetal_sex?.source==='bam'&&state.draft.fetal_sex.id===removed.id)state.draft.fetal_sex.id='';invalidate();render();return}
+ if(name==='add-samples'){const kind=state.sampleKind,draft=state.draft,revision=draftRevision;let paths;try{paths=await choosePath(null,kind==='bam'?'bam':kind==='snp-pileup'?'pileup':'table',true)}catch(error){if(draft===state.draft&&revision===draftRevision)throw error;return}if(draft!==state.draft||revision!==draftRevision)return;for(const path of paths){if(state.draft.samples.some(s=>s.path===path))continue;state.draft.samples.push({id:safeSampleId(path,kind),path,kind})}if(paths.length)invalidate();render();return}
+ if(name==='remove-sample'){state.draft.samples.splice(Number(data.index),1);clearMissingFetalInputs();invalidate();render();return}
  if(name==='step'){
   const next=Number(data.index),d=state.draft;
   if(next>state.step){
    const fetal=d.fetal_sex;
-   if(!d.name.trim()||(!d.samples.length&&!fetal)){state.error=t('inputRequired');render();return}
+   if(!d.name.trim()||!d.samples.length){state.error=t('inputRequired');render();return}
    if(fetal?.source==='bam'&&next>1){
     if(!fetal.id||!maternalBams().some(sample=>sample.id===fetal.id)){state.error=t('chooseMaternalBam');render();return}
     if(!d.resources.DNP.panel||!d.resources.SNP.panel){state.error=t('fetalBamPanels');render();return}
-   }else if(fetal&&fetal.source!=='bam'&&(state.source==='fetal-sex'||next>1)&&(!fetal.id.trim()||!fetalRoles(fetal).every(([role])=>fetal[role]))){state.error=t('fetalInputsRequired');render();return}
+   }else if(fetal?.source==='sample-tables'&&next>1){
+    if(!fetal.id.trim()||!fetalRoles(fetal).every(([role])=>fetalTableRow(role,fetal[role]))){state.error=t('fetalInputsRequired');render();return}
+    if(needsDownstreamDnp(fetal)&&!fetal.downstream_dnp){state.error=t('chooseDownstreamDnp');render();return}
+   }
   }
   state.step=next;state.error='';render();return
  }
@@ -1158,7 +1220,32 @@ async function action(name,data,element){
  if(name==='remove-run'){showConfirmation(t('removeFromList'),t('removeRunConfirm'),'confirm-remove-run',{id:data.id||state.runId});return}
  if(name==='confirm-remove-run'){await rpc('runs.remove',{run_id:data.id});const jobs=await rpc('jobs.list',{include_logs:false});state.jobs=jobs.jobs||jobs;closeModal();forgetRunPages(data.id);if(state.runId===data.id){state.run=null;state.runId=null;state.module=null}await loadRuns();render();toast(t('removedFromList'));return}
  if(name==='run-igv'){const version=runLoadVersion;const selection=await rpc('run.igv',{run_id:state.runId,...(data.locus?{locus:data.locus}:{})});if(version!==runLoadVersion||state.view!=='archive')return;rememberPage();closeModal();state.igv={reference:selection.reference,tracks:selection.tracks,locus:selection.locus||'all',loaded:false,padResultLocus:!!data.locus};await navigate('igv',{remember:false});return action('igv-load',{})}
- if(name==='prepare-module'){const caller=data.module.endsWith('-call'),version=++draftLoadVersion,revision=draftRevision;let result;try{result=await rpc(caller?'run.reuse':'run.prepare',{run_id:state.runId,...(caller?{}:{module:data.module})})}catch(error){if(version===draftLoadVersion&&revision===draftRevision)throw error;return}if(version!==draftLoadVersion||revision!==draftRevision)return;applyDraft(result);if(caller){delete state.draft.fetal_sex;state.draft.caller=data.module.startsWith('dnp')?'dnp':'snp';state.source='bam';state.draft.samples=state.draft.samples.filter(sample=>sample.kind==='bam'||state.draft.caller==='snp'&&sample.kind==='snp-pileup');state.draft.branches={DNP:[],SNP:[]}}else state.step=data.module==='fetal-sex'?0:1;return navigate('new')}
+ if(name==='prepare-module'){
+  const caller=data.module.endsWith('-call'),version=++draftLoadVersion,revision=draftRevision;
+  let result;
+  try{result=await rpc(caller?'run.reuse':'run.prepare',{run_id:state.runId,...(caller?{}:{module:data.module})})}
+  catch(error){if(version===draftLoadVersion&&revision===draftRevision)throw error;return}
+  if(version!==draftLoadVersion||revision!==draftRevision)return;
+  applyDraft(result);
+  if(caller){
+   delete state.draft.fetal_sex;state.draft.caller=data.module.startsWith('dnp')?'dnp':'snp';state.source='bam';
+   state.draft.samples=state.draft.samples.filter(sample=>sample.kind==='bam'||state.draft.caller==='snp'&&sample.kind==='snp-pileup');
+   state.draft.branches={DNP:[],SNP:[]};
+  }else if(data.module==='fetal-sex'){
+   const fetal=state.draft.fetal_sex;
+   if(fetal?.source==='bam'){
+    if(maternalBams().length)state.step=1;
+   }else{
+    const needed=fetal&&Object.hasOwn(fetal,'autosomes')?2:1;
+    const ready=maternalTableIds().some(id=>{
+     const samples=state.draft.samples.filter(row=>row.id===id);
+     return samples.some(row=>row.kind==='snp-table')&&samples.filter(row=>row.kind==='dnp-table').length>=needed;
+    });
+    if(ready)state.step=1;
+   }
+  }else state.step=1;
+  return navigate('new');
+ }
  if(name==='edit-defaults'){state.catalogDefaults=true;state.catalogType='parameters';state.catalogSearch='';return navigate('catalog')}
  if(name==='apply-profile'){
   const settings=profileSettings(state.profileChoice);
@@ -1239,17 +1326,30 @@ function onValue(target){const value=target.type==='checkbox'?target.checked:tar
  }
  if(target.dataset.fetalLayout){
   const {id,y}=state.draft.fetal_sex;
-  state.draft.fetal_sex=value==='combined'?{id,y,dnp:''}:{id,y,autosomes:'',x:''};
+  state.draft.fetal_sex={source:'sample-tables',id,y,...(value==='combined'?{dnp:''}:{autosomes:'',x:''})};
   invalidate();render();return;
  }
- if(target.dataset.fetalId){state.draft.fetal_sex.id=value;invalidate();return}
+ if(target.dataset.fetalRole){
+  const role=target.dataset.fetalRole,fetal=state.draft.fetal_sex,row=fetalTableRow(role,value);
+  fetal[role]=row?row.path:'';
+  if(role==='autosomes'||role==='x')delete fetal.downstream_dnp;
+  invalidate();render();return;
+ }
+ if(target.dataset.fetalDownstream){const fetal=state.draft.fetal_sex;if(value)fetal.downstream_dnp=value;else delete fetal.downstream_dnp;invalidate();return}
+ if(target.dataset.shareFetalTable!==undefined){
+  state.draft.samples[Number(target.dataset.shareFetalTable)].fetal_only=!value;
+  clearMissingFetalInputs();invalidate();render();return;
+ }
+ if(target.dataset.fetalId){
+  state.draft.fetal_sex.id=value;clearMissingFetalInputs();invalidate();render();return;
+ }
  if(target.dataset.sample!==undefined){
   const sample=state.draft.samples[Number(target.dataset.sample)],fetal=state.draft.fetal_sex;
-  if(sample.kind==='bam'&&fetal?.source==='bam'&&fetal.id&&fetal.id===sample.id)fetal.id=value;
-  sample.id=value;invalidate();return;
+  if(sample.kind==='bam'&&fetal?.source==='bam'&&fetal.id===sample.id)fetal.id=value;
+  sample.id=value;clearMissingFetalInputs();invalidate();return;
  }
  if(target.dataset.family){const [m,index,key]=target.dataset.family.split('|');state.draft.families[m][Number(index)][key]=value;invalidate();return}
- if(target.dataset.branch){const [marker,module]=target.dataset.branch.split('|'),branch=state.draft.branches[marker];if(value&&!branch.includes(module))branch.push(module);if(!value)state.draft.branches[marker]=branch.filter(m=>m!==module);invalidate();render();return}
+ if(target.dataset.branch){const [marker,module]=target.dataset.branch.split('|'),branch=state.draft.branches[marker];if(value&&!branch.includes(module))branch.push(module);if(!value)state.draft.branches[marker]=branch.filter(m=>m!==module);clearMissingFetalInputs();invalidate();render();return}
  if(target.dataset.cutoff){const [m,index]=target.dataset.cutoff.split('|');state.draft.resources[m].cpi_cutoffs[Number(index)].label=value;invalidate();return}
  if(target.dataset.parameter){const [module,key,scope]=target.dataset.parameter.split('|');const def=state.settings[module].parameters[key];const v=def.type==='boolean'?!!value:def.type==='string'?value:value===''?null:Number(value);const dest=scope==='defaults'?(state.preferences.scientific_settings[module]??={}):state.draft.scientific_settings[module];dest[key]=v;invalidate();return}
  if(target.dataset.flag){const [module,bit,scope]=target.dataset.flag.split('|');const dest=scope==='defaults'?(state.preferences.scientific_settings[module]??={}):state.draft.scientific_settings[module];const current=dest.excluded_flags??state.settings[module].parameters.excluded_flags.default;dest.excluded_flags=value?current|Number(bit):current&~Number(bit);invalidate();render();return}
@@ -1257,14 +1357,10 @@ function onValue(target){const value=target.type==='checkbox'?target.checked:tar
  if(target.dataset.preference){state.preferences[target.dataset.preference]=value;return}
  if(target.dataset.trackName!==undefined){state.igv.tracks[Number(target.dataset.trackName)].name=value;return}
  if(target.dataset.field){const key=target.dataset.field;if(key==='source'){
-  const previous=state.source;state.source=value;
-  if(value==='fetal-sex'){
-   state.draft.caller='tables';state.draft.samples=[];state.draft.reference=null;
-   delete state.draft.reference_id;delete state.draft.reference_genome;referenceForms.delete(state.draft);
-   state.draft.branches={DNP:[],SNP:[]};if(!state.draft.fetal_sex||state.draft.fetal_sex.source==='bam')state.draft.fetal_sex=emptyFetalSample();invalidate();render();return;
-  }
-  if(previous==='fetal-sex'||value==='tables'&&state.draft.fetal_sex?.source==='bam')delete state.draft.fetal_sex;
-  state.draft.caller=value==='tables'?'tables':state.draft.caller==='tables'?'dnp':state.draft.caller;state.sampleKind=value==='tables'?'dnp-table':'bam';if(value==='tables'){state.draft.samples=state.draft.samples.filter(s=>s.kind.endsWith('-table'));state.draft.reference=null;delete state.draft.reference_id;delete state.draft.reference_genome;referenceForms.delete(state.draft)}else if(value==='bam')state.draft.samples=state.draft.samples.filter(s=>!s.kind.endsWith('-table'));invalidate();render()}else if(key==='igvLocus'){state.igv.locus=value}else if(key==='igvChromosome'){window.NipatIGV.search(value).catch(showError)}else if(key==='runtimeMemory'||key==='runtimeCpus'){state[key]=value;state.resourcePreview=null}else{state[key]=value;if(key==='archiveStatus'||key==='archiveMarker')return requestArchivePage(0).catch(showError);if(key==='sampleKind'&&value==='snp-pileup'&&state.draft.caller==='dnp'){state.draft.caller='snp';invalidate()}if(key!=='motion')render();else rpc('ui.save',{preferences:{language:L.language,reduce_motion:!value}}).catch(showError)}return}
+  state.source=value;
+  const fetal=state.draft.fetal_sex;
+  if(fetal&&(value==='bam'&&fetal.source!=='bam'||value==='tables'&&fetal.source==='bam'))delete state.draft.fetal_sex;
+  state.draft.caller=value==='tables'?'tables':state.draft.caller==='tables'?'dnp':state.draft.caller;state.sampleKind=value==='tables'?'dnp-table':'bam';if(value==='tables'){state.draft.samples=state.draft.samples.filter(s=>s.kind.endsWith('-table'));state.draft.reference=null;delete state.draft.reference_id;delete state.draft.reference_genome;referenceForms.delete(state.draft)}else if(value==='bam')state.draft.samples=state.draft.samples.filter(s=>!s.kind.endsWith('-table'));clearMissingFetalInputs();invalidate();render()}else if(key==='igvLocus'){state.igv.locus=value}else if(key==='igvChromosome'){window.NipatIGV.search(value).catch(showError)}else if(key==='runtimeMemory'||key==='runtimeCpus'){state[key]=value;state.resourcePreview=null}else{state[key]=value;if(key==='archiveStatus'||key==='archiveMarker')return requestArchivePage(0).catch(showError);if(key==='sampleKind'&&value==='snp-pileup'&&state.draft.caller==='dnp'){state.draft.caller='snp';invalidate()}if(key!=='motion')render();else rpc('ui.save',{preferences:{language:L.language,reduce_motion:!value}}).catch(showError)}return}
  if(target.dataset.result){if(target.dataset.result==='module'){state.module=value;state.entry=0}else state.entry=Number(value);loadEntry().catch(showError);return}
 }
 let languageWrite=Promise.resolve();

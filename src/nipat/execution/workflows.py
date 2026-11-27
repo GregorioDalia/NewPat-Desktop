@@ -786,6 +786,8 @@ class Workflows:
         plan = self._validate_plan(plan)["plan"]
         sex_tables = [item for item in mapping if "fetal_sex_role" in item]
         fetal_metadata = fetal_sex_metadata(sex_tables) if sex_tables else None
+        if sex_tables and inputs.get("fetal_table_selection") is not None:
+            fetal_metadata.update(source="sample-tables", **inputs["fetal_table_selection"])
         if inputs.get("fetal_sex") and not sex_tables:
             maternal_id, = inputs["fetal_sex"]
             bam = next(row for row in mapping if row["sample_id"] == maternal_id)

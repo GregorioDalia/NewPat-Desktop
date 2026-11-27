@@ -24,7 +24,7 @@ import time
 from nipat_scientific.contamination import prepare_contamination
 from nipat_scientific.cpi import prepare_cpi
 from nipat_scientific.cpin import prepare_cpin
-from nipat_scientific.fetal_sex import prepare_fetal_sex, publish_outputs as publish_fetal_sex_outputs, stage_caller_outputs
+from nipat_scientific.fetal_sex import prepare_fetal_sex, publish_outputs as publish_fetal_sex_outputs, stage_calling_tables
 from nipat_scientific.settings import normalize_settings, settings_context
 from nipat_scientific.dnp import prepare_dnp
 from nipat_scientific.errors import PlanExecutionError, ValidationError
@@ -355,10 +355,12 @@ def _execute_step(plan, step, record, root, scripts, samples, outputs, cancellat
             elif step["workflow"] == "fetal-sex":
                 region = step["inputs"]
                 warnings, normalizations = [], []
-                if isinstance(region.get("dnp"), dict):
-                    tables, warnings, normalizations = stage_caller_outputs(
-                        _resolve_table(region["dnp"], samples, outputs), _resolve_table(region["y"], samples, outputs),
-                        region["dnp"]["sample"], directory / "calling-tables")
+                generated = isinstance(region.get("dnp"), dict)
+                if generated or step["parameters"].get("project_regions"):
+                    table_refs = region if generated else {role: {"sample": sid} for role, sid in region.items()}
+                    tables, warnings, normalizations = stage_calling_tables(
+                        {role: _resolve_table(ref, samples, outputs) for role, ref in table_refs.items()},
+                        directory / "calling-tables", sample=region["dnp"]["sample"] if generated else None)
                     request.update({role: str(path) for role, path in tables.items()})
                 else:
                     request.update({role: samples[identifier]["path"] for role, identifier in region.items()})

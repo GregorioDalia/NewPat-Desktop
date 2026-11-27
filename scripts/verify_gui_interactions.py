@@ -466,11 +466,9 @@ def verify_grouped_reports(page, picker, directory, evidence, check):
 def verify_fetal_sex_form(page, probe, picker, check, directory):
     page.locator('nav [data-view="new"]').click()
     for language, label, options, marker_question in (
-        ("en", "Input files", ["BAM or pileup files", "Calling tables",
-                               "BAM files, pileup files, and calling tables", "Fetal sex tables"],
+        ("en", "Input files", ["BAM or pileup files", "Calling tables", "Mixed inputs"],
          "Which markers do you want to analyse?"),
-        ("it", "File di input", ["File BAM o pileup", "Tabelle di calling",
-                                 "File BAM, file pileup e tabelle di calling", "Tabelle per il sesso fetale"],
+        ("it", "File di input", ["File BAM o pileup", "Tabelle di calling", "Input misti"],
          "Quali marcatori vuoi analizzare?"),
     ):
         page.locator(".language-picker label[lang=" + language + "]").click()
@@ -479,9 +477,6 @@ def verify_fetal_sex_form(page, probe, picker, check, directory):
         check(source.locator("option").all_text_contents() == options
               and page.get_by_role("group", name=marker_question, exact=True).is_visible(),
               f"The {language} input menu lists file types and asks about markers separately")
-    page.locator("#experiment-name").fill("Maternal cfDNA")
-    page.locator("#source").select_option("fetal-sex")
-    page.locator("#fetal-sample-id").fill("Maternal")
     inputs = ROOT / "tests/fixtures/fetal_sex/inputs"
     split_files = {role: inputs / f"Female_fetus_{suffix}.txt"
                    for role, suffix in (("autosomes", "autosomes"), ("x", "X"), ("y", "Y"))}
@@ -490,12 +485,34 @@ def verify_fetal_sex_form(page, probe, picker, check, directory):
     x_lines = split_files["x"].read_text().splitlines()
     assert autosomal_lines[0] == x_lines[0]
     combined.write_text("\n".join([*autosomal_lines, *x_lines[1:], ""]))
+
+    def register_table(kind, path, sample_id):
+        index = page.locator("[data-sample]").count()
+        page.locator("#sample-kind").select_option(kind)
+        picker.paths = [path]
+        page.locator('[data-action="add-samples"]').click()
+        page.locator(f'[data-sample="{index}"]').fill(sample_id)
+
     for mode, paths in (("combined", {"dnp": combined, "y": split_files["y"]}), ("separate", split_files)):
+        page.locator('nav [data-view="new"]').click()
+        page.locator("#source").select_option("tables")
+        for role, path in paths.items():
+            register_table("snp-table" if role == "y" else "dnp-table", path, "Maternal")
+        picker.paths = []
+        page.locator("#experiment-name").fill("Maternal cfDNA")
+        page.locator('[role="tab"][data-index="1"]').click()
+        page.locator("[data-fetal-option]").check()
+        page.locator("#fetal-sample-id").select_option("Maternal")
         page.locator("#fetal-table-layout").select_option(mode)
         for role, path in paths.items():
-            picker.paths = [path]
-            page.locator(f'[data-action="choose-path"][data-key="fetal.{role}"]').click()
-            probe.wait(f"Boolean(NipatApp.state.draft.fetal_sex.{role})")
+            select = page.locator(f'select[data-fetal-role="{role}"]')
+            eligible = select.locator("option").evaluate_all("options => options.map(o => o.value).filter(Boolean)")
+            allowed = {str(file) for key, file in paths.items() if (key == "y") == (role == "y")}
+            check(str(path) in eligible and set(eligible) <= allowed,
+                  f"The {role} selector offers only registered tables of the matching marker type")
+            select.select_option(str(path))
+        check(page.locator('[data-action="choose-path"][data-key^="fetal."]').count() == 0,
+              "Maternal role assignment reuses the files already registered under Inputs")
         page.locator('[role="tab"][data-index="2"]').click()
         page.locator('[data-parameter="fetal-sex|b_female_max|draft"]').fill("0.05")
         page.locator('[role="tab"][data-index="3"]').click()
@@ -505,10 +522,83 @@ def verify_fetal_sex_form(page, probe, picker, check, directory):
         check([step["workflow"] for step in preview["steps"]] == ["fetal-sex"]
               and preview["steps"][0]["parameters"]["scientific_settings"]["b_female_max"] == 0.05
               and {row["biological_id"] for row in preview["samples"]} == {"Maternal"}
-              and {row["fetal_sex_role"] for row in preview["samples"]} == set(paths),
-              f"Maternal {mode} DNP and Y pickers and the edited threshold reach one fetal-sex step")
-        if mode == "combined":
-            page.locator('[role="tab"][data-index="0"]').click()
+              and {row["fetal_sex_role"]: row["original_path"] for row in preview["samples"]}
+                  == {role: str(path) for role, path in paths.items()}
+              and len(preview["samples"]) == len(paths),
+              f"Registered {mode} DNP and Y tables reach one fetal-sex step with the edited threshold")
+
+    page.locator('[role="tab"][data-index="0"]').click()
+    father_files = {"autosomes": inputs / "Male_fetus_autosomes.txt", "y": inputs / "Male_fetus_Y.txt"}
+    for role, path in father_files.items():
+        register_table("snp-table" if role == "y" else "dnp-table", path, "Father")
+    page.locator('[role="tab"][data-index="1"]').click()
+    for role, path in father_files.items():
+        options = page.locator(f'[data-fetal-role="{role}"] option').evaluate_all("opts => opts.map(o => o.value)")
+        check(str(path) not in options, f"The maternal {role} selector excludes the father's registered file")
+    identity_rows = probe.evaluate("NipatApp.state.draft.samples")
+    page.locator("#fetal-sample-id").select_option("Father")
+    check(page.locator('[data-fetal-role="y"]').input_value() != str(split_files["y"]),
+          "Changing the selected individual clears or replaces the previous maternal Y assignment")
+    page.locator("#fetal-sample-id").select_option("Maternal")
+    for role, path in split_files.items():
+        page.locator(f'[data-fetal-role="{role}"]').select_option(str(path))
+    check(probe.evaluate("NipatApp.state.draft.samples") == identity_rows,
+          "Changing the maternal selection or assigning a role preserves every registered sample identity")
+
+    page.locator('[data-branch="DNP|cpi"]').check()
+    page.locator('[data-branch="SNP|cpi"]').check()
+    page.locator('[data-action="add-family"][data-module="cpi"]').click()
+    page.locator("#cpi-0-mother").select_option("Maternal")
+    page.locator("#cpi-0-father").select_option("Father")
+    for marker in ("DNP", "SNP"):
+        picker.paths = [ROOT / f"tests/fixtures/prenatal_cpi/inputs/{marker}/population_frequencies.txt"]
+        page.locator(f'[data-action="choose-path"][data-key="resource.{marker}.popfreq"]').click()
+        probe.wait(f"Boolean(NipatApp.state.draft.resources.{marker}.popfreq)")
+    page.locator('[role="tab"][data-index="3"]').click()
+    check(probe.evaluate("NipatApp.state.step===1 && Boolean(NipatApp.state.error)")
+          and page.locator("#fetal-downstream-dnp").input_value() == "",
+          "Two registered DNP tables require an explicit choice before reviewing additional DNP analyses")
+    page.locator("#fetal-downstream-dnp").select_option("x")
+    page.locator('[role="tab"][data-index="3"]').click()
+    page.locator('[data-action="validate-plan"]').click()
+    page.locator(".plan-list li").first.wait_for()
+    preview = probe.evaluate("NipatApp.state.preview")
+    sources = {row["sample_id"]: row["original_path"] for row in preview["samples"]}
+    cpi_steps = [step for step in preview["steps"] if step["workflow"] == "cpi"]
+    sex_step, = [step for step in preview["steps"] if step["workflow"] == "fetal-sex"]
+    by_pair = {(sources[pair["mother"]["sample"]], sources[pair["father"]["sample"]])
+               for step in cpi_steps for pair in step["inputs"]["pairs"]}
+    expected_pairs = {(str(split_files["x"]), str(father_files["autosomes"])),
+                      (str(split_files["y"]), str(father_files["y"]))}
+    maternal_paths = {role: str(path) for role, path in split_files.items()}
+    check(len(preview["samples"]) == 5 and len(cpi_steps) == 2 and by_pair == expected_pairs
+          and {role: sources[sample] for role, sample in sex_step["inputs"].items()} == maternal_paths,
+          "Both CPI branches preserve family roles and share the chosen maternal files with fetal sex")
+
+    legacy_dir = directory / "runs" / "maternal-tables-legacy"
+    write_json(legacy_dir / "run.json", {"schema_version": 1, "workflow": "analysis",
+               "run_name": "Archived maternal tables", "status": "succeeded",
+               "started_at": "2026-11-25T10:00:00Z"})
+    write_json(legacy_dir / "gui.json", {"schema_version": 1, "draft": {
+        "name": "Archived maternal tables", "caller": "tables", "samples": [],
+        "fetal_sex": {"id": "Maternal", **maternal_paths},
+    }})
+    page.locator('nav [data-view="archive"]').click()
+    page.locator('[data-action="reuse-run"][data-id="maternal-tables-legacy"]').click()
+    check(page.locator("#source").input_value() == "tables"
+          and page.locator("[data-sample]").count() == 3,
+          "Run again restores the archived three-table experiment in the ordinary table register")
+    page.locator('[role="tab"][data-index="1"]').click()
+    check(page.locator("[data-fetal-option]").is_checked()
+          and page.locator("#fetal-table-layout").input_value() == "separate"
+          and all(page.locator(f'[data-fetal-role="{role}"]').input_value() == path
+                  for role, path in maternal_paths.items()),
+          "Archived maternal identity and role assignments survive reuse without new file selection")
+    page.locator('[role="tab"][data-index="3"]').click()
+    page.locator('[data-action="validate-plan"]').click()
+    page.locator(".plan-list li").wait_for()
+    check([step["workflow"] for step in probe.evaluate("NipatApp.state.preview.steps")] == ["fetal-sex"],
+          "Reusing the old maternal-only configuration still estimates fetal sex alone")
     picker.paths = []
 
 

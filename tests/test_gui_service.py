@@ -1131,6 +1131,15 @@ class GuiPrepareTests(GuiRuntimeFixture):
         prepared = prepare_analysis(draft, self.layout)
         self.assertEqual([step["workflow"] for step in prepared.preview["steps"]], ["cpin"])
 
+    def test_fetal_followup_offers_verified_caller_tables_without_assigning_a_mother(self):
+        self.completed_caller(gui=True)
+        draft = self.service().run_prepare("previous", "fetal-sex")
+        self.assertEqual(draft["caller"], "tables")
+        self.assertEqual(draft["fetal_sex"], {"id": "", "source": "sample-tables", "dnp": "", "y": ""})
+        self.assertEqual({r["kind"] for r in draft["samples"]}, {"dnp-table"})
+        self.assertEqual({r["id"] for r in draft["samples"]}, {"Child", "Mother", "Father", "Plasma"})
+        self.assertTrue(all(Path(r["path"]).is_file() for r in draft["samples"]))
+
     def test_incomplete_or_unidentified_counts_do_not_silently_restart_callers(self):
         directory = self.completed_caller(status="failed")
         with self.assertRaisesRegex(ValidationError, "conteggi completi"):

@@ -105,26 +105,39 @@ class NativeFetalSex(unittest.TestCase):
             self.assertEqual((self.root / "combined/output" / source.name).read_bytes(), source.read_bytes())
 
     def test_shared_maternal_dnp_feeds_contamination_and_fetal_sex(self):
-        for layout in ("split", "combined"):
+        for layout in ("split", "combined", "registered-combined", "registered-split"):
             with self.subTest(layout=layout):
                 self.check_shared_maternal_dnp(layout)
 
     def check_shared_maternal_dnp(self, layout):
-        inputs = (combined_example("Female_fetus", self.root) if layout == "combined"
+        combined = layout.endswith("combined")
+        registered = layout.startswith("registered")
+        inputs = (combined_example("Female_fetus", self.root) if combined
                   else example("Female_fetus"))
         maternal = "dnp_Maternal"
         panel = self.root / "panel.tsv"
         panel.write_text("chr\tpos1\tpos2\nchr1\t3010000\t3010001\nchr1\t3020000\t3020001\n",
                          encoding="utf-8")
         role_ids = {"autosomes": maternal, "x": "fsx_Maternal", "y": "fsy_Maternal"}
-        if layout == "combined":
+        if combined:
             role_ids = {"dnp": maternal, "y": "fsy_Maternal"}
+        if registered and combined:
+            with Path(inputs["dnp"]).open("a", encoding="utf-8") as stream:
+                stream.write("chrY\t61\t62\tGC\tTT\t7\t0\t0\t7\n")
+        if registered:
+            snp = self.root / "maternal_snp.tsv"
+            snp.write_text(Path(inputs["y"]).read_text() + "chr1\t21\tG\tT\t1\t0\t0\t1\n")
+            inputs["y"] = str(snp)
+        originals = {role: Path(path).read_bytes() for role, path in inputs.items()}
         plan = {"schema_version": 1,
                 "samples": [{"id": identifier, "kind": "snp-table" if role == "y" else "dnp-table",
                              "path": inputs[role]} for role, identifier in role_ids.items()],
                 "steps": [{"id": "contamination", "workflow": "contamination",
                            "inputs": {"samples": [{"sample": maternal}], "panel": str(panel)}, "parameters": {}},
-                          {"id": "sex", "workflow": "fetal-sex", "inputs": role_ids, "parameters": {}}]}
+                          {"id": "sex", "workflow": "fetal-sex", "inputs": role_ids,
+                           "parameters": {"project_regions": True} if registered else {}}]}
+        plan["presentation"] = {"samples": {sid: Path(inputs[role]).name for role, sid in role_ids.items()},
+                                "pairs": {}}
         manifest = self.root / "plan.json"
         manifest.write_text(json.dumps(plan), encoding="utf-8")
         run = self.root / layout
@@ -142,6 +155,9 @@ class NativeFetalSex(unittest.TestCase):
         for source in expected:
             self.assertEqual((sex / source.name).read_text(encoding="utf-8"),
                              source.read_text(encoding="utf-8"), source.name)
+        self.assertEqual({role: Path(path).read_bytes() for role, path in inputs.items()}, originals)
+        self.assertEqual((run / "steps/contamination/work/inputs/table_0001.txt").read_bytes(),
+                         originals["dnp" if combined else "autosomes"])
         with (run / "steps/contamination/output/contamination_summary.txt").open(encoding="utf-8") as stream:
             row, = csv.DictReader(stream, delimiter="\t")
         self.assertEqual(row["informative_sites"], "2")

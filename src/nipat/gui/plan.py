@@ -111,15 +111,19 @@ def _check_named_reference(entry, inputs, caller, language):
         checker.check_bam_reference(path, fasta, fai, lengths, exact_names=True, targets=targets)
 
 
-def _fetal_inputs(fetal, language):
-    fetal = _object(fetal, "Fetal sex", {"id", "source", "dnp", "autosomes", "x", "y"})
+def _fetal_inputs(fetal, language, inputs, registered):
+    fetal = _object(fetal, "Fetal sex", {"id", "source", "dnp", "autosomes", "x", "y", "downstream_dnp"})
     sample_id = _text(fetal.get("id"), "Maternal cfDNA sample ID" if language == "en" else
                       "ID del campione di cfDNA materno", maximum=48)
-    if "source" in fetal:
+    use_registered = fetal.get("source") == "sample-tables"
+    if "source" in fetal and not use_registered:
         if fetal["source"] != "bam" or set(fetal) != {"id", "source"}:
             raise ValidationError("Choose a maternal BAM or count tables." if language == "en" else
                                   "Seleziona un BAM materno oppure le tabelle di conteggi.")
         return (sample_id,)
+    if "downstream_dnp" in fetal and (not use_registered or "dnp" in fetal):
+        raise ValidationError("Choose a downstream DNP table only for separate registered DNP tables."
+                              if language == "en" else "La scelta della tabella DNP per le altre analisi richiede due tabelle DNP separate.")
     if "dnp" in fetal and ("autosomes" in fetal or "x" in fetal):
         raise ValidationError("Choose either a combined DNP table or separate autosomal and X tables."
                               if language == "en" else
@@ -134,6 +138,35 @@ def _fetal_inputs(fetal, language):
         raise ValidationError("Choose the autosomal DNP, X DNP and Y SNP count tables."
                               if language == "en" else
                               "Seleziona le tre tabelle di conteggi: DNP autosomici, DNP X e SNP Y.")
+    if use_registered:
+        fetal_only_roles = []
+        for role, path in zip(roles, paths, strict=True):
+            kind = "snp-table" if role == "y" else "dnp-table"
+            rows = registered.get(path, [])
+            if len(rows) != 1 or rows[0][:2] != (sample_id, kind):
+                raise ValidationError(
+                    f"Select a {kind} registered once for the maternal sample {sample_id}: {path.name}."
+                    if language == "en" else
+                    f"Seleziona una tabella {kind[:3].upper()} caricata una sola volta per il campione materno {sample_id}: {path.name}.")
+            if rows[0][2]:
+                fetal_only_roles.append(role)
+        options = {"fetal_only_roles": fetal_only_roles}
+        if "x" in roles:
+            eligible = {"autosomes", "x"} - set(fetal_only_roles)
+            choice = fetal.get("downstream_dnp")
+            if choice is not None and (not isinstance(choice, str) or choice not in eligible):
+                raise ValidationError("Invalid DNP table for the other analyses." if language == "en" else
+                                      "La tabella DNP scelta per le altre analisi non è disponibile.")
+            if eligible == {"autosomes", "x"} and inputs["dnp_analyses"]:
+                if choice is None:
+                    raise ValidationError("Choose which maternal DNP table to use for the other DNP analyses."
+                                          if language == "en" else
+                                          "Scegli quale tabella DNP materna usare per le altre analisi DNP.")
+                other = paths[1] if choice == "autosomes" else paths[0]
+                inputs["dnp_tables"].remove((sample_id, other))
+            if choice is not None:
+                options["downstream_dnp"] = choice
+        inputs["fetal_table_selection"] = options
     return (sample_id, *paths)
 
 
@@ -147,15 +180,23 @@ def prepare_analysis(draft: dict, layout: ProjectLayout,
     if caller not in {"dnp", "snp", "both", "tables"}:
         raise ValidationError("Scegliere DNP, SNP, entrambi oppure tabelle esistenti.")
     inputs: dict[str, Any] = {value: [] for value in _KINDS.values()}
+    registered = {}
     for row in _rows(draft.get("samples", []), "Campioni"):
-        row = _object(row, "Campione", {"id", "path", "kind"})
+        row = _object(row, "Campione", {"id", "path", "kind", "fetal_only"})
         kind = row.get("kind")
         if kind not in _KINDS:
             raise ValidationError("Scegliere un formato valido per ogni campione.")
         path = _path(row.get("path"), "File del campione")
         if path is None:
             raise ValidationError("Associare un file a ogni campione.")
-        inputs[_KINDS[kind]].append((_text(row.get("id"), "Nome campione", maximum=48), path))
+        identifier = _text(row.get("id"), "Nome campione", maximum=48)
+        fetal_only = row.get("fetal_only", False)
+        if type(fetal_only) is not bool or (fetal_only and kind not in {"dnp-table", "snp-table"}):
+            raise ValidationError("Only count tables can be reserved for fetal sex." if language == "en" else
+                                  "Solo le tabelle di conteggi possono essere riservate al sesso fetale.")
+        registered.setdefault(path, []).append((identifier, kind, fetal_only))
+        if not fetal_only:
+            inputs[_KINDS[kind]].append((identifier, path))
     branches = _object(draft.get("branches", {}), "Analisi", {"DNP", "SNP"})
     for marker in ("DNP", "SNP"):
         inputs[marker.lower() + "_analyses"] = _rows(branches.get(marker, []), "Analisi", 3)
@@ -207,7 +248,7 @@ def prepare_analysis(draft: dict, layout: ProjectLayout,
                               for k in ("id", *roles)))
         inputs[key] = rows
     if draft.get("fetal_sex") is not None:
-        inputs["fetal_sex"] = _fetal_inputs(draft["fetal_sex"], language)
+        inputs["fetal_sex"] = _fetal_inputs(draft["fetal_sex"], language, inputs, registered)
         draft["fetal_sex"]["id"] = inputs["fetal_sex"][0]
     settings = deepcopy(preferences.scientific_settings)
     for module, values in normalize_config(draft.get("scientific_settings", {})).items():

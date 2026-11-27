@@ -42,25 +42,32 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
  for(const view of ['home','new','activity','archive','catalog','settings','environment','igv']){await app.navigate(view);check(element('main').innerHTML.length>300,'Render '+view)}
  await app.action('new-experiment',{});
  app.state.draft.name='Maternal';
- app.onValue({type:'select-one',value:'fetal-sex',dataset:{field:'source'}});
  const fetal=()=>app.state.draft.fetal_sex;
- check(Object.hasOwn(fetal(),'dnp')&&app.renderNew().includes('data-key="fetal.dnp"')&&!app.renderNew().includes('data-key="fetal.x"'),'A new maternal sample presents one DNP and one Y SNP picker');
+ const chooseSex=checked=>app.onValue({type:'checkbox',checked,dataset:{fetalOption:'true'}});
+ const setRole=(role,path)=>app.onValue({type:'select-one',value:path,dataset:{fetalRole:role}});
+ app.onValue({type:'select-one',value:'tables',dataset:{field:'source'}});
+ app.state.draft.samples=[
+  {kind:'dnp-table',id:'Mother',path:'/counts/dnp.txt'},
+  {kind:'snp-table',id:'Mother',path:'/counts/y.txt'}
+ ];
+ await app.action('step',{index:1});chooseSex(true);
  app.onValue({value:'Mother',dataset:{fetalId:'true'}});
- for(const role of ['dnp','y']){
-  dialogPaths=['/counts/'+role+'.txt'];await app.action('choose-path',{key:'fetal.'+role,filter:'table'});
- }
+ check(fetal().source==='sample-tables'&&app.renderNew().includes('data-fetal-role="dnp"')&&!app.renderNew().includes('data-fetal-role="x"'),
+       'Maternal counts default to roles for one DNP table and one Y SNP table');
+ setRole('dnp','/counts/dnp.txt');setRole('y','/counts/y.txt');
+ await app.action('step',{index:2});
+ check(app.state.step===2&&app.submittedDraft().fetal_sex.dnp==='/counts/dnp.txt','The two registered maternal tables pass validation');
  await app.action('step',{index:1});
- check(app.state.step===1&&app.submittedDraft().fetal_sex.dnp==='/counts/dnp.txt','Two maternal tables pass step validation and survive submission');
- await app.action('step',{index:0});
  app.onValue({type:'select-one',value:'separate',dataset:{fetalLayout:'true'}});
- check(fetal().id==='Mother'&&fetal().y==='/counts/y.txt'&&!Object.hasOwn(fetal(),'dnp')&&app.renderNew().includes('data-key="fetal.autosomes"')&&app.renderNew().includes('data-key="fetal.x"'),'Switching to separate files preserves the sample and Y, requiring both DNP files');
- await app.action('step',{index:1});
- check(app.state.step===0&&app.state.error,'The separate DNP mode refuses to advance with empty DNP inputs');
+ check(fetal().id==='Mother'&&fetal().y==='/counts/y.txt'&&!Object.hasOwn(fetal(),'dnp')&&app.renderNew().includes('data-fetal-role="autosomes"')&&app.renderNew().includes('data-fetal-role="x"'),
+       'Switching to separate DNP files preserves the maternal ID and Y assignment');
+ await app.action('step',{index:2});
+ check(app.state.step===1&&app.state.error,'Split mode requires two different registered DNP tables');
  app.onValue({type:'select-one',value:'combined',dataset:{fetalLayout:'true'}});
- check(fetal().y==='/counts/y.txt'&&!Object.hasOwn(fetal(),'x')&&!Object.hasOwn(fetal(),'autosomes'),'Switching back keeps Y and removes the unused split-table roles');
+ check(fetal().y==='/counts/y.txt'&&!Object.hasOwn(fetal(),'x')&&!Object.hasOwn(fetal(),'autosomes'),
+       'Switching back keeps Y and removes the unused split-table roles');
  await app.action('new-experiment',{});
  app.state.draft.name='Maternal BAM';
- const chooseSex=(checked)=>app.onValue({type:'checkbox',checked,dataset:{fetalOption:'true'}});
  app.state.draft.samples=[{id:'Plasma',kind:'bam',path:'/mother.bam'}];
  await app.action('step',{index:1});chooseSex(true);
  check(fetal().source==='bam'&&fetal().id==='Plasma'&&app.state.draft.caller==='both','Selecting fetal sex with one BAM wires both callers to the maternal BAM');
@@ -78,8 +85,13 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
  check(fetal().id==='Maternal','Renaming the selected BAM preserves the maternal assignment');
  await app.action('remove-sample',{index:0});
  check(!fetal().id,'Removing the selected BAM never assigns a different sample as maternal');
+ app.onValue({type:'select-one',value:'mixed',dataset:{field:'source'}});
+ app.state.draft.samples.push({kind:'dnp-table',id:'Mother',path:'/counts/dnp.txt'},
+                              {kind:'snp-table',id:'Mother',path:'/counts/y.txt'});
+ await app.action('step',{index:1});
  app.onValue({value:'tables',dataset:{fetalSource:'true'}});
- check(Object.hasOwn(fetal(),'dnp')&&app.renderNew().includes('data-key="fetal.y"'),'Mixed experiments can explicitly use imported maternal tables');
+ check(fetal().source==='sample-tables'&&app.renderNew().includes('data-fetal-role="y"'),
+       'Mixed experiments can explicitly choose registered maternal tables');
  await app.action('new-experiment',{});
  const pickBuild=(scope,value)=>app.onValue({dataset:{referenceBuild:scope},type:'select-one',value});
  const pickEntry=(scope,value)=>app.onValue({dataset:{referenceEntry:scope},type:'select-one',value});
@@ -385,6 +397,17 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
  const originalPreview=handlers['plan.preview'];let resolvePreview;handlers['plan.preview']=p=>new Promise(resolve=>{resolvePreview=()=>resolve(originalPreview(p))});const stalePreview=app.action('validate-plan',{});await tick();app.onValue({dataset:{draft:'name'},type:'text',value:'Changed while checking'});resolvePreview();await stalePreview;check(app.state.preview===null,'Editing during validation cannot activate a stale plan');handlers['plan.preview']=originalPreview;
 
  handlers['run.prepare']=p=>({name:'Additional analysis',caller:'tables',samples:[{id:'A',path:'/completed/counts.txt',kind:'dnp-table'}],branches:{DNP:[p.module]},families:{cpin:[{id:'F',mother:'A',father:'B',child:'C'}]},scientific_settings:{cpin:{min_coverage:6}}});await app.action('prepare-module',{module:'cpin'});check(app.state.draft.caller==='tables'&&app.selectedModules().join(',')==='cpin'&&app.state.step===1,'Additional analysis consumes existing counts without rerunning callers or prior modules');check(app.state.draft.scientific_settings.cpin.min_coverage===6&&app.state.source==='tables','Additional analysis preserves recorded settings and exposes family assignments');
+
+ const previousPrepare=handlers['run.prepare'];
+ for(const [dnpId,snpId,step] of [['Mother','Father',0],['Mother','Mother',1]]){
+  handlers['run.prepare']=()=>({name:'Prepare fetal sex',caller:'tables',
+   samples:[{kind:'dnp-table',id:dnpId,path:'/counts/dnp.txt'},{kind:'snp-table',id:snpId,path:'/counts/y.txt'}],
+   fetal_sex:{source:'sample-tables',id:'',dnp:'',y:''}});
+  await app.action('prepare-module',{module:'fetal-sex'});
+  check(app.state.source==='tables'&&app.state.step===step,
+        'Preparing fetal sex opens '+(step?'Analyses when one individual has both tables':'Inputs when table types belong to different people'));
+ }
+ handlers['run.prepare']=previousPrepare;
 
  // Activity updates preserve progress indicators and fetch logs only while they are open.
  const noProgress={id:'initial',name:'Initial',status:'running',created_at:'2026-11-15T12:00:00Z',finished_at:'2026-11-15T12:02:03Z',progress:null,logs:[]};
