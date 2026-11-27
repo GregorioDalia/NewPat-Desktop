@@ -212,6 +212,7 @@ class ExecutionDiagnosticsTests(unittest.TestCase):
         self.assertEqual(len(operations), 1)
 
     def test_lima_exit_255_reports_only_observed_vm_state_without_stopping_anything(self):
+        self.enterContext(patch("nipat.execution.runner.platform.machine", return_value="arm64"))
         native = self.runner._transport
         lima = MagicMock(spec=LimaDockerTransport)
         lima.metadata = {"backend": "lima"}
