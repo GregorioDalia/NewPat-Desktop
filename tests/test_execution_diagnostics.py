@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 from nipat.errors import RuntimeExecutionError
 from nipat.execution.diagnostics import diagnose, inspect_container, settle_oom_observation
 from nipat.execution.runner import DockerComposeRunner
-from nipat.execution.transport import DockerTransport
+from nipat.execution.transport import DockerTransport, LimaDockerTransport
 from nipat.paths import ProjectLayout
 
 
@@ -63,7 +63,7 @@ class ExecutionDiagnosticsTests(unittest.TestCase):
         process.wait.return_value = process.poll.return_value = code
         return process
 
-    def run_case(self, code, *, oom=False, missing=False, mismatched=False, interrupt=False,
+    def run_case(self, code, *, oom=False, missing=False, inspect_failure=False, mismatched=False, interrupt=False,
                  cleanup_failure=False, run_name="case"):
         run = self.layout.new_run_dir("test", run_name)
         process = self.process(code, interrupt=interrupt)
@@ -82,6 +82,8 @@ class ExecutionDiagnosticsTests(unittest.TestCase):
                 self.assertLessEqual(kwargs["timeout"], 20)
                 if missing:
                     return subprocess.CompletedProcess(argv, 1, "", "Error: No such container")
+                if inspect_failure:
+                    return subprocess.CompletedProcess(argv, 1, "", "runtime unavailable")
                 labels = dict(item.split("=", 1) for index, item in enumerate(launched)
                               if index and launched[index - 1] == "--label")
                 if mismatched:
@@ -208,6 +210,44 @@ class ExecutionDiagnosticsTests(unittest.TestCase):
         self.assertEqual(stage["container_diagnostics"]["availability"], "absent")
         self.assertEqual(stage["container_cleanup"]["status"], "absent")
         self.assertEqual(len(operations), 1)
+
+    def test_lima_exit_255_reports_only_observed_vm_state_without_stopping_anything(self):
+        native = self.runner._transport
+        lima = MagicMock(spec=LimaDockerTransport)
+        lima.metadata = {"backend": "lima"}
+        lima.backend = "lima"
+        lima.command.side_effect = native.command
+        lima.host_path.side_effect = native.host_path
+        lima.ensure_command.return_value = None
+        lima.runtime = MagicMock()
+        self.runner._transport = lima
+        instance_info = lima.runtime._instance_info
+        for status, kind in (("Stopped", "lima_vm_stopped"), ("Running", "lima_execution_unverified"),
+                             ("unknown", "lima_execution_unverified")):
+            with self.subTest(status=status):
+                instance_info.return_value = {"status": status}
+                instance_info.side_effect = RuntimeExecutionError("list failed") if status == "unknown" else None
+                _, record, error, operations = self.run_case(255, inspect_failure=True, run_name=status)
+                self.assertIsInstance(error, RuntimeExecutionError)
+                stage = record["commands"][0]
+                observation = stage["container_diagnostics"]
+                self.assertEqual(stage["returncode"], 255)
+                self.assertEqual(stage["container_cleanup"]["status"], "not_confirmed")
+                self.assertEqual(observation["diagnosis"]["kind"], kind)
+                self.assertEqual(observation["lima_instance"]["status"], status)
+                self.assertEqual("spenta" in str(error), status == "Stopped")
+                self.assertEqual(len(operations), 1)
+                instance_info.assert_called_once_with()
+                instance_info.reset_mock()
+        _, record, _, _ = self.run_case(255, run_name="command-exited")
+        self.assertEqual(record["commands"][0]["container_diagnostics"]["diagnosis"]["kind"], "failed")
+        instance_info.assert_not_called()
+
+    def test_native_exit_255_without_docker_inspection_keeps_the_original_failure(self):
+        _, record, _, _ = self.run_case(255, inspect_failure=True)
+        observation = record["commands"][0]["container_diagnostics"]
+        self.assertEqual(observation["diagnosis"]["kind"], "failed")
+        self.assertNotIn("lima_instance", observation)
 
     def test_replaced_unowned_container_is_not_stopped_or_removed(self):
         _, record, _, operations = self.run_case(7, mismatched=True)

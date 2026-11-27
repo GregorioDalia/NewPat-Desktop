@@ -15,7 +15,7 @@ from typing import Any
 
 from nipat.errors import RuntimeExecutionError, ValidationError
 from nipat.execution.tracking import utc_now
-from nipat.execution.transport import cleanup_process_options
+from nipat.execution.transport import DockerTransport, LimaDockerTransport, cleanup_process_options
 
 
 _ID = re.compile(r"[0-9a-f]{64}\Z")
@@ -131,6 +131,18 @@ def settle_oom_observation(runner, name: str, expected_labels: dict[str, str],
     return observation
 
 
+def observe_lima_failure(transport: DockerTransport, observation: dict[str, Any], returncode: int) -> None:
+    """A Lima shell exit of 255 can also be a command's own exit code."""
+    if (returncode != 255 or observation.get("availability") != "unavailable"
+            or not isinstance(transport, LimaDockerTransport)):
+        return
+    try:
+        status = transport.runtime._instance_info()["status"]
+    except (OSError, RuntimeExecutionError, ValidationError):
+        status = "unknown"
+    observation["lima_instance"] = {"status": status, "observed_at": utc_now()}
+
+
 def diagnose(observation: dict[str, Any], returncode: int | None, *, interrupted: bool) -> dict[str, str]:
     if interrupted:
         return {"kind": "interrupted", "message": "Esecuzione annullata dall'utente."}
@@ -148,6 +160,18 @@ def diagnose(observation: dict[str, Any], returncode: int | None, *, interrupted
             "message": "Il codice di uscita e compatibile con una terminazione forzata (SIGKILL). "
                        "La memoria insufficiente e una possibile causa, ma non e confermata "
                        "dalle informazioni disponibili. Consultare execution.log e run.json.",
+        }
+    if returncode == 255 and "lima_instance" in observation:
+        if observation["lima_instance"]["status"] == "Stopped":
+            return {
+                "kind": "lima_vm_stopped",
+                "message": "Al controllo successivo la macchina virtuale di NewPat risultava spenta. "
+                           "Riaprire NewPat e ripetere l’esperimento.",
+            }
+        return {
+            "kind": "lima_execution_unverified",
+            "message": "NewPat non ha potuto verificare lo stato del calcolo nella macchina virtuale. "
+                       "Controllare le esecuzioni attive prima di ripetere l’esperimento.",
         }
     return {"kind": "completed" if returncode == 0 else "failed",
             "message": "Esecuzione completata." if returncode == 0 else

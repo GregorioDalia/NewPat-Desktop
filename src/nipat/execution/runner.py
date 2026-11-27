@@ -16,7 +16,7 @@ from typing import Any, Callable, Iterable, Iterator, TextIO
 
 from nipat import __version__
 from nipat.errors import RuntimeExecutionError, ValidationError
-from nipat.execution.diagnostics import diagnose, inspect_container, settle_oom_observation
+from nipat.execution.diagnostics import diagnose, inspect_container, observe_lima_failure, settle_oom_observation
 from nipat.execution.mounts import InputMounts
 from nipat.execution.options import ExecutionOptions
 from nipat.execution.performance import ContainerPerformanceObserver
@@ -823,6 +823,7 @@ class DockerComposeRunner:
                 stage["container_diagnostics"] = settle_oom_observation(
                     self, container_name, expected_labels, stage["container_diagnostics"], stage["returncode"],
                 )
+                observe_lima_failure(self._transport, stage["container_diagnostics"], stage["returncode"])
                 stage["container_diagnostics"]["diagnosis"] = diagnose(
                     stage["container_diagnostics"], stage["returncode"], interrupted=False,
                 )
@@ -830,7 +831,7 @@ class DockerComposeRunner:
                 stage["status"] = "failed"
                 explanation = stage["container_diagnostics"]["diagnosis"]["message"]
                 raise RuntimeExecutionError(
-                    f"Il runtime scientifico è terminato con codice {stage['returncode']}. {explanation}"
+                    f"Il comando di esecuzione è terminato con codice {stage['returncode']}. {explanation}"
                 )
             stage["status"] = "succeeded"
         except FileNotFoundError as exc:
