@@ -84,7 +84,7 @@ def test_mini_records_failures_and_completes_independent_cases(tmp_path, monkeyp
 
     monkeypatch.setattr(mini, "launch", launch)
     assert mini.run_suite(app, output, pinned) == expected_code
-    html = (output / mini.REPORT).read_text()
+    html = (output / mini.REPORT).read_text(encoding="utf-8")
     assert f"Mini-suite NewPat · {'PASS' if not expected_code else 'FAIL'}</h1>" in html
     if problem in ("prepare", "wrong-build"):
         assert not launches and html.count("NON ESEGUITO") == 3
