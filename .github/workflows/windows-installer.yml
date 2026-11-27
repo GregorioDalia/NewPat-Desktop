@@ -453,12 +453,11 @@ jobs:
         shell: powershell
         run: |
           @'
-          import importlib.util
           import json
           from pathlib import Path
-          spec = importlib.util.spec_from_file_location("publisher", ".github/scripts/publish_windows_release.py")
-          publisher = importlib.util.module_from_spec(spec)
-          spec.loader.exec_module(publisher)
+          import sys
+          sys.path.insert(0, str(Path(".github/scripts").resolve()))
+          import publish_windows_release as publisher
           manifest = json.loads(Path("build/assets/installer-manifest.json").read_text())
           publisher.prepare_assets(Path("build/output"), Path("build/assets"),
                                    Path("build/verified-release"), manifest["source_commit"])

@@ -4,10 +4,13 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
 import tempfile
+import sys
+import textwrap
 import unittest
 from unittest.mock import Mock, patch
 from types import SimpleNamespace
@@ -77,6 +80,39 @@ class ReleaseGuards(unittest.TestCase):
         self.write_manifests()
         (self.setup / "NIPAT.exe").write_bytes(b"MZ launcher fixture")
         self.write_installer_evidence()
+
+    def test_windows_review_stdin_entrypoint_verifies_sources_in_an_isolated_interpreter(self):
+        workflow = (publisher.PROJECT / ".github/workflows/windows-installer.yml").read_text()
+        step = workflow.split("- name: Verify the final WSL package without publishing", 1)[1].split("- name:", 1)[0]
+        program = textwrap.dedent(re.search(r"@'\n(.*?)^ *'@ \| python -", step, re.M | re.S)[1])
+        for folder in (".github/scripts", "src"):
+            shutil.copytree(publisher.PROJECT / folder, self.root / folder,
+                            ignore=shutil.ignore_patterns("__pycache__"))
+        for name, data in self.sources.items():
+            (self.root / name).write_bytes(data)
+        def git(*args):
+            return subprocess.check_output(["git", "-c", "user.name=Fixture", "-c", "user.email=test@example.org",
+                                            *args], cwd=self.root, text=True).strip()
+        git("init", "--quiet")
+        git("add", "--", *self.sources)
+        git("commit", "-qm", "fixture")
+        commit = git("rev-parse", "HEAD")
+        self.manifest.update(source_commit=commit, rootfs_provenance={"source_commit": commit})
+        self.write_manifests()
+        build = self.root / "build"
+        build.mkdir()
+        self.runtime.rename(build / "assets")
+        self.setup.rename(build / "output")
+        def run_step():
+            return subprocess.run([sys.executable, "-I", "-"], input=program, text=True, capture_output=True,
+                                  cwd=self.root)
+        check = run_step()
+        self.assertEqual(check.returncode, 0, check.stderr)
+        self.assertEqual((build / "verified-release/NIPAT-Setup.exe").read_bytes(), b"installer fixture")
+        (build / "output" / publisher.MANIFEST).write_bytes(b"altered")
+        rejected = run_step()
+        self.assertNotEqual(rejected.returncode, 0)
+        self.assertIn("Installer/runtime manifests differ", rejected.stderr)
 
     def test_bootstrap_fingerprint_covers_exact_compiler_provisioning(self):
         path = publisher.PROJECT / ".github/scripts/windows_bootstrap.py"
