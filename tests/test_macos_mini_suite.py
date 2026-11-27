@@ -2,6 +2,7 @@
 import json
 from pathlib import Path
 import sys
+from zipfile import ZipFile
 
 import pytest
 
@@ -93,3 +94,13 @@ def test_mini_records_failures_and_completes_independent_cases(tmp_path, monkeyp
             assert "Codice del runtime 255" in html and "Fase DNPcall" in html and "prenatale" not in checked
         elif problem == "oracle":
             assert "Tabella diversa dal riferimento" in html
+
+
+def test_downloadable_kit_matches_the_tested_sources_and_launches_from_finder():
+    paths = ["installer/macos/Mini-Test-NewPat.command", "scripts/mini_suite_macos.py", "docs/MINI_SUITE_MAC.md"]
+    archive = ROOT / "docs/validation/NewPat-0.9.99-Mini-Test-Mac.zip"
+    with ZipFile(archive) as kit:
+        assert sorted(kit.namelist()) == sorted(Path(path).name for path in paths)
+        for path in paths:
+            assert kit.read(Path(path).name) == (ROOT / path).read_bytes()
+        assert kit.getinfo("Mini-Test-NewPat.command").external_attr >> 16 & 0o111 == 0o111

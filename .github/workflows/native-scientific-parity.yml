@@ -54,18 +54,6 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - name: Package the standalone Mac mini-suite
-        if: matrix.arch == 'amd64' && github.event_name == 'pull_request' && startsWith(github.head_ref, 'release/')
-        run: zip -X -j "$RUNNER_TEMP/NewPat-Mini-Test-Mac.zip" installer/macos/Mini-Test-NewPat.command scripts/mini_suite_macos.py docs/MINI_SUITE_MAC.md
-      - name: Share the mini-suite independently of the installer
-        if: matrix.arch == 'amd64' && github.event_name == 'pull_request' && startsWith(github.head_ref, 'release/')
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: NewPat-Mini-Test-Mac
-          path: ${{ runner.temp }}/NewPat-Mini-Test-Mac.zip
-          compression-level: 0
-          retention-days: 14
-          if-no-files-found: error
       - name: Require native runner and Docker daemon
         run: |
           test "$(uname -m)" = "$MACHINE"
