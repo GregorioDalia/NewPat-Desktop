@@ -247,7 +247,7 @@ class LimaResourcesTests(unittest.TestCase):
         self.original = {"memory": "4GiB", "cpus": 2, "param": {"NipatOwner": "owner"}, "mounts": [{"location": "/Users"}]}
         self.config.write_text(json.dumps(self.original))
         self.runtime = SimpleNamespace(instance_dir=self.instance, project=self.home,
-                                       _assert_owned=Mock(), _host_check=Mock(), lock=nullcontext,
+                                       _assert_owned=Mock(), _host_check=Mock(), lock=nullcontext, start_existing=Mock(),
                                        host_prefix=lambda: ["limactl"], _run=Mock(side_effect=self.execute))
         self.manager = ResourceManager(SimpleNamespace(backend="lima", runtime=self.runtime), home=self.home)
         self.patch_host = patch("nipat.resources.host_resources", return_value=HOST)
@@ -284,6 +284,7 @@ class LimaResourcesTests(unittest.TestCase):
         self.assertEqual(changed["param"], self.original["param"])
         self.assertEqual(changed["mounts"], self.original["mounts"])
         self.assertEqual(result["status"], "applied")
+        self.runtime.start_existing.assert_called_once_with()
         self.assertTrue(Path(result["backup"]).is_file())
         arguments = [call.args[0] for call in self.runtime._run.call_args_list]
         self.assertLess(next(i for i, argv in enumerate(arguments) if "stop" in argv), next(i for i, argv in enumerate(arguments) if "edit" in argv))

@@ -2,7 +2,7 @@
 
 from nipat_scientific.errors import NipatError, ValidationError
 
-__all__ = ["NipatError", "ValidationError", "RuntimeExecutionError", "Cancelled"]
+__all__ = ["NipatError", "ValidationError", "RuntimeExecutionError", "RuntimeInterruptedError", "Cancelled"]
 
 
 class Cancelled(Exception):
@@ -11,3 +11,7 @@ class Cancelled(Exception):
 
 class RuntimeExecutionError(NipatError):
     """Raised when Docker or a scientific command fails."""
+
+
+class RuntimeInterruptedError(RuntimeExecutionError):
+    """The runtime stopped during execution without a user cancellation request."""

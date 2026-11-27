@@ -18,7 +18,7 @@ import time
 import unittest
 from unittest.mock import Mock, patch
 
-from nipat.errors import RuntimeExecutionError, ValidationError
+from nipat.errors import RuntimeExecutionError, RuntimeInterruptedError, ValidationError
 from nipat.execution.progress import ProgressSnapshot
 from nipat.execution.runner import DockerComposeRunner
 from nipat.execution.transport import DockerTransport
@@ -1062,6 +1062,66 @@ with ticket.registration():
         self.assertIn("runtime unavailable", result["error"])
         metadata = json.loads((self.layout.runs_dir / result["run_id"] / "run.json").read_text(encoding="utf-8"))
         self.assertEqual(metadata["status"], "failed")
+
+    def test_next_ordinary_job_in_same_gui_starts_vm_before_any_docker_command(self):
+        image = "sha256:" + "1" * 64
+        guest_running = True
+        starts = []
+        launched = []
+        class LocalRunner(GuiRunner):
+            def _capture_process(runner, command, **kwargs):
+                nonlocal guest_running
+                if command == ["fixture-lima", "ensure"]:
+                    starts.append(guest_running)
+                    guest_running = True
+                    return ""
+                self.assertTrue(guest_running)
+                if command[:2] == ["docker", "info"]:
+                    return "linux"
+                if "config" in command:
+                    return json.dumps({"services": {"scientific": {"image": image}}})
+                if "inspect" in command:
+                    return json.dumps({"id": image, "os": "linux", "architecture": "arm64"})
+                self.assertEqual(command[:2], ["docker", "run"])
+                return "test runtime"
+
+            def _run_command(runner, command, *, working_dir=None):
+                nonlocal guest_running
+                launched.append(runner.last_run_dir)
+                if len(launched) == 1:
+                    guest_running = False
+                    raise RuntimeInterruptedError("VM stopped")
+                output = runner.last_run_dir / "output" / "workflow"
+                output.mkdir()
+                steps = runner._record.data["parameters"]["plan"]["steps"]
+                (output / "workflow-state.json").write_text(json.dumps({
+                    "schema_version": 1, "interface": "workflow-plan-execution-v2", "status": "succeeded",
+                    "steps": [dict(step, status="succeeded") for step in steps],
+                }))
+
+        class LocalTransport(DockerTransport):
+            backend = "lima"
+            metadata = {"backend": "lima", "lima_instance": "nipat", "lima_home": str(self.root)}
+            def ensure_command(self):
+                return ["fixture-lima", "ensure"]
+
+        manager = JobManager(runner_factory=LocalRunner)
+        with (patch.object(DockerTransport, "from_environment", return_value=LocalTransport()),
+              patch("nipat.execution.runner.platform.machine", return_value="arm64"),
+              patch.object(GuiRunner, "_record_resource_snapshot"),
+              patch.object(GuiRunner, "_describe_bundled_engine")):
+            prepared = prepare_analysis(self.draft(), self.layout)
+            first = manager.wait(manager.start(prepared)["id"], 5)
+            self.assertEqual(first["status"], "interrupted", first)
+            previous = self.layout.runs_dir / first["run_id"] / "run.json"
+            before = previous.read_bytes()
+            second = manager.wait(manager.start(prepared)["id"], 5)
+        self.assertEqual(second["status"], "succeeded", second)
+        self.assertEqual(starts, [True, False])
+        self.assertEqual(launched, [previous.parent, self.layout.runs_dir / second["run_id"]])
+        self.assertNotEqual(first["run_id"], second["run_id"])
+        self.assertEqual(previous.read_bytes(), before)
+        self.assertFalse(json.loads(before)["execution_options"]["performance_diagnostics"])
 
 
 class GuiPrepareTests(GuiRuntimeFixture):

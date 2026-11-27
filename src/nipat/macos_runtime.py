@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import base64
 from contextlib import contextmanager
+from datetime import UTC, datetime
 import hashlib
 import json
 import os
@@ -34,6 +35,22 @@ WORKSPACE_NAME = "NIPAT-Desktop"
 _DIGEST = re.compile(r"[0-9a-f]{64}\Z")
 _IMAGE = re.compile(r"sha256:[0-9a-f]{64}\Z")
 _LINUX_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+_HA_MESSAGES = {
+    "[VZ] - vm state change: running": "vz_running",
+    "[VZ] - vm state change: stopped": "vz_stopped",
+    "Received SIGTERM, shutting down the host agent": "hostagent_sigterm",
+    "Received SIGINT, shutting down the host agent": "hostagent_sigint",
+    "Context closed, stopping vm": "vz_context_closed",
+    "an error during shutting down the host agent": "hostagent_shutdown_error",
+    "guest agent events closed unexpectedly": "guest_events_closed",
+    "connection to the guest agent was closed unexpectedly": "guest_connection_closed",
+}
+_HA_SOURCES = ("ha.stderr.log", "ha.stdout.log")
+_HA_EVENTS = set(_HA_MESSAGES.values()) | {
+    "driver_stopped", "hostagent_running", "hostagent_degraded", "hostagent_exiting",
+}
+_HA_BYTES = 64 * 1024
+_HA_EVENT_LIMIT = 48
 # Pinned upstream Lima v2.2.1 ubuntu-24.04 template. No mutable fallback URL.
 # https://github.com/lima-vm/lima/blob/v2.2.1/templates/_images/ubuntu-24.04.yaml
 _BASE_IMAGES = {
@@ -95,6 +112,47 @@ def _write_json(path: Path, value: dict) -> None:
 def file_sha256(path: Path) -> str:
     with path.open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def _lifecycle_bytes(path: Path) -> bytes:
+    """Read a bounded tail of a regular, user-owned file without following links."""
+    try:
+        if path.parent.resolve(strict=True) != path.parent:
+            return b""
+        descriptor = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
+        with os.fdopen(descriptor, "rb") as stream:
+            info = os.fstat(stream.fileno())
+            if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_nlink != 1:
+                return b""
+            stream.seek(max(0, info.st_size - _HA_BYTES))
+            return stream.read(_HA_BYTES)
+    except (OSError, RuntimeError):
+        return b""
+
+
+def _lifecycle_time(value: str) -> str:
+    parsed = datetime.fromisoformat(value)
+    if parsed.tzinfo is None:
+        raise ValueError("missing time zone")
+    return parsed.astimezone(UTC).isoformat(timespec="microseconds")
+
+
+def _hostagent_event(row: dict, source: str) -> str | None:
+    # Lima 2.2.1 sends logrus JSON to stderr and hostagent/events.Event to stdout.
+    # Error text, addresses, command lines and guest-provided fields stay local.
+    if source == "ha.stderr.log":
+        message = row.get("msg")
+        if isinstance(message, str):
+            if message.startswith("Driver stopped due to error: "):
+                return "driver_stopped"
+            return _HA_MESSAGES.get(message)
+    else:
+        status = row.get("status")
+        if isinstance(status, dict):
+            for flag in ("exiting", "degraded", "running"):
+                if status.get(flag) is True:
+                    return "hostagent_" + flag
+    return None
 
 
 def scientific_platform(architecture: str) -> str:
@@ -269,6 +327,64 @@ class LimaRuntime:
         except (KeyError, TypeError, ValueError, AttributeError) as exc:
             raise RuntimeExecutionError("Configurazione o stato della VM Lima non verificabile; nessuna modifica eseguita.") from exc
 
+    def hostagent_lifecycle(self, *, since: str | None = None) -> dict:
+        """Collect only verifiable event labels and times from the owned instance."""
+        result = {"schema_version": 1, "events": []}
+        try:
+            self._assert_owned()
+            earliest = _lifecycle_time(since) if since is not None else ""
+            latest = datetime.now(UTC).isoformat(timespec="microseconds")
+        except (NipatError, OSError, ValueError, OverflowError, TypeError, RecursionError):
+            return result
+        seen = set()
+
+        def add(timestamp, source, event):
+            try:
+                timestamp = _lifecycle_time(timestamp)
+            except (TypeError, ValueError, OverflowError):
+                return
+            if earliest <= timestamp <= latest:
+                seen.add((timestamp, source, event))
+
+        # After a restart Lima replaces both logs. Earlier captures retain the
+        # same allowlist, including when read from an older or damaged file.
+        saved = _lifecycle_bytes(self.directory / "lima-lifecycle.json")
+        if saved:
+            try:
+                archive = json.loads(saved)
+                if isinstance(archive, dict) and isinstance(archive.get("events"), list):
+                    for row in archive["events"]:
+                        if (isinstance(row, dict) and row.get("source") in _HA_SOURCES
+                                and isinstance(row.get("event"), str) and row["event"] in _HA_EVENTS):
+                            add(row.get("time"), row["source"], row["event"])
+            except (ValueError, RecursionError):
+                pass
+        for source in _HA_SOURCES:
+            for line in _lifecycle_bytes(self.instance_dir / source).splitlines():
+                try:
+                    row = json.loads(line)
+                except (ValueError, RecursionError):
+                    continue
+                if isinstance(row, dict) and (event := _hostagent_event(row, source)):
+                    add(row.get("time"), source, event)
+        result["events"] = [{"time": stamp, "source": source, "event": event}
+                            for stamp, source, event in sorted(seen)[-_HA_EVENT_LIMIT:]]
+        return result
+
+    def start_existing(self) -> None:
+        """Keep hostagent observations before limactl can rotate them (under the operation lock)."""
+        lifecycle = self.hostagent_lifecycle()
+        if lifecycle["events"]:
+            path = self.directory / "lima-lifecycle.json"
+            try:
+                if path.parent.resolve(strict=True) == path.parent:
+                    encoded = (json.dumps(lifecycle, indent=2) + "\n").encode()
+                    if _lifecycle_bytes(path) != encoded:
+                        _write_bytes(path, encoded)
+            except (OSError, RuntimeError):
+                pass  # Optional observations must not prevent starting a healthy guest.
+        self._run(self.host_prefix() + ["start", "--tty=false", INSTANCE], timeout=180)
+
     def _missing_instance_owner(self) -> bool:
         """A dangling link is not an absent ownership record or a fresh installation."""
         if (self.instance_dir.resolve() != self.instance_dir or self.directory.resolve() != self.directory
@@ -432,7 +548,7 @@ class LimaRuntime:
                 if any(not self._covers(verified["config"]["mounts"], Path(item["location"])) for item in additions):
                     raise RuntimeExecutionError("Lima non ha applicato le cartelle condivise richieste.")
             _write_json(self.owner_path, updated)
-            self._run(self.host_prefix() + ["start", "--tty=false", INSTANCE], timeout=180)
+            self.start_existing()
             self._verify_application()
             return updated
         except (NipatError, OSError, ValueError, KeyboardInterrupt) as exc:
@@ -443,7 +559,7 @@ class LimaRuntime:
                 _write_bytes(config, original_config, mode=config_mode)
                 _write_bytes(self.owner_path, original_owner, mode=owner_mode)
                 if running:
-                    self._run(self.host_prefix() + ["start", "--tty=false", INSTANCE], timeout=180)
+                    self.start_existing()
             except (NipatError, OSError, ValueError) as restore_error:
                 raise RuntimeExecutionError(
                     f"Ripristino della configurazione Lima non completato. Conservati VM, dati e backup {backup}. "
@@ -639,7 +755,7 @@ class LimaRuntime:
                 if changed or self.requires_mount_repair():
                     owner = self._repair_mounts(owner, additions)
                 else:
-                    self._run(self.host_prefix() + ["start", "--tty=false", INSTANCE], timeout=180)
+                    self.start_existing()
                 # Keep this outside the image-reimport fallback: an inaccessible
                 # app cannot be repaired by reloading an otherwise valid image.
                 self._verify_application()
@@ -698,7 +814,7 @@ class LimaRuntime:
             state = self._state(manifest)
             if manifest["architecture"] == "arm64" and rosetta_enabled(self._instance_info()["config"]):
                 raise ValidationError("Riaprire NewPat per aggiornare la VM al motore ARM64 nativo.")
-            self._run(self.host_prefix() + ["start", "--tty=false", INSTANCE], timeout=180)
+            self.start_existing()
             self._verify_application()
             self._verify_image(manifest, state["runtime_image"])
             return state

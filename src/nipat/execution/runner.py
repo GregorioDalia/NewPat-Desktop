@@ -15,7 +15,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Iterable, Iterator, TextIO
 
 from nipat import __version__
-from nipat.errors import RuntimeExecutionError, ValidationError
+from nipat.errors import RuntimeExecutionError, RuntimeInterruptedError, ValidationError
 from nipat.execution.diagnostics import diagnose, inspect_container, observe_lima_failure, settle_oom_observation
 from nipat.execution.mounts import InputMounts
 from nipat.execution.options import ExecutionOptions
@@ -674,7 +674,7 @@ class DockerComposeRunner:
                     self._finalize_status(record, "planned" if self.dry_run else "succeeded")
                 except BaseException as exc:
                     with _finish_cleanup():
-                        status = "interrupted" if isinstance(exc, (KeyboardInterrupt, SystemExit)) else "failed"
+                        status = "interrupted" if isinstance(exc, (KeyboardInterrupt, SystemExit, RuntimeInterruptedError)) else "failed"
                         self._finalize_status(record, status)
                         record.data["error"] = {"type": type(exc).__name__, "message": str(exc)}
                         self._write(f"{record.data['status']}: {type(exc).__name__}: {exc}\n")
@@ -823,16 +823,17 @@ class DockerComposeRunner:
                 stage["container_diagnostics"] = settle_oom_observation(
                     self, container_name, expected_labels, stage["container_diagnostics"], stage["returncode"],
                 )
-                observe_lima_failure(self._transport, stage["container_diagnostics"], stage["returncode"])
+                observe_lima_failure(self._transport, stage["container_diagnostics"], stage["returncode"],
+                                     started_at=stage["started_at"])
                 stage["container_diagnostics"]["diagnosis"] = diagnose(
                     stage["container_diagnostics"], stage["returncode"], interrupted=False,
                 )
             if stage["returncode"]:
-                stage["status"] = "failed"
-                explanation = stage["container_diagnostics"]["diagnosis"]["message"]
-                raise RuntimeExecutionError(
-                    f"Il comando di esecuzione è terminato con codice {stage['returncode']}. {explanation}"
-                )
+                diagnosis = stage["container_diagnostics"]["diagnosis"]
+                message = f"Il comando di esecuzione è terminato con codice {stage['returncode']}. {diagnosis['message']}"
+                if diagnosis["kind"] == "lima_vm_stopped":
+                    raise RuntimeInterruptedError(message)
+                raise RuntimeExecutionError(message)
             stage["status"] = "succeeded"
         except FileNotFoundError as exc:
             stage["status"] = "failed"
@@ -842,9 +843,7 @@ class DockerComposeRunner:
             with _finish_cleanup():
                 if interrupted:
                     self._write("Annullamento richiesto. Attendere l'arresto del calcolo e il salvataggio dei log.\n")
-                stage["status"] = (
-                    "interrupted" if interrupted else "failed"
-                )
+                stage["status"] = "interrupted" if interrupted or isinstance(exc, RuntimeInterruptedError) else "failed"
                 if process is not None:
                     stage["returncode"] = process.poll()
             raise

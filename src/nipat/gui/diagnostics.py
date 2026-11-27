@@ -29,7 +29,7 @@ MAX_TOTAL_BYTES = 16 * 1024 * 1024
 MAX_FILES = 128
 MAX_STEPS = 32
 WORKSPACE_FILES = (
-    "logs/gui.log", ".runtime/macos/setup.log", ".runtime/macos/runtime.json",
+    "logs/gui.log", ".runtime/macos/setup.log", ".runtime/macos/runtime.json", ".runtime/macos/lima-lifecycle.json",
     ".runtime/linux/setup.log", ".runtime/linux/state.json",
     ".runtime/windows/setup.log", ".runtime/windows/runtime.json",
 )

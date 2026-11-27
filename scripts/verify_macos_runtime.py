@@ -32,6 +32,42 @@ def snapshot(path: Path) -> dict[str, str]:
     return result
 
 
+def check_cold_start(execute, runtime, project: Path, run_root: Path, image: str) -> dict:
+    from installed_suite import verify_run
+    from installed_workflows import check_positive_cpi
+    from nipat.gui.examples import save_example_data
+
+    prior_runs = run_root / "self-tests"
+    retained = snapshot(prior_runs)
+    if not any(Path(name).name == "SNPcall_output.txt" for name in retained):
+        raise ValueError("Missing completed SNP result from the preceding numerical self-tests")
+    data = run_root / "inputs"
+    data.mkdir()
+    trio = save_example_data(project, data, "en")
+    # The maintenance launcher also holds the exclusive installation lease.
+    if subprocess.check_output(runtime.docker_command(["ps", "-q"]), text=True, timeout=30).strip():
+        raise ValueError("The dedicated VM is busy; cold-start qualification requires an idle runtime")
+    execute("cold-stop", ["--runtime", "stop"], 240)
+    if runtime._instance_info()["status"] != "Stopped":
+        raise ValueError("Could not verify that the dedicated VM stopped")
+    name = "dnp-cpi-after-stop"
+    execute("cold-start", [
+        "--runs-dir", str(run_root), "workflow", "dnp-cpi", "--run-name", name,
+        "--pair", "family_a", str(trio / "alignments/mother.bam"), str(trio / "alignments/father.bam"),
+        "--reference", str(trio / "reference/synthetic.fa"), "--panel", str(trio / "panels/dnp.tsv"),
+        "--popfreq", str(trio / "frequencies/dnp.tsv"),
+    ], 900)
+    run = run_root / name
+    evidence = verify_run(run, image)
+    options = json.loads((run / "run.json").read_bytes())["execution_options"]
+    if options["performance_diagnostics"] is not False or options["execution_mode"] != "auto":
+        raise ValueError("Cold-start analysis did not use ordinary execution settings")
+    evidence.update(check_positive_cpi(run, contamination=False, snp=False, cutoffs=False))
+    if snapshot(prior_runs) != retained:
+        raise ValueError("Restart altered results or records from the preceding self-tests")
+    return evidence
+
+
 def verify(app: Path, output: Path) -> dict:
     if sys.platform != "darwin":
         raise ValueError("This verification requires a real macOS host with Virtualization.framework.")
@@ -94,9 +130,13 @@ def verify(app: Path, output: Path) -> dict:
             raise ValueError("The prepared guest platform differs from the installed scientific image")
         report.update(native)
         records.append({"name": "native-scientific-runtime", "passed": True})
-        execute("numerical-self-tests", ["--runs-dir", str(run_root), "self-test"], 3600)
-        execute("cold-stop", ["--runtime", "stop"], 240)
-        execute("cold-start", ["--runtime", "ensure"], 240)
+        execute("numerical-self-tests", ["--runs-dir", str(run_root / "self-tests"), "self-test"], 3600)
+        sys.path.insert(0, str(project / "scripts/acceptance"))
+        try:
+            cold_check = check_cold_start(execute, runtime, project, run_root, first_state["runtime_image"])
+        except (NipatError, AssertionError) as exc:
+            raise ValueError(str(exc)) from exc
+        records.append({"name": "cold-start-scientific-results", "passed": True, **cold_check})
         execute("doctor-after-restart", ["doctor", "--runtime"], 600)
         second_state = json.loads(state_path.read_text())
         stable = first_state["runtime_image"] == second_state["runtime_image"]

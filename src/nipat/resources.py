@@ -630,7 +630,7 @@ class ResourceManager:
                         ) from exc
                     if restart_confirmed:
                         try:
-                            runtime._run(runtime.host_prefix() + ["start", "--tty=false", INSTANCE], timeout=180)
+                            runtime.start_existing()
                         except RuntimeExecutionError as exc:
                             result["status"] = "verification-required"
                             result["warnings"].append(f"Configurazione salvata, riavvio non completato: {exc}")

@@ -221,6 +221,8 @@ class ExecutionDiagnosticsTests(unittest.TestCase):
         lima.host_path.side_effect = native.host_path
         lima.ensure_command.return_value = None
         lima.runtime = MagicMock()
+        lifecycle = {"schema_version": 1, "events": []}
+        lima.runtime.hostagent_lifecycle.return_value = lifecycle
         self.runner._transport = lima
         instance_info = lima.runtime._instance_info
         for status, kind in (("Stopped", "lima_vm_stopped"), ("Running", "lima_execution_unverified"),
@@ -232,10 +234,19 @@ class ExecutionDiagnosticsTests(unittest.TestCase):
                 self.assertIsInstance(error, RuntimeExecutionError)
                 stage = record["commands"][0]
                 observation = stage["container_diagnostics"]
+                expected = "interrupted" if status == "Stopped" else "failed"
+                self.assertEqual((record["status"], stage["status"]), (expected, expected))
+                self.assertEqual(record["error"]["type"], type(error).__name__)
                 self.assertEqual(stage["returncode"], 255)
                 self.assertEqual(stage["container_cleanup"]["status"], "not_confirmed")
                 self.assertEqual(observation["diagnosis"]["kind"], kind)
                 self.assertEqual(observation["lima_instance"]["status"], status)
+                if status == "Stopped":
+                    self.assertEqual(observation["lima_instance"]["lifecycle"], lifecycle)
+                    lima.runtime.hostagent_lifecycle.assert_called_once_with(since=stage["started_at"])
+                else:
+                    self.assertNotIn("lifecycle", observation["lima_instance"])
+                lima.runtime.hostagent_lifecycle.reset_mock()
                 self.assertEqual("spenta" in str(error), status == "Stopped")
                 self.assertEqual(len(operations), 1)
                 instance_info.assert_called_once_with()

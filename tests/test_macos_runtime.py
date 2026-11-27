@@ -72,6 +72,73 @@ class MacRuntimeTests(unittest.TestCase):
         _write_json(self.runtime.state_path, state)
         return state
 
+    def test_lifecycle_saved_before_start_rotates_logs_and_reused_across_sessions(self):
+        self.owned_vm()
+        self.ready_state()
+        stderr = self.runtime.instance_dir / "ha.stderr.log"
+        stdout = self.runtime.instance_dir / "ha.stdout.log"
+        stderr.write_text("\n".join(json.dumps({"time": "2026-01-13T10:00:0" + str(i) + "+01:00",
+                                                "msg": message, "error": "/private/sample.bam"})
+                                    for i, message in enumerate([
+                                        "[VZ] - vm state change: running",
+                                        "Received SIGTERM, shutting down the host agent",
+                                        "Driver stopped due to error: /private/sample.bam",
+                                    ])))
+        stdout.write_text(json.dumps({"time": "2026-01-13T09:00:03Z",
+                                      "status": {"exiting": True, "errors": ["secret"]}}))
+        saved = self.runtime.directory / "lima-lifecycle.json"
+
+        def start(argv, **kwargs):
+            self.assertEqual(argv[-3:], ["start", "--tty=false", INSTANCE])
+            self.assertTrue(saved.is_file())
+            stderr.write_text("")
+            stdout.write_text("")
+
+        with (patch.object(self.runtime, "_host_check"), patch.object(self.runtime, "_run", side_effect=start),
+              patch.object(self.runtime, "_verify_application"), patch.object(self.runtime, "_verify_image")):
+            self.runtime.ensure()
+        other = LimaRuntime(self.project, self.workspace, self.executable, home=self.home)
+        events = other.hostagent_lifecycle(since="2026-01-13T09:00:01Z")["events"]
+        self.assertEqual([row["event"] for row in events], ["hostagent_sigterm", "driver_stopped", "hostagent_exiting"])
+        self.assertEqual(other.hostagent_lifecycle(since="2026-01-13T09:00:04Z")["events"], [])
+        self.assertNotIn("private", saved.read_text())
+        self.assertNotIn("secret", saved.read_text())
+        self.assertEqual(len(json.loads(saved.read_text())["events"]), 4)
+
+    def test_lifecycle_ignores_unowned_links_malformed_and_unsuitable_records(self):
+        self.owned_vm()
+        stdout = self.runtime.instance_dir / "ha.stdout.log"
+        stdout.write_text(json.dumps({"time": "2026-01-01T00:00:00Z", "status": {"exiting": True}}))
+        (self.runtime.instance_dir / "ha.stderr.log").symlink_to(stdout)
+        # An old or damaged archive cannot inject text from raw host logs.
+        (self.runtime.directory / "lima-lifecycle.json").write_text(json.dumps({"events": [
+            {"time": "raw text", "source": "ha.stderr.log", "event": "hostagent_sigterm"},
+            {"time": "2026-01-01T00:00:01Z", "source": "ha.stderr.log", "event": "/private/file"},
+            {"time": "2026-01-01T00:00:02Z", "source": "/private/file", "event": "hostagent_sigint"},
+        ]}))
+        self.assertEqual(len(self.runtime.hostagent_lifecycle()["events"]), 1)
+        self.assertEqual(self.runtime.hostagent_lifecycle(since="invalid")["events"], [])
+        stdout.unlink()
+        os.mkfifo(stdout)
+        self.assertEqual(self.runtime.hostagent_lifecycle()["events"], [])
+        stdout.unlink()
+        stdout.write_text('{"time":"2026-01-01T00:00:00Z","status":{"exiting":true}}')
+        self.runtime.owner_path.unlink()
+        self.assertEqual(self.runtime.hostagent_lifecycle()["events"], [])
+
+    def test_lifecycle_reads_bounded_tails_skips_damaged_rows_and_limits_history(self):
+        self.owned_vm()
+        stdout = self.runtime.instance_dir / "ha.stdout.log"
+        def event(i):
+            return json.dumps({"time": f"2026-01-01T00:00:{i:02}Z", "status": {"running": True}})
+        stdout.write_text(event(0) + "\n" + "x" * 70_000 + "\ninvalid\n" +
+                          "\n".join(event(i) for i in range(1, 60)))
+        result = self.runtime.hostagent_lifecycle()["events"]
+        self.assertEqual(len(result), 48)
+        self.assertEqual(result[0]["time"], "2026-01-01T00:00:12.000000+00:00")
+        selected = self.runtime.hostagent_lifecycle(since="2026-01-01T00:00:59Z")
+        self.assertEqual(len(selected["events"]), 1)
+
     def instance_info(self):
         return {"name": INSTANCE, "status": "Running", "config": {"mounts": self.owner["mounts"]}}
 

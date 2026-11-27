@@ -42,6 +42,9 @@ def test_global_bundle_contains_setup_and_gui_errors_without_an_experiment(layou
     put(layout.workspace_dir, "logs/gui.log", "IGV reference mismatch\n")
     put(layout.workspace_dir, ".runtime/macos/setup.log", "App mount unavailable\n")
     put(layout.workspace_dir, ".runtime/macos/runtime.json", '{"phase":"ready"}')
+    lifecycle = '{"schema_version":1,"events":[]}'
+    put(layout.workspace_dir, ".runtime/macos/lima-lifecycle.json", lifecycle)
+    put(layout.workspace_dir, ".runtime/macos/ha.stderr.log", "UNRELATED SECRET FROM HOST")
     put(layout.data_dir, "private.bam", b"PRIVATE GENOMIC INPUT")
     put(layout.data_dir, "reference.fa", b">private\nACGT")
     put(layout.workspace_dir, "logs/private.txt", "UNRELATED SECRET")
@@ -54,6 +57,7 @@ def test_global_bundle_contains_setup_and_gui_errors_without_an_experiment(layou
     assert manifest["resources"]["error"] == "VM not ready"
     assert content["application/logs/gui.log"] == b"IGV reference mismatch\n"
     assert content["application/.runtime/macos/setup.log"] == b"App mount unavailable\n"
+    assert json.loads(content["application/.runtime/macos/lima-lifecycle.json"]) == json.loads(lifecycle)
     assert b"PRIVATE GENOMIC INPUT" not in b"".join(content.values())
     assert b"UNRELATED SECRET" not in b"".join(content.values())
     assert not any(name.endswith((".bam", ".fa", ".tsv")) for name in content)

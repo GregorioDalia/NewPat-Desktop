@@ -131,7 +131,8 @@ def settle_oom_observation(runner, name: str, expected_labels: dict[str, str],
     return observation
 
 
-def observe_lima_failure(transport: DockerTransport, observation: dict[str, Any], returncode: int) -> None:
+def observe_lima_failure(transport: DockerTransport, observation: dict[str, Any], returncode: int,
+                         *, started_at: str) -> None:
     """A Lima shell exit of 255 can also be a command's own exit code."""
     if (returncode != 255 or observation.get("availability") != "unavailable"
             or not isinstance(transport, LimaDockerTransport)):
@@ -141,6 +142,8 @@ def observe_lima_failure(transport: DockerTransport, observation: dict[str, Any]
     except (OSError, RuntimeExecutionError, ValidationError):
         status = "unknown"
     observation["lima_instance"] = {"status": status, "observed_at": utc_now()}
+    if status == "Stopped":
+        observation["lima_instance"]["lifecycle"] = transport.runtime.hostagent_lifecycle(since=started_at)
 
 
 def diagnose(observation: dict[str, Any], returncode: int | None, *, interrupted: bool) -> dict[str, str]:
@@ -166,7 +169,7 @@ def diagnose(observation: dict[str, Any], returncode: int | None, *, interrupted
             return {
                 "kind": "lima_vm_stopped",
                 "message": "Al controllo successivo la macchina virtuale di NewPat risultava spenta. "
-                           "Riaprire NewPat e ripetere l’esperimento.",
+                           "NewPat la riavvierà automaticamente al prossimo esperimento.",
             }
         return {
             "kind": "lima_execution_unverified",

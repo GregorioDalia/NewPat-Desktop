@@ -14,7 +14,7 @@ import threading
 import time
 import uuid
 
-from nipat.errors import RuntimeExecutionError, ValidationError
+from nipat.errors import RuntimeExecutionError, RuntimeInterruptedError, ValidationError
 from nipat.execution.progress import ProgressSnapshot
 from nipat.execution.recovery import reconcile_run
 from nipat.execution.runner import DockerComposeRunner
@@ -434,7 +434,7 @@ class JobManager:
                 if job.status not in _TERMINAL:
                     job.status = "failed"
                     job.error = "Il risultato finale non è verificabile: consultare il registro dell’esperimento."
-        except KeyboardInterrupt as exc:
+        except (KeyboardInterrupt, RuntimeInterruptedError) as exc:
             with job.lock:
                 job.status = "interrupted"
                 job.error = str(exc) or "Analisi annullata."

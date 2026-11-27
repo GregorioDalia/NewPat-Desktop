@@ -25,10 +25,15 @@ BASELINE_072 = {
     "file": "nipat-desktop_0.7.2_amd64.deb",
     "sha256": "e623897ffa46698250b1ee32216b1ab392607b6f7e3082a1932a164ef4992675",
 }
-CURRENT_BASELINE = {
+BASELINE_099 = {
     "version": "0.9.9", "source_commit": "adc659bd132cc24353e637f6430e3cc470e0a8f8",
     "file": "nipat-desktop_0.9.9_amd64.deb",
     "sha256": "b8bb9fb6c8305ab482d16310eb69414d7312060210950280e31683939d63f39f",
+}
+BASELINE_0910 = {
+    "version": "0.9.10", "source_commit": "85d91af7cd8ec01a628d96e9f5d49acbb06d25b4",
+    "file": "nipat-desktop_0.9.10_amd64.deb",
+    "sha256": "efd133613e9afe5e7358112644b90ee625f6302b0835490877ec3fc716fa146a",
 }
 
 
@@ -37,8 +42,10 @@ def baseline_for(version):
     if not match:
         raise ValueError(f"Invalid candidate version: {version}")
     target = tuple(map(int, match.groups()))
+    if target >= (0, 9, 99):
+        return BASELINE_0910
     if target >= (0, 9, 10):
-        return CURRENT_BASELINE
+        return BASELINE_099
     return BASELINE_072 if target >= (0, 8, 0) else BASELINE
 
 

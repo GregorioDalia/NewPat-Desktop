@@ -1,4 +1,5 @@
 import importlib.util
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -21,6 +22,16 @@ class LinuxUpgradePreservationTests(unittest.TestCase):
                     "version": "0.9.9", "file": "nipat-desktop_0.9.9_amd64.deb",
                     "source_commit": "adc659bd132cc24353e637f6430e3cc470e0a8f8",
                     "sha256": "b8bb9fb6c8305ab482d16310eb69414d7312060210950280e31683939d63f39f",
+                })
+
+    def test_0999_upgrade_uses_the_accepted_0910_package(self):
+        root = Path(__file__).resolve().parents[1]
+        accepted = json.loads((root / ".github/release-acceptance/v0.9.10.json").read_text())
+        for version in ("0.9.99rc1", "0.9.99"):
+            with self.subTest(candidate=version):
+                self.assertEqual(upgrade.baseline_for(version), {
+                    "version": accepted["version"], "file": "nipat-desktop_0.9.10_amd64.deb",
+                    "source_commit": accepted["source_commit"], "sha256": accepted["linux_installer_sha256"],
                 })
 
     def test_upgrade_allows_new_runs_but_never_changes_previous_results(self):
