@@ -12,6 +12,8 @@ on:
       - 'scripts/build_macos_installer.py'
       - 'scripts/verify_macos_package.py'
       - 'scripts/benchmark_macos_candidate.py'
+      - 'scripts/mini_suite_macos.py'
+      - 'docs/MINI_SUITE_MAC.md'
       - 'installer/macos/**'
       - 'src/nipat/macos_runtime.py'
       - 'src/nipat/execution/transport.py'
@@ -52,6 +54,18 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Package the standalone Mac mini-suite
+        if: matrix.arch == 'amd64' && github.event_name == 'pull_request' && startsWith(github.head_ref, 'release/')
+        run: zip -X -j "$RUNNER_TEMP/NewPat-Mini-Test-Mac.zip" installer/macos/Mini-Test-NewPat.command scripts/mini_suite_macos.py docs/MINI_SUITE_MAC.md
+      - name: Share the mini-suite independently of the installer
+        if: matrix.arch == 'amd64' && github.event_name == 'pull_request' && startsWith(github.head_ref, 'release/')
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: NewPat-Mini-Test-Mac
+          path: ${{ runner.temp }}/NewPat-Mini-Test-Mac.zip
+          compression-level: 0
+          retention-days: 14
+          if-no-files-found: error
       - name: Require native runner and Docker daemon
         run: |
           test "$(uname -m)" = "$MACHINE"
@@ -167,7 +181,8 @@ jobs:
           mkdir -p build/preview
           version=$(python -c "import tomllib;print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
           cp "${pkg[0]}" "build/preview/NewPat-$version-macos-arm64.pkg"
-          cp installer/macos/Run-Mac-Comparison.command build/preview/
+          cp installer/macos/Run-Mac-Comparison.command installer/macos/Mini-Test-NewPat.command build/preview/
+          cp scripts/mini_suite_macos.py docs/MINI_SUITE_MAC.md build/preview/
           cp docs/MACOS_CANDIDATE_TEST.md build/preview/README.md
           git rev-parse HEAD > build/preview/source-commit
           (cd build/preview && shasum -a 256 *.pkg > SHA256SUMS)

@@ -1,4 +1,8 @@
-# Apple Silicon candidate trial
+# Prova della candidata Apple Silicon
+
+Per il collaudo breve installare il pacchetto e fare doppio clic su **Mini-Test-NewPat.command** nella cartella estratta. Condividere il file **Esito-NewPat.html** che si trova in Download, nella nuova cartella `NewPat-Mini-…`. Il pacchetto di prova include anche la guida in italiano `MINI_SUITE_MAC.md`.
+
+## Extended timing comparison
 
 1. Let current analyses finish and quit NewPat. Leave the existing installation, Lima VM and results in place.
 2. Install the Apple Silicon `.pkg` in this folder. Open `Run-Mac-Comparison.command` before opening NewPat for the first time. It prepares the app through its installed launcher and records the upgrade. If NewPat already prepared the new runtime, it can still measure performance.
