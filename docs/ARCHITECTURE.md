@@ -6,21 +6,21 @@ NewPat runs on the user's computer. The Python client owns the desktop interface
 
 | Component | Responsibility |
 | --- | --- |
-| `src/nipat/gui/` | Desktop windows, local interface, experiments, results and IGV. |
-| `src/nipat/gui/jobs.py`, `src/nipat/gui/admission.py`, `src/nipat_scientific/desktop_scheduling.py` | Queue desktop submissions, reserve runtime capacity across sessions and apply revised CPU and memory budgets between scientific steps. |
-| `src/nipat/cli.py`, `wizard.py` | Commands, menu, input selection and confirmation. |
-| `src/nipat/execution/workflows.py` | Preliminary validation, workflow request and run creation. |
-| `src/nipat/execution/analysis_plan.py`, `analysis_forms.py` | Plans for SNP and DNP branches, including explicit samples and family roles. |
-| `src/nipat/execution/runner.py` | Engine identity, isolation, execution, cancellation and diagnostics. |
-| `src/nipat/execution/transport.py` | Access to a local Linux Docker Engine or the engine inside WSL2 or Lima. |
-| `src/nipat/execution/performance.py` | Optional client-side observation of container resources. |
-| `src/nipat/storage.py` | Separation of data, results, program files and reserved destinations. |
+| `src/newpat/desktop/` | Desktop windows, local interface, experiments, results and IGV. |
+| `src/newpat/desktop/jobs.py`, `src/newpat/desktop/admission.py`, `src/newpat_scientific/desktop_scheduling.py` | Queue desktop submissions, reserve runtime capacity across sessions and apply revised CPU and memory budgets between scientific steps. |
+| `src/newpat/cli.py`, `wizard.py` | Commands, menu, input selection and confirmation. |
+| `src/newpat/experiments/workflows.py` | Preliminary validation, workflow request and run creation. |
+| `src/newpat/experiments/analysis_plan.py`, `analysis_forms.py` | Plans for SNP and DNP branches, including explicit samples and family roles. |
+| `src/newpat/experiments/runner.py` | Engine identity, isolation, execution, cancellation and diagnostics. |
+| `src/newpat/experiments/transport.py` | Access to a local Linux Docker Engine or the engine inside WSL2 or Lima. |
+| `src/newpat/experiments/performance.py` | Optional client-side observation of container resources. |
+| `src/newpat/storage.py` | Separation of data, results, program files and reserved destinations. |
 | `engine/main.py` | Engine contract, verification of scientific source files and workflow dispatch. |
-| `src/nipat_scientific/` | Shared validation, parameter catalog and input preparation. |
-| `src/nipat_scientific/plan.py`, `executor.py` | Plan contract, dependencies and step execution inside the image. |
-| `src/nipat_scientific/settings_data.json`, `settings.py`, `settings.R` | Parameter registry, Python/R validation, model constants and effective settings. |
-| `src/nipat_scientific/dnp_pileup.py`, `dnp_blocks.R` | BAM acquisition, pileup indexing and scheduling across samples and blocks. |
-| `src/nipat_scientific/performance.py` | Optional cgroup and process sampling and phase events inside the engine. |
+| `src/newpat_scientific/` | Shared validation, parameter catalog and input preparation. |
+| `src/newpat_scientific/plan.py`, `executor.py` | Plan contract, dependencies and step execution inside the image. |
+| `src/newpat_scientific/settings_data.json`, `settings.py`, `settings.R` | Parameter registry, Python/R validation, model constants and effective settings. |
+| `src/newpat_scientific/dnp_pileup.py`, `dnp_blocks.R` | BAM acquisition, pileup indexing and scheduling across samples and blocks. |
+| `src/newpat_scientific/performance.py` | Optional cgroup and process sampling and phase events inside the engine. |
 | `scientific/vendor/` | Bundled R programs and upstream scientific resources. |
 
 The client and engine each ship their own copy of the preparation library. Python adapters validate counts, frequencies, loci and alleles, prepare the file formats required by R and check the resulting artifacts. Normalizations write working copies. Cases that require scientific interpretation generate traceable warnings. The scientific equations reside in the R programs.
@@ -32,12 +32,12 @@ NewPat already passes a caller’s count tables to independently selected analys
 | Integration step | Where to change NewPat | What to establish |
 | --- | --- | --- |
 | Record the reference | `scientific/vendor/`, `scientific/SHA256SUMS`, `tests/reference_r/` | Pin the supplied script and dependency versions. Obtain a small shareable input, the exact invocation and expected native results for each supported mode. |
-| Prepare and validate inputs | `src/nipat_scientific/plan.py`, a module adapter alongside `contamination.py`, and `settings_data.json` | Declare accepted table types, extra resources, sample roles and editable parameters from the actual script. Reuse typed references and existing validators where their semantics match. |
-| Execute and verify | `engine/main.py`, `src/nipat_scientific/executor.py`, `outputs.py`, `catalog.py` and `catalog_data/`, `docker/scientific-runtime/` | Register the script and interface. Bind the selected tables to a step, collect its documented outputs, check their contents and include required R packages in the image. |
-| Expose the analysis | `src/nipat/execution/analysis_plan.py`, `runner.py`, `cli.py`, `analysis_forms.py`, and `src/nipat/gui/` | Add the explicit branch selection, forms, labels, summary and original file access. The client checks the module interface against the installed engine. |
+| Prepare and validate inputs | `src/newpat_scientific/plan.py`, a module adapter alongside `contamination.py`, and `settings_data.json` | Declare accepted table types, extra resources, sample roles and editable parameters from the actual script. Reuse typed references and existing validators where their semantics match. |
+| Execute and verify | `engine/main.py`, `src/newpat_scientific/executor.py`, `outputs.py`, `catalog.py` and `catalog_data/`, `docker/scientific-runtime/` | Register the script and interface. Bind the selected tables to a step, collect its documented outputs, check their contents and include required R packages in the image. |
+| Expose the analysis | `src/newpat/experiments/analysis_plan.py`, `runner.py`, `cli.py`, `analysis_forms.py`, and `src/newpat/desktop/` | Add the explicit branch selection, forms, labels, summary and original file access. The client checks the module interface against the installed engine. |
 | Qualify the integrated path | `tests/fixtures/`, `scripts/verify_five_modules.py` and `scripts/verify_five_module_workflow.py` are examples | Compare native R output and integrated output for supported inputs, empty/uninformative cases and invalid inputs. Check sample identities and compare the archived results after reopening the desktop. |
 
-For example, the postnatal CPI adapter accepts explicit trios while Contamination works per sample. Fetal sex uses three region-specific count tables from the same maternal sample.
+For example, the postnatal CPI adapter accepts explicit trios while Contamination works per sample. The fetal sex adapter accepts maternal DNP counts for autosomes and X in one file or two. It passes separate regional counts and the Y SNP table to the original R program.
 
 ## Workflow execution
 
@@ -51,15 +51,15 @@ Independent SNP calls can share one bounded pool in mixed plans. Serial mode run
 
 | Host | Execution environment |
 | --- | --- |
-| Windows | User-account Python and launchers call `wsl.exe` for the configured, dedicated WSL2 distribution. `nipat-engine ensure` starts its Docker Engine as needed. Checks, execution and cancellation use that engine. |
-| macOS | The host-native client uses the dedicated Lima VM and its Docker Engine. Python and Lima are bundled. Intel uses an AMD64 guest. Apple Silicon uses an ARM64 guest and Rosetta to run the same Linux AMD64 scientific image. Preflight checks engine identity and interfaces. |
+| Windows | User-account Python and launchers call `wsl.exe` for the configured, dedicated WSL2 distribution. `newpat-engine ensure` starts its Docker Engine as needed. Checks, execution and cancellation use that engine. |
+| macOS | The host-native client uses the dedicated Lima VM and its Docker Engine. Python and Lima are bundled. Intel uses an AMD64 guest. Apple Silicon runs native R and samtools in an ARM64 guest. Preflight checks engine identity and interfaces. |
 | Linux | Ubuntu 24.04 LTS x86_64 uses the local Docker Engine and Compose with a `linux/amd64` container. The installed package uses `unix:///var/run/docker.sock`. It requires a system daemon without rootless mode or user namespace remapping. Results use the caller's UID/GID. |
 
 The WSL transport runs with UID/GID 0 inside its dedicated environment. The Windows account that starts WSL determines access to Windows files.
 
 ## Client and engine contract
 
-A single-analysis JSON request uses schema version 1 and one of `dnp-call-v1`, `snp-call-v2`, `contamination-v2`, `cpi-v4`, `cpin-v2` and `fetal-sex-v1`. The SNP interface identifies SNPcall 2.0 and its 17-column output. Plans use their own schema version 1 and `workflow-plan-execution-v2`. Requests describe container paths, scientific parameters and destinations. The runner resolves the image to an immutable ID and checks that its description supports the required interface and modules. The engine validates the input files again before invoking R. `doctor --runtime` checks all six module contracts and `scientific-settings-v1` against the image.
+A single-analysis JSON request uses schema version 1 and one of `dnp-call-v1`, `snp-call-v2`, `contamination-v2`, `cpi-v4`, `cpin-v2` and `fetal-sex-v3`. The SNP interface identifies SNPcall 2.0 and its 17-column output. Plans use their own schema version 1 and `workflow-plan-execution-v2`. Requests describe container paths, scientific parameters and destinations. The runner resolves the image to an immutable ID and checks that its description supports the required interface and modules. The engine validates the input files again before invoking R. `doctor --runtime` checks all six module contracts and `scientific-settings-v1` against the image.
 
 Environment probes mount no user data. During analysis, `work/engine-compose.json` gives the container read-only binds for selected input files, read/write access to this run, a read-only image filesystem, dedicated temporary storage and disabled networking. This avoids copying large BAM and FASTA files and limits exposure of sibling files and other runs. Optional CPU, memory and PID limits are recorded. Effective resources and the requested execution mode constrain workers. The container PID limit also covers coordinating processes and threads.
 
@@ -71,7 +71,7 @@ DNPcall receives ordered aliases such as `sample_0001.bam`. The run record in `r
 
 ## Preferences and provenance
 
-The guided menu stores data/results roots, reference and workflow defaults, checksum policy, worker limits, DNP block settings, optional container limits and scientific overrides. The user selects run names, samples and families per experiment. **Configure** saves changes explicitly. A direct CLI command uses its arguments, environment and distributed defaults. Windows desktop preferences are in `%LOCALAPPDATA%\NIPAT-Desktop\preferences.json`. macOS uses `~/Library/Application Support/NIPAT-Desktop/preferences.json`. Installation configuration separately owns the program, cache and VM paths.
+The guided menu stores data/results roots, reference and workflow defaults, checksum policy, worker limits, DNP block settings, optional container limits and scientific overrides. The user selects run names, samples and families per experiment. **Configure** saves changes explicitly. A direct CLI command uses its arguments, environment and distributed defaults. Windows desktop preferences are in `%LOCALAPPDATA%\NewPat-Desktop\preferences.json`. macOS uses `~/Library/Application Support/NewPat-Desktop/preferences.json`. Installation configuration separately owns the program, cache and VM paths.
 
 `newpat settings` lists defaults, types, bounds and constants. `--scientific-config PATH` and `--set module.parameter=value` apply validated overrides. Duplicate keys and inconsistent parameters are rejected. Each scientific step stores effective settings in `work/effective-scientific-settings.json`.
 
@@ -83,7 +83,7 @@ Cancelling requests termination of the active process and removal of its contain
 
 ## Installation, updates and maintenance
 
-Release manifests associate version, commit and checksums. Windows and Ubuntu provide manifests compatible with existing clients. macOS uses a feed for its two host architectures. The updater verifies a download before installer handoff. New preferences default to the stable channel. Users can select testing and opt into startup checks.
+Release manifests associate version, commit and checksums. The updater uses the release manifest for the installed platform and selects the matching architecture for macOS. The updater verifies a download before installer handoff. New preferences default to the stable channel. Users can select testing and opt into startup checks.
 
 The Windows desktop installer manages separate local roots for the program, WSL, cache, user data and results. Roots must be writable, fixed, independent and free of path links. Repair and update identify the existing package by inventory, then back up changed components, recovery metadata and generated Python before replacement. Unknown files remain in place. Obsolete files are removed only when they match the previous inventory. A modified obsolete component stays in place and is backed up. Account preferences, destination records, data and results survive uninstall.
 
@@ -91,7 +91,7 @@ WSL ownership depends on the registered distribution and destination. A missing 
 
 The launcher activates configuration after diagnostics and self-test succeed. Maintenance acquires an exclusive lock after the client exits and rechecks inventories, owned distributions, cache archives and backup records before changing anything. Selective backups support recovery of individual items. [Windows installer](WINDOWS_INSTALLER.md)
 
-The macOS packages install `/Applications/NewPat.app` with host-native portable Python and Lima, plus the AMD64 scientific archive. The user workspace is `~/Library/Application Support/NIPAT-Desktop` and `LIMA_HOME` is `~/.nipat/lima`. First launch provisions the dedicated guest and verifies the bundled archive. Provisioning may use the network. Analysis runs offline in an isolated container. The bundle includes a separate terminal launcher for CLI use. [macOS installer](MACOS_INSTALLER.md)
+The macOS packages install `/Applications/NewPat.app` with host-native portable Python and Lima plus the bundled scientific archive for that package and version. The user workspace is `~/Library/Application Support/NewPat-Desktop` and `LIMA_HOME` is `~/.newpat/lima`. First launch provisions the dedicated guest and verifies the bundled archive. Provisioning may use the network. Analysis runs offline in an isolated container. The bundle includes a separate terminal launcher for CLI use. [macOS installer](MACOS_INSTALLER.md)
 
 The Ubuntu package includes the scientific archive and uses the host's Docker daemon directly. APT installs missing dependencies. Granting daemon access is an administrative decision. [Linux installer](LINUX_INSTALLER.md)
 

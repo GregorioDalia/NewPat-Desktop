@@ -2,7 +2,7 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-function Get-NipatCSharpCompiler {
+function Get-NewPatCSharpCompiler {
     $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
     if (-not (Test-Path -LiteralPath $vswhere -PathType Leaf)) {
         throw 'La build richiede Visual Studio Build Tools con il compilatore C# Roslyn.'

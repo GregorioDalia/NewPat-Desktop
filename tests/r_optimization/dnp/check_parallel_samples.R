@@ -7,10 +7,10 @@ root <- normalizePath(commandArgs(trailingOnly = TRUE)[[1L]], mustWork = TRUE)
 
 main <- function() {
   environment <- new.env(parent = globalenv())
-  sys.source(file.path(root, "src/nipat_scientific/parallel.R"), environment)
-  sys.source(file.path(root, "src/nipat_scientific/dnp_blocks.R"), environment)
-  variables <- c("NIPAT_EXECUTION_MODE", "NIPAT_PARALLEL_CHILD", "NIPAT_PARALLEL_LOG_DIR",
-                 "NIPAT_DNP_OPTIMIZED_IO", "NIPAT_DNP_LIMA_ARM64", "NIPAT_MAX_WORKERS", "NIPAT_PERFORMANCE_DIR")
+  sys.source(file.path(root, "src/newpat_scientific/parallel.R"), environment)
+  sys.source(file.path(root, "src/newpat_scientific/dnp_blocks.R"), environment)
+  variables <- c("NEWPAT_EXECUTION_MODE", "NEWPAT_PARALLEL_CHILD", "NEWPAT_PARALLEL_LOG_DIR",
+                 "NEWPAT_DNP_OPTIMIZED_IO", "NEWPAT_DNP_LIMA_ARM64", "NEWPAT_MAX_WORKERS", "NEWPAT_PERFORMANCE_DIR")
   previous <- Sys.getenv(variables, unset = NA_character_)
   on.exit(for (name in names(previous)) {
     if (is.na(previous[[name]])) Sys.unsetenv(name) else
@@ -57,7 +57,7 @@ main <- function() {
   }
   reader_path <- file.path(directory, "typed.pileup")
   writeLines(make_lines(5L, 4L), reader_path)
-  reader_index <- environment$nipat_dnp_index(reader_path)
+  reader_index <- environment$newpat_dnp_index(reader_path)
   reference <- read.csv(reader_path, quote = "", row.names = NULL,
                         stringsAsFactors = FALSE, header = FALSE, sep = "\t", na.strings = NULL,
                         colClasses = c("character", "integer", "character",
@@ -68,24 +68,24 @@ main <- function() {
       columns <- selected_columns(sample_number)
       expected <- reference[rows, columns, drop = FALSE]
       rownames(expected) <- NULL
-      actual <- environment$nipat_dnp_read(reader_index, rows, connection, columns)
+      actual <- environment$newpat_dnp_read(reader_index, rows, connection, columns)
       check(identical(actual, expected))
       # Requested column order does not renumber or reorder pileup columns.
-      check(identical(environment$nipat_dnp_read(reader_index, rows, connection,
+      check(identical(environment$newpat_dnp_read(reader_index, rows, connection,
                                                 rev(columns)), expected))
     }
   }
   close(connection)
   check(own_connections(reader_index$path) == 0L)
 
-  production_lapply <- environment$nipat_parallel_lapply
+  production_lapply <- environment$newpat_parallel_lapply
   controlled_workers <- 1L
-  environment$nipat_parallel_capacity <- function() list(memory_capacity_mib = 3905)
+  environment$newpat_parallel_capacity <- function() list(memory_capacity_mib = 3905)
   memory_budget <- 32768
-  environment$nipat_parallel_budget <- function(tasks, memory_mib = NULL, workers = NULL, workload_observed = TRUE) {
+  environment$newpat_parallel_budget <- function(tasks, memory_mib = NULL, workers = NULL, workload_observed = TRUE) {
     selected <- min(controlled_workers, if (is.null(workers)) Inf else workers, max(1L, tasks))
-    mode <- Sys.getenv("NIPAT_EXECUTION_MODE", "auto")
-    if (!workload_observed || mode == "serial" || identical(Sys.getenv("NIPAT_PARALLEL_CHILD"), "1")) selected <- 1L
+    mode <- Sys.getenv("NEWPAT_EXECUTION_MODE", "auto")
+    if (!workload_observed || mode == "serial" || identical(Sys.getenv("NEWPAT_PARALLEL_CHILD"), "1")) selected <- 1L
     list(mode = mode, max_workers = workers, workers = as.integer(selected), tasks = tasks,
          cpu_limit = controlled_workers, memory_available_mib = memory_budget,
          memory_budget_mib = memory_budget, coordinator_rss_mib = 64,
@@ -117,24 +117,24 @@ main <- function() {
     barrier <- file.path(case_dir, "started")
     dir.create(barrier)
     trace <- file.path(case_dir, "events")
-    Sys.setenv(NIPAT_PARALLEL_LOG_DIR = trace,
-               NIPAT_EXECUTION_MODE = if (isTRUE(case$serial)) "serial" else "auto")
-    Sys.setenv(NIPAT_DNP_OPTIMIZED_IO = if (isTRUE(case$small_arm) || isTRUE(case$native_io)) "1" else "0",
-               NIPAT_DNP_LIMA_ARM64 = if (isTRUE(case$small_arm)) "1" else "0")
+    Sys.setenv(NEWPAT_PARALLEL_LOG_DIR = trace,
+               NEWPAT_EXECUTION_MODE = if (isTRUE(case$serial)) "serial" else "auto")
+    Sys.setenv(NEWPAT_DNP_OPTIMIZED_IO = if (isTRUE(case$small_arm) || isTRUE(case$native_io)) "1" else "0",
+               NEWPAT_DNP_LIMA_ARM64 = if (isTRUE(case$small_arm)) "1" else "0")
     memory_budget <- if (isTRUE(case$low_memory)) 768 else 32768
-    if (isTRUE(case$manual)) Sys.setenv(NIPAT_MAX_WORKERS = case$workers) else Sys.unsetenv("NIPAT_MAX_WORKERS")
+    if (isTRUE(case$manual)) Sys.setenv(NEWPAT_MAX_WORKERS = case$workers) else Sys.unsetenv("NEWPAT_MAX_WORKERS")
     controlled_workers <- case$workers
     expected_workers <- if (isTRUE(case$serial)) 1L else min(case$workers, case$samples * case$blocks)
     if (isTRUE(case$small_arm) && !isTRUE(case$manual)) expected_workers <- 2L
     loci <- if (isTRUE(case$compatibility)) 4L else case$blocks
     path <- file.path(case_dir, "samples.pileup")
     writeLines(make_lines(case$samples, loci), path)
-    index <- environment$nipat_dnp_index(path)
+    index <- environment$newpat_dnp_index(path)
     if (isTRUE(case$compatibility)) index$repeated_qname_rows <- 1L
     labels <- data.frame(df.chr = paste0("chr1:", seq_len(2L * loci)),
                          uniq = rep(seq_len(loci), each = 2L))
     refs <- data.frame(POS = paste0("locus-", seq_len(loci)), stringsAsFactors = FALSE)
-    plan <- environment$nipat_dnp_plan(index, labels, refs, max_loci = 1L, max_bytes = 1024L)
+    plan <- environment$newpat_dnp_plan(index, labels, refs, max_loci = 1L, max_bytes = 1024L)
     if (isTRUE(case$oversize)) plan$max_bytes <- 1L
     check(length(plan$blocks) == case$blocks)
     if (isTRUE(case$compatibility)) {
@@ -167,9 +167,9 @@ main <- function() {
       stopifnot(Sys.getpid() == parent_pid, total == loci)
       progress_events[[sample_number]] <<- c(progress_events[[sample_number]], completed)
     }
-    environment$nipat_parallel_lapply <- production_lapply
+    environment$newpat_parallel_lapply <- production_lapply
     if (isTRUE(case$reverse_callbacks)) {
-      environment$nipat_parallel_lapply <- function(X, FUN, ..., label, workers = NULL,
+      environment$newpat_parallel_lapply <- function(X, FUN, ..., label, workers = NULL,
                                                     memory_mib = NULL, on_result = NULL) {
         values <- production_lapply(X, FUN, ..., label = label, workers = workers,
                                     memory_mib = memory_mib)
@@ -178,7 +178,7 @@ main <- function() {
       }
     }
     check(own_connections(index$path) == 0L)
-    actual <- environment$nipat_dnp_process_samples(index, plan, labels, refs, computations,
+    actual <- environment$newpat_dnp_process_samples(index, plan, labels, refs, computations,
                                                     progress, columns = selections)
     check(own_connections(index$path) == 0L)
     check(actual$workers == expected_workers)
@@ -208,7 +208,7 @@ main <- function() {
         connection <- file(index$path, "rb")
         # Independent full-column read and subset establish correct sample
         # values; dispatcher results cannot pass merely by retaining labels.
-        full <- environment$nipat_dnp_read(index, plan$blocks[[block_number]]$row_ids, connection)
+        full <- environment$newpat_dnp_read(index, plan$blocks[[block_number]]$row_ids, connection)
         close(connection)
         expected_reads <- paste(full[[paste0("V", 7L + (sample_number - 1L) * 4L)]], collapse = ",")
         check(all(sample$results[[block_number]]$final$reads == expected_reads))
@@ -230,15 +230,15 @@ main <- function() {
 
   # A failing sample-block task must fail the whole dispatch, not return a
   # shorter collection or leave an inherited parent file handle behind.
-  environment$nipat_parallel_lapply <- production_lapply
+  environment$newpat_parallel_lapply <- production_lapply
   controlled_workers <- 2L
-  Sys.setenv(NIPAT_EXECUTION_MODE = "auto")
+  Sys.setenv(NEWPAT_EXECUTION_MODE = "auto")
   failing <- list(function(...) { Sys.sleep(0.2); list(final = data.frame()) },
                   function(...) stop("scientific failure in sample two"))
-  expect_error(environment$nipat_dnp_process_samples(index, plan, labels, refs, failing,
+  expect_error(environment$newpat_dnp_process_samples(index, plan, labels, refs, failing,
                 workers = 2L, columns = selections[1:2]), "scientific failure in sample two")
-  Sys.setenv(NIPAT_DNP_OPTIMIZED_IO = "1")
-  expect_error(environment$nipat_dnp_process_samples(index, plan, labels, refs, failing,
+  Sys.setenv(NEWPAT_DNP_OPTIMIZED_IO = "1")
+  expect_error(environment$newpat_dnp_process_samples(index, plan, labels, refs, failing,
                 workers = 1L, columns = selections[1:2]), "scientific failure in sample two")
   check(own_connections(index$path) == 0L)
   check(length(parallel::mccollect(wait = FALSE)) == 0L)
@@ -248,11 +248,11 @@ main <- function() {
   path <- file.path("work", "dnp-block-progress.json")
   succeed <- function(pileup, block_labels, block_refs) nrow(pileup)
   callbacks <- rep(list(succeed), 3L)
-  run <- function() environment$nipat_dnp_process_samples(index, plan, labels, refs,
+  run <- function() environment$newpat_dnp_process_samples(index, plan, labels, refs,
     callbacks, workers = 1L, columns = selections)
   run()
   check(!file.exists(path))
-  Sys.setenv(NIPAT_PERFORMANCE_DIR = directory)
+  Sys.setenv(NEWPAT_PERFORMANCE_DIR = directory)
   callbacks[[2L]] <- function(pileup, block_labels, block_refs) {
     if (block_refs$POS[[1L]] == refs$POS[[2L]]) stop("interrupted in second group")
     nrow(pileup)

@@ -8,8 +8,8 @@ import zipfile
 
 import pytest
 
-from nipat.errors import NipatError
-from nipat.update_handoff import windows_installation_platform
+from newpat.errors import NewPatError
+from newpat.update_handoff import windows_installation_platform
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("windows_zip", ROOT / "installer/windows/zip_package.py")
@@ -33,7 +33,7 @@ def package(tmp_path, request):
         data = (key + " scientific fixture").encode()
         (assets / (key + ".tar.gz")).write_bytes(data)
         manifest["assets"][key] = {"file": key + ".tar.gz", "sha256": sha(data), "size": len(data)}
-    files = {"src/nipat/__init__.py": ('__version__ = "' + version + '"\n').encode()}
+    files = {"src/newpat/__init__.py": ('__version__ = "' + version + '"\n').encode()}
     files.update({path: (ROOT / path).read_bytes() for path in ZIP.root_files(version).values()})
     manifest["source_sha256"] = {name: sha(data) for name, data in files.items()}
     files[".distribution/installer-manifest.json"] = json.dumps(manifest).encode()
@@ -62,10 +62,10 @@ def test_complete_offline_payload_round_trip(package, tmp_path):
 
 
 @pytest.mark.parametrize("package", ["0.9.9"], indirect=True)
-def test_published_099_layout_uses_legacy_members(package):
+def test_zip_layout_has_only_install_and_readme_at_root(package):
     path, manifest, inventory, record = package
     with zipfile.ZipFile(path) as archive:
-        assert set(item for item in archive.namelist() if "/" not in item) == {"1_INSTALLA.cmd", "LEGGIMI.txt"}
+        assert set(item for item in archive.namelist() if "/" not in item) == {"1_INSTALL.cmd", "README.txt"}
     assert ZIP.verify(path, manifest, inventory) == record
 
 
@@ -114,49 +114,50 @@ def test_zip_destination_cannot_use_symlink_ancestor(package, tmp_path):
 
 def test_update_channel_is_bound_to_managed_installation(tmp_path, monkeypatch):
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
-    root = tmp_path / "Cartella estratta & è/NIPAT"
+    root = tmp_path / "Cartella estratta & è/NewPat"
     root.mkdir(parents=True)
     owner = root / "installation.json"
-    owner.write_text(json.dumps({"schema_version": 1, "product": "nipat-desktop", "installation_method": "zip"}))
+    owner.write_text(json.dumps({"schema_version": 1, "product": "newpat-desktop", "installation_method": "zip"}))
     project = root / "versions" / ("0.8.99-" + "a" * 40)
     marker = project / ".runtime/zip-install.json"
     marker.parent.mkdir(parents=True)
-    assert windows_installation_platform(project) == "windows-x86_64"
+    with pytest.raises(NewPatError):
+        windows_installation_platform(project)
     marker.write_text(json.dumps({"schema_version": 1, "installation_method": "zip", "root": str(root)}))
     assert windows_installation_platform(project) == "windows-zip-x86_64"
     marker.write_text(json.dumps({"schema_version": 1, "installation_method": "zip", "root": str(tmp_path / "other")}))
-    with pytest.raises(NipatError):
+    with pytest.raises(NewPatError):
         windows_installation_platform(project)
     marker.write_text("broken json")
-    with pytest.raises(NipatError):
+    with pytest.raises(NewPatError):
         windows_installation_platform(project)
     marker.write_text(json.dumps({"schema_version": 1, "installation_method": "zip", "root": str(root)}))
     owner.unlink()
-    with pytest.raises(NipatError):
+    with pytest.raises(NewPatError):
         windows_installation_platform(project)
     owner.write_text(json.dumps({"schema_version": 1, "product": "foreign", "installation_method": "zip"}))
-    with pytest.raises(NipatError):
+    with pytest.raises(NewPatError):
         windows_installation_platform(project)
 
 
 def test_zip_preferences_are_separate_and_survive_application_versions(tmp_path, monkeypatch):
-    from nipat import preferences
+    from newpat import preferences
     monkeypatch.setattr(preferences.sys, "platform", "win32")
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
-    monkeypatch.delenv("NIPAT_SETTINGS_FILE", raising=False)
-    monkeypatch.delenv("NIPAT_PROJECT_DIR", raising=False)
-    assert preferences.preferences_path() == tmp_path / "NIPAT-Desktop/preferences.json"
-    root = tmp_path / "Cartella estratta & è/NIPAT"
+    monkeypatch.delenv("NEWPAT_SETTINGS_FILE", raising=False)
+    monkeypatch.delenv("NEWPAT_PROJECT_DIR", raising=False)
+    assert preferences.preferences_path() == tmp_path / "NewPat-Desktop/preferences.json"
+    root = tmp_path / "Cartella estratta & è/NewPat"
     root.mkdir(parents=True)
-    (root / "installation.json").write_text(json.dumps({"schema_version": 1, "product": "nipat-desktop", "installation_method": "zip"}))
+    (root / "installation.json").write_text(json.dumps({"schema_version": 1, "product": "newpat-desktop", "installation_method": "zip"}))
     for version, commit in (("0.8.99", "a" * 40), ("0.9.0", "b" * 40)):
         project = root / "versions" / (version + "-" + commit)
         marker = project / ".runtime/zip-install.json"
         marker.parent.mkdir(parents=True)
         marker.write_text(json.dumps({"schema_version": 1, "installation_method": "zip", "root": str(root)}))
-        monkeypatch.setenv("NIPAT_PROJECT_DIR", str(project))
+        monkeypatch.setenv("NEWPAT_PROJECT_DIR", str(project))
         assert preferences.preferences_path() == root / "preferences.json"
-    monkeypatch.setenv("NIPAT_SETTINGS_FILE", str(tmp_path / "explicit.json"))
+    monkeypatch.setenv("NEWPAT_SETTINGS_FILE", str(tmp_path / "explicit.json"))
     assert preferences.preferences_path() == tmp_path / "explicit.json"
 
 
@@ -171,7 +172,7 @@ def test_installed_zip_extractor_accepts_future_stable_release(package, tmp_path
         "--source", manifest["source_commit"], "--sha256", record["sha256"],
     ])
     ZIP.main()
-    assert manifest["version"] in (destination / "app/src/nipat/__init__.py").read_text()
+    assert manifest["version"] in (destination / "app/src/newpat/__init__.py").read_text()
     assert all((destination / "assets" / asset["file"]).is_file()
                for asset in manifest["assets"].values())
 

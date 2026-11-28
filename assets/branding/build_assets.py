@@ -10,7 +10,7 @@ import subprocess
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parent
-WEB = ROOT.parents[1] / "src/nipat/gui/web"
+WEB = ROOT.parents[1] / "src/newpat/desktop/web"
 SIZES = (16, 20, 24, 32, 40, 48, 64, 128, 256)
 
 
@@ -27,13 +27,13 @@ def png(source: str, size: int) -> bytes:
 
 
 def main() -> None:
-    wordmark = (ROOT / "nipat-logo.svg").read_bytes()
+    wordmark = (ROOT / "newpat-logo.svg").read_bytes()
     (WEB / "newpat-wordmark.svg").write_bytes(wordmark)
-    (ROOT / "nipat-logo-dark.svg").write_bytes(
+    (ROOT / "newpat-logo-dark.svg").write_bytes(
         wordmark.replace(b"#234E43", b"#FFFFFF").replace(b"#709987", b"#BCD9CA"))
     normal = "newpat-app-icon.svg"
     small = "newpat-app-icon-small.svg"
-    (ROOT / "nipat-icon.png").write_bytes(png(normal, 1024))
+    (ROOT / "newpat-icon.png").write_bytes(png(normal, 1024))
     # Finder's 16-point slot also has a 32-device-pixel Retina representation.
     (ROOT / "newpat-icon-small.png").write_bytes(png(small, 32))
     frames = [png(small if size <= 24 else normal, size) for size in SIZES]
@@ -43,7 +43,7 @@ def main() -> None:
         directory.extend(struct.pack("<BBBBHHII", size % 256, size % 256, 0, 0,
                                      1, 32, len(frame), offset))
         offset += len(frame)
-    (ROOT / "nipat-icon.ico").write_bytes(bytes(directory) + b"".join(frames))
+    (ROOT / "newpat-icon.ico").write_bytes(bytes(directory) + b"".join(frames))
 
 
 if __name__ == "__main__":

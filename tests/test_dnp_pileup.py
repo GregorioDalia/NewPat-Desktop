@@ -10,8 +10,8 @@ import time
 import unittest
 from unittest.mock import patch
 
-from nipat_scientific import dnp_pileup
-from nipat_scientific.settings import settings_context
+from newpat_scientific import dnp_pileup
+from newpat_scientific.settings import settings_context
 
 
 FAKE_SAMTOOLS = r'''
@@ -125,18 +125,55 @@ class DnpPileupTests(unittest.TestCase):
         commands = {x['stage']: x['args'] for x in self.commands()}
         self.assertEqual(commands['view'], ['view', '--no-PG', '-u', '-M', '-L', str(self.bed), str(bams[0])])
         self.assertEqual(commands['mpileup'], ['mpileup', '-l', str(self.bed), '-f', str(self.reference),
-                                             *dnp_pileup.MPILEUP_OPTIONS, '-'])
+                                             *dnp_pileup.MPILEUP_OPTIONS, '-d', '0', '-'])
         self.assertEqual([x['returncode'] for x in result['processes']], [0, 0, 0])
         self.assertIsNone(result['samples'][0]['selected_bytes'])
         self.assertEqual(result['staged_bytes'], 0)
         self.assertEqual(list(self.scratch.iterdir()), [self.output])
         self.assertEqual(json.loads(self.metadata.read_text()), result)
 
+    def test_depth_probe_uses_all_inputs_and_falls_back_without_changing_scientific_depth(self):
+        bams = self.samples([True, True])
+        samples = [{"index_candidates": [str(bam) + ".bai"]} for bam in bams]
+        targets = {"chr1": 100, "chr2": 100}
+        windows = [("chr1", 21, 24), ("chr2", 31, 34)]
+        at_limit = [["chr1", "20", "24", "16000", "4000"], ["chr2", "30", "34", "0", "0"]]
+        oversized = [["chr1", "20", "24", "16004", "4001"], at_limit[1]]
+        for other, workers in ((at_limit, 2), (oversized, 1), ([], 1), (at_limit[::-1], 1)):
+            with self.subTest(other=other):
+                parallel = {"budget": {"verify_depth_limit": 8000}, "workers": 2}
+                with patch.object(dnp_pileup, "_probe_rows", side_effect=[at_limit, other]) as probe:
+                    dnp_pileup._verify_depth_budget(bams, samples, self.bed, windows, targets,
+                                                    "samtools", dnp_pileup.Cancellation(), parallel)
+                self.assertEqual(probe.call_count, 2)
+                self.assertEqual(parallel["workers"], workers)
+                self.assertEqual(samples[0]["depth_evidence"]["upper_bound"], 8000)
+        os.utime(samples[0]["index_candidates"][0], (1, 1))
+        with patch.object(dnp_pileup, "_probe_rows") as probe:
+            parallel = {"budget": {"verify_depth_limit": 8000}, "workers": 2}
+            dnp_pileup._verify_depth_budget(bams, samples, self.bed, windows, targets,
+                                            "samtools", dnp_pileup.Cancellation(), parallel)
+            probe.assert_not_called()
+            self.assertEqual(parallel["workers"], 1)
+
+    def test_large_panel_uses_one_indexed_count_and_honours_the_probe_deadline(self):
+        bam, = self.samples([True])
+        indexes = [str(bam) + ".bai"]
+        windows = [("chr1", 21, 24)] * 2049
+        cancel = dnp_pileup.Cancellation()
+        with patch.object(dnp_pileup, "_probe_rows", return_value=[["8500"]]) as probe:
+            self.assertEqual(dnp_pileup._sample_depth_evidence(bam, indexes, self.bed, windows,
+                             8000, "samtools", time.monotonic() + 5, cancel), ("indexed-panel-count", 8500))
+            self.assertEqual(probe.call_args.args[0][1:5], ["view", "-c", "-M", "-L"])
+        with patch.object(dnp_pileup.subprocess, "run") as run:
+            self.assertEqual(dnp_pileup._probe_rows(["samtools"], time.monotonic() - 1, cancel), [])
+            run.assert_not_called()
+
     def test_custom_acquisition_settings_apply_with_and_without_budget(self):
         self.samples([True, True])
         settings = {"min_base_quality": 21, "min_mapping_quality": 17, "max_depth": 500,
                     "baq": False, "count_overlaps": True, "include_orphans": True}
-        for budget in (None, {"schema_version": 1, "interface": "nipat-parallel-v1",
+        for budget in (None, {"schema_version": 1, "interface": "newpat-parallel-v1",
                              "mode": "serial", "workers": 1}):
             with self.subTest(budget=budget), settings_context("dnp-call", settings, self.root / "settings"):
                 result = self.generate(budget)
@@ -288,7 +325,7 @@ class DnpPileupTests(unittest.TestCase):
             outputs = []
             for optimized_io, workers in (('', 1), ('1', 1), ('1', 2)):
                 with self.subTest(empty=empty, optimized_io=optimized_io, workers=workers), patch.dict(
-                        os.environ, MPILEUP_EMPTY=empty, NIPAT_DNP_OPTIMIZED_IO=optimized_io):
+                        os.environ, MPILEUP_EMPTY=empty, NEWPAT_DNP_OPTIMIZED_IO=optimized_io):
                     result = self.generate({'mode': 'auto', 'workers': workers})
                     direct = result['parallel'].get('output_strategy') == 'direct-dictionary-order'
                     self.assertEqual(direct, bool(optimized_io) and workers == 1)
@@ -308,7 +345,7 @@ class DnpPileupTests(unittest.TestCase):
         self.bed.write_text("tiny\t5\t10\nspread\t100\t110\ncluster\t1000040\t1000050\n"
                             "spread\t1800000\t1800004\ncluster\t50\t54\n")
         for flag, expected in (("", "cluster"), ("1", "{cluster}:51-1000050")):
-            with self.subTest(flag=flag), patch.dict(os.environ, NIPAT_DNP_OPTIMIZED_IO=flag):
+            with self.subTest(flag=flag), patch.dict(os.environ, NEWPAT_DNP_OPTIMIZED_IO=flag):
                 result = self.generate({"mode": "auto", "workers": 1})
                 args = [item["args"] for item in self.commands() if item["stage"] == "mpileup"]
                 self.assertEqual([cmd[cmd.index("-r") + 1] for cmd in args], [expected, "spread", "tiny"])
@@ -324,7 +361,7 @@ class DnpPileupTests(unittest.TestCase):
     def test_streamed_failure_on_second_contig_discards_first_contig(self):
         self.samples([True])
         self.bed.write_text('chr2\t0\t10\nchr1\t0\t10\n')
-        with patch.dict(os.environ, MPILEUP_FAIL_CONTIG='chr1', NIPAT_DNP_OPTIMIZED_IO='1'):
+        with patch.dict(os.environ, MPILEUP_FAIL_CONTIG='chr1', NEWPAT_DNP_OPTIMIZED_IO='1'):
             with self.assertRaises(dnp_pileup.PileupError):
                 self.generate({'mode': 'auto', 'workers': 1})
         result = json.loads(self.metadata.read_text())
@@ -430,7 +467,7 @@ class DnpPileupTests(unittest.TestCase):
                 os.kill(item['pid'], 0)
 
     def test_streamed_cancellation_discards_output_and_reaps_child(self):
-        with patch.dict(os.environ, NIPAT_DNP_OPTIMIZED_IO='1'):
+        with patch.dict(os.environ, NEWPAT_DNP_OPTIMIZED_IO='1'):
             self.check_chromosome_cancellation(1)
 
     def test_parallel_cancellation_reaps_all_children_and_records_partial_evidence(self):

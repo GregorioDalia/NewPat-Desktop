@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 # SNPcall 2.0 scientific core from NEWPAT ce59f4beeeec710b1b42d425cb87d7aad729f71d.
-# Modified by NIPAT contributors, 2026-11-10, to accept a prepared pileup and
+# Modified by NewPat contributors, 2026-11-10, to accept a prepared pileup and
 # process read groups in parallel while preserving the upstream likelihood model.
 # The byte-identical upstream source is frozen in tests/reference_r/2.0.
 suppressPackageStartupMessages({
@@ -8,12 +8,12 @@ suppressPackageStartupMessages({
   library(tidyverse)
 })
 
-source(Sys.getenv("NIPAT_PARALLEL_HELPER", unset = "/opt/nipat/lib/nipat_scientific/parallel.R"))
-source(Sys.getenv("NIPAT_SETTINGS_HELPER", unset = file.path(dirname(Sys.getenv(
-  "NIPAT_PARALLEL_HELPER", unset = "/opt/nipat/lib/nipat_scientific/parallel.R")), "settings.R")))
-nipat_cfg <- nipat_settings("snp-call")
+source(Sys.getenv("NEWPAT_PARALLEL_HELPER", unset = "/opt/newpat/lib/newpat_scientific/parallel.R"))
+source(Sys.getenv("NEWPAT_SETTINGS_HELPER", unset = file.path(dirname(Sys.getenv(
+  "NEWPAT_PARALLEL_HELPER", unset = "/opt/newpat/lib/newpat_scientific/parallel.R")), "settings.R")))
+newpat_cfg <- newpat_settings("snp-call")
 
-nipat_snp_empty <- function(panel) {
+newpat_snp_empty <- function(panel) {
   data.frame(chr = panel$chr, pos = as.integer(panel$pos),
     REF = toupper(panel$ref), ALT = toupper(panel$alt), N_REF = 0L, N_ALT = 0L,
     N_Other = 0L, total_count = 0L, ratio = NA_real_, GL0 = NA_real_,
@@ -24,15 +24,15 @@ nipat_snp_empty <- function(panel) {
     stringsAsFactors = FALSE)
 }
 
-nipat_snp_group_reads <- function(observations) {
+newpat_snp_group_reads <- function(observations) {
   aggregate_reads <- function(x) x %>%
     group_by(SNP_id, df.V7) %>%
     summarise(df.V5 = paste(df.V5, collapse = "|"),
               df.qual = paste(df.qual, collapse = "|"), .groups = "drop")
-  workers <- nipat_parallel_workers(max(1L, nrow(observations)),
+  workers <- newpat_parallel_workers(max(1L, nrow(observations)),
     memory_mib = as.numeric(object.size(observations)) * 3 / 1024^2)
   if (workers <= 1L || nrow(observations) < 2L) {
-    return(nipat_parallel_lapply(list(NULL), function(task) aggregate_reads(observations),
+    return(newpat_parallel_lapply(list(NULL), function(task) aggregate_reads(observations),
       label = "snp-read-groups", workers = 1L)[[1L]])
   }
   # Input is sorted by SNP_id, QNAME and position_order. Adjacent comparisons
@@ -45,7 +45,7 @@ nipat_snp_group_reads <- function(observations) {
   group_ids <- cumsum(boundaries)
   task_count <- min(max(group_ids), 2L * workers)
   rows <- split(seq_len(nrow(observations)), (group_ids - 1L) %% task_count)
-  parts <- nipat_parallel_lapply(rows,
+  parts <- newpat_parallel_lapply(rows,
     function(index) aggregate_reads(observations[index, , drop = FALSE]),
     label = "snp-read-groups", workers = workers,
     memory_mib = as.numeric(object.size(observations)) * 3 / 1024^2)
@@ -69,7 +69,7 @@ validate_panel <- function(x) {
   invisible(TRUE)
 }
 
-call_sample <- function(pileup_file, snplist_file) {
+call_sample <- function(pileup_file, snplist_file, block_observations = 131072L) {
 cat(">> reading snp list...\n")
 snp_input <- readr::read_tsv(
   snplist_file,
@@ -119,7 +119,7 @@ if (anyDuplicated(fake_DNP$pos)) {
   stop("Duplicate SNP coordinates")
 }
 cat(">> reading pileup...\n")
-if (file.info(pileup_file)$size == 0) return(nipat_snp_empty(snp_input))
+if (file.info(pileup_file)$size == 0) return(newpat_snp_empty(snp_input))
 pileup_arguments <- list(file = pileup_file, quote = "", row.names = NULL,
                         stringsAsFactors = FALSE, header = FALSE, sep = "\t", na.strings = NULL)
 probe <- do.call(read.csv, c(pileup_arguments, list(nrows = 5L)))
@@ -132,24 +132,53 @@ rm(probe)
 depth <- suppressWarnings(as.numeric(df$V4))
 if (any(!is.finite(depth) | depth < 0 | depth != floor(depth))) stop("Invalid pileup depth")
 df <- df[depth > 0, , drop = FALSE]
-if (!nrow(df)) return(nipat_snp_empty(snp_input))
+if (!nrow(df)) return(newpat_snp_empty(snp_input))
 panel_index <- match(paste(df$V1, df$V2, sep=":"), fake_DNP$pos)
 mismatch <- which(!is.na(panel_index) & toupper(df$V3) != fake_DNP$ref[panel_index])
 if (length(mismatch)) {
   i <- mismatch[[1L]]
   stop("SNP panel REF differs from pileup at ", df$V1[i], ":", df$V2[i])
 }
-# A QNAME alone cannot distinguish overlapping mates in a pileup. Detect the
-# ambiguity before combining neighbouring observations by name.
-window_keys <- c(paste(snp_input$chr, as.integer(positions_numeric) - 1L, sep=":"),
-                 fake_DNP$pos, paste(snp_input$chr, as.integer(positions_numeric) + 1L, sep=":"))
-# Imported pileups may cover the whole genome. Expand only reads within panel windows.
-df <- df[paste(df$V1, df$V2, sep=":") %in% window_keys, , drop=FALSE]
-qnames <- strsplit(df$V7, ",", fixed=TRUE)
-if (any(vapply(qnames, anyDuplicated, integer(1)) > 0L))
-  stop("SNP pileup repeats a QNAME at one coordinate. Generate it with overlap removal enabled.")
-rm(qnames)
+# Keep windows whole when batching. Overlapping SNPs may reuse the same coordinate.
+windows <- cbind(paste(snp_input$chr, as.integer(positions_numeric) - 1L, sep = ":"),
+                 fake_DNP$pos,
+                 paste(snp_input$chr, as.integer(positions_numeric) + 1L, sep = ":"))
+df$chr <- paste(df$V1, df$V2, sep = ":")
+df <- df[df$chr %in% windows, , drop = FALSE]
 cat(">> input loaded correctly\n")
+if (!nrow(df)) return(newpat_snp_call_block(df, snp_input, fake_DNP))
+# Weight each window by the reads which would be expanded into observation rows.
+depth_by_position <- rowsum(as.double(df$V4), df$chr, reorder = FALSE)
+window_depth <- matrix(depth_by_position[match(windows, rownames(depth_by_position)), 1L],
+                       nrow = nrow(snp_input))
+weights <- rowSums(window_depth, na.rm = TRUE)
+if (sum(weights) <= block_observations || length(weights) == 1L)
+  return(newpat_snp_call_block(df, snp_input, fake_DNP))
+
+block <- integer(length(weights))
+group <- 1L
+used <- 0
+for (i in seq_along(weights)) {
+  if (used > 0 && used + weights[i] > block_observations) {
+    group <- group + 1L
+    used <- 0
+  }
+  block[i] <- group
+  used <- used + weights[i]
+}
+parts <- lapply(split(seq_along(block), block), function(sites) {
+  belongs <- df$chr %in% windows[sites, , drop = FALSE]
+  newpat_snp_call_block(df[belongs, , drop = FALSE], snp_input[sites, , drop = FALSE],
+                       fake_DNP[sites, , drop = FALSE])
+})
+result <- bind_rows(parts)
+# The original full-panel merge sorts the composite keys using the active locale.
+result <- result[order(paste(result$chr, result$pos, sep = ":")), , drop = FALSE]
+rownames(result) <- NULL
+result
+}
+
+newpat_snp_call_block <- function(df, snp_input, fake_DNP) {
 # In mpileup, a dot or comma is a match to the reference on either strand.
 df$V5 <- mapply(
   function(reference, bases) {
@@ -165,7 +194,6 @@ fake_DNP <- fake_DNP %>%
     ref = toupper(ref),
     alt = toupper(alt)
   )
-df$chr <- paste(df$V1, df$V2, sep = ":")
 df2 <- data.frame(
   df.chr = df$chr,
   df.V5 = df$V5,
@@ -177,6 +205,9 @@ marked_bases <- gsub('\\*', '@', df2$df.V5)
 marked_bases <- gsub('[.,actgACTG]([+-]\\d+)+', '@', marked_bases)
 base_parts <- strsplit(marked_bases, "", fixed = TRUE)
 name_parts <- strsplit(as.character(df2$df.V7), ",", fixed = TRUE)
+# One QNAME cannot distinguish overlapping mates at the same coordinate.
+if (any(vapply(name_parts, anyDuplicated, integer(1)) > 0L))
+  stop("SNP pileup repeats a QNAME at one coordinate. Generate it with overlap removal enabled.")
 quality_parts <- strsplit(as.character(df2$df.qual), "", fixed = TRUE)
 sizes <- lengths(base_parts)
 direct <- all(!is.na(marked_bases) & !is.na(df2$df.V7) & !is.na(df2$df.qual)) &&
@@ -228,7 +259,7 @@ rm(df, df2, base_parts, name_parts, quality_parts, marked_bases, sizes)
 snp_coordinates <- tibble(
   SNP_id = seq_len(nrow(snp_input)),
   snp_chr = snp_input$chr,
-  snp_pos = as.integer(positions_numeric)
+  snp_pos = as.integer(snp_input$pos)
 )
 position_map <- bind_rows(
   snp_coordinates %>%
@@ -263,7 +294,7 @@ df3_marked <- df3 %>%
 # tasks always contain the complete (SNP_id, QNAME) group, including overlapping
 # windows; canonical group order is restored before all scientific calculations.
 # Keep the target coordinate from the panel, even if a contig contains a pipe.
-df_merged <- nipat_snp_group_reads(df3_marked) %>%
+df_merged <- newpat_snp_group_reads(df3_marked) %>%
   mutate(df.chr = fake_DNP$pos[SNP_id]) %>%
   select(-SNP_id)
 rm(df3, df3_marked)
@@ -388,10 +419,10 @@ fit_block <- function(indices) {
 locus_count <- length(positions)
 task_limit <- min(locus_count, max(1L, locus_count %/% 1024L, nrow(gl_reads) %/% 524288L))
 memory_mib <- if (task_limit > 1L) 3 * as.numeric(object.size(gl_reads)) / 1024^2 else NULL
-workers <- if (task_limit > 1L) nipat_parallel_workers(task_limit, memory_mib) else 1L
+workers <- if (task_limit > 1L) newpat_parallel_workers(task_limit, memory_mib) else 1L
 blocks <- if (workers > 1L) parallel::splitIndices(locus_count, min(task_limit, 2 * workers)) else
   list(seq_along(positions))
-gl_table <- bind_rows(nipat_parallel_lapply(blocks, fit_block, label = "snp-likelihood-loci",
+gl_table <- bind_rows(newpat_parallel_lapply(blocks, fit_block, label = "snp-likelihood-loci",
   workers = workers, memory_mib = memory_mib))
 idx <- match(
   paste(dataframe_final$chr, dataframe_final$pos, sep = ":"),
@@ -406,7 +437,7 @@ other_fraction <- with(
   N_Altro / (N_Reference + N_Alternative + N_Altro)
 )
 dataframe_final$GT[
-  which(!is.na(other_fraction) & other_fraction >= nipat_cfg$other_fraction_max)
+  which(!is.na(other_fraction) & other_fraction >= newpat_cfg$other_fraction_max)
 ] <- NA_character_
 indel_idx <- match(
   paste(dataframe_final$chr, dataframe_final$pos, sep = ":"),
@@ -441,7 +472,7 @@ return(dataframe_final)
 
 }
 
-nipat_snp_memory_mb <- function() {
+newpat_snp_memory_mb <- function() {
   if (file.exists("/proc/self/status")) {
     line <- grep("^VmRSS:", readLines("/proc/self/status", warn = FALSE), value = TRUE)
     if (length(line)) return(as.numeric(gsub("[^0-9]", "", line[[1L]])) / 1024)
@@ -449,7 +480,7 @@ nipat_snp_memory_mb <- function() {
   NA_real_
 }
 
-nipat_snp_main <- function() {
+newpat_snp_main <- function() {
   options <- list(
     make_option(c("-p", "--pileup"), type = "character"),
     make_option(c("-s", "--snplist"), type = "character"),
@@ -457,29 +488,29 @@ nipat_snp_main <- function() {
   arguments <- parse_args(OptionParser(option_list = options))
   if (is.null(arguments$pileup) || is.null(arguments$snplist))
     stop("Required: --pileup --snplist --out")
-  nipat_write_settings("snp-call", nipat_cfg, dirname(arguments$out))
+  newpat_write_settings("snp-call", newpat_cfg, dirname(arguments$out))
   cat(">> SNPcall 2.0 started\n")
   started <- unname(proc.time()[["elapsed"]])
-  resident_start <- nipat_snp_memory_mb()
+  resident_start <- newpat_snp_memory_mb()
   final <- call_sample(arguments$pileup, arguments$snplist)
   write.table(final, arguments$out, sep = "\t", quote = FALSE, row.names = FALSE)
-  source(Sys.getenv("NIPAT_PLOTS_HELPER", unset = "/opt/nipat/lib/nipat_scientific/plots.R"))
+  source(Sys.getenv("NEWPAT_PLOTS_HELPER", unset = "/opt/newpat/lib/newpat_scientific/plots.R"))
   directory <- dirname(arguments$out)
   sample <- "sample_0001"
-  nipat_sample_plots(final, file.path(directory, "plots", sample), sample, "SNP")
+  newpat_sample_plots(final, file.path(directory, "plots", sample), sample, "SNP")
   summary_directory <- file.path(directory, "summary")
   dir.create(summary_directory, recursive = TRUE, showWarnings = FALSE)
   genotype <- final[, c("chr", "pos", "REF", "ALT", "GT")]
   names(genotype)[[5L]] <- paste0("GT_", sample)
   write.table(genotype, file.path(summary_directory, "SNPcall_AllGenotypes.txt"),
               sep = "\t", quote = FALSE, row.names = FALSE)
-  nipat_genotype_summary(genotype, summary_directory, "SNP")
+  newpat_genotype_summary(genotype, summary_directory, "SNP")
   resources <- data.frame(sample = sample,
     seconds = unname(proc.time()[["elapsed"]]) - started,
-    resident_MB_start = resident_start, resident_MB_end = nipat_snp_memory_mb())
+    resident_MB_start = resident_start, resident_MB_end = newpat_snp_memory_mb())
   write.table(resources, file.path(summary_directory, "resources.tsv"),
               sep = "\t", quote = FALSE, row.names = FALSE)
   cat(">> done\n")
 }
 
-if (sys.nframe() == 0L) nipat_snp_main()
+if (sys.nframe() == 0L) newpat_snp_main()

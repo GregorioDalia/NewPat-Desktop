@@ -1,5 +1,7 @@
 """Verify a Windows/Linux review build without authorizing publication."""
 
+from release_layout import source_path, uses_newpat_layout
+
 import argparse
 import hashlib
 import importlib.util
@@ -12,7 +14,6 @@ import tempfile
 
 PROJECT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT / "src"))
-from nipat.branding import windows_package_generation
 
 INSTALLATION_CHECKS = {
     "package_installation", "initial_setup", "immutable_runtime_binding",
@@ -49,7 +50,7 @@ def require(condition, message):
 def installation_checks(version):
     require(isinstance(version, str) and re.fullmatch(
         r"0\.[6789]\.[0-9]+(?:(?:a|b|rc)[0-9]+)?", version),
-        "This review contract supports NIPAT 0.6 through 0.9")
+        "This review contract supports NewPat 0.6 through 0.9")
     require(not version.startswith("0.8.") or (re.fullmatch(r"0\.8\.[0-9]+", version) and int(version.split(".")[2]) >= 2),
             "The official 0.8 review contract starts at 0.8.2")
     checks = INSTALLATION_CHECKS | (WORKFLOW_INSTALLATION_CHECKS if not version.startswith("0.6.") else set())
@@ -57,6 +58,8 @@ def installation_checks(version):
         checks = (checks - {"all_four_workflows"}) | {"all_five_workflows"}
     if tuple(map(int, re.match(r"(\d+)\.(\d+)\.(\d+)", version).groups())) >= (0, 9, 10):
         checks.add("fetal_sex_example")
+    if uses_newpat_layout(version):
+        checks = (checks - {"all_five_workflows"}) | {"all_six_workflows"}
     return checks
 
 
@@ -81,7 +84,7 @@ def verify_windows_installer_fixture(evidence, manifest):
             and type(evidence.get("schema_version")) is int
             and evidence.get("scenario") == "compiled-installer-fixture-on-server-2022"
             and evidence.get("source_commit") == manifest["source_commit"]
-            and evidence.get("source_definition_sha256") == manifest["source_sha256"]["installer/windows/NIPAT.iss"]
+            and evidence.get("source_definition_sha256") == manifest["source_sha256"][source_path("installer/windows/NewPat.iss", manifest["version"])]
             and evidence.get("status") == "passed"
             and evidence.get("production_setup_executed") is False
             and evidence.get("wsl_execution") is False
@@ -94,8 +97,7 @@ def verify_windows_installer_fixture(evidence, manifest):
                      "uninstaller elevation gate", "synthetic runtime bootstrap and payload"]
     if requires_windows_bootstrap(manifest["version"]):
         substitutions.append("host Python interpreter for fixture")
-        generations = (("installed_0.9.10", "installed_0.9.11") if windows_package_generation(manifest["version"]) == 2
-                       else ("installed_0.8.99", "installed_0.9.0"))
+        generations = ("installed_0.9.99", "installed_0.9.100")
         expected = dict.fromkeys((*generations, "upgrade_backup",
             "reboot_exit_code", "silent_removal_preserves_data", "frozen_setup_reused",
             "bootstrap_marker", "display_version_matches_payload", "resume_archives_cached"), True)
@@ -109,31 +111,6 @@ def verify_windows_installer_fixture(evidence, manifest):
     require(evidence.get("checks") == expected
             and all(value is True for value in evidence["checks"].values()),
             "Windows compiled installer fixture is incomplete or failed")
-
-
-def verify_upgrade_check(evidence, manifest, manifest_bytes, package_record):
-    """A real released baseline and a distinct installed candidate, not reinstall."""
-    checker = load_module("nipat_review_upgrade", PROJECT / "scripts/verify_linux_upgrade.py")
-    expected = {
-        "schema_version": 1, "platform": "ubuntu-24.04-amd64",
-        "scenario": "prepared-ci-runner-real-upgrade", "version": manifest["version"],
-        "source_commit": manifest["source_commit"],
-        "installer_manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
-        "package_sha256": package_record["sha256"],
-        "runtime_archive_sha256": manifest["assets"]["scientific_image"]["sha256"],
-        "previous": checker.baseline_for(manifest["version"]),
-    }
-    require(isinstance(evidence, dict) and set(evidence) == set(expected) | {
-        "nonroot_uid", "resolved_runtime_image", "checks"}
-        and all(type(evidence.get(key)) is type(value) and evidence.get(key) == value
-                for key, value in expected.items()), "Linux upgrade evidence mismatch")
-    require(type(evidence["nonroot_uid"]) is int and evidence["nonroot_uid"] > 0,
-            "Linux upgrade must be exercised as non-root")
-    require(isinstance(evidence["resolved_runtime_image"], str) and re.fullmatch(
-        r"sha256:[0-9a-f]{64}", evidence["resolved_runtime_image"]), "Upgrade runtime identity missing")
-    require(isinstance(evidence["checks"], dict) and set(evidence["checks"]) == set(checker.CHECKS)
-            and all(value is True for value in evidence["checks"].values()),
-            "A required real-upgrade check is missing or failed")
 
 
 def read_json(path):
@@ -182,7 +159,7 @@ def verify_dependency_check(evidence, manifest, manifest_bytes, package_record):
         r"ubuntu:24\.04@sha256:[0-9a-f]{64}", evidence["base_image"]),
         "The dependency check must use a pinned Ubuntu 24.04 image")
     packages = evidence.get("dependency_packages")
-    expected_packages = {"python3.12", "docker.io", "docker-compose-v2", "nipat-desktop"}
+    expected_packages = {"python3.12", "docker.io", "docker-compose-v2", "newpat-desktop"}
     if str(manifest.get("version", "")).startswith("0.9."):
         expected_packages |= {"python3-gi", "gir1.2-gtk-3.0", "gir1.2-webkit2-4.1"}
     require(isinstance(packages, dict)
@@ -197,7 +174,7 @@ def verify_dependency_check(evidence, manifest, manifest_bytes, package_record):
 
 def windows_script_entrypoint(manifest):
     # Accepted releases through 0.9.9 shipped the original Italian launcher.
-    return "2_LAUNCH.cmd" if windows_package_generation(manifest["version"]) == 2 else "2_AVVIA.cmd"
+    return "2_LAUNCH.cmd"
 
 
 def verify_windows_client_check(evidence, manifest, manifest_bytes, *, installer_sha256,
@@ -247,21 +224,21 @@ def verify_windows_client_check(evidence, manifest, manifest_bytes, *, installer
     hashes = {item["path"]: item["sha256"] for item in files}
     sources = manifest.get("source_sha256")
     require(isinstance(sources, dict) and sources, "Windows source inventory is missing")
-    bundle = load_module("nipat_review_distribution", PROJECT / "scripts/distribution_support.py")
+    bundle = load_module("newpat_review_distribution", PROJECT / "scripts/distribution_support.py")
     generated = {"release.json", ".distribution/installer-manifest.json",
                  f".distribution/{bundle.PYTHON_NAME}"}
     if not bootstrap:
-        generated.update({"NIPAT.exe", "installer/windows/EnableWsl.exe"})
+        generated.update({"NewPat.exe", "installer/windows/EnableWsl.exe"})
         if requires_windows_audit(manifest["version"]):
-            generated.add("installer/windows/NipatActivityNative.dll")
+            generated.add("installer/windows/NewPatActivityNative.dll")
     else:
-        require(not ({"NIPAT.exe", "installer/windows/EnableWsl.exe",
-                      "installer/windows/NipatActivityNative.dll"} & set(hashes)),
+        require(not ({"NewPat.exe", "installer/windows/EnableWsl.exe",
+                      "installer/windows/NewPatActivityNative.dll"} & set(hashes)),
                 "Windows payload still contains obsolete unsigned native helpers")
     require(set(hashes) == set(sources) | generated
             and all(hashes.get(path) == digest for path, digest in sources.items())
             and (hashes.get(windows_script_entrypoint(manifest)) == entrypoint_sha256 if bootstrap
-                 else hashes["NIPAT.exe"] == launcher_sha256)
+                 else hashes["NewPat.exe"] == launcher_sha256)
             and hashes[".distribution/installer-manifest.json"] == expected["installer_manifest_sha256"]
             and hashes[f".distribution/{bundle.PYTHON_NAME}"] == bundle.PYTHON_SHA256,
             "Windows application inventory differs from the verified source and embedded client")
@@ -287,21 +264,21 @@ def verify_set(windows, linux, assets, output, commit, project=PROJECT):
     require(not output.exists(), "Evidence output directory must not already exist")
     # Use the trusted verification implementation, while project may be a
     # read-only snapshot of an earlier exact source commit being published.
-    publisher = load_module("nipat_review_publisher", PROJECT / ".github/scripts/publish_windows_release.py")
-    builder = load_module("nipat_linux_builder", PROJECT / "scripts/build_linux_installer.py")
+    publisher = load_module("newpat_review_publisher", PROJECT / ".github/scripts/publish_windows_release.py")
+    builder = load_module("newpat_linux_builder", PROJECT / "scripts/build_linux_installer.py")
     manifest_path = assets / "installer-manifest.json"
     manifest_bytes = manifest_path.read_bytes()
     require((linux / "installer-manifest.json").read_bytes() == manifest_bytes,
             "Windows and Linux must use the same installer manifest bytes")
     # The existing Windows verifier binds all assets and approved source hashes
     # to the exact commit. It does not publish, create tags or contact GitHub.
-    with tempfile.TemporaryDirectory(prefix="nipat-review-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="newpat-review-") as temporary:
         manifest = publisher.prepare_assets(windows, assets, Path(temporary) / "verified", commit)
-    installation_checks(manifest["version"])
+    require(uses_newpat_layout(manifest["version"]), "The installer set requires a clean NewPat release")
     record = read_json(linux / "linux-installer-build.json")
     name = record.get("file", "")
     require(isinstance(name, str) and re.fullmatch(
-        r"nipat-desktop_[0-9]+\.[0-9]+\.[0-9]+(?:~(?:a|b|rc)[0-9]+)?_amd64\.deb", name),
+        r"newpat-desktop_[0-9]+\.[0-9]+\.[0-9]+(?:~(?:a|b|rc)[0-9]+)?_amd64\.deb", name),
         "Invalid Linux package name")
     package = linux / name
     require(record == builder.verify_package(package, manifest_path, project),
@@ -312,31 +289,26 @@ def verify_set(windows, linux, assets, output, commit, project=PROJECT):
     verify_installation_check(installation, manifest, manifest_bytes, record)
     dependencies = read_json(linux / "linux-dependency-check.json")
     verify_dependency_check(dependencies, manifest, manifest_bytes, record)
-    windows_record = {"file": "NIPAT-Setup.exe", "sha256": publisher.sha256(windows / "NIPAT-Setup.exe")}
-    if not manifest["version"].startswith("0.6."):
-        client_check = read_json(windows / "windows-client-check.json")
-        inventory_path = windows / "application-files.json"
-        require(inventory_path.is_file() and not inventory_path.is_symlink(),
-                "Missing Windows application inventory evidence")
-        verify_windows_client_check(
-            client_check, manifest, manifest_bytes, installer_sha256=windows_record["sha256"],
-            launcher_sha256=(None if requires_windows_bootstrap(manifest["version"])
-                             else publisher.sha256(windows / "NIPAT.exe")),
-            entrypoint_sha256=(manifest["source_sha256"].get(windows_script_entrypoint(manifest))
-                               if requires_windows_bootstrap(manifest["version"]) else None),
-            inventory_bytes=inventory_path.read_bytes(),
-        )
-        windows_record["client_check"] = client_check
-    if requires_windows_audit(manifest["version"]):
-        fixture_path = windows / "windows-installer-fixture-check.json"
-        fixture_check = read_json(fixture_path)
-        verify_windows_installer_fixture(fixture_check, manifest)
-        windows_record["installer_fixture_check_sha256"] = publisher.sha256(fixture_path)
-        trust = load_module("nipat_windows_trust", PROJECT / ".github/scripts/windows_trust.py")
-        windows_record["trust_check"] = trust.verify(
-            windows / "windows-trust-check.json", manifest, windows_record["sha256"],
-            (windows / "application-files.json").read_bytes(),
-        )
+    windows_record = {"file": "NewPat-Setup.exe", "sha256": publisher.sha256(windows / "NewPat-Setup.exe")}
+    client_check = read_json(windows / "windows-client-check.json")
+    inventory_path = windows / "application-files.json"
+    require(inventory_path.is_file() and not inventory_path.is_symlink(),
+            "Missing Windows application inventory evidence")
+    verify_windows_client_check(
+        client_check, manifest, manifest_bytes, installer_sha256=windows_record["sha256"],
+        entrypoint_sha256=manifest["source_sha256"].get("2_LAUNCH.cmd"),
+        inventory_bytes=inventory_path.read_bytes(),
+    )
+    windows_record["client_check"] = client_check
+    fixture_path = windows / "windows-installer-fixture-check.json"
+    fixture_check = read_json(fixture_path)
+    verify_windows_installer_fixture(fixture_check, manifest)
+    windows_record["installer_fixture_check_sha256"] = publisher.sha256(fixture_path)
+    trust = load_module("newpat_windows_trust", PROJECT / ".github/scripts/windows_trust.py")
+    windows_record["trust_check"] = trust.verify(
+        windows / "windows-trust-check.json", manifest, windows_record["sha256"],
+        (windows / "application-files.json").read_bytes(),
+    )
     result = {
         "schema_version": 1, "version": manifest["version"], "source_commit": commit,
         "installer_manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
@@ -349,35 +321,25 @@ def verify_set(windows, linux, assets, output, commit, project=PROJECT):
         "publication_authorized": False,
         "scope": "Build and prepared-runner checks; fresh desktop acceptance is separate.",
     }
-    if requires_reliability_evidence(manifest["version"]):
-        inventory = load_module("nipat_review_inventory", PROJECT / ".github/scripts/component_inventory.py")
-        result["component_inventory"] = inventory.verify(assets / "component-inventory.json", manifest)
-        upgrade_path = linux / "linux-upgrade-check.json"
-        upgrade = read_json(upgrade_path)
-        verify_upgrade_check(upgrade, manifest, manifest_bytes, record)
-        result["linux_upgrade_check"] = {
-            "file": upgrade_path.name, "sha256": hashlib.sha256(upgrade_path.read_bytes()).hexdigest(),
-        }
-    if publisher.requires_windows_zip(manifest["version"]):
-        zip_record = publisher.verify_windows_zip(windows, manifest)
-        check = read_json(windows / "windows-zip-check.json")
-        require(check == {"schema_version": 1, "version": manifest["version"], "source_commit": commit,
-                          "package_sha256": zip_record["sha256"], "scope": "staged-zip-payload",
-                          "complete_payload_verified": True, "embedded_python_executed": True,
-                          "smart_app_control": "not-performed", "live_wsl_installation": "not-performed"},
-                "ZIP staged-client evidence is missing or mismatched")
-        result["windows_zip"] = {**zip_record, "client_check_sha256": publisher.sha256(windows / "windows-zip-check.json")}
-    if requires_windows_bootstrap(manifest["version"]):
-        payload_record = publisher.verify_windows_payload(windows, manifest)
-        check = read_json(windows / "windows-payload-check.json")
-        verify_windows_payload_check(check, manifest, payload_record["sha256"])
-        result["windows_payload"] = {**payload_record,
-            "client_check_sha256": publisher.sha256(windows / "windows-payload-check.json")}
-    if manifest["version"].startswith("0.9.") and publisher.requires_gui_prerelease(manifest["version"]):
-        testing = load_module("nipat_review_testing", PROJECT / "installer/windows/testing_package.py")
-        result["windows_testing"] = testing.verify(
-            windows / testing.filename(manifest["version"]),
-            project / "installer/windows", windows, manifest)
+    inventory = load_module("newpat_review_inventory", PROJECT / ".github/scripts/component_inventory.py")
+    result["component_inventory"] = inventory.verify(assets / "component-inventory.json", manifest)
+    clean_install = linux / "linux-dependency-check.json"
+    result["linux_clean_install_check"] = {
+        "file": clean_install.name, "sha256": publisher.sha256(clean_install),
+    }
+    zip_record = publisher.verify_windows_zip(windows, manifest)
+    check = read_json(windows / "windows-zip-check.json")
+    require(check == {"schema_version": 1, "version": manifest["version"], "source_commit": commit,
+                      "package_sha256": zip_record["sha256"], "scope": "staged-zip-payload",
+                      "complete_payload_verified": True, "embedded_python_executed": True,
+                      "smart_app_control": "not-performed", "live_wsl_installation": "not-performed"},
+            "ZIP staged-client evidence is missing or mismatched")
+    result["windows_zip"] = {**zip_record, "client_check_sha256": publisher.sha256(windows / "windows-zip-check.json")}
+    payload_record = publisher.verify_windows_payload(windows, manifest)
+    check = read_json(windows / "windows-payload-check.json")
+    verify_windows_payload_check(check, manifest, payload_record["sha256"])
+    result["windows_payload"] = {**payload_record,
+        "client_check_sha256": publisher.sha256(windows / "windows-payload-check.json")}
     output.mkdir(parents=True)
     (output / "installer-set-check.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     return result

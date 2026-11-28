@@ -8,11 +8,11 @@ def write_snp_auxiliary(output):
     import os
     from pathlib import Path
 
-    settings_path = os.environ.get("NIPAT_SCIENTIFIC_SETTINGS")
+    settings_path = os.environ.get("NEWPAT_SCIENTIFIC_SETTINGS")
     if settings_path:
         (output / "scientific-settings.json").write_bytes(Path(settings_path).read_bytes())
     else:
-        from nipat_scientific.settings import defaults, describe_settings
+        from newpat_scientific.settings import defaults, describe_settings
         (output / "scientific-settings.json").write_text(json.dumps({
             "schema_version": 1, "workflow": "snp-call", "parameters": defaults("snp-call"),
             "constants": describe_settings("snp-call")["constants"]}))

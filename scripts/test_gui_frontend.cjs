@@ -1,7 +1,9 @@
 /* Contract and state tests for the desktop frontend. No browser layout claims. */
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict');
-const root=path.resolve(__dirname,'..'),web=path.join(root,'src/nipat/gui/web');
-const settings=JSON.parse(fs.readFileSync(path.join(root,'src/nipat_scientific/settings_data.json'),'utf8'));
+const root=path.resolve(__dirname,'..'),web=path.join(root,'src/newpat/desktop/web');
+const settings=JSON.parse(fs.readFileSync(path.join(root,'src/newpat_scientific/settings_data.json'),'utf8'));
+let clockMs=0;
+const testClock={now:()=>clockMs};
 const events={},elements=new Map(),requests=[],checks=[];let dialogPaths=[],jobs=[],navigationCallback=null;
 function element(id){if(!elements.has(id))elements.set(id,{id,innerHTML:'',textContent:'',value:'',checked:false,style:{},dataset:{},classList:{add(){},remove(){}},focus(){document.activeElement=this},querySelector(){return element('modal-button')},querySelectorAll(){return[]},setSelectionRange(){},replaceWith(){},appendChild(){},remove(){}});return elements.get(id)}
 const document={getElementById:element,documentElement:{lang:'it',dataset:{}},activeElement:null,querySelectorAll(){return[]},addEventListener(type,cb){(events[type]??=[]).push(cb)}};
@@ -16,11 +18,21 @@ handlers['references.list']=()=>({entries:referenceTestEntries});
 handlers['references.download_status']=()=>transferTestState;
 handlers['references.resolve']=({id})=>({entry:referenceTestEntries.find(e=>e.id===id)});
 handlers['runs.curve']=p=>handlers['runs.table']({...p,offset:0,limit:20000});
-const env={console,document,Intl,URL,AbortController,location:{href:'http://127.0.0.1:1234/token/web/index.html',origin:'http://127.0.0.1:1234'},setTimeout:()=>1,clearTimeout(){},fetch:async(url,options)=>{assert.equal(url,'../api');const body=JSON.parse(options.body);requests.push(body);const fn=handlers[body.method];assert(fn,'Unexpected RPC '+body.method);return{ok:true,json:async()=>({id:body.id,result:fn(body.params)})}},NipatIGV:{dispose(){navigationCallback=null},getNavigation(){return {locus:env.locus||'all',chromosome:env.locus&&env.locus!=='all'?env.locus.split(':')[0]:'all',chromosomes:[{name:'chr1',length:1000000},{name:'X',length:100000}],canBack:!!env.locus,canZoom:!!env.locus&&env.locus!=='all',wholeGenome:!env.locus||env.locus==='all'}},onNavigation(callback){navigationCallback=callback;callback(this.getNavigation());return()=>{navigationCallback=null}},async wholeGenome(){await this.search('all')},async back(){await this.search('chr1:100-200')},async zoomIn(){await this.search('chr1:125-175')},async zoomOut(){await this.search('chr1:50-250')},setLanguage(){},resize(){},async mount(node,config){env.viewer={node,config}},async search(locus){env.locus=locus;navigationCallback?.(this.getNavigation())},async exportSession(){return {locus:'chr1:100-200',tracks:[]}}}};env.window=env;vm.createContext(env);vm.runInContext(fs.readFileSync(path.join(web,'i18n.js'),'utf8'),env);vm.runInContext(fs.readFileSync(path.join(web,'app.js'),'utf8'),env);
+const env={console,document,performance:testClock,Intl,URL,AbortController,location:{href:'http://127.0.0.1:1234/token/web/index.html',origin:'http://127.0.0.1:1234'},setTimeout:()=>1,clearTimeout(){},fetch:async(url,options)=>{assert.equal(url,'../api');const body=JSON.parse(options.body);requests.push(body);const fn=handlers[body.method];assert(fn,'Unexpected RPC '+body.method);return{ok:true,json:async()=>({id:body.id,result:fn(body.params)})}},NewPatIGV:{dispose(){navigationCallback=null},getNavigation(){return {locus:env.locus||'all',chromosome:env.locus&&env.locus!=='all'?env.locus.split(':')[0]:'all',chromosomes:[{name:'chr1',length:1000000},{name:'X',length:100000}],canBack:!!env.locus,canZoom:!!env.locus&&env.locus!=='all',wholeGenome:!env.locus||env.locus==='all'}},onNavigation(callback){navigationCallback=callback;callback(this.getNavigation());return()=>{navigationCallback=null}},async wholeGenome(){await this.search('all')},async back(){await this.search('chr1:100-200')},async zoomIn(){await this.search('chr1:125-175')},async zoomOut(){await this.search('chr1:50-250')},setLanguage(){},resize(){},async mount(node,config){env.viewer={node,config}},async search(locus){env.locus=locus;navigationCallback?.(this.getNavigation())},async exportSession(){return {locus:'chr1:100-200',tracks:[]}}}};env.window=env;vm.createContext(env);vm.runInContext(fs.readFileSync(path.join(web,'i18n.js'),'utf8'),env);vm.runInContext(fs.readFileSync(path.join(web,'app.js'),'utf8'),env);
 const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(condition,label)=>{assert(condition,label);checks.push(label)};
 (async()=>{
- await tick();await tick();const app=env.NipatApp;
+ await tick();await tick();const app=env.NewPatApp;
  const recent=app.state.recentRuns;
+ const emptyActivity=app.renderActivity();
+ check(emptyActivity.includes('Nessuna analisi avviata in questa sessione')&&emptyActivity.includes('data-view="archive"'),'Empty Activity identifies its session and opens the archive');
+ for(const [status,reason,label] of [
+  ['unknown','checking','Verifica in corso'],['unknown','unavailable','Da verificare'],
+  ['running','external_active','In esecuzione fuori da questa sessione'],
+ ]){
+  app.state.recentRuns=[{...run,status,status_reason:reason}];app.render();
+  check(element('main').innerHTML.includes(label),'Overview labels observed run status: '+reason);
+ }
+
  for(const entries of [recent,[]]){
   app.state.recentRuns=entries;app.render();
   check((element('main').innerHTML.match(/data-view="new"/g)||[]).length===1,'Populated and empty overview have one primary creation action');
@@ -28,6 +40,59 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
  app.state.recentRuns=recent;app.render();
  check(app.state.boot.version==='0.9.0','Bootstrap uses actual version');check(element('main').innerHTML.includes('Famiglia α &lt;test&gt;'),'Archive name HTML escaped');check(app.state.draft.samples.length===0,'No embedded demonstration samples');
  for(const view of ['home','new','activity','archive','catalog','settings','environment','igv']){await app.navigate(view);check(element('main').innerHTML.length>300,'Render '+view)}
+ await app.action('new-experiment',{});
+ app.state.draft.name='Maternal';
+ const fetal=()=>app.state.draft.fetal_sex;
+ const chooseSex=checked=>app.onValue({type:'checkbox',checked,dataset:{fetalOption:'true'}});
+ const setRole=(role,path)=>app.onValue({type:'select-one',value:path,dataset:{fetalRole:role}});
+ app.onValue({type:'select-one',value:'tables',dataset:{field:'source'}});
+ app.state.draft.samples=[
+  {kind:'dnp-table',id:'Mother',path:'/counts/dnp.txt'},
+  {kind:'snp-table',id:'Mother',path:'/counts/y.txt'}
+ ];
+ await app.action('step',{index:1});chooseSex(true);
+ app.onValue({value:'Mother',dataset:{fetalId:'true'}});
+ check(fetal().source==='sample-tables'&&app.renderNew().includes('data-fetal-role="dnp"')&&!app.renderNew().includes('data-fetal-role="x"'),
+       'Maternal counts default to roles for one DNP table and one Y SNP table');
+ setRole('dnp','/counts/dnp.txt');setRole('y','/counts/y.txt');
+ await app.action('step',{index:2});
+ check(app.state.step===2&&app.submittedDraft().fetal_sex.dnp==='/counts/dnp.txt','The two registered maternal tables pass validation');
+ await app.action('step',{index:1});
+ app.onValue({type:'select-one',value:'separate',dataset:{fetalLayout:'true'}});
+ check(fetal().id==='Mother'&&fetal().y==='/counts/y.txt'&&!Object.hasOwn(fetal(),'dnp')&&app.renderNew().includes('data-fetal-role="autosomes"')&&app.renderNew().includes('data-fetal-role="x"'),
+       'Switching to separate DNP files preserves the maternal ID and Y assignment');
+ await app.action('step',{index:2});
+ check(app.state.step===1&&app.state.error,'Split mode requires two different registered DNP tables');
+ app.onValue({type:'select-one',value:'combined',dataset:{fetalLayout:'true'}});
+ check(fetal().y==='/counts/y.txt'&&!Object.hasOwn(fetal(),'x')&&!Object.hasOwn(fetal(),'autosomes'),
+       'Switching back keeps Y and removes the unused split-table roles');
+ await app.action('new-experiment',{});
+ app.state.draft.name='Maternal BAM';
+ app.state.draft.samples=[{id:'Plasma',kind:'bam',path:'/mother.bam'}];
+ await app.action('step',{index:1});chooseSex(true);
+ check(fetal().source==='bam'&&fetal().id==='Plasma'&&app.state.draft.caller==='both','Selecting fetal sex with one BAM wires both callers to the maternal BAM');
+ check(!app.renderNew().includes('data-key="fetal.y"')&&app.renderNew().includes('fetal-maternal-bam')&&app.renderNew().includes('data-key="resource.SNP.panel"'),'BAM mode presents the maternal input and panel controls without count table uploads');
+ await app.action('step',{index:2});check(app.state.step===1&&app.state.error,'Missing panels block the BAM route');
+ app.state.draft.resources={DNP:{panel:'/autosomes-x.tsv'},SNP:{panel:'/Y.tsv'}};
+ await app.action('step',{index:2});check(app.state.step===2&&app.submittedDraft().samples.length===1,'A configured BAM route advances without imported tables');
+ await app.action('step',{index:0});chooseSex(false);
+ app.state.draft.samples.push({id:'Father',kind:'bam',path:'/father.bam'});
+ await app.action('step',{index:1});chooseSex(true);
+ check(!fetal().id,'Two BAMs require an explicit maternal assignment');
+ await app.action('step',{index:2});check(app.state.step===1&&app.state.error,'Missing maternal assignment blocks the BAM route');
+ app.onValue({value:'Plasma',dataset:{fetalId:'true'}});
+ app.onValue({value:'Maternal',dataset:{sample:'0'}});
+ check(fetal().id==='Maternal','Renaming the selected BAM preserves the maternal assignment');
+ await app.action('remove-sample',{index:0});
+ check(!fetal().id,'Removing the selected BAM never assigns a different sample as maternal');
+ app.onValue({type:'select-one',value:'mixed',dataset:{field:'source'}});
+ app.state.draft.samples.push({kind:'dnp-table',id:'Mother',path:'/counts/dnp.txt'},
+                              {kind:'snp-table',id:'Mother',path:'/counts/y.txt'});
+ await app.action('step',{index:1});
+ app.onValue({value:'tables',dataset:{fetalSource:'true'}});
+ check(fetal().source==='sample-tables'&&app.renderNew().includes('data-fetal-role="y"'),
+       'Mixed experiments can explicitly choose registered maternal tables');
+ await app.action('new-experiment',{});
  const pickBuild=(scope,value)=>app.onValue({dataset:{referenceBuild:scope},type:'select-one',value});
  const pickEntry=(scope,value)=>app.onValue({dataset:{referenceEntry:scope},type:'select-one',value});
  const reference=(build,label)=>({id:build+'-'+label,build,label,fasta:'/ref/'+label+'.fa',index:'/ref/'+label+'.fa.fai',index_sha256:'a'.repeat(64),naming:'chr',available:true});
@@ -63,13 +128,13 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
   ['it','Risultato non disponibile (NA)','Nelle tabelle, NA indica che il programma non ha potuto determinare il valore.'],
   ['en','Unavailable result (NA)','In the tables, NA means the program could not determine the value.'],
  ]){
-  env.NipatI18n.setLanguage(language);
+  env.NewPatI18n.setLanguage(language);
   app.state.catalogModule='dnp-call';app.state.catalogSearch='(NA)';app.render();
   const glossary=element('main').innerHTML;
   check(glossary.includes(`<h3>${label}</h3><p>${description}</p></div>`),'The DNP glossary explains the literal table marker once in '+language);
   check((glossary.match(/class="parameter-row"/g)||[]).length===1,'The literal marker can be searched in '+language);
  }
- env.NipatI18n.setLanguage('it');app.state.catalogModule='all';app.state.catalogSearch='';app.render();
+ env.NewPatI18n.setLanguage('it');app.state.catalogModule='all';app.state.catalogSearch='';app.render();
  check(app.constantValue('cpi','population_frequencies',{}).includes('<mn>0</mn><mo>&lt;</mo><mi>p</mi><mo>≤</mo><mn>1</mn>'),'CPI domain excludes zero and includes one');
  const prenatalFilter={dataset:{parameter:'cpi|min_fetal_percent|draft'},type:'number',value:'2.5'};
  app.onValue(prenatalFilter);
@@ -176,13 +241,13 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
  check(app.state.view==='igv'&&requests.some(r=>r.method==='igv.about'&&Object.keys(r.params).length===0),'Guide action sends no file or session parameters and preserves the viewer');
  handlers['igv.about']=()=>({opened:false});
  await assert.rejects(app.action('igv-about',{}),/browser predefinito/);
- await app.changeLanguage('en');check(env.NipatI18n.language==='en'&&requests.some(r=>r.method==='ui.save'&&r.params.preferences.language==='en'),'Language choice persisted');await app.navigate('new');check(element('main').innerHTML.includes('Add samples')&&!element('main').innerHTML.includes('Aggiungi campioni'),'Main workflow translated to English');
- check(app.choiceLabel('both')==='Both site selections'&&env.NipatI18n.t('frequencyDomain').includes('zero is excluded'),'English scientific labels carry the same meaning');
+ await app.changeLanguage('en');check(env.NewPatI18n.language==='en'&&requests.some(r=>r.method==='ui.save'&&r.params.preferences.language==='en'),'Language choice persisted');await app.navigate('new');check(element('main').innerHTML.includes('Add samples')&&!element('main').innerHTML.includes('Aggiungi campioni'),'Main workflow translated to English');
+ check(app.choiceLabel('both')==='Both site selections'&&env.NewPatI18n.t('frequencyDomain').includes('zero is excluded'),'English scientific labels carry the same meaning');
  app.onValue({dataset:{field:'source'},type:'select-one',value:'tables'});check(app.state.draft.caller==='tables'&&app.state.draft.samples.length===0,'Tables path excludes raw input calling');app.state.sampleKind='dnp-table';dialogPaths=['/counts/A.txt'];await app.action('add-samples',{});app.onValue({dataset:{branch:'DNP|cpin'},type:'checkbox',checked:true});check(app.selectedModules().join(',')==='cpin','Tables-only CPIN does not run DNP or SNP');
  await app.navigate('settings');await app.action('save-preferences',{});check(requests.some(r=>r.method==='preferences.save'&&r.params.baseline),'Preferences save uses concurrency baseline');await app.navigate('environment');app.state.runtimeMemory=4096;app.state.runtimeCpus=2;await app.action('preview-resources',{});check(!requests.some(r=>r.method==='resources.apply'),'Resource preview makes no mutation');await app.action('apply-resources',{});check(requests.at(-2).method==='resources.apply'&&requests.at(-2).params.confirmed,'Resources apply only confirmed preview');await app.action('check-updates',{});await app.action('download-update',{});await app.action('confirm-install-update',{});check(requests.at(-1).method==='app.close','Successful install handoff requests native close');
- const previousCheck=handlers['updates.check'],previousDownload=handlers['updates.download'],previousLanguage=env.NipatI18n.language;
+ const previousCheck=handlers['updates.check'],previousDownload=handlers['updates.download'],previousLanguage=env.NewPatI18n.language;
  for(const [language,architecture,caption] of [['it','arm64','Mostra nel Finder'],['en','x86_64','Show in Finder']]){
-  env.NipatI18n.setLanguage(language);
+  env.NewPatI18n.setLanguage(language);
   handlers['updates.check']=()=>({status:'available',offer_id:architecture,offer:{version:'0.9.11',channel:'stable',asset:{platform:'darwin-'+architecture}}});
   handlers['updates.download']=()=>({status:'verified',path:'/Users/A & B/Library/Caches/NewPat-'+architecture+'.pkg'});
   handlers['updates.reveal']=()=>({status:'revealed'});
@@ -194,11 +259,11 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
   check(requests.at(-1).method==='updates.reveal'&&requests.at(-1).params.offer_id===architecture,'Finder receives only the selected offer');
   check(!requests.slice(before).some(r=>r.method==='updates.install'||r.method==='app.close'),'Mac manual installation keeps the application open');
  }
- handlers['updates.check']=previousCheck;handlers['updates.download']=previousDownload;delete handlers['updates.reveal'];env.NipatI18n.setLanguage(previousLanguage);
+ handlers['updates.check']=previousCheck;handlers['updates.download']=previousDownload;delete handlers['updates.reveal'];env.NewPatI18n.setLanguage(previousLanguage);
  await app.navigate('igv');app.state.igv.reference={fasta:'/ref.fa',index:'/ref.fa.fai'};app.state.igv.tracks=[{name:'Sample',path:'/a.bam',index:'/a.bam.bai'}];await app.action('igv-load',{});check(env.viewer&&requests.some(r=>r.method==='igv.prepare'&&r.params.reference.fasta==='/ref.fa'),'IGV registers real local source paths');app.state.igv.locus='chr1:100-200';await app.action('igv-search',{});check(env.locus==='chr1:100-200','Locus search reaches embedded IGV');app.state.igv.reference.fasta='/unapplied.fa';await app.action('igv-save',{});check(!JSON.stringify(requests.at(-1).params).includes('/token/'),'Saved IGV session contains no ephemeral capability URL');check(requests.at(-1).params.session.reference.fasta==='/ref.fa','IGV session saves the displayed sources, not unapplied form edits');
 
  // Regression coverage for real service contracts and stale asynchronous responses.
- check(document.documentElement.dataset.nipatReady==='true','Native readiness set only after successful boot');
+ check(document.documentElement.dataset.newpatReady==='true','Native readiness set only after successful boot');
  const sparse=app.normalizeDraft({caller:'snp',samples:[{id:'A',path:'/a.pileup',kind:'snp-pileup'}],branches:{SNP:[]},scientific_settings:{'snp-call':{max_depth:7}}});
  check(Array.isArray(sparse.branches.DNP)&&sparse.scientific_settings.cpin.min_coverage===null&&sparse.scientific_settings['snp-call'].max_depth===7,'Legacy reuse normalized without losing recorded overrides');
  app.state.draft=sparse;app.state.draft.reference='/hidden.fa';app.state.draft.branches.DNP=['cpin'];app.state.draft.families.cpin=[{id:'hidden'}];const clean=app.submittedDraft();check(clean.reference===null&&clean.branches.DNP.length===0&&clean.families.cpin.length===0,'Hidden reference branches and families omitted from submitted plan');
@@ -259,6 +324,50 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
  check(app.state.recentRuns.length===5&&app.state.recentRuns[0].id==='archive-0'&&element('main').innerHTML.includes('Archived 0'),'A stale archive response cannot overwrite recent Home cards');
  handlers['runs.list']=listPage;env.setTimeout=originalTimer;env.clearTimeout=originalClear;
  app.state.archiveSearch='';app.state.archiveMarker='all';app.state.archiveStatus='all';
+ const savedJobs=jobs;
+ let releaseFirstList;
+ handlers['runs.list']=p=>{
+  const snapshot=listPage(p);
+  return new Promise(resolve=>{releaseFirstList=()=>resolve(snapshot)});
+ };
+ const oldHome=app.navigate('home');await tick();
+ const originalRow=manyRuns[0];
+ manyRuns[0]={...originalRow,status:'failed'};
+ jobs=[{id:'late-job',status:'failed',run_id:originalRow.id}];
+ handlers['runs.list']=listPage;
+ await app.poll();releaseFirstList();await oldHome;
+ check(app.state.recentRuns[0].status==='failed','A local job transition supersedes an older in-flight listing');
+ jobs=savedJobs;manyRuns[0]=originalRow;await app.poll();
+ const setObserved=(status,reason,recorded)=>{manyRuns[0]={...manyRuns[0],status,status_reason:reason,recorded_status:recorded}};
+ setObserved('running','external_active','running');
+ await app.navigate('home');
+ let previousLists=listCalls.length;
+ setObserved('succeeded',null,'succeeded');
+ await app.poll();
+ check(listCalls.length===previousLists,'An unchanged external run does not cause an archive scan every poll');
+ clockMs+=30000;await app.poll();
+ check(listCalls.length===previousLists+1&&app.state.recentRuns[0].status==='succeeded','Home observes completion of an external run without a local job transition');
+ clockMs+=60000;await app.poll();
+ check(listCalls.length===previousLists+1,'Terminal Home cards do not trigger further status scans');
+
+ setObserved('unknown','unavailable','running');
+ await app.navigate('archive');
+ setObserved('running','external_active','running');
+ clockMs+=30000;await app.poll();
+ check(app.state.archiveListing.runs[0].status==='running','Archive retries an unavailable runtime and displays a confirmed running experiment');
+ setObserved('interrupted','abandoned','running');
+ clockMs+=30000;await app.poll();
+ previousLists=listCalls.length;clockMs+=30000;await app.poll();
+ check(app.state.archiveListing.runs[0].status==='interrupted'&&listCalls.length===previousLists,'A confirmed interruption stops automatic rechecking of the unfiltered list');
+
+ await setFilter('archiveStatus','running');
+ previousLists=listCalls.length;
+ setObserved('running','external_active','running');
+ await app.poll();
+ check(!app.state.archiveListing.runs.length&&listCalls.length===previousLists,'An empty status filter does not rescan before the observation interval');
+ clockMs+=30000;await app.poll();
+ check(app.state.archiveListing.runs[0]?.id==='archive-0','An external run can enter an empty status filter after the pending check has ended');
+ setObserved('succeeded',null,'succeeded');await setFilter('archiveStatus','all');
  await app.navigate('archive');
  const getHistory=handlers['runs.get'];handlers['runs.get']=p=>({...run,id:p.run_id});
  await app.loadRun('archive-1002');await app.loadRun('archive-0');await app.action('page-back',{});
@@ -288,6 +397,17 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
  const originalPreview=handlers['plan.preview'];let resolvePreview;handlers['plan.preview']=p=>new Promise(resolve=>{resolvePreview=()=>resolve(originalPreview(p))});const stalePreview=app.action('validate-plan',{});await tick();app.onValue({dataset:{draft:'name'},type:'text',value:'Changed while checking'});resolvePreview();await stalePreview;check(app.state.preview===null,'Editing during validation cannot activate a stale plan');handlers['plan.preview']=originalPreview;
 
  handlers['run.prepare']=p=>({name:'Additional analysis',caller:'tables',samples:[{id:'A',path:'/completed/counts.txt',kind:'dnp-table'}],branches:{DNP:[p.module]},families:{cpin:[{id:'F',mother:'A',father:'B',child:'C'}]},scientific_settings:{cpin:{min_coverage:6}}});await app.action('prepare-module',{module:'cpin'});check(app.state.draft.caller==='tables'&&app.selectedModules().join(',')==='cpin'&&app.state.step===1,'Additional analysis consumes existing counts without rerunning callers or prior modules');check(app.state.draft.scientific_settings.cpin.min_coverage===6&&app.state.source==='tables','Additional analysis preserves recorded settings and exposes family assignments');
+
+ const previousPrepare=handlers['run.prepare'];
+ for(const [dnpId,snpId,step] of [['Mother','Father',0],['Mother','Mother',1]]){
+  handlers['run.prepare']=()=>({name:'Prepare fetal sex',caller:'tables',
+   samples:[{kind:'dnp-table',id:dnpId,path:'/counts/dnp.txt'},{kind:'snp-table',id:snpId,path:'/counts/y.txt'}],
+   fetal_sex:{source:'sample-tables',id:'',dnp:'',y:''}});
+  await app.action('prepare-module',{module:'fetal-sex'});
+  check(app.state.source==='tables'&&app.state.step===step,
+        'Preparing fetal sex opens '+(step?'Analyses when one individual has both tables':'Inputs when table types belong to different people'));
+ }
+ handlers['run.prepare']=previousPrepare;
 
  // Activity updates preserve progress indicators and fetch logs only while they are open.
  const noProgress={id:'initial',name:'Initial',status:'running',created_at:'2026-11-15T12:00:00Z',finished_at:'2026-11-15T12:02:03Z',progress:null,logs:[]};
@@ -426,7 +546,7 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
  await app.action('igv-load',{});app.state.igv.navigation={wholeGenome:true};check(app.renderIgvNavigation().includes('under 100,000 bases'),'Loaded alignment at whole-genome scale shows zoom instructions');app.state.igv.navigation={start:1,end:100,wholeGenome:false};check(app.renderIgvNavigation().includes('If no reads appear'),'Narrow region guidance does not invent absent coverage');
  app.state.igv.loadedSources.tracks=[{path:'/sample.CRAM'}];check(!app.renderIgvNavigation().includes('The reference is open'),'CRAM is recognised as an alignment');
  check(html.includes('<title>NewPat</title>')&&element('breadcrumb').textContent.startsWith('NewPat / '),'Visible shell and breadcrumb use the NewPat name');
- check(Object.values(env.NipatI18n.strings).every(pair=>pair.every(value=>!value.includes('NIPAT'))),'All UI translations use the new product name');
+ check(Object.values(env.NewPatI18n.strings).every(pair=>pair.every(value=>!value.includes('NIPAT'))),'All UI translations use the new product name');
  app.state.run={...run,version:'0.8.99'};app.state.runTab='provenance';check(app.renderRun().includes('Application version</dt><dd>0.8.99'),'Historical provenance keeps its recorded version without assigning a new historical brand');
  // Interactive scientific curves use original rows, offline, with mouse and keyboard details.
  const prenatal={file:{id:'prenatal',name:'family_panel_A.csv',kind:'table',cutoff:'A'},columns:[{key:'Iteration',label:'Minimum fetal reads'},{key:'log_CPI',label:'log₁₀(CPI)'},{key:'CPI',label:'CPI'},{key:'NotMismatch',label:'Matching sites'},{key:'Mismatch',label:'Mismatching sites'}],rows:[{Iteration:'2',log_CPI:'-3.123456789012345',CPI:'0.0007525631256789',NotMismatch:'12',Mismatch:'2'},{Iteration:'3',log_CPI:'0',CPI:'1',NotMismatch:'10',Mismatch:'0'},{Iteration:'4',log_CPI:'NA',CPI:'Inf',NotMismatch:'8',Mismatch:'1'}],total:3,has_more:false};
@@ -497,8 +617,8 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
  check(app.renderNew().includes('data-parameter="snp-call|other_fraction_max|draft"'),'Catalog search leaves wizard parameters visible');
  check(app.state.draft===wizard&&app.state.step===2&&!app.renderNew().includes('data-execution="dnp_block_mib|draft"'),'Returning to the wizard preserves its SNP draft and omits inapplicable DNP-only execution settings');
  await app.action('page-back',{});check(app.state.step===1&&app.state.draft.name==='Draft to keep','Back within the wizard keeps sample inputs intact');
- for(const [key,pair] of Object.entries(env.NipatI18n.strings))check(pair.length===2&&pair.every(x=>typeof x==='string'&&x.length),'Translation pair '+key);
- const listBeforeFailure=handlers['runs.list'];handlers['runs.list']=()=>{throw new Error('Archive unavailable')};await app.boot();check(!document.documentElement.dataset.nipatReady&&element('main').innerHTML.includes('Impossibile caricare'),'Failed initial archive load cannot report native app readiness');handlers['runs.list']=listBeforeFailure;await app.boot();check(document.documentElement.dataset.nipatReady==='true','Retry bootstrap restores readiness only after successful render');
+ for(const [key,pair] of Object.entries(env.NewPatI18n.strings))check(pair.length===2&&pair.every(x=>typeof x==='string'&&x.length),'Translation pair '+key);
+ const listBeforeFailure=handlers['runs.list'];handlers['runs.list']=()=>{throw new Error('Archive unavailable')};await app.boot();check(!document.documentElement.dataset.newpatReady&&element('main').innerHTML.includes('Impossibile caricare'),'Failed initial archive load cannot report native app readiness');handlers['runs.list']=listBeforeFailure;await app.boot();check(document.documentElement.dataset.newpatReady==='true','Retry bootstrap restores readiness only after successful render');
  await app.navigate('environment');
  for(const lang of ['it','en']){
   await app.changeLanguage(lang);

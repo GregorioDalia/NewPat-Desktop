@@ -4,9 +4,9 @@ import unittest
 from contextlib import nullcontext
 from pathlib import Path
 
-from nipat.errors import ValidationError
-from nipat.execution.workflows import Workflows
-from nipat.paths import ProjectLayout
+from newpat.errors import ValidationError
+from newpat.experiments.workflows import Workflows
+from newpat.paths import ProjectLayout
 
 
 class RecordingRunner:
@@ -101,7 +101,7 @@ class DnpWorkflowTests(unittest.TestCase):
         self.assertEqual(len(self.runner.calls), 1)
         command, working_dir = self.runner.calls[0]
         self.assertEqual(command, [
-            "python3", "/opt/nipat/engine/main.py", "execute", "dnp-call", "--request",
+            "python3", "/opt/newpat/engine/main.py", "execute", "dnp-call", "--request",
             str(self.layout.container_path(run / "work" / "engine-request.json")),
         ])
         self.assertEqual(working_dir, str(self.layout.container_path(run)))

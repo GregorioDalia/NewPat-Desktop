@@ -1,7 +1,7 @@
-# Real temporary-file repair tests. No installed NIPAT, WSL, registry mutation,
+# Real temporary-file repair tests. No installed NewPat, WSL, registry mutation,
 # administrator privileges or network connection is required.
 . (Join-Path $PSScriptRoot 'repair-installation.ps1') -LibraryOnly
-$temporary = Join-Path ([IO.Path]::GetTempPath()) ('nipat-repair-' + [Guid]::NewGuid().ToString('N'))
+$temporary = Join-Path ([IO.Path]::GetTempPath()) ('newpat-repair-' + [Guid]::NewGuid().ToString('N'))
 [IO.Directory]::CreateDirectory($temporary) | Out-Null
 $oldLocalAppData = $env:LOCALAPPDATA
 $env:LOCALAPPDATA = Join-Path $temporary 'isolated user profile'
@@ -45,12 +45,12 @@ function New-RepairTestLayout([string] $Name, [switch] $Empty) {
         data_dir = (Join-Path $root 'research'); runs_dir = (Join-Path $root 'results')
     }
     if (-not $Empty) {
-        Add-RepairTestFile $layout.app_dir '.nipat-app.ini' "[NIPAT]`nschema_version=1`ninstallation_channel=desktop`nrole=application`n" | Out-Null
+        Add-RepairTestFile $layout.app_dir '.newpat-app.ini' "[NewPat]`nschema_version=1`ninstallation_channel=desktop`nrole=application`n" | Out-Null
     }
     return $layout
 }
 function Get-RepairTestJournals([string] $App) {
-    $root = Join-Path (Get-NipatInstallLayoutHistoryDirectory) 'backups'
+    $root = Join-Path (Get-NewPatInstallLayoutHistoryDirectory) 'backups'
     if (-not (Test-Path -LiteralPath $root)) { return @() }
     return @(Get-ChildItem -LiteralPath $root -Filter 'repair-journal.json' -File -Recurse | ForEach-Object {
         $journal = Get-Content -LiteralPath $_.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -64,8 +64,8 @@ try {
         [pscustomobject]@{ path = 'src/client.py'; sha256 = (Get-RepairTestHash 'new source') }
     )
     $layout = New-RepairTestLayout 'fresh' -Empty
-    $plan = New-NipatApplicationRepairPlan $layout $payload
-    $result = Invoke-NipatApplicationRepairPlan $plan
+    $plan = New-NewPatApplicationRepairPlan $layout $payload
+    $result = Invoke-NewPatApplicationRepairPlan $plan
     Assert-Test ($result.Mode -ceq 'install' -and $result.BackupDirectory -ceq '' -and
         -not (Test-Path -LiteralPath $layout.app_dir)) 'fresh install neither creates backups nor writes application files'
 
@@ -80,35 +80,35 @@ try {
     Add-RepairTestFile $layout.app_dir '.runtime/runtime-image.txt' 'sha256:previous' | Out-Null
     Add-RepairTestFile $layout.app_dir '.runtime/python/python.exe' 'Previous embedded Python fixture.' | Out-Null
     Add-RepairTestFile $layout.app_dir '.runtime/python/user-helper.py' 'Unknown Python neighbor retained.' | Out-Null
-    $plan = New-NipatApplicationRepairPlan $layout $payload
+    $plan = New-NewPatApplicationRepairPlan $layout $payload
     Assert-Test (@($plan.Backups | Where-Object { $_.path -ceq 'README.md' }).Count -eq 1 -and
         @($plan.Backups | Where-Object { $_.path -ceq 'src/client.py' }).Count -eq 0) 'different incoming file is backed up; identical incoming file is snapshotted only'
     Assert-Test ($plan.Backups.Count -eq 8 -and $plan.StaleFiles.Count -eq 0) 'metadata, app marker and the entire Python file tree are included'
-    $before = Get-NipatRepairFileHash $collision
-    $result = Invoke-NipatApplicationRepairPlan $plan
+    $before = Get-NewPatRepairFileHash $collision
+    $result = Invoke-NewPatApplicationRepairPlan $plan
     Assert-Test ($result.Mode -ceq 'repair' -and (Test-Path -LiteralPath $result.BackupDirectory -PathType Container)) 'repair provides a persistent backup directory'
     $saved = Join-Path $result.BackupDirectory 'files\README.md'
-    Assert-Test ((Get-NipatRepairFileHash $saved) -ceq $before -and (Get-NipatRepairFileHash $collision) -ceq $before) 'colliding user content is preserved both in place and in backup before Inno copy'
+    Assert-Test ((Get-NewPatRepairFileHash $saved) -ceq $before -and (Get-NewPatRepairFileHash $collision) -ceq $before) 'colliding user content is preserved both in place and in backup before Inno copy'
     Assert-Test ((Test-Path -LiteralPath $unknown) -and (Test-Path -LiteralPath $data) -and
         (Test-Path -LiteralPath $unchanged) -and (Test-Path -LiteralPath $state)) 'unknown files, research input and existing application metadata are not deleted'
     $journal = Get-Content -LiteralPath (Join-Path $result.BackupDirectory 'repair-journal.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     Assert-Test ($journal.status -ceq 'prepared-for-copy' -and $journal.files.Count -eq 8 -and
         $journal.source_commit -ceq $payload.source_commit -and $journal.app_dir -ceq $layout.app_dir) 'journal records verified files, source identity and original directory'
     foreach ($entry in $journal.files) {
-        Assert-Test ((Get-NipatRepairFileHash $entry.backup_path) -ceq $entry.sha256) ('backup hash matches: ' + $entry.path)
+        Assert-Test ((Get-NewPatRepairFileHash $entry.backup_path) -ceq $entry.sha256) ('backup hash matches: ' + $entry.path)
     }
-    $again = Invoke-NipatApplicationRepairPlan (New-NipatApplicationRepairPlan $layout $payload)
+    $again = Invoke-NewPatApplicationRepairPlan (New-NewPatApplicationRepairPlan $layout $payload)
     Assert-Test ($again.BackupDirectory -cne $result.BackupDirectory -and
         (Test-Path -LiteralPath $result.BackupDirectory)) 'a repeated preparation keeps the first backup and creates a distinct journal'
 
-    $legacy = Get-NipatDefaultInstallLayout
+    $legacy = Get-NewPatDefaultInstallLayout
     Write-RepairTestJson (Join-Path $legacy.app_dir '.runtime\installer\state.json') ([pscustomobject]@{
         schema_version = 1; installation_channel = 'desktop'; phase = 'ready'
         rootfs_sha256 = ('c' * 64); source_commit = ('b' * 40)
     })
     $legacyNeighbor = Add-RepairTestFile $legacy.app_dir 'local-notes.txt' 'Neighbor left beside generated runtime.'
-    $legacyResult = Invoke-NipatApplicationRepairPlan (New-NipatApplicationRepairPlan $legacy $payload)
-    Assert-Test ($legacyResult.Mode -ceq 'repair' -and (Test-Path -LiteralPath $legacyNeighbor)) 'recognized legacy remnants can be repaired without deleting unrelated neighbors'
+    Assert-Rejected { New-NewPatApplicationRepairPlan $legacy $payload } 'unmarked remnants cannot authorize repair'
+    Assert-Test (Test-Path -LiteralPath $legacyNeighbor) 'unowned project files are preserved'
 
     $layout = New-RepairTestLayout 'obsolete inventory'
     $obsolete = Add-RepairTestFile $layout.app_dir 'obsolete.py' 'unchanged old module'
@@ -120,23 +120,23 @@ try {
     )
     $oldInventoryPath = Join-Path $layout.app_dir '.distribution\application-files.json'
     Write-RepairTestJson $oldInventoryPath $old
-    $plan = New-NipatApplicationRepairPlan $layout $payload
+    $plan = New-NewPatApplicationRepairPlan $layout $payload
     Assert-Test ($plan.StaleFiles.Count -eq 1 -and $plan.StaleFiles[0].path -ceq 'obsolete.py') 'only absent-from-new and byte-identical old files qualify for removal'
-    $result = Invoke-NipatApplicationRepairPlan $plan
+    $result = Invoke-NewPatApplicationRepairPlan $plan
     Assert-Test (-not (Test-Path -LiteralPath $obsolete) -and (Test-Path -LiteralPath $modified) -and
         (Test-Path -LiteralPath $extra) -and (Test-Path -LiteralPath $oldInventoryPath)) 'obsolete managed file is removed while modified, unlisted and old inventory files remain before copy'
     Assert-Test ((Test-Path -LiteralPath (Join-Path $result.BackupDirectory 'files\obsolete.py')) -and
         (Test-Path -LiteralPath (Join-Path $result.BackupDirectory 'files\.distribution\application-files.json'))) 'deleted managed file and previous inventory both have verified backups'
-    Assert-Test ((Get-NipatRepairFileHash (Join-Path $result.BackupDirectory 'files\modified.py')) -ceq
-        (Get-NipatRepairFileHash $modified) -and
+    Assert-Test ((Get-NewPatRepairFileHash (Join-Path $result.BackupDirectory 'files\modified.py')) -ceq
+        (Get-NewPatRepairFileHash $modified) -and
         @($plan.Backups | Where-Object { $_.path -ceq 'modified.py' -and $_.reason -ceq 'obsolete-modified-preserved' }).Count -eq 1) 'locally modified obsolete bytes also have an external backup for a later uninstall'
 
     $layout = New-RepairTestLayout 'damaged old inventory'
     $preserved = Add-RepairTestFile $layout.app_dir 'old.py' 'possibly managed but unverifiable'
     Add-RepairTestFile $layout.app_dir '.distribution/application-files.json' '{invalid inventory' | Out-Null
-    $plan = New-NipatApplicationRepairPlan $layout $payload
+    $plan = New-NewPatApplicationRepairPlan $layout $payload
     Assert-Test ($plan.OldInventoryStatus -ceq 'invalid-preserved' -and $plan.StaleFiles.Count -eq 0) 'damaged previous inventory never grants deletion authority'
-    $result = Invoke-NipatApplicationRepairPlan $plan
+    $result = Invoke-NewPatApplicationRepairPlan $plan
     Assert-Test ((Test-Path -LiteralPath $preserved) -and
         (Test-Path -LiteralPath (Join-Path $result.BackupDirectory 'files\.distribution\application-files.json'))) 'old inventory is preserved for diagnosis while new package may repair it'
 
@@ -144,58 +144,56 @@ try {
     $obsolete = Add-RepairTestFile $layout.app_dir 'old-exact.py' 'old exact source'
     $modified = Add-RepairTestFile $layout.app_dir 'old-modified.py' 'researcher modification'
     $legacyManifest = [pscustomobject]@{
-        schema_version = 1; installation_profile = (Get-NipatInstallationProfile); source_commit = ('b' * 40)
+        schema_version = 1; installation_profile = (Get-NewPatInstallationProfile); source_commit = ('b' * 40)
         source_sha256 = [pscustomobject]@{
             'old-exact.py' = (Get-RepairTestHash 'old exact source')
             'old-modified.py' = (Get-RepairTestHash 'original source')
         }
     }
     Write-RepairTestJson (Join-Path $layout.app_dir '.distribution\installer-manifest.json') $legacyManifest
-    $plan = New-NipatApplicationRepairPlan $layout $payload
-    Assert-Test ($plan.OldInventoryStatus -ceq 'legacy-source-manifest' -and $plan.StaleFiles.Count -eq 1) 'pre-inventory installations use their validated source manifest'
-    $result = Invoke-NipatApplicationRepairPlan $plan
-    Assert-Test (-not (Test-Path -LiteralPath $obsolete) -and (Test-Path -LiteralPath $modified) -and
-        (Get-NipatRepairFileHash (Join-Path $result.BackupDirectory 'files\old-modified.py')) -ceq (Get-NipatRepairFileHash $modified)) 'legacy source cleanup removes exact obsolete bytes and backs up modified bytes without deleting them'
-    Assert-Test (Test-Path -LiteralPath (Join-Path $result.BackupDirectory 'files\.distribution\installer-manifest.json')) 'legacy manifest itself is always backed up'
+    $plan = New-NewPatApplicationRepairPlan $layout $payload
+    Assert-Test ($plan.OldInventoryStatus -ceq 'absent' -and $plan.StaleFiles.Count -eq 0) 'the source manifest cannot authorize removal'
+    Invoke-NewPatApplicationRepairPlan $plan | Out-Null
+    Assert-Test ((Test-Path -LiteralPath $obsolete) -and (Test-Path -LiteralPath $modified)) 'files outside the application inventory are preserved'
 
     $layout = New-RepairTestLayout 'invalid modern inventory blocks fallback'
     $obsolete = Add-RepairTestFile $layout.app_dir 'old-exact.py' 'old exact source'
     Write-RepairTestJson (Join-Path $layout.app_dir '.distribution\installer-manifest.json') $legacyManifest
     Add-RepairTestFile $layout.app_dir '.distribution/application-files.json' '{invalid modern inventory' | Out-Null
-    $plan = New-NipatApplicationRepairPlan $layout $payload
+    $plan = New-NewPatApplicationRepairPlan $layout $payload
     Assert-Test ($plan.OldInventoryStatus -ceq 'invalid-preserved' -and $plan.StaleFiles.Count -eq 0) 'invalid present modern inventory never falls back to an older deletion authority'
-    Invoke-NipatApplicationRepairPlan $plan | Out-Null
+    Invoke-NewPatApplicationRepairPlan $plan | Out-Null
     Assert-Test (Test-Path -LiteralPath $obsolete) 'invalid current inventory preserves formerly listed source bytes'
 
     foreach ($bad in @('../outside.txt', '/absolute.txt', 'folder\file.txt', 'C:/other.txt',
         'folder//file.txt', './file.txt', '.git/config', 'folder/.runtime/state.json',
         'folder/CON.txt', 'folder/trailing.', '.distribution/application-files.json')) {
         $invalid = New-RepairTestPayload @([pscustomobject]@{ path = $bad; sha256 = ('a' * 64) })
-        Assert-Rejected { Assert-NipatApplicationPayload $invalid } ('unsafe incoming path rejected: ' + $bad)
+        Assert-Rejected { Assert-NewPatApplicationPayload $invalid } ('unsafe incoming path rejected: ' + $bad)
     }
     $invalid = New-RepairTestPayload @(
         [pscustomobject]@{ path = 'Readme.md'; sha256 = ('a' * 64) },
         [pscustomobject]@{ path = 'README.md'; sha256 = ('b' * 64) }
     )
-    Assert-Rejected { Assert-NipatApplicationPayload $invalid } 'case-insensitive payload collision is rejected'
+    Assert-Rejected { Assert-NewPatApplicationPayload $invalid } 'case-insensitive payload collision is rejected'
     $invalid = New-RepairTestPayload @(
         [pscustomobject]@{ path = 'folder'; sha256 = ('a' * 64) },
         [pscustomobject]@{ path = 'folder/file'; sha256 = ('b' * 64) }
     )
-    Assert-Rejected { Assert-NipatApplicationPayload $invalid } 'payload file/directory prefix collision is rejected'
+    Assert-Rejected { Assert-NewPatApplicationPayload $invalid } 'payload file/directory prefix collision is rejected'
 
     $layout = New-RepairTestLayout 'file versus directory'
     [IO.Directory]::CreateDirectory((Join-Path $layout.app_dir 'README.md')) | Out-Null
-    Assert-Rejected { New-NipatApplicationRepairPlan $layout $payload } 'incoming file cannot replace an existing directory'
+    Assert-Rejected { New-NewPatApplicationRepairPlan $layout $payload } 'incoming file cannot replace an existing directory'
     Assert-Test (@(Get-RepairTestJournals $layout.app_dir).Count -eq 0) 'directory conflict creates no backup and makes no app changes'
     $layout = New-RepairTestLayout 'parent is file'
     $parentFile = Add-RepairTestFile $layout.app_dir 'src' 'User content in parent filename.'
-    Assert-Rejected { New-NipatApplicationRepairPlan $layout $payload } 'incoming directory cannot replace an existing parent file'
+    Assert-Rejected { New-NewPatApplicationRepairPlan $layout $payload } 'incoming directory cannot replace an existing parent file'
     Assert-Test ((Test-Path -LiteralPath $parentFile -PathType Leaf)) 'parent file remains untouched'
 
     $layout = New-RepairTestLayout 'research overlap'
     $layout.data_dir = $layout.app_dir
-    Assert-Rejected { New-NipatApplicationRepairPlan $layout $payload } 'application/research overlap is rejected'
+    Assert-Rejected { New-NewPatApplicationRepairPlan $layout $payload } 'application/research overlap is rejected'
 
     $layout = New-RepairTestLayout 'failed backup'
     $colliding = Add-RepairTestFile $layout.app_dir 'README.md' 'Local readme.'
@@ -203,17 +201,17 @@ try {
     Write-RepairTestJson (Join-Path $layout.app_dir '.distribution\application-files.json') (New-RepairTestPayload @(
         [pscustomobject]@{ path = 'obsolete.py'; sha256 = (Get-RepairTestHash 'obsolete bytes') }
     ))
-    $plan = New-NipatApplicationRepairPlan $layout $payload
-    $copy = (Get-Command Copy-NipatRepairBackup).ScriptBlock
+    $plan = New-NewPatApplicationRepairPlan $layout $payload
+    $copy = (Get-Command Copy-NewPatRepairBackup).ScriptBlock
     $script:BackupCalls = 0
-    function Copy-NipatRepairBackup([string] $Source, [string] $Destination) {
+    function Copy-NewPatRepairBackup([string] $Source, [string] $Destination) {
         $script:BackupCalls++
         if ($script:BackupCalls -eq 2) { throw 'Simulated disk/copy failure.' }
         & $script:copy $Source $Destination
     }
     try {
-        Assert-Rejected { Invoke-NipatApplicationRepairPlan $plan } 'failed backup blocks all managed-file deletion'
-    } finally { Set-Item Function:Copy-NipatRepairBackup -Value $copy }
+        Assert-Rejected { Invoke-NewPatApplicationRepairPlan $plan } 'failed backup blocks all managed-file deletion'
+    } finally { Set-Item Function:Copy-NewPatRepairBackup -Value $copy }
     Assert-Test ((Test-Path -LiteralPath $obsolete) -and (Test-Path -LiteralPath $colliding)) 'application files remain intact after backup failure'
     $failed = @(Get-RepairTestJournals $layout.app_dir)
     Assert-Test ($failed.Count -eq 1 -and $failed[0].Journal.status -ceq 'failed' -and
@@ -221,9 +219,9 @@ try {
 
     $layout = New-RepairTestLayout 'source changes during repair'
     $source = Add-RepairTestFile $layout.app_dir 'README.md' 'new readme'
-    $plan = New-NipatApplicationRepairPlan $layout $payload
+    $plan = New-NewPatApplicationRepairPlan $layout $payload
     [IO.File]::WriteAllText($source, 'Changed since initial snapshot.')
-    Assert-Rejected { Invoke-NipatApplicationRepairPlan $plan } 'a changed originally-identical incoming file invalidates the plan'
+    Assert-Rejected { Invoke-NewPatApplicationRepairPlan $plan } 'a changed originally-identical incoming file invalidates the plan'
     Assert-Test (@(Get-RepairTestJournals $layout.app_dir).Count -eq 0) 'snapshot mismatch is detected before creating a backup directory'
 
     $layout = New-RepairTestLayout 'junction refusal'
@@ -233,7 +231,7 @@ try {
     $junction = Join-Path $layout.app_dir 'linked-data'
     New-Item -ItemType Junction -Path $junction -Target $outside | Out-Null
     try {
-        Assert-Rejected { New-NipatApplicationRepairPlan $layout $payload } 'junction anywhere in existing application blocks repair'
+        Assert-Rejected { New-NewPatApplicationRepairPlan $layout $payload } 'junction anywhere in existing application blocks repair'
         Assert-Test ((Test-Path -LiteralPath $sentinel) -and @(Get-RepairTestJournals $layout.app_dir).Count -eq 0) 'junction target and application are untouched'
     } finally { [IO.Directory]::Delete($junction, $false) }
 

@@ -4,7 +4,7 @@ Linux CI uses a system Chromium/Chrome through Playwright. Native window smoke
 checks remain separate. Native file dialogs and the external-browser handoff are observed with test doubles.
 RPC and genomic decoding/rendering are production code. A non-executing job
 checks progress rendering and an unavailable-runtime fixture checks startup errors.
-Recorded family results exercise prenatal curves, archived postnatal plots and the current postnatal scalar.
+Recorded family results exercise prenatal curves and the postnatal scalar and site audit.
 """
 from __future__ import annotations
 
@@ -29,19 +29,19 @@ import xml.etree.ElementTree as ET
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "src"), str(ROOT / "tests")]
 
-from nipat import __version__
-from nipat.errors import ValidationError
-from nipat.execution.progress import ProgressSnapshot
-from nipat.gui.app import DesktopApplication
-from nipat.gui.jobs import Job
-from nipat.gui.plan import prepare_analysis
-from nipat.gui.service import GuiService
-from nipat.paths import ProjectLayout
-from nipat.preferences import PreferencesStore
+from newpat import __version__
+from newpat.errors import ValidationError
+from newpat.experiments.progress import ProgressSnapshot
+from newpat.desktop.app import DesktopApplication
+from newpat.desktop.jobs import Job
+from newpat.desktop.plan import prepare_analysis
+from newpat.desktop.service import GuiService
+from newpat.paths import ProjectLayout
+from newpat.preferences import PreferencesStore
 from test_gui_igv import create_alignment_fixture
 from test_gui_report_igv_capture import verify_report_igv_capture
 from test_workflow_five_modules import plan_for
-from nipat_scientific.plan import validate_plan
+from newpat_scientific.plan import validate_plan
 
 
 class FixturePicker:
@@ -76,12 +76,12 @@ def digest_files(paths):
 def prepare_cpi_fixtures(layout):
     """Write deterministic native-schema result rows, not a scientific calculation."""
     preserved = []
-    for module, form in (("cpi", "curve"), ("cpin", "curve"), ("cpin", "scalar")):
+    for module, form in (("cpi", "curve"), ("cpin", "scalar")):
         run = layout.runs_dir / f"{module}-{form}-ui-fixture"
         native = "MotherM-FatherF_DNPs" if module == "cpi" else "MotherM-FatherF-ChildC_DNPs"
         write_json(run / "run.json", {"schema_version": 1, "workflow": module, "status": "succeeded",
             "run_name": f"{module.upper()} · fixture {form}", "started_at": "2026-11-15T10:00:00Z",
-            "finished_at": "2026-11-15T10:01:00Z", "source": {"nipat_version": __version__},
+            "finished_at": "2026-11-15T10:01:00Z", "source": {"newpat_version": __version__},
             "parameters": {"marker_type": "DNP", "sample_mapping": []}})
         def write_table(relative, columns, rows):
             target = run / relative
@@ -104,18 +104,6 @@ def prepare_cpi_fixtures(layout):
                  ["4", "8", "7", "NA", "NA", "1", "6", "ALL"]])
             artifacts = {"cpi-pairs": [{"pair": "M:F", "native_pair": native,
                 "mother": {"sample": "M"}, "father": {"sample": "F"}, "curves": [{**curve, "cutoff": None}]}]}
-        elif form == "curve":
-            analysis = "all_compatible_sites"
-            write_table("output/Summary_Postnatal_CPI.txt",
-                ["Trio", "Analysis", "CPI", "Log10_CPI", "N_sites", "Matching_sites", "Mismatching_sites"],
-                [[native, analysis, "0.00046474155109453", "-3.33278849686833", "3", "2", "1"]])
-            curve = write_table(f"output/curves/{native}_{analysis}_curve.tsv",
-                ["Min_child_reads", "Through_min_child_reads", "Log10_CPI", "N_sites", "Matching_sites", "Mismatching_sites"],
-                [["2", "5", "-3.33278849686833", "3", "2", "1"],
-                 ["6", "6", "-3.42969850987639", "2", "1", "1"],
-                 ["7", "10", "0.221848749616356", "1", "1", "0"]])
-            artifacts = {"cpin-trios": [{"trio": "family", "native_trio": native,
-                "analyses": [{"analysis": analysis, "curve": curve}]}]}
         else:
             write_table("output/Summary_Postnatal_CPI.txt", [
                 "Trio", "Marker_type", "N_sites", "N_hom_hom", "N_hom_het", "N_het_hom", "N_het_het",
@@ -158,7 +146,7 @@ def prepare_fixture(directory):
     run = layout.runs_dir / "archived-ui-fixture"
     write_json(run / "run.json", {"schema_version": 1, "workflow": "dnp-call", "status": "interrupted",
                "run_name": "Esperimento interrotto · verifica UI", "started_at": "2026-11-15T10:00:00Z",
-               "finished_at": "2026-11-15T10:01:00Z", "source": {"nipat_version": __version__},
+               "finished_at": "2026-11-15T10:01:00Z", "source": {"newpat_version": __version__},
                "parameters": {"marker_type": "DNP", "sample_mapping": [{"sample_id": "Synthetic",
                    "original_path": selection["tracks"][0]["path"]}]}})
     write_json(run / "gui.json", {"schema_version": 1, "name": "Esperimento interrotto · verifica UI", "draft": draft})
@@ -197,7 +185,7 @@ READS = """() => {
 class BrowserProbe:
     """Read the page through DevTools without weakening its production CSP.
 
-    Playwright's wait_for_function uses eval inside the main world. NIPAT
+    Playwright's wait_for_function uses eval inside the main world. NewPat
     deliberately forbids unsafe-eval there. DevTools evaluates only these test
     expressions; ordinary scripts, requests and CSP remain unchanged.
     """
@@ -243,7 +231,7 @@ def verify_language_controls(page, probe, service, check):
     check(english.is_checked() and service.ui_get()["language"] == "en",
           "Keyboard language selection persists the English preference in the real service")
     page.reload()
-    probe.wait("document.documentElement.dataset.nipatReady==='true'")
+    probe.wait("document.documentElement.dataset.newpatReady==='true'")
     check(english.is_checked() and page.locator('html').get_attribute("lang") == "en",
           "Restarting the interface restores the saved English flag")
     english.focus()
@@ -280,13 +268,13 @@ def verify_single_start(page, probe, service, methods, check):
             check(button.is_disabled(), "A visible preflight indicator prevents duplicate starts while checking the plan")
         finally:
             release_preview.set()
-        probe.wait("NipatApp.state.view==='activity' && NipatApp.state.jobs.some(j=>j.status==='failed')")
+        probe.wait("NewPatApp.state.view==='activity' && NewPatApp.state.jobs.some(j=>j.status==='failed')")
         page.get_by_text(error, exact=True).first.wait_for()
     observed = [method for method, _ in methods[start:] if method in {"plan.preview", "analysis.start"}]
     check(observed == ["plan.preview", "analysis.start"],
           "One automatic preview leads to one start and displays the runner's actionable error")
     page.locator('nav [data-view="new"]').click()
-    check(probe.evaluate("NipatApp.state.draft.samples.length===0 && !NipatApp.state.draft.reference"),
+    check(probe.evaluate("NewPatApp.state.draft.samples.length===0 && !NewPatApp.state.draft.reference"),
           "New experiment opens a clean input sheet after an attempted run")
 
 
@@ -302,27 +290,43 @@ def verify_archive_pages(page, probe, service, methods, check):
 
     before = len(methods)
     page.locator('nav [data-view="home"]').click()
-    probe.wait("NipatApp.state.recentRuns.length===5")
+    probe.wait("NewPatApp.state.recentRuns.length===5")
     check([params for method, params in methods[before:] if method == "runs.list"] == [{"limit": 5, "offset": 0}],
           "Home retrieves five cards in a single bounded request")
     page.locator('nav [data-view="archive"]').click()
     page.wait_for_selector('#archive-results [data-action="archive-page"][data-page="1"]')
     rows = page.locator('#archive-results [data-action="open-run"]')
     check(rows.count() == 25, "The first archive page displays exactly 25 cards")
+    viewport = page.viewport_size
+    for width in (1280, 800, 375):
+        page.set_viewport_size({"width": width, "height": viewport["height"]})
+        aligned = page.locator("#archive-results").evaluate("""results => {
+            const rect = element => element.getBoundingClientRect();
+            const panel = results.closest(".panel");
+            const gutter = parseFloat(getComputedStyle(panel.querySelector(".panel-body")).paddingLeft);
+            const edge = rect(results);
+            const count = rect(results.querySelector(".pager > span"));
+            const buttons = rect(results.querySelector(".pager .actions"));
+            const name = rect(results.querySelector("tbody td:first-child b"));
+            return count.left >= edge.left + gutter - 1 && buttons.right <= edge.right - gutter + 1 &&
+                   Math.abs(name.left - count.left) <= 1 && edge.right <= window.innerWidth;
+        }""")
+        check(aligned, f"Archive row names and pagination fit within the filter margins at {width} px")
+    page.set_viewport_size(viewport)
     page.locator('[data-action="archive-page"][data-page="1"]').click()
     old_card = page.locator('[data-action="open-run"][data-id="older-00"]')
     old_card.wait_for()
     check(rows.count() < 25, "A later archive page includes the oldest experiment")
     search = page.locator("#archive-search")
     search.fill("sample-00")
-    probe.wait("NipatApp.state.archiveListing?.total===1 && NipatApp.state.archivePage===0")
+    probe.wait("NewPatApp.state.archiveListing?.total===1 && NewPatApp.state.archivePage===0")
     check(old_card.is_visible() and search.evaluate("el => document.activeElement === el"),
           "Searching all pages by sample ID resets pagination and preserves keyboard focus")
     page.select_option("#archive-marker", "DNP")
     page.get_by_text("Nessun esperimento corrisponde ai filtri.", exact=True).wait_for()
     page.select_option("#archive-marker", "SNP")
     old_card.click()
-    probe.wait("NipatApp.state.run?.id==='older-00'")
+    probe.wait("NewPatApp.state.run?.id==='older-00'")
     page.locator("#page-back").click()
     old_card.wait_for()
     check(search.input_value() == "sample-00" and page.locator("#archive-marker").input_value() == "SNP",
@@ -390,6 +394,10 @@ def verify_result_reports(page, picker, directory, evidence, check):
             else:
                 check("DNP" in text and "CPI" in text and re.search(r"\b10\b", text),
                       "Detailed PDF includes the recorded postnatal CPI and marker as selectable text")
+                normalized = " ".join(text.split())
+                check("Contributo dei singoli siti al CPI" in normalized
+                      and "1:100–101" in normalized and "Siti mostrati: 1 su 2 righe in tabella." in normalized,
+                      "The postnatal site chart includes precisely the contributing DNP locus")
                 source = " ".join(text.partition("Origine dei dati")[2].split())
             check(record["pages"] == 1 if kind == "summary" else record["pages"] >= 1,
                   f"The {kind} PDF has the required page count")
@@ -447,26 +455,180 @@ def verify_grouped_reports(page, picker, directory, evidence, check):
     picker.report_path = None
 
 
-def verify_fetal_sex_form(page, probe, picker, check):
+def verify_fetal_sex_form(page, probe, picker, check, directory):
     page.locator('nav [data-view="new"]').click()
-    page.locator("#experiment-name").fill("Maternal cfDNA")
-    page.locator("#source").select_option("fetal-sex")
-    page.locator("#fetal-sample-id").fill("Maternal")
+    for language, label, options, marker_question in (
+        ("en", "Input files", ["BAM or pileup files", "Calling tables", "Mixed inputs"],
+         "Which markers do you want to analyse?"),
+        ("it", "File di input", ["File BAM o pileup", "Tabelle di calling", "Input misti"],
+         "Quali marcatori vuoi analizzare?"),
+    ):
+        page.locator(".language-picker label[lang=" + language + "]").click()
+        probe.wait(f"document.documentElement.lang==='{language}'")
+        source = page.get_by_role("combobox", name=label, exact=True)
+        check(source.locator("option").all_text_contents() == options
+              and page.get_by_role("group", name=marker_question, exact=True).is_visible(),
+              f"The {language} input menu lists file types and asks about markers separately")
     inputs = ROOT / "tests/fixtures/fetal_sex/inputs"
-    for role, suffix in (("autosomes", "autosomes"), ("x", "X"), ("y", "Y")):
-        picker.paths = [inputs / f"Female_fetus_{suffix}.txt"]
-        page.locator(f'[data-action="choose-path"][data-key="fetal.{role}"]').click()
-        probe.wait(f"Boolean(NipatApp.state.draft.fetal_sex.{role})")
-    page.locator('[role="tab"][data-index="2"]').click()
-    page.locator('[data-parameter="fetal-sex|b_female_max|draft"]').fill("0.05")
+    split_files = {role: inputs / f"Female_fetus_{suffix}.txt"
+                   for role, suffix in (("autosomes", "autosomes"), ("x", "X"), ("y", "Y"))}
+    combined = directory / "Maternal-DNP.txt"
+    autosomal_lines = split_files["autosomes"].read_text().splitlines()
+    x_lines = split_files["x"].read_text().splitlines()
+    assert autosomal_lines[0] == x_lines[0]
+    combined.write_text("\n".join([*autosomal_lines, *x_lines[1:], ""]))
+
+    def register_table(kind, path, sample_id):
+        index = page.locator("[data-sample]").count()
+        page.locator("#sample-kind").select_option(kind)
+        picker.paths = [path]
+        page.locator('[data-action="add-samples"]').click()
+        page.locator(f'[data-sample="{index}"]').fill(sample_id)
+
+    for mode, paths in (("combined", {"dnp": combined, "y": split_files["y"]}), ("separate", split_files)):
+        page.locator('nav [data-view="new"]').click()
+        page.locator("#source").select_option("tables")
+        for role, path in paths.items():
+            register_table("snp-table" if role == "y" else "dnp-table", path, "Maternal")
+        picker.paths = []
+        page.locator("#experiment-name").fill("Maternal cfDNA")
+        page.locator('[role="tab"][data-index="1"]').click()
+        page.locator("[data-fetal-option]").check()
+        page.locator("#fetal-sample-id").select_option("Maternal")
+        page.locator("#fetal-table-layout").select_option(mode)
+        for role, path in paths.items():
+            select = page.locator(f'select[data-fetal-role="{role}"]')
+            eligible = select.locator("option").evaluate_all("options => options.map(o => o.value).filter(Boolean)")
+            allowed = {str(file) for key, file in paths.items() if (key == "y") == (role == "y")}
+            check(str(path) in eligible and set(eligible) <= allowed,
+                  f"The {role} selector offers only registered tables of the matching marker type")
+            select.select_option(str(path))
+        check(page.locator('[data-action="choose-path"][data-key^="fetal."]').count() == 0,
+              "Maternal role assignment reuses the files already registered under Inputs")
+        page.locator('[role="tab"][data-index="2"]').click()
+        page.locator('[data-parameter="fetal-sex|b_female_max|draft"]').fill("0.05")
+        page.locator('[role="tab"][data-index="3"]').click()
+        page.locator('[data-action="validate-plan"]').click()
+        page.locator(".plan-list li").wait_for()
+        preview = probe.evaluate("NewPatApp.state.preview")
+        check([step["workflow"] for step in preview["steps"]] == ["fetal-sex"]
+              and preview["steps"][0]["parameters"]["scientific_settings"]["b_female_max"] == 0.05
+              and {row["biological_id"] for row in preview["samples"]} == {"Maternal"}
+              and {row["fetal_sex_role"]: row["original_path"] for row in preview["samples"]}
+                  == {role: str(path) for role, path in paths.items()}
+              and len(preview["samples"]) == len(paths),
+              f"Registered {mode} DNP and Y tables reach one fetal-sex step with the edited threshold")
+
+    page.locator('[role="tab"][data-index="0"]').click()
+    father_files = {"autosomes": inputs / "Male_fetus_autosomes.txt", "y": inputs / "Male_fetus_Y.txt"}
+    for role, path in father_files.items():
+        register_table("snp-table" if role == "y" else "dnp-table", path, "Father")
+    page.locator('[role="tab"][data-index="1"]').click()
+    for role, path in father_files.items():
+        options = page.locator(f'[data-fetal-role="{role}"] option').evaluate_all("opts => opts.map(o => o.value)")
+        check(str(path) not in options, f"The maternal {role} selector excludes the father's registered file")
+    identity_rows = probe.evaluate("NewPatApp.state.draft.samples")
+    page.locator("#fetal-sample-id").select_option("Father")
+    check(page.locator('[data-fetal-role="y"]').input_value() != str(split_files["y"]),
+          "Changing the selected individual clears or replaces the previous maternal Y assignment")
+    page.locator("#fetal-sample-id").select_option("Maternal")
+    for role, path in split_files.items():
+        page.locator(f'[data-fetal-role="{role}"]').select_option(str(path))
+    check(probe.evaluate("NewPatApp.state.draft.samples") == identity_rows,
+          "Changing the maternal selection or assigning a role preserves every registered sample identity")
+
+    page.locator('[data-branch="DNP|cpi"]').check()
+    page.locator('[data-branch="SNP|cpi"]').check()
+    page.locator('[data-action="add-family"][data-module="cpi"]').click()
+    page.locator("#cpi-0-mother").select_option("Maternal")
+    page.locator("#cpi-0-father").select_option("Father")
+    for marker in ("DNP", "SNP"):
+        picker.paths = [ROOT / f"tests/fixtures/prenatal_cpi/inputs/{marker}/population_frequencies.txt"]
+        page.locator(f'[data-action="choose-path"][data-key="resource.{marker}.popfreq"]').click()
+        probe.wait(f"Boolean(NewPatApp.state.draft.resources.{marker}.popfreq)")
+    page.locator('[role="tab"][data-index="3"]').click()
+    check(probe.evaluate("NewPatApp.state.step===1 && Boolean(NewPatApp.state.error)")
+          and page.locator("#fetal-downstream-dnp").input_value() == "",
+          "Two registered DNP tables require an explicit choice before reviewing additional DNP analyses")
+    page.locator("#fetal-downstream-dnp").select_option("x")
+    page.locator('[role="tab"][data-index="3"]').click()
+    page.locator('[data-action="validate-plan"]').click()
+    page.locator(".plan-list li").first.wait_for()
+    preview = probe.evaluate("NewPatApp.state.preview")
+    sources = {row["sample_id"]: row["original_path"] for row in preview["samples"]}
+    cpi_steps = [step for step in preview["steps"] if step["workflow"] == "cpi"]
+    sex_step, = [step for step in preview["steps"] if step["workflow"] == "fetal-sex"]
+    by_pair = {(sources[pair["mother"]["sample"]], sources[pair["father"]["sample"]])
+               for step in cpi_steps for pair in step["inputs"]["pairs"]}
+    expected_pairs = {(str(split_files["x"]), str(father_files["autosomes"])),
+                      (str(split_files["y"]), str(father_files["y"]))}
+    maternal_paths = {role: str(path) for role, path in split_files.items()}
+    check(len(preview["samples"]) == 5 and len(cpi_steps) == 2 and by_pair == expected_pairs
+          and {role: sources[sample] for role, sample in sex_step["inputs"].items()} == maternal_paths,
+          "Both CPI branches preserve family roles and share the chosen maternal files with fetal sex")
+
+    legacy_dir = directory / "runs" / "maternal-tables-legacy"
+    write_json(legacy_dir / "run.json", {"schema_version": 1, "workflow": "analysis",
+               "run_name": "Archived maternal tables", "status": "succeeded",
+               "started_at": "2026-11-25T10:00:00Z"})
+    write_json(legacy_dir / "gui.json", {"schema_version": 1, "draft": {
+        "name": "Archived maternal tables", "caller": "tables", "samples": [],
+        "fetal_sex": {"id": "Maternal", **maternal_paths},
+    }})
+    page.locator('nav [data-view="archive"]').click()
+    page.locator('[data-action="reuse-run"][data-id="maternal-tables-legacy"]').click()
+    check(page.locator("#source").input_value() == "tables"
+          and page.locator("[data-sample]").count() == 3,
+          "Run again restores the archived three-table experiment in the ordinary table register")
+    page.locator('[role="tab"][data-index="1"]').click()
+    check(page.locator("[data-fetal-option]").is_checked()
+          and page.locator("#fetal-table-layout").input_value() == "separate"
+          and all(page.locator(f'[data-fetal-role="{role}"]').input_value() == path
+                  for role, path in maternal_paths.items()),
+          "Archived maternal identity and role assignments survive reuse without new file selection")
     page.locator('[role="tab"][data-index="3"]').click()
     page.locator('[data-action="validate-plan"]').click()
     page.locator(".plan-list li").wait_for()
-    preview = probe.evaluate("NipatApp.state.preview")
-    check([step["workflow"] for step in preview["steps"]] == ["fetal-sex"]
-          and preview["steps"][0]["parameters"]["scientific_settings"]["b_female_max"] == 0.05
-          and set(row["biological_id"] for row in preview["samples"]) == {"Maternal"},
-          "Maternal table pickers and the edited threshold reach one validated fetal-sex step")
+    check([step["workflow"] for step in probe.evaluate("NewPatApp.state.preview.steps")] == ["fetal-sex"],
+          "Reusing the old maternal-only configuration still estimates fetal sex alone")
+    picker.paths = []
+
+
+def verify_fetal_sex_from_bam(page, probe, picker, check, directory):
+    folder = directory / "maternal-bam"
+    alignment = create_alignment_fixture(folder, chromosomes=("1", "X", "Y"))
+    dnp, snp = folder / "dnp.tsv", folder / "snp.tsv"
+    dnp.write_text("1\t151\t152\tGT\tAT\nX\t151\t152\tGT\tAT\n")
+    snp.write_text("chr\tpos\tref\talt\nY\t151\tG\tA\n")
+    page.locator('nav [data-view="new"]').click()
+    page.locator("#experiment-name").fill("Maternal BAM")
+    picker.paths = [Path(alignment["tracks"][0]["path"])]
+    page.locator('[data-action="add-samples"]').click()
+    page.locator('[data-sample="0"]').fill("Mother")
+    picker.paths = [Path(alignment["reference"]["fasta"])]
+    page.locator('[data-action="choose-path"][data-key="reference"]').click()
+    probe.wait("Boolean(NewPatApp.state.draft.reference)")
+    picker.paths = [dnp]
+    page.locator('[data-action="choose-path"][data-key="resource.DNP.panel"]').click()
+    probe.wait("Boolean(NewPatApp.state.draft.resources.DNP.panel)")
+    page.locator('[role="tab"][data-index="1"]').click()
+    page.locator("[data-fetal-option]").check()
+    check(page.locator("#fetal-maternal-bam").input_value() == "Mother"
+          and page.locator('[data-action="choose-path"][data-key^="fetal."]').count() == 0,
+          "Choosing fetal sex uses the only maternal BAM without asking for count tables")
+    picker.paths = [snp]
+    page.locator('[data-action="choose-path"][data-key="resource.SNP.panel"]').click()
+    probe.wait("Boolean(NewPatApp.state.draft.resources.SNP.panel)")
+    page.locator('[role="tab"][data-index="3"]').click()
+    page.locator('[data-action="validate-plan"]').click()
+    page.locator(".plan-list li").first.wait_for()
+    preview = probe.evaluate("NewPatApp.state.preview")
+    steps = {step["workflow"]: step for step in preview["steps"]}
+    check(set(steps) == {"dnp-call", "snp-call", "fetal-sex"}
+          and steps["fetal-sex"]["inputs"] == {
+              "dnp": {"step": steps["dnp-call"]["id"], "output": "dnp-tables", "sample": "Mother"},
+              "y": {"step": steps["snp-call"]["id"], "output": "snp-tables", "sample": "Mother"}},
+          "Fetal sex uses both caller outputs for the same maternal BAM in the reviewed plan")
     picker.paths = []
 
 
@@ -474,8 +636,8 @@ def run_verification(report_path, executable):
     from playwright.sync_api import sync_playwright
 
     report_path.parent.mkdir(parents=True, exist_ok=True)
-    evidence = {"schema_version": 1, "status": "failed", "nipat_version": __version__,
-                "scope": "Actual browser rendering, production DesktopApplication/GuiService/HTTP and bundled IGV; synthetic indexed alignment and recorded prenatal, postnatal and archived curve fixtures.",
+    evidence = {"schema_version": 1, "status": "failed", "newpat_version": __version__,
+                "scope": "Actual browser rendering, production DesktopApplication/GuiService/HTTP and bundled IGV; synthetic indexed alignment, prenatal curves, postnatal scalar and per-site results.",
                 "checks": [], "screenshots": [], "errors": [], "external_requests": []}
     page = None
     token = ""
@@ -485,7 +647,7 @@ def run_verification(report_path, executable):
         evidence["checks"].append(description)
 
     try:
-        with tempfile.TemporaryDirectory(prefix="nipat-gui-interactions-") as temporary:
+        with tempfile.TemporaryDirectory(prefix="newpat-gui-interactions-") as temporary:
             directory = Path(temporary)
             service, job, selection, archived, preserved = prepare_fixture(directory)
             before = digest_files(preserved)
@@ -522,7 +684,7 @@ def run_verification(report_path, executable):
                         methods.append((body["method"], body["params"]))
                 page.on("request", record_rpc)
                 page.goto(app.server.url)
-                probe.wait("document.documentElement.dataset.nipatReady==='true'")
+                probe.wait("document.documentElement.dataset.newpatReady==='true'")
                 check(page.locator("#version").inner_text().startswith(__version__), "Displayed application version matches source")
                 check(page.locator('.brand img[alt="NewPat"]').evaluate("el => el.complete && el.naturalWidth === 406"),
                       "Desktop displays the packaged Intreccio vector wordmark")
@@ -606,7 +768,7 @@ def run_verification(report_path, executable):
                       page.locator('h1 + [data-action="igv-about"]').count() == 1,
                       "IGV heading has an accessible information button beside its title")
                 local_url = page.url
-                with patch("nipat.gui.app.webbrowser.open_new_tab", return_value=True) as open_guide:
+                with patch("newpat.desktop.app.webbrowser.open_new_tab", return_value=True) as open_guide:
                     with page.expect_response(lambda r: r.url == app.server.base_url + "api" and
                                                r.request.post_data_json.get("method") == "igv.about"):
                         info.focus()
@@ -625,14 +787,14 @@ def run_verification(report_path, executable):
                 assemblies.select_option("custom")
                 picker.paths = [Path(selection["reference"]["fasta"])]
                 page.locator('[data-action="reference-register"][data-scope="igv"]').click()
-                probe.wait("!!NipatApp.state.igv.reference.fasta")
+                probe.wait("!!NewPatApp.state.igv.reference.fasta")
                 check(page.locator("#igv-registered-fasta").input_value() != "" and
-                      probe.evaluate("NipatApp.state.igv.reference.fasta") == selection["reference"]["fasta"],
+                      probe.evaluate("NewPatApp.state.igv.reference.fasta") == selection["reference"]["fasta"],
                       "The registered local genome opens in IGV with the exact selected path")
                 page.locator('nav [data-view="new"]').click()
                 page.locator("#new-reference-assembly").select_option("custom")
-                probe.wait("!!NipatApp.state.draft.reference_id")
-                check(probe.evaluate("NipatApp.state.draft.reference") == selection["reference"]["fasta"],
+                probe.wait("!!NewPatApp.state.draft.reference_id")
+                check(probe.evaluate("NewPatApp.state.draft.reference") == selection["reference"]["fasta"],
                       "A local FASTA registered in IGV can be selected in a new experiment")
                 page.locator('nav [data-view="igv"]').click()
                 page.locator("#igv-reference-assembly").select_option("file")
@@ -642,127 +804,122 @@ def run_verification(report_path, executable):
                 picker.paths = [Path(selection["tracks"][0]["path"])]
                 page.locator('[data-action="choose-path"][data-key="igv-track.0.path"]').click()
                 page.locator('[data-action="igv-load"]').click()
-                probe.wait("window.NipatApp.state.igv.loaded")
-                discovered = probe.evaluate("({reference:NipatApp.state.igv.reference,tracks:NipatApp.state.igv.tracks})")
+                probe.wait("window.NewPatApp.state.igv.loaded")
+                discovered = probe.evaluate("({reference:NewPatApp.state.igv.reference,tracks:NewPatApp.state.igv.tracks})")
                 check(discovered["reference"]["index"].endswith(".fa.fai") and discovered["tracks"][0]["index"].endswith(".bam.bai"), "Reference and BAM indices discovered through actual backend")
                 check(page.locator('#igv-chromosome').input_value() == "all", "Initial custom navigation shows whole-genome overview")
                 check(probe.evaluate("() => {const root=document.querySelector('#igv-container').shadowRoot;const location=root?.querySelector('.igv-navbar-genomic-location'),zoom=root?.querySelector('[class^=igv-zoom-widget]');return !!location&&!!zoom&&[location,zoom].every(n=>getComputedStyle(n).display==='none')}"), "Duplicate native locus controls are hidden")
                 check(page.get_by_text("Select Tracks", exact=True).is_visible(), "IGV track display tools remain available")
                 page.locator('#igv-chromosome').select_option('1')
-                probe.wait("NipatIGV.getNavigation().chromosome==='1'")
+                probe.wait("NewPatIGV.getNavigation().chromosome==='1'")
                 page.locator('#igv-locus').fill(selection["locus"])
                 page.locator('[data-action="igv-search"]').click()
-                probe.wait("NipatIGV.getNavigation().start===80&&NipatIGV.getNavigation().end===260")
+                probe.wait("NewPatIGV.getNavigation().start===80&&NewPatIGV.getNavigation().end===260")
                 probe.wait("(" + READS + ")()?.reads.length===20")
                 observed = probe.evaluate(READS)
                 expected = json.loads((directory / "data/fixture.json").read_text())["expected_reads"]
                 check(sorted(observed["reads"], key=lambda read: read["name"]) == expected, "Bundled IGV decodes all twenty expected alignments with exact names, positions and lengths")
                 check(observed["canvas"] and observed["colouredPixels"] > 100, "Alignment viewport paints nonempty graphical content")
                 evidence["alignment_evidence"] = observed
-                covered = probe.evaluate("NipatIGV.getNavigation()")
+                covered = probe.evaluate("NewPatIGV.getNavigation()")
                 page.locator('[data-action="igv-zoom-in"]').click()
-                probe.wait("NipatIGV.getNavigation().end-NipatIGV.getNavigation().start<180")
-                check(page.locator('#igv-locus').input_value() == probe.evaluate("NipatIGV.getNavigation().locus"), "Zoom synchronizes the visible location field")
+                probe.wait("NewPatIGV.getNavigation().end-NewPatIGV.getNavigation().start<180")
+                check(page.locator('#igv-locus').input_value() == probe.evaluate("NewPatIGV.getNavigation().locus"), "Zoom synchronizes the visible location field")
                 page.locator('[data-action="igv-back"]').click()
-                probe.wait("NipatIGV.getNavigation().start===80&&NipatIGV.getNavigation().end===260")
+                probe.wait("NewPatIGV.getNavigation().start===80&&NewPatIGV.getNavigation().end===260")
                 check(page.locator('#igv-locus').input_value() == covered["locus"], "Previous-region control restores the covered interval")
-                before_invalid = probe.evaluate("NipatIGV.getNavigation().locus")
+                before_invalid = probe.evaluate("NewPatIGV.getNavigation().locus")
                 page.locator('#igv-locus').fill('23')
                 page.locator('[data-action="igv-search"]').click()
                 probe.wait("document.querySelector('#toast').textContent.includes('regione non è disponibile')")
-                check(probe.evaluate("NipatIGV.getNavigation().locus") == before_invalid, "Invalid chromosome 23 gives a clear error without moving the viewer")
+                check(probe.evaluate("NewPatIGV.getNavigation().locus") == before_invalid, "Invalid chromosome 23 gives a clear error without moving the viewer")
                 page.locator('[data-action="igv-all"]').click()
-                probe.wait("NipatIGV.getNavigation().wholeGenome")
+                probe.wait("NewPatIGV.getNavigation().wholeGenome")
                 check(page.locator('#igv-locus').input_value() == 'all', "Whole-genome button restores and synchronizes overview")
                 page.locator('[data-action="igv-back"]').click()
-                probe.wait("NipatIGV.getNavigation().start===80")
+                probe.wait("NewPatIGV.getNavigation().start===80")
                 probe.wait("!document.querySelector('#toast').classList.contains('visible')&&Number(getComputedStyle(document.querySelector('#toast')).opacity)===0")
                 igv = report_path.parent / "igv-alignments.png"
                 page.screenshot(path=str(igv), full_page=True)
                 evidence["screenshots"].append(igv.name)
 
-                for module, first_value, second_value in (
-                        ("cpi", "-3.123456789012345", "0"),
-                        ("cpin", "-3.33278849686833", "-3.42969850987639")):
-                    page.locator('[data-action="navigate"][data-view="archive"]').click()
-                    page.locator(f'[data-action="open-run"][data-id="{module}-curve-ui-fixture"]').click()
-                    kind = "prenatal_cpi" if module == "cpi" else "postnatal_cpi"
-                    expected = "0,602" if module == "cpi" else "0,00046474155109453"
-                    preview = page.locator(f'.outcome-preview[data-outcome="{kind}"]')
-                    check(preview.locator("strong").inner_text() == expected,
-                          f"{module} overview shows the recorded summary with its original precision")
-                    page.locator(f'[role="tab"][data-action="result-module"][data-module="{module}|DNP"]').click()
-                    page.wait_for_selector('.interactive-curve .curve-point')
-                    panel = page.locator(f'.outcome-panel[data-outcome="{kind}"]')
-                    check(panel.locator('[data-outcome-value]').inner_text() == expected,
-                          f"{module} selected family shows the same index as the overview")
-                    if module == "cpi":
-                        check("Tra i limiti" in panel.locator('[data-band="between"]').inner_text(),
-                              "Prenatal index uses the archived guides; this family lies between them")
-                    else:
-                        check(panel.locator("[data-band]").count() == 0,
-                              "Archived postnatal curve has no recorded guides")
-                    page.get_by_role("radio", name="Italiano", exact=True).press("ArrowRight")
-                    value_selector = '.outcome-panel [data-outcome-value]'
-                    probe.wait(f"document.querySelector('{value_selector}')?.textContent==='{expected.replace(',', '.')}'")
-                    expected_label = ("log₁₀(CPI) at the median fetal read threshold" if module == "cpi"
-                                      else "Combined Paternity Index (CPI)")
-                    check(panel.locator(".outcome-label").inner_text() == expected_label,
-                          f"{module} English summary reloads the same family, metric and numeric result")
-                    page.get_by_role("radio", name="English", exact=True).press("ArrowLeft")
-                    probe.wait(f"document.querySelector('{value_selector}')?.textContent==='{expected}'")
-                    curve_id = probe.evaluate("NipatApp.state.curves[0].file.id")
-                    curve_selector = f'.results-body [data-action="curve-mode"][data-id="{curve_id}"]'
-                    check(page.locator('.interactive-curve').count() == 2,
-                          f"{module.upper()} renders separate CPI and site-count panels from recorded rows")
-                    chart = page.locator('.interactive-curve').first
-                    tooltip = chart.locator('.curve-tooltip')
-                    chart.locator('.curve-hit-dot').first.hover()
-                    probe.wait("!document.querySelector('.curve-tooltip').hidden")
-                    value_key = "log_CPI" if module == "cpi" else "Log10_CPI"
-                    check(tooltip.locator(f'[data-curve-value="{value_key}"]').inner_text() == first_value,
-                          f"{module.upper()} mouse hover exposes original precision in an HTML tooltip")
-                    chart.locator('.curve-point').first.focus()
-                    page.keyboard.press('ArrowRight')
-                    check(probe.evaluate("document.activeElement.dataset.curvePoint") == "1",
-                          f"{module.upper()} arrow navigation focuses the next recorded point")
-                    check(tooltip.locator(f'[data-curve-value="{value_key}"]').inner_text() == second_value,
-                          f"{module.upper()} keyboard detail preserves the next original value")
-                    page.keyboard.press('Escape')
-                    check(tooltip.is_hidden(), f"{module.upper()} Escape dismisses the chart detail")
-                    chart.locator('.curve-point').first.focus()
-                    if module == "cpin":
-                        check("2–5" in tooltip.inner_text(), "CPIN tooltip retains inclusive interval endpoints")
-                    check(page.locator('.results-body [data-action="export-file"]').count() > 0,
-                          f"{module.upper()} original file exports remain available")
-                    page.locator(curve_selector + '[data-mode="combined"]').click()
-                    check(page.locator('.interactive-curve').count() == 1,
-                          f"{module.upper()} combined view overlays the three recorded series")
-                    combined_chart = page.locator('.interactive-curve').first
-                    check(combined_chart.locator('.curve-right-label').text_content().strip() == "Conteggi dei siti",
-                          f"{module.upper()} combined view explicitly labels its site-count axis")
-                    series_keys = probe.evaluate("[...new Set([...document.querySelectorAll('.interactive-curve [data-curve-series]')].map(node=>node.dataset.curveSeries))].sort()")
-                    expected_keys = sorted(["log_CPI", "NotMismatch", "Mismatch"] if module == "cpi" else ["Log10_CPI", "Matching_sites", "Mismatching_sites"])
-                    check(series_keys == expected_keys, f"{module.upper()} combined view uses exactly the black, green and orange source series")
-                    combined_chart.locator('.curve-hit-dot').first.hover()
-                    probe.wait("!document.querySelector('.curve-tooltip').hidden")
-                    combined_tooltip = combined_chart.locator('.curve-tooltip')
-                    check(combined_tooltip.locator(f'[data-curve-value="{value_key}"]').inner_text() == first_value,
-                          f"{module.upper()} combined hover preserves the negative original log CPI")
-                    combined_chart.locator('.curve-point').first.focus()
-                    page.keyboard.press('ArrowRight')
-                    check(combined_tooltip.locator(f'[data-curve-value="{value_key}"]').inner_text() == second_value,
-                          f"{module.upper()} combined keyboard navigation retains exact values")
-                    combined_image = report_path.parent / f"{module}-combined-curve.png"
-                    page.screenshot(path=str(combined_image), full_page=True)
-                    evidence["screenshots"].append(combined_image.name)
-                    page.locator(curve_selector + '[data-mode="separate"]').click()
-                    check(page.locator('.interactive-curve').count() == 2,
-                          f"{module.upper()} separate views remain available after combined inspection")
-                    page.locator('.interactive-curve').first.locator('.curve-point').first.focus()
-                    chart_image = report_path.parent / f"{module}-interactive-curve.png"
-                    page.screenshot(path=str(chart_image), full_page=True)
-                    evidence["screenshots"].append(chart_image.name)
+                page.locator('[data-action="navigate"][data-view="archive"]').click()
+                page.locator('[data-action="open-run"][data-id="cpi-curve-ui-fixture"]').click()
+                expected = "0,602"
+                preview = page.locator('.outcome-preview[data-outcome="prenatal_cpi"]')
+                check(preview.locator("strong").inner_text() == expected,
+                      "cpi overview shows the recorded summary with its original precision")
+                page.locator('[role="tab"][data-action="result-module"][data-module="cpi|DNP"]').click()
+                page.wait_for_selector('.interactive-curve .curve-point')
+                panel = page.locator('.outcome-panel[data-outcome="prenatal_cpi"]')
+                check(panel.locator('[data-outcome-value]').inner_text() == expected,
+                      "cpi selected family shows the same index as the overview")
+                check("Tra i limiti" in panel.locator('[data-band="between"]').inner_text(),
+                      "Prenatal index uses the recorded guides for this family")
+                page.get_by_role("radio", name="Italiano", exact=True).press("ArrowRight")
+                value_selector = '.outcome-panel [data-outcome-value]'
+                probe.wait(f"document.querySelector('{value_selector}')?.textContent==='{expected.replace(',', '.')}'")
+                expected_label = "log₁₀(CPI) at the median fetal read threshold"
+                check(panel.locator(".outcome-label").inner_text() == expected_label,
+                      "cpi English summary reloads the same family, metric and numeric result")
+                page.get_by_role("radio", name="English", exact=True).press("ArrowLeft")
+                probe.wait(f"document.querySelector('{value_selector}')?.textContent==='{expected}'")
+                curve_id = probe.evaluate("NewPatApp.state.curves[0].file.id")
+                curve_selector = f'.results-body [data-action="curve-mode"][data-id="{curve_id}"]'
+                check(page.locator('.interactive-curve').count() == 2,
+                      "Prenatal CPI renders separate CPI and site-count panels from recorded rows")
+                chart = page.locator('.interactive-curve').first
+                tooltip = chart.locator('.curve-tooltip')
+                chart.locator('.curve-hit-dot').first.hover()
+                probe.wait("!document.querySelector('.curve-tooltip').hidden")
+                check(tooltip.locator('[data-curve-value="log_CPI"]').inner_text() == "-3.123456789012345",
+                      "Prenatal CPI mouse hover exposes original precision in an HTML tooltip")
+                chart.locator('.curve-point').first.focus()
+                page.keyboard.press('ArrowRight')
+                check(probe.evaluate("document.activeElement.dataset.curvePoint") == "1",
+                      "Prenatal CPI arrow navigation focuses the next recorded point")
+                check(tooltip.locator('[data-curve-value="log_CPI"]').inner_text() == "0",
+                      "Prenatal CPI keyboard detail preserves the next original value")
+                page.keyboard.press('Escape')
+                check(tooltip.is_hidden(), "Prenatal CPI Escape dismisses the chart detail")
+                chart.locator('.curve-point').first.focus()
+                check(page.locator('.results-body [data-action="export-file"]').count() > 0,
+                      "Prenatal CPI original file exports remain available")
+                page.locator(curve_selector + '[data-mode="combined"]').click()
+                check(page.locator('.interactive-curve').count() == 1,
+                      "Prenatal CPI combined view overlays the three recorded series")
+                combined_chart = page.locator('.interactive-curve').first
+                check(combined_chart.locator('.curve-right-label').text_content().strip() == "Conteggi dei siti",
+                      "Prenatal CPI combined view explicitly labels its site-count axis")
+                series_keys = probe.evaluate("[...new Set([...document.querySelectorAll('.interactive-curve [data-curve-series]')].map(node=>node.dataset.curveSeries))].sort()")
+                expected_keys = sorted(["log_CPI", "NotMismatch", "Mismatch"])
+                check(series_keys == expected_keys, "Prenatal CPI combined view uses exactly the black, green and orange source series")
+                at_rest = combined_chart.locator('.curve-point:not(.selected):not(:focus) .curve-dot')
+                solid_markers = at_rest.evaluate_all(
+                    """dots => dots.length > 0 && dots.every(dot => {
+                        const {fill, stroke} = getComputedStyle(dot);
+                        return fill !== 'none' && (stroke === 'none' || stroke === fill);
+                    })""")
+                check(solid_markers, "Prenatal CPI unselected markers keep their series color to the edge")
+                combined_chart.locator('.curve-hit-dot').first.hover()
+                probe.wait("!document.querySelector('.curve-tooltip').hidden")
+                combined_tooltip = combined_chart.locator('.curve-tooltip')
+                check(combined_tooltip.locator('[data-curve-value="log_CPI"]').inner_text() == "-3.123456789012345",
+                      "Prenatal CPI combined hover preserves the negative original log CPI")
+                combined_chart.locator('.curve-point').first.focus()
+                page.keyboard.press('ArrowRight')
+                check(combined_tooltip.locator('[data-curve-value="log_CPI"]').inner_text() == "0",
+                      "Prenatal CPI combined keyboard navigation retains exact values")
+                combined_image = report_path.parent / "cpi-combined-curve.png"
+                page.screenshot(path=str(combined_image), full_page=True)
+                evidence["screenshots"].append(combined_image.name)
+                page.locator(curve_selector + '[data-mode="separate"]').click()
+                check(page.locator('.interactive-curve').count() == 2,
+                      "Prenatal CPI separate views remain available after combined inspection")
+                page.locator('.interactive-curve').first.locator('.curve-point').first.focus()
+                chart_image = report_path.parent / "cpi-interactive-curve.png"
+                page.screenshot(path=str(chart_image), full_page=True)
+                evidence["screenshots"].append(chart_image.name)
 
                 page.locator('[data-action="navigate"][data-view="archive"]').click()
                 page.locator('[data-action="open-run"][data-id="cpin-scalar-ui-fixture"]').click()
@@ -785,7 +942,7 @@ def run_verification(report_path, executable):
                 check(site_rows.count() == 2 and site_rows.first.get_by_role("cell", name="Ammissibile", exact=True).is_visible()
                       and page.locator('.interactive-curve').count() == 0,
                       "New postnatal output displays the eligible and excluded sites without a threshold curve")
-                check(probe.evaluate("NipatApp.state.table.rows.map(r=>r.Status)") == ["eligible", "quality_filter"],
+                check(probe.evaluate("NewPatApp.state.table.rows.map(r=>r.Status)") == ["eligible", "quality_filter"],
                       "Displayed site audit preserves the included site and exclusion reason")
                 scalar_image = report_path.parent / "postnatal-trio-scalar.png"
                 page.screenshot(path=str(scalar_image), full_page=True)
@@ -800,18 +957,18 @@ def run_verification(report_path, executable):
                 check(page.locator('.result-table .locus-genotype').inner_text() == "0/1",
                       "The recorded heterozygous genotype remains visible at the individual locus")
                 page.locator('.page-heading [data-action="run-igv"]').click()
-                probe.wait("NipatApp.state.view==='igv'&&NipatApp.state.igv.loaded")
+                probe.wait("NewPatApp.state.view==='igv'&&NewPatApp.state.igv.loaded")
                 page.locator('#page-back').click()
-                probe.wait("NipatApp.state.view==='archive'&&NipatApp.state.module==='dnp-call|DNP'")
+                probe.wait("NewPatApp.state.view==='archive'&&NewPatApp.state.module==='dnp-call|DNP'")
                 check(page.locator('#result-marker').input_value() == "dnp-call|DNP",
                       "Page Back from IGV restores the original experiment and marker module")
                 page.locator('#page-back').click()
-                probe.wait("NipatApp.state.run?.id==='archived-ui-fixture'&&!NipatApp.state.module")
+                probe.wait("NewPatApp.state.run?.id==='archived-ui-fixture'&&!NewPatApp.state.module")
                 check(page.locator('.module-card h3').all_text_contents() == ["Conteggi e genotipi DNP"],
                       "Back from a module shows only the recorded caller in the result cards")
                 page.locator('[data-action="reuse-run"]').first.click()
-                probe.wait("NipatApp.state.view==='new'")
-                reused = probe.evaluate("NipatApp.state.draft")
+                probe.wait("NewPatApp.state.view==='new'")
+                reused = probe.evaluate("NewPatApp.state.draft")
                 check(reused["samples"][0]["path"] == selection["tracks"][0]["path"] and reused["reference"] == selection["reference"]["fasta"], "Run again opens original recorded input selections")
                 verify_single_start(page, probe, service, methods, check)
                 page.locator('[data-action="navigate"][data-view="archive"]').click()
@@ -822,7 +979,8 @@ def run_verification(report_path, executable):
                 check(archived.is_dir() and digest_files(preserved) == before, "Remove from list preserves every source, index, result and metadata byte")
                 verify_grouped_reports(page, picker, report_path.parent, evidence, check)
                 verify_report_igv_capture(page, app, check)
-                verify_fetal_sex_form(page, probe, picker, check)
+                verify_fetal_sex_form(page, probe, picker, check, directory)
+                verify_fetal_sex_from_bam(page, probe, picker, check, directory)
                 verify_archive_pages(page, probe, service, methods, check)
                 check(not evidence["external_requests"], "All browser resources and genomic byte ranges stay on the local service")
                 check(not evidence["errors"], "No JavaScript exceptions or unexpected browser console errors")

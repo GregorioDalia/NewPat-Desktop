@@ -5,7 +5,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$ExpectedManifestSha256 = '933d21b6007d4b7d282a6bef976571b4329e19ae2684acd39a72ff6028ac93a5'
+$ExpectedManifestSha256 = 'a2204b8eb14429a320613f4ed56a9353166e3452e004ab860574e97b25264aba'
 $installationCommit = ''; $SourceCommit = ''; $installationVersion = ''
 $filenames = @('installed_suite.py', 'installed_models.py', 'installed_workflows.py', 'fixtures.json')
 $utf8 = New-Object Text.UTF8Encoding($false)
@@ -29,19 +29,19 @@ function Copy-VerifiedHarnessFile([string] $Name, [string] $ExpectedHash) {
 
 try {
     if ([string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) { throw 'LOCALAPPDATA non disponibile.' }
-    $root = Join-Path $env:LOCALAPPDATA 'NIPAT-Desktop\collaudi'
+    $root = Join-Path $env:LOCALAPPDATA 'NewPat-Desktop\collaudi'
     if (-not $AppDirectory) { $AppDirectory = Split-Path -Parent (Split-Path -Parent $PSScriptRoot) }
     $AppDirectory = [IO.Path]::GetFullPath($AppDirectory).TrimEnd('\')
     . (Join-Path $AppDirectory 'installer\windows\bootstrap-common.ps1')
-    Assert-NipatWindowsUser
-    Assert-NipatInstallationLocation $AppDirectory
-    Assert-NipatInstallPathWithoutLinks $root
-    $installationVersion = Get-NipatApplicationVersion
+    Assert-NewPatWindowsUser
+    Assert-NewPatInstallationLocation $AppDirectory
+    Assert-NewPatInstallPathWithoutLinks $root
+    $installationVersion = Get-NewPatApplicationVersion
     $sessionName = $installationVersion + '-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + [Guid]::NewGuid().ToString('N').Substring(0, 8)
     $session = Join-Path $root $sessionName
     [IO.Directory]::CreateDirectory($session) | Out-Null
     Write-Host ("Cartella del collaudo: $session") -ForegroundColor Cyan
-    $manifest = Read-NipatInstallerManifest (Join-Path $AppDirectory '.distribution\installer-manifest.json')
+    $manifest = Read-NewPatInstallerManifest (Join-Path $AppDirectory '.distribution\installer-manifest.json')
     $state = Get-Content -LiteralPath (Join-Path $AppDirectory '.runtime\installer\state.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     $backend = Get-Content -LiteralPath (Join-Path $AppDirectory '.runtime\backend.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     $installationCommit = $manifest.source_commit; $SourceCommit = $installationCommit
@@ -50,9 +50,9 @@ try {
         $backend.schema_version -ne 1 -or $backend.backend -cne 'wsl') {
         throw "Il collaudo richiede NewPat $installationVersion con preparazione completata."
     }
-    Assert-NipatRuntimeBinding $manifest $state $backend
+    Assert-NewPatRuntimeBinding $manifest $state $backend
     $python = Join-Path $AppDirectory '.runtime\python\python.exe'
-    if (-not (Test-Path -LiteralPath $python -PathType Leaf)) { throw 'Python incluso in NIPAT non disponibile.' }
+    if (-not (Test-Path -LiteralPath $python -PathType Leaf)) { throw 'Python incluso in NewPat non disponibile.' }
     $harness = Join-Path $session 'harness'
     [IO.Directory]::CreateDirectory($harness) | Out-Null
     $bundlePath = Copy-VerifiedHarnessFile 'bundle-manifest.json' $ExpectedManifestSha256
@@ -105,7 +105,7 @@ try {
         if (-not (Test-Path -LiteralPath $json)) { Write-AuditJson $json $summary }
         if (-not (Test-Path -LiteralPath $html)) {
             $message = [Security.SecurityElement]::Escape([string]$failure)
-            [IO.File]::WriteAllText($html, ('<!doctype html><html lang="it"><meta charset="utf-8"><title>Collaudo NIPAT non completato</title><h1>Collaudo non completato</h1><p>' + $message + '</p><p>Consultare wrapper-result.json e i log nella stessa cartella.</p></html>'), $utf8)
+            [IO.File]::WriteAllText($html, ('<!doctype html><html lang="it"><meta charset="utf-8"><title>Collaudo NewPat non completato</title><h1>Collaudo non completato</h1><p>' + $message + '</p><p>Consultare wrapper-result.json e i log nella stessa cartella.</p></html>'), $utf8)
         }
         if (-not (Test-Path -LiteralPath $zip)) {
             Add-Type -AssemblyName System.IO.Compression

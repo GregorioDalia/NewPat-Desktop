@@ -37,7 +37,7 @@ const environment = {
 environment.window=environment;
 vm.createContext(environment);
 vm.runInContext(source, environment);
-const api=environment.NipatIGV;
+const api=environment.NewPatIGV;
 const container={replaceChildren(){this.resets=(this.resets||0)+1;}};
 const config={reference:{id:'reference',name:'GRCh38 locale',fastaURL:'/files/secret1/ref.fa',indexURL:'/files/secret2/ref.fa.fai'},
  tracks:[{id:'sample1',name:'Campione 1',format:'bam',url:'/files/secret3/a.bam',indexURL:'/files/secret4/a.bam.bai'}],locus:'chr1:100-200'};

@@ -6,9 +6,9 @@ import argparse
 import sys
 from pathlib import Path
 
-from nipat.errors import NipatError, ValidationError
-from nipat.paths import ProjectLayout
-from nipat.validation.self_test import run_snp_example
+from newpat.errors import NewPatError, ValidationError
+from newpat.paths import ProjectLayout
+from newpat.validation.self_test import run_snp_example
 
 
 def main() -> int:
@@ -18,9 +18,9 @@ def main() -> int:
     layout = ProjectLayout.discover()
     try:
         if layout.project_dir != Path(__file__).resolve().parents[1]:
-            raise ValidationError("Usare il Python del progetto e verificare NIPAT_PROJECT_DIR.")
+            raise ValidationError("Usare il Python del progetto e verificare NEWPAT_PROJECT_DIR.")
         run_snp_example(layout, args.run_name)
-    except (NipatError, OSError) as exc:
+    except (NewPatError, OSError) as exc:
         print(f"Verifica SNPcall fallita: {exc}", file=sys.stderr)
         return 1
     except KeyboardInterrupt:

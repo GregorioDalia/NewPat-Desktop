@@ -5,7 +5,7 @@ param(
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$temporary = Join-Path $env:RUNNER_TEMP ('NIPAT ZIP & ' + [char]0x00e8 + '-' + [Guid]::NewGuid().ToString('N'))
+$temporary = Join-Path $env:RUNNER_TEMP ('NewPat ZIP & ' + [char]0x00e8 + '-' + [Guid]::NewGuid().ToString('N'))
 try {
     $manifest = Get-Content -LiteralPath $ManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
     $hash = (Get-FileHash -LiteralPath $Package -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -15,8 +15,8 @@ try {
     & powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $app 'installer\windows\install-zip.ps1') -BundleDirectory $temporary -VerifyOnly
     if ($LASTEXITCODE -ne 0) { throw 'ZIP double-click entry validation failed.' }
     . (Join-Path $app 'scripts\windows\common.ps1')
-    $python = Install-NipatPython $app
-    & $python -m nipat --version
+    $python = Install-NewPatPython $app
+    & $python -m newpat --version
     if ($LASTEXITCODE -ne 0) { throw 'ZIP embedded Python client failed.' }
     $record = [ordered]@{
         schema_version = 1; version = $manifest.version; source_commit = $manifest.source_commit

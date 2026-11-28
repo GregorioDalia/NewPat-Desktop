@@ -16,14 +16,14 @@ def execute_workflow(workflow, root, *, env=None, execution_mode="serial", timeo
         "work_dir": str(root / "work"), "out_dir": str(root / "output"),
     }), encoding="utf-8")
     environment = dict(os.environ if env is None else env,
-                       PYTHONPATH=str(HELPERS.parent), NIPAT_EXECUTION_MODE=execution_mode,
-                       NIPAT_DNP_BLOCKS_HELPER=str(HELPERS / "dnp_blocks.R"),
-                       NIPAT_DNP_PILEUP_HELPER=str(HELPERS / "dnp_pileup.py"),
-                       NIPAT_PARALLEL_HELPER=str(HELPERS / "parallel.R"),
-                       NIPAT_SETTINGS_HELPER=str(HELPERS / "settings.R"),
-                       NIPAT_SETTINGS_REGISTRY=str(HELPERS / "settings_data.json"),
-                       NIPAT_PLOTS_HELPER=str(HELPERS / "plots.R"))
-    environment.pop("NIPAT_SCIENTIFIC_SETTINGS", None)
+                       PYTHONPATH=str(HELPERS.parent), NEWPAT_EXECUTION_MODE=execution_mode,
+                       NEWPAT_DNP_BLOCKS_HELPER=str(HELPERS / "dnp_blocks.R"),
+                       NEWPAT_DNP_PILEUP_HELPER=str(HELPERS / "dnp_pileup.py"),
+                       NEWPAT_PARALLEL_HELPER=str(HELPERS / "parallel.R"),
+                       NEWPAT_SETTINGS_HELPER=str(HELPERS / "settings.R"),
+                       NEWPAT_SETTINGS_REGISTRY=str(HELPERS / "settings_data.json"),
+                       NEWPAT_PLOTS_HELPER=str(HELPERS / "plots.R"))
+    environment.pop("NEWPAT_SCIENTIFIC_SETTINGS", None)
     return subprocess.run(
         [sys.executable, str(PAYLOAD / "engine/main.py"), "execute", workflow,
          "--request", str(request)], cwd=root, env=environment,

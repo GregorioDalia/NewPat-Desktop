@@ -5,13 +5,13 @@ import tempfile
 import unittest
 from unittest import mock
 
-from nipat.run_report import sample_rows, write_run_report
+from newpat.run_report import sample_rows, write_run_report
 
 
 class RunReportTests(unittest.TestCase):
     def parallel_events(self, directory, *, label="dnp-blocks", workers=3):
         directory.mkdir(parents=True)
-        base = {"schema_version": 1, "interface": "nipat-parallel-v1",
+        base = {"schema_version": 1, "interface": "newpat-parallel-v1",
                 "label": label, "coordinator_pid": 8, "workers": workers}
         (directory / "worker-8.jsonl").write_text(json.dumps({**base, "event": "plan"}) + "\n")
         for pid, index, start, finish in ((23, 1, 10, 15), (24, 2, 11, 14), (25, 3, 16, 20)):
@@ -21,14 +21,14 @@ class RunReportTests(unittest.TestCase):
 
     def test_report_write_error_allows_retry_without_removing_scientific_files(self):
         self.save()
-        from nipat.run_report import _write_exclusive
+        from newpat.run_report import _write_exclusive
 
         def fail_page(path, content):
             if path.name == "run-report.html":
                 raise OSError("simulated write failure")
             _write_exclusive(path, content)
 
-        with mock.patch("nipat.run_report._write_exclusive", side_effect=fail_page):
+        with mock.patch("newpat.run_report._write_exclusive", side_effect=fail_page):
             with self.assertRaisesRegex(OSError, "simulated write failure"):
                 write_run_report(self.root)
         self.assertFalse((self.root / "sample-map.tsv").exists())
@@ -144,7 +144,7 @@ class RunReportTests(unittest.TestCase):
         self.metadata["execution_options"] = {"execution_mode": "auto"}
         self.parallel_events(self.root / "work/parallel")
         self.save()
-        with mock.patch("nipat.run_report._MAX_PARALLEL_BYTES", 8):
+        with mock.patch("newpat.run_report._MAX_PARALLEL_BYTES", 8):
             write_run_report(self.root)
         page = (self.root / "run-report.html").read_text(encoding="utf-8")
         self.assertIn("Decisioni e attività dei processi non disponibili", page)
@@ -230,7 +230,7 @@ class RunReportTests(unittest.TestCase):
         self.metadata = {
             "schema_version": 1, "run_name": "Prova <&>", "workflow": "dnp-call", "status": "failed",
             "error": "Comando terminato con codice 137; causa non confermata",
-            "source": {"nipat_version": "0.8.2"},
+            "source": {"newpat_version": "0.8.2"},
             "parameters": {"parallel": False, "sample_mapping": [
                 {"sample_id": "sample_0001", "original_path": r'C:\ricerca\mamma <&> è.bam',
                  "container_path": "/workspace/inputs/bams/sample_0001.bam"},

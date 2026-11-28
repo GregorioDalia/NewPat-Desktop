@@ -2,12 +2,12 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-function Get-NipatActivityRuntime([string] $Directory = $PSScriptRoot,
-    [ValidateSet('src/nipat/windows_install_activity.py', 'src/nipat/windows_wsl_prerequisites.py')]
-    [string] $HelperRelativePath = 'src/nipat/windows_install_activity.py') {
+function Get-NewPatActivityRuntime([string] $Directory = $PSScriptRoot,
+    [ValidateSet('src/newpat/windows_install_activity.py', 'src/newpat/windows_wsl_prerequisites.py')]
+    [string] $HelperRelativePath = 'src/newpat/windows_install_activity.py') {
     $project = Split-Path -Parent (Split-Path -Parent $Directory)
     $helper = Join-Path $project $HelperRelativePath
-    Assert-NipatActivityPathWithoutLinks $helper
+    Assert-NewPatActivityPathWithoutLinks $helper
     if (-not (Test-Path -LiteralPath $helper -PathType Leaf)) {
         throw 'Componente di coordinamento Python assente. Ripristinare il pacchetto NewPat.'
     }
@@ -32,14 +32,14 @@ function Get-NipatActivityRuntime([string] $Directory = $PSScriptRoot,
         throw 'Il componente di coordinamento Python non corrisponde al pacchetto verificato.'
     }
     $archive = Join-Path $project '.distribution\python-3.12.10-embed-amd64.zip'
-    Assert-NipatActivityPathWithoutLinks $archive
+    Assert-NewPatActivityPathWithoutLinks $archive
     if (-not (Test-Path -LiteralPath $archive -PathType Leaf) -or
         (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -cne
             '4acbed6dd1c744b0376e3b1cf57ce906f9dc9e95e68824584c8099a63025a3c3') {
         throw 'Archivio Python del pacchetto assente o non integro. Ripristinare NewPat.'
     }
-    $temporary = Join-Path ([IO.Path]::GetTempPath()) ('nipat-activity-python-' + [Guid]::NewGuid().ToString('N'))
-    Assert-NipatActivityPathWithoutLinks $temporary
+    $temporary = Join-Path ([IO.Path]::GetTempPath()) ('newpat-activity-python-' + [Guid]::NewGuid().ToString('N'))
+    Assert-NewPatActivityPathWithoutLinks $temporary
     try {
         # The installed Python may be repaired while setup owns the lease. Use
         # a private copy, leaving every installed byte untouched before locking.
@@ -51,13 +51,13 @@ function Get-NipatActivityRuntime([string] $Directory = $PSScriptRoot,
     }
 }
 
-function Test-NipatInheritedActivity {
-    $token = [Environment]::GetEnvironmentVariable('NIPAT_SETUP_ACTIVITY_TOKEN', 'Process')
+function Test-NewPatInheritedActivity {
+    $token = [Environment]::GetEnvironmentVariable('NEWPAT_SETUP_ACTIVITY_TOKEN', 'Process')
     if ($token -cnotmatch '^[1-9][0-9]{0,9}:[a-f0-9]{32}$') { return $false }
     $runtime = $null
     $process = $null
     try {
-        $runtime = Get-NipatActivityRuntime
+        $runtime = Get-NewPatActivityRuntime
         $start = New-Object Diagnostics.ProcessStartInfo
         $start.FileName = $runtime.Python
         # Windows paths cannot contain double quotes; no shell interprets these arguments.
@@ -80,7 +80,7 @@ function Test-NipatInheritedActivity {
     }
 }
 
-function Assert-NipatActivityPathWithoutLinks([string] $Path) {
+function Assert-NewPatActivityPathWithoutLinks([string] $Path) {
     $current = [IO.Path]::GetFullPath($Path)
     while ($current) {
         if (Test-Path -LiteralPath $current) {
@@ -94,27 +94,27 @@ function Assert-NipatActivityPathWithoutLinks([string] $Path) {
     }
 }
 
-function Get-NipatActivityLockPath {
+function Get-NewPatActivityLockPath {
     if ([string]::IsNullOrWhiteSpace($env:LOCALAPPDATA) -or $env:LOCALAPPDATA -notmatch '^[A-Za-z]:[\\/]') {
         throw 'LOCALAPPDATA non disponibile per coordinare le sessioni NewPat.'
     }
-    $path = Join-Path (Join-Path $env:LOCALAPPDATA 'NIPAT-Desktop') 'activity.lock'
-    Assert-NipatActivityPathWithoutLinks $path
+    $path = Join-Path (Join-Path $env:LOCALAPPDATA 'NewPat-Desktop') 'activity.lock'
+    Assert-NewPatActivityPathWithoutLinks $path
     [IO.Directory]::CreateDirectory((Split-Path -Parent $path)) | Out-Null
-    Assert-NipatActivityPathWithoutLinks $path
+    Assert-NewPatActivityPathWithoutLinks $path
     return $path
 }
 
-function Enter-NipatInstallationActivity {
-    $previousToken = [Environment]::GetEnvironmentVariable('NIPAT_SETUP_ACTIVITY_TOKEN', 'Process')
-    if (Test-NipatInheritedActivity) {
+function Enter-NewPatInstallationActivity {
+    $previousToken = [Environment]::GetEnvironmentVariable('NEWPAT_SETUP_ACTIVITY_TOKEN', 'Process')
+    if (Test-NewPatInheritedActivity) {
         # The actual ancestor keeps both the exclusive file handle and event alive.
         return [pscustomobject]@{ Borrowed = $true; Handle = $null; Event = $null; Token = $previousToken }
     }
     $handle = $null
     $event = $null
     try {
-        $path = Get-NipatActivityLockPath
+        $path = Get-NewPatActivityLockPath
         try { $handle = [IO.File]::Open($path, [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None) }
         catch {
             throw 'NewPat non e disponibile per la preparazione: attendere il termine delle analisi e chiudere tutte le finestre NewPat, quindi riprovare. Nessuna sessione viene interrotta.'
@@ -122,23 +122,23 @@ function Enter-NipatInstallationActivity {
         $nonce = [Guid]::NewGuid().ToString('N')
         $created = $false
         $event = [Threading.EventWaitHandle]::new($false, [Threading.EventResetMode]::ManualReset,
-            ('Local\NIPAT-Desktop-SetupLease-' + $nonce), [ref] $created)
+            ('Local\NewPat-Desktop-SetupLease-' + $nonce), [ref] $created)
         if (-not $created) { throw 'Il coordinamento temporaneo NewPat non e stato creato; riprovare.' }
         $token = "$PID`:$nonce"
-        [Environment]::SetEnvironmentVariable('NIPAT_SETUP_ACTIVITY_TOKEN', $token, 'Process')
+        [Environment]::SetEnvironmentVariable('NEWPAT_SETUP_ACTIVITY_TOKEN', $token, 'Process')
         return [pscustomobject]@{ Borrowed = $false; Handle = $handle; Event = $event; Token = $token }
     } catch {
-        [Environment]::SetEnvironmentVariable('NIPAT_SETUP_ACTIVITY_TOKEN', $null, 'Process')
+        [Environment]::SetEnvironmentVariable('NEWPAT_SETUP_ACTIVITY_TOKEN', $null, 'Process')
         if ($null -ne $event) { $event.Dispose() }
         if ($null -ne $handle) { $handle.Dispose() }
         throw
     }
 }
 
-function Exit-NipatInstallationActivity($Lease) {
+function Exit-NewPatInstallationActivity($Lease) {
     if ($null -eq $Lease -or $Lease.Borrowed) { return }
     try {
-        [Environment]::SetEnvironmentVariable('NIPAT_SETUP_ACTIVITY_TOKEN', $null, 'Process')
+        [Environment]::SetEnvironmentVariable('NEWPAT_SETUP_ACTIVITY_TOKEN', $null, 'Process')
         if ($null -ne $Lease.Event) { $Lease.Event.Dispose() }
     } finally {
         if ($null -ne $Lease.Handle) { $Lease.Handle.Dispose() }

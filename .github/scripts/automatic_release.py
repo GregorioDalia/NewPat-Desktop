@@ -87,23 +87,22 @@ def publication_arguments(record, existing):
         publisher.check_tag("v" + record["version"], record["source_commit"], required=True)
         version = record["version"]
         expected = {
-            "NIPAT-Setup.exe": "windows_installer_sha256",
+            "NewPat-Setup.exe": "windows_installer_sha256",
             publisher.windows_complete_filename(version): "windows_zip_sha256",
-            f"NIPAT-{version}-Windows-payload.zip": "windows_payload_sha256",
+            f"NewPat-{version}-Windows-payload.zip": "windows_payload_sha256",
             publisher.windows_testing_filename(version): "windows_testing_sha256",
-            f"nipat-desktop_{version}_amd64.deb": "linux_installer_sha256",
-            f"NIPAT-{version}-macos-arm64.pkg": "macos_arm64_installer_sha256",
-            f"NIPAT-{version}-macos-x86_64.pkg": "macos_x86_64_installer_sha256",
+            f"newpat-desktop_{version}_amd64.deb": "linux_installer_sha256",
+            f"NewPat-{version}-macos-arm64.pkg": "macos_arm64_installer_sha256",
+            f"NewPat-{version}-macos-x86_64.pkg": "macos_x86_64_installer_sha256",
             "installer-manifest.json": "installer_manifest_sha256",
-            f"nipat-scientific-runtime-{version}-amd64.tar.gz": "scientific_archive_sha256",
+            f"newpat-scientific-runtime-{version}-amd64.tar.gz": "scientific_archive_sha256",
             "qualification-evidence.zip": "qualification_evidence_sha256",
         }
         assets = existing.get("assets") or []
-        aliases = {}
-        if publisher.uses_newpat_brand(version):
-            aliases = {publisher.public_asset_name(name): name for name, field in expected.items()
-                       if field in record and publisher.public_asset_name(name) != name}
-            expected.update({alias: expected[legacy] for alias, legacy in aliases.items()})
+        publisher.require(all(isinstance(asset.get("name"), str)
+                              and not asset["name"].casefold().startswith("nipat")
+                              for asset in assets),
+                          "A release asset uses the retired product name")
         if publisher.requires_gui_prerelease(version):
             publisher.require("windows_testing_sha256" in record,
                               "Acceptance is missing the Windows testing entrypoint digest")
@@ -112,26 +111,17 @@ def publication_arguments(record, existing):
                           and all(digests.get(name) == "sha256:" + record[field]
                                   for name, field in expected.items() if field in record),
                           "An existing public release differs from the accepted asset bytes")
-        if aliases:
-            by_name = {asset["name"]: asset for asset in assets}
-            for alias, legacy in aliases.items():
-                size = by_name[legacy].get("size")
-                publisher.require(type(size) is int and 0 < size < publisher.MAX_ASSET_BYTES
-                                  and type(by_name[alias].get("size")) is int
-                                  and by_name[alias]["size"] == size,
-                                  "An existing NewPat alias differs from the verified legacy size")
         if publisher.requires_windows_bootstrap(version):
             # A retry must not declare success when the entry point for the
             # online setup is missing or points to another payload/source.
             publisher.require("windows_payload_sha256" in record,
                               "Acceptance is missing the desktop payload digest")
             by_name = {asset["name"]: asset for asset in assets}
-            if publisher.windows_package_generation(version) == 2:
-                publisher.require(not ({publisher.WINDOWS_BOOTSTRAP_UPDATE_MANIFEST,
-                                        publisher.WINDOWS_ZIP_UPDATE_MANIFEST} & by_name.keys()),
-                                  "An incompatible legacy Windows feed is present")
+            publisher.require(not ({publisher.WINDOWS_BOOTSTRAP_UPDATE_MANIFEST,
+                                    publisher.WINDOWS_ZIP_UPDATE_MANIFEST} & by_name.keys()),
+                              "An incompatible Windows feed is present")
             for filename, platform, feed in (
-                (f"NIPAT-{version}-Windows-payload.zip", "windows-bootstrap-x86_64",
+                (f"NewPat-{version}-Windows-payload.zip", "windows-bootstrap-x86_64",
                  publisher.windows_feed_filename("bootstrap", version)),
                 (publisher.windows_complete_filename(version), "windows-zip-x86_64",
                  publisher.windows_feed_filename("zip", version)),
@@ -140,23 +130,18 @@ def publication_arguments(record, existing):
                 size = asset.get("size")
                 publisher.require(type(size) is int and 0 < size < publisher.MAX_ASSET_BYTES,
                                   "Existing payload has invalid size metadata")
-                # A retry after the repository is renamed still verifies the exact
-                # bytes of the original feed, including its then-canonical URLs.
-                approved_digests = set()
-                for repository in publisher.OFFICIAL_REPOSITORIES:
-                    entry = {"platform": platform, "name": filename, "size": size,
-                             "sha256": digests[filename].removeprefix("sha256:"),
-                             "url": f"https://github.com/{repository}/releases/download/v{version}/{filename}"}
-                    document = {
-                        "schema_version": 1, "product": "nipat-desktop", "version": version,
-                        "release_tag": "v" + version, "channel": channel,
-                        "source_commit": record["source_commit"], "minimum_updater_version": publisher.windows_package_generation(version),
-                        "assets": [entry],
-                        "release_notes_url": f"https://github.com/{repository}/releases/tag/v{version}",
-                    }
-                    raw = (json.dumps(document, indent=2) + "\n").encode("utf-8")
-                    approved_digests.add("sha256:" + hashlib.sha256(raw).hexdigest())
-                publisher.require(digests.get(feed) in approved_digests,
+                entry = {"platform": platform, "name": filename, "size": size,
+                         "sha256": digests[filename].removeprefix("sha256:"),
+                         "url": f"https://github.com/{publisher.REPO}/releases/download/v{version}/{filename}"}
+                document = {
+                    "schema_version": 1, "product": "newpat-desktop", "version": version,
+                    "release_tag": "v" + version, "channel": channel,
+                    "source_commit": record["source_commit"], "minimum_updater_version": publisher.WINDOWS_PACKAGE_GENERATION,
+                    "assets": [entry],
+                    "release_notes_url": f"https://github.com/{publisher.REPO}/releases/tag/v{version}",
+                }
+                raw = (json.dumps(document, indent=2) + "\n").encode("utf-8")
+                publisher.require(digests.get(feed) == "sha256:" + hashlib.sha256(raw).hexdigest(),
                                   "Existing Windows update feed differs from the accepted payload")
         return None
     args = ["--operation", "prepare-and-publish", "--run-id", str(record["build_run_id"]),
@@ -177,7 +162,7 @@ def main():
     paths = accepted_paths(event, revision)
     if not paths:
         print("No acceptance-only main change; no automatic publication requested.")
-    if os.environ.get("NIPAT_ACCEPTANCE_SELECT") == "1":
+    if os.environ.get("NEWPAT_ACCEPTANCE_SELECT") == "1":
         with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
             output.write(f"publish={str(bool(paths)).lower()}\n")
         return

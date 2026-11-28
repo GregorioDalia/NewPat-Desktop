@@ -1,0 +1,262 @@
+"""Prepare maternal cfDNA calling tables for the upstream three-region R interface."""
+
+from __future__ import annotations
+
+import csv
+import math
+from pathlib import Path
+import re
+import shutil
+
+from newpat_scientific.errors import ValidationError
+from newpat_scientific.files import detect_marker_type, nonnegative_integer, require_file, table_rows, write_input_report
+from newpat_scientific.settings import normalize_settings
+
+ROLES = ("autosomes", "x", "y")
+NATIVE_FLAGS = {
+    "max_other_fraction": "max_other_fraction", "maternal_hom_threshold": "maternal_hom_threshold",
+    "include_zero_coverage_y": "include_zero_coverage_Y", "min_fetal_reads": "min_fetal_reads",
+    "min_fetal_percent": "min_fetal_percent", "a_threshold": "A_threshold",
+    "b_female_max": "B_female_max", "b_male_min": "B_male_min",
+    "c_female_max": "C_female_max", "c_male_min": "C_male_min",
+}
+SUMMARY = "Fetal_sex_summary.txt"
+SITE_TABLES = {"autosomes": "Autosomal_informative_sites.txt", "x": "X_informative_sites.txt", "y": "Y_sites.txt"}
+COUNTS = ("N_REF", "N_ALT", "N_Other", "total_count")
+AUTOSOMES = frozenset(str(n) for n in range(1, 23))
+
+
+def _marker_columns(role):
+    return ("chr", "pos", "REF", "ALT") if role == "y" else ("chr", "pos1", "pos2", "REF", "ALT")
+
+
+def input_roles(fields):
+    return ("dnp", "y") if isinstance(fields, dict) and "dnp" in fields else ROLES
+
+
+def chromosome_region(chromosome: str) -> str | None:
+    chromosome = re.sub("^chr", "", chromosome, flags=re.IGNORECASE)
+    return "autosomes" if chromosome in AUTOSOMES else {"X": "x", "Y": "y"}.get(chromosome)
+
+
+def _check_table(path: Path, role: str, split_files=None, *, caller_warnings=None) -> None:
+    path = require_file(path, f"Maternal cfDNA {role}")
+    markers = _marker_columns(role)
+    regions = {"autosomes", "x"} if role == "dnp" else {role}
+    observed = set()
+    seen = set()
+    writers = {}
+    empty_totals = 0
+    first_empty_total = None
+    for number, row in table_rows(path, set(markers) | set(COUNTS), f"Maternal cfDNA {role}"):
+        region = chromosome_region(row["chr"])
+        if region not in regions:
+            if caller_warnings is not None and role in {"dnp", "y"}:
+                continue
+            raise ValidationError(f"{path.name}: chromosome on line {number} does not belong to {role}.")
+        key = tuple(row[col] for col in markers)
+        if role == "dnp":
+            # An autosome or X locus written with both chromosome spellings is still one marker.
+            key = (re.sub("^chr", "", row["chr"], flags=re.IGNORECASE), *key[1:])
+        if any(v in {"", "NA"} for v in key) or key in seen:
+            raise ValidationError(f"{path.name}: missing or duplicate marker on line {number}.")
+        seen.add(key)
+        observed.add(region)
+        ref, alt, other = (nonnegative_integer(row[col], path, number, col) for col in COUNTS[:3])
+        if role != "y" and caller_warnings is not None and row["total_count"] == "NA" and not (ref or alt or other):
+            # DNPcall outer-joins the panel with its counts of retained reads. An absent group has zero retained reads.
+            row["total_count"] = "0"
+            empty_totals += 1
+            if first_empty_total is None:
+                first_empty_total = number
+        total = nonnegative_integer(row["total_count"], path, number, "total_count")
+        if total < ref + alt + other:
+            raise ValidationError(f"{path.name}: total_count is too small on line {number}.")
+        if split_files is not None:
+            if region not in writers:
+                writer = csv.DictWriter(split_files[region], fieldnames=list(row), delimiter="\t",
+                                        lineterminator="\n")
+                writer.writeheader()
+                writers[region] = writer
+            writers[region].writerow(row)
+    if empty_totals:
+        caller_warnings.append({"code": "fetal_sex.no_retained_reads", "row": first_empty_total, "path": str(path),
+                                "count": empty_totals, "message": f"Staged {empty_totals} DNP loci with zero retained reads."})
+    if not seen:
+        raise ValidationError(f"{path.name}: no {role} markers in the calling table.")
+    if regions != observed:
+        missing = ", ".join(sorted(regions - observed))
+        raise ValidationError(f"{path.name}: combined DNP table is missing {missing} markers.")
+
+
+def validate_inputs(autosomes=None, x=None, y=None, *, dnp=None, project_regions=False) -> None:
+    tables = {key: path for key, path in (("autosomes", autosomes), ("x", x), ("y", y), ("dnp", dnp))
+              if path is not None}
+    if set(tables) != set(input_roles(tables)):
+        raise ValidationError("Provide either combined DNP and Y tables, or autosomes, X and Y tables.")
+    for role, path in tables.items():
+        if project_regions and detect_marker_type(path) != ("SNP" if role == "y" else "DNP"):
+            raise ValidationError(f"{path.name}: unexpected marker type for {role}.")
+        _check_table(path, role, caller_warnings=[] if project_regions else None)
+
+
+def _split_dnp(source: Path, work: Path) -> tuple[Path, Path]:
+    # R derives Sample from the autosomal filename. Keep the source basename.
+    directory = work / "regional-dnp"
+    directory.mkdir()
+    try:
+        (directory / "autosomes").mkdir()
+        autosomes = directory / "autosomes" / source.name
+        x = directory / "X.tsv"
+        with autosomes.open("x", encoding="utf-8", newline="") as auto_file, x.open(
+                "x", encoding="utf-8", newline="") as x_file:
+            _check_table(source, "dnp", {"autosomes": auto_file, "x": x_file})
+    except BaseException:
+        shutil.rmtree(directory)
+        raise
+    return autosomes, x
+
+
+def stage_calling_tables(sources: dict[str, Path], directory: Path, *, sample: str | None = None):
+    """Stage the three maternal regions in original row order. Keep declared regional DNP roles strict."""
+    directory.mkdir()
+    warnings = []
+    try:
+        (directory / "autosomes").mkdir()
+        original_autosomes = sources["dnp"] if "dnp" in sources else sources["autosomes"]
+        autosomal_name = f"full_output_{sample}.txt" if sample is not None else original_autosomes.name
+        tables = {"autosomes": directory / "autosomes" / autosomal_name,
+                  "x": directory / "X.tsv", "y": directory / "Y.tsv"}
+        with tables["autosomes"].open("x", encoding="utf-8", newline="") as autosomes, tables["x"].open(
+                "x", encoding="utf-8", newline="") as x:
+            if "dnp" in sources:
+                _check_table(sources["dnp"], "dnp", {"autosomes": autosomes, "x": x}, caller_warnings=warnings)
+            else:
+                _check_table(sources["autosomes"], "autosomes", {"autosomes": autosomes}, caller_warnings=warnings)
+                _check_table(sources["x"], "x", {"x": x}, caller_warnings=warnings)
+        with tables["y"].open("x", encoding="utf-8", newline="") as y:
+            _check_table(sources["y"], "y", {"y": y}, caller_warnings=warnings)
+    except BaseException:
+        shutil.rmtree(directory)
+        raise
+    normalizations = [(sources[role] if role in sources else sources["dnp"], output)
+                      for role, output in tables.items()]
+    return tables, warnings, normalizations
+
+
+def prepare_fetal_sex(request: dict, *, caller_warnings=(), caller_normalizations=()) -> list[str]:
+    from newpat_scientific.presentation import validate_request_presentation
+
+    roles = input_roles(request)
+    fields = {"schema_version", "workflow", *roles, "work_dir", "out_dir"}
+    if (not isinstance(request, dict) or not fields.issubset(request)
+            or set(request) - fields - {"scientific_settings", "presentation"}
+            or type(request["schema_version"]) is not int or request["schema_version"] != 1
+            or request["workflow"] != "fetal-sex"):
+        raise ValidationError("Invalid fetal-sex v1 request.")
+    validate_request_presentation(request)
+    paths = {}
+    for key in (*roles, "work_dir", "out_dir"):
+        raw = request[key]
+        if not isinstance(raw, str) or not Path(raw).is_absolute() or '\x00' in raw:
+            raise ValidationError(f"{key}: expected an absolute path.")
+        paths[key] = Path(raw)
+    work, out = paths["work_dir"], paths["out_dir"]
+    sources = {role: paths[role] for role in roles}
+    if (work.is_symlink() or out.is_symlink() or work.resolve().is_relative_to(out.resolve())
+            or out.resolve().is_relative_to(work.resolve())
+            or any(s.resolve().is_relative_to(d.resolve()) for s in sources.values() for d in (work, out))):
+        raise ValidationError("Fetal-sex inputs and working/output directories must be separate.")
+    if out.exists() and (not out.is_dir() or any(out.iterdir())):
+        raise ValidationError("Fetal-sex output directory must be new or empty.")
+    values = normalize_settings("fetal-sex", request.get("scientific_settings"))
+    normalized = list(caller_normalizations)
+    if "dnp" in sources:
+        _check_table(sources["y"], "y")
+        work.mkdir(parents=True, exist_ok=True)
+        autosomes, x = _split_dnp(sources["dnp"], work)
+        normalized = [(sources["dnp"], autosomes), (sources["dnp"], x)]
+    else:
+        validate_inputs(**sources)
+        work.mkdir(parents=True, exist_ok=True)
+        autosomes, x = sources["autosomes"], sources["x"]
+    out.mkdir(parents=True, exist_ok=True)
+    write_input_report(work, "fetal-sex", list(caller_warnings), normalized=normalized)
+    # The unmodified script requires a new destination even when the client has already created out.
+    argv = ["--autosomes", str(autosomes), "--X", str(x), "--Y", str(sources["y"]),
+            "--out", str(out / ".native-fetal-sex")]
+    for key, flag in NATIVE_FLAGS.items():
+        value = values[key]
+        if value is not None:
+            argv.extend(["--" + flag, str(value).upper() if isinstance(value, bool) else str(value)])
+    return argv
+
+
+def validate_tables(request: dict, directory: Path) -> None:
+    values = normalize_settings("fetal-sex", request.get("scientific_settings"))
+    path = directory / SUMMARY
+    settings_columns = {key: flag[:1].upper() + flag[1:] for key, flag in NATIVE_FLAGS.items()}
+    columns = {"Sample", "Fetal_sex", "N_A_original", "N_A_sites", "N_X_original", "N_X_sites",
+               "N_Y_sites", "N_Y_covered_sites", "N_Y_sites_used", "Fetal_reads_A", "Fetal_reads_X",
+               "Reads_Y", "MFF_A", "MFF_X", "MFF_Y", "Ratio_A", "Ratio_B", "Ratio_C",
+               *settings_columns.values()}
+    rows = list(table_rows(path, columns, "Fetal-sex summary"))
+    if len(rows) != 1:
+        raise ValidationError("Expected one fetal-sex summary row per maternal cfDNA sample.")
+    number, row = rows[0]
+    sample = Path(request["dnp"] if "dnp" in request else request["autosomes"]).stem.removeprefix("full_output_")
+    if row["Sample"] != sample or row["Fetal_sex"] not in {"F", "M", "Undetermined"}:
+        raise ValidationError("Fetal-sex sample identity or classification is invalid.")
+    for key, col in settings_columns.items():
+        expected = values[key]
+        raw = row[col]
+        if expected is None:
+            valid = raw == "NA"
+        elif isinstance(expected, bool):
+            valid = raw == str(expected).upper()
+        else:
+            try:
+                valid = math.isclose(float(raw), expected, rel_tol=1e-12)
+            except ValueError:
+                valid = False
+        if not valid:
+            raise ValidationError(f"Fetal-sex summary differs from the requested {col}.")
+    for col in ("MFF_A", "MFF_X", "MFF_Y", "Ratio_A", "Ratio_B", "Ratio_C"):
+        if row[col] == "NA":
+            if col == "MFF_Y" or row["Fetal_sex"] != "Undetermined":
+                raise ValidationError(f"Unexpected missing value in fetal-sex summary: {col}.")
+            continue
+        try:
+            value = float(row[col])
+        except ValueError as exc:
+            raise ValidationError(f"Invalid fetal-sex estimate: {col}.") from exc
+        if not value >= 0 or not math.isfinite(value) and not (col.startswith("Ratio_") and row[col] == "Inf"):
+            raise ValidationError(f"Invalid fetal-sex estimate: {col}.")
+    for role, count_col in zip(ROLES, ("N_A_sites", "N_X_sites", "N_Y_sites"), strict=True):
+        count = nonnegative_integer(row[count_col], path, number, count_col)
+        extra = {"Y_reads", "Covered", "Included"} if role == "y" else {
+            "ratio_Ref_mother", "ratio_Other", "fetal_reads", "fetal_percent"}
+        audit = directory / SITE_TABLES[role]
+        actual = sum(1 for _ in table_rows(audit, set(_marker_columns(role)) | set(COUNTS) | extra, role))
+        if count != actual:
+            raise ValidationError(f"Fetal-sex summary differs from the {role} site table.")
+
+
+def publish_outputs(request: dict) -> None:
+    """Expose the four native output files after a successful process and contract check."""
+    out = Path(request["out_dir"])
+    native = out / ".native-fetal-sex"
+    names = (SUMMARY, *SITE_TABLES.values())
+    if (native.is_symlink() or not native.is_dir()
+            or {p.name for p in native.iterdir()} != set(names)
+            or any((native / n).is_symlink() or not (native / n).is_file() for n in names)):
+        raise ValidationError("Incomplete fetal-sex output directory.")
+    for name in names:
+        if (out / name).exists() or (out / name).is_symlink():
+            raise ValidationError(f"Fetal-sex destination already exists: {name}")
+    with (Path(request["work_dir"]) / "effective-scientific-settings.json").open("rb") as src:
+        with (out / "scientific-settings.json").open("xb") as dst:
+            shutil.copyfileobj(src, dst)
+    for name in names:
+        (native / name).rename(out / name)
+    native.rmdir()

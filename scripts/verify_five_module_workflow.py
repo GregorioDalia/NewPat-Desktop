@@ -19,7 +19,7 @@ from unittest.mock import patch
 
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / "src"))
-from nipat_scientific.executor import execute_plan
+from newpat_scientific.executor import execute_plan
 
 
 def digest(path):
@@ -93,7 +93,7 @@ def check_bundled_client(parent: Path, layout, identifier: str) -> dict:
 
 
 def check_step_outputs(run: Path, plan: dict) -> None:
-    from nipat.validation.self_test import compare_snp_outputs
+    from newpat.validation.self_test import compare_snp_outputs
     from verify_dnp_engine import check_dnp_outputs
 
     check_dnp_outputs(run / "steps/dnp", ("A", "B", "A"))
@@ -109,7 +109,7 @@ def check_step_outputs(run: Path, plan: dict) -> None:
 
 
 def qualify(destination: Path):
-    from nipat.execution.options import ExecutionOptions
+    from newpat.experiments.options import ExecutionOptions
     from verify_snp_workflow import check_snp_execution_policy
 
     destination = destination.resolve()
@@ -142,9 +142,9 @@ def qualify(destination: Path):
                 "trios": [{"id": marker + "_postnatal", "mother": ref("mother"), "father": ref("father"), "child": ref("child")}],
                 "popfreq": str(inputs / (marker + "-frequency.tsv")), "markers": str(inputs / (marker + "-panel.tsv"))}, "parameters": {}},
         ])
-    helper = PROJECT / "src/nipat_scientific"
-    os.environ.update({"NIPAT_PARALLEL_HELPER": str(helper / "parallel.R"), "NIPAT_PLOTS_HELPER": str(helper / "plots.R"),
-                       "NIPAT_DNP_BLOCKS_HELPER": str(helper / "dnp_blocks.R"), "NIPAT_DNP_PILEUP_HELPER": str(helper / "dnp_pileup.py")})
+    helper = PROJECT / "src/newpat_scientific"
+    os.environ.update({"NEWPAT_PARALLEL_HELPER": str(helper / "parallel.R"), "NEWPAT_PLOTS_HELPER": str(helper / "plots.R"),
+                       "NEWPAT_DNP_BLOCKS_HELPER": str(helper / "dnp_blocks.R"), "NEWPAT_DNP_PILEUP_HELPER": str(helper / "dnp_pileup.py")})
     scripts = {"dnp-call": PROJECT / "scientific/vendor/DNPcall/DNPcall.R", "snp-call": PROJECT / "scientific/vendor/NEWPAT/SNPcall/SNPcall.R",
                "contamination": PROJECT / "scientific/vendor/NEWPAT/contamination/detect_contamination.R",
                "cpi": PROJECT / "scientific/vendor/NEWPAT/CPI_from_cffDNA/cfDNA_CPI_estimator.R",
@@ -152,7 +152,7 @@ def qualify(destination: Path):
     source_hashes = {str(path): digest(path) for path in [Path(__file__).resolve(), PROJECT / "engine/main.py", *scripts.values(), *helper.glob("*.py"), *helper.glob("*.R"), helper / "settings_data.json"]}
     results, tables = {}, {}
     for mode in ("serial", "capped"):
-        os.environ.update({"NIPAT_EXECUTION_MODE": "serial" if mode == "serial" else "auto", "NIPAT_MAX_WORKERS": "2"})
+        os.environ.update({"NEWPAT_EXECUTION_MODE": "serial" if mode == "serial" else "auto", "NEWPAT_MAX_WORKERS": "2"})
         run = destination / mode
         result = execute_plan(plan, run_dir=run, script_paths=scripts)
         if result["status"] != "succeeded":
@@ -182,10 +182,10 @@ def qualify_image(identifier: str, destination: Path, *, run_container) -> dict:
     downstream output contracts/settings are checked by the bundled engine and
     all scientific tables must agree between serial and bounded parallel runs.
     """
-    from nipat.execution.options import ExecutionOptions
-    from nipat.execution.runner import DockerComposeRunner
-    from nipat.execution.workflows import Workflows
-    from nipat.paths import ProjectLayout
+    from newpat.experiments.options import ExecutionOptions
+    from newpat.experiments.runner import DockerComposeRunner
+    from newpat.experiments.workflows import Workflows
+    from newpat.paths import ProjectLayout
     from verify_snp_workflow import check_snp_execution_policy
 
     destination = destination.resolve()
@@ -208,7 +208,7 @@ def qualify_image(identifier: str, destination: Path, *, run_container) -> dict:
                            destination / "client results", project / "compose.yaml")
     results, tables = {}, {}
     expected_workflows = {"dnp-call", "snp-call", "contamination", "cpi", "cpin"}
-    with patch.dict(os.environ, {"NIPAT_RUNTIME_IMAGE": identifier, "NIPAT_BACKEND": "native"}):
+    with patch.dict(os.environ, {"NEWPAT_RUNTIME_IMAGE": identifier, "NEWPAT_BACKEND": "native"}):
         for mode in ("serial", "capped"):
             runner = DockerComposeRunner(layout, options=ExecutionOptions(
                 execution_mode="serial" if mode == "serial" else "auto", max_workers=2))

@@ -228,7 +228,7 @@ def main() -> int:
     args = parser.parse_args()
     if shutil.which("pdftotext") is None or shutil.which("pdfinfo") is None:
         parser.error("pdftotext and pdfinfo are required; install poppler-utils on Ubuntu")
-    root = args.output_dir.resolve() if args.output_dir else Path(tempfile.mkdtemp(prefix="nipat-presentation-")).resolve()
+    root = args.output_dir.resolve() if args.output_dir else Path(tempfile.mkdtemp(prefix="newpat-presentation-")).resolve()
     root.mkdir(parents=True, exist_ok=True)
     print(f"Presentation regression artifacts: {root}", flush=True)
     identifier = image_id(args.image)

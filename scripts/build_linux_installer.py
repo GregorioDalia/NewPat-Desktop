@@ -12,26 +12,29 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
-import re
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+from newpat.distribution import supported_stable_release
+
+
 _SPEC = importlib.util.spec_from_file_location(
-    "nipat_linux_common_assets", Path(__file__).with_name("build_windows_installer_assets.py")
+    "newpat_linux_common_assets", Path(__file__).with_name("build_windows_installer_assets.py")
 )
 assets = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(assets)
 bundle = assets.bundle
 
-PACKAGE = "nipat-desktop"
+PACKAGE = "newpat-desktop"
 COMMAND = "newpat"
-LEGACY_COMMAND = "nipat"
 APP_PATH = Path("opt") / PACKAGE
 LAUNCH_SOURCE = "installer/linux/launch.py"
-ACTIVITY_DIRECTORY = "/var/lib/nipat-desktop"
+ACTIVITY_DIRECTORY = "/var/lib/newpat-desktop"
 ICON_SOURCE = "assets/branding/newpat-app-icon.svg"
 SMALL_ICON_SOURCE = "assets/branding/newpat-app-icon-small.svg"
 THEME_ICONS = {"scalable": ICON_SOURCE, "16x16": SMALL_ICON_SOURCE, "24x24": SMALL_ICON_SOURCE}
@@ -44,11 +47,10 @@ DEPENDENCIES = (
 
 
 def debian_version(version: str) -> str:
-    """Keep alpha/beta/RC packages ordered before their corresponding release."""
-    match = re.fullmatch(r"([0-9]+\.[0-9]+\.[0-9]+)((?:a|b|rc)[0-9]+)?", version)
-    if not match:
-        raise ValueError("Versione del pacchetto non valida.")
-    return match[1] + ("~" + match[2] if match[2] else "")
+    if not supported_stable_release(version):
+        raise ValueError("Il pacchetto Linux richiede una versione NewPat ufficiale dalla 0.9.99.")
+    return version
+
 
 
 def verified_inputs(project: Path, manifest_path: Path, *, require_clean: bool = True,
@@ -66,10 +68,7 @@ def verified_inputs(project: Path, manifest_path: Path, *, require_clean: bool =
         assets.validate_installation_profile(manifest.get("installation_profile"))
     except (TypeError, AttributeError, KeyError) as exc:
         raise ValueError("Struttura del manifest installer non valida.") from exc
-    if not re.fullmatch(r"(?:0\.[67]\.[0-9]+(?:(?:a|b|rc)[0-9]+)?|0\.[89]\.[0-9]+)", manifest["version"]):
-        raise ValueError("Il pacchetto NewPat richiede una versione Desktop ufficiale.")
-    if manifest["version"].startswith("0.8.") and int(manifest["version"].split(".")[2]) < 2:
-        raise ValueError("Il pacchetto NewPat ufficiale parte dalla versione 0.8.2.")
+    debian_version(manifest["version"])
     if assets.checked_version(project) != manifest["version"]:
         raise ValueError("Versione dei sorgenti diversa dal manifest runtime.")
     if assets.installation_profile(project) != manifest["installation_profile"]:
@@ -80,7 +79,7 @@ def verified_inputs(project: Path, manifest_path: Path, *, require_clean: bool =
                 or source.get("commit") != manifest["source_commit"]):
             raise ValueError("La compilazione richiede un checkout Git pulito al commit del manifest.")
     provenance = manifest.get("rootfs_provenance", {})
-    assets.validate_rootfs_provenance(project, provenance, manifest["source_commit"])
+    assets.validate_rootfs_provenance(project, provenance)
     files = bundle.source_files(project)
     hashes = {path.relative_to(project).as_posix(): bundle.sha256_file(path) for path in files}
     if hashes != manifest.get("source_sha256"):
@@ -117,9 +116,9 @@ def generated_files(project: Path, manifest: dict, manifest_bytes: bytes) -> dic
         "distribution": "native-linux-deb",
     }
     launcher = ("#!/bin/sh\n"
-                "exec 9</var/lib/nipat-desktop/activity.lock || { echo 'NewPat: reinstallare il pacchetto.' >&2; exit 1; }\n"
+                "exec 9</var/lib/newpat-desktop/activity.lock || { echo 'NewPat: reinstallare il pacchetto.' >&2; exit 1; }\n"
                 "/usr/bin/flock --shared --nonblock 9 || { echo 'NewPat: aggiornamento in corso.' >&2; exit 1; }\n"
-                "test ! -e /var/lib/nipat-desktop/update-in-progress || { echo 'NewPat: aggiornamento incompleto; completare la configurazione del pacchetto.' >&2; exit 1; }\n"
+                "test ! -e /var/lib/newpat-desktop/update-in-progress || { echo 'NewPat: aggiornamento incompleto; completare la configurazione del pacchetto.' >&2; exit 1; }\n"
                 "exec /usr/bin/python3.12 -I "
                 f"/{APP_PATH.as_posix()}/{LAUNCH_SOURCE} \"$@\"\n")
     desktop = (
@@ -139,12 +138,11 @@ def generated_files(project: Path, manifest: dict, manifest_bytes: bytes) -> dic
         f"{APP_PATH.as_posix()}/.distribution/{assets.MANIFEST_NAME}": (manifest_bytes, 0o644),
         f"{APP_PATH.as_posix()}/release.json": ((json.dumps(release, indent=2) + "\n").encode(), 0o644),
         f"usr/bin/{COMMAND}": (launcher.encode(), 0o755),
-        f"usr/bin/{LEGACY_COMMAND}": (launcher.encode(), 0o755),
         f"usr/share/applications/{PACKAGE}.desktop": (desktop.encode(), 0o644),
         f"usr/share/doc/{PACKAGE}/copyright": ((
             f"NewPat - https://github.com/{assets.RELEASE_REPOSITORY}\n\n"
             "Copyright remains with the respective authors and contributors.\n"
-            "Original NIPAT material is licensed under the GNU General Public\n"
+            "Original NewPat material is licensed under the GNU General Public\n"
             "License version 3 or, at your option, any later version. Third-party\n"
             "components retain their own notices and applicable license terms.\n\n"
             f"Full NewPat license: /{APP_PATH.as_posix()}/LICENSE\n"
@@ -158,7 +156,7 @@ def control_bytes(manifest: dict, installed_kib: int) -> bytes:
     return (
         f"Package: {PACKAGE}\nVersion: {debian_version(manifest['version'])}\n"
         "Section: science\nPriority: optional\nArchitecture: amd64\n"
-        "Maintainer: NIPAT contributors\n"
+        "Maintainer: NewPat contributors\n"
         f"Installed-Size: {installed_kib}\nPre-Depends: util-linux\nDepends: {DEPENDENCIES}\n"
         f"Homepage: https://github.com/{assets.RELEASE_REPOSITORY}\n"
         "Description: NewPat scientific application for Ubuntu 24.04 LTS\n"
@@ -169,7 +167,7 @@ def control_bytes(manifest: dict, installed_kib: int) -> bytes:
 
 
 def maintainer_scripts() -> dict[str, bytes]:
-    """Coordinate dpkg transactions with all installed NIPAT sessions.
+    """Coordinate dpkg transactions with all installed NewPat sessions.
 
     The root-owned marker bridges preinst/prerm and postinst: flock alone would
     be released before dpkg unpacks files. The inode is intentionally retained
@@ -180,7 +178,7 @@ def maintainer_scripts() -> dict[str, bytes]:
     common = """#!/bin/sh
 set -eu
 umask 022
-state=/var/lib/nipat-desktop
+state=/var/lib/newpat-desktop
 if [ -L "$state" ]; then echo 'NewPat: unsafe package state directory.' >&2; exit 1; fi
 if [ ! -e "$state" ]; then mkdir -m 0755 "$state"; fi
 if [ ! -d "$state" ] || [ "$(stat -c %u "$state")" != 0 ] || [ "$(stat -c %a "$state")" != 755 ]; then
@@ -198,7 +196,7 @@ if [ -e "$marker" ] && { [ ! -f "$marker" ] || [ "$(stat -c %u "$marker")" != 0 
 fi
 exec 9<"$lock"
 if ! /usr/bin/flock --exclusive --nonblock 9; then
-    echo 'NewPat: close every NewPat/NIPAT session and wait for analyses to finish, then retry the package operation.' >&2
+    echo 'NewPat: close every NewPat session and wait for analyses to finish, then retry the package operation.' >&2
     exit 1
 fi
 """
@@ -345,7 +343,7 @@ def build_installer(project: Path, manifest_path: Path, output: Path) -> Path:
         raise ValueError("La compilazione del pacchetto richiede dpkg-deb su Linux.")
     name = f"{PACKAGE}_{debian_version(manifest['version'])}_amd64.deb"
     output.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="nipat-linux-package-", dir=output.parent) as temporary:
+    with tempfile.TemporaryDirectory(prefix="newpat-linux-package-", dir=output.parent) as temporary:
         temporary = Path(temporary)
         stage = temporary / "root"
         stage.mkdir()

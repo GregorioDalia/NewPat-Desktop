@@ -1,4 +1,4 @@
-"""Compare DNP/SNP R defaults with immutable NIPAT 0.8.5 and SNPcall 2.0 references.
+"""Compare DNP/SNP R defaults with immutable 0.8.5 and SNPcall 2.0 references.
 
 Both implementations run in the same immutable, locally built image. Complete
 table bytes and unrounded R objects are compared strictly. Revised plots are
@@ -54,7 +54,7 @@ SCRIPTS = dict(zip(("dnp-call", "snp-call"), (
     "scientific/vendor/DNPcall/DNPcall.R",
     "scientific/vendor/NEWPAT/SNPcall/SNPcall.R",
 )))
-SUPPORTING_SOURCES = tuple(f"src/nipat_scientific/{name}" for name in (
+SUPPORTING_SOURCES = tuple(f"src/newpat_scientific/{name}" for name in (
     "dnp_blocks.R", "dnp_pileup.py", "scratch.py", "progress.py", "progress.R", "parallel.R", "parallel.py", "plots.R",
     "settings.py", "settings.R", "settings_data.json",
 ))
@@ -63,10 +63,10 @@ PARALLEL_CASES = {"dnp-blocks-1", "dnp-multi-blocks-2", "dnp-multi-blocks-3", "d
 CONCURRENT_CASES = {"dnp-blocks-1", "dnp-multi-blocks-2", "dnp-multi-blocks-3", "dnp-multi-blocks-6",
                     "snp-edge"}
 PARALLEL_VARIANTS = {
-    "auto": {"NIPAT_EXECUTION_MODE": "auto", "NIPAT_MAX_WORKERS": ""},
-    "manual-2": {"NIPAT_EXECUTION_MODE": "auto", "NIPAT_MAX_WORKERS": "2"},
-    "manual-4": {"NIPAT_EXECUTION_MODE": "auto", "NIPAT_MAX_WORKERS": "4"},
-    "manual-4-repeat": {"NIPAT_EXECUTION_MODE": "auto", "NIPAT_MAX_WORKERS": "4"},
+    "auto": {"NEWPAT_EXECUTION_MODE": "auto", "NEWPAT_MAX_WORKERS": ""},
+    "manual-2": {"NEWPAT_EXECUTION_MODE": "auto", "NEWPAT_MAX_WORKERS": "2"},
+    "manual-4": {"NEWPAT_EXECUTION_MODE": "auto", "NEWPAT_MAX_WORKERS": "4"},
+    "manual-4-repeat": {"NEWPAT_EXECUTION_MODE": "auto", "NEWPAT_MAX_WORKERS": "4"},
 }
 
 
@@ -83,7 +83,7 @@ def verify_reference(project: Path = PROJECT) -> dict:
             or manifest.get("source_tag") != "v0.8.5"
             or len(manifest["files"]) != len(EXPECTED_REFERENCE)
             or declared != EXPECTED_REFERENCE):
-        raise ValueError("The frozen reference manifest differs from stable NIPAT 0.8.5")
+        raise ValueError("The frozen reference manifest differs from v0.8.5")
     actual = {p.relative_to(root).as_posix(): digest(p) for p in root.rglob("*.R")}
     if actual != EXPECTED_REFERENCE:
         raise ValueError("The frozen R reference was modified or is incomplete")
@@ -151,7 +151,7 @@ def run(image: str, arguments: list[str], *, inputs: Path, results: Path,
 
 
 def verify_image_sources(image: str, root: Path) -> dict[str, str]:
-    bundled = {path: f"/opt/nipat/{path}" for path in SCRIPTS.values()}
+    bundled = {path: f"/opt/newpat/{path}" for path in SCRIPTS.values()}
     code = ("import hashlib,json; p=" + repr(bundled) + "; "
             "print(json.dumps({k:hashlib.sha256(open(v,'rb').read()).hexdigest() for k,v in p.items()}))")
     actual = json.loads(run(image, ["python3", "-c", code], inputs=root, results=root))
@@ -162,7 +162,7 @@ def verify_image_sources(image: str, root: Path) -> dict[str, str]:
 
 
 def verify_supporting_sources(image: str, root: Path) -> dict[str, str]:
-    bundled = {path: f"/opt/nipat/lib/nipat_scientific/{Path(path).name}" for path in SUPPORTING_SOURCES}
+    bundled = {path: f"/opt/newpat/lib/newpat_scientific/{Path(path).name}" for path in SUPPORTING_SOURCES}
     code = ("import hashlib,json; p=" + repr(bundled) + "; "
             "print(json.dumps({k:hashlib.sha256(open(v,'rb').read()).hexdigest() for k,v in p.items()}))")
     actual = json.loads(run(image, ["python3", "-c", code], inputs=root, results=root))
@@ -258,16 +258,16 @@ class Case:
 
 def case_environment(case: Case, variant: str, script: Path,
                      execution: dict[str, str] | None = None) -> dict[str, str]:
-    environment = {"NIPAT_EQ_SCRIPT": f"/repo/{script.as_posix()}", "NIPAT_EQ_WORKFLOW": case.workflow}
+    environment = {"NEWPAT_EQ_SCRIPT": f"/repo/{script.as_posix()}", "NEWPAT_EQ_WORKFLOW": case.workflow}
     if case.compare_pileup:
-        environment["NIPAT_EQ_KEEP_PILEUP"] = "1"
+        environment["NEWPAT_EQ_KEEP_PILEUP"] = "1"
     if variant == "candidate":
-        environment.update({"NIPAT_EXECUTION_MODE": "serial", "NIPAT_MAX_WORKERS": "",
-                            "NIPAT_PARALLEL_LOG_DIR": "/results/parallel-log"})
+        environment.update({"NEWPAT_EXECUTION_MODE": "serial", "NEWPAT_MAX_WORKERS": "",
+                            "NEWPAT_PARALLEL_LOG_DIR": "/results/parallel-log"})
         environment.update(case.candidate_environment)
         environment.update(execution or {})
         if case.compare_pileup:
-            environment["NIPAT_DNP_KEEP_PILEUP"] = "1"
+            environment["NEWPAT_DNP_KEEP_PILEUP"] = "1"
     return environment
 
 
@@ -546,18 +546,18 @@ def cases() -> list[Case]:
                      "--reference=/inputs/dnp-blocks/reference.fa", "--out=output")
         blocks.append(Case(f"dnp-blocks-{count}", "dnp-call", arguments,
                            ("/inputs/dnp-blocks/Boundary.bam",),
-                           (("NIPAT_DNP_BLOCK_LOCI", str(count)),), True))
+                           (("NEWPAT_DNP_BLOCK_LOCI", str(count)),), True))
     numeric = Case("dnp-numeric-blocks", "dnp-call",
                    ("--bamlist=bamlist.txt", "--DNPs=/inputs/dnp-numeric/panel.txt",
                     "--reference=/inputs/dnp-numeric/reference.fa", "--out=output"),
-                   ("/inputs/dnp-numeric/Boundary.bam",), (("NIPAT_DNP_BLOCK_LOCI", "1"),), True)
+                   ("/inputs/dnp-numeric/Boundary.bam",), (("NEWPAT_DNP_BLOCK_LOCI", "1"),), True)
     duplicate = Case("dnp-repeated-qname-compatibility", "dnp-call", blocks[0].arguments,
-                     ("/inputs/dnp-blocks/Duplicate.bam",), (("NIPAT_DNP_BLOCK_LOCI", "1"),), True,
+                     ("/inputs/dnp-blocks/Duplicate.bam",), (("NEWPAT_DNP_BLOCK_LOCI", "1"),), True,
                      "legacy-repeated-qname-within-position")
     multi_blocks = [Case(f"dnp-multi-blocks-{count}", "dnp-call", blocks[0].arguments,
                          ("/inputs/dnp-blocks/Boundary.bam", *(
                              f"/inputs/dnp-blocks/Boundary{number}.bam" for number in range(2, count + 1))),
-                         (("NIPAT_DNP_BLOCK_LOCI", "1"),), True)
+                         (("NEWPAT_DNP_BLOCK_LOCI", "1"),), True)
                     for count in (2, 3, 6)]
     return [*original, *blocks, numeric, duplicate, *multi_blocks]
 
@@ -600,22 +600,22 @@ def verify_case(root: Path, image: str, inputs: Path, case: Case) -> dict:
                       "unrounded_r_values": "identical", "plots": plots,
                       "plots_comparison": ("renderable-and-bounded" if variant == "candidate"
                                            else "candidate-serial-exact-pixels")}
-        configured = execution or {"NIPAT_EXECUTION_MODE": "serial", "NIPAT_MAX_WORKERS": ""}
-        cap = configured.get("NIPAT_MAX_WORKERS")
+        configured = execution or {"NEWPAT_EXECUTION_MODE": "serial", "NEWPAT_MAX_WORKERS": ""}
+        cap = configured.get("NEWPAT_MAX_WORKERS")
         comparison["execution_configuration"] = {
-            "requested_mode": configured["NIPAT_EXECUTION_MODE"],
+            "requested_mode": configured["NEWPAT_EXECUTION_MODE"],
             "requested_max_workers": int(cap) if cap else None,
         }
         if case.compare_pileup:
             comparison.update({"candidate_environment": dict(case.candidate_environment),
                 "pileup": compare_pileup(case_dir / "reference/mpileup.txt", destination / "mpileup.txt"),
                 "block_execution": verify_block_execution(destination / "work/dnp-blocks.json",
-                    int(dict(case.candidate_environment)["NIPAT_DNP_BLOCK_LOCI"]), case.expected_compatibility_reason)})
+                    int(dict(case.candidate_environment)["NEWPAT_DNP_BLOCK_LOCI"]), case.expected_compatibility_reason)})
         if case.name in PARALLEL_CASES:
-            configured = execution or {"NIPAT_EXECUTION_MODE": "serial", "NIPAT_MAX_WORKERS": ""}
-            cap = configured.get("NIPAT_MAX_WORKERS")
+            configured = execution or {"NEWPAT_EXECUTION_MODE": "serial", "NEWPAT_MAX_WORKERS": ""}
+            cap = configured.get("NEWPAT_MAX_WORKERS")
             comparison["parallel_execution"] = verify_parallel_execution(destination / "parallel-log",
-                mode=configured["NIPAT_EXECUTION_MODE"], cap=int(cap) if cap else None,
+                mode=configured["NEWPAT_EXECUTION_MODE"], cap=int(cap) if cap else None,
                 require_parallel=variant != "candidate", require_overlap=case.name in CONCURRENT_CASES)
         if variant == "manual-4-repeat":
             # Both independent runs equal the same exact oracle, including
@@ -624,7 +624,7 @@ def verify_case(root: Path, image: str, inputs: Path, case: Case) -> dict:
         comparisons[variant] = comparison
         print(f"PASS: {case.name}/{variant}; exact tables, unrounded R values and {len(plots)} PDF(s)", flush=True)
     return {"case": case.name, "workflow": case.workflow,
-            "scientific_reference": "SNPcall 2.0" if case.workflow == "snp-call" else "NIPAT 0.8.5",
+            "scientific_reference": "SNPcall 2.0" if case.workflow == "snp-call" else "v0.8.5",
             **comparisons["candidate"],
             "elapsed_seconds_including_container": timings,
             "execution_variants": comparisons}
@@ -659,7 +659,7 @@ def verify(root: Path, image: str) -> dict:
     if indexed_evidence.get("status") != "passed":
         raise ValueError("Indexed pileup audit did not pass")
     cancellation_helper = "tests/r_optimization/verify_dnp_cancellation.py"
-    run(image, ["python3", f"/repo/{cancellation_helper}", "--bundle", "/opt/nipat",
+    run(image, ["python3", f"/repo/{cancellation_helper}", "--bundle", "/opt/newpat",
                 "--output-dir", "/results/dnp-cancellation"],
         inputs=inputs, results=root, log=root / "dnp-cancellation.log")
     cancellation_report = root / "dnp-cancellation/dnp-cancellation.json"
@@ -702,10 +702,10 @@ def verify(root: Path, image: str) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--image", default=os.environ.get("NIPAT_RUNTIME_IMAGE", "nipat-scientific-runtime:ci-test"))
+    parser.add_argument("--image", default=os.environ.get("NEWPAT_RUNTIME_IMAGE", "newpat-scientific-runtime:ci-test"))
     parser.add_argument("--output-dir", type=Path)
     args = parser.parse_args()
-    root = args.output_dir.resolve() if args.output_dir else Path(tempfile.mkdtemp(prefix="nipat-r-equivalence-"))
+    root = args.output_dir.resolve() if args.output_dir else Path(tempfile.mkdtemp(prefix="newpat-r-equivalence-"))
     if args.output_dir:
         root.mkdir(parents=True, exist_ok=False)
     try:

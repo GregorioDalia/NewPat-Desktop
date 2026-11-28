@@ -16,23 +16,23 @@ $activityLease = $null
 $result = 1
 $state = $null
 $statePath = Join-Path $project '.runtime\installer\state.json'
-$script:NipatWsl = Join-Path $env:WINDIR 'System32\wsl.exe'
+$script:NewPatWsl = Join-Path $env:WINDIR 'System32\wsl.exe'
 $distro = $null
 
-function Save-NipatPhase([string] $Phase) {
+function Save-NewPatPhase([string] $Phase) {
     $script:state.phase = $Phase
     $script:state.updated_utc = [DateTime]::UtcNow.ToString('o')
-    Write-NipatJsonAtomic $script:statePath $script:state
+    Write-NewPatJsonAtomic $script:statePath $script:state
     Write-Host "NewPat: $Phase"
 }
 
-function Request-NipatReboot {
-    Save-NipatPhase 'awaiting_reboot'
+function Request-NewPatReboot {
+    Save-NewPatPhase 'awaiting_reboot'
     if ($ManualResume) {
-        Write-Host 'WSL richiede un riavvio. Dopo il riavvio aprire il collegamento locale di ripresa nella cartella NIPAT.'
+        Write-Host 'WSL richiede un riavvio. Dopo il riavvio aprire il collegamento locale di ripresa nella cartella NewPat.'
         return
     }
-    $automaticResume = Register-NipatResume $script:project
+    $automaticResume = Register-NewPatResume $script:project
     Write-Host 'WSL richiede un riavvio di Windows. Salva il lavoro e riavvia quando preferisci.'
     if ($automaticResume) {
         Write-Host ('La preparazione riprendera al prossimo accesso; puoi anche aprire ' + $profile.display_name + ' - Resume Setup dal menu Start.')
@@ -42,28 +42,28 @@ function Request-NipatReboot {
 }
 
 try {
-    Assert-NipatWindowsUser
-    Assert-NipatInstallationLocation $project
-    $activityLease = Enter-NipatInstallationActivity
-    $profile = Get-NipatInstallationProfile
-    $manifest = Read-NipatInstallerManifest (Join-Path $project '.distribution\installer-manifest.json')
-    $layout = Read-NipatInstallLayout $project
+    Assert-NewPatWindowsUser
+    Assert-NewPatInstallationLocation $project
+    $activityLease = Enter-NewPatInstallationActivity
+    $profile = Get-NewPatInstallationProfile
+    $manifest = Read-NewPatInstallerManifest (Join-Path $project '.distribution\installer-manifest.json')
+    $layout = Read-NewPatInstallLayout $project
     # Inno writes ownership markers before invoking bootstrap. Resume must obey
     # the same destination checks; a missing marker never adopts existing files.
-    Assert-NipatInstallLayout $layout -CheckExisting
+    Assert-NewPatInstallLayout $layout -CheckExisting
     # Reject a foreign state before even creating the log or recovery directory.
     if (Test-Path -LiteralPath $statePath -PathType Leaf) {
-        Assert-NipatInstallationChannel (Get-Content -LiteralPath $statePath -Raw -Encoding UTF8 | ConvertFrom-Json) 'Lo stato precedente'
+        Assert-NewPatInstallationChannel (Get-Content -LiteralPath $statePath -Raw -Encoding UTF8 | ConvertFrom-Json) 'Lo stato precedente'
     }
     $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
     $mutex = New-Object Threading.Mutex($false, ($profile.mutex_prefix + $sid))
     try { $lockHeld = $mutex.WaitOne(0) } catch [Threading.AbandonedMutexException] { $lockHeld = $true }
     if (-not $lockHeld) { throw 'Un altra preparazione NewPat e gia in corso. Attendere che termini.' }
-    Save-NipatInstallLayoutHistory $layout
-    Initialize-NipatWritableDirectory (Split-Path -Parent $statePath) 'dello stato installer'
+    Save-NewPatInstallLayoutHistory $layout
+    Initialize-NewPatWritableDirectory (Split-Path -Parent $statePath) 'dello stato installer'
     Start-Transcript -LiteralPath (Join-Path $project '.runtime\installer\setup.log') -Append | Out-Null
     $transcriptStarted = $true
-    $recoveryPath = Save-NipatRecoverySnapshot $project $manifest $layout
+    $recoveryPath = Save-NewPatRecoverySnapshot $project $manifest $layout
     $previous = $null
     if (Test-Path -LiteralPath $statePath -PathType Leaf) {
         $previous = Get-Content -LiteralPath $statePath -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -71,7 +71,7 @@ try {
         # A new self-contained setup uses its embedded cache, never a stale path from an older installer.
         if ($Resume -and -not $AssetDirectory -and $previous.PSObject.Properties['asset_directory']) { $AssetDirectory = $previous.asset_directory }
     }
-    if ($AssetDirectory) { $AssetDirectory = Resolve-NipatDirectory $AssetDirectory }
+    if ($AssetDirectory) { $AssetDirectory = Resolve-NewPatDirectory $AssetDirectory }
     $state = [ordered]@{
         schema_version = 1; installation_channel = $profile.channel; version = $manifest.version; release_tag = $manifest.release_tag
         source_commit = $manifest.source_commit; runtime_image = $manifest.runtime_image
@@ -82,12 +82,12 @@ try {
         phase = 'starting'; updated_utc = [DateTime]::UtcNow.ToString('o')
         asset_directory = $AssetDirectory; last_error = $null
     }
-    Save-NipatPhase 'checking_windows'
+    Save-NewPatPhase 'checking_windows'
     $cache = $layout.cache_dir
     $wslDirectory = $layout.runtime_dir
-    Initialize-NipatWritableDirectory $cache 'della cache installer'
-    Initialize-NipatWritableDirectory $wslDirectory 'della distribuzione Linux'
-    $wsl = Get-NipatWslReadiness
+    Initialize-NewPatWritableDirectory $cache 'della cache installer'
+    Initialize-NewPatWritableDirectory $wslDirectory 'della distribuzione Linux'
+    $wsl = Get-NewPatWslReadiness
     $ready = $wsl.Ready
     Write-Host ("WSL: " + $wsl.Kind + $(if ($wsl.Version) { " (" + $wsl.Version + ")" } else { '' }))
     if (-not $ready) {
@@ -97,11 +97,11 @@ try {
             @($processors | Where-Object { $_.VirtualizationFirmwareEnabled -eq $false }).Count -gt 0) {
             throw 'La virtualizzazione hardware risulta disabilitata. Abilitarla nel BIOS/UEFI o chiedere al reparto IT di abilitarla nella macchina virtuale, quindi riaprire il setup.'
         }
-        Save-NipatPhase 'enabling_wsl'
+        Save-NewPatPhase 'enabling_wsl'
         Write-Host 'Windows richiedera UAC per abilitare o aggiornare WSL2 da Microsoft. Solo i comandi Windows DISM/WSL vengono elevati; NewPat resta nell account normale. Possono essere richieste piu conferme UAC.'
         $prerequisites = $null
         try {
-            $prerequisites = Get-NipatActivityRuntime -HelperRelativePath 'src/nipat/windows_wsl_prerequisites.py'
+            $prerequisites = Get-NewPatActivityRuntime -HelperRelativePath 'src/newpat/windows_wsl_prerequisites.py'
             & $prerequisites.Python -B -X utf8 -u $prerequisites.Helper
             $prerequisiteCode = $LASTEXITCODE
         } finally {
@@ -110,7 +110,7 @@ try {
             }
         }
         if ($prerequisiteCode -in @(3010, 1641)) {
-            Request-NipatReboot
+            Request-NewPatReboot
             $result = 3010
         } elseif ($prerequisiteCode -eq 50) {
             throw 'Questa installazione Windows/WSL non espone ancora le opzioni richieste. Installare gli aggiornamenti Windows e la versione WSL distribuita da Microsoft, quindi riaprire il setup. Istruzioni: https://learn.microsoft.com/windows/wsl/install'
@@ -119,26 +119,26 @@ try {
         } elseif ($prerequisiteCode -ne 0) {
             throw "Attivazione WSL non completata (codice $($prerequisiteCode)). Verificare autorizzazioni/policy aziendali con il reparto IT e riprovare."
         } else {
-            $wsl = Get-NipatWslReadiness
+            $wsl = Get-NewPatWslReadiness
             $ready = $wsl.Ready
             if (-not $ready) {
                 if ($wsl.Kind -in @('missing', 'legacy')) { throw "WSL non risulta aggiornato. Installare gli aggiornamenti Windows e WSL Microsoft, quindi riaprire il setup. $($wsl.Detail)" }
                 if ($Resume) { throw "WSL non e pronto anche dopo la ripresa. Verificare virtualizzazione e policy con il reparto IT. $($wsl.Detail)" }
-                Request-NipatReboot
+                Request-NewPatReboot
                 $result = 3010
             }
         }
     }
     if ($ready) {
-        Save-NipatPhase 'preparing_runtime'
-        $target = Get-NipatRuntimeTarget $wslDirectory $manifest.assets.rootfs.sha256 @(Get-NipatWslNames)
+        Save-NewPatPhase 'preparing_runtime'
+        $target = Get-NewPatRuntimeTarget $wslDirectory $manifest.assets.rootfs.sha256 @(Get-NewPatWslNames)
         $distro = $target.Distro
         $state.wsl_distro = $distro
-        if (-not $target.Registered) { Save-NipatPhase 'importing_distribution' }
-        Initialize-NipatRuntimeTarget $target $manifest.assets.rootfs $cache $AssetDirectory
-        Save-NipatPhase 'loading_scientific_image'
-        Invoke-NipatWsl @('--distribution', $distro, '--user', 'root', '--exec', '/usr/local/bin/nipat-engine', 'ensure') -TimeoutSeconds 240 | Out-Null
-        $runtimeImage = Install-NipatScientificImage $manifest $cache $AssetDirectory $distro
+        if (-not $target.Registered) { Save-NewPatPhase 'importing_distribution' }
+        Initialize-NewPatRuntimeTarget $target $manifest.assets.rootfs $cache $AssetDirectory
+        Save-NewPatPhase 'loading_scientific_image'
+        Invoke-NewPatWsl @('--distribution', $distro, '--user', 'root', '--exec', '/usr/local/bin/newpat-engine', 'ensure') -TimeoutSeconds 240 | Out-Null
+        $runtimeImage = Install-NewPatScientificImage $manifest $cache $AssetDirectory $distro
         $state.resolved_runtime_image = $runtimeImage
         $state.runtime_archive_sha256 = $manifest.assets.scientific_image.sha256
         $configuration = [ordered]@{
@@ -153,15 +153,15 @@ try {
         if (-not (Test-Path -LiteralPath $configuration.data_dir -PathType Container)) {
             [IO.Directory]::CreateDirectory($configuration.data_dir) | Out-Null
         }
-        Initialize-NipatWritableDirectory $configuration.runs_dir 'dei risultati'
-        $python = Install-NipatPython $project
-        Save-NipatPhase 'verifying_installation'
-        Complete-NipatRuntimeActivation $project $statePath $state $configuration {
+        Initialize-NewPatWritableDirectory $configuration.runs_dir 'dei risultati'
+        $python = Install-NewPatPython $project
+        Save-NewPatPhase 'verifying_installation'
+        Complete-NewPatRuntimeActivation $project $statePath $state $configuration {
             $checkLogs = Split-Path -Parent $statePath
-            Invoke-NipatSetupCheck $python @('-X', 'utf8', '-u', '-m', 'nipat', 'doctor', '--runtime') $checkLogs 'doctor'
-            Invoke-NipatSetupCheck $python @('-X', 'utf8', '-u', '-m', 'nipat', 'self-test') $checkLogs 'self-test'
+            Invoke-NewPatSetupCheck $python @('-X', 'utf8', '-u', '-m', 'newpat', 'doctor', '--runtime') $checkLogs 'doctor'
+            Invoke-NewPatSetupCheck $python @('-X', 'utf8', '-u', '-m', 'newpat', 'self-test') $checkLogs 'self-test'
         }
-        if (-not $ManualResume) { Unregister-NipatResume }
+        if (-not $ManualResume) { Unregister-NewPatResume }
         if ($ManualResume) { Write-Host 'Preparazione del runtime ZIP completata.' }
         else { Write-Host ($profile.display_name + ' e pronto. Apri ' + $profile.display_name + ' dal menu Start per scegliere un analisi.') }
         Write-Host "Applicazione: $($configuration.app_dir)"
@@ -176,7 +176,7 @@ try {
     Write-Host ("ERRORE: " + $message) -ForegroundColor Red
     if ($null -ne $state -and $lockHeld) {
         $state.last_error = $message
-        try { Save-NipatPhase 'failed' } catch { Write-Host 'Impossibile aggiornare lo stato installer.' }
+        try { Save-NewPatPhase 'failed' } catch { Write-Host 'Impossibile aggiornare lo stato installer.' }
     }
 } finally {
     try {
@@ -186,7 +186,7 @@ try {
             if ($lockHeld) { $mutex.ReleaseMutex() }
         } finally {
             try { if ($null -ne $mutex) { $mutex.Dispose() } }
-            finally { Exit-NipatInstallationActivity $activityLease }
+            finally { Exit-NewPatInstallationActivity $activityLease }
         }
     }
 }

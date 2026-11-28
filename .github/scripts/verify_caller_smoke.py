@@ -19,10 +19,10 @@ MARKERS = ("dnp", "snp")
 VALUE_FIELDS = ("REF", "ALT", "N_REF", "N_ALT", "N_Other", "total_count", "GT")
 
 sys.path.insert(0, str(ROOT / "src"))
-from nipat.execution.runner import DockerComposeRunner
-from nipat.execution.workflows import Workflows
-from nipat.gui.plan import prepare_analysis
-from nipat.paths import ProjectLayout
+from newpat.experiments.runner import DockerComposeRunner
+from newpat.experiments.workflows import Workflows
+from newpat.desktop.plan import prepare_analysis
+from newpat.paths import ProjectLayout
 from verify_caller_edges import verify_edges
 
 
@@ -114,7 +114,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--image", required=True, help="Locally loaded scientific runtime image")
     args = parser.parse_args()
-    os.environ.update(NIPAT_RUNTIME_IMAGE=args.image, NIPAT_BACKEND="native")
+    os.environ.update(NEWPAT_RUNTIME_IMAGE=args.image, NEWPAT_BACKEND="native")
     with tempfile.TemporaryDirectory(prefix="newpat-caller-smoke-") as directory:
         root = Path(directory)
         layout = ProjectLayout(ROOT, root, root / "data", root / "runs", ROOT / "compose.yaml")

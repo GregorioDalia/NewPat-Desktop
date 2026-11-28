@@ -1,0 +1,59 @@
+{
+  "workload_id": "synthetic-timing-v1.two-callers.128-loci.1-2-4-bam.v1",
+  "version": "0.9.10",
+  "source_commit": "85d91af7cd8ec01a628d96e9f5d49acbb06d25b4",
+  "host": {
+    "system": "Darwin",
+    "release": "27.2",
+    "machine": "arm64",
+    "logical_cpus": 8,
+    "model": "MacBookAir10,1",
+    "cpu": "Apple M1",
+    "physical_ram_bytes": 8589934592,
+    "power_source": "battery"
+  },
+  "warm_median_seconds": {
+    "1": 31.273,
+    "2": 59.872,
+    "4": 106.122
+  },
+  "kit_sha256": "ea212256f5946e1c6fbc69e2b91753dfb27b3120d6d2b08e7713e48ee7658285",
+  "summary_sha256": "d43b516cc7f5f282428e68ffd1f19286d565f7c52e7fc5d9e8318a9f4524b008",
+  "image_platform": "linux/amd64",
+  "cpu_limit": 4,
+  "memory_capacity_mib": 3905,
+  "timing_inputs_sha256": {
+    "dnp.tsv": "3e8ef8123158adbaa11b3717224e65c4e1fea448d51d1537904dfda07a8941cf",
+    "reference.fa": "2ed4b6af989224f840fc1df92f0bb1b59de2b3691640a7d7e8ada9683aea1a09",
+    "reference.fa.fai": "e3477028a42b3b97dea3e0dd9aada4f54dcdb87587f37f22b186a3a1b32284d6",
+    "snp.tsv": "1be4ae49aee181ab2cd8130be017b0c33a78d1b39a8a3071d24e475878f959ec",
+    "timing.bam": "53b921513716cc9d5e1774e374f0d2a415daa8c5af20eb342ff318396faf214a",
+    "timing.bam.bai": "67c7acda7ad7d9f58d45a46e589d7a84c9c71723759538fe83c905ed8b6c9f18"
+  },
+  "table_sha256": {
+    "dnp": "af4ad1fcfe1db05dc3438d79d4937dbf6a524177e5a1cce5a1a065f96ff256f4",
+    "snp": "d4d7e18da28dacefbece7b3c777649ce85c937839a2512957cc525bd08accf3d"
+  },
+  "rounds": [
+    [
+      1,
+      2,
+      4
+    ],
+    [
+      2,
+      4,
+      1
+    ],
+    [
+      4,
+      1,
+      2
+    ],
+    [
+      1,
+      2,
+      4
+    ]
+  ]
+}

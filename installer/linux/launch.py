@@ -23,8 +23,9 @@ import time
 from typing import Mapping
 
 
-CHANNEL = "desktop"
-DIRECTORY = "nipat-desktop"
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
+from newpat.distribution import CHANNEL, UNIX_DIRECTORY as DIRECTORY, supported_stable_release
+
 SOCKET = "unix:///var/run/docker.sock"
 IMAGE_ID = re.compile(r"sha256:[0-9a-f]{64}\Z")
 DIGEST = re.compile(r"[0-9a-f]{64}\Z")
@@ -32,7 +33,7 @@ GUIDE = "docs/LINUX_INSTALLER.md"
 SETUP_CHECK_TIMEOUTS = {"doctor": 300, "self-test": 1800}
 CLI_CODE = (
     "import sys; sys.path.insert(0, sys.argv.pop(1)); "
-    "from nipat.cli import main; raise SystemExit(main())"
+    "from newpat.cli import main; raise SystemExit(main())"
 )
 
 
@@ -79,17 +80,17 @@ def clean_environment(app: Path, data: Path, state: Path,
                       inherited: Mapping[str, str]) -> dict[str, str]:
     environment = {
         key: value for key, value in inherited.items()
-        if not key.startswith(("NIPAT_", "PYTHON", "DOCKER", "COMPOSE"))
+        if not key.startswith(("NEWPAT_", "PYTHON", "DOCKER", "COMPOSE"))
     }
     environment.update({
         "PATH": "/usr/bin:/bin",
         "PYTHONDONTWRITEBYTECODE": "1",
-        "NIPAT_BACKEND": "native",
-        "NIPAT_LAUNCHER_PID": str(os.getpid()),
-        "NIPAT_PROJECT_DIR": str(app),
-        "NIPAT_WORKSPACE_DIR": str(data),
-        "NIPAT_DATA_DIR": str(data / "data"),
-        "NIPAT_RUNS_DIR": str(data / "runs"),
+        "NEWPAT_BACKEND": "native",
+        "NEWPAT_LAUNCHER_PID": str(os.getpid()),
+        "NEWPAT_PROJECT_DIR": str(app),
+        "NEWPAT_WORKSPACE_DIR": str(data),
+        "NEWPAT_DATA_DIR": str(data / "data"),
+        "NEWPAT_RUNS_DIR": str(data / "runs"),
         "DOCKER_HOST": SOCKET,
         "DOCKER_CONFIG": str(state / "docker-config"),
     })
@@ -103,9 +104,7 @@ def load_manifest(app: Path) -> tuple[dict, str]:
         manifest = json.loads(raw)
         valid = (
             type(manifest) is dict and manifest.get("schema_version") == 1
-            and re.fullmatch(r"(?:0\.[67]\.\d+(?:(?:a|b|rc)\d+)?|0\.[89]\.\d+)", manifest.get("version", ""))
-            and (not manifest["version"].startswith("0.8.")
-                 or int(manifest["version"].split(".")[2]) >= 2)
+            and supported_stable_release(manifest.get("version"))
             and manifest.get("release_tag") == "v" + manifest["version"]
             and re.fullmatch(r"[0-9a-f]{40}", manifest.get("source_commit", ""))
             and IMAGE_ID.fullmatch(manifest.get("runtime_image", ""))
@@ -374,7 +373,7 @@ def ensure_ready(app: Path, data: Path, state: Path, environment: dict[str, str]
                 identifier = loaded_image(loaded.stdout)
                 if not image_present(identifier, environment):
                     raise SetupError("L'immagine caricata non corrisponde all'ID o alla piattaforma previsti.")
-                runtime_environment = dict(environment, NIPAT_RUNTIME_IMAGE=identifier)
+                runtime_environment = dict(environment, NEWPAT_RUNTIME_IMAGE=identifier)
                 for arguments in (["doctor", "--runtime"], ["self-test"]):
                     message("NewPat: " + " ".join(arguments))
                     code = run_cli(app, arguments, runtime_environment, log,
@@ -400,7 +399,7 @@ def gui_startup(app: Path):
     source = str(app / "src")
     if source not in sys.path:
         sys.path.insert(0, source)
-    from nipat.gui import startup
+    from newpat.desktop import startup
     return startup
 
 
@@ -417,7 +416,7 @@ def launch(arguments: list[str]) -> int:
         environment = clean_environment(app, data, state, os.environ)
         if "--dry-run" in arguments:
             manifest, _ = load_manifest(app)
-            environment["NIPAT_RUNTIME_IMAGE"] = manifest["runtime_image"]
+            environment["NEWPAT_RUNTIME_IMAGE"] = manifest["runtime_image"]
             return run_cli(app, arguments, environment)
         setup_only = arguments == ["--setup"]
         if "--setup" in arguments and not setup_only:
@@ -427,7 +426,7 @@ def launch(arguments: list[str]) -> int:
             identifier = ensure_ready(app, data, state, environment, force=setup_only)
         if setup_only:
             return 0
-        environment["NIPAT_RUNTIME_IMAGE"] = identifier
+        environment["NEWPAT_RUNTIME_IMAGE"] = identifier
         return run_cli(app, arguments or ["gui"], environment)
     except KeyboardInterrupt:
         print("\nOperazione interrotta.", file=sys.stderr)

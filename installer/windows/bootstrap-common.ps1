@@ -2,24 +2,24 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'install-profile.ps1')
 
-function Get-NipatApplicationVersion {
-    $versionFile = Join-Path $PSScriptRoot '../../src/nipat/__init__.py'
+function Get-NewPatApplicationVersion {
+    $versionFile = Join-Path $PSScriptRoot '../../src/newpat/__init__.py'
     $source = Get-Content -LiteralPath $versionFile -Raw -Encoding UTF8
     $match = [regex]::Match($source, '(?m)^__version__ = "((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))"\s*$')
     if (-not $match.Success) { throw 'Identita della build NewPat non valida.' }
     return $match.Groups[1].Value
 }
 
-function Read-NipatInstallerManifest([string] $Path) {
+function Read-NewPatInstallerManifest([string] $Path) {
     $manifest = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
-    if ($manifest.schema_version -ne 1 -or $manifest.version -cne (Get-NipatApplicationVersion) -or
+    if ($manifest.schema_version -ne 1 -or $manifest.version -cne (Get-NewPatApplicationVersion) -or
         $manifest.release_tag -cne ('v' + $manifest.version) -or
         $manifest.source_commit -cnotmatch '^[a-f0-9]{40}$' -or
         $manifest.runtime_image -cnotmatch '^sha256:[a-f0-9]{64}$') {
         throw 'Manifest installer non valido o di una versione non supportata.'
     }
     if ($null -eq $manifest.PSObject.Properties['installation_profile']) { throw 'Profilo di installazione assente dal manifest.' }
-    Assert-NipatInstallationProfile $manifest.installation_profile
+    Assert-NewPatInstallationProfile $manifest.installation_profile
     foreach ($name in @('rootfs', 'scientific_image')) {
         $asset = $manifest.assets.$name
         if ($asset.file -cnotmatch '^[A-Za-z0-9][A-Za-z0-9._-]*\.tar\.gz$' -or
@@ -27,7 +27,7 @@ function Read-NipatInstallerManifest([string] $Path) {
             (($asset.size -isnot [int]) -and ($asset.size -isnot [long])) -or $asset.size -le 0) {
             throw "Metadati dell'asset $name non validi."
         }
-        $expectedUrls = @(Get-NipatOfficialRepositories | ForEach-Object {
+        $expectedUrls = @(Get-NewPatOfficialRepositories | ForEach-Object {
             'https://github.com/' + $_ + '/releases/download/' + $manifest.release_tag + '/' + $asset.file
         })
         if ($expectedUrls -cnotcontains $asset.url) {
@@ -40,7 +40,7 @@ function Read-NipatInstallerManifest([string] $Path) {
     return $manifest
 }
 
-function Write-NipatJsonAtomic([string] $Path, $Value) {
+function Write-NewPatJsonAtomic([string] $Path, $Value) {
     $parent = Split-Path -Parent $Path
     [IO.Directory]::CreateDirectory($parent) | Out-Null
     $temporary = Join-Path $parent ('.write-' + [Guid]::NewGuid().ToString('N') + '.json')
@@ -57,28 +57,28 @@ function Write-NipatJsonAtomic([string] $Path, $Value) {
     }
 }
 
-function Test-NipatAsset([string] $Path, $Asset) {
+function Test-NewPatAsset([string] $Path, $Asset) {
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $false }
     if ((Get-Item -LiteralPath $Path).Length -ne $Asset.size) { return $false }
     return ((Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() -ceq $Asset.sha256)
 }
 
-function Get-NipatAsset($Asset, [string] $CacheDirectory, [string] $AssetDirectory) {
+function Get-NewPatAsset($Asset, [string] $CacheDirectory, [string] $AssetDirectory) {
     # The manifest always comes from the installed app. Offline folders supply bytes only.
     $cache = Join-Path $CacheDirectory ($Asset.sha256 + '-' + $Asset.file)
-    if (Test-NipatAsset $cache $Asset) { return $cache }
+    if (Test-NewPatAsset $cache $Asset) { return $cache }
     if ($AssetDirectory) {
         $provided = Join-Path $AssetDirectory $Asset.file
         if (Test-Path -LiteralPath $provided -PathType Leaf) {
             Write-Host "Verifica asset locale: $($Asset.file)"
-            if (-not (Test-NipatAsset $provided $Asset)) {
+            if (-not (Test-NewPatAsset $provided $Asset)) {
                 throw "Dimensione o SHA-256 non corrispondenti per $provided. Scaricare nuovamente l'asset della stessa release."
             }
             # Keep this file outside the app: resuming a setup must not require the installer medium.
             $temporaryCopy = $cache + '.copy-' + [Guid]::NewGuid().ToString('N')
             try {
                 Copy-Item -LiteralPath $provided -Destination $temporaryCopy
-                if (-not (Test-NipatAsset $temporaryCopy $Asset)) { throw 'Copia asset non integra.' }
+                if (-not (Test-NewPatAsset $temporaryCopy $Asset)) { throw 'Copia asset non integra.' }
                 Move-Item -LiteralPath $temporaryCopy -Destination $cache -Force
             } finally {
                 if (Test-Path -LiteralPath $temporaryCopy) { Remove-Item -LiteralPath $temporaryCopy -Force }
@@ -91,9 +91,9 @@ function Get-NipatAsset($Asset, [string] $CacheDirectory, [string] $AssetDirecto
     try {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         $releasePath = $Asset.url.Substring($Asset.url.IndexOf('/releases/download/'))
-        $downloadUrl = (Get-NipatOnlineRepository) + $releasePath
+        $downloadUrl = (Get-NewPatOnlineRepository) + $releasePath
         Invoke-WebRequest -UseBasicParsing -Uri $downloadUrl -OutFile $temporary -TimeoutSec 3600
-        if (-not (Test-NipatAsset $temporary $Asset)) {
+        if (-not (Test-NewPatAsset $temporary $Asset)) {
             throw "Dimensione o SHA-256 non corrispondenti per $($Asset.file). Nessun contenuto scaricato viene eseguito."
         }
         Move-Item -LiteralPath $temporary -Destination $cache -Force
@@ -103,7 +103,7 @@ function Get-NipatAsset($Asset, [string] $CacheDirectory, [string] $AssetDirecto
     }
 }
 
-function Assert-NipatWindowsPlatform([bool] $Is64BitOS, [bool] $Is64BitProcess,
+function Assert-NewPatWindowsPlatform([bool] $Is64BitOS, [bool] $Is64BitProcess,
     [string] $Architecture, [int] $Build, [int] $ProductType) {
     # Windows Server can have newer build numbers but is not a desktop target.
     if (-not $Is64BitOS -or -not $Is64BitProcess -or $Architecture -ine 'AMD64') {
@@ -114,12 +114,12 @@ function Assert-NipatWindowsPlatform([bool] $Is64BitOS, [bool] $Is64BitProcess,
     }
 }
 
-function Assert-NipatWindowsUser {
+function Assert-NewPatWindowsUser {
     $architecture = $env:PROCESSOR_ARCHITECTURE
     if ($env:PROCESSOR_ARCHITEW6432) { $architecture = $env:PROCESSOR_ARCHITEW6432 }
     $build = [int](Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').CurrentBuildNumber
     $product = (Get-CimInstance -ClassName Win32_OperatingSystem).ProductType
-    Assert-NipatWindowsPlatform ([Environment]::Is64BitOperatingSystem) ([Environment]::Is64BitProcess) $architecture $build $product
+    Assert-NewPatWindowsPlatform ([Environment]::Is64BitOperatingSystem) ([Environment]::Is64BitProcess) $architecture $build $product
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = New-Object Security.Principal.WindowsPrincipal($identity)
     if ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
@@ -127,11 +127,11 @@ function Assert-NipatWindowsUser {
     }
 }
 
-function Get-NipatWslReadiness {
-    if (-not (Test-Path -LiteralPath $script:NipatWsl -PathType Leaf)) {
+function Get-NewPatWslReadiness {
+    if (-not (Test-Path -LiteralPath $script:NewPatWsl -PathType Leaf)) {
         return [pscustomobject]@{ Ready = $false; Kind = 'missing'; Version = ''; Detail = 'WSL non installato.' }
     }
-    $versionResult = Invoke-NipatWsl @('--version') -AllowFailure -TimeoutSeconds 30
+    $versionResult = Invoke-NewPatWsl @('--version') -AllowFailure -TimeoutSeconds 30
     # Later lines describe the kernel and Windows, not the WSL package version.
     # An empty pipeline produces AutomationNull in Windows PowerShell 5.1;
     # casting that value at a .NET method boundary can still pass a null input.
@@ -144,12 +144,12 @@ function Get-NipatWslReadiness {
     if ($versionResult.ExitCode -ne 0 -or -not $match.Success -or [version] $match.Value -lt [version] '1.0.0') {
         return [pscustomobject]@{ Ready = $false; Kind = 'legacy'; Version = ''; Detail = 'WSL deve essere installato o aggiornato alla versione distribuita da Microsoft.' }
     }
-    $status = Invoke-NipatWsl @('--status') -AllowFailure -TimeoutSeconds 30
+    $status = Invoke-NewPatWsl @('--status') -AllowFailure -TimeoutSeconds 30
     $ready = $status.ExitCode -eq 0 -and $null -ne (Get-Service -Name vmcompute -ErrorAction SilentlyContinue)
     return [pscustomobject]@{ Ready = $ready; Kind = $(if ($ready) { 'ready' } else { 'configuration' }); Version = $match.Value; Detail = $status.Text }
 }
 
-function ConvertTo-NipatNativeArgument([string] $Value) {
+function ConvertTo-NewPatNativeArgument([string] $Value) {
     # ProcessStartInfo.ArgumentList is unavailable in Windows PowerShell 5.1.
     # Apply Windows command-line quoting, including trailing backslashes.
     if ($Value -ne '' -and $Value -notmatch '[\s"]') { return $Value }
@@ -158,7 +158,7 @@ function ConvertTo-NipatNativeArgument([string] $Value) {
     return '"' + $escaped + '"'
 }
 
-function Stop-NipatSetupCheck([Diagnostics.Process] $Process) {
+function Stop-NewPatSetupCheck([Diagnostics.Process] $Process) {
     if (-not $Process.HasExited) {
         if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
             # Closing the Python supervisor closes its private job.
@@ -172,7 +172,7 @@ function Stop-NipatSetupCheck([Diagnostics.Process] $Process) {
     }
 }
 
-function Invoke-NipatSetupCheck([string] $Executable, [string[]] $Arguments,
+function Invoke-NewPatSetupCheck([string] $Executable, [string[]] $Arguments,
     [string] $LogDirectory, [string] $Name, [int] $TimeoutSeconds = 0,
     [string] $SupervisorPython = $Executable) {
     if ($Name -cnotmatch '^[a-z][a-z0-9-]*$') { throw 'Nome del controllo di preparazione non valido.' }
@@ -191,7 +191,7 @@ function Invoke-NipatSetupCheck([string] $Executable, [string[]] $Arguments,
     $waitMilliseconds = $TimeoutSeconds * 1000
     if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
         $source = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-        $supervisor = Join-Path $source 'src\nipat\windows_setup_check.py'
+        $supervisor = Join-Path $source 'src\newpat\windows_setup_check.py'
         $start.FileName = $SupervisorPython
         $Arguments = @('-X', 'utf8', '-u', $supervisor, [string]$TimeoutSeconds, '--', $Executable) + $Arguments
         # The supervisor enforces the check deadline. Allow bounded time for
@@ -200,7 +200,7 @@ function Invoke-NipatSetupCheck([string] $Executable, [string[]] $Arguments,
     } else {
         $start.FileName = $Executable
     }
-    $start.Arguments = (($Arguments | ForEach-Object { ConvertTo-NipatNativeArgument $_ }) -join ' ')
+    $start.Arguments = (($Arguments | ForEach-Object { ConvertTo-NewPatNativeArgument $_ }) -join ' ')
     $start.UseShellExecute = $false
     $start.CreateNoWindow = $true
     $start.RedirectStandardOutput = $true
@@ -238,7 +238,7 @@ function Invoke-NipatSetupCheck([string] $Executable, [string[]] $Arguments,
     } finally {
         try {
             if ($started -and -not $process.HasExited) {
-                Stop-NipatSetupCheck $process
+                Stop-NewPatSetupCheck $process
             }
         } finally {
             $copyCancellation.Cancel()
@@ -265,10 +265,10 @@ function Invoke-NipatSetupCheck([string] $Executable, [string[]] $Arguments,
     }
 }
 
-function Invoke-NipatWsl([string[]] $Arguments, [switch] $AllowFailure, [int] $TimeoutSeconds = 1800) {
+function Invoke-NewPatWsl([string[]] $Arguments, [switch] $AllowFailure, [int] $TimeoutSeconds = 1800) {
     $start = New-Object Diagnostics.ProcessStartInfo
-    $start.FileName = $script:NipatWsl
-    $start.Arguments = (($Arguments | ForEach-Object { ConvertTo-NipatNativeArgument $_ }) -join ' ')
+    $start.FileName = $script:NewPatWsl
+    $start.Arguments = (($Arguments | ForEach-Object { ConvertTo-NewPatNativeArgument $_ }) -join ' ')
     $start.UseShellExecute = $false
     $start.CreateNoWindow = $true
     $start.RedirectStandardInput = $true
@@ -317,13 +317,13 @@ function Invoke-NipatWsl([string[]] $Arguments, [switch] $AllowFailure, [int] $T
     }
 }
 
-function Get-NipatWslNames {
-    $result = Invoke-NipatWsl @('--list', '--quiet') -TimeoutSeconds 30
+function Get-NewPatWslNames {
+    $result = Invoke-NewPatWsl @('--list', '--quiet') -TimeoutSeconds 30
     if (-not $result.Text) { return @() }
     return @($result.Text -split '\r?\n' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 }
 
-function Get-NipatLoadedImageId([string] $Output) {
+function Get-NewPatLoadedImageId([string] $Output) {
     # The builder exports ONE image by ID, without tags. Use the receipt from
     # loading that verified archive, never an arbitrary image from docker image ls.
     # Graphdriver IDs are config digests; containerd IDs are manifest/index digests.
@@ -338,27 +338,27 @@ function Get-NipatLoadedImageId([string] $Output) {
     return $Matches[1]
 }
 
-function Invoke-NipatRuntimeDocker([string] $Distro, [string[]] $Arguments, [int] $TimeoutSeconds = 120) {
+function Invoke-NewPatRuntimeDocker([string] $Distro, [string[]] $Arguments, [int] $TimeoutSeconds = 120) {
     # Use only the dedicated local daemon, independently of Windows Docker settings.
     $prefix = @('--distribution', $Distro, '--user', 'root', '--exec',
         '/usr/bin/env', '-i', 'HOME=/root', 'LANG=C.UTF-8',
         'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
         'docker', '--host', 'unix:///var/run/docker.sock')
-    return (Invoke-NipatWsl ($prefix + $Arguments) -TimeoutSeconds $TimeoutSeconds)
+    return (Invoke-NewPatWsl ($prefix + $Arguments) -TimeoutSeconds $TimeoutSeconds)
 }
 
-function Install-NipatScientificImage($Manifest, [string] $CacheDirectory, [string] $AssetDirectory, [string] $Distro) {
+function Install-NewPatScientificImage($Manifest, [string] $CacheDirectory, [string] $AssetDirectory, [string] $Distro) {
     # Reverify and load on each setup/resume. Ordinary launches use the stored ID.
     # This also recovers an interrupted setup without trusting a stale local mapping.
-    $archive = Get-NipatAsset $Manifest.assets.scientific_image $CacheDirectory $AssetDirectory
-    $linuxArchive = Invoke-NipatWsl @('--distribution', $Distro, '--user', 'root',
+    $archive = Get-NewPatAsset $Manifest.assets.scientific_image $CacheDirectory $AssetDirectory
+    $linuxArchive = Invoke-NewPatWsl @('--distribution', $Distro, '--user', 'root',
         '--exec', 'wslpath', '-a', '-u', $archive)
     Write-Host 'Caricamento dell archivio scientifico verificato...'
-    $loaded = Invoke-NipatRuntimeDocker $Distro @('image', 'load', '--input', $linuxArchive.Text) -TimeoutSeconds 3600
+    $loaded = Invoke-NewPatRuntimeDocker $Distro @('image', 'load', '--input', $linuxArchive.Text) -TimeoutSeconds 3600
     Write-Host $loaded.Text
     if ($loaded.ErrorText) { Write-Host $loaded.ErrorText }
-    $imageId = Get-NipatLoadedImageId $loaded.Text
-    $inspection = Invoke-NipatRuntimeDocker $Distro @('image', 'inspect', '--format',
+    $imageId = Get-NewPatLoadedImageId $loaded.Text
+    $inspection = Invoke-NewPatRuntimeDocker $Distro @('image', 'inspect', '--format',
         '{{.Id}} {{.Os}} {{.Architecture}}', $imageId)
     if ($inspection.Text -cne ($imageId + ' linux amd64')) {
         throw 'L immagine appena caricata non corrisponde all ID restituito o alla piattaforma Linux amd64.'
@@ -368,11 +368,11 @@ function Install-NipatScientificImage($Manifest, [string] $CacheDirectory, [stri
     return $imageId
 }
 
-function Assert-NipatRuntimeBinding($Manifest, $State, $Configuration) {
-    Assert-NipatInstallationProfile $Manifest.installation_profile
-    Assert-NipatInstallationChannel $State 'Lo stato del runtime'
-    Assert-NipatInstallationChannel $Configuration 'La configurazione del runtime'
-    $profile = Get-NipatInstallationProfile
+function Assert-NewPatRuntimeBinding($Manifest, $State, $Configuration) {
+    Assert-NewPatInstallationProfile $Manifest.installation_profile
+    Assert-NewPatInstallationChannel $State 'Lo stato del runtime'
+    Assert-NewPatInstallationChannel $Configuration 'La configurazione del runtime'
+    $profile = Get-NewPatInstallationProfile
     foreach ($name in @('resolved_runtime_image', 'runtime_archive_sha256', 'wsl_distro', 'rootfs_sha256')) {
         if ($null -eq $State.PSObject.Properties[$name]) {
             throw ('Verifica del runtime da aggiornare: aprire ' + $profile.display_name + ' - Resume Setup dal menu Start.')
@@ -389,12 +389,12 @@ function Assert-NipatRuntimeBinding($Manifest, $State, $Configuration) {
         foreach ($field in @('app_dir', 'runtime_dir', 'cache_dir', 'data_dir', 'runs_dir')) {
             if ($null -eq $Configuration.PSObject.Properties[$field] -or
                 $null -eq $State.PSObject.Properties[$field] -or
-                (Resolve-NipatInstallPath $Configuration.$field) -ine (Resolve-NipatInstallPath $State.$field)) {
+                (Resolve-NewPatInstallPath $Configuration.$field) -ine (Resolve-NewPatInstallPath $State.$field)) {
                 throw "Le destinazioni del runtime non corrispondono alla preparazione: $field."
             }
         }
     }
-    Assert-NipatRuntimeNamespace $Configuration.wsl_distro $Manifest.assets.rootfs.sha256 $runtimeDirectory
+    Assert-NewPatRuntimeNamespace $Configuration.wsl_distro $Manifest.assets.rootfs.sha256 $runtimeDirectory
     if ($State.wsl_distro -cne $Configuration.wsl_distro -or
         $State.rootfs_sha256 -cne $Manifest.assets.rootfs.sha256 -or
         $Configuration.rootfs_sha256 -cne $Manifest.assets.rootfs.sha256 -or
@@ -410,7 +410,7 @@ function Assert-NipatRuntimeBinding($Manifest, $State, $Configuration) {
     }
 }
 
-function Assert-NipatDistroLocation([string] $Distro, [string] $ExpectedDirectory) {
+function Assert-NewPatDistroLocation([string] $Distro, [string] $ExpectedDirectory) {
     # WSL registration belongs to HKCU. Match its location before recovering an interrupted import.
     $registrations = @(Get-ChildItem -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Lxss' |
         ForEach-Object { Get-ItemProperty -LiteralPath $_.PSPath } |
@@ -425,30 +425,30 @@ function Assert-NipatDistroLocation([string] $Distro, [string] $ExpectedDirector
     }
 }
 
-function Open-NipatResumeRegistry([switch] $Create) {
+function Open-NewPatResumeRegistry([switch] $Create) {
     $path = 'Software\Microsoft\Windows\CurrentVersion\RunOnce'
     if ($Create) { return [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey($path) }
     return [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($path, $true)
 }
 
-function Register-NipatResume([string] $Project) {
-    Assert-NipatInstallationLocation $Project
+function Register-NewPatResume([string] $Project) {
+    Assert-NewPatInstallationLocation $Project
     $powershell = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
     $bootstrap = Join-Path $Project 'installer\windows\bootstrap.ps1'
     $command = '"' + $powershell + '" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "' + $bootstrap + '" -Resume'
     if ($command.Length -gt 260) {
-        Write-Host ('Dopo il riavvio aprire ' + (Get-NipatInstallationProfile).display_name + ' - Resume Setup dal menu Start (percorso troppo lungo per RunOnce).')
+        Write-Host ('Dopo il riavvio aprire ' + (Get-NewPatInstallationProfile).display_name + ' - Resume Setup dal menu Start (percorso troppo lungo per RunOnce).')
         return $false
     }
-    $key = Open-NipatResumeRegistry -Create
-    try { $key.SetValue((Get-NipatInstallationProfile).resume_key, $command, [Microsoft.Win32.RegistryValueKind]::String) }
+    $key = Open-NewPatResumeRegistry -Create
+    try { $key.SetValue((Get-NewPatInstallationProfile).resume_key, $command, [Microsoft.Win32.RegistryValueKind]::String) }
     finally { $key.Dispose() }
     return $true
 }
 
-function Unregister-NipatResume {
-    $key = Open-NipatResumeRegistry
+function Unregister-NewPatResume {
+    $key = Open-NewPatResumeRegistry
     if ($null -ne $key) {
-        try { $key.DeleteValue((Get-NipatInstallationProfile).resume_key, $false) } finally { $key.Dispose() }
+        try { $key.DeleteValue((Get-NewPatInstallationProfile).resume_key, $false) } finally { $key.Dispose() }
     }
 }

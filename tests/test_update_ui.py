@@ -6,13 +6,13 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 
-from nipat.cli import DEFAULT_ERR_CONST
-from nipat.errors import ValidationError
-from nipat.paths import ProjectLayout
-from nipat.preferences import Preferences, PreferencesStore
-from nipat.terminal import Terminal
-from nipat.update_ui import DownloadProgress, HANDOFF_EXIT_CODE, run_updates
-from nipat.wizard import run_wizard
+from newpat.cli import DEFAULT_ERR_CONST
+from newpat.errors import ValidationError
+from newpat.paths import ProjectLayout
+from newpat.preferences import Preferences, PreferencesStore
+from newpat.terminal import Terminal
+from newpat.update_ui import DownloadProgress, HANDOFF_EXIT_CODE, run_updates
+from newpat.wizard import run_wizard
 
 
 class UpdateUITests(unittest.TestCase):
@@ -24,22 +24,22 @@ class UpdateUITests(unittest.TestCase):
         app.mkdir()
         self.layout = ProjectLayout(app, self.root, self.root / "data", self.root / "runs", app / "compose.yaml")
         self.offer = SimpleNamespace(
-            version="0.6.1", channel="testing", release_tag="v0.6.1",
-            release_notes_url="https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.6.1",
-            asset=SimpleNamespace(platform="windows-x86_64", name="NIPAT-Setup.exe", size=1024,
+            version="0.9.100", channel="testing", release_tag="v0.9.100",
+            release_notes_url="https://github.com/GregorioDalia/NewPat-Desktop/releases/tag/v0.9.100",
+            asset=SimpleNamespace(platform="windows-bootstrap-x86_64", name="NewPat-0.9.100-Windows-payload.zip", size=1024,
                                   sha256="a" * 64, url="https://example.invalid/not-used"))
         self.client = Mock()
         self.client.check.return_value = SimpleNamespace(status="available", message="Disponibile", offer=self.offer)
-        self.client.download.return_value = self.root / "updates" / "NIPAT-Setup.exe"
+        self.client.download.return_value = self.root / "updates" / "NewPat-0.9.100-Windows-payload.zip"
         self.handoff = Mock(return_value=True)
         self.messages = []
 
     def invoke(self, answers=(), **kwargs):
-        kwargs.setdefault("current_version", "0.7.2")
+        kwargs.setdefault("current_version", "0.9.99")
         ui = Terminal(read=Mock(side_effect=list(answers)), write=self.messages.append)
         return run_updates(ui, self.layout, Preferences(), client=self.client,
                            download_directory=self.root / "updates", handoff=self.handoff,
-                           platform="windows-x86_64", **kwargs)
+                           platform="windows-bootstrap-x86_64", **kwargs)
 
     def test_manual_check_offers_version_notes_size_but_enter_never_downloads(self):
         self.assertFalse(self.invoke([""]))
@@ -47,20 +47,20 @@ class UpdateUITests(unittest.TestCase):
         self.client.download.assert_not_called()
         self.handoff.assert_not_called()
         text = "\n".join(self.messages)
-        self.assertIn("0.6.1", text)
+        self.assertIn("0.9.100", text)
         self.assertIn(self.offer.release_notes_url, text)
         self.assertIn("Dimensione:", text)
 
     def test_download_confirmation_does_not_authorize_installation(self):
         self.assertFalse(self.invoke(["1", ""]))
         self.client.download.assert_called_once()
-        self.assertEqual(self.client.download.call_args.args[1], self.root / "updates" / "0.6.1")
+        self.assertEqual(self.client.download.call_args.args[1], self.root / "updates" / "0.9.100")
         self.handoff.assert_not_called()
         self.assertIn("versione installata non e' stata modificata", "\n".join(self.messages))
 
     def test_mac_download_explains_manual_close_and_installer_without_unsupported_handoff(self):
         self.offer.asset.platform = "darwin-arm64"
-        self.offer.asset.name = "NIPAT-0.8.2-macos-arm64.pkg"
+        self.offer.asset.name = "NewPat-0.8.2-macos-arm64.pkg"
         self.client.download.return_value = self.root / self.offer.asset.name
         ui = Terminal(read=Mock(side_effect=["1"]), write=self.messages.append)
         self.assertFalse(run_updates(ui, self.layout, Preferences(), client=self.client,
@@ -85,7 +85,7 @@ class UpdateUITests(unittest.TestCase):
         ui = Terminal(read=Mock(side_effect=["1", "1"]), write=write)
         started = run_updates(ui, self.layout, Preferences(), client=self.client,
                               download_directory=self.root / "updates", handoff=self.handoff,
-                              platform="windows-x86_64", current_version="0.7.2")
+                              platform="windows-bootstrap-x86_64", current_version="0.9.99")
         self.assertTrue(started)
         self.handoff.assert_called_once()
         self.assertNotIn("annullata", "\n".join(self.messages))
@@ -168,7 +168,7 @@ class UpdateUITests(unittest.TestCase):
         return status, store, workflows
 
     def test_wizard_default_startup_does_not_check_and_menu_handoff_returns_exit85(self):
-        with patch("nipat.wizard.run_updates", return_value=True) as updater:
+        with patch("newpat.wizard.run_updates", return_value=True) as updater:
             status, _, _ = self.wizard(["0"])
             self.assertEqual(status, 0)
             updater.assert_not_called()
@@ -178,7 +178,7 @@ class UpdateUITests(unittest.TestCase):
             updater.assert_called_once()
 
     def test_enabled_startup_check_is_notification_only(self):
-        with patch("nipat.wizard.run_updates", return_value=False) as updater:
+        with patch("newpat.wizard.run_updates", return_value=False) as updater:
             status, _, workflows = self.wizard(["0"], Preferences(check_updates_on_startup=True))
         self.assertEqual(status, 0)
         updater.assert_called_once()
@@ -186,24 +186,24 @@ class UpdateUITests(unittest.TestCase):
         workflows.dnp_call.assert_not_called()
 
     def test_failed_update_check_does_not_change_wizard_exit_status(self):
-        with patch("nipat.wizard.run_updates", return_value=False):
+        with patch("newpat.wizard.run_updates", return_value=False):
             status, _, _ = self.wizard(["9", "0"])
         self.assertEqual(status, 0)
 
     def test_update_settings_save_explicitly_and_cancel_discards_edits(self):
-        with patch("nipat.wizard.run_updates") as updater:
+        with patch("newpat.wizard.run_updates") as updater:
             status, store, _ = self.wizard(["5", "8", "1", "2", "2", "1", "9", "0", "0"])
         self.assertEqual(status, 0)
         prefs = store.load()
         self.assertEqual(prefs.update_channel, "stable")
         self.assertTrue(prefs.check_updates_on_startup)
         updater.assert_not_called()  # Changing a setting does not trigger a check immediately.
-        with patch("nipat.wizard.run_updates", return_value=False):
+        with patch("newpat.wizard.run_updates", return_value=False):
             self.wizard(["5", "8", "1", "1", "2", "2", "0", "0", "0"])
         self.assertEqual(store.load(), prefs)
 
     def test_update_menu_can_switch_from_stable_to_testing_and_back(self):
-        with patch("nipat.wizard.run_updates") as updater:
+        with patch("newpat.wizard.run_updates") as updater:
             status, store, _ = self.wizard(["5", "8", "1", "1", "9", "0", "0"])
             self.assertEqual(status, 0)
             self.assertEqual(store.load().update_channel, "testing")

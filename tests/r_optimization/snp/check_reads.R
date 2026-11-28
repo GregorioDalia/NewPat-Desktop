@@ -3,7 +3,7 @@
 arguments <- commandArgs(trailingOnly = TRUE)
 if (length(arguments) != 1L) stop("Expected one repository root argument")
 repository <- normalizePath(arguments[[1L]], mustWork = TRUE)
-Sys.setenv(NIPAT_PARALLEL_HELPER = file.path(repository, "src/nipat_scientific/parallel.R"))
+Sys.setenv(NEWPAT_PARALLEL_HELPER = file.path(repository, "src/newpat_scientific/parallel.R"))
 load_core <- function(path, upstream = FALSE) {
   environment <- new.env(parent = globalenv())
   expressions <- parse(file = path)
@@ -92,7 +92,7 @@ for (locale in unique(c(original_locale, "C", "C.UTF-8"))) {
     writeLines(case[[2L]], pileup, useBytes = TRUE)
     expected <- evaluate(reference, pileup, snplist)
     for (configuration in configurations) {
-      Sys.setenv(NIPAT_EXECUTION_MODE = configuration[[1L]], NIPAT_MAX_WORKERS = configuration[[2L]])
+      Sys.setenv(NEWPAT_EXECUTION_MODE = configuration[[1L]], NEWPAT_MAX_WORKERS = configuration[[2L]])
       actual <- evaluate(candidate, pileup, snplist)
       if (expected$ok != actual$ok || (expected$ok && !identical(expected$result, actual$result))) {
         print(list(reference = expected, candidate = actual))
@@ -104,6 +104,20 @@ for (locale in unique(c(original_locale, "C", "C.UTF-8"))) {
       stop("Unexpected oracle failure: ", name, ": ", expected$message)
     results[[name]] <- expected$result
   }
+}
+# Force adjacent loci into separate blocks; read windows can overlap and arrive
+# out of panel order. The uncovered site must retain the same zeros and NAs.
+shuffled <- panel(c(120L, 51L, 700L, 50L))
+snplist <- file.path(root, "shuffled-blocks.tsv")
+pileup <- file.path(root, "shuffled-blocks.pileup")
+write.table(shuffled, snplist, quote = FALSE, sep = "\t", row.names = FALSE)
+writeLines(base_cases$interleaved_groups[[2L]], pileup)
+expected <- evaluate(reference, pileup, snplist)
+stopifnot(expected$ok)
+for (configuration in configurations) {
+  Sys.setenv(NEWPAT_EXECUTION_MODE = configuration[[1L]], NEWPAT_MAX_WORKERS = configuration[[2L]])
+  small_blocks <- candidate$call_sample(pileup, snplist, block_observations = 10)
+  stopifnot(identical(small_blocks, expected$result))
 }
 Sys.setlocale("LC_COLLATE", original_locale)
 # Independent assertions prevent an accidentally empty oracle comparison.
@@ -131,7 +145,7 @@ for (name in c("shared_overlapping_windows", "center_and_flank_indels")) {
     reads <- sub("shared1", "shared@1", reads, fixed = TRUE)
     writeLines(reads, pileup)
     for (configuration in configurations) {
-      Sys.setenv(NIPAT_EXECUTION_MODE = configuration[[1L]], NIPAT_MAX_WORKERS = configuration[[2L]])
+      Sys.setenv(NEWPAT_EXECUTION_MODE = configuration[[1L]], NEWPAT_MAX_WORKERS = configuration[[2L]])
       stopifnot(identical(candidate$call_sample(pileup, snplist), expected))
     }
   }
@@ -171,8 +185,8 @@ check_likelihood <- function(count, mode, child = FALSE) {
     window(p, bases, "r1,r2,r3,r4", qualities = "5?II")
   }), use.names = FALSE), reads)
   logs <- tempfile("likelihood-events-", tmpdir = root)
-  Sys.setenv(NIPAT_EXECUTION_MODE = mode, NIPAT_MAX_WORKERS = "2",
-             NIPAT_PARALLEL_LOG_DIR = logs, NIPAT_PARALLEL_CHILD = if (child) "1" else "")
+  Sys.setenv(NEWPAT_EXECUTION_MODE = mode, NEWPAT_MAX_WORKERS = "2",
+             NEWPAT_PARALLEL_LOG_DIR = logs, NEWPAT_PARALLEL_CHILD = if (child) "1" else "")
   key <- as.character(count)
   if (!exists(key, envir = likelihood_oracles, inherits = FALSE)) {
     likelihood_oracles[[key]] <- evaluate(reference, reads, snps)

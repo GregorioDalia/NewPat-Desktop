@@ -1,19 +1,8 @@
 # Verify and publish a NewPat release
 
-A release publishes the packages produced by a reviewed GitHub Actions installer build. The publisher checks the files again and reuses those bytes. The package set covers Windows x64, Ubuntu 24.04 x86_64, macOS Intel and macOS Apple Silicon, all tied to one Linux AMD64 scientific archive.
+A release publishes the packages produced by a reviewed GitHub Actions installer build. The publisher checks the files again and reuses those bytes. The package set covers Windows x64, Ubuntu 24.04 x86_64, macOS Intel and macOS Apple Silicon, with an ARM64 scientific runtime for Apple Silicon and an AMD64 runtime for the other platforms.
 
 For a request to make a version stable, first identify the version, the intended source commit and the approved scientific scope. Integrate that source through the development PR and wait for its required checks. Use an existing successful full installer build only if it still meets the source, ancestry, artifact and evidence requirements. Otherwise dispatch one full build from the integrated commit. Complete the acceptance record with the selected `stable` channel and reviewer's evidence, then merge the acceptance-only PR. The verified publisher creates and checks the draft before publication. A stable version newer than the current **Latest** becomes the default download. These are normally two PRs across the life of the version. Once the code is integrated, only the acceptance PR remains.
-
-## Before the 0.9.10 source is finalized
-
-The prenatal and postnatal CPI revisions are available. The sixth analysis is still under development. Review the scientific changes in the development PR so the installer build includes the corresponding code, fixtures and user documentation.
-
-| Delivery | Evidence to include in the source PR |
-| --- | --- |
-| Revised CPI workflows | Check prenatal count-only, percentage-only and combined settings. Compare the postnatal scalar, site counts and base-10 logarithm against the [upstream SNP and DNP examples](https://github.com/lpistacchia/NEWPAT/tree/97c4eb5f7a901d0435b950c3e2a52a8bd7eae9d4/CPI_postnatal/examples/outputs). Inspect the installed summary and exported tables, including a zero-site case. |
-| Sixth analysis (sex estimation) | Record the script revision, required inputs, parameters, outputs and an author-confirmed synthetic example. Exercise the installed workflow and publish its expected results with the user guide. Extend the scientific qualification and its release verifier to cover the module. |
-
-Use the [0.9.10 release notes](../docs/RELEASE_0.9.10.md) to track what the candidate actually delivers. Record the planned timing comparison on the target Mac as a post-release observation once it has run.
 
 ## Finalize documentation for each release
 
@@ -35,12 +24,12 @@ The builder checks the client, qualifies the scientific image, exports the commo
 
 | Actions artifact | Contents |
 | --- | --- |
-| `nipat-windows-setup` | Bootstrap EXE, Windows payload and complete ZIP, manifest, checksums, `installer-build.json` and client checks. |
-| `nipat-runtime-assets` | Scientific archive, WSL filesystem, manifest and checksums. |
-| `nipat-linux-setup` | Ubuntu DEB and packaging, installation, dependency and upgrade reports. |
-| `nipat-macos-setup-arm64`, `nipat-macos-setup-x86_64` | Native PKG and package report for each macOS architecture. |
-| `nipat-scientific-check-logs` | Scientific reports and the executed/reused provenance in `reuse.json`. |
-| `nipat-installer-set-evidence` | `installer-set-check.json`, which identifies the four installers together. |
+| `newpat-windows-setup` | Bootstrap EXE, Windows payload and complete ZIP, manifest, checksums, `installer-build.json` and client checks. |
+| `newpat-runtime-assets` | Scientific archive, WSL filesystem, manifest and checksums. |
+| `newpat-linux-setup` | Ubuntu DEB and packaging, clean dependency installation and end-to-end installation reports. |
+| `newpat-macos-setup-arm64`, `newpat-macos-setup-x86_64` | Native PKG and package report for each macOS architecture. |
+| `newpat-scientific-check-logs` | Scientific reports and the executed/reused provenance in `reuse.json`. |
+| `newpat-installer-set-evidence` | `installer-set-check.json`, which identifies the four installers together. |
 
 ### Local Windows ZIP review
 
@@ -49,7 +38,7 @@ To test a candidate on a Windows PC, enable `windows_zip_only` when dispatching 
 ### Platform evidence
 
 - **Windows.** `windows-client-check.json` tests the staged payload with its embedded Python, including complex paths. `windows-installer-fixture-check.json` exercises installation, upgrade and removal of a fixture compiled from the candidate Inno definition. `windows-trust-check.json` binds actual Authenticode observations to package bytes. Record execution of the production setup, a real WSL installation or Smart App Control on a physical system only when observed. Bootstrap, separately downloaded payload and complete local ZIP have distinct identities.
-- **Ubuntu.** Package checks cover APT installation, dependency resolution, non-root preparation and analysis, reinstall/removal, and preservation of user files. For the 0.9.10 candidate, `linux-upgrade-check.json` must show a successful upgrade from the published 0.9.9 DEB and identify its SHA-256. This test runs on the configured Actions runner.
+- **Ubuntu.** Package checks cover APT installation, dependency resolution, non-root preparation and analysis, reinstall/removal, and preservation of user files. `linux-dependency-check.json` records installation in a clean Ubuntu container. Its digest is bound to the acceptance record.
 - **macOS.** Review native PKG, bundled Python, Lima, launcher and archive identity for each architecture. `qualify_macos_runtime` can request separate VM tests on appropriately equipped dedicated runners. Record an unexecuted architecture as `not-performed`. Checksum verification establishes file identity. It does not confer a Developer ID signature or notarization.
 
 ## 2. Review and record acceptance
@@ -71,10 +60,10 @@ The `publication_channel` is explicit. Use `stable` for an authorized numeric `M
 
 ### Scientific evidence in schema 7
 
-The `scientific_equivalence` and `scientific_analysis_qualification` entries each record `reference_source_commit`, `report_path`, `report_sha256` and `runtime_image`. Use the normalized paths and digests from the verified `qualification-evidence.zip`. Both reports identify the same immutable image contained in the accepted packages.
+The `scientific_equivalence` and `scientific_analysis_qualification` entries each record `reference_source_commit`, `report_path`, `report_sha256` and `runtime_image`. Use the normalized paths and digests from the verified `qualification-evidence.zip`. Both reports identify the qualified AMD64 image. Apple Silicon has a dedicated immutable ARM64 image and native parity evidence.
 
-- **DNP and SNP.** The 17-case caller comparison uses frozen NIPAT 0.8.5 for DNP and the separately pinned SNPcall 2.0 source for SNP. Check exact exported tables and unrounded R results, histogram values, plot content and dimensions, and equivalent serial/parallel candidate renderings.
-- **Contamination, Prenatal CPI and Postnatal CPI.** The upstream reference snapshot is `97c4eb5f7a901d0435b950c3e2a52a8bd7eae9d4`. `five-module-qualification.json` covers 86 executions, including 16 upstream comparisons and 54 batch cases across both marker types, 2/3/5 samples or families and serial, automatic and two-worker modes. Check analytical expectations, numerical tolerances, fixture and source identity, data integrity, effective settings and worker completion.
+- **DNP and SNP.** The 17-case caller comparison uses the frozen v0.8.5 reference for DNP and the separately pinned SNPcall 2.0 source for SNP. Check exact exported tables and unrounded R results, histogram values, plot content and dimensions, and equivalent serial/parallel candidate renderings.
+- **Contamination, Prenatal CPI and Postnatal CPI.** For 0.9.99 the checked-in reference manifest pins the revised scripts and corresponding upstream commit. `five-module-qualification.json` covers 86 executions, including 16 upstream comparisons and 54 batch cases across both marker types, 2/3/5 samples or families and serial, automatic and two-worker modes. Check analytical expectations, numerical tolerances, fixture and source identity, data integrity, effective settings and worker completion.
 - **Distributed image.** The final image must pass native regressions for empty and zero-coverage inputs and settings, as well as the three-BAM composed workflow. A missing required R dependency, skipped required test or failed case blocks qualification. The publisher verifies sources against Git and compares report and bundle digests. Individual output/log digests describe original run bytes; path sanitization in the public evidence bundle can change those individual files.
 
 Use `reviewed-operative-changes-with-versioned-scientific-models-v1` for the schema 7 source review. List actual before/after digests, including reviewed changes to pinned scientific sources. The caller and downstream decisions are both recorded in `scientific-equivalence-check.json` and their report hashes in `release-provenance.json`. Older accepted records retain their original schema, protected source files and equivalence rules.
@@ -95,18 +84,16 @@ Both routes serialize publication. Preparation uses the release notes of the pre
 
 ## Public assets and updates
 
-The published release includes the four platform installers, Windows installation ZIP/payload, manifests, runtime archive assets, checksums and evidence. Look for `desktop-acceptance.json`, `baseline-source-check.json`, `release-provenance.json`, `linux-upgrade-check.json` and `qualification-evidence.json`/`.zip`. Public installers use NewPat names. Internal artifacts, compatibility aliases and existing clients can reference NIPAT names. Users only need the installer for their platform.
+The published release includes the four platform installers, Windows installation ZIP/payload, manifests, runtime archive assets, checksums and evidence. Look for `desktop-acceptance.json`, `baseline-source-check.json`, `release-provenance.json`, `linux-dependency-check.json` and `qualification-evidence.json`/`.zip`. Public installers, application paths and update manifests use NewPat identifiers.
 
 | Update feed | Consumers |
 | --- | --- |
-| `update-manifest-windows-bootstrap-v2.json` | Windows guided setup from 0.9.10, using bootstrap 1.2.0 and its verified release payload |
-| `update-manifest-windows-zip-v2.json` | Windows complete ZIP installations from 0.9.10 |
-| `update-manifest.json` | Compatible legacy Windows clients and Ubuntu |
+| `update-manifest-windows-bootstrap-v2.json` | NewPat Windows guided setup using bootstrap 2.0.0 and its verified release payload |
+| `update-manifest-windows-zip-v2.json` | NewPat Windows complete ZIP installations |
+| `update-manifest.json` | Windows setup and Ubuntu packages |
 | `update-manifest-macos.json` | Apple Silicon and Intel packages |
 
 Clients check the release, version, source commit, channel, platform, size and SHA-256. On macOS the user closes NewPat and opens the verified PKG. Check availability of the published assets and update feeds, and verify that GitHub **Latest** resolves to the expected stable version.
-
-Releases through 0.9.9 use `update-manifest-windows-bootstrap.json` and `update-manifest-windows-zip.json`. The first upgrade across the Windows launcher layout change requires the new installer for the same installation method. The v2 feeds are published exclusively for the English package layout.
 
 ## Maintenance
 

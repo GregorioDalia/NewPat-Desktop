@@ -14,7 +14,7 @@ import re
 import stat
 import zipfile
 
-_SPEC = importlib.util.spec_from_file_location("nipat_payload_zip", Path(__file__).with_name("zip_package.py"))
+_SPEC = importlib.util.spec_from_file_location("newpat_payload_zip", Path(__file__).with_name("zip_package.py"))
 zip_support = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(zip_support)
 
@@ -22,7 +22,7 @@ _SPEC.loader.exec_module(zip_support)
 def filename(version):
     if not re.fullmatch(r"\d+\.\d+\.\d+", version):
         raise ValueError("Versione payload non valida")
-    return f"NIPAT-{version}-Windows-payload.zip"
+    return f"NewPat-{version}-Windows-payload.zip"
 
 
 def expected_files(manifest, inventory_bytes):

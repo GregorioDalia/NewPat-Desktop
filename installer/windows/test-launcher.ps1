@@ -10,14 +10,14 @@ function Assert-Test([bool] $Condition, [string] $Message) {
 
 # An executable or PowerShell may expand an inherited 8.3 TEMP path. Compare
 # existing paths by their long spelling rather than treating that as a cwd change.
-if (-not ('NipatLauncherTestPaths' -as [type])) {
+if (-not ('NewPatLauncherTestPaths' -as [type])) {
     Add-Type -TypeDefinition @'
 using System;
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
-public static class NipatLauncherTestPaths
+public static class NewPatLauncherTestPaths
 {
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern uint GetLongPathName(string path, StringBuilder buffer, uint size);
@@ -42,8 +42,8 @@ public static class NipatLauncherTestPaths
 
 function Test-SamePath([string] $Actual, [string] $Expected) {
     return [string]::Equals(
-        [NipatLauncherTestPaths]::Normalize($Actual),
-        [NipatLauncherTestPaths]::Normalize($Expected),
+        [NewPatLauncherTestPaths]::Normalize($Actual),
+        [NewPatLauncherTestPaths]::Normalize($Expected),
         [StringComparison]::OrdinalIgnoreCase)
 }
 
@@ -86,8 +86,8 @@ function Invoke-TestLauncher([string] $Executable, [string[]] $Arguments = @(), 
     $start.RedirectStandardInput = $true
     $start.RedirectStandardOutput = $true
     $start.RedirectStandardError = $true
-    $start.EnvironmentVariables['NIPAT_LAUNCH_TEST_CAPTURE'] = $script:CapturePath
-    $start.EnvironmentVariables['NIPAT_LAUNCH_TEST_EXIT'] = [string]$ExitCode
+    $start.EnvironmentVariables['NEWPAT_LAUNCH_TEST_CAPTURE'] = $script:CapturePath
+    $start.EnvironmentVariables['NEWPAT_LAUNCH_TEST_EXIT'] = [string]$ExitCode
     foreach ($name in $Environment.Keys) {
         if ($null -eq $Environment[$name]) { $start.EnvironmentVariables.Remove($name) }
         else { $start.EnvironmentVariables[$name] = [string]$Environment[$name] }
@@ -120,24 +120,24 @@ function Invoke-TestLauncher([string] $Executable, [string[]] $Arguments = @(), 
     }
 }
 
-$temporary = Join-Path ([IO.Path]::GetTempPath()) ('nipat-launcher-test-' + [Guid]::NewGuid().ToString('N'))
+$temporary = Join-Path ([IO.Path]::GetTempPath()) ('newpat-launcher-test-' + [Guid]::NewGuid().ToString('N'))
 try {
     [IO.Directory]::CreateDirectory($temporary) | Out-Null
     # Model the full directory spelling recorded by the installer, even when
     # the runner inherited an 8.3 TEMP environment variable.
-    $temporary = [NipatLauncherTestPaths]::Normalize($temporary)
+    $temporary = [NewPatLauncherTestPaths]::Normalize($temporary)
     if ([string]::IsNullOrWhiteSpace($LauncherPath)) {
-        $LauncherPath = Join-Path $temporary 'compiled\NIPAT.exe'
+        $LauncherPath = Join-Path $temporary 'compiled\NewPat.exe'
         & (Join-Path $PSScriptRoot 'build-launcher.ps1') -OutputPath $LauncherPath
     }
     $source = (Get-Item -LiteralPath $LauncherPath -ErrorAction Stop).FullName
-    $app = Join-Path $temporary ('NIPAT app & [literal] ' + [char]0x00E8)
+    $app = Join-Path $temporary ('NewPat app & [literal] ' + [char]0x00E8)
     $script:CallerDirectory = Join-Path $temporary 'caller working directory'
     $script:CapturePath = Join-Path $temporary 'received.json'
     [IO.Directory]::CreateDirectory($script:CallerDirectory) | Out-Null
     [IO.Directory]::CreateDirectory((Join-Path $app 'installer\windows')) | Out-Null
     [IO.Directory]::CreateDirectory((Join-Path $app 'scripts\windows')) | Out-Null
-    $executable = Join-Path $app 'NIPAT.exe'
+    $executable = Join-Path $app 'NewPat.exe'
     Copy-Item -LiteralPath $source -Destination $executable
     $project = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     $guidedCommand = Join-Path $app '2_LAUNCH.cmd'
@@ -149,11 +149,11 @@ $record = [pscustomobject]@{
     arguments = @($args)
     working_directory = (Get-Location).Path
     script_path = $PSCommandPath
-    bridge_arguments_removed = [string]::IsNullOrEmpty($env:NIPAT_LAUNCH_ARGUMENTS)
-    bridge_count_removed = [string]::IsNullOrEmpty($env:NIPAT_LAUNCH_ARGUMENT_COUNT)
+    bridge_arguments_removed = [string]::IsNullOrEmpty($env:NEWPAT_LAUNCH_ARGUMENTS)
+    bridge_count_removed = [string]::IsNullOrEmpty($env:NEWPAT_LAUNCH_ARGUMENT_COUNT)
 }
-$record | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $env:NIPAT_LAUNCH_TEST_CAPTURE -Encoding UTF8
-exit ([int]$env:NIPAT_LAUNCH_TEST_EXIT)
+$record | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $env:NEWPAT_LAUNCH_TEST_CAPTURE -Encoding UTF8
+exit ([int]$env:NEWPAT_LAUNCH_TEST_EXIT)
 '@ | Set-Content -LiteralPath $runner -Encoding UTF8
 
     $result = Invoke-TestLauncher -Executable $executable
@@ -162,7 +162,7 @@ exit ([int]$env:NIPAT_LAUNCH_TEST_EXIT)
     Assert-Test ($record.arguments.Count -eq 1 -and $record.arguments[0] -ceq 'wizard') 'double-click defaults to wizard'
     Assert-Test (Test-SamePath $record.working_directory $script:CallerDirectory) 'caller working directory preserved'
     Assert-Test (Test-SamePath $record.script_path $runner) 'runner is relative to the executable, not the current directory'
-    Assert-Test ($record.bridge_arguments_removed -and $record.bridge_count_removed) 'temporary launch data removed before running NIPAT'
+    Assert-Test ($record.bridge_arguments_removed -and $record.bridge_count_removed) 'temporary launch data removed before running NewPat'
 
     # The installer shortcut opens this exact batch file. Closed stdin lets its
     # final pause return in CI without replacing the command or its runner.
@@ -218,25 +218,28 @@ using System.Linq;
 using System.Text;
 class FixturePython {
     static string Encode(string value) { return Convert.ToBase64String(Encoding.UTF8.GetBytes(value ?? "")); }
+    static string Setting(string name) {
+        return Environment.GetEnvironmentVariable("NEWPAT_" + name);
+    }
     static int Main(string[] args) {
         if (String.Equals(Path.GetFileName(Environment.GetCommandLineArgs()[0]), "powershell.exe", StringComparison.OrdinalIgnoreCase)) {
-            File.AppendAllText(Environment.GetEnvironmentVariable("NIPAT_FIXTURE_EVENTS"), "decoy:powershell\n");
+            File.AppendAllText(Environment.GetEnvironmentVariable("NEWPAT_FIXTURE_EVENTS"), "decoy:powershell\n");
             return 91;
         }
         bool windowed = args.Length == 1 && Path.GetFileName(args[0]) == "gui-launch.py";
         string command = windowed ? "gui" : (args.Contains("wizard") ? "wizard" : (args.Length > 2 ? args[2] : "other"));
-        File.AppendAllText(Environment.GetEnvironmentVariable("NIPAT_FIXTURE_EVENTS"), "python:" + command + "\n");
-        if (command == "self-test" && File.Exists(Environment.GetEnvironmentVariable("NIPAT_FIXTURE_FAIL"))) return 17;
+        File.AppendAllText(Environment.GetEnvironmentVariable("NEWPAT_FIXTURE_EVENTS"), "python:" + command + "\n");
+        if (command == "self-test" && File.Exists(Environment.GetEnvironmentVariable("NEWPAT_FIXTURE_FAIL"))) return 17;
         if (command == "wizard" || command == "gui") {
             string[] record = new string[] { Directory.GetCurrentDirectory(),
-                Environment.GetEnvironmentVariable("NIPAT_BACKEND"),
-                Environment.GetEnvironmentVariable("NIPAT_DATA_DIR"),
-                Environment.GetEnvironmentVariable("NIPAT_RUNS_DIR"),
-                Environment.GetEnvironmentVariable("NIPAT_WORKSPACE_DIR"),
-                Environment.GetEnvironmentVariable("NIPAT_WSL_DISTRO"),
-                Environment.GetEnvironmentVariable("NIPAT_RUNTIME_IMAGE"),
-                Environment.GetEnvironmentVariable("NIPAT_PROJECT_DIR") }.Concat(args).Select(Encode).ToArray();
-            string capture = Environment.GetEnvironmentVariable("NIPAT_LAUNCH_TEST_CAPTURE");
+                Setting("BACKEND"),
+                Setting("DATA_DIR"),
+                Setting("RUNS_DIR"),
+                Setting("WORKSPACE_DIR"),
+                Setting("WSL_DISTRO"),
+                Setting("RUNTIME_IMAGE"),
+                Setting("PROJECT_DIR") }.Concat(args).Select(Encode).ToArray();
+            string capture = Environment.GetEnvironmentVariable("NEWPAT_LAUNCH_TEST_CAPTURE");
             File.WriteAllLines(capture + ".tmp", record);
             File.Move(capture + ".tmp", capture);
         }
@@ -255,18 +258,18 @@ class FixturePython {
     $fail = Join-Path $temporary 'self-test-failure.flag'
     $localAppData = Join-Path $temporary 'user profile'
     $environment = @{
-        NIPAT_FIXTURE_PYTHON = $fakePython; NIPAT_FIXTURE_EVENTS = $events; NIPAT_FIXTURE_FAIL = $fail
-        LOCALAPPDATA = $localAppData; NIPAT_WORKSPACE_DIR = $null; NIPAT_DATA_DIR = $null; NIPAT_RUNS_DIR = $null
-        NIPAT_BACKEND = 'wsl'; NIPAT_WSL_DISTRO = 'Unrelated-WSL'; NIPAT_RUNTIME_IMAGE = $null
+        NEWPAT_FIXTURE_PYTHON = $fakePython; NEWPAT_FIXTURE_EVENTS = $events; NEWPAT_FIXTURE_FAIL = $fail
+        LOCALAPPDATA = $localAppData; NEWPAT_WORKSPACE_DIR = $null; NEWPAT_DATA_DIR = $null; NEWPAT_RUNS_DIR = $null
+        NEWPAT_BACKEND = 'wsl'; NEWPAT_WSL_DISTRO = 'Unrelated-WSL'; NEWPAT_RUNTIME_IMAGE = $null
     }
     # Exercise the ready WSL Desktop through the compiled executable and real
     # launch scripts. Scientific execution remains at the fake Python boundary.
     foreach ($name in @('bootstrap-common.ps1', 'install-profile.ps1', 'install-profile.json', 'install-layout.ps1')) {
         Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $app "installer\windows\$name")
     }
-    $versionFile = Join-Path $app 'src\nipat\__init__.py'
+    $versionFile = Join-Path $app 'src\newpat\__init__.py'
     [IO.Directory]::CreateDirectory((Split-Path -Parent $versionFile)) | Out-Null
-    Copy-Item -LiteralPath (Join-Path $project 'src\nipat\__init__.py') -Destination $versionFile
+    Copy-Item -LiteralPath (Join-Path $project 'src\newpat\__init__.py') -Destination $versionFile
     $profile = Get-Content -LiteralPath (Join-Path $app 'installer\windows\install-profile.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     $profileChannel = [string]$profile.channel
     $candidateBase = Join-Path $localAppData $profile.data_dir_name
@@ -275,7 +278,8 @@ class FixturePython {
     [IO.Directory]::CreateDirectory($candidateData) | Out-Null
     [IO.Directory]::CreateDirectory($candidateRuns) | Out-Null
     $rootfsHash = 'd' * 64
-    $distro = $profile.distro_prefix + $rootfsHash.Substring(0, 40)
+    . (Join-Path $PSScriptRoot 'bootstrap-common.ps1')
+    $distro = Get-NewPatRuntimeDistroName $rootfsHash (Join-Path $candidateBase 'wsl')
     $manifestPath = Join-Path $distribution 'installer-manifest.json'
     $manifest = [ordered]@{
         schema_version = 1; version = $version; release_tag = ('v' + $version)
@@ -283,9 +287,9 @@ class FixturePython {
         installation_profile = $profile
         assets = @{
             rootfs = @{ file = ('rootfs-' + $version + '.tar.gz'); sha256 = $rootfsHash; size = 10
-                url = ('https://github.com/GregorioDalia/nipat-desktop/releases/download/v' + $version + '/rootfs-' + $version + '.tar.gz') }
+                url = ('https://github.com/GregorioDalia/NewPat-Desktop/releases/download/v' + $version + '/rootfs-' + $version + '.tar.gz') }
             scientific_image = @{ file = ('scientific-' + $version + '.tar.gz'); sha256 = ('f' * 64); size = 20
-                url = ('https://github.com/GregorioDalia/nipat-desktop/releases/download/v' + $version + '/scientific-' + $version + '.tar.gz') }
+                url = ('https://github.com/GregorioDalia/NewPat-Desktop/releases/download/v' + $version + '/scientific-' + $version + '.tar.gz') }
         }
     }
     $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
@@ -310,7 +314,7 @@ class FixturePython {
         runtime_archive_sha256 = $manifest.assets.scientific_image.sha256
     }
     $state | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $statePath -Encoding UTF8
-    $stableBase = Join-Path $localAppData 'NIPAT'
+    $stableBase = Join-Path $localAppData 'NewPat'
     $stableData = Join-Path $stableBase 'data'
     $stableRuns = Join-Path $stableBase 'runs'
     [IO.Directory]::CreateDirectory($stableData) | Out-Null
@@ -318,20 +322,25 @@ class FixturePython {
     $stableMarker = Join-Path $stableBase 'stable-sentinel.txt'
     'stable installation untouched' | Set-Content -LiteralPath $stableMarker -Encoding ASCII
     $stableHash = (Get-FileHash -LiteralPath $stableMarker -Algorithm SHA256).Hash
-    $environment.NIPAT_PROJECT_DIR = Join-Path $localAppData 'Programs\NIPAT'
-    $environment.NIPAT_WORKSPACE_DIR = $stableBase
-    $environment.NIPAT_DATA_DIR = $stableData
-    $environment.NIPAT_RUNS_DIR = $stableRuns
-    $environment.NIPAT_BACKEND = 'native'
-    $environment.NIPAT_WSL_DISTRO = 'NIPAT-Runtime'
-    $environment.NIPAT_RUNTIME_IMAGE = 'sha256:' + ('c' * 64)
-    $result = Invoke-TestLauncher -Executable $executable -Environment $environment
+    $environment.NEWPAT_PROJECT_DIR = Join-Path $localAppData 'Programs\NewPat'
+    $environment.NEWPAT_WORKSPACE_DIR = $stableBase
+    $environment.NEWPAT_DATA_DIR = $stableData
+    $environment.NEWPAT_RUNS_DIR = $stableRuns
+    $environment.NEWPAT_BACKEND = 'native'
+    $environment.NEWPAT_WSL_DISTRO = 'NewPat-Runtime'
+    $environment.NEWPAT_RUNTIME_IMAGE = 'sha256:' + ('c' * 64)
+    $mixedEnvironment = $environment.Clone()
+    $mixedEnvironment.NEWPAT_BACKEND = 'native'
+    $mixedEnvironment.NEWPAT_WORKSPACE_DIR = $stableBase
+    $mixedEnvironment.NEWPAT_WSL_DISTRO = 'unrelated-canonical-distro'
+    $mixedEnvironment.NEWPAT_RUNTIME_IMAGE = 'mutable:tag'
+    $result = Invoke-TestLauncher -Executable $executable -Environment $mixedEnvironment
     Assert-Test ($result.ExitCode -eq 0) ('ready Desktop launches from a stable configured shell: ' + $result.Output)
     $capture = @(Get-Content -LiteralPath $script:CapturePath | ForEach-Object { [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($_)) })
     Assert-Test ($capture[1] -ceq 'wsl' -and $capture[5] -ceq $distro -and $capture[6] -ceq $backend.runtime_image) 'Desktop selects only its verified WSL distribution and image'
     Assert-Test ((Test-SamePath $capture[2] $candidateData) -and (Test-SamePath $capture[3] $candidateRuns) -and
         (Test-SamePath $capture[4] $candidateBase) -and (Test-SamePath $capture[7] $app)) 'installed Desktop resets inherited stable project, workspace, data and runs'
-    Assert-Test ($capture[8] -ceq '-m' -and $capture[9] -ceq 'nipat' -and $capture[10] -ceq 'wizard') 'ready Desktop opens the guided CLI without preparation'
+    Assert-Test ($capture[8] -ceq '-m' -and $capture[9] -ceq 'newpat' -and $capture[10] -ceq 'wizard') 'ready Desktop opens the guided CLI without preparation'
 
     # A researcher may launch from a data folder containing executables. The
     # command must use Windows PowerShell itself, not a same-named local file.
@@ -374,8 +383,8 @@ class FixturePython {
         [IO.Directory]::CreateDirectory($layout[$name]) | Out-Null
     }
     foreach ($kind in @('runtime', 'cache')) {
-        @('[NIPAT]', 'schema_version=1', ('installation_channel=' + $profileChannel), ('role=' + $kind)) |
-            Set-Content -LiteralPath (Join-Path $layout[$kind + '_dir'] '.nipat-storage.ini') -Encoding ASCII
+        @('[NewPat]', 'schema_version=1', ('installation_channel=' + $profileChannel), ('role=' + $kind)) |
+            Set-Content -LiteralPath (Join-Path $layout[$kind + '_dir'] '.newpat-storage.ini') -Encoding ASCII
     }
     $inputSentinel = Join-Path $layout.data_dir 'existing input.txt'
     $resultSentinel = Join-Path $layout.runs_dir 'existing result.txt'
@@ -383,7 +392,7 @@ class FixturePython {
     'result unchanged' | Set-Content -LiteralPath $resultSentinel -Encoding ASCII
     $inputHash = (Get-FileHash -LiteralPath $inputSentinel -Algorithm SHA256).Hash
     $resultHash = (Get-FileHash -LiteralPath $resultSentinel -Algorithm SHA256).Hash
-    $customDistro = Get-NipatRuntimeDistroName $rootfsHash $layout.runtime_dir
+    $customDistro = Get-NewPatRuntimeDistroName $rootfsHash $layout.runtime_dir
     foreach ($name in @('app_dir', 'runtime_dir', 'cache_dir', 'data_dir', 'runs_dir')) {
         $backend[$name] = $layout[$name]
         $state[$name] = $layout[$name]
@@ -439,7 +448,7 @@ class FixturePython {
         Assert-Test ($result.ExitCode -ne 0 -and -not (Test-Path -LiteralPath $script:CapturePath)) 'foreign or markerless backend never reaches Python'
     }
     $backend.installation_channel = $profile.channel
-    foreach ($foreignDistro in @('NIPAT-Runtime', ('NIPAT-05-Preview-' + $rootfsHash.Substring(0, 40)))) {
+    foreach ($foreignDistro in @('NewPat-Runtime', ('NewPat-05-Preview-' + $rootfsHash.Substring(0, 40)))) {
         $backend.wsl_distro = $foreignDistro
         $backend | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $backendPath -Encoding UTF8
         $result = Invoke-TestLauncher -Executable $executable -Environment $environment
@@ -506,7 +515,7 @@ class FixturePython {
     $powershell = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
     $setup = Join-Path $app 'scripts\windows\setup.ps1'
     @'
-Add-Content -LiteralPath $env:NIPAT_FIXTURE_EVENTS -Value 'bootstrap:wsl'
+Add-Content -LiteralPath $env:NEWPAT_FIXTURE_EVENTS -Value 'bootstrap:wsl'
 exit 3010
 '@ | Set-Content -LiteralPath (Join-Path $app 'installer\windows\bootstrap.ps1') -Encoding UTF8
     $result = Invoke-TestLauncher -Executable $powershell -Arguments @('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $setup) -Environment $environment
@@ -517,28 +526,28 @@ exit 3010
     # explicit WSL configuration before it installs Python or creates directories.
     Remove-Item -LiteralPath $manifestPath
     Remove-Item -LiteralPath $backendPath
-    $environment.NIPAT_BACKEND = 'wsl'
-    $environment.NIPAT_WSL_DISTRO = 'NIPAT-Development'
-    $environment.NIPAT_RUNTIME_IMAGE = 'sha256:' + ('c' * 64)
+    $environment.NEWPAT_BACKEND = 'wsl'
+    $environment.NEWPAT_WSL_DISTRO = 'NewPat-Development'
+    $environment.NEWPAT_RUNTIME_IMAGE = 'sha256:' + ('c' * 64)
     $result = Invoke-TestLauncher -Executable $executable -Environment $environment
     Assert-Test ($result.ExitCode -eq 0) ('source launch keeps explicit environment configuration: ' + $result.Output)
     $capture = @(Get-Content -LiteralPath $script:CapturePath | ForEach-Object { [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($_)) })
     Assert-Test ((Test-SamePath $capture[2] $stableData) -and (Test-SamePath $capture[3] $stableRuns) -and
         (Test-SamePath $capture[4] $stableBase)) 'source checkouts retain deliberate environment data, results and workspace'
-    Assert-Test ($capture[1] -ceq 'wsl' -and $capture[5] -ceq 'NIPAT-Development') 'source launch preserves the explicit WSL distribution'
+    Assert-Test ($capture[1] -ceq 'wsl' -and $capture[5] -ceq 'NewPat-Development') 'source launch preserves the explicit WSL distribution'
     @'
 
 # Offline replacement of the external Python download/install boundary.
-function Install-NipatPython([string] $Project) {
-    Add-Content -LiteralPath $env:NIPAT_FIXTURE_EVENTS -Value 'install:python'
-    return (Get-NipatPython $Project)
+function Install-NewPatPython([string] $Project) {
+    Add-Content -LiteralPath $env:NEWPAT_FIXTURE_EVENTS -Value 'install:python'
+    return (Get-NewPatPython $Project)
 }
 '@ | Add-Content -LiteralPath (Join-Path $app 'scripts\windows\common.ps1') -Encoding UTF8
     $beforeSourceSetup = @(Get-Content -LiteralPath $events).Count
     foreach ($invalid in @(
-        @{ NIPAT_BACKEND = 'native'; NIPAT_WSL_DISTRO = 'NIPAT-Development'; NIPAT_RUNTIME_IMAGE = ('sha256:' + ('c' * 64)) },
-        @{ NIPAT_BACKEND = 'wsl'; NIPAT_WSL_DISTRO = ''; NIPAT_RUNTIME_IMAGE = ('sha256:' + ('c' * 64)) },
-        @{ NIPAT_BACKEND = 'wsl'; NIPAT_WSL_DISTRO = 'NIPAT-Development'; NIPAT_RUNTIME_IMAGE = 'mutable:tag' }
+        @{ NEWPAT_BACKEND = 'native'; NEWPAT_WSL_DISTRO = 'NewPat-Development'; NEWPAT_RUNTIME_IMAGE = ('sha256:' + ('c' * 64)) },
+        @{ NEWPAT_BACKEND = 'wsl'; NEWPAT_WSL_DISTRO = ''; NEWPAT_RUNTIME_IMAGE = ('sha256:' + ('c' * 64)) },
+        @{ NEWPAT_BACKEND = 'wsl'; NEWPAT_WSL_DISTRO = 'NewPat-Development'; NEWPAT_RUNTIME_IMAGE = 'mutable:tag' }
     )) {
         $invalidEnvironment = $environment.Clone()
         foreach ($name in $invalid.Keys) { $invalidEnvironment[$name] = $invalid[$name] }

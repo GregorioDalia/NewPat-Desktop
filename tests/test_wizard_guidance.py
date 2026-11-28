@@ -4,13 +4,13 @@ from contextlib import chdir
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from nipat.cli import DEFAULT_ERR_CONST
-from nipat.paths import ProjectLayout
-from nipat.errors import ValidationError
-from nipat.preferences import Preferences, PreferencesStore
-from nipat.wizard import run_wizard
-from nipat.wizard_forms import Cancelled, Field, WorkflowForm, check_reference
-from nipat.workflow_forms import DnpContaminationForm, DnpCpiForm, SnpBatchForm
+from newpat.cli import DEFAULT_ERR_CONST
+from newpat.paths import ProjectLayout
+from newpat.errors import ValidationError
+from newpat.preferences import Preferences, PreferencesStore
+from newpat.wizard import run_wizard
+from newpat.wizard_forms import Cancelled, Field, WorkflowForm, check_reference
+from newpat.workflow_forms import DnpContaminationForm, DnpCpiForm, SnpBatchForm
 
 
 class RecordingUI:
@@ -60,21 +60,31 @@ class WizardGuidanceTests(unittest.TestCase):
         form.collect()
         return form, ui
 
+    def test_fetal_sex_offers_combined_or_separate_dnp_tables(self):
+        dnp, x, y = [self.file(name, "") for name in ("dnp.tsv", "x.tsv", "y.tsv")]
+        for mode, paths, expected in (
+            ("", [dnp, y], {"dnp": dnp, "y": y}),
+            ("3", [dnp, x, y], {"autosomes": dnp, "x": x, "y": y}),
+        ):
+            with self.subTest(mode=mode):
+                form, ui = self.collect("f", [mode, *paths, ""])
+                self.assertEqual(form.arguments(), {"run_name": None, **expected})
+                self.assert_no_errors(ui)
+
     def assert_no_errors(self, ui):
         self.assertEqual([text for kind, text in ui.events if kind == "error"], [])
 
-    def test_help_matches_saved_update_channel_and_experimental_policy_without_actions(self):
+    def test_help_matches_saved_update_channel_without_actions(self):
         store = PreferencesStore(self.root / "settings.json")
         for version, channel, expected in (
-            ("0.8.80", "stable", "Canale aggiornamenti selezionato: Stabile"),
-            ("0.8.80", "testing", "Canale aggiornamenti selezionato: Testing"),
-            ("0.8.80rc1", "stable", "gli aggiornamenti automatici sono disabilitati"),
+            ("0.9.99", "stable", "Canale aggiornamenti selezionato: Stabile"),
+            ("0.9.99", "testing", "Canale aggiornamenti selezionato: Testing"),
         ):
             with self.subTest(version=version, channel=channel):
                 store.save(Preferences(update_channel=channel))
                 workflows = Mock()
                 messages = []
-                with patch("nipat.wizard.__version__", version), patch("nipat.wizard.run_updates") as updates:
+                with patch("newpat.wizard.__version__", version), patch("newpat.wizard.run_updates") as updates:
                     status = run_wizard(
                         workflows, self.layout, err_const=DEFAULT_ERR_CONST,
                         preferences_store=store,
@@ -85,10 +95,7 @@ class WizardGuidanceTests(unittest.TestCase):
                 self.assertIn(expected, output)
                 self.assertIn("W -> 5 collega DNPcall e/o SNPcall", output)
                 self.assertIn("CPI postnatale, anche partendo da tabelle esistenti", output)
-                if version == "0.8.80":
-                    self.assertNotIn("versione sperimentale", output)
-                else:
-                    self.assertNotIn("Canale aggiornamenti selezionato:", output)
+                self.assertNotIn("versione sperimentale", output)
                 updates.assert_not_called()
                 self.assertEqual(workflows.mock_calls, [])
 

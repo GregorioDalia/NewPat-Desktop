@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "files": {
-    "installed_suite.py": "af43dc07f291f0f21102a6a2d29a93cb3d9972030c96b01d1124982b227b23ae",
-    "installed_models.py": "70299e2124a7fcd182f73606bfe7af97be54cb678d3f46cd91942739feb7e423",
+    "installed_suite.py": "7d383e43f43dbbed670d8776d561dea10f4b189cd3d5e4b073d28dc24066a222",
+    "installed_models.py": "d1b5b79e0704af9712a8a8b28a36013c5c534b9b24544637e40ee2faa9870067",
     "installed_workflows.py": "025ea39815fd54069da0a609275cac072dfa2487c80d18a13c2a85533e63ff2a",
-    "fixtures.json": "bccca7594fe95a568c23cd66ef7ed4e065ac960add09bc647db0f8ece9fc0f15"
+    "fixtures.json": "d594e3884c760630aa19151c4d645c8596d26d0fe9ab4407f3d01a5926d69270"
   }
 }

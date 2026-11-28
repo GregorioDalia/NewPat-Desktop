@@ -16,11 +16,11 @@ import time
 import unittest
 from unittest.mock import patch
 
-from nipat_scientific.executor import (
+from newpat_scientific.executor import (
     PlanExecutionError, _Cancellation, _run_process, execute_plan,
 )
-from nipat_scientific.errors import ValidationError
-from nipat_scientific.plan import PlanValidationError
+from newpat_scientific.errors import ValidationError
+from newpat_scientific.plan import PlanValidationError
 
 
 class UnsupportedExecutionTests(unittest.TestCase):
@@ -40,7 +40,7 @@ class UnsupportedExecutionTests(unittest.TestCase):
 @unittest.skipUnless(os.name == "posix", "scientific execution runs inside the Linux image")
 class WorkflowExecutionTests(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="nipat-execution-")
+        self.temporary = tempfile.TemporaryDirectory(prefix="newpat-execution-")
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name).resolve()
         self.inputs = self.root / "inputs"
@@ -77,7 +77,7 @@ class WorkflowExecutionTests(unittest.TestCase):
     def fake_r(self, command, cwd, log_path):
         self.calls.append(command)
         log_path.write_text("scientific output\n", encoding="utf-8")
-        settings_path = Path(os.environ["NIPAT_SCIENTIFIC_SETTINGS"])
+        settings_path = Path(os.environ["NEWPAT_SCIENTIFIC_SETTINGS"])
         settings = json.loads(settings_path.read_text())["parameters"]
         (settings_path.parent.parent / "output/scientific-settings.json").write_bytes(settings_path.read_bytes())
         if Path(command[1]).name == "dnp-call.R":
@@ -188,11 +188,11 @@ class WorkflowExecutionTests(unittest.TestCase):
         events_dir = self.root / "progress"
         child_scopes = []
         def record_scope(command, cwd, log_path):
-            child_scopes.append((os.environ["NIPAT_PROGRESS_STEP_ID"],
-                                 json.loads(os.environ["NIPAT_PROGRESS_SAMPLE_IDS"]),
-                                 json.loads(os.environ["NIPAT_PROGRESS_SAMPLE_MAP"])))
+            child_scopes.append((os.environ["NEWPAT_PROGRESS_STEP_ID"],
+                                 json.loads(os.environ["NEWPAT_PROGRESS_SAMPLE_IDS"]),
+                                 json.loads(os.environ["NEWPAT_PROGRESS_SAMPLE_MAP"])))
             return self.fake_r(command, cwd, log_path)
-        with patch.dict(os.environ, {"NIPAT_PROGRESS_DIR": str(events_dir), "NIPAT_PERFORMANCE_DIR": ""}):
+        with patch.dict(os.environ, {"NEWPAT_PROGRESS_DIR": str(events_dir), "NEWPAT_PERFORMANCE_DIR": ""}):
             result = self.execute(record_scope)
         self.assertEqual(result["status"], "succeeded")
         self.assertEqual(child_scopes[0], ("dnp", ["donor_a", "donor_b"],
@@ -320,7 +320,7 @@ class WorkflowExecutionTests(unittest.TestCase):
         self.assertEqual(handlers, {sig: signal.getsignal(sig) for sig in handlers})
 
     def test_stop_during_plan_index_preserves_step_outcomes_and_finalizes_state(self):
-        from nipat_scientific.presentation import finish_plan_presentation
+        from newpat_scientific.presentation import finish_plan_presentation
 
         self.plan["presentation"] = {"samples": {"donor_a": "A.bam", "donor_b": "B.bam"}, "pairs": {}}
         for sig, child_exit in ((signal.SIGTERM, 0), (signal.SIGINT, 0), (signal.SIGTERM, 12)):
@@ -336,8 +336,8 @@ class WorkflowExecutionTests(unittest.TestCase):
                 try:
                     # The fixture R command produces canonical outputs. Exercise
                     # the real top-level index without requiring R to plot copies.
-                    with patch("nipat_scientific.executor.step_presentation", return_value=None), \
-                            patch("nipat_scientific.executor.finish_plan_presentation", new=stop_during_index):
+                    with patch("newpat_scientific.executor.step_presentation", return_value=None), \
+                            patch("newpat_scientific.executor.finish_plan_presentation", new=stop_during_index):
                         result = self.execute(self.fake_r if not child_exit else lambda *_: child_exit)
                     self.assertIs(signal.getsignal(sig), outer_handler)
                 finally:
@@ -373,7 +373,7 @@ class WorkflowExecutionTests(unittest.TestCase):
             signal.raise_signal(signal.SIGTERM)
             raise PlanExecutionError("execution.process", "SNP summary rendering failed (exit 143)")
 
-        with patch("nipat_scientific.snp_summary.finalize_snp_summaries", side_effect=cancel_plotter):
+        with patch("newpat_scientific.snp_summary.finalize_snp_summaries", side_effect=cancel_plotter):
             result = self.execute()
         self.assertEqual(result["status"], "cancelled")
         self.assertEqual(result["exit_code"], 128 + signal.SIGTERM)
@@ -388,14 +388,14 @@ class WorkflowExecutionTests(unittest.TestCase):
                 unsupported.append(descriptor)
                 raise OSError(errno.EINVAL, "Directory sync unsupported by host mount")
             return actual_fsync(descriptor)
-        with patch("nipat_scientific.executor.os.fsync", side_effect=mounted_fsync):
+        with patch("newpat_scientific.executor.os.fsync", side_effect=mounted_fsync):
             result = self.execute()
         self.assertEqual(result["status"], "succeeded")
         self.assertTrue(unsupported)
         self.assertEqual(result, self.saved())
 
     def test_unexpected_preparation_error_is_a_failed_run(self):
-        with patch("nipat_scientific.executor.prepare_dnp", side_effect=RuntimeError("unexpected adapter fault")):
+        with patch("newpat_scientific.executor.prepare_dnp", side_effect=RuntimeError("unexpected adapter fault")):
             result = self.execute()
         self.assertEqual(result["status"], "failed")
         self.assertEqual(result["exit_code"], 2)

@@ -6,11 +6,11 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-from nipat.cli import main
-from nipat.execution.options import ExecutionOptions
-from nipat.paths import ProjectLayout
-from nipat.resource_ui import configure_resources, memory_label, resource_lines
-from nipat.wizard_forms import Cancelled
+from newpat.cli import main
+from newpat.experiments.options import ExecutionOptions
+from newpat.paths import ProjectLayout
+from newpat.resource_ui import configure_resources, memory_label, resource_lines
+from newpat.wizard_forms import Cancelled
 
 
 class FakeUI:
@@ -44,7 +44,7 @@ def manager(backend="wsl", running=True):
     result.preview.return_value.as_dict.return_value = {
         "backend": backend, "config_path": "/user/.wslconfig", "before": {"memory_mib": 4096, "cpus": 2},
         "after": {"memory_mib": 8192, "cpus": 4}, "warnings": ["Impatto globale WSL2"],
-        "affected_running": ["Ubuntu", "NIPAT"] if running else [],
+        "affected_running": ["Ubuntu", "NewPat"] if running else [],
     }
     result.apply.return_value = {"backup": "/user/.wslconfig.backup", "status": "saved-restart-required", "warnings": []}
     return result
@@ -139,7 +139,7 @@ class ResourceUITests(unittest.TestCase):
         backend.preview.assert_called_once_with(memory_mib=8192, cpus=4)
         backend.apply.assert_called_once_with(backend.preview.return_value, confirmed=True, restart_confirmed=False)
         text = "\n".join(ui.lines)
-        self.assertIn("Ubuntu, NIPAT", text)
+        self.assertIn("Ubuntu, NewPat", text)
         self.assertIn("Riavvio da completare", text)
         self.assertIn("Backup:", text)
         self.assertIn("non aumenta", text)
@@ -189,10 +189,10 @@ class ResourceCLITests(unittest.TestCase):
 
     def invoke(self, arguments):
         output = io.StringIO()
-        with patch("nipat.cli.ProjectLayout.discover", return_value=self.layout), \
-             patch("nipat.cli.activity_session", return_value=nullcontext()), \
-             patch("nipat.resources.ResourceManager.from_environment", return_value=self.backend), \
-             patch("nipat.cli.DockerComposeRunner") as runner, redirect_stdout(output):
+        with patch("newpat.cli.ProjectLayout.discover", return_value=self.layout), \
+             patch("newpat.cli.activity_session", return_value=nullcontext()), \
+             patch("newpat.resources.ResourceManager.from_environment", return_value=self.backend), \
+             patch("newpat.cli.DockerComposeRunner") as runner, redirect_stdout(output):
             code = main(arguments)
         runner.assert_not_called()
         return code, json.loads(output.getvalue())
@@ -237,9 +237,9 @@ class ResourceCLITests(unittest.TestCase):
     def test_failed_resource_restart_preserves_diagnostics_without_json(self):
         self.backend.apply.return_value = {"status": "verification-required", "warnings": ["restart failed"]}
         output = io.StringIO()
-        with patch("nipat.cli.ProjectLayout.discover", return_value=self.layout), \
-             patch("nipat.cli.activity_session", return_value=nullcontext()), \
-             patch("nipat.resources.ResourceManager.from_environment", return_value=self.backend), \
+        with patch("newpat.cli.ProjectLayout.discover", return_value=self.layout), \
+             patch("newpat.cli.activity_session", return_value=nullcontext()), \
+             patch("newpat.resources.ResourceManager.from_environment", return_value=self.backend), \
              redirect_stdout(output):
             code = main(["resources", "configure", "--memory-mib", "8192", "--vm-cpus", "4",
                          "--apply", "--yes", "--restart"])

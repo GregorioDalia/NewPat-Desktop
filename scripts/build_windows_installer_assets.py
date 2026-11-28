@@ -17,18 +17,18 @@ from pathlib import Path
 
 
 _SPEC = importlib.util.spec_from_file_location(
-    "nipat_distribution_support", Path(__file__).with_name("distribution_support.py")
+    "newpat_distribution_support", Path(__file__).with_name("distribution_support.py")
 )
 bundle = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(bundle)
 _COMPONENT_SPEC = importlib.util.spec_from_file_location(
-    "nipat_runtime_component", Path(__file__).resolve().parents[1] / "installer/runtime/component.py"
+    "newpat_runtime_component", Path(__file__).resolve().parents[1] / "installer/runtime/component.py"
 )
 component = importlib.util.module_from_spec(_COMPONENT_SPEC)
 _COMPONENT_SPEC.loader.exec_module(component)
 
 _REPO_SPEC = importlib.util.spec_from_file_location(
-    "nipat_repository_identity", Path(__file__).resolve().parents[1] / "src/nipat/repository.py"
+    "newpat_repository_identity", Path(__file__).resolve().parents[1] / "src/newpat/repository.py"
 )
 repository = importlib.util.module_from_spec(_REPO_SPEC)
 _REPO_SPEC.loader.exec_module(repository)
@@ -45,12 +45,12 @@ EXPECTED_INSTALLATION_PROFILE = {
     "schema_version": 1,
     "channel": "desktop",
     "display_name": "NewPat",
-    "app_dir_name": "NIPAT-Desktop",
-    "data_dir_name": "NIPAT-Desktop",
-    "distro_prefix": "NIPAT-Desktop-",
-    "resume_key": "NIPAT-Desktop-ResumeSetup",
-    "mutex_prefix": "Local\\NIPAT-Desktop-Setup-",
-    "app_id": "6B1702B6-F75C-4F8C-956F-86626C60AF45",
+    "app_dir_name": "NewPat-Desktop",
+    "data_dir_name": "NewPat-Desktop",
+    "distro_prefix": "NewPat-Desktop-",
+    "resume_key": "NewPat-Desktop-ResumeSetup",
+    "mutex_prefix": "Local\\NewPat-Desktop-Setup-",
+    "app_id": "B870A3DA-56E8-4F27-A571-86FCEDD83F25",
 }
 
 
@@ -66,13 +66,20 @@ def installation_profile(project: Path) -> dict:
     return profile
 
 
+def package_version(version: str) -> str:
+    match = re.fullmatch(
+        r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:(?:a|b|rc)[0-9]+)?",
+        version if isinstance(version, str) else "",
+    )
+    if not match or tuple(map(int, match.groups())) < (0, 9, 99):
+        raise ValueError("Versione non supportata per gli asset dell'installer NewPat.")
+    return version
+
+
 def checked_version(project: Path) -> str:
     import tomllib
     with (project / "pyproject.toml").open("rb") as stream:
-        version = tomllib.load(stream)["project"]["version"]
-    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:a[0-9]+|b[0-9]+|rc[0-9]+)?", version):
-        raise ValueError("Versione del pacchetto non valida per gli asset dell'installer.")
-    return version
+        return package_version(tomllib.load(stream)["project"]["version"])
 
 
 def asset_metadata(path: Path, release_tag: str) -> dict:
@@ -94,7 +101,7 @@ def asset_metadata(path: Path, release_tag: str) -> dict:
     }
 
 
-def inspect_image(reference: str) -> dict:
+def inspect_image(reference: str, *, architecture: str = "amd64") -> dict:
     result = subprocess.run(
         ["docker", "image", "inspect", reference], check=True,
         capture_output=True, text=True, timeout=60,
@@ -103,8 +110,8 @@ def inspect_image(reference: str) -> dict:
     if not isinstance(images, list) or len(images) != 1:
         raise ValueError("Docker deve restituire una sola immagine.")
     details = images[0]
-    if (details.get("Os"), details.get("Architecture")) != ("linux", "amd64"):
-        raise ValueError("Gli asset Windows x64 richiedono immagini Linux amd64.")
+    if (details.get("Os"), details.get("Architecture")) != ("linux", architecture):
+        raise ValueError(f"Immagine Docker non valida: è richiesta linux/{architecture}.")
     if not re.fullmatch(r"sha256:[0-9a-f]{64}", details.get("Id", "")):
         raise ValueError("Identificativo immagine Docker non valido.")
     return details
@@ -136,17 +143,12 @@ def gzip_export(command: list[str], destination: Path) -> None:
         raise
 
 
-def validate_rootfs_provenance(project: Path, rootfs_provenance: dict, source_commit: str) -> None:
-    if not isinstance(rootfs_provenance, dict):
-        raise ValueError("Provenienza del componente WSL non valida.")
-    if rootfs_provenance.get("schema_version") == 2:
-        if (rootfs_provenance.get("source_sha256") != component.source_inventory(project / "installer/runtime")
-                or rootfs_provenance.get("component_sha256") != component.component_identity(rootfs_provenance)):
-            raise ValueError("La provenienza del componente WSL non corrisponde ai suoi sorgenti.")
-    elif (rootfs_provenance.get("vendor") != "nipat-desktop"
-          or rootfs_provenance.get("schema_version") != 1
-          or rootfs_provenance.get("source_commit") != source_commit):
-        raise ValueError("La provenienza del rootfs non corrisponde ai sorgenti dell'installer.")
+def validate_rootfs_provenance(project: Path, provenance: dict) -> None:
+    if not isinstance(provenance, dict) or provenance.get("schema_version") != 2:
+        raise ValueError("Schema della provenienza del componente WSL non supportato.")
+    if (provenance.get("source_sha256") != component.source_inventory(project / "installer/runtime")
+            or provenance.get("component_sha256") != component.component_identity(provenance)):
+        raise ValueError("La provenienza del componente WSL non corrisponde ai suoi sorgenti.")
 
 
 def make_manifest(
@@ -159,7 +161,7 @@ def make_manifest(
         raise ValueError("source_commit deve essere lo SHA Git completo dei sorgenti compilati.")
     if not re.fullmatch(r"sha256:[0-9a-f]{64}", runtime_image):
         raise ValueError("runtime_image deve essere l'ID immutabile dell'immagine scientifica.")
-    validate_rootfs_provenance(project, rootfs_provenance, source_commit)
+    validate_rootfs_provenance(project, rootfs_provenance)
     version = checked_version(project)
     release_tag = f"v{version}"
     sources = bundle.source_files(project)
@@ -191,6 +193,8 @@ def reuse_rootfs(previous_directory: Path | None, expected: dict, destination: P
     if previous_directory is None:
         return None
     previous = json.loads((previous_directory / MANIFEST_NAME).read_text(encoding="utf-8"))
+    if previous.get("installation_profile") != EXPECTED_INSTALLATION_PROFILE:
+        return None
     validate_manifest(previous)
     provenance = previous.get("rootfs_provenance", {})
     if provenance.get("schema_version") != 2:
@@ -205,7 +209,7 @@ def reuse_rootfs(previous_directory: Path | None, expected: dict, destination: P
     if not matches_asset(archive, previous["release_tag"], metadata):
         raise ValueError("Archivio WSL precedente diverso dal manifest pubblicato.")
     with tarfile.open(archive, "r:gz") as contents:
-        markers = [entry for entry in contents if entry.name in {"etc/nipat-runtime.json", "./etc/nipat-runtime.json"}]
+        markers = [entry for entry in contents if entry.name in {"etc/newpat-runtime.json", "./etc/newpat-runtime.json"}]
         if len(markers) != 1 or not markers[0].isfile() or not 0 < markers[0].size < 1024 * 1024:
             raise ValueError("Provenienza WSL mancante o ambigua nell'archivio precedente.")
         with contents.extractfile(markers[0]) as stream:
@@ -233,12 +237,12 @@ def export_assets(
     output.mkdir(parents=True, exist_ok=False)
     scientific_details = inspect_image(scientific_reference)
     rootfs_details = inspect_image(rootfs_reference)
-    scientific = output / f"nipat-scientific-runtime-{version}-amd64.tar.gz"
-    rootfs = output / f"nipat-wsl-rootfs-{version}-amd64.tar.gz"
+    scientific = output / f"newpat-scientific-runtime-{version}-amd64.tar.gz"
+    rootfs = output / f"newpat-wsl-rootfs-{version}-amd64.tar.gz"
     gzip_export(["docker", "image", "save", scientific_details["Id"]], scientific)
     provenance = json.loads(subprocess.run(
         ["docker", "run", "--rm", "--entrypoint", "cat", rootfs_details["Id"],
-         "/etc/nipat-runtime.json"], check=True, capture_output=True, text=True, timeout=60,
+         "/etc/newpat-runtime.json"], check=True, capture_output=True, text=True, timeout=60,
     ).stdout)
     provenance["rootfs_image_id"] = rootfs_details["Id"]
     reused = reuse_rootfs(reuse_rootfs_directory, provenance, rootfs)
@@ -272,21 +276,8 @@ def export_assets(
 def validate_manifest(manifest: dict) -> None:
     if manifest.get("schema_version") != 1:
         raise ValueError("Schema del manifest installer non supportato.")
-    version = manifest.get("version", "")
-    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:a[0-9]+|b[0-9]+|rc[0-9]+)?", version):
-        raise ValueError("Versione nel manifest non valida.")
-    # Historical archives remain verifiable for component reuse. Compatibility
-    # is read-only: every staging/include writer independently requires NewPat.
-    components = tuple(map(int, re.match(r"([0-9]+)\.([0-9]+)\.([0-9]+)", version).groups()))
-    major_minor = components[:2]
-    if major_minor == (0, 5):
-        raise ValueError("Gli installer Preview 0.5 non appartengono al canale NewPat.")
-    if major_minor >= (0, 5) or "installation_profile" in manifest:
-        profile = manifest.get("installation_profile")
-        legacy = dict(EXPECTED_INSTALLATION_PROFILE, display_name="NIPAT Desktop")
-        if components < (0, 9, 5) and type(profile) is dict and profile == legacy:
-            profile = dict(profile, display_name="NewPat")
-        validate_installation_profile(profile)
+    version = package_version(manifest.get("version", ""))
+    validate_installation_profile(manifest.get("installation_profile"))
     tag = manifest.get("release_tag")
     if tag != f"v{version}":
         raise ValueError("Release tag diverso dalla versione del manifest.")
@@ -336,7 +327,7 @@ def runtime_assets_include(manifest: dict) -> str:
         entry = manifest["assets"][key]
         lines.append(
             f'Source: "{{#RuntimeAssetsDir}}\\{entry["file"]}"; '
-            'DestDir: "{code:GetNipatCacheDir}"; '
+            'DestDir: "{code:GetNewPatCacheDir}"; '
             f'DestName: "{entry["sha256"]}-{entry["file"]}"; '
             f'Hash: "{entry["sha256"]}"; '
             'Flags: ignoreversion uninsneveruninstall nocompression solidbreak'
@@ -350,12 +341,12 @@ def installation_profile_include(manifest: dict) -> str:
     validate_installation_profile(manifest.get("installation_profile"))
     profile = manifest["installation_profile"]
     values = {
-        "NipatVersion": manifest["version"],
-        "NipatAppId": "{{" + profile["app_id"] + "}",
-        "NipatDisplayName": profile["display_name"],
-        "NipatAppDirectory": profile["app_dir_name"],
-        "NipatDataDirectory": profile["data_dir_name"],
-        "NipatResumeKey": profile["resume_key"],
+        "NewPatVersion": manifest["version"],
+        "NewPatAppId": "{{" + profile["app_id"] + "}",
+        "NewPatDisplayName": profile["display_name"],
+        "NewPatAppDirectory": profile["app_dir_name"],
+        "NewPatDataDirectory": profile["data_dir_name"],
+        "NewPatResumeKey": profile["resume_key"],
     }
     return "; Generated from the verified installer manifest. Do not edit.\n" + "".join(
         f'#define {key} "{value}"\n' for key, value in values.items()
@@ -423,11 +414,6 @@ def stage_app(project: Path, manifest_path: Path, stage: Path, python_zip: Path)
     return app
 
 
-def uses_online_bootstrap(version: str) -> bool:
-    match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:(?:a|b|rc)\d+)?", version)
-    return bool(match and tuple(map(int, match.groups())) >= (0, 8, 99))
-
-
 def application_payload(stage: Path) -> dict:
     """Identify the complete payload; current releases contain no custom native helpers."""
     app = stage / "app"
@@ -441,9 +427,6 @@ def application_payload(stage: Path) -> dict:
         raise ValueError("Inventario dei sorgenti mancante.")
     generated = {"release.json", f".distribution/{MANIFEST_NAME}",
                  f".distribution/{bundle.PYTHON_NAME}"}
-    if not uses_online_bootstrap(manifest["version"]):
-        generated.update({"NIPAT.exe", "installer/windows/EnableWsl.exe",
-                          "installer/windows/NipatActivityNative.dll"})
     inventory_path = f".distribution/{APPLICATION_FILES_NAME}"
     files = []
     seen = set()

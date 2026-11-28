@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 import unittest
 
-from nipat_scientific.settings import settings_context
+from newpat_scientific.settings import settings_context
 
 from downstream_oracle_tables import alleles, coordinate, coordinate_header, write_table
 from native_r_helpers import NATIVE_R_AVAILABLE, NATIVE_R_REASON
@@ -89,8 +89,8 @@ class ContaminationOracles(unittest.TestCase):
                     output = root / "output"
                     script = PAYLOAD / "scientific/vendor/NEWPAT/contamination/detect_contamination.R"
                     with settings_context("contamination", settings, root / "work"):
-                        env = dict(os.environ, NIPAT_PARALLEL_HELPER=str(HELPERS / "parallel.R"),
-                                   NIPAT_EXECUTION_MODE="serial")
+                        env = dict(os.environ, NEWPAT_PARALLEL_HELPER=str(HELPERS / "parallel.R"),
+                                   NEWPAT_EXECUTION_MODE="serial")
                         process = subprocess.run(["Rscript", str(script), str(panel), str(inputs), str(output)],
                                                  env=env, text=True, capture_output=True, timeout=90)
                     self.assertEqual(process.returncode, 0, process.stderr)
@@ -120,8 +120,8 @@ class ContaminationOracles(unittest.TestCase):
             write_table(sample, ("chr", "pos", "N_REF", "N_ALT", "N_Other"), [("chr1", 3, "T", 0, 0)])
             script = PAYLOAD / "scientific/vendor/NEWPAT/contamination/detect_contamination.R"
             with settings_context("contamination", {}, root / "work"):
-                env = dict(os.environ, NIPAT_PARALLEL_HELPER=str(HELPERS / "parallel.R"),
-                           NIPAT_EXECUTION_MODE="serial")
+                env = dict(os.environ, NEWPAT_PARALLEL_HELPER=str(HELPERS / "parallel.R"),
+                           NEWPAT_EXECUTION_MODE="serial")
                 proc = subprocess.run(["Rscript", str(script), str(panel), str(sample), str(output)],
                                       env=env, text=True, capture_output=True, timeout=90)
             self.assertNotEqual(proc.returncode, 0)

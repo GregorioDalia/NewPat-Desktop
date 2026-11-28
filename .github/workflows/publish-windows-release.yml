@@ -41,7 +41,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: publish-nipat-release
+  group: publish-newpat-release
   queue: max
 
 jobs:

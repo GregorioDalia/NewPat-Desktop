@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from nipat_scientific import progress
+from newpat_scientific import progress
 
 
 class EngineProgressTests(unittest.TestCase):
@@ -14,7 +14,7 @@ class EngineProgressTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name) / "progress"
-        self.env = patch.dict(os.environ, {"NIPAT_PROGRESS_DIR": str(self.root)}, clear=False)
+        self.env = patch.dict(os.environ, {"NEWPAT_PROGRESS_DIR": str(self.root)}, clear=False)
         self.env.start()
         self.addCleanup(self.env.stop)
 
@@ -46,7 +46,7 @@ class EngineProgressTests(unittest.TestCase):
                          ["cancelled", "failed"])
 
     def test_disabled_unavailable_and_malformed_never_affect_science(self):
-        with patch.dict(os.environ, {"NIPAT_PROGRESS_DIR": ""}):
+        with patch.dict(os.environ, {"NEWPAT_PROGRESS_DIR": ""}):
             with progress.phase("r-execution"):
                 pass
         self.assertFalse(self.root.exists())
@@ -103,8 +103,8 @@ class StandaloneProgressTests(unittest.TestCase):
         spec.loader.exec_module(self.engine)
         self.root = Path(self.enterContext(tempfile.TemporaryDirectory())).resolve()
         self.events_dir = self.root / "progress"
-        self.enterContext(patch.dict(os.environ, {"NIPAT_PROGRESS_DIR": str(self.events_dir),
-                                                 "NIPAT_PERFORMANCE_DIR": ""}))
+        self.enterContext(patch.dict(os.environ, {"NEWPAT_PROGRESS_DIR": str(self.events_dir),
+                                                 "NEWPAT_PERFORMANCE_DIR": ""}))
         self.enterContext(patch.object(self.engine, "verify_bundle", return_value={"workflows": {
             name: {"script": name + ".R"} for name in self.engine.SCRIPT_PATHS}}))
         self.enterContext(patch.object(self.engine, "preparation_root", return_value=self.root))
@@ -136,10 +136,10 @@ class StandaloneProgressTests(unittest.TestCase):
                 prepared = (SimpleNamespace(native_arguments=[], working_dir=Path.cwd(), preparation_command=None)
                             if workflow in {"snp-call", "dnp-call"} else [])
                 def execute(*args):
-                    self.assertEqual(os.environ["NIPAT_PROGRESS_WORKFLOW"], workflow)
-                    self.assertEqual(json.loads(os.environ["NIPAT_PROGRESS_SAMPLE_IDS"]), ["sample_0001"])
+                    self.assertEqual(os.environ["NEWPAT_PROGRESS_WORKFLOW"], workflow)
+                    self.assertEqual(json.loads(os.environ["NEWPAT_PROGRESS_SAMPLE_IDS"]), ["sample_0001"])
                     return 0
-                with patch("nipat_scientific." + function, return_value=prepared), \
+                with patch("newpat_scientific." + function, return_value=prepared), \
                         patch.object(self.engine, "run_validated_request", side_effect=execute):
                     self.assertEqual(self.engine.main(["execute", workflow, "--request", str(request)]), 0)
         events = self.events()
@@ -151,7 +151,7 @@ class StandaloneProgressTests(unittest.TestCase):
         request = self.root / "invalid.json"
         request.write_text("{broken")
         self.assertEqual(self.engine.main(["execute", "dnp-call", "--request", str(request)]), 2)
-        self.assertIn("NIPAT scientific engine:", self.errors.getvalue())
+        self.assertIn("NewPat scientific engine:", self.errors.getvalue())
         self.assertEqual(self.events(), [])
 
     def test_cancellation_during_output_validation_cannot_report_success(self):
@@ -162,10 +162,10 @@ class StandaloneProgressTests(unittest.TestCase):
             signal.raise_signal(signal.SIGTERM)
             return {}
 
-        with patch("nipat_scientific.presentation.prepare_presentation", return_value=[]), \
-                patch("nipat_scientific.executor._run_process", return_value=0), \
-                patch("nipat_scientific.outputs.validate_standalone_outputs", side_effect=cancel_after_r), \
-                patch("nipat_scientific.presentation.finish_presentation") as finish:
+        with patch("newpat_scientific.presentation.prepare_presentation", return_value=[]), \
+                patch("newpat_scientific.executor._run_process", return_value=0), \
+                patch("newpat_scientific.outputs.validate_standalone_outputs", side_effect=cancel_after_r), \
+                patch("newpat_scientific.presentation.finish_presentation") as finish:
             result = self.engine.run_validated_request(request, Path("snp.R"), [])
         self.assertEqual(result, 128 + signal.SIGTERM)
         finish.assert_not_called()
@@ -180,8 +180,8 @@ class StandaloneProgressTests(unittest.TestCase):
                     cancellation.receive(signal.SIGTERM, None)
                 return code
             with progress.context("snp-call", sample_ids=["sample_0001"]), \
-                    patch("nipat_scientific.presentation.prepare_presentation", return_value=[]), \
-                    patch("nipat_scientific.executor._run_process", side_effect=process):
+                    patch("newpat_scientific.presentation.prepare_presentation", return_value=[]), \
+                    patch("newpat_scientific.executor._run_process", side_effect=process):
                 result = self.engine.run_validated_request(request, Path("snp.R"), [])
                 self.assertEqual(result, 143 if cancel else 17)
         ends = [row["outcome"] for row in self.events() if row["phase"] == "r-execution" and row["event"] == "end"]

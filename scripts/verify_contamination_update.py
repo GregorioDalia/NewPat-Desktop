@@ -10,10 +10,10 @@ import re
 import sys
 from pathlib import Path
 
-from nipat.errors import NipatError, ValidationError
-from nipat.execution.runner import DockerComposeRunner
-from nipat.execution.workflows import Workflows
-from nipat.paths import ProjectLayout
+from newpat.errors import NewPatError, ValidationError
+from newpat.experiments.runner import DockerComposeRunner
+from newpat.experiments.workflows import Workflows
+from newpat.paths import ProjectLayout
 
 
 EXPECTED_SITES = {
@@ -114,7 +114,7 @@ def check_bundled_run(run_dir: Path, layout: ProjectLayout, *, workflow: str = "
     runtime = record["runtime"]
     engine = runtime.get("engine", {})
     interfaces = {"dnp-call": "dnp-call-v1", "snp-call": "snp-call-v2",
-                  "contamination": "contamination-v2", "cpi": "cpi-v4", "cpin": "cpin-v2", "fetal-sex": "fetal-sex-v1"}
+                  "contamination": "contamination-v2", "cpi": "cpi-v4", "cpin": "cpin-v2", "fetal-sex": "fetal-sex-v3"}
     if (record["status"] != "succeeded" or record["source"].get("role") != "client"
             or record.get("workflow") != workflow
             or engine.get("workflow_interfaces", {}) != interfaces
@@ -122,18 +122,18 @@ def check_bundled_run(run_dir: Path, layout: ProjectLayout, *, workflow: str = "
             or not re.fullmatch(r"sha256:[0-9a-f]{64}", runtime.get("image_id", ""))):
         raise ValidationError("Identità dell'immagine o provenienza del motore mancanti.")
     hashes = engine["preparation"].get("file_sha256", {})
-    required = {"engine/main.py", *(f"lib/nipat_scientific/{name}.py" for name in (
+    required = {"engine/main.py", *(f"lib/newpat_scientific/{name}.py" for name in (
         "__init__", "errors", "panels", "files", "contamination", "snp", "snp_summary", "snp_parallel", "dnp", "cpi",
         "catalog", "plan", "executor", "outputs", "presentation", "performance",
         "scratch", "dnp_pileup", "progress", "parallel", "cpin", "fetal_sex", "settings",
-    )), "lib/nipat_scientific/presentation.R", "lib/nipat_scientific/progress.R",
-        "lib/nipat_scientific/dnp_blocks.R", "lib/nipat_scientific/parallel.R", "lib/nipat_scientific/plots.R",
-        "lib/nipat_scientific/settings.R", "lib/nipat_scientific/settings_data.json",
-        *(f"lib/nipat_scientific/catalog_data/{name}.json" for name in (
+    )), "lib/newpat_scientific/presentation.R", "lib/newpat_scientific/progress.R",
+        "lib/newpat_scientific/dnp_blocks.R", "lib/newpat_scientific/parallel.R", "lib/newpat_scientific/plots.R",
+        "lib/newpat_scientific/settings.R", "lib/newpat_scientific/settings_data.json",
+        *(f"lib/newpat_scientific/catalog_data/{name}.json" for name in (
         "dnp-call", "snp-call", "contamination", "cpi", "cpin", "fetal-sex",
     ))}
     if engine.get("desktop_scheduling") == "step-budget-v1":
-        required.add("lib/nipat_scientific/desktop_scheduling.py")
+        required.add("lib/newpat_scientific/desktop_scheduling.py")
     if set(hashes) != required or any(not re.fullmatch(r"[0-9a-f]{64}", digest) for digest in hashes.values()):
         raise ValidationError("Hash del codice di preparazione incompleti o non validi.")
     commands = record["commands"]
@@ -143,7 +143,7 @@ def check_bundled_run(run_dir: Path, layout: ProjectLayout, *, workflow: str = "
     compose_paths = [argv[index + 1].replace("\\", "/")
                      for index, value in enumerate(argv[:-1]) if value == "-f"]
     if (len(compose_paths) != 1 or not compose_paths[0].endswith("/engine-compose.json")
-            or "/opt/nipat/engine/main.py" not in argv or "execute" not in argv
+            or "/opt/newpat/engine/main.py" not in argv or "execute" not in argv
             or argv[argv.index("execute") + 1:argv.index("execute") + 2] != [workflow]):
         raise ValidationError("La CLI non sta usando esclusivamente il motore incorporato.")
 
@@ -156,7 +156,7 @@ def main() -> int:
     try:
         if layout.project_dir != Path(__file__).resolve().parents[1]:
             raise ValidationError(
-                "Usare la venv di questa repository e verificare NIPAT_PROJECT_DIR."
+                "Usare la venv di questa repository e verificare NEWPAT_PROJECT_DIR."
             )
         fixture = layout.project_dir / "tests" / "fixtures" / "contamination"
         inputs = [
@@ -173,7 +173,7 @@ def main() -> int:
                 raise ValidationError(f"Input originale modificato: {path.name}")
         check_outputs(run_dir)
         check_bundled_run(run_dir, layout)
-    except (NipatError, OSError) as exc:
+    except (NewPatError, OSError) as exc:
         print(f"Verifica Contamination fallita: {exc}", file=sys.stderr)
         return 1
     print("Verifica Contamination superata: riepilogo e valori per sito attesi.")

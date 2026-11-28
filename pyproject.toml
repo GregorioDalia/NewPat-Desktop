@@ -3,8 +3,8 @@ requires = ["setuptools>=75"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "nipat-desktop"
-version = "0.9.10"
+name = "newpat-desktop"
+version = "0.9.99"
 description = "NewPat desktop application for local scientific workflows"
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -22,18 +22,19 @@ dev = [
 ]
 
 [project.scripts]
-newpat = "nipat.cli:main"
-nipat = "nipat.cli:main"
+newpat = "newpat.cli:main"
 
 [tool.setuptools]
 license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md", "scientific/vendor/*/LICENSE"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+include = ["newpat", "newpat.*", "newpat_scientific", "newpat_scientific.*"]
+namespaces = false
 
 [tool.setuptools.package-data]
-"nipat.gui" = ["web/*", "web/vendor/*", "web/vendor/licenses/*", "web/vendor/pdfmake/*", "native/windows/*", "native/windows/x64/*"]
-nipat_scientific = ["catalog_data/*.json", "*.R", "settings_data.json"]
+"newpat.desktop" = ["web/*", "web/vendor/*", "web/vendor/licenses/*", "web/vendor/pdfmake/*", "native/windows/*", "native/windows/x64/*"]
+newpat_scientific = ["catalog_data/*.json", "*.R", "settings_data.json"]
 
 [tool.pytest.ini_options]
 addopts = "-q"
@@ -49,7 +50,7 @@ select = ["E9", "F821", "F822", "F823"]
 
 [tool.coverage.run]
 branch = true
-source = ["src/nipat", "src/nipat_scientific"]
+source = ["src/newpat", "src/newpat_scientific"]
 relative_files = true
 
 [tool.coverage.report]

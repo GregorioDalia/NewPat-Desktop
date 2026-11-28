@@ -2,10 +2,10 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-function Read-NipatOwnership([string] $Path, [string] $Distro) {
+function Read-NewPatOwnership([string] $Path, [string] $Distro) {
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
     $record = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
-    Assert-NipatInstallationChannel $record 'Il registro di proprieta'
+    Assert-NewPatInstallationChannel $record 'Il registro di proprieta'
     if ($record.schema_version -ne 1 -or $record.distro -cne $Distro -or
         $record.owner_id -cnotmatch '^[a-f0-9]{32}$' -or
         $record.rootfs_sha256 -cnotmatch '^[a-f0-9]{64}$' -or
@@ -15,22 +15,11 @@ function Read-NipatOwnership([string] $Path, [string] $Distro) {
     return $record
 }
 
-function Get-NipatRuntimeTarget([string] $WslDirectory, [string] $RootfsSha256, [string[]] $Names) {
+function Get-NewPatRuntimeTarget([string] $WslDirectory, [string] $RootfsSha256, [string[]] $Names) {
     if ($RootfsSha256 -cnotmatch '^[a-f0-9]{64}$') { throw 'Identita rootfs non valida.' }
-    $profile = Get-NipatInstallationProfile
-    # Reuse an earlier Desktop runtime only when its receipt is in this selected runtime
-    # directory. A different destination gets a distinct name and a fresh import;
-    # the existing distribution and its disk are never moved or unregistered.
-    $legacyDistro = $profile.distro_prefix + $RootfsSha256.Substring(0, 40)
-    $legacyRecordPath = Join-Path (Join-Path $WslDirectory 'registrations') ($legacyDistro + '.json')
-    $legacyOwnership = Read-NipatOwnership $legacyRecordPath $legacyDistro
-    if ($null -ne $legacyOwnership) {
-        $distro = $legacyDistro
-    } else {
-        $distro = Get-NipatRuntimeDistroName $RootfsSha256 $WslDirectory
-    }
+    $distro = Get-NewPatRuntimeDistroName $RootfsSha256 $WslDirectory
     $recordPath = Join-Path (Join-Path $WslDirectory 'registrations') ($distro + '.json')
-    $ownership = if ($null -ne $legacyOwnership) { $legacyOwnership } else { Read-NipatOwnership $recordPath $distro }
+    $ownership = Read-NewPatOwnership $recordPath $distro
     if ($null -ne $ownership -and $ownership.rootfs_sha256 -cne $RootfsSha256) {
         throw 'Conflitto tra nome della distribuzione e identita completa del rootfs. Nessuna sostituzione viene eseguita.'
     }
@@ -41,33 +30,33 @@ function Get-NipatRuntimeTarget([string] $WslDirectory, [string] $RootfsSha256, 
     return [pscustomobject]@{
         Distro = $distro; Directory = (Join-Path $WslDirectory $distro)
         OwnershipPath = $recordPath; Ownership = $ownership
-        Registered = $registered; Legacy = $false; RootfsSha256 = $RootfsSha256
+        Registered = $registered; RootfsSha256 = $RootfsSha256
     }
 }
 
-function Assert-NipatRuntimeOwner($Target, [switch] $AllowInitialize) {
-    Assert-NipatDistroLocation $Target.Distro $Target.Directory
+function Assert-NewPatRuntimeOwner($Target, [switch] $AllowInitialize) {
+    Assert-NewPatDistroLocation $Target.Distro $Target.Directory
     $prefix = @('--distribution', $Target.Distro, '--user', 'root', '--exec')
-    $product = Invoke-NipatWsl ($prefix + @('/usr/bin/cat', '/etc/nipat-runtime-id'))
-    if ($product.Text -cne 'nipat-runtime-v1') { throw 'Il contenuto della distribuzione non e un runtime NewPat riconosciuto.' }
-    $owner = Invoke-NipatWsl ($prefix + @('/usr/bin/cat', '/var/lib/nipat/owner-id')) -AllowFailure
-    if ($owner.ExitCode -ne 0 -and $AllowInitialize -and -not $Target.Legacy -and
+    $product = Invoke-NewPatWsl ($prefix + @('/usr/bin/cat', '/etc/newpat-runtime-id'))
+    if ($product.Text -cne 'newpat-runtime-v1') { throw 'Il contenuto della distribuzione non e un runtime NewPat riconosciuto.' }
+    $owner = Invoke-NewPatWsl ($prefix + @('/usr/bin/cat', '/var/lib/newpat/owner-id')) -AllowFailure
+    if ($owner.ExitCode -ne 0 -and $AllowInitialize -and
         $Target.Ownership.status -ceq 'importing') {
-        Invoke-NipatWsl ($prefix + @('/usr/bin/install', '-d', '-m', '0700', '/var/lib/nipat')) | Out-Null
+        Invoke-NewPatWsl ($prefix + @('/usr/bin/install', '-d', '-m', '0700', '/var/lib/newpat')) | Out-Null
         # Only a validated hexadecimal ownership token crosses this fixed shell script as argv.
-        Invoke-NipatWsl ($prefix + @('/bin/sh', '-c', 'printf "%s\n" "$1" > /var/lib/nipat/owner-id',
-            'nipat-owner', $Target.Ownership.owner_id)) | Out-Null
-        $owner = Invoke-NipatWsl ($prefix + @('/usr/bin/cat', '/var/lib/nipat/owner-id'))
+        Invoke-NewPatWsl ($prefix + @('/bin/sh', '-c', 'printf "%s\n" "$1" > /var/lib/newpat/owner-id',
+            'newpat-owner', $Target.Ownership.owner_id)) | Out-Null
+        $owner = Invoke-NewPatWsl ($prefix + @('/usr/bin/cat', '/var/lib/newpat/owner-id'))
     }
     if ($owner.ExitCode -ne 0 -or $owner.Text -cne $Target.Ownership.owner_id) {
         throw 'Il marcatore di proprieta della distribuzione non corrisponde. Nessuna selezione del runtime viene applicata.'
     }
 }
 
-function Assert-NipatRuntimeTargetReceipt($Target, $RootfsAsset) {
-    $directory = Resolve-NipatInstallPath $Target.Directory
+function Assert-NewPatRuntimeTargetReceipt($Target, $RootfsAsset) {
+    $directory = Resolve-NewPatInstallPath $Target.Directory
     $runtimeDirectory = Split-Path -Parent $directory
-    Assert-NipatRuntimeNamespace $Target.Distro $Target.RootfsSha256 $runtimeDirectory
+    Assert-NewPatRuntimeNamespace $Target.Distro $Target.RootfsSha256 $runtimeDirectory
     if ($RootfsAsset.sha256 -cne $Target.RootfsSha256 -or
         $directory -ine (Join-Path $runtimeDirectory $Target.Distro)) {
         throw 'La destinazione del runtime non corrisponde al namespace e al rootfs richiesti.'
@@ -77,13 +66,13 @@ function Assert-NipatRuntimeTargetReceipt($Target, $RootfsAsset) {
     if ([IO.Path]::GetFullPath($Target.OwnershipPath) -ine $expectedReceipt) {
         throw 'Il registro di proprieta non appartiene alla destinazione del runtime.'
     }
-    Assert-NipatInstallPathWithoutLinks $directory
-    Assert-NipatInstallPathWithoutLinks $receiptDirectory
+    Assert-NewPatInstallPathWithoutLinks $directory
+    Assert-NewPatInstallPathWithoutLinks $receiptDirectory
     if ((Test-Path -LiteralPath $expectedReceipt) -and
         ((Get-Item -LiteralPath $expectedReceipt -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
         throw 'Il registro di proprieta del runtime non puo essere un collegamento.'
     }
-    $current = Read-NipatOwnership $expectedReceipt $Target.Distro
+    $current = Read-NewPatOwnership $expectedReceipt $Target.Distro
     if (($null -eq $current) -ne ($null -eq $Target.Ownership)) {
         throw 'Il registro di proprieta e cambiato durante la preparazione. Riprovare il setup.'
     }
@@ -99,27 +88,27 @@ function Assert-NipatRuntimeTargetReceipt($Target, $RootfsAsset) {
     }
 }
 
-function Assert-NipatEmptyRuntimeDestination([string] $Directory) {
-    Assert-NipatInstallPathWithoutLinks $Directory
+function Assert-NewPatEmptyRuntimeDestination([string] $Directory) {
+    Assert-NewPatInstallPathWithoutLinks $Directory
     if ((Test-Path -LiteralPath $Directory) -and
         @(Get-ChildItem -LiteralPath $Directory -Force).Count -gt 0) {
         throw "La cartella $Directory contiene gia file senza una registrazione WSL. Nessun file viene sovrascritto."
     }
 }
 
-function Initialize-NipatRuntimeTarget($Target, $RootfsAsset, [string] $CacheDirectory, [string] $AssetDirectory) {
-    Assert-NipatRuntimeTargetReceipt $Target $RootfsAsset
+function Initialize-NewPatRuntimeTarget($Target, $RootfsAsset, [string] $CacheDirectory, [string] $AssetDirectory) {
+    Assert-NewPatRuntimeTargetReceipt $Target $RootfsAsset
     if (-not $Target.Registered) {
-        Assert-NipatEmptyRuntimeDestination $Target.Directory
-        if (@(Get-NipatWslNames) -contains $Target.Distro) {
+        Assert-NewPatEmptyRuntimeDestination $Target.Directory
+        if (@(Get-NewPatWslNames) -contains $Target.Distro) {
             throw 'La distribuzione e stata registrata durante la preparazione. Nessuna registrazione viene sostituita; riprovare il setup.'
         }
-        $rootfs = Get-NipatAsset $RootfsAsset $CacheDirectory $AssetDirectory
+        $rootfs = Get-NewPatAsset $RootfsAsset $CacheDirectory $AssetDirectory
         # Asset preparation can take several minutes. Recheck the registration,
         # destination and receipt immediately before writing recovery metadata.
-        Assert-NipatRuntimeTargetReceipt $Target $RootfsAsset
-        Assert-NipatEmptyRuntimeDestination $Target.Directory
-        if (@(Get-NipatWslNames) -contains $Target.Distro) {
+        Assert-NewPatRuntimeTargetReceipt $Target $RootfsAsset
+        Assert-NewPatEmptyRuntimeDestination $Target.Directory
+        if (@(Get-NewPatWslNames) -contains $Target.Distro) {
             throw 'La distribuzione e stata registrata durante la preparazione. Nessuna registrazione viene sostituita; riprovare il setup.'
         }
         $ownership = $Target.Ownership
@@ -128,11 +117,11 @@ function Initialize-NipatRuntimeTarget($Target, $RootfsAsset, [string] $CacheDir
             # absent registration plus an empty destination permits recreation.
             # Preserve the exact old receipt outside the active registrations.
             $history = Join-Path (Split-Path -Parent $Target.Directory) 'registration-history'
-            Assert-NipatInstallPathWithoutLinks $history
+            Assert-NewPatInstallPathWithoutLinks $history
             [IO.Directory]::CreateDirectory($history) | Out-Null
             $backup = Join-Path $history ($Target.Distro + '-' + [Guid]::NewGuid().ToString('N') + '.json')
             [IO.File]::Copy($Target.OwnershipPath, $backup, $false)
-            $saved = Read-NipatOwnership $backup $Target.Distro
+            $saved = Read-NewPatOwnership $backup $Target.Distro
             if ($saved.owner_id -cne $ownership.owner_id -or $saved.status -cne 'owned' -or
                 $saved.rootfs_sha256 -cne $Target.RootfsSha256 -or
                 (Get-FileHash -LiteralPath $backup -Algorithm SHA256).Hash -cne
@@ -144,27 +133,27 @@ function Initialize-NipatRuntimeTarget($Target, $RootfsAsset, [string] $CacheDir
         }
         if ($null -eq $ownership) {
             $ownership = [pscustomobject]@{
-                schema_version = 1; installation_channel = (Get-NipatInstallationProfile).channel; distro = $Target.Distro; owner_id = [Guid]::NewGuid().ToString('N')
+                schema_version = 1; installation_channel = (Get-NewPatInstallationProfile).channel; distro = $Target.Distro; owner_id = [Guid]::NewGuid().ToString('N')
                 rootfs_sha256 = $Target.RootfsSha256; status = 'importing'
             }
         }
-        Write-NipatJsonAtomic $Target.OwnershipPath $ownership
+        Write-NewPatJsonAtomic $Target.OwnershipPath $ownership
         $Target.Ownership = $ownership
-        Invoke-NipatWsl @('--import', $Target.Distro, $Target.Directory, $rootfs, '--version', '2') | Out-Null
+        Invoke-NewPatWsl @('--import', $Target.Distro, $Target.Directory, $rootfs, '--version', '2') | Out-Null
         $Target.Registered = $true
     }
-    Assert-NipatRuntimeOwner $Target -AllowInitialize
-    if (-not $Target.Legacy -and $Target.Ownership.status -ne 'owned') {
+    Assert-NewPatRuntimeOwner $Target -AllowInitialize
+    if ($Target.Ownership.status -ne 'owned') {
         $Target.Ownership.status = 'owned'
-        Write-NipatJsonAtomic $Target.OwnershipPath $Target.Ownership
+        Write-NewPatJsonAtomic $Target.OwnershipPath $Target.Ownership
     }
 }
 
-function Save-NipatRecoverySnapshot([string] $Project, $Manifest, $Layout = $null) {
+function Save-NewPatRecoverySnapshot([string] $Project, $Manifest, $Layout = $null) {
     foreach ($relative in @('.runtime/installer/state.json', '.runtime/backend.json')) {
         $existing = Join-Path $Project $relative
         if (Test-Path -LiteralPath $existing -PathType Leaf) {
-            Assert-NipatInstallationChannel (Get-Content -LiteralPath $existing -Raw -Encoding UTF8 | ConvertFrom-Json) $relative
+            Assert-NewPatInstallationChannel (Get-Content -LiteralPath $existing -Raw -Encoding UTF8 | ConvertFrom-Json) $relative
         }
     }
     $layoutDigest = ''
@@ -183,7 +172,7 @@ function Save-NipatRecoverySnapshot([string] $Project, $Manifest, $Layout = $nul
     $path = Join-Path (Join-Path $Project '.runtime\installer\recovery') $name
     if (Test-Path -LiteralPath $path -PathType Leaf) {
         $snapshot = Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json
-        Assert-NipatInstallationChannel $snapshot 'Il registro di recupero'
+        Assert-NewPatInstallationChannel $snapshot 'Il registro di recupero'
         if ($snapshot.schema_version -ne 1 -or $snapshot.target_source_commit -cne $Manifest.source_commit -or
             $snapshot.target_rootfs_sha256 -cne $Manifest.assets.rootfs.sha256) {
             throw 'Il registro di recupero esistente non corrisponde alla preparazione richiesta.'
@@ -204,8 +193,8 @@ function Save-NipatRecoverySnapshot([string] $Project, $Manifest, $Layout = $nul
             }
         }
     }
-    Write-NipatJsonAtomic $path ([ordered]@{
-        schema_version = 1; installation_channel = (Get-NipatInstallationProfile).channel; target_source_commit = $Manifest.source_commit
+    Write-NewPatJsonAtomic $path ([ordered]@{
+        schema_version = 1; installation_channel = (Get-NewPatInstallationProfile).channel; target_source_commit = $Manifest.source_commit
         target_rootfs_sha256 = $Manifest.assets.rootfs.sha256
         target_layout_sha256 = $layoutDigest
         created_utc = [DateTime]::UtcNow.ToString('o'); previous_files = $files
@@ -213,11 +202,11 @@ function Save-NipatRecoverySnapshot([string] $Project, $Manifest, $Layout = $nul
     return $path
 }
 
-function Get-NipatPreviousDataRoots([string] $Project, [string] $BaseDirectory) {
+function Get-NewPatPreviousDataRoots([string] $Project, [string] $BaseDirectory) {
     $path = Join-Path $Project '.runtime\backend.json'
     if (Test-Path -LiteralPath $path -PathType Leaf) {
         $configuration = Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json
-        Assert-NipatInstallationChannel $configuration 'La configurazione precedente'
+        Assert-NewPatInstallationChannel $configuration 'La configurazione precedente'
         if ($configuration.schema_version -ne 1 -or $configuration.backend -cne 'wsl' -or
             $configuration.runtime_image -cnotmatch '^sha256:[a-f0-9]{64}$' -or
             [string]::IsNullOrWhiteSpace($configuration.data_dir) -or
@@ -228,15 +217,7 @@ function Get-NipatPreviousDataRoots([string] $Project, [string] $BaseDirectory) 
         }
         $runtimeDirectory = ''
         if ($null -ne $configuration.PSObject.Properties['runtime_dir']) { $runtimeDirectory = [string]$configuration.runtime_dir }
-        if ($null -ne $configuration.PSObject.Properties['rootfs_sha256']) {
-            Assert-NipatRuntimeNamespace $configuration.wsl_distro $configuration.rootfs_sha256 $runtimeDirectory
-        } else {
-            # Earlier installation metadata did not always persist the full rootfs hash.
-            $profile = Get-NipatInstallationProfile
-            if ($configuration.wsl_distro -cnotmatch ('^' + [regex]::Escape($profile.distro_prefix) + '[a-f0-9]{40}$')) {
-                throw 'Il runtime della configurazione precedente non appartiene a NewPat.'
-            }
-        }
+        Assert-NewPatRuntimeNamespace $configuration.wsl_distro $configuration.rootfs_sha256 $runtimeDirectory
         return [pscustomobject]@{ data_dir = $configuration.data_dir; runs_dir = $configuration.runs_dir }
     }
     return [pscustomobject]@{
@@ -244,9 +225,9 @@ function Get-NipatPreviousDataRoots([string] $Project, [string] $BaseDirectory) 
     }
 }
 
-function Complete-NipatRuntimeActivation([string] $Project, [string] $StatePath, $State, $Configuration, [scriptblock] $Verify) {
-    Assert-NipatInstallationChannel $State 'Lo stato candidato'
-    Assert-NipatInstallationChannel $Configuration 'La configurazione candidata'
+function Complete-NewPatRuntimeActivation([string] $Project, [string] $StatePath, $State, $Configuration, [scriptblock] $Verify) {
+    Assert-NewPatInstallationChannel $State 'Lo stato candidato'
+    Assert-NewPatInstallationChannel $Configuration 'La configurazione candidata'
     $runtimeDirectory = ''
     if ($Configuration -is [Collections.IDictionary]) {
         if ($Configuration.Contains('runtime_dir')) { $runtimeDirectory = [string]$Configuration.runtime_dir }
@@ -259,8 +240,8 @@ function Complete-NipatRuntimeActivation([string] $Project, [string] $StatePath,
     } elseif ($null -ne $State.PSObject.Properties['runtime_dir']) {
         $stateRuntimeDirectory = [string]$State.runtime_dir
     }
-    Assert-NipatRuntimeNamespace $Configuration.wsl_distro $Configuration.rootfs_sha256 $runtimeDirectory
-    Assert-NipatRuntimeNamespace $State.wsl_distro $State.rootfs_sha256 $stateRuntimeDirectory
+    Assert-NewPatRuntimeNamespace $Configuration.wsl_distro $Configuration.rootfs_sha256 $runtimeDirectory
+    Assert-NewPatRuntimeNamespace $State.wsl_distro $State.rootfs_sha256 $stateRuntimeDirectory
     if ($State.wsl_distro -cne $Configuration.wsl_distro -or $State.rootfs_sha256 -cne $Configuration.rootfs_sha256) {
         throw 'Lo stato di preparazione e la configurazione candidata selezionano runtime diversi.'
     }
@@ -273,9 +254,9 @@ function Complete-NipatRuntimeActivation([string] $Project, [string] $StatePath,
     # Tests run with a candidate environment while backend.json still selects the old runtime.
     # Ready state is the final activation gate; an interrupted commit remains blocked and resumable.
     $candidate = [ordered]@{
-        NIPAT_PROJECT_DIR = $Project; NIPAT_BACKEND = 'wsl'; NIPAT_WSL_DISTRO = $Configuration.wsl_distro
-        NIPAT_RUNTIME_IMAGE = $Configuration.runtime_image; NIPAT_DATA_DIR = $Configuration.data_dir
-        NIPAT_RUNS_DIR = $Configuration.runs_dir; NIPAT_WORKSPACE_DIR = (Split-Path -Parent $Configuration.data_dir)
+        NEWPAT_PROJECT_DIR = $Project; NEWPAT_BACKEND = 'wsl'; NEWPAT_WSL_DISTRO = $Configuration.wsl_distro
+        NEWPAT_RUNTIME_IMAGE = $Configuration.runtime_image; NEWPAT_DATA_DIR = $Configuration.data_dir
+        NEWPAT_RUNS_DIR = $Configuration.runs_dir; NEWPAT_WORKSPACE_DIR = (Split-Path -Parent $Configuration.data_dir)
     }
     $previousEnvironment = @{}
     try {
@@ -284,11 +265,11 @@ function Complete-NipatRuntimeActivation([string] $Project, [string] $StatePath,
             [Environment]::SetEnvironmentVariable($name, $candidate[$name], 'Process')
         }
         & $Verify
-        Write-NipatJsonAtomic (Join-Path $Project '.runtime\backend.json') $Configuration
+        Write-NewPatJsonAtomic (Join-Path $Project '.runtime\backend.json') $Configuration
         $Configuration.runtime_image | Set-Content -LiteralPath (Join-Path $Project '.runtime\runtime-image.txt') -Encoding ASCII
         $State.phase = 'ready'
         $State.updated_utc = [DateTime]::UtcNow.ToString('o')
-        Write-NipatJsonAtomic $StatePath $State
+        Write-NewPatJsonAtomic $StatePath $State
         Write-Host 'NewPat: ready'
     } finally {
         foreach ($name in $previousEnvironment.Keys) {

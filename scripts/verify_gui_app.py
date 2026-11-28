@@ -14,7 +14,7 @@ def verify(app: Path, python: Path, workspace: Path, report: Path, screenshot: P
         raise ValueError("Unknown native GUI evidence scope")
     app, python, workspace, report, screenshot = (path.resolve() for path in
                                                  (app, python, workspace, report, screenshot))
-    if not (app / "src/nipat/gui/web/index.html").is_file():
+    if not (app / "src/newpat/desktop/web/index.html").is_file():
         raise ValueError("The actual packaged GUI assets are missing")
     if report.exists() or screenshot.exists():
         raise ValueError("Native GUI evidence must be written to fresh paths")
@@ -22,14 +22,14 @@ def verify(app: Path, python: Path, workspace: Path, report: Path, screenshot: P
     report.parent.mkdir(parents=True, exist_ok=True)
     screenshot.parent.mkdir(parents=True, exist_ok=True)
     environment = {name: value for name, value in os.environ.items()
-                   if not name.startswith(("NIPAT_", "PYTHON", "DOCKER", "COMPOSE"))}
+                   if not name.startswith(("NEWPAT_", "PYTHON", "DOCKER", "COMPOSE"))}
     environment.update({
-        "NIPAT_GUI_VERIFY_PDF": "1", "NIPAT_PROJECT_DIR": str(app), "NIPAT_WORKSPACE_DIR": str(workspace),
-        "NIPAT_DATA_DIR": str(workspace / "data"), "NIPAT_RUNS_DIR": str(workspace / "runs"),
-        "NIPAT_SETTINGS_FILE": str(workspace / "preferences.json"),
+        "NEWPAT_GUI_VERIFY_PDF": "1", "NEWPAT_PROJECT_DIR": str(app), "NEWPAT_WORKSPACE_DIR": str(workspace),
+        "NEWPAT_DATA_DIR": str(workspace / "data"), "NEWPAT_RUNS_DIR": str(workspace / "runs"),
+        "NEWPAT_SETTINGS_FILE": str(workspace / "preferences.json"),
     })
     code = ("import sys;sys.path.insert(0,sys.argv.pop(1));"
-            "from nipat.cli import main;raise SystemExit(main())")
+            "from newpat.cli import main;raise SystemExit(main())")
     subprocess.run([
         str(python), "-I", "-B", "-X", "utf8", "-c", code, str(app / "src"),
         "gui", "--smoke-test", "--smoke-report", str(report),

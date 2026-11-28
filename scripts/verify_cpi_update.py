@@ -13,10 +13,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from acceptance.installed_models import check_prenatal_example, copy_prenatal_fixtures, prenatal_outputs
-from nipat.errors import NipatError, ValidationError
-from nipat.execution.runner import DockerComposeRunner
-from nipat.execution.workflows import Workflows
-from nipat.paths import ProjectLayout
+from newpat.errors import NewPatError, ValidationError
+from newpat.experiments.runner import DockerComposeRunner
+from newpat.experiments.workflows import Workflows
+from newpat.paths import ProjectLayout
 from verify_contamination_update import check_bundled_run
 
 
@@ -115,7 +115,7 @@ def main() -> int:
     try:
         if layout.project_dir != script_project:
             raise ValidationError(
-                "Il pacchetto nipat o NIPAT_PROJECT_DIR punta a un altro progetto. "
+                "Il pacchetto newpat o NEWPAT_PROJECT_DIR punta a un altro progetto. "
                 "Usare la venv di questa repository e verificare l'installazione editable."
             )
         fixtures = layout.project_dir / "tests" / "fixtures" / "cpi"
@@ -136,7 +136,7 @@ def main() -> int:
         with tempfile.TemporaryDirectory(prefix="prenatal-cpi-", dir=layout.data_dir) as scratch:
             verify_prenatal_examples(workflow, layout, layout.project_dir / "tests/fixtures/prenatal_cpi",
                                      Path(scratch), run_prefix=args.run_name)
-    except (NipatError, OSError) as exc:
+    except (NewPatError, OSError) as exc:
         print(f"Verifica CPI fallita: {exc}", file=sys.stderr)
         return 1
     print("Verifica CPI superata: valori CSV attesi e tre PDF presenti.")

@@ -7,12 +7,12 @@ import tempfile
 import unittest
 from unittest.mock import PropertyMock, patch
 
-from nipat.cli import main
-from nipat.errors import ValidationError
-from nipat.execution.recovery import ownership_labels
-from nipat.execution.runner import DockerComposeRunner
-from nipat.execution.transport import DockerTransport
-from nipat.paths import ProjectLayout
+from newpat.cli import main
+from newpat.errors import ValidationError
+from newpat.experiments.recovery import ownership_labels
+from newpat.experiments.runner import DockerComposeRunner
+from newpat.experiments.transport import DockerTransport
+from newpat.paths import ProjectLayout
 
 
 class RunRecoveryTests(unittest.TestCase):
@@ -24,7 +24,7 @@ class RunRecoveryTests(unittest.TestCase):
         self.layout = ProjectLayout(project, root, root / "data", root / "runs", project / "compose.yaml")
         self.runner = DockerComposeRunner(self.layout, transport=DockerTransport())
         self.run = self.layout.new_run_dir("test", "incomplete")
-        self.name = "nipat-run-" + "a" * 32
+        self.name = "newpat-run-" + "a" * 32
         self.container_id = "b" * 64
         self.record = {
             "schema_version": 1, "run_id": "c" * 32, "run_name": "incomplete",
@@ -47,7 +47,7 @@ class RunRecoveryTests(unittest.TestCase):
 
     def test_inspect_is_read_only_and_keeps_recorded_and_observed_states_distinct(self):
         before = (self.run / "run.json").read_bytes()
-        with patch("nipat.execution.recovery.subprocess.run", return_value=self.answer()) as inspect:
+        with patch("newpat.experiments.recovery.subprocess.run", return_value=self.answer()) as inspect:
             report = self.runner.reconcile_run(self.run)
         self.assertEqual(report["recorded_status"], "running")
         self.assertTrue(report["containers"][0]["owned"])
@@ -59,7 +59,7 @@ class RunRecoveryTests(unittest.TestCase):
     def test_success_without_workflow_state_is_listed_as_unverifiable(self):
         self.record.update(workflow="dnp-contamination", status="succeeded", commands=[])
         self.save_record()
-        with patch("nipat.execution.recovery.subprocess.run") as inspect:
+        with patch("newpat.experiments.recovery.subprocess.run") as inspect:
             [report] = self.runner.incomplete_runs()
         self.assertEqual(report["recorded_status"], "unreadable")
         self.assertEqual(report["containers"], [])
@@ -69,7 +69,7 @@ class RunRecoveryTests(unittest.TestCase):
         before = (self.run / "run.json").read_bytes()
         output = self.run / "output" / "partial.txt"
         output.write_text("retain")
-        with patch("nipat.execution.recovery.subprocess.run", return_value=self.answer()), patch.object(
+        with patch("newpat.experiments.recovery.subprocess.run", return_value=self.answer()), patch.object(
             self.runner, "_stop_container", return_value={"status": "removed"},
         ) as stop:
             report = self.runner.reconcile_run(self.run, stop=True)
@@ -83,10 +83,10 @@ class RunRecoveryTests(unittest.TestCase):
     def test_cli_reports_partial_cleanup_when_stop_succeeds_but_removal_fails(self):
         output = io.StringIO()
         before = (self.run / "run.json").read_bytes()
-        with patch("nipat.cli.ProjectLayout.discover", return_value=self.layout), \
-             patch("nipat.cli.activity_session", return_value=nullcontext()), \
-             patch("nipat.cli.DockerComposeRunner", return_value=self.runner), \
-             patch("nipat.execution.runner.subprocess.run", side_effect=[
+        with patch("newpat.cli.ProjectLayout.discover", return_value=self.layout), \
+             patch("newpat.cli.activity_session", return_value=nullcontext()), \
+             patch("newpat.cli.DockerComposeRunner", return_value=self.runner), \
+             patch("newpat.experiments.runner.subprocess.run", side_effect=[
                  self.answer(),
                  subprocess.CompletedProcess("stop", 0, stdout="", stderr=""),
                  subprocess.CompletedProcess("rm", 1, stdout="", stderr="removal failed"),
@@ -107,7 +107,7 @@ class RunRecoveryTests(unittest.TestCase):
         for state in ("created", "exited", "dead"):
             with self.subTest(state=state):
                 self.observed["state"] = state
-                with patch("nipat.execution.recovery.subprocess.run", return_value=self.answer()), patch.object(
+                with patch("newpat.experiments.recovery.subprocess.run", return_value=self.answer()), patch.object(
                     self.runner, "_stop_container", return_value={"status": "removed"},
                 ) as stop:
                     report = self.runner.reconcile_run(self.run, stop=True)
@@ -119,7 +119,7 @@ class RunRecoveryTests(unittest.TestCase):
             with self.subTest(changed=changed):
                 original = self.observed[changed]
                 self.observed[changed] = {} if changed == "labels" else "foreign"
-                with patch("nipat.execution.recovery.subprocess.run", return_value=self.answer()), patch.object(
+                with patch("newpat.experiments.recovery.subprocess.run", return_value=self.answer()), patch.object(
                     self.runner, "_stop_container",
                 ) as stop:
                     with self.assertRaises(ValidationError):
@@ -130,7 +130,7 @@ class RunRecoveryTests(unittest.TestCase):
     def test_legacy_record_is_visible_but_cannot_authorize_stop(self):
         del self.record["run_id"]
         self.save_record()
-        with patch("nipat.execution.recovery.subprocess.run", return_value=self.answer()):
+        with patch("newpat.experiments.recovery.subprocess.run", return_value=self.answer()):
             report = self.runner.reconcile_run(self.run)
             self.assertFalse(report["containers"][0]["owned"])
             with self.assertRaises(ValidationError):
@@ -139,7 +139,7 @@ class RunRecoveryTests(unittest.TestCase):
     def test_backend_mismatch_does_not_query_or_stop_other_runtime(self):
         self.record["transport"] = {"backend": "wsl", "wsl_distro": "old-installation"}
         self.save_record()
-        with patch("nipat.execution.recovery.subprocess.run") as inspect:
+        with patch("newpat.experiments.recovery.subprocess.run") as inspect:
             report = self.runner.reconcile_run(self.run)
         inspect.assert_not_called()
         self.assertFalse(report["backend_matches"])
@@ -148,7 +148,7 @@ class RunRecoveryTests(unittest.TestCase):
     def test_lima_recovery_requires_the_recorded_home_and_instance(self):
         current = {"backend": "lima", "lima_home": "/newpat/lima", "lima_instance": "newpat"}
         with patch.object(DockerTransport, "metadata", new_callable=PropertyMock, return_value=current), \
-                patch("nipat.execution.recovery.subprocess.run", return_value=self.answer()) as inspect:
+                patch("newpat.experiments.recovery.subprocess.run", return_value=self.answer()) as inspect:
             for recorded in (current | {"lima_home": "/another/lima"},
                              current | {"lima_instance": "another"}):
                 self.record["transport"] = recorded
@@ -165,14 +165,14 @@ class RunRecoveryTests(unittest.TestCase):
         for error, state in (("Error: No such container: test", "absent"),
                              ("Cannot connect to daemon", "unavailable")):
             with self.subTest(error=error), patch(
-                "nipat.execution.recovery.subprocess.run",
+                "newpat.experiments.recovery.subprocess.run",
                 return_value=subprocess.CompletedProcess("inspect", 1, stdout="", stderr=error),
             ):
                 report = self.runner.reconcile_run(self.run)
                 self.assertEqual(report["containers"][0]["state"], state)
 
     def test_scan_includes_failed_but_not_successful_runs(self):
-        with patch("nipat.execution.recovery.subprocess.run", return_value=self.answer()):
+        with patch("newpat.experiments.recovery.subprocess.run", return_value=self.answer()):
             self.assertEqual(len(self.runner.incomplete_runs()), 1)
             self.record["status"] = "succeeded"
             self.save_record()
@@ -183,7 +183,7 @@ class RunRecoveryTests(unittest.TestCase):
         self.record["commands"][0]["container_cleanup"] = {"status": "stopped"}
         self.save_record()
         self.observed["state"] = "exited"
-        with patch("nipat.execution.recovery.subprocess.run", return_value=self.answer()):
+        with patch("newpat.experiments.recovery.subprocess.run", return_value=self.answer()):
             reports = self.runner.incomplete_runs()
         self.assertEqual(len(reports), 1)
         self.assertEqual(reports[0]["recorded_status"], "succeeded")
@@ -195,7 +195,7 @@ class RunRecoveryTests(unittest.TestCase):
 
     def test_dry_run_never_queries_or_stops_runtime(self):
         self.runner.dry_run = True
-        with patch("nipat.execution.recovery.subprocess.run") as query:
+        with patch("newpat.experiments.recovery.subprocess.run") as query:
             with self.assertRaisesRegex(ValidationError, "rimuovere --dry-run"):
                 self.runner.reconcile_run(self.run)
             with self.assertRaisesRegex(ValidationError, "rimuovere --dry-run"):
@@ -204,7 +204,7 @@ class RunRecoveryTests(unittest.TestCase):
 
     def test_invalid_previous_recovery_prevents_stop(self):
         (self.run / "recovery.json").write_text("invalid")
-        with patch("nipat.execution.recovery.subprocess.run", return_value=self.answer()), patch.object(
+        with patch("newpat.experiments.recovery.subprocess.run", return_value=self.answer()), patch.object(
             self.runner, "_stop_container",
         ) as stop:
             with self.assertRaisesRegex(ValidationError, "arresto non eseguito"):
@@ -216,7 +216,7 @@ class RunRecoveryTests(unittest.TestCase):
                         json.dumps({**self.record, "schema_version": True})):
             with self.subTest(invalid=invalid[:40]):
                 (self.run / "run.json").write_text(invalid)
-                with patch("nipat.execution.recovery.subprocess.run") as query:
+                with patch("newpat.experiments.recovery.subprocess.run") as query:
                     with self.assertRaises(ValidationError):
                         self.runner.reconcile_run(self.run, stop=True)
                     self.assertEqual(self.runner.incomplete_runs()[0]["recorded_status"], "unreadable")

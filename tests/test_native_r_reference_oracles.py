@@ -90,7 +90,7 @@ def expected(marker, profile, swapped):
 @unittest.skipUnless(NATIVE_R_AVAILABLE, NATIVE_R_REASON)
 class ReferenceOracles(unittest.TestCase):
     def setUp(self):
-        temporary = tempfile.TemporaryDirectory(prefix="nipat-reference-")
+        temporary = tempfile.TemporaryDirectory(prefix="newpat-reference-")
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
         self.samples = {profile: sample_bam(self.root, profile) for profile in PROFILES}

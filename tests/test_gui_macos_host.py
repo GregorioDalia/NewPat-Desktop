@@ -6,7 +6,7 @@ import threading
 
 import pytest
 
-from nipat.gui import macos_host as host
+from newpat.desktop import macos_host as host
 
 
 def test_apple_block_and_geometry_64_bit_abi():

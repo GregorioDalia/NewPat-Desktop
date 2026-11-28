@@ -2,26 +2,26 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-function Get-NipatOfficialRepositories {
-    return 'GregorioDalia/nipat-desktop', 'GregorioDalia/NewPat-Desktop'
+function Get-NewPatOfficialRepositories {
+    return 'GregorioDalia/NewPat-Desktop'
 }
 
-function Get-NipatOnlineRepository {
+function Get-NewPatOnlineRepository {
     $identity = Invoke-RestMethod -Method Get -Uri 'https://api.github.com/repositories/1307623649' `
         -Headers @{'User-Agent' = 'NewPat-Installer'} -TimeoutSec 30 -MaximumRedirection 0
     if ((($identity.id -isnot [int]) -and ($identity.id -isnot [long])) -or
-        $identity.id -ne 1307623649 -or (Get-NipatOfficialRepositories) -cnotcontains $identity.full_name) {
+        $identity.id -ne 1307623649 -or (Get-NewPatOfficialRepositories) -cnotcontains $identity.full_name) {
         throw 'Identita del repository GitHub non valida.'
     }
     return ('https://github.com/' + $identity.full_name)
 }
 
-function Assert-NipatInstallationProfile($Profile) {
+function Assert-NewPatInstallationProfile($Profile) {
     $expected = [ordered]@{
         schema_version = 1; channel = 'desktop'; display_name = 'NewPat'
-        app_dir_name = 'NIPAT-Desktop'; data_dir_name = 'NIPAT-Desktop'
-        distro_prefix = 'NIPAT-Desktop-'; resume_key = 'NIPAT-Desktop-ResumeSetup'
-        mutex_prefix = 'Local\NIPAT-Desktop-Setup-'; app_id = '6B1702B6-F75C-4F8C-956F-86626C60AF45'
+        app_dir_name = 'NewPat-Desktop'; data_dir_name = 'NewPat-Desktop'
+        distro_prefix = 'NewPat-Desktop-'; resume_key = 'NewPat-Desktop-ResumeSetup'
+        mutex_prefix = 'Local\NewPat-Desktop-Setup-'; app_id = 'B870A3DA-56E8-4F27-A571-86FCEDD83F25'
     }
     if ($null -eq $Profile -or @($Profile.PSObject.Properties).Count -ne $expected.Count) {
         throw 'Profilo di installazione NewPat mancante o non valido.'
@@ -33,48 +33,43 @@ function Assert-NipatInstallationProfile($Profile) {
                 $typeMatches = ($Profile.$name -is [int]) -or ($Profile.$name -is [long])
             } else { $typeMatches = $Profile.$name -is [string] }
         }
-        # Display text is not the installation identity. Retained manifests from
-        # the old brand must remain repairable/removable in the same namespace.
-        $legacyDisplay = $name -ceq 'display_name' -and $Profile.$name -ceq 'NIPAT Desktop'
-        if (-not $typeMatches -or ($Profile.$name -cne $expected[$name] -and -not $legacyDisplay)) {
+        if (-not $typeMatches -or $Profile.$name -cne $expected[$name]) {
             throw "Identita di installazione non supportata: $name. Le altre installazioni non vengono modificate."
         }
     }
 }
 
-function Get-NipatInstallationProfile {
+function Get-NewPatInstallationProfile {
     $profile = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'install-profile.json') -Raw -Encoding UTF8 | ConvertFrom-Json
-    Assert-NipatInstallationProfile $profile
+    Assert-NewPatInstallationProfile $profile
     return $profile
 }
 
-function Assert-NipatInstallationChannel($Value, [string] $Description) {
+function Assert-NewPatInstallationChannel($Value, [string] $Description) {
     $present = $false
     if ($null -ne $Value) {
         if ($Value -is [Collections.IDictionary]) { $present = $Value.Contains('installation_channel') }
         else { $present = $null -ne $Value.PSObject.Properties['installation_channel'] }
     }
-    if (-not $present -or $Value.installation_channel -cne (Get-NipatInstallationProfile).channel) {
+    if (-not $present -or $Value.installation_channel -cne (Get-NewPatInstallationProfile).channel) {
         throw "$Description appartiene a un altro canale di installazione. NewPat non adotta configurazioni sperimentali o di altre installazioni."
     }
 }
 
-function Assert-NipatRuntimeNamespace([string] $Distro, [string] $RootfsSha256, [string] $RuntimeDirectory = '') {
-    $profile = Get-NipatInstallationProfile
+function Assert-NewPatRuntimeNamespace([string] $Distro, [string] $RootfsSha256, [string] $RuntimeDirectory = '') {
     if ($RootfsSha256 -cnotmatch '^[a-f0-9]{64}$') { throw 'Identita rootfs non valida.' }
-    $allowed = @($profile.distro_prefix + $RootfsSha256.Substring(0, 40))
-    if ($RuntimeDirectory) { $allowed += Get-NipatRuntimeDistroName $RootfsSha256 $RuntimeDirectory }
-    if ($Distro -cnotin $allowed) {
+    if (-not $RuntimeDirectory) { $RuntimeDirectory = (Get-NewPatDefaultInstallLayout).runtime_dir }
+    if ($Distro -cne (Get-NewPatRuntimeDistroName $RootfsSha256 $RuntimeDirectory)) {
         throw 'La distribuzione richiesta non appartiene a questa installazione NewPat.'
     }
 }
 
-function Assert-NipatInstallationLocation([string] $Project) {
-    $profile = Get-NipatInstallationProfile
+function Assert-NewPatInstallationLocation([string] $Project) {
+    $profile = Get-NewPatInstallationProfile
     if ([string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) { throw 'LOCALAPPDATA non disponibile.' }
     $expected = Join-Path (Join-Path $env:LOCALAPPDATA 'Programs') $profile.app_dir_name
     if (Test-Path -LiteralPath (Join-Path $Project '.runtime\install-layout.json') -PathType Leaf) {
-        Read-NipatInstallLayout $Project | Out-Null
+        Read-NewPatInstallLayout $Project | Out-Null
         return
     }
     if ([IO.Path]::GetFullPath($Project).TrimEnd('\') -ine [IO.Path]::GetFullPath($expected).TrimEnd('\')) {

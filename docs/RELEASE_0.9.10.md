@@ -1,6 +1,6 @@
 # NewPat 0.9.10
 
-**Candidate for review.** The six workflows include the revised prenatal and postnatal CPI models and the fetal sex module supplied by Letizia Pistacchia. Stable publication requires qualification of the integrated candidate. The [0.9.9 release](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.9.9) remains the stable download during review.
+**Stable research release, 26 November 2026.** The six workflows include the revised prenatal and postnatal CPI models and the fetal sex module supplied by Letizia Pistacchia. [NewPat 0.9.10 release](https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.9.10)
 
 ## Experiments and results
 

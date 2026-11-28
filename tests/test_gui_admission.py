@@ -12,11 +12,11 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 
-from nipat.errors import RuntimeExecutionError
-from nipat.execution.options import ExecutionOptions
-from nipat.gui.admission import DesktopAdmission, DesktopStepScheduler
-from nipat.gui.jobs import JobManager
-from nipat.preferences import settings_file_lock
+from newpat.errors import RuntimeExecutionError
+from newpat.experiments.options import ExecutionOptions
+from newpat.desktop.admission import DesktopAdmission, DesktopStepScheduler
+from newpat.desktop.jobs import JobManager
+from newpat.preferences import settings_file_lock
 
 
 class DesktopAdmissionTests(unittest.TestCase):
@@ -175,7 +175,7 @@ class DesktopAdmissionTests(unittest.TestCase):
             control.mkdir()
             scheduler = DesktopStepScheduler(first, control, {"runtime": {"effective": {
                 "cpus": self.cpus, "memory_mib": self.memory}}}, self.options, runtime_idle=idle)
-            with patch("nipat.gui.admission.time", wraps=time) as clock:
+            with patch("newpat.desktop.admission.time", wraps=time) as clock:
                 for attempt in range(5):
                     clock.monotonic.return_value = 3 * attempt
                     scheduler.poll()
@@ -203,7 +203,7 @@ class DesktopAdmissionTests(unittest.TestCase):
                 other.unconfirmed_cleanup = True
                 lease.close()
             idle = Mock(return_value=False)
-            with patch("nipat.gui.admission.time", wraps=time) as clock:
+            with patch("newpat.desktop.admission.time", wraps=time) as clock:
                 for i in range(4):
                     clock.monotonic.return_value = i * 3
                     first.boundary_allocation(self.cpus, self.memory, limited, runtime_idle=idle)
@@ -247,7 +247,7 @@ class DesktopAdmissionTests(unittest.TestCase):
 
         prepared = self.prepared()
         manager = JobManager(runner_factory=runner, workflows_factory=workflows)
-        with patch("nipat.gui.jobs.threading.Thread", new=deferred_thread):
+        with patch("newpat.desktop.jobs.threading.Thread", new=deferred_thread):
             ids = [manager.start(prepared)["id"] for _ in range(103)]
             self.assertEqual({j["id"] for j in manager.active()["jobs"]}, set(ids))
             self.assertEqual(len(callbacks), 2)

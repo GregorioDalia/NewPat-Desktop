@@ -14,10 +14,10 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from nipat.catalog_ui import catalog_lines, show_catalog
-from nipat.cli import build_parser, main
-from nipat.terminal import Terminal
-from nipat_scientific.catalog import (
+from newpat.catalog_ui import catalog_lines, show_catalog
+from newpat.cli import build_parser, main
+from newpat.terminal import Terminal
+from newpat_scientific.catalog import (
     CatalogError, WORKFLOWS, load_catalog, validate_catalog, verify_review_dependencies,
 )
 
@@ -34,11 +34,11 @@ class ScientificCatalogTests(unittest.TestCase):
             for dependency in item["evidence"].get("dependencies", [])
         }
         for relative in paths:
-            if engine_bundle and (relative.startswith("src/nipat/")
+            if engine_bundle and (relative.startswith("src/newpat/")
                                   or relative == "docker/scientific-runtime/Dockerfile"):
                 continue
             target = relative
-            if engine_bundle and relative.startswith("src/nipat_scientific/"):
+            if engine_bundle and relative.startswith("src/newpat_scientific/"):
                 target = "lib/" + relative.removeprefix("src/")
             destination = root / target
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -94,7 +94,7 @@ class ScientificCatalogTests(unittest.TestCase):
                 legacy = next(item for item in document["public_parameters"]
                               if item["id"] == "parallel")
                 self.assertEqual(legacy["r_names"], ["--parallel"])
-                self.assertEqual(legacy["nipat"]["mapping"], "managed")
+                self.assertEqual(legacy["newpat"]["mapping"], "managed")
                 parsed = build_parser().parse_args([
                     "--execution-mode", "serial", "dnp-call", "--bam", "sample.bam",
                     "--reference", "reference.fa", "--panel", "panel.txt", "--parallel",
@@ -122,8 +122,8 @@ class ScientificCatalogTests(unittest.TestCase):
                                     for flag in action.option_strings}
             for entry in document["public_parameters"]:
                 with self.subTest(workflow=workflow, parameter=entry["id"]):
-                    self.assertNotEqual(entry["nipat"]["mapping"], "missing")
-                    self.assertTrue(set(entry["nipat"]["cli"]).issubset(flags))
+                    self.assertNotEqual(entry["newpat"]["mapping"], "missing")
+                    self.assertTrue(set(entry["newpat"]["cli"]).issubset(flags))
 
     def test_changed_r_requires_a_new_review_even_if_still_valid_r(self):
         document = load_catalog("snp-call")["workflows"]["snp-call"]
@@ -141,7 +141,7 @@ class ScientificCatalogTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self.copy_review_sources(document, root)
-            destination = root / "src/nipat_scientific/snp.py"
+            destination = root / "src/newpat_scientific/snp.py"
             destination.write_bytes(destination.read_bytes() + b"\n# New adapter revision\n")
             with self.assertRaisesRegex(CatalogError, "stale.*snp.py"):
                 validate_catalog(document, source_root=root)
@@ -160,7 +160,7 @@ class ScientificCatalogTests(unittest.TestCase):
             validate_catalog(document, source_root=root)
             with self.assertRaisesRegex(CatalogError, "Cannot read catalog evidence:"):
                 verify_review_dependencies(document, root, require_all=True)
-            adapter = root / "lib/nipat_scientific/snp.py"
+            adapter = root / "lib/newpat_scientific/snp.py"
             adapter.write_bytes(adapter.read_bytes() + b"\n# Changed bundled adapter\n")
             with self.assertRaisesRegex(CatalogError, "stale.*snp.py"):
                 validate_catalog(document, source_root=root)
@@ -173,8 +173,8 @@ class ScientificCatalogTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self.copy_review_sources(document, root)
-            (root / "src/nipat/preferences.py").unlink()
-            with self.assertRaisesRegex(CatalogError, "Cannot read catalog evidence: src/nipat/"):
+            (root / "src/newpat/preferences.py").unlink()
+            with self.assertRaisesRegex(CatalogError, "Cannot read catalog evidence: src/newpat/"):
                 validate_catalog(document, source_root=root)
 
     def test_evidence_requires_hash_and_normalized_relative_paths(self):
@@ -224,8 +224,8 @@ class ScientificCatalogTests(unittest.TestCase):
             self.assertIn(catalog["workflows"]["cpi"]["source"]["sha256"], language)
 
     def test_cli_json_does_not_initialize_runtime_or_create_directories(self):
-        with patch("nipat.cli.ProjectLayout.discover") as layout, patch(
-            "nipat.cli.DockerComposeRunner"
+        with patch("newpat.cli.ProjectLayout.discover") as layout, patch(
+            "newpat.cli.DockerComposeRunner"
         ) as runner, contextlib.redirect_stdout(io.StringIO()) as output:
             self.assertEqual(main(["parameters", "cpi", "--json"]), 0)
         layout.assert_not_called()
@@ -239,7 +239,7 @@ class ScientificCatalogTests(unittest.TestCase):
         environment["PYTHONPATH"] = str(ROOT / "src")
         environment["PYTHONIOENCODING"] = "ascii"
         result = subprocess.run(
-            [sys.executable, "-m", "nipat", "parameters", "--json"],
+            [sys.executable, "-m", "newpat", "parameters", "--json"],
             cwd=ROOT, env=environment, capture_output=True, check=False,
         )
         self.assertEqual(result.returncode, 0, result.stderr.decode("ascii", errors="replace"))

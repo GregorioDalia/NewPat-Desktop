@@ -13,10 +13,10 @@ from pathlib import Path
 import shutil
 from unittest.mock import patch
 
-from nipat.cli import DEFAULT_ERR_CONST
-from nipat.execution.runner import DockerComposeRunner
-from nipat.execution.workflows import Workflows
-from nipat.paths import ProjectLayout
+from newpat.cli import DEFAULT_ERR_CONST
+from newpat.experiments.runner import DockerComposeRunner
+from newpat.experiments.workflows import Workflows
+from newpat.paths import ProjectLayout
 from verify_contamination_update import check_bundled_run
 from verify_cpi_update import EXPECTED_INFORMATIVE, INFORMATIVE_PAIR, NO_SITES_PAIR, check_number, verify_prenatal_examples
 from verify_input_modes import EXPECTED_FIRST_TWO
@@ -210,7 +210,7 @@ def check_cpi_client_without_host_scripts(identifier: str, root: Path, inputs: P
         shutil.copyfile(inputs / source, native_panels / name)
     originals = {path: path.read_bytes() for directory in (originals_dir, native_panels)
                  for path in directory.rglob("*") if path.is_file()}
-    with patch.dict(os.environ, {"NIPAT_RUNTIME_IMAGE": identifier, "NIPAT_BACKEND": "native"}):
+    with patch.dict(os.environ, {"NEWPAT_RUNTIME_IMAGE": identifier, "NEWPAT_BACKEND": "native"}):
         workflow = Workflows(layout, DockerComposeRunner(layout))
         arguments = {
             "input_dir": originals_dir / "samples", "pairs": "Informative: Informative, NoSites :NoSites",
@@ -272,7 +272,7 @@ def check_cpi_error_constant(identifier: str, root: Path, workflow: Workflows, l
         shutil.copyfile(ERROR_FIXTURE / source, inputs / name)
     originals = {path: path.read_bytes() for path in inputs.iterdir()}
     expected_pairs = ("MotherM-FatherP_DNPs", "MotherM-FatherQ_DNPs")
-    with patch.dict(os.environ, {"NIPAT_RUNTIME_IMAGE": identifier, "NIPAT_BACKEND": "native"}):
+    with patch.dict(os.environ, {"NEWPAT_RUNTIME_IMAGE": identifier, "NEWPAT_BACKEND": "native"}):
         for error in ("0.01", "0.1"):
             run = workflow.cpi(
                 input_dir=inputs, pairs="M:P,M:Q", mother_prefix="", father_prefix="",
@@ -291,7 +291,7 @@ def check_cpi_error_constant(identifier: str, root: Path, workflow: Workflows, l
                         if Path(entry["host_path"]).name in ("M.txt", "P.txt", "Q.txt")]
             if len(selected) != 3:
                 raise ValueError("CPI must mount each selected sample once despite reused maternal input.")
-        from nipat.errors import ValidationError
+        from newpat.errors import ValidationError
         try:
             workflow.cpi(input_dir=inputs, pairs="M:P", mother_prefix="", father_prefix="",
                          popfreq=inputs / "population.tsv", err_const=0,

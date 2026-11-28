@@ -8,7 +8,7 @@ tests/reference_r/NEWPAT_20261126/**/*.R -whitespace
 # Preserve upstream license bytes and their recorded checksums.
 installer/macos/licenses/** -text -whitespace
 # Keep the offline PDF renderer, fonts and notices byte-identical in each installer.
-src/nipat/gui/web/vendor/pdfmake/** -text -whitespace
+src/newpat/desktop/web/vendor/pdfmake/** -text -whitespace
 tests/fixtures/fetal_sex/**/*.txt text eol=lf
 tests/fixtures/prenatal_cpi/**/*.csv text eol=lf
 tests/fixtures/prenatal_cpi/**/*.txt text eol=lf

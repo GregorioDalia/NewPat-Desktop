@@ -11,12 +11,12 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from nipat_scientific.errors import ValidationError
-from nipat_scientific.settings import (
+from newpat_scientific.errors import ValidationError
+from newpat_scientific.settings import (
     REGISTRY, defaults, describe_settings, normalize_settings, samtools_options,
     settings_context, settings_from_environment,
 )
-from nipat_scientific.snp import prepare_snp
+from newpat_scientific.snp import prepare_snp
 
 
 def r_jsonlite_available():
@@ -102,12 +102,12 @@ class ScientificSettingsTests(unittest.TestCase):
                     self.assertEqual(settings_from_environment("cpin")["min_coverage"], 5)
                     with self.assertRaises(ValidationError):
                         settings_from_environment("cpi")
-                    outer_path = os.environ["NIPAT_SCIENTIFIC_SETTINGS"]
+                    outer_path = os.environ["NEWPAT_SCIENTIFIC_SETTINGS"]
                     with settings_context("cpi", {}, root / "inner"):
                         self.assertEqual(settings_from_environment("cpi"), normalize_settings("cpi"))
-                    self.assertEqual(os.environ["NIPAT_SCIENTIFIC_SETTINGS"], outer_path)
+                    self.assertEqual(os.environ["NEWPAT_SCIENTIFIC_SETTINGS"], outer_path)
                     raise RuntimeError("test")
-            self.assertNotIn("NIPAT_SCIENTIFIC_SETTINGS", os.environ)
+            self.assertNotIn("NEWPAT_SCIENTIFIC_SETTINGS", os.environ)
             with self.assertRaises(ValidationError), settings_context("cpi", {"err_const_snp": 0}, root / "bad"):
                 pass
             self.assertFalse((root / "bad").exists())
@@ -122,8 +122,12 @@ class ScientificSettingsTests(unittest.TestCase):
                 self.assertEqual(normalize_settings("cpi", values), values)
 
     def test_samtools_default_and_custom_flags(self):
-        self.assertEqual(samtools_options("dnp-call"), [])
-        self.assertEqual(samtools_options("snp-call"), ["-d", "0"])
+        for caller in ("dnp-call", "snp-call"):
+            self.assertEqual(normalize_settings(caller, {})["max_depth"], 2147483647)
+            for depth, flag in ((2147483647, "0"), (0, "0"), (8000, "8000"), (1, "1")):
+                with self.subTest(caller=caller, depth=depth):
+                    self.assertEqual(samtools_options(caller, {"max_depth": depth}), ["-d", flag])
+            self.assertEqual(samtools_options(caller), ["-d", "0"])
         values = {"max_depth": 12000, "min_base_quality": 20, "min_mapping_quality": 10,
                   "mapping_quality_adjustment": 50, "excluded_flags": 4, "baq": False,
                   "count_overlaps": True, "include_orphans": True}
@@ -164,7 +168,7 @@ class ScientificSettingsTests(unittest.TestCase):
                 target.write_text(json.dumps(document), encoding="utf-8")
                 with self.assertRaises(ValidationError), settings_context("cpi", {"min_fetal_reads": 1}, work):
                     pass
-                with patch.dict(os.environ, {"NIPAT_SCIENTIFIC_SETTINGS": str(target)}):
+                with patch.dict(os.environ, {"NEWPAT_SCIENTIFIC_SETTINGS": str(target)}):
                     with self.assertRaises(ValidationError):
                         settings_from_environment("cpi")
                 self.assertEqual(json.loads(target.read_text(encoding="utf-8")), document)
@@ -191,7 +195,7 @@ class ScientificSettingsTests(unittest.TestCase):
     def test_r_and_python_share_defaults_and_custom_settings(self):
         helper = REGISTRY.with_name("settings.R")
         expression = ('args <- commandArgs(TRUE); source(args[[1]]); '
-                      'cat(jsonlite::toJSON(nipat_settings(args[[2]]), auto_unbox=TRUE, digits=17, null="null"))')
+                      'cat(jsonlite::toJSON(newpat_settings(args[[2]]), auto_unbox=TRUE, digits=17, null="null"))')
         with tempfile.TemporaryDirectory() as directory:
             for workflow in describe_settings():
                 override = {"other_fraction_max": .25}
@@ -209,10 +213,10 @@ class ScientificSettingsTests(unittest.TestCase):
     @unittest.skipUnless(R_JSONLITE_AVAILABLE, "R runtime with jsonlite not available on this host")
     def test_r_native_sidecar_records_final_overrides_without_replacing_prior_values(self):
         helper = REGISTRY.with_name("settings.R")
-        expression = ('args <- commandArgs(TRUE); source(args[[1]]); cfg <- nipat_settings("cpi"); '
-                      'cfg$min_fetal_reads <- 7L; nipat_write_settings("cpi", cfg, args[[2]]); '
-                      'nipat_write_settings("cpi", cfg, args[[2]]); cfg$min_fetal_reads <- 8L; '
-                      'stopifnot(inherits(try(nipat_write_settings("cpi", cfg, args[[2]]), silent=TRUE), "try-error"))')
+        expression = ('args <- commandArgs(TRUE); source(args[[1]]); cfg <- newpat_settings("cpi"); '
+                      'cfg$min_fetal_reads <- 7L; newpat_write_settings("cpi", cfg, args[[2]]); '
+                      'newpat_write_settings("cpi", cfg, args[[2]]); cfg$min_fetal_reads <- 8L; '
+                      'stopifnot(inherits(try(newpat_write_settings("cpi", cfg, args[[2]]), silent=TRUE), "try-error"))')
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             with settings_context("cpi", {}, root / "work"):
@@ -227,12 +231,12 @@ class ScientificSettingsTests(unittest.TestCase):
     @unittest.skipUnless(R_JSONLITE_AVAILABLE, "R runtime with jsonlite not available on this host")
     def test_r_native_sidecar_does_not_ignore_changed_parameter_names(self):
         helper = REGISTRY.with_name("settings.R")
-        expression = ('args <- commandArgs(TRUE); source(args[[1]]); cfg <- nipat_settings("cpi"); '
-                      'path <- nipat_write_settings("cpi", cfg, args[[2]]); '
+        expression = ('args <- commandArgs(TRUE); source(args[[1]]); cfg <- newpat_settings("cpi"); '
+                      'path <- newpat_write_settings("cpi", cfg, args[[2]]); '
                       'saved <- jsonlite::fromJSON(path, simplifyVector=FALSE); '
                       'names(saved$parameters)[names(saved$parameters)=="min_fetal_reads"] <- "renamed"; '
                       'jsonlite::write_json(saved, path, auto_unbox=TRUE, digits=NA); '
-                      'stopifnot(inherits(try(nipat_write_settings("cpi", cfg, args[[2]]), silent=TRUE), "try-error"))')
+                      'stopifnot(inherits(try(newpat_write_settings("cpi", cfg, args[[2]]), silent=TRUE), "try-error"))')
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             with settings_context("cpi", {}, root / "work"):

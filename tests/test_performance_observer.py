@@ -10,18 +10,18 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import MagicMock, patch
 
-from nipat.errors import RuntimeExecutionError
-from nipat.execution.options import ExecutionOptions
-from nipat.execution.performance import ContainerPerformanceObserver, parse_stats
-from nipat.execution.runner import DockerComposeRunner
-from nipat.execution.transport import DockerTransport
-from nipat.paths import ProjectLayout
+from newpat.errors import RuntimeExecutionError
+from newpat.experiments.options import ExecutionOptions
+from newpat.experiments.performance import ContainerPerformanceObserver, parse_stats
+from newpat.experiments.runner import DockerComposeRunner
+from newpat.experiments.transport import DockerTransport
+from newpat.paths import ProjectLayout
 
 
 CONTAINER = "a" * 64
 IMAGE = "sha256:" + "b" * 64
-NAME = "nipat-run-" + "c" * 32
-LABELS = {"org.nipat.execution-token": "d" * 32}
+NAME = "newpat-run-" + "c" * 32
+LABELS = {"org.newpat.execution-token": "d" * 32}
 
 
 def stats(**changes):
@@ -57,7 +57,7 @@ class ContainerObserverTests(unittest.TestCase):
             return {**(sample or parse_stats(stats(), CONTAINER)), "observed_at": "2026-11-03T12:00:00Z",
                     "elapsed_seconds": 1.2, "query_seconds": 0.02}
 
-        with patch("nipat.execution.performance.inspect_container", return_value=inspect or owned()) as inspection, patch.object(
+        with patch("newpat.experiments.performance.inspect_container", return_value=inspect or owned()) as inspection, patch.object(
             self.observer, "_stats", side_effect=read,
         ):
             self.observer.start()
@@ -114,7 +114,7 @@ class ContainerObserverTests(unittest.TestCase):
             self.observer._stop.set()
             return sample
 
-        with patch("nipat.execution.performance.inspect_container", side_effect=[
+        with patch("newpat.experiments.performance.inspect_container", side_effect=[
             owned("created"), owned("running"),
         ]) as inspection, patch.object(self.observer, "_stats", side_effect=read):
             self.observer.start()
@@ -169,7 +169,7 @@ class ContainerObserverTests(unittest.TestCase):
         self.assertIsNone(self.observer._thread)
 
     def test_stop_interrupts_startup_wait_and_is_bounded(self):
-        with patch("nipat.execution.performance.inspect_container", return_value={
+        with patch("newpat.experiments.performance.inspect_container", return_value={
             "owned": False, "availability": "absent",
         }):
             self.observer.start()
@@ -181,14 +181,14 @@ class ContainerObserverTests(unittest.TestCase):
     def test_stopped_container_zero_row_is_not_reported_as_live_zero_ram(self):
         self.observer._identifier = CONTAINER
         raw = stats(memory="0B / 0B", cpu_percent="0.00%", pids="0")
-        with patch("nipat.execution.performance.subprocess.run", return_value=
+        with patch("newpat.experiments.performance.subprocess.run", return_value=
                    subprocess.CompletedProcess([], 0, raw, "")), self.assertRaises(ValueError):
             self.observer._stats()
 
     def collect_responses(self, responses, observations):
         """Exercise the real parser and collection loop around a container exit."""
-        with patch("nipat.execution.performance.inspect_container", side_effect=observations), patch(
-            "nipat.execution.performance.subprocess.run", side_effect=[
+        with patch("newpat.experiments.performance.inspect_container", side_effect=observations), patch(
+            "newpat.experiments.performance.subprocess.run", side_effect=[
                 subprocess.CompletedProcess([], 0, raw, "") for raw in responses
             ],
         ):
@@ -265,7 +265,7 @@ class ContainerObserverTests(unittest.TestCase):
             self.observer._stop.set()
             return {**parse_stats(stats(), CONTAINER), "observed_at": "2026-11-03T12:00:00Z"}
 
-        with patch("nipat.execution.performance.inspect_container", side_effect=inspection), patch.object(
+        with patch("newpat.experiments.performance.inspect_container", side_effect=inspection), patch.object(
             self.observer._stop, "wait", side_effect=lambda seconds: waited.append(seconds) or False,
         ), patch.object(self.observer, "_stats", side_effect=read):
             self.observer.start()
@@ -277,7 +277,7 @@ class ContainerObserverTests(unittest.TestCase):
 
     def test_stats_addresses_verified_id_with_bounded_timeout_and_no_stdin(self):
         self.observer._identifier = CONTAINER
-        with patch("nipat.execution.performance.subprocess.run", return_value=
+        with patch("newpat.experiments.performance.subprocess.run", return_value=
                    subprocess.CompletedProcess([], 0, stats(), "")) as process:
             row = self.observer._stats()
         argv = process.call_args.args[0]
@@ -298,7 +298,7 @@ class RunnerObserverTests(unittest.TestCase):
                                     project / "compose.yaml")
         self.runner = DockerComposeRunner(self.layout, transport=DockerTransport(),
                                           options=ExecutionOptions(performance_diagnostics=True))
-        self.enterContext(patch("nipat.execution.tracking.platform.platform", return_value="test host"))
+        self.enterContext(patch("newpat.experiments.tracking.platform.platform", return_value="test host"))
         self.enterContext(patch.object(self.runner, "_analysis_session", side_effect=lambda: nullcontext()))
         self.enterContext(patch.object(self.runner, "_prepare_runtime", side_effect=self.prepare))
         self.enterContext(patch.object(self.runner, "_describe_bundled_engine"))
@@ -326,9 +326,9 @@ class RunnerObserverTests(unittest.TestCase):
         observer.stop.side_effect = (OSError("report unavailable") if monitor_error else
                                      lambda: (events.append("stop") or {"status": "completed", "sample_count": 3}))
         error = None
-        with redirect_stdout(io.StringIO()), patch("nipat.execution.runner.subprocess.Popen", return_value=process) as launched, patch(
-            "nipat.execution.runner.ContainerPerformanceObserver", return_value=observer,
-        ) as factory, patch("nipat.execution.runner.inspect_container", return_value=owned()), patch.object(
+        with redirect_stdout(io.StringIO()), patch("newpat.experiments.runner.subprocess.Popen", return_value=process) as launched, patch(
+            "newpat.experiments.runner.ContainerPerformanceObserver", return_value=observer,
+        ) as factory, patch("newpat.experiments.runner.inspect_container", return_value=owned()), patch.object(
             self.runner, "_stop_container", side_effect=lambda _: events.append("remove") or {"status": "removed"},
         ):
             try:
@@ -357,7 +357,7 @@ class RunnerObserverTests(unittest.TestCase):
                 self.assertEqual(DockerComposeRunner._describe_bundled_engine(self.runner), description)
         description = {"performance_diagnostics": {
             "interface": "performance-diagnostics-v1", "schema_version": 1,
-        }, "preparation": {"file_sha256": {"lib/nipat_scientific/performance.py": "d" * 64}}}
+        }, "preparation": {"file_sha256": {"lib/newpat_scientific/performance.py": "d" * 64}}}
         with patch.object(self.runner, "_capture", return_value=json.dumps(description)), patch.object(
             self.runner, "_validate_engine_description", return_value=description,
         ):
@@ -372,7 +372,7 @@ class RunnerObserverTests(unittest.TestCase):
         self.assertEqual(record["commands"][0]["performance_diagnostics"]["summary"], "performance/summary.json")
         self.assertEqual(factory.return_value.start.call_count, 1)
         argv = launched.call_args.args[0]
-        self.assertTrue(any(part.startswith("NIPAT_PERFORMANCE_DIR=/workspace/runs/case/performance/engine")
+        self.assertTrue(any(part.startswith("NEWPAT_PERFORMANCE_DIR=/workspace/runs/case/performance/engine")
                             for part in argv))
 
     def test_failure_and_cancellation_still_stop_the_observer(self):
@@ -415,7 +415,7 @@ class RunnerObserverTests(unittest.TestCase):
                 if dry:
                     launched.assert_not_called()
                 else:
-                    self.assertFalse(any(part.startswith("NIPAT_PERFORMANCE_DIR=")
+                    self.assertFalse(any(part.startswith("NEWPAT_PERFORMANCE_DIR=")
                                          for part in launched.call_args.args[0]))
                 self.assertNotIn("performance_diagnostics", record["commands"][0])
 

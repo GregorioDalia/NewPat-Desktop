@@ -88,8 +88,8 @@ def qualify_acquisitions(identifier: str, root: Path, *, run_container, write_re
             if workflow == "dnp-call":
                 configuration["parallel"] = mode == "auto"
             write_request(run, configuration)
-            run_container(identifier, ["env", f"NIPAT_EXECUTION_MODE={mode}", "NIPAT_MAX_WORKERS=2",
-                "NIPAT_DNP_KEEP_PILEUP=1", "python3", "/opt/nipat/engine/main.py", "execute",
+            run_container(identifier, ["env", f"NEWPAT_EXECUTION_MODE={mode}", "NEWPAT_MAX_WORKERS=2",
+                "NEWPAT_DNP_KEEP_PILEUP=1", "python3", "/opt/newpat/engine/main.py", "execute",
                 workflow, "--request", "/results/work/request.json"], inputs=inputs, results=run)
             check_called_loci(run / "output", workflow)
             tables[mode] = table_digests(run / "output")

@@ -8,12 +8,12 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-from nipat.errors import RuntimeExecutionError
-from nipat.execution.options import ExecutionOptions
-from nipat.execution.runner import DockerComposeRunner
-from nipat.execution.transport import DockerTransport
-from nipat.paths import ProjectLayout
-from nipat_scientific.parallel import THREAD_LIMITS, execution_environment
+from newpat.errors import RuntimeExecutionError
+from newpat.experiments.options import ExecutionOptions
+from newpat.experiments.runner import DockerComposeRunner
+from newpat.experiments.transport import DockerTransport
+from newpat.paths import ProjectLayout
+from newpat_scientific.parallel import THREAD_LIMITS, execution_environment
 from test_bundled_runner import engine_metadata
 
 
@@ -29,21 +29,21 @@ class ParallelRuntimeTests(unittest.TestCase):
                                        cpus=2.5, memory_mb=6000)
             runner = DockerComposeRunner(layout, transport=DockerTransport(), options=options)
             runner._record = Mock(run_dir=run, data={})
-            with patch.dict(os.environ, {"NIPAT_MAX_WORKERS": "100", "NIPAT_DNP_BLOCK_BYTES": "1"}):
+            with patch.dict(os.environ, {"NEWPAT_MAX_WORKERS": "100", "NEWPAT_DNP_BLOCK_BYTES": "1"}):
                 runner._write_engine_compose("sha256:" + "a" * 64)
-                self.assertEqual(os.environ["NIPAT_MAX_WORKERS"], "100")
+                self.assertEqual(os.environ["NEWPAT_MAX_WORKERS"], "100")
             service = json.loads((run / "work/engine-compose.json").read_text())["services"]["scientific"]
             environment = service["environment"]
-            self.assertEqual(environment["NIPAT_EXECUTION_MODE"], "serial")
-            self.assertEqual(environment["NIPAT_MAX_WORKERS"], "3")
-            self.assertEqual(environment["NIPAT_DNP_BLOCK_BYTES"], str(16 * 1024**2))
-            self.assertEqual(environment["NIPAT_DNP_BLOCK_LOCI"], "20")
-            self.assertEqual(environment["NIPAT_CPU_LIMIT"], "2.5")
-            self.assertEqual(environment["NIPAT_MEMORY_LIMIT_MIB"], "6000")
+            self.assertEqual(environment["NEWPAT_EXECUTION_MODE"], "serial")
+            self.assertEqual(environment["NEWPAT_MAX_WORKERS"], "3")
+            self.assertEqual(environment["NEWPAT_DNP_BLOCK_BYTES"], str(16 * 1024**2))
+            self.assertEqual(environment["NEWPAT_DNP_BLOCK_LOCI"], "20")
+            self.assertEqual(environment["NEWPAT_CPU_LIMIT"], "2.5")
+            self.assertEqual(environment["NEWPAT_MEMORY_LIMIT_MIB"], "6000")
             self.assertEqual(service["mem_limit"], 6000 * 1024**2)
             self.assertTrue(all(environment[name] == "1" for name in THREAD_LIMITS))
 
-    def test_dnp_io_and_translated_worker_policy_follow_the_runtime(self):
+    def test_dnp_io_and_apple_silicon_worker_policy_follow_the_runtime(self):
         # Identical engine allocations on different physical hosts, explicit
         # per-run limits, and the two independent engine policy switches.
         cases = [
@@ -59,7 +59,7 @@ class ParallelRuntimeTests(unittest.TestCase):
             ("wsl", "win32", "AMD64", 8192, 3905, None, False, False),
             ("wsl", "win32", "arm64", 8192, 3905, None, False, False),
         ]
-        for backend, system, arch, host, guest, limit, io, translated in cases:
+        for backend, system, arch, host, guest, limit, io, arm_policy in cases:
             with self.subTest(backend=backend, arch=arch, host=host, guest=guest), tempfile.TemporaryDirectory() as temp:
                 root = Path(temp).resolve()
                 run = root / "runs" / "one"
@@ -71,17 +71,19 @@ class ParallelRuntimeTests(unittest.TestCase):
                 runner._record = Mock(run_dir=run, data={"resource_snapshot": {
                     "host": {"memory_mib": host, "cpus": 8}, "runtime": {"effective": {"memory_mib": guest, "cpus": 4}},
                 }})
-                with patch("nipat.execution.runner.platform.machine", return_value=arch), patch("sys.platform", system):
+                with patch("newpat.experiments.runner.platform.machine", return_value=arch), patch("sys.platform", system):
                     runner._write_engine_compose("sha256:" + "a" * 64)
                 compose = json.loads((run / "work/engine-compose.json").read_text())
                 env = compose["services"]["scientific"]["environment"]
-                self.assertEqual(env.get("NIPAT_DNP_OPTIMIZED_IO") == "1", io)
-                self.assertEqual(env.get("NIPAT_DNP_LIMA_ARM64") == "1", translated)
-                self.assertNotIn("NIPAT_MAX_WORKERS", env)
+                if backend == "lima":
+                    self.assertEqual(compose["services"]["scientific"]["platform"], "linux/arm64" if arch == "arm64" else "linux/amd64")
+                self.assertEqual(env.get("NEWPAT_DNP_OPTIMIZED_IO") == "1", io)
+                self.assertEqual(env.get("NEWPAT_DNP_LIMA_ARM64") == "1", arm_policy)
+                self.assertNotIn("NEWPAT_MAX_WORKERS", env)
                 if limit is not None:
-                    self.assertEqual(json.loads(env["NIPAT_FIXED_RESOURCE_BUDGET"])["memory_capacity_mib"], limit)
+                    self.assertEqual(json.loads(env["NEWPAT_FIXED_RESOURCE_BUDGET"])["memory_capacity_mib"], limit)
                 if guest is None:
-                    self.assertEqual(json.loads(env["NIPAT_FIXED_RESOURCE_BUDGET"])["worker_ceiling"], 1)
+                    self.assertEqual(json.loads(env["NEWPAT_FIXED_RESOURCE_BUDGET"])["worker_ceiling"], 1)
 
     def test_old_runtime_is_rejected_instead_of_silently_ignoring_parallel_settings(self):
         for change in ("capability", "module", "workflow", "serial"):
@@ -90,37 +92,37 @@ class ParallelRuntimeTests(unittest.TestCase):
                 if change == "capability":
                     del metadata["parallel_execution"]
                 elif change == "module":
-                    del metadata["preparation"]["file_sha256"]["lib/nipat_scientific/parallel.R"]
+                    del metadata["preparation"]["file_sha256"]["lib/newpat_scientific/parallel.R"]
                 elif change == "workflow":
                     metadata["parallel_execution"]["workflows"].remove("snp-call")
                 else:
                     metadata["parallel_execution"]["modes"] = ["auto"]
-                with self.assertRaisesRegex(RuntimeExecutionError, "nipat-parallel-v1"):
+                with self.assertRaisesRegex(RuntimeExecutionError, "newpat-parallel-v1"):
                     DockerComposeRunner._validate_engine_description(metadata)
 
     def test_scoped_thread_limits_and_diagnostics_survive_error_without_environment_leak(self):
         inherited = {name: "16" for name in THREAD_LIMITS}
         with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, {
-            "NIPAT_PARALLEL_LOG_DIR": "old", **inherited,
+            "NEWPAT_PARALLEL_LOG_DIR": "old", **inherited,
         }):
             work = Path(temporary) / "work"
             with self.assertRaisesRegex(ValueError, "test"):
                 with execution_environment(work) as directory:
                     self.assertTrue(directory.is_dir())
-                    self.assertEqual(os.environ["NIPAT_PARALLEL_LOG_DIR"], str(work / "parallel"))
+                    self.assertEqual(os.environ["NEWPAT_PARALLEL_LOG_DIR"], str(work / "parallel"))
                     self.assertTrue(all(os.environ[name] == "1" for name in THREAD_LIMITS))
                     raise ValueError("test")
-            self.assertEqual(os.environ["NIPAT_PARALLEL_LOG_DIR"], "old")
+            self.assertEqual(os.environ["NEWPAT_PARALLEL_LOG_DIR"], "old")
             self.assertTrue(all(os.environ[name] == value for name, value in inherited.items()))
 
     def test_native_thread_limits_need_no_work_directory_and_preserve_diagnostics(self):
-        with patch.dict(os.environ, {"NIPAT_PARALLEL_LOG_DIR": "existing", "VROOM_THREADS": "8"}):
+        with patch.dict(os.environ, {"NEWPAT_PARALLEL_LOG_DIR": "existing", "VROOM_THREADS": "8"}):
             with execution_environment() as directory:
                 self.assertIsNone(directory)
-                self.assertEqual(os.environ["NIPAT_PARALLEL_LOG_DIR"], "existing")
+                self.assertEqual(os.environ["NEWPAT_PARALLEL_LOG_DIR"], "existing")
                 self.assertTrue(all(os.environ[name] == "1" for name in THREAD_LIMITS))
             self.assertEqual(os.environ["VROOM_THREADS"], "8")
-            self.assertEqual(os.environ["NIPAT_PARALLEL_LOG_DIR"], "existing")
+            self.assertEqual(os.environ["NEWPAT_PARALLEL_LOG_DIR"], "existing")
 
 
 if __name__ == "__main__":

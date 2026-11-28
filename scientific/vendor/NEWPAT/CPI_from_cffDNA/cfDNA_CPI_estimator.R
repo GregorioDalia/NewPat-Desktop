@@ -14,12 +14,12 @@ suppressPackageStartupMessages({
   library(tidyr)
 })
 
-source(Sys.getenv("NIPAT_PARALLEL_HELPER",
-                  unset = "/opt/nipat/lib/nipat_scientific/parallel.R"))
-source(Sys.getenv("NIPAT_PLOTS_HELPER", unset = "/opt/nipat/lib/nipat_scientific/plots.R"))
+source(Sys.getenv("NEWPAT_PARALLEL_HELPER",
+                  unset = "/opt/newpat/lib/newpat_scientific/parallel.R"))
+source(Sys.getenv("NEWPAT_PLOTS_HELPER", unset = "/opt/newpat/lib/newpat_scientific/plots.R"))
 
-source(Sys.getenv("NIPAT_SETTINGS_HELPER", unset="/opt/nipat/lib/nipat_scientific/settings.R"))
-nipat_cfg <- nipat_settings("cpi")
+source(Sys.getenv("NEWPAT_SETTINGS_HELPER", unset="/opt/newpat/lib/newpat_scientific/settings.R"))
+newpat_cfg <- newpat_settings("cpi")
 
 parser <- ArgumentParser()
 
@@ -43,16 +43,16 @@ parser$add_argument("--include_homozygous_child", choices=c("TRUE", "FALSE"), de
 parser$add_argument("--min_coverage", type="double", default=NULL)
 parser$add_argument("--max_other_fraction", type="double", default=NULL)
 args <- parser$parse_args()
-args$err_const_snp <- if (is.null(args$err_const_snp)) nipat_cfg$err_const_snp else args$err_const_snp
-args$err_const_dnp <- if (is.null(args$err_const_dnp)) nipat_cfg$err_const_dnp else args$err_const_dnp
+args$err_const_snp <- if (is.null(args$err_const_snp)) newpat_cfg$err_const_snp else args$err_const_snp
+args$err_const_dnp <- if (is.null(args$err_const_dnp)) newpat_cfg$err_const_dnp else args$err_const_dnp
 # Explicit native filter arguments select the requested combination. A run
 # without native filter arguments uses the settings supplied by the desktop.
 if (!is.null(args$min_fetal_reads) || !is.null(args$min_fetal_percent)) {
   min_fetal_reads <- args$min_fetal_reads
   min_fetal_percent <- args$min_fetal_percent
 } else {
-  min_fetal_reads <- nipat_cfg$min_fetal_reads
-  min_fetal_percent <- nipat_cfg$min_fetal_percent
+  min_fetal_reads <- newpat_cfg$min_fetal_reads
+  min_fetal_percent <- newpat_cfg$min_fetal_percent
 }
 if (is.null(min_fetal_reads) && is.null(min_fetal_percent)) min_fetal_reads <- 2L
 if (!is.null(min_fetal_reads)) {
@@ -65,16 +65,16 @@ if (!is.null(min_fetal_percent) && (!is.finite(min_fetal_percent) ||
     min_fetal_percent <= 0 || min_fetal_percent > 100))
   stop("--min_fetal_percent must be a finite number in (0, 100]")
 if (!is.null(args$include_homozygous_child))
-  nipat_cfg$include_homozygous_child <- args$include_homozygous_child == "TRUE"
-if (!is.null(args$min_coverage)) nipat_cfg$min_coverage <- args$min_coverage
-if (!is.null(args$max_other_fraction)) nipat_cfg$other_fraction_max <- args$max_other_fraction
-min_coverage <- nipat_cfg$min_coverage
+  newpat_cfg$include_homozygous_child <- args$include_homozygous_child == "TRUE"
+if (!is.null(args$min_coverage)) newpat_cfg$min_coverage <- args$min_coverage
+if (!is.null(args$max_other_fraction)) newpat_cfg$other_fraction_max <- args$max_other_fraction
+min_coverage <- newpat_cfg$min_coverage
 if (!is.null(min_coverage) && (!is.finite(min_coverage) || min_coverage < 1 ||
     min_coverage != floor(min_coverage) || min_coverage > .Machine$integer.max))
   stop("--min_coverage must be a positive integer within the R integer range")
-if (!is.null(min_coverage)) nipat_cfg$min_coverage <- as.integer(min_coverage)
-if (!is.finite(nipat_cfg$other_fraction_max) || nipat_cfg$other_fraction_max < 0 ||
-    nipat_cfg$other_fraction_max > 1) stop("--max_other_fraction must be between 0 and 1")
+if (!is.null(min_coverage)) newpat_cfg$min_coverage <- as.integer(min_coverage)
+if (!is.finite(newpat_cfg$other_fraction_max) || newpat_cfg$other_fraction_max < 0 ||
+    newpat_cfg$other_fraction_max > 1) stop("--max_other_fraction must be between 0 and 1")
 coverage_floor <- if (is.null(min_coverage)) 0 else min_coverage
 curve_start <- if (is.null(min_fetal_reads)) 1L else min_fetal_reads
 message("Minimum fetal reads: ", if (is.null(min_fetal_reads)) "NULL" else min_fetal_reads)
@@ -97,7 +97,7 @@ if (anyDuplicated(tolower(paste0("Mother", coppie$mamma, "-Father", coppie$papa)
 
 ## Read coordinates from the frequency table and use them in every join.
 if (!file.exists(args$popfreq)) stop("popfreq file not found")
-population <- nipat_read_marker_table(args$popfreq, header=TRUE, sep="\t",
+population <- newpat_read_marker_table(args$popfreq, header=TRUE, sep="\t",
                          stringsAsFactors=FALSE, check.names=FALSE,
                          quote="", comment.char="", colClasses=c(chr="character"))
 
@@ -116,7 +116,7 @@ marker <- marker_type(population, "population frequencies")
 if (has_markers) {
   # DNPcall lists have five columns without a header; SNPcall lists have four.
   # A header is also accepted, with lower- or upper-case allele column names.
-  marker_list <- nipat_read_marker_table(args$markers, chromosome_column="V1", header=FALSE, sep="", quote="",
+  marker_list <- newpat_read_marker_table(args$markers, chromosome_column="V1", header=FALSE, sep="", quote="",
                             comment.char="", colClasses="character",
                             stringsAsFactors=FALSE, check.names=FALSE)
   marker_columns <- switch(as.character(ncol(marker_list)),
@@ -155,10 +155,10 @@ error_constants <- list(
 )
 err_const <- error_constants[[marker]]
 if (!is.null(args$err_const)) err_const <- read_error_constant(args$err_const, "--err_const")
-nipat_cfg$err_const_snp <- error_constants$SNP
-nipat_cfg$err_const_dnp <- error_constants$DNP
-nipat_cfg[[paste0("err_const_", tolower(marker))]] <- err_const
-nipat_cfg[c("min_fetal_reads", "min_fetal_percent")] <- list(min_fetal_reads, min_fetal_percent)
+newpat_cfg$err_const_snp <- error_constants$SNP
+newpat_cfg$err_const_dnp <- error_constants$DNP
+newpat_cfg[[paste0("err_const_", tolower(marker))]] <- err_const
+newpat_cfg[c("min_fetal_reads", "min_fetal_percent")] <- list(min_fetal_reads, min_fetal_percent)
 message("Mismatch constant used for ", marker, ": ", sprintf("%.17g", err_const))
 
 site_key <- function(x) {
@@ -233,7 +233,7 @@ if (any(!is.finite(population$Ref_f.pop) | !is.finite(population$Alt_f.pop) |
 PopFreqDNPs <- population[, c(site_columns, "Ref_f.pop", "Alt_f.pop"), drop=FALSE]
 
 read_calls <- function(path) {
-  x <- nipat_read_marker_table(path, header=TRUE, check.names=FALSE, stringsAsFactors=FALSE,
+  x <- newpat_read_marker_table(path, header=TRUE, check.names=FALSE, stringsAsFactors=FALSE,
                   colClasses=c(chr="character", REF="character", ALT="character"))
   if (marker_type(x, path) != marker) stop(path, ": format differs from population frequencies")
   check_sites(x, c(site_columns, "REF", "ALT", "N_REF", "N_ALT", "N_Other", "total_count"), path)
@@ -313,7 +313,7 @@ if (has_markers) {
   cutoff_df <- do.call(rbind, lapply(panels, as.data.frame))
   if (anyDuplicated(cutoff_df$Cutoff)) stop("Duplicate cutoff label")
   cutoff_panels <- lapply(cutoff_df$Path, function(path) {
-    x <- nipat_read_marker_table(path, header=TRUE, sep="\t", check.names=FALSE, stringsAsFactors=FALSE,
+    x <- newpat_read_marker_table(path, header=TRUE, sep="\t", check.names=FALSE, stringsAsFactors=FALSE,
                     colClasses=c(chr="character"))
     if (marker_type(x, path) != marker) stop("Marker panel differs from population type")
     check_sites(x, site_columns, path)
@@ -345,14 +345,14 @@ for (x in calls_cache) {
   }
 }
 
-nipat_write_settings("cpi", nipat_cfg, args$out_dir)
+newpat_write_settings("cpi", newpat_cfg, args$out_dir)
 
 compute_madre_info <- function(madre_df) {
   info <- madre_df %>%
-    dplyr::filter(ratio_Ref_mother >= nipat_cfg$homozygous_ref_min |
-                  ratio_Ref_mother <= nipat_cfg$homozygous_alt_max) %>%
+    dplyr::filter(ratio_Ref_mother >= newpat_cfg$homozygous_ref_min |
+                  ratio_Ref_mother <= newpat_cfg$homozygous_alt_max) %>%
     dplyr::mutate(
-      fetal_reads = ifelse(ratio_Ref_mother >= nipat_cfg$homozygous_ref_min, Alt_mother, Ref_mother),
+      fetal_reads = ifelse(ratio_Ref_mother >= newpat_cfg$homozygous_ref_min, Alt_mother, Ref_mother),
       fetal_percent = 100 * fetal_reads / (Ref_mother + Alt_mother)
     )
   if (!is.null(min_fetal_reads)) info <- dplyr::filter(info, fetal_reads >= min_fetal_reads)
@@ -372,14 +372,14 @@ run_CPI_iteration <- function(madre_df, padre_df, dnp_list, cutoff_label, err_co
 
   madre_info <- compute_madre_info(madre)
   madre_hom <- madre[FALSE, , drop=FALSE]
-  if (nipat_cfg$include_homozygous_child) {
+  if (newpat_cfg$include_homozygous_child) {
     madre_hom <- dplyr::filter(madre, (Ref_mother > 0 & Alt_mother == 0) |
                                      (Alt_mother > 0 & Ref_mother == 0))
   }
 
   # The allele needed from the father is maternal for HOM and non-maternal for HET.
   calculate_PI <- function(mother_sites, child_type) {
-    maternal_ref <- mother_sites$ratio_Ref_mother >= nipat_cfg$homozygous_ref_min
+    maternal_ref <- mother_sites$ratio_Ref_mother >= newpat_cfg$homozygous_ref_min
     requires_ref <- if (child_type == "HOM") maternal_ref else !maternal_ref
     mother_sites$Paternal_allele <- ifelse(requires_ref, "REF", "ALT")
     mother_sites %>%
@@ -388,9 +388,9 @@ run_CPI_iteration <- function(madre_df, padre_df, dnp_list, cutoff_label, err_co
       dplyr::mutate(
         Allele_frequency = ifelse(Paternal_allele == "REF", Ref_f.pop, Alt_f.pop),
         Father_genotype = dplyr::case_when(
-          ratio_Ref_father >= nipat_cfg$homozygous_ref_min ~ "REF",
-          ratio_Ref_father <= nipat_cfg$homozygous_alt_max ~ "ALT",
-          between(ratio_Ref_father, nipat_cfg$heterozygous_min, nipat_cfg$heterozygous_max) ~ "HET",
+          ratio_Ref_father >= newpat_cfg$homozygous_ref_min ~ "REF",
+          ratio_Ref_father <= newpat_cfg$homozygous_alt_max ~ "ALT",
+          between(ratio_Ref_father, newpat_cfg$heterozygous_min, newpat_cfg$heterozygous_max) ~ "HET",
           TRUE ~ NA_character_
         ),
         Mismatch = Father_genotype != "HET" & Father_genotype != Paternal_allele,
@@ -440,10 +440,10 @@ run_CPI_iteration <- function(madre_df, padre_df, dnp_list, cutoff_label, err_co
       c(mother=sum(madre_info$fetal_reads >= threshold) + nrow(madre_hom), het=het_count,
         mismatch=mismatches, log_het=sum(log_pi[selected]), candidates=sum(candidate_reads >= threshold))
     }
-    interval_workers <- nipat_parallel_workers(interval_count)
+    interval_workers <- newpat_parallel_workers(interval_count)
     chunk_size <- if (interval_workers == 1L) interval_count else ceiling(interval_count / (4L * interval_workers))
     chunks <- split(seq_along(interval_starts), ceiling(seq_along(interval_starts) / chunk_size))
-    values <- nipat_parallel_lapply(chunks, function(indices) {
+    values <- newpat_parallel_lapply(chunks, function(indices) {
       do.call(rbind, lapply(indices, compute_interval))
     }, label="cpi-thresholds", workers=interval_workers)
     by_interval <- do.call(rbind, values)
@@ -519,11 +519,11 @@ plot_CPI <- function(df, cutoff_label, pair_name,
 
   cpi_plot <- ggplot(df, aes(x = Iteration)) +
     annotate("rect", xmin = -Inf, xmax = Inf,
-             ymin = -Inf, ymax = nipat_cfg$log_cpi_lower, fill = "red", alpha = 0.05) +
+             ymin = -Inf, ymax = newpat_cfg$log_cpi_lower, fill = "red", alpha = 0.05) +
     annotate("rect", xmin = -Inf, xmax = Inf,
-             ymin = nipat_cfg$log_cpi_lower, ymax = nipat_cfg$log_cpi_upper, fill = "grey", alpha = 0.05) +
+             ymin = newpat_cfg$log_cpi_lower, ymax = newpat_cfg$log_cpi_upper, fill = "grey", alpha = 0.05) +
     annotate("rect", xmin = -Inf, xmax = Inf,
-             ymin = nipat_cfg$log_cpi_upper, ymax = Inf, fill = "green", alpha = 0.05) +
+             ymin = newpat_cfg$log_cpi_upper, ymax = Inf, fill = "green", alpha = 0.05) +
 
     geom_vline(xintercept=median_threshold, colour="red", linetype="dashed") +
     geom_line(aes(y = log_CPI), colour = "black") +
@@ -576,7 +576,7 @@ plot_CPI <- function(df, cutoff_label, pair_name,
     geom_line(aes(y = Mismatch, colour = "Mismatching sites"), linetype = "dashed") +
     geom_point(aes(y = Mismatch, colour = "Mismatching sites"), size = 1) +
     scale_colour_manual(name = NULL, values = c("Matching sites" = "#008A38", "Mismatching sites" = "#C46B00")) +
-    scale_y_continuous(name = "Sites contributing a paternity index", limits = c(0, NA), breaks = nipat_integer_breaks) +
+    scale_y_continuous(name = "Sites contributing a paternity index", limits = c(0, NA), breaks = newpat_integer_breaks) +
     scale_x_continuous(name = "Minimum number of fetal reads considered", breaks = ticks,
       limits = c(curve_start, max(curve_start + 1, max_iter)), expand = expansion(mult = c(0.02, 0.02))) +
     theme_bw(base_size = 9) +
@@ -614,7 +614,7 @@ process_pair <- function(i) {
         ratio_Ref_mother = N_REF / (N_REF + N_ALT),
         total_count = total_count
       ) %>% dplyr::filter(total_count > 0, total_count >= coverage_floor,
-                          Error_mother/total_count <= nipat_cfg$other_fraction_max)
+                          Error_mother/total_count <= newpat_cfg$other_fraction_max)
     pair_cache$mother <- madre
     pair_cache$mother_path <- mother_path
   } else {
@@ -634,17 +634,17 @@ process_pair <- function(i) {
         total_count = total_count
       ) %>%
       dplyr::mutate(
-        Ref_father = ifelse(ratio_Ref_father < nipat_cfg$homozygous_alt_max, 0, Ref_father),
-        Alt_father = ifelse(ratio_Ref_father > nipat_cfg$homozygous_ref_min, 0, Alt_father)
+        Ref_father = ifelse(ratio_Ref_father < newpat_cfg$homozygous_alt_max, 0, Ref_father),
+        Alt_father = ifelse(ratio_Ref_father > newpat_cfg$homozygous_ref_min, 0, Alt_father)
       ) %>% dplyr::filter(total_count > 0, total_count >= coverage_floor,
-                          Error_father/total_count <= nipat_cfg$other_fraction_max)
+                          Error_father/total_count <= newpat_cfg$other_fraction_max)
     pair_cache$father <- padre
     pair_cache$father_path <- father_path
   } else {
     padre <- pair_cache$father
   }
 
-  cutoff_results <- nipat_parallel_lapply(seq_len(nrow(cutoff_df)), function(k) {
+  cutoff_results <- newpat_parallel_lapply(seq_len(nrow(cutoff_df)), function(k) {
     cutoff_label <- cutoff_df$Cutoff[k]
     dnp_list <- cutoff_panels[[k]]
 
@@ -672,8 +672,8 @@ process_pair <- function(i) {
     n_sites_mother <- nrow(out$madre_info)
     shared <- dplyr::inner_join(out$madre_info, padre, by=site_columns)
     n_sites_father <- sum(
-      (shared$ratio_Ref_mother >= nipat_cfg$homozygous_ref_min & shared$Alt_father >= 0) |
-      (shared$ratio_Ref_mother <= nipat_cfg$homozygous_alt_max & shared$Ref_father >= 0)
+      (shared$ratio_Ref_mother >= newpat_cfg$homozygous_ref_min & shared$Alt_father >= 0) |
+      (shared$ratio_Ref_mother <= newpat_cfg$homozygous_alt_max & shared$Ref_father >= 0)
     )
 
     all_cpi_vals <- res$log_CPI[!is.na(res$log_CPI)]
@@ -698,9 +698,9 @@ process_pair <- function(i) {
       Median_logCPI = round(med_cpi,3),
       Mean_logCPI = round(mean_cpi,3),
       CPI_medianFF = round(cpi_at_med,3),
-      Include_homozygous_child = nipat_cfg$include_homozygous_child,
+      Include_homozygous_child = newpat_cfg$include_homozygous_child,
       Min_coverage = if (is.null(min_coverage)) NA_integer_ else min_coverage,
-      Max_other_fraction = nipat_cfg$other_fraction_max,
+      Max_other_fraction = newpat_cfg$other_fraction_max,
       N_sites_HET_child = if (n_sites_mother == 0) 0L else median_value("N_sites_HET_child"),
       N_sites_HOM_child = nrow(out$pi_hom),
       Matching_HET_child = if (n_sites_mother == 0) 0L else median_value("Matching_HET_child"),
@@ -720,7 +720,7 @@ process_pair <- function(i) {
   list(pair_name = pair_name, cutoffs = cutoff_results)
 }
 
-pair_results <- nipat_parallel_lapply(seq_len(nrow(coppie)), process_pair,
+pair_results <- newpat_parallel_lapply(seq_len(nrow(coppie)), process_pair,
                                     label = "cpi-pairs")
 for (i in seq_along(pair_results)) {
   pair_result <- pair_results[[i]]
@@ -752,7 +752,7 @@ for (i in seq_along(pair_results)) {
   }
 
   if (length(per_cutoff_plots)>0) {
-    combined <- nipat_cpi_pages(per_cutoff_plots[names(per_cutoff_plots)])
+    combined <- newpat_cpi_pages(per_cutoff_plots[names(per_cutoff_plots)])
     ggsave(file.path(plots_dir, paste0(pair_name,"_CPIplot.pdf")),
            plot=combined, width=12, height=10)
     all_combined_plots <- c(all_combined_plots, unname(per_cutoff_plots))
@@ -761,7 +761,7 @@ for (i in seq_along(pair_results)) {
 }
 
 if (length(all_combined_plots)>0) {
-  final_plot <- nipat_cpi_pages(all_combined_plots)
+  final_plot <- newpat_cpi_pages(all_combined_plots)
   ggsave(file.path(plots_dir, "All_CPIplots.pdf"),
          plot=final_plot, width=12, height=10)
 }

@@ -27,7 +27,7 @@ LINUX = module("gui_linux_launch", "installer/linux/launch.py")
 
 class GuiDistributionTests(unittest.TestCase):
     def test_pdf_renderer_fonts_and_notices_ship_with_verified_bytes(self):
-        directory = PROJECT / "src/nipat/gui/web/vendor/pdfmake"
+        directory = PROJECT / "src/newpat/desktop/web/vendor/pdfmake"
         manifest_path = directory / "manifest.json"
         manifest = json.loads(manifest_path.read_bytes())
         expected = {"pdfmake.min.js", "vfs_fonts.js", "pdfmake.LICENSE.txt",
@@ -74,7 +74,7 @@ class GuiDistributionTests(unittest.TestCase):
     def test_reference_catalog_and_downloader_are_in_every_desktop_source_bundle(self):
         # The Windows, macOS and Linux builders stage code from this common inventory.
         shipped = (PROJECT / "distribution-files.txt").read_text(encoding="utf-8").splitlines()
-        for source in ("src/nipat/gui/references.py", "src/nipat/gui/reference_downloads.py"):
+        for source in ("src/newpat/desktop/references.py", "src/newpat/desktop/reference_downloads.py"):
             with self.subTest(source=source):
                 self.assertIn(source, shipped)
                 self.assertTrue((PROJECT / source).is_file())
@@ -89,8 +89,8 @@ class GuiDistributionTests(unittest.TestCase):
     def test_modified_dependency_is_rejected_before_loading(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            destination = root / "src/nipat/gui/native/windows"
-            shutil.copytree(PROJECT / "src/nipat/gui/native/windows", destination)
+            destination = root / "src/newpat/desktop/native/windows"
+            shutil.copytree(PROJECT / "src/newpat/desktop/native/windows", destination)
             loader = destination / "x64/WebView2Loader.dll"
             data = bytearray(loader.read_bytes())
             data[-1] ^= 1

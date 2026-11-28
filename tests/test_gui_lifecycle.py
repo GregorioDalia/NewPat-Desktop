@@ -10,13 +10,13 @@ from unittest.mock import Mock
 
 import pytest
 
-from nipat.errors import ValidationError
-from nipat.gui.lifecycle import RunObserver
-from nipat.gui.results import ResultsStore
-from nipat.gui.service import GuiService
-from nipat.paths import ProjectLayout
-from nipat.preferences import PreferencesStore
-from nipat.resources import _resource_lock
+from newpat.errors import ValidationError
+from newpat.desktop.lifecycle import RunObserver
+from newpat.desktop.results import ResultsStore
+from newpat.desktop.service import GuiService
+from newpat.paths import ProjectLayout
+from newpat.preferences import PreferencesStore
+from newpat.resources import _resource_lock
 
 
 def write(path, value):
@@ -63,7 +63,9 @@ def test_confirmed_abandonment_never_rewrites_run_or_promotes_step_success(recor
     ({"backend_matches": True, "containers": [{"state": "unavailable"}]}, "unknown"),
     ({"backend_matches": True, "containers": [{"state": "identity_mismatch"}]}, "unknown"),
     ({"backend_matches": True, "containers": [{"state": "running", "owned": True}]}, "running"),
-    ({"backend_matches": True, "containers": [{"state": "running", "owned": False}]}, "running"),
+    ({"backend_matches": True, "containers": [{"state": "running", "owned": False}]}, "unknown"),
+    ({"backend_matches": True, "containers": [{"state": "exited", "owned": False}]}, "unknown"),
+    ({"backend_matches": True, "containers": [{"state": "dead"}]}, "unknown"),
     ({"backend_matches": True, "containers": [{"state": "unexpected"}]}, "unknown"),
 ])
 def test_inconclusive_or_live_runtime_never_allows_removal(recorded, report, expected):
@@ -75,16 +77,33 @@ def test_inconclusive_or_live_runtime_never_allows_removal(recorded, report, exp
 def test_absent_or_finished_containers_with_free_client_lock_confirm_interruption(recorded):
     run, metadata, _ = recorded
     check = observer(recorded, {"backend_matches": True, "containers": [
-        {"state": "absent"}, {"state": "exited", "owned": True}, {"state": "dead", "owned": True}]})
+        {"state": "absent", "owned": False, "error": "No such container"},
+        {"state": "exited", "owned": True}, {"state": "dead", "owned": True}]})
     assert check.inspect(run, metadata)["status"] == "interrupted"
     assert check.reconcile.call_args.kwargs == {"stop": False}
 
 
-def test_real_cross_process_analysis_lock_prevents_false_interruption(recorded, tmp_path):
+@pytest.mark.parametrize("containers,expected,reason", [
+    ([], "unknown", "unavailable"),
+    ([{"state": "absent", "owned": False}], "unknown", "unavailable"),
+    ([{"state": "exited", "owned": True}], "unknown", "unavailable"),
+    ([{"state": "running", "owned": False}], "unknown", "unavailable"),
+    ([{"state": "unavailable"}, {"state": "running", "owned": True}], "running", "external_active"),
+])
+def test_busy_backend_only_confirms_a_verified_live_container(recorded, tmp_path, containers, expected, reason):
     run, metadata, _ = recorded
-    check = observer(recorded, guard=lambda: _resource_lock(tmp_path, "native", exclusive=True))
+    check = observer(recorded, {"backend_matches": True, "containers": containers},
+                     guard=lambda: _resource_lock(tmp_path, "native", exclusive=True))
     with _resource_lock(tmp_path, "native", exclusive=False):
         result = check.inspect(run, metadata)
+    assert (result["status"], result["status_reason"], result["can_remove"]) == (expected, reason, False)
+    assert check.reconcile.call_args.kwargs == {"stop": False}
+
+
+def test_other_guard_failures_do_not_inspect_the_runtime(recorded):
+    run, metadata, _ = recorded
+    check = observer(recorded, guard=Mock(side_effect=OSError("Permission denied")))
+    result = check.inspect(run, metadata)
     assert result["status"] == "unknown" and not result["can_remove"]
     check.reconcile.assert_not_called()
 

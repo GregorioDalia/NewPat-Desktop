@@ -8,7 +8,7 @@ import uuid
 
 import pytest
 
-from nipat.gui import windows_host as host
+from newpat.desktop import windows_host as host
 
 URL = "http://127.0.0.1:45678/a-random-capability/web/index.html"
 

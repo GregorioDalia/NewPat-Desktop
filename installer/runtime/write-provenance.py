@@ -10,7 +10,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-_SPEC = importlib.util.spec_from_file_location("nipat_runtime_component", Path(__file__).with_name("component.py"))
+_SPEC = importlib.util.spec_from_file_location("newpat_runtime_component", Path(__file__).with_name("component.py"))
 component = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(component)
 
@@ -44,12 +44,12 @@ def main() -> None:
     base_image, source_directory = sys.argv[1:]
     packages = dict(
         line.split("\t", 1)
-        for line in Path("/usr/share/nipat/apt-versions.tsv").read_text().splitlines()
+        for line in Path("/usr/share/newpat/apt-versions.tsv").read_text().splitlines()
     )
     engine_version = subprocess.check_output(["dockerd", "--version"], text=True).strip()
     marker = {
         "schema_version": 2,
-        "vendor": "nipat-desktop",
+        "vendor": "newpat-desktop",
         "purpose": "dedicated-wsl-runtime",
         "source_sha256": component.source_inventory(Path(source_directory)),
         "base_image": base_image,
@@ -64,11 +64,11 @@ def main() -> None:
         "docker_engine_version": engine_version,
         "compose_version": subprocess.check_output(["docker", "compose", "version"], text=True).strip(),
         "license_directory": "/usr/share/doc",
-        "package_metadata": "/usr/share/nipat/docker-package-metadata.txt",
+        "package_metadata": "/usr/share/newpat/docker-package-metadata.txt",
         "upstream_engine_notices": collect_engine_notices(engine_version, Path("/usr/share/doc/docker-ce")),
     }
     marker["component_sha256"] = component.component_identity(marker)
-    Path("/etc/nipat-runtime.json").write_text(json.dumps(marker, indent=2) + "\n")
+    Path("/etc/newpat-runtime.json").write_text(json.dumps(marker, indent=2) + "\n")
 
 
 if __name__ == "__main__":

@@ -92,10 +92,10 @@ class FiveModuleQualificationTests(unittest.TestCase):
             installed = tmp_path / "scientific/vendor/NEWPAT" / relative
             installed.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(qualification.PROJECT / "scientific/vendor/NEWPAT" / relative, installed)
-        helpers = tmp_path / "lib/nipat_scientific"
+        helpers = tmp_path / "lib/newpat_scientific"
         helpers.mkdir(parents=True)
         for name in qualification.HELPERS:
-            shutil.copyfile(qualification.PROJECT / "src/nipat_scientific" / name, helpers / name)
+            shutil.copyfile(qualification.PROJECT / "src/newpat_scientific" / name, helpers / name)
         hashes = qualification.verify_installed_payload(tmp_path)
         assert len(hashes) == 3 + len(qualification.HELPERS)
         (helpers / "settings_data.json").write_text("{}\n")
@@ -124,10 +124,10 @@ class FiveModuleQualificationTests(unittest.TestCase):
         command = commands[1]
         assert "mutable-tag" not in command and image_id in command
         assert "--network=none" in command and "--full" in command
-        assert command[command.index("--installed-root") + 1] == "/opt/nipat"
+        assert command[command.index("--installed-root") + 1] == "/opt/newpat"
         mounts = [command[index + 1] for index, value in enumerate(command) if value == "--mount"]
         assert len(mounts) == 2
-        assert all("/opt/nipat" not in mount for mount in mounts)
+        assert all("/opt/newpat" not in mount for mount in mounts)
         assert any("target=/qualification" in mount and "readonly" in mount for mount in mounts)
         # Private (0600) settings must belong to the runner that uploads the
         # evidence, while only fixed scratch locations enter the environment.

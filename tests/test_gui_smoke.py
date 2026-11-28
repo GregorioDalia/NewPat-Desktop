@@ -4,9 +4,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from nipat.cli import build_parser
-from nipat.gui import app, linux_host, macos_host, windows_host
-from nipat.gui.host import smoke_ready
+from newpat.cli import build_parser
+from newpat.desktop import app, linux_host, macos_host, windows_host
+from newpat.desktop.host import smoke_ready
 
 
 def test_full_application_smoke_cli_accepts_screenshot():

@@ -1,29 +1,29 @@
 # Scientific engine interface
 
-The NewPat image installs the engine in `/opt/nipat/engine`, the R scripts in `/opt/nipat/scientific` and the preparation library in `/opt/nipat/lib/nipat_scientific`. The engine runs independently of the working directory, client source tree and desktop installation directory. Its Python code uses the standard library. The image supplies R, samtools and their dependencies.
+The NewPat image installs the engine in `/opt/newpat/engine`, the R scripts in `/opt/newpat/scientific` and the preparation library in `/opt/newpat/lib/newpat_scientific`. The engine runs independently of the working directory, client source tree and desktop installation directory. Its Python code uses the standard library. The image supplies R, samtools and their dependencies.
 
 This document describes the engine interface inside the container. The [desktop CLI and guided menu](../docs/USER_GUIDE.md) prepare requests and mounts and record run metadata for ordinary use.
 
 ## Commands and identity
 
 ```sh
-python3 /opt/nipat/engine/main.py describe --json
-python3 /opt/nipat/engine/main.py verify
-python3 /opt/nipat/engine/main.py catalog cpi --json
-python3 /opt/nipat/engine/main.py validate-plan --plan /inputs/plan.json
-python3 /opt/nipat/engine/main.py execute-plan --plan /inputs/plan.json --run-dir /run/workflow
-python3 /opt/nipat/engine/main.py execute dnp-call --request /run/work/request.json
-python3 /opt/nipat/engine/main.py execute snp-call --request /run/work/request.json
-python3 /opt/nipat/engine/main.py execute contamination --request /run/work/request.json
-python3 /opt/nipat/engine/main.py execute cpi --request /run/work/request.json
-python3 /opt/nipat/engine/main.py execute cpin --request /run/work/request.json
-python3 /opt/nipat/engine/main.py execute fetal-sex --request /run/work/request.json
+python3 /opt/newpat/engine/main.py describe --json
+python3 /opt/newpat/engine/main.py verify
+python3 /opt/newpat/engine/main.py catalog cpi --json
+python3 /opt/newpat/engine/main.py validate-plan --plan /inputs/plan.json
+python3 /opt/newpat/engine/main.py execute-plan --plan /inputs/plan.json --run-dir /run/workflow
+python3 /opt/newpat/engine/main.py execute dnp-call --request /run/work/request.json
+python3 /opt/newpat/engine/main.py execute snp-call --request /run/work/request.json
+python3 /opt/newpat/engine/main.py execute contamination --request /run/work/request.json
+python3 /opt/newpat/engine/main.py execute cpi --request /run/work/request.json
+python3 /opt/newpat/engine/main.py execute cpin --request /run/work/request.json
+python3 /opt/newpat/engine/main.py execute fetal-sex --request /run/work/request.json
 ```
 
 `execute` validates the request, prepares the input files and starts the R program. Use `run` for a direct call with native R arguments.
 
 ```sh
-python3 /opt/nipat/engine/main.py run snp-call -- \
+python3 /opt/newpat/engine/main.py run snp-call -- \
   --pileup /inputs/pileup.txt --snplist /inputs/SNPlist.txt --out /outputs/output.txt
 ```
 
@@ -35,7 +35,7 @@ Before running any workflow, the engine checks all six R sources against the bun
 | --- | --- |
 | `schema_version` | `1` |
 | `interface` | `native-r-v1` |
-| `workflow_interfaces` | `dnp-call-v1`, `snp-call-v2`, `contamination-v2`, `cpi-v4`, `cpin-v2` and `fetal-sex-v1` for their respective workflows |
+| `workflow_interfaces` | `dnp-call-v1`, `snp-call-v2`, `contamination-v2`, `cpi-v4`, `cpin-v2` and `fetal-sex-v3` for their respective workflows |
 | `preparation.interface` | `workflow-preparation-v1` |
 | `plan_execution.interface` | `workflow-plan-execution-v2` |
 | `plan_execution.workflows` | `dnp-call`, `snp-call`, `contamination`, `cpi`, `cpin`, `fetal-sex` |
@@ -67,7 +67,7 @@ For CPI, the engine translates maternal/paternal references and pair IDs into in
 
 Each request contains `schema_version: 1` and the workflow name. Paths describe files and destinations **inside the container**. Inputs must reside outside the distinct work and output directories. The output directory must be empty, and planned staging files must not already exist. Validation precedes preparation. The engine refuses to overwrite existing generated files.
 
-The client mounts only the selected inputs read-only and the current run read-write. The runtime uses a read-only image filesystem, a dedicated temporary directory and disabled networking. Keep source and application directories outside `/opt/nipat`. The Dockerfile allows explicit probe and analysis commands without imposing an `ENTRYPOINT`.
+The client mounts only the selected inputs read-only and the current run read-write. The runtime uses a read-only image filesystem, a dedicated temporary directory and disabled networking. Keep source and application directories outside `/opt/newpat`. The Dockerfile allows explicit probe and analysis commands without imposing an `ENTRYPOINT`.
 
 After an I/O failure, partially prepared files remain in the run directory for diagnosis. Start the next analysis in a new directory.
 
@@ -106,7 +106,7 @@ The engine validates the panel and tables, copies the tables byte for byte into 
 
 With `mode: "pileup"`, both `bam` and `reference` must be `null`. The file specified by `pileup` must include QNAME in column seven. Additional columns are allowed. This mode runs without samtools and does not create BAM preparation files.
 
-With `mode: "bam"`, `pileup` must be `null` and the FASTA reference requires an adjacent `.fai` index. BGZF-compressed references also require `.gzi`. A BAM index is optional because samtools uses the `-l` position list. The engine preserves the chromosome names from the panel, creates three-base BED windows in `work/snp_regions.bed` and runs samtools to generate `work/pileup.txt`. As in SNPcall 2.0, its default `-d 0` removes the depth limit.
+With `mode: "bam"`, `pileup` must be `null` and the FASTA reference requires an adjacent `.fai` index. BGZF-compressed references also require `.gzi`. A BAM index is optional because samtools uses the `-l` position list. The engine preserves the chromosome names from the panel, creates three-base BED windows in `work/snp_regions.bed` and runs samtools to generate `work/pileup.txt`. The default maximum depth is 2147483647 reads per position in each BAM, expressed as `-d 0` in samtools 1.21.
 
 Both modes produce the 17-column `output/SNPcall_output.txt`, four sample plots and a `summary` directory with genotypes and resources. The normalized panel columns are `chr`, `pos`, `ref` and `alt`. The earlier three-column form (`pos=chr:position`, `ref`, `alt`) is also supported. The position must be between 2 and 2147483646 inclusive in both modes. The `snp-call-v2` interface identifies the scientific table schema. Requests use `schema_version: 1`.
 
@@ -187,7 +187,7 @@ The engine exports a single combined index per trio in `Summary_Postnatal_CPI.tx
 
 ## Fetal sex
 
-An `execute fetal-sex` request uses `schema_version: 1`, `workflow: "fetal-sex"`, and absolute paths for `autosomes` (DNP), `x` (DNP), `y` (SNP), `work_dir` and `out_dir`. The three input tables belong to the same maternal cfDNA sample. The summary takes its sample label from the autosomal filename. The optional `scientific_settings` object overrides the source defaults. Each completed run exports `Fetal_sex_summary.txt`, `Autosomal_informative_sites.txt`, `X_informative_sites.txt` and `Y_sites.txt`. [Reference inputs and expected outputs](../tests/fixtures/fetal_sex/README.md)
+An `execute fetal-sex` request uses `schema_version: 1`, `workflow: "fetal-sex"` and absolute paths for `work_dir`, `out_dir` and the input tables. Supply `dnp` (autosomes and X) and `y` (Y SNPs), or supply `autosomes`, `x` and `y` separately. All tables come from the same maternal cfDNA sample. The summary takes its sample label from the combined or autosomal DNP filename. The optional `scientific_settings` object overrides the source defaults. Each completed run exports `Fetal_sex_summary.txt`, `Autosomal_informative_sites.txt`, `X_informative_sites.txt` and `Y_sites.txt`. [Reference inputs and expected outputs](../tests/fixtures/fetal_sex/README.md)
 
 ## Readable labels
 

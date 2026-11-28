@@ -630,7 +630,7 @@ class NewPatBrandingAcceptanceTests(unittest.TestCase):
         }
         self.assertEqual(acceptance.NEWPAT_BRANDING_FILES, expected)
         distributed = set((Path(__file__).resolve().parents[2] / "distribution-files.txt").read_text().splitlines())
-        self.assertTrue(expected <= distributed)
+        self.assertTrue({acceptance.source_path(path, "0.9.99") for path in expected} <= distributed)
         for version in ("0.8.99", "0.9.1", "0.9.4", "0.9.5", "0.9.5rc1", "0.9.6"):
             for path in expected:
                 with self.subTest(version=version, path=path):
@@ -645,7 +645,7 @@ class NewPatBrandingAcceptanceTests(unittest.TestCase):
 
     def test_intreccio_artwork_review_starts_with_0910(self):
         distributed = set((Path(__file__).resolve().parents[2] / "distribution-files.txt").read_text().splitlines())
-        self.assertTrue(acceptance.INTRECCIO_BRANDING_FILES <= distributed)
+        self.assertTrue({acceptance.source_path(path, "0.9.99") for path in acceptance.INTRECCIO_BRANDING_FILES} <= distributed)
         for path in acceptance.INTRECCIO_BRANDING_FILES:
             for version, allowed in (("0.9.9", False), ("0.9.10", True)):
                 with self.subTest(path=path, version=version):

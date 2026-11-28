@@ -1,13 +1,13 @@
-name: nipat
+name: newpat
 
 services:
   scientific:
-    image: ${NIPAT_RUNTIME_IMAGE:-nipat-scientific-runtime:0.9.10}
+    image: ${NEWPAT_RUNTIME_IMAGE:-newpat-scientific-runtime:0.9.99}
     build:
       context: .
       dockerfile: docker/scientific-runtime/Dockerfile
-    user: ${NIPAT_UID:-0}:${NIPAT_GID:-0}
-    working_dir: /opt/nipat
+    user: ${NEWPAT_UID:-0}:${NEWPAT_GID:-0}
+    working_dir: /opt/newpat
     read_only: true
     network_mode: none
     tmpfs:

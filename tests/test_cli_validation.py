@@ -9,13 +9,13 @@ from contextlib import chdir, nullcontext, redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from nipat.cli import DEFAULT_ERR_CONST, build_parser, main
-from nipat.errors import RuntimeExecutionError, ValidationError
-from nipat.execution.workflows import Workflows
-from nipat.paths import ProjectLayout
-from nipat.preferences import PreferencesStore
-from nipat.validation.self_test import compare_snp_outputs, run_self_tests
-from nipat.wizard import run_wizard
+from newpat.cli import DEFAULT_ERR_CONST, build_parser, main
+from newpat.errors import RuntimeExecutionError, ValidationError
+from newpat.experiments.workflows import Workflows
+from newpat.paths import ProjectLayout
+from newpat.preferences import PreferencesStore
+from newpat.validation.self_test import compare_snp_outputs, run_self_tests
+from newpat.wizard import run_wizard
 
 
 class WizardTests(unittest.TestCase):
@@ -271,7 +271,7 @@ class WizardTests(unittest.TestCase):
                 self.assertEqual(messages.count('Esecuzione completata'), 2)
 
     def test_update_interrupt_keeps_session_open(self):
-        with patch('nipat.wizard.run_updates', side_effect=KeyboardInterrupt()):
+        with patch('newpat.wizard.run_updates', side_effect=KeyboardInterrupt()):
             result, messages = self.invoke(['9', '7', '0', '0'])
         self.assertEqual(result, 0)
         self.assertIn('Guida e informazioni', messages)
@@ -361,7 +361,7 @@ class WizardTests(unittest.TestCase):
 
     def test_portable_python_can_import_ui_without_site_packages(self):
         project = Path(__file__).resolve().parents[1]
-        script = 'import sys; sys.path.insert(0, sys.argv[1]); import nipat.wizard; import nipat.terminal; import nipat.results'
+        script = 'import sys; sys.path.insert(0, sys.argv[1]); import newpat.wizard; import newpat.terminal; import newpat.results'
         result = subprocess.run([sys.executable, '-I', '-S', '-c', script, str(project / 'src')],
                                 capture_output=True, text=True, timeout=20)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -375,9 +375,9 @@ class CliRoutingTests(unittest.TestCase):
         self.workflows = Mock()
 
     def invoke(self, arguments):
-        with patch('nipat.cli.ProjectLayout.discover', return_value=self.layout) as discover:
-            with patch('nipat.cli.DockerComposeRunner', return_value=self.runner):
-                with patch('nipat.cli.Workflows', return_value=self.workflows):
+        with patch('newpat.cli.ProjectLayout.discover', return_value=self.layout) as discover:
+            with patch('newpat.cli.DockerComposeRunner', return_value=self.runner):
+                with patch('newpat.cli.Workflows', return_value=self.workflows):
                     with redirect_stdout(io.StringIO()):
                         code = main(arguments)
         self.assertEqual(code, 0)
@@ -389,7 +389,7 @@ class CliRoutingTests(unittest.TestCase):
 
     def test_layout_validation_errors_are_reported_without_traceback(self):
         stderr = io.StringIO()
-        with patch('nipat.cli.ProjectLayout.discover',
+        with patch('newpat.cli.ProjectLayout.discover',
                    side_effect=ValidationError('Percorsi errati')):
             with redirect_stderr(stderr):
                 self.assertEqual(main(['doctor']), 2)
@@ -397,9 +397,9 @@ class CliRoutingTests(unittest.TestCase):
 
     def test_installer_lease_prevents_cli_runtime_or_analysis_start(self):
         stderr = io.StringIO()
-        with patch('nipat.cli.ProjectLayout.discover', return_value=self.layout), \
-                patch('nipat.cli.activity_session', side_effect=ValidationError('Aggiornamento in corso')), \
-                patch('nipat.cli.DockerComposeRunner') as runner, redirect_stderr(stderr):
+        with patch('newpat.cli.ProjectLayout.discover', return_value=self.layout), \
+                patch('newpat.cli.activity_session', side_effect=ValidationError('Aggiornamento in corso')), \
+                patch('newpat.cli.DockerComposeRunner') as runner, redirect_stderr(stderr):
             self.assertEqual(main(['doctor', '--runtime']), 2)
         runner.assert_not_called()
         self.assertIn('Aggiornamento in corso', stderr.getvalue())
@@ -578,7 +578,7 @@ runpy.run_path(str(script), run_name="__main__")
                 (scripts / name).touch()
             layout = ProjectLayout(project, project.parent, project.parent / 'data',
                                    project.parent / 'runs', project / 'compose.yaml')
-            with patch('nipat.validation.self_test.subprocess.run') as run:
+            with patch('newpat.validation.self_test.subprocess.run') as run:
                 run.side_effect = [None, subprocess.CalledProcessError(1, 'CPI')]
                 with redirect_stdout(io.StringIO()):
                     with self.assertRaisesRegex(RuntimeExecutionError, 'CPI'):
@@ -588,11 +588,11 @@ runpy.run_path(str(script), run_name="__main__")
                     self.assertEqual(invocation.args[0][:4], [sys.executable, '-X', 'utf8', '-u'])
                 self.assertEqual(Path(run.call_args_list[0].args[0][4]).name,
                                  'verify_snp_example.py')
-                self.assertEqual(run.call_args_list[0].kwargs['env']['NIPAT_PROJECT_DIR'],
+                self.assertEqual(run.call_args_list[0].kwargs['env']['NEWPAT_PROJECT_DIR'],
                                  str(project))
-                self.assertEqual(run.call_args_list[0].kwargs['env']['NIPAT_DATA_DIR'],
+                self.assertEqual(run.call_args_list[0].kwargs['env']['NEWPAT_DATA_DIR'],
                                  str(layout.data_dir))
-                self.assertEqual(run.call_args_list[0].kwargs['env']['NIPAT_RUNS_DIR'],
+                self.assertEqual(run.call_args_list[0].kwargs['env']['NEWPAT_RUNS_DIR'],
                                  str(layout.runs_dir))
 
     def test_cli_rejects_dry_self_test(self):

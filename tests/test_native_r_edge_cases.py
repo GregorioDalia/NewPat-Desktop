@@ -1,6 +1,6 @@
 """Native R edge regressions; stdlib-only so the packaged image can run them.
 
-Set NIPAT_NATIVE_TEST_PAYLOAD_ROOT=/opt/nipat to exercise installed sources and
+Set NEWPAT_NATIVE_TEST_PAYLOAD_ROOT=/opt/newpat to exercise installed sources and
 helpers. Without this override the current checkout is tested. Fixtures always
 come from this checkout, never from a mounted replacement of the payload.
 """
@@ -15,15 +15,15 @@ import subprocess
 import tempfile
 import unittest
 
-from nipat_scientific.errors import PlanExecutionError
-from nipat_scientific.outputs import validate_standalone_outputs
+from newpat_scientific.errors import PlanExecutionError
+from newpat_scientific.outputs import validate_standalone_outputs
 
 from native_r_helpers import NATIVE_R_AVAILABLE, NATIVE_R_REASON
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PAYLOAD = Path(os.environ.get("NIPAT_NATIVE_TEST_PAYLOAD_ROOT", ROOT))
-HELPERS = PAYLOAD / ("lib" if "NIPAT_NATIVE_TEST_PAYLOAD_ROOT" in os.environ else "src") / "nipat_scientific"
+PAYLOAD = Path(os.environ.get("NEWPAT_NATIVE_TEST_PAYLOAD_ROOT", ROOT))
+HELPERS = PAYLOAD / ("lib" if "NEWPAT_NATIVE_TEST_PAYLOAD_ROOT" in os.environ else "src") / "newpat_scientific"
 
 
 def table(path, delimiter="\t"):
@@ -44,17 +44,17 @@ class NativeREdgeCases(unittest.TestCase):
         arguments += (["--trios", "M1:F1:C1", "--child_prefix", "Child"] if workflow == "cpin"
                       else ["--pairs", "M1:F1"])
         arguments.extend(native_options)
-        env = dict(os.environ, NIPAT_EXECUTION_MODE="serial",
-                   NIPAT_PARALLEL_HELPER=str(HELPERS / "parallel.R"),
-                   NIPAT_SETTINGS_HELPER=str(HELPERS / "settings.R"),
-                   NIPAT_SETTINGS_REGISTRY=str(HELPERS / "settings_data.json"),
-                   NIPAT_PLOTS_HELPER=str(HELPERS / "plots.R"))
-        env.pop("NIPAT_SCIENTIFIC_SETTINGS", None)
+        env = dict(os.environ, NEWPAT_EXECUTION_MODE="serial",
+                   NEWPAT_PARALLEL_HELPER=str(HELPERS / "parallel.R"),
+                   NEWPAT_SETTINGS_HELPER=str(HELPERS / "settings.R"),
+                   NEWPAT_SETTINGS_REGISTRY=str(HELPERS / "settings_data.json"),
+                   NEWPAT_PLOTS_HELPER=str(HELPERS / "plots.R"))
+        env.pop("NEWPAT_SCIENTIFIC_SETTINGS", None)
         if settings is not None:
             settings_path = root / "scientific-settings-request.json"
             settings_path.write_text(json.dumps({"schema_version": 1, "workflow": workflow,
                                                  "parameters": settings}))
-            env["NIPAT_SCIENTIFIC_SETTINGS"] = str(settings_path)
+            env["NEWPAT_SCIENTIFIC_SETTINGS"] = str(settings_path)
         process = subprocess.run(arguments, cwd=root, env=env, capture_output=True, text=True, timeout=90)
         return process, output
 

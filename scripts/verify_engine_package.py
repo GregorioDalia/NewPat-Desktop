@@ -20,14 +20,14 @@ import sys
 import tempfile
 from unittest.mock import patch
 
-from nipat.adapters.panels import read_position_panel, write_position_panel
-from nipat.errors import NipatError
-from nipat.execution.runner import DockerComposeRunner
-from nipat.execution.workflows import Workflows
-from nipat.paths import ProjectLayout
-from nipat.validation.self_test import compare_snp_outputs
-from nipat.validation.files import require_snp_pileup
-from nipat_scientific.catalog import load_catalog
+from newpat.adapters.panels import read_position_panel, write_position_panel
+from newpat.errors import NewPatError
+from newpat.experiments.runner import DockerComposeRunner
+from newpat.experiments.workflows import Workflows
+from newpat.paths import ProjectLayout
+from newpat.validation.self_test import compare_snp_outputs
+from newpat.validation.files import require_snp_pileup
+from newpat_scientific.catalog import load_catalog
 from verify_contamination_update import check_bundled_run
 from verify_contamination_update import check_outputs as check_contamination
 from verify_cpi_update import check_outputs as check_cpi
@@ -41,7 +41,7 @@ from verify_five_module_workflow import qualify_image
 
 
 PROJECT = Path(__file__).resolve().parents[1]
-ENTRYPOINT = ["python3", "/opt/nipat/engine/main.py"]
+ENTRYPOINT = ["python3", "/opt/newpat/engine/main.py"]
 
 
 def docker(arguments: list[str], *, expected_returncode: int = 0) -> str:
@@ -81,7 +81,7 @@ mounts = [line.split(' - ', 1) for line in pathlib.Path('/proc/self/mountinfo').
 filesystem = next(right.split()[0] for left, right in mounts if left.split()[4] == '/scratch')
 assert filesystem not in ('tmpfs', 'ramfs'), filesystem
 assert os.getuid() == 65534
-path = root / 'nipat-volume-probe'
+path = root / 'newpat-volume-probe'
 with path.open('xb') as handle:
     handle.write(b'X' * 65536)
     handle.flush()
@@ -93,7 +93,7 @@ print(json.dumps({'uid': os.getuid(), 'filesystem': filesystem, 'written_bytes':
     container = docker([
         "create", "--pull", "never", "--network", "none", "--read-only",
         "--user", "65534:65534", "--mount", "type=volume,target=/scratch",
-        "--label", "org.nipat.validation=scratch-volume", identifier, "python3", "-c", probe,
+        "--label", "org.newpat.validation=scratch-volume", identifier, "python3", "-c", probe,
     ]).strip()
     if not re.fullmatch(r"[0-9a-f]{64}", container):
         raise ValueError("Docker did not return the new scratch probe's immutable container ID.")
@@ -171,7 +171,7 @@ def check_metadata(identifier: str) -> dict:
         raise ValueError("The engine lacks the complete CPI interface.")
     if description.get("workflow_interfaces", {}).get("cpin") != "cpin-v2":
         raise ValueError("The engine lacks the complete CPIN interface.")
-    if description.get("workflow_interfaces", {}).get("fetal-sex") != "fetal-sex-v1":
+    if description.get("workflow_interfaces", {}).get("fetal-sex") != "fetal-sex-v3":
         raise ValueError("The engine lacks the fetal sex interface.")
     if description.get("desktop_scheduling") != "step-budget-v1":
         raise ValueError("The image lacks the desktop step-budget interface.")
@@ -200,7 +200,7 @@ def check_metadata(identifier: str) -> dict:
         "scratch.py", "dnp_pileup.py", "dnp_blocks.R", "progress.py", "progress.R", "parallel.py", "parallel.R", "catalog_data/dnp-call.json",
         "catalog_data/snp-call.json", "catalog_data/contamination.json", "catalog_data/cpi.json", "catalog_data/cpin.json", "catalog_data/fetal-sex.json",
     ):
-        source_files[f"lib/nipat_scientific/{name}"] = PROJECT / "src/nipat_scientific" / name
+        source_files[f"lib/newpat_scientific/{name}"] = PROJECT / "src/newpat_scientific" / name
     expected_sources = {
         name: hashlib.sha256(path.read_bytes()).hexdigest()
         for name, path in source_files.items()
@@ -309,7 +309,7 @@ def write_request(results: Path, request: dict) -> None:
 def compare_snp_with_diagnostics(expected: Path, actual: Path) -> int:
     try:
         return compare_snp_outputs(expected, actual)
-    except NipatError:
+    except NewPatError:
         print(f"Expected SNPcall output:\n{expected.read_text(encoding='utf-8')}", file=sys.stderr)
         if actual.is_file():
             print(f"Actual SNPcall output:\n{actual.read_text(encoding='utf-8')}", file=sys.stderr)
@@ -436,7 +436,7 @@ def check_snp_workflow(identifier: str, root: Path) -> tuple[Path, Path]:
         identifier, ["execute", "snp-call", "--request", "/results/work/request.json"],
         inputs=inputs, results=rejected_pileup, expected_returncode=2,
     )
-    if "7 colonne" not in diagnostics or "NIPAT scientific engine:" not in diagnostics:
+    if "7 colonne" not in diagnostics or "NewPat scientific engine:" not in diagnostics:
         raise ValueError(f"Unexpected six-column pileup diagnostics: {diagnostics}")
     if ({path.name for path in (rejected_pileup / "work").iterdir()} != {"request.json"}
             or any((rejected_pileup / "output").iterdir())):
@@ -466,7 +466,7 @@ def check_snp_client_without_host_scripts(identifier: str, root: Path,
     layout = ProjectLayout(project, root, root / "SNP client data", root / "SNP client results",
                            project / "compose.yaml")
     originals = {path: path.read_bytes() for path in inputs.iterdir() if path.is_file()}
-    with patch.dict(os.environ, {"NIPAT_RUNTIME_IMAGE": identifier, "NIPAT_BACKEND": "native"}):
+    with patch.dict(os.environ, {"NEWPAT_RUNTIME_IMAGE": identifier, "NEWPAT_BACKEND": "native"}):
         workflow = Workflows(layout, DockerComposeRunner(layout))
         bam_run = workflow.snp_call(
             bam=inputs / "sample.bam", reference=inputs / "reference.fa",
@@ -553,7 +553,7 @@ def check_contamination_workflow(identifier: str, root: Path) -> None:
             identifier, ["execute", "contamination", "--request", "/results/work/request.json"],
             inputs=inputs, results=rejected, expected_returncode=2,
         )
-        if "NIPAT scientific engine:" not in diagnostics or expected_error not in diagnostics:
+        if "NewPat scientific engine:" not in diagnostics or expected_error not in diagnostics:
             raise ValueError(f"Unexpected rejection diagnostics for {label}: {diagnostics}")
         if any((rejected / "output").iterdir()) or (rejected / "work/inputs").exists() \
                 or (rejected / "work/DNPpanel.txt").exists():
@@ -593,7 +593,7 @@ def check_contamination_client_without_host_scripts(identifier: str, root: Path)
     shutil.copytree(fixture / "samples", inputs / "nested samples")
     shutil.copyfile(fixture / "DNP_list.txt", inputs / "panel.txt")
     originals = {path: path.read_bytes() for path in inputs.rglob("*") if path.is_file()}
-    with patch.dict(os.environ, {"NIPAT_RUNTIME_IMAGE": identifier, "NIPAT_BACKEND": "native"}):
+    with patch.dict(os.environ, {"NEWPAT_RUNTIME_IMAGE": identifier, "NEWPAT_BACKEND": "native"}):
         run_dir = Workflows(layout, DockerComposeRunner(layout)).contamination(
             input_dir=inputs, panel=inputs / "panel.txt", run_name="complete-contamination",
         )
@@ -611,7 +611,7 @@ def check_doctor_without_host_scripts(identifier: str, root: Path) -> None:
     shutil.copyfile(PROJECT / "compose.yaml", project / "compose.yaml")
     layout = ProjectLayout(project, root, root / "doctor data", root / "doctor results",
                            project / "compose.yaml")
-    with patch.dict(os.environ, {"NIPAT_RUNTIME_IMAGE": identifier, "NIPAT_BACKEND": "native"}):
+    with patch.dict(os.environ, {"NEWPAT_RUNTIME_IMAGE": identifier, "NEWPAT_BACKEND": "native"}):
         DockerComposeRunner(layout).doctor(True)
     if {path.name for path in project.iterdir()} != {"compose.yaml"}:
         raise ValueError("Runtime diagnostics unexpectedly populated the application directory.")
@@ -701,7 +701,7 @@ def main() -> int:
         check_catalog(identifier)
         check_scratch_volume(identifier)
         print(f"PASS: bundled code integrity, image {identifier}", flush=True)
-        root = Path(tempfile.mkdtemp(prefix="nipat engine package ")).resolve()
+        root = Path(tempfile.mkdtemp(prefix="newpat engine package ")).resolve()
         check_plan_contract(identifier, root)
         check_doctor_without_host_scripts(identifier, root)
         check_snp(identifier, root)
@@ -740,7 +740,7 @@ def main() -> int:
         print(f"PASS: verified indexed serial/parallel pileups and caller tables; evidence in {evidence}", flush=True)
         print(f"PASS: source-free five-module client, three BAMs, ten steps per run, "
               f"serial/cap2 and {composed['identical_scientific_tables']} identical scientific tables.", flush=True)
-    except (NipatError, OSError, RuntimeError, ValueError, KeyError) as exc:
+    except (NewPatError, OSError, RuntimeError, ValueError, KeyError) as exc:
         print(f"Engine package verification failed: {exc}", file=sys.stderr)
         if root is not None:
             print(f"Synthetic inputs and failed-run diagnostics retained at: {root}", file=sys.stderr)

@@ -7,14 +7,14 @@ import tempfile
 import unittest
 from unittest.mock import Mock
 
-from nipat.errors import ValidationError
-from nipat.cli import DEFAULT_ERR_CONST
-from nipat.paths import ProjectLayout
-from nipat.preferences import Preferences, PreferencesStore
-from nipat.wizard import run_wizard
-from nipat.terminal import Terminal
-from nipat.wizard_forms import Cancelled
-from nipat.wizard_settings import GuidedSettings, _native_cutoffs
+from newpat.errors import ValidationError
+from newpat.cli import DEFAULT_ERR_CONST
+from newpat.paths import ProjectLayout
+from newpat.preferences import Preferences, PreferencesStore
+from newpat.wizard import run_wizard
+from newpat.terminal import Terminal
+from newpat.wizard_forms import Cancelled
+from newpat.wizard_settings import GuidedSettings, _native_cutoffs
 
 
 class WizardSettingsTests(unittest.TestCase):

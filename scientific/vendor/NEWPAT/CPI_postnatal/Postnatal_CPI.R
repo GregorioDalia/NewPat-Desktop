@@ -7,9 +7,9 @@ suppressPackageStartupMessages({
   library(dplyr)
 })
 
-source(Sys.getenv("NIPAT_PARALLEL_HELPER", unset="/opt/nipat/lib/nipat_scientific/parallel.R"))
-source(Sys.getenv("NIPAT_SETTINGS_HELPER", unset="/opt/nipat/lib/nipat_scientific/settings.R"))
-nipat_cfg <- nipat_settings("cpin")
+source(Sys.getenv("NEWPAT_PARALLEL_HELPER", unset="/opt/newpat/lib/newpat_scientific/parallel.R"))
+source(Sys.getenv("NEWPAT_SETTINGS_HELPER", unset="/opt/newpat/lib/newpat_scientific/settings.R"))
+newpat_cfg <- newpat_settings("cpin")
 
 parser <- ArgumentParser(description="Postnatal CPI from SNPcall or DNPcall trio outputs")
 parser$add_argument("--pileup_dir", required=TRUE)
@@ -34,13 +34,13 @@ args <- parser$parse_args()
 combos <- c("hom_hom", "hom_het", "het_hom", "het_het")
 selection <- setNames(vapply(combos, function(combo) {
   key <- paste0("include_", combo)
-  if (is.null(args[[key]])) nipat_cfg[[key]] else args[[key]] == "TRUE"
+  if (is.null(args[[key]])) newpat_cfg[[key]] else args[[key]] == "TRUE"
 }, logical(1)), combos)
 if (!any(selection)) stop("At least one genotype combination must be enabled")
 message("Selected combinations: ", paste(names(selection)[selection], collapse=", "))
 
 min_coverage <- args$min_coverage
-if (is.null(min_coverage)) min_coverage <- nipat_cfg$min_coverage
+if (is.null(min_coverage)) min_coverage <- newpat_cfg$min_coverage
 if (!is.null(min_coverage)) {
   if (!is.finite(min_coverage) || min_coverage < 1 ||
       min_coverage != floor(min_coverage) || min_coverage >= .Machine$integer.max) {
@@ -95,7 +95,7 @@ if (anyDuplicated(resolved_sources)) stop("One input file cannot identify distin
 
 ## Read coordinates from the frequency table and use them in every join.
 if (!file.exists(args$popfreq)) stop("popfreq file not found")
-population <- nipat_read_marker_table(args$popfreq, header=TRUE, sep="\t",
+population <- newpat_read_marker_table(args$popfreq, header=TRUE, sep="\t",
                          stringsAsFactors=FALSE, check.names=FALSE,
                          quote="", comment.char="", colClasses=c(chr="character"))
 
@@ -114,7 +114,7 @@ marker <- marker_type(population, "population frequencies")
 if (has_markers) {
   # DNPcall lists have five columns without a header; SNPcall lists have four.
   # A header is also accepted, with lower- or upper-case allele column names.
-  marker_list <- nipat_read_marker_table(args$markers, chromosome_column="V1", header=FALSE, sep="", quote="",
+  marker_list <- newpat_read_marker_table(args$markers, chromosome_column="V1", header=FALSE, sep="", quote="",
                             comment.char="", colClasses="character",
                             stringsAsFactors=FALSE, check.names=FALSE)
   marker_columns <- switch(as.character(ncol(marker_list)),
@@ -143,10 +143,10 @@ for (key in c("mismatch_probability_snp", "mismatch_probability_dnp")) {
     probability <- suppressWarnings(as.numeric(args[[key]]))
     if (!is.finite(probability) || probability <= 0 || probability > 1)
       stop("--", key, " must be a finite number in (0, 1]")
-    nipat_cfg[[key]] <- probability
+    newpat_cfg[[key]] <- probability
   }
 }
-mismatch_probability <- nipat_cfg[[paste0("mismatch_probability_", tolower(marker))]]
+mismatch_probability <- newpat_cfg[[paste0("mismatch_probability_", tolower(marker))]]
 message("Mismatch probability used for ", marker, ": ", sprintf("%.17g", mismatch_probability))
 
 site_key <- function(x) {
@@ -218,7 +218,7 @@ calling_cache <- new.env(parent=emptyenv())
 read_calls <- function(path) {
   path <- normalizePath(path, mustWork=TRUE)
   if (exists(path, envir=calling_cache, inherits=FALSE)) return(get(path, envir=calling_cache))
-  x <- nipat_read_marker_table(path, header=TRUE, check.names=FALSE, stringsAsFactors=FALSE,
+  x <- newpat_read_marker_table(path, header=TRUE, check.names=FALSE, stringsAsFactors=FALSE,
                   colClasses=c(chr="character", REF="character", ALT="character"))
   if (marker_type(x, path) != marker) stop(path, ": format differs from population frequencies")
   check_sites(x, c(site_columns, "REF", "ALT", "N_REF", "N_ALT", "N_Other", "total_count"), path)
@@ -258,16 +258,16 @@ read_calls <- function(path) {
 # Genotype intervals follow the cfDNA script. Intermediate ratios are unassigned.
 classify_genotype <- function(ratio) {
   gt <- rep(NA_character_, length(ratio))
-  gt[is.finite(ratio) & ratio >= nipat_cfg$homozygous_ref_min] <- "0/0"
-  gt[is.finite(ratio) & ratio <= nipat_cfg$homozygous_alt_max] <- "1/1"
-  gt[is.finite(ratio) & ratio >= nipat_cfg$heterozygous_min & ratio <= nipat_cfg$heterozygous_max] <- "0/1"
+  gt[is.finite(ratio) & ratio >= newpat_cfg$homozygous_ref_min] <- "0/0"
+  gt[is.finite(ratio) & ratio <= newpat_cfg$homozygous_alt_max] <- "1/1"
+  gt[is.finite(ratio) & ratio >= newpat_cfg$heterozygous_min & ratio <= newpat_cfg$heterozygous_max] <- "0/1"
   gt
 }
 
 # Apply the same Other/total filter separately to every sample.
 passes_quality <- function(ref, alt, other, total) {
   ratio <- other / total
-  valid <- total > 0 & (ref + alt) > 0 & is.finite(ratio) & ratio <= nipat_cfg$other_fraction_max
+  valid <- total > 0 & (ref + alt) > 0 & is.finite(ratio) & ratio <= newpat_cfg$other_fraction_max
   if (!is.null(min_coverage)) valid <- valid & total >= min_coverage
   valid
 }
@@ -369,9 +369,9 @@ for (ids in trios) {
   invisible(prepare_sample(ids[2], args$father_prefix, "father"))
   invisible(prepare_sample(ids[3], args$child_prefix, "child"))
 }
-nipat_cfg["min_coverage"] <- list(min_coverage)
-for (combo in combos) nipat_cfg[[paste0("include_", combo)]] <- selection[[combo]]
-nipat_write_settings("cpin", nipat_cfg, args$out_dir)
+newpat_cfg["min_coverage"] <- list(min_coverage)
+for (combo in combos) newpat_cfg[[paste0("include_", combo)]] <- selection[[combo]]
+newpat_write_settings("cpin", newpat_cfg, args$out_dir)
 
 process_trio <- function(ids) {
   trio_name <- paste0("Mother", ids[1], "-Father", ids[2], "-Child", ids[3],
@@ -466,7 +466,7 @@ process_trio <- function(ids) {
     Include_het_hom=selection[["het_hom"]], Include_het_het=selection[["het_het"]])
 }
 
-summary <- bind_rows(nipat_parallel_lapply(trios, process_trio, label="cpin-trios"))
+summary <- bind_rows(newpat_parallel_lapply(trios, process_trio, label="cpin-trios"))
 write.table(summary, file.path(args$out_dir, "Summary_Postnatal_CPI.txt"),
             sep="\t", quote=FALSE, row.names=FALSE, na="NA")
 for (trio in summary$Trio[summary$N_sites == 0L]) {

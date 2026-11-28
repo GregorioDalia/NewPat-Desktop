@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from nipat.windows_wsl_prerequisites import (
+from newpat.windows_wsl_prerequisites import (
     _allowed_command, configure, modern_wsl, run_elevated, supports, wsl_command,
 )
 
@@ -106,7 +106,7 @@ def test_elevation_runs_only_system_binary_and_closes_exact_process_handle_on_ti
 
     shell.ShellExecuteExW.side_effect = start
     libraries = {"shell32": shell, "kernel32": kernel, "ole32": ole}
-    with patch("nipat.windows_wsl_prerequisites.system_directory", return_value=Path("C:/Windows/System32")), \
+    with patch("newpat.windows_wsl_prerequisites.system_directory", return_value=Path("C:/Windows/System32")), \
             patch("ctypes.WinDLL", create=True, side_effect=lambda name, **_: libraries[name]):
         assert run_elevated("wsl.exe", ["--update", "--web-download"]) == 1460
     assert calls == [("runas", str(Path("C:/Windows/System32/wsl.exe")), "--update --web-download")]
@@ -120,7 +120,7 @@ def test_cancelled_uac_is_reported_without_waiting_or_running_more_commands():
     ole.CoInitializeEx.return_value = 0
     shell.ShellExecuteExW.return_value = False
     libraries = {"shell32": shell, "kernel32": kernel, "ole32": ole}
-    with patch("nipat.windows_wsl_prerequisites.system_directory", return_value=Path("C:/Windows/System32")), \
+    with patch("newpat.windows_wsl_prerequisites.system_directory", return_value=Path("C:/Windows/System32")), \
             patch("ctypes.WinDLL", create=True, side_effect=lambda name, **_: libraries[name]), \
             patch("ctypes.get_last_error", create=True, return_value=1223):
         assert run_elevated("wsl.exe", ["--update"]) == 1223

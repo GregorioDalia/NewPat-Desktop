@@ -91,12 +91,12 @@ def audit(bundle: Path, root: Path, samtools: str) -> dict:
     scratch = root / "scratch"
     progress.mkdir()
     scratch.mkdir()
-    library = bundle / ("lib" if (bundle / "lib").is_dir() else "src") / "nipat_scientific"
+    library = bundle / ("lib" if (bundle / "lib").is_dir() else "src") / "newpat_scientific"
     environment = os.environ.copy()
-    environment.update(NIPAT_DNP_BLOCK_LOCI="1", NIPAT_SCRATCH_ROOT=str(scratch),
-                       NIPAT_PROGRESS_DIR=str(progress), NIPAT_DNP_BLOCKS_HELPER=str(library / "dnp_blocks.R"))
-    environment.pop("NIPAT_PERFORMANCE_DIR", None)
-    environment.pop("NIPAT_DNP_KEEP_PILEUP", None)
+    environment.update(NEWPAT_DNP_BLOCK_LOCI="1", NEWPAT_SCRATCH_ROOT=str(scratch),
+                       NEWPAT_PROGRESS_DIR=str(progress), NEWPAT_DNP_BLOCKS_HELPER=str(library / "dnp_blocks.R"))
+    environment.pop("NEWPAT_PERFORMANCE_DIR", None)
+    environment.pop("NEWPAT_DNP_KEEP_PILEUP", None)
     run_dir = root / "run"
     engine = bundle / "engine/main.py"
     command = [sys.executable, str(engine), "execute-plan", "--plan", str(plan_file), "--run-dir", str(run_dir), "--json"]
@@ -108,7 +108,7 @@ def audit(bundle: Path, root: Path, samtools: str) -> dict:
             deadline = time.monotonic() + 90
             while time.monotonic() < deadline and process.poll() is None:
                 observed = next((event for event in events(progress)
-                                 if event.get("interface") == "nipat-progress-v1"
+                                 if event.get("interface") == "newpat-progress-v1"
                                  and event.get("phase") == "dnp-processing" and event.get("event") == "progress"
                                  and event.get("unit") == "loci" and event.get("total") == loci
                                  and 0 < event.get("completed", 0) < loci), None)

@@ -13,7 +13,7 @@ import tempfile
 import xml.etree.ElementTree as ET
 
 _SPEC = importlib.util.spec_from_file_location(
-    "nipat_mac_builder", Path(__file__).with_name("build_macos_installer.py"))
+    "newpat_mac_builder", Path(__file__).with_name("build_macos_installer.py"))
 builder = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(builder)
 
@@ -46,7 +46,11 @@ def verify_payload(payload: Path, common: dict, record: dict) -> dict:
         if manifest.get(field) != common.get(field) or record.get(field) != common.get(field):
             raise ValueError(f"Package scientific/source identity mismatch: {field}")
     if (manifest.get("channel") != "desktop" or manifest.get("provider") != "lima"
+            or manifest.get("bundle_identifier") != builder.IDENTIFIER
+            or record.get("architecture") not in builder.SCIENTIFIC_PLATFORMS
             or manifest.get("architecture") != record.get("architecture")
+            or manifest.get("scientific_platform") != record.get("scientific_platform")
+            or manifest.get("scientific_platform") != builder.SCIENTIFIC_PLATFORMS.get(record["architecture"])
             or manifest.get("runtime_vm_qualified") is not False
             or record.get("runtime_vm_qualified") is not False):
         raise ValueError("Invalid package qualification or architecture.")
@@ -72,13 +76,14 @@ def verify_payload(payload: Path, common: dict, record: dict) -> dict:
             or info.get("LSMinimumSystemVersion") != "14.0"
             or info.get("CFBundleExecutable") != "NewPat"):
         raise ValueError("Invalid macOS application identity or OS requirement.")
-    if (common["version"].startswith("0.9.")
-            and info.get("NSAppTransportSecurity", {}).get("NSAllowsLocalNetworking") is not True):
+    if info.get("NSAppTransportSecurity", {}).get("NSAllowsLocalNetworking") is not True:
         raise ValueError("Native GUI local networking permission is missing.")
     executable = app / "Contents/MacOS/NewPat"
     if not executable.is_file() or not executable.stat().st_mode & 0o111:
         raise ValueError("Native application launcher is missing or not executable.")
-    for name in ("NewPat.command", "NIPAT.command", "python/bin/python3.12", "lima/bin/limactl"):
+    if {path.name for path in resources.glob("*.command")} != {"NewPat.command"}:
+        raise ValueError("Expected a single NewPat command launcher.")
+    for name in ("NewPat.command", "python/bin/python3.12", "lima/bin/limactl"):
         if not (resources / name).stat().st_mode & 0o111:
             raise ValueError(f"Executable permissions missing: {name}")
     return manifest
@@ -88,16 +93,17 @@ def verify(package: Path, common_manifest: Path, *, build_record: Path | None = 
     if sys.platform != "darwin":
         raise ValueError("Verify the real .pkg on a macOS runner; Linux tests validate fixture payloads only.")
     common = builder.read_json(common_manifest)
-    builder.assets.validate_manifest(common)
     record = builder.read_json(build_record or package.parent / builder.BUILD_RECORD)
+    builder.validate_scientific_manifest(common, record["architecture"])
     if (package.is_symlink() or not package.is_file()
+            or package.name != f"NewPat-{common['version']}-macos-{record['architecture']}.pkg"
             or package.name != record.get("package")
             or package.stat().st_size != record.get("package_size")
             or builder.bundle.sha256_file(package) != record.get("package_sha256")):
         raise ValueError("Package bytes differ from the build record.")
     if record.get("architecture") != platform.machine():
         raise ValueError("Run package verification on its native architecture.")
-    with tempfile.TemporaryDirectory(prefix="nipat-macos-verification-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="newpat-macos-verification-") as temporary:
         expanded = Path(temporary) / "expanded"
         subprocess.run(["/usr/sbin/pkgutil", "--expand-full", str(package), str(expanded)], check=True)
         candidates = list(expanded.glob("*/Payload/Applications/" + builder.APP_NAME))
@@ -112,6 +118,11 @@ def verify(package: Path, common_manifest: Path, *, build_record: Path | None = 
         if (options is None or options.get("hostArchitectures") != record["architecture"]
                 or minimum is None or minimum.get("min") != "14.0"):
             raise ValueError("Installer OS/architecture restrictions are missing.")
+        package_ref = distribution.find("pkg-ref")
+        receipt = ET.parse(payload.parent / "PackageInfo").getroot()
+        if (package_ref is None or package_ref.get("id") != builder.IDENTIFIER
+                or receipt.get("identifier") != builder.IDENTIFIER):
+            raise ValueError("Unexpected macOS installer receipt identifier.")
         subprocess.run(["/usr/bin/codesign", "--verify", "--deep", "--strict", str(app)], check=True)
         resources = app / "Contents/Resources"
         python = resources / "python/bin/python3.12"
@@ -130,32 +141,53 @@ def verify(package: Path, common_manifest: Path, *, build_record: Path | None = 
         require_virtualization_entitlement(entitlements.stdout, entitlements.stderr)
         cli_version = subprocess.check_output([
             str(python), "-I", "-B", "-c",
-            "import sys;sys.path.insert(0,sys.argv.pop(1));from nipat.cli import main;raise SystemExit(main())",
+            "import sys;sys.path.insert(0,sys.argv.pop(1));from newpat.cli import main;raise SystemExit(main())",
             str(resources / "app/src"), "--version"], text=True).strip()
         if cli_version != "NewPat " + common["version"]:
             raise ValueError("Packaged CLI does not report the expected version.")
-        if common["version"].startswith("0.9."):
-            # Run inside the unpacked package with its own Python, Cocoa and
-            # WebKit. No VM or external browser participates in this check.
-            smoke = resources / "app/scripts/verify_gui_app.py"
-            subprocess.run([
-                str(python), "-I", "-B", str(smoke),
-                "--app", str(resources / "app"), "--python", str(python),
-                "--workspace", str(Path(temporary) / "native GUI workspace"),
-                "--report", str(package.parent / "macos-native-smoke.json"),
-                "--screenshot", str(package.parent / "macos-native-smoke.png"),
-            ], check=True, timeout=180)
-        validate_template = '''import json, pathlib, subprocess, sys
+        # Run inside the unpacked package with its own Python, Cocoa and
+        # WebKit. No VM or external browser participates in this check.
+        smoke = resources / "app/scripts/verify_gui_app.py"
+        subprocess.run([
+            str(python), "-I", "-B", str(smoke),
+            "--app", str(resources / "app"), "--python", str(python),
+            "--workspace", str(Path(temporary) / "native GUI workspace"),
+            "--report", str(package.parent / "macos-native-smoke.json"),
+            "--screenshot", str(package.parent / "macos-native-smoke.png"),
+        ], check=True, timeout=180)
+        validate_template = '''import json, os, pathlib, subprocess, sys, tempfile
 sys.path.insert(0, sys.argv.pop(1))
-from nipat.macos_runtime import LimaRuntime
+from newpat.macos_runtime import LimaRuntime
 project, executable, destination = map(pathlib.Path, sys.argv[1:])
 home = pathlib.Path.home()
-runtime = LimaRuntime(project, home / "Library/Application Support/NIPAT-Desktop",
+runtime = LimaRuntime(project, home / "Library/Application Support/NewPat-Desktop",
                       executable, home=home)
 manifest = json.loads((project / ".distribution/macos-manifest.json").read_text())
 owner = {"token": "d" * 32, "mounts": runtime.default_mounts()}
-destination.write_text(json.dumps(runtime.template(manifest, owner)))
+template = runtime.template(manifest, owner)
+if template["vmOpts"]["vz"]["rosetta"] != {"enabled": False, "binfmt": False}:
+    raise ValueError("The native guest must disable Rosetta and its binary handler")
+destination.write_text(json.dumps(template))
 subprocess.run([*runtime.host_prefix(), "validate", str(destination)], check=True)
+# Inspect a stopped VZ instance with the packaged limactl. The disposable home
+# keeps this check separate from the runner's Lima instances; no guest boots.
+with tempfile.TemporaryDirectory(prefix="np-", dir="/private/tmp") as directory:
+    home = pathlib.Path(directory)
+    previous = LimaRuntime(project, home / "Library/Application Support/NewPat-Desktop", executable, home=home)
+    if (previous.instance_dir != home / ".newpat/lima/newpat"
+            or previous.requires_mount_repair() or previous.lima_home.exists() or previous.workspace.exists()):
+        raise ValueError("A clean user account must use a new dedicated NewPat runtime")
+    previous.instance_dir.mkdir(parents=True)
+    (previous.instance_dir / "lima.yaml").write_bytes(destination.read_bytes())
+    (previous.instance_dir / "diffdisk").write_bytes(b"previous instance")
+    if not previous.requires_mount_repair():
+        raise ValueError("Orphaned package fixture did not request recovery")
+    os.environ.update(NEWPAT_RUNTIME_MAINTENANCE="1", NEWPAT_LAUNCHER_PID=str(os.getppid()))
+    with previous.lock():
+        previous._preserve_stopped_instance()
+    saved, = previous.lima_home.parent.glob("recovered-newpat-*/newpat/diffdisk")
+    if previous.instance_dir.exists() or saved.read_bytes() != b"previous instance":
+        raise ValueError("Stopped package fixture was not preserved")
 '''
         subprocess.run([str(python), "-I", "-B", "-c", validate_template,
                         str(resources / "app/src"), str(resources / "app"),
@@ -163,14 +195,16 @@ subprocess.run([*runtime.host_prefix(), "validate", str(destination)], check=Tru
                         str(Path(temporary) / "lima.yaml")], check=True)
     return {
         "schema_version": 1, "verified": True, "platform": "darwin",
-        "architecture": record["architecture"], "version": common["version"],
+        "architecture": record["architecture"], "scientific_platform": installed["scientific_platform"],
+        "version": common["version"],
         "source_commit": common["source_commit"], "package_sha256": record["package_sha256"],
         "scientific_asset_sha256": record["scientific_asset_sha256"],
         "runtime_image": common["runtime_image"], "runtime_vm_qualified": False,
         "checks": ["package-sha256", "full-payload-inventory", "scientific-archive-reuse",
                    "source-inventory", "installer-os-and-architecture", "ad-hoc-code-signatures",
                    "native-python", "native-lima", "lima-virtualization-entitlement",
-                   "packaged-cli-version", "generated-lima-template"],
+                   "packaged-cli-version", "generated-lima-template", "docker-archive-architecture",
+                   "rosetta-disabled", "newpat-clean-install-identity"],
         "not_tested": ["clean-installation", "first-launch-vm-provisioning", "scientific-execution",
                        "upgrade", "runtime-removal", "gatekeeper-policy"],
     }

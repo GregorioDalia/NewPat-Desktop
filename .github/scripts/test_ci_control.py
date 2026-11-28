@@ -12,7 +12,7 @@ SPEC = importlib.util.spec_from_file_location("ci_control", Path(__file__).with_
 control = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(control)
 
-REPOSITORY = "example/nipat"
+REPOSITORY = "example/newpat"
 HEAD = "a" * 40
 EVENT = {"repository": {"default_branch": "main"}}
 
@@ -39,7 +39,7 @@ class CheckOwnership(unittest.TestCase):
     def test_different_commit_fork_branch_or_closed_pr_never_suppresses_checks(self):
         alternatives = [self.pull() for _ in range(5)]
         alternatives[0]["head"]["sha"] = "b" * 40
-        alternatives[1]["head"]["repo"]["full_name"] = "another/nipat"
+        alternatives[1]["head"]["repo"]["full_name"] = "another/newpat"
         alternatives[2]["head"]["ref"] = "different"
         alternatives[3]["state"] = "closed"
         alternatives[4]["number"] = "42"
@@ -266,7 +266,7 @@ class RequiredGate(unittest.TestCase):
         for name in ("scientific", "caller-smoke"):
             job = workflow.split(f"\n  {name}:\n", 1)[1].split("\n  runtime:\n", 1)[0].split("\n  caller-smoke:", 1)[0]
             smoke_step, = [step for step in job.split("      - name: ") if "verify_caller_smoke.py" in step]
-            self.assertIn('run: python .github/scripts/verify_caller_smoke.py --image "$NIPAT_RUNTIME_IMAGE"', smoke_step)
+            self.assertIn('run: python .github/scripts/verify_caller_smoke.py --image "$NEWPAT_RUNTIME_IMAGE"', smoke_step)
             self.assertNotIn("continue-on-error:", smoke_step)
             self.assertNotIn("        if:", smoke_step)
         self.assertIn("needs.changes.outputs.caller_smoke == 'true'", workflow)
@@ -277,7 +277,7 @@ class RequiredGate(unittest.TestCase):
         steps = linux.split("      - name: ")
         tests, = [step for step in steps if "coverage run -m pytest" in step]
         reports, = [step for step in steps if "coverage json" in step]
-        upload, = [step for step in steps if "name: nipat-python-quality" in step]
+        upload, = [step for step in steps if "name: newpat-python-quality" in step]
         self.assertIn("id: python_tests", tests)
         self.assertIn("id: coverage_reports", reports)
         self.assertIn("if: ${{ !cancelled() && (steps.python_tests.outcome == 'success' || "

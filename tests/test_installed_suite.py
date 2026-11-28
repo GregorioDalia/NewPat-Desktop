@@ -83,22 +83,26 @@ class InstalledSuiteTests(unittest.TestCase):
 
     def test_integrity_observes_the_selected_zip_installations_preferences(self):
         installation = self.root.resolve() / "local-zip"
-        project = installation / "versions" / ("0.9.10-" + "a" * 40)
+        project = installation / "versions" / ("0.9.99-" + "a" * 40)
+        (project / "src/newpat").mkdir(parents=True)
+        (project / "src/newpat/__init__.py").touch()
+        driver = suite.Suite(project, self.root / "zip-session", "a" * 40,
+                             installation_version="0.9.99", installation_commit="a" * 40)
         self.write(installation / "installation.json",
-                   {"schema_version": 1, "product": "nipat-desktop", "installation_method": "zip"})
+                   {"schema_version": 1, "product": "newpat-desktop", "installation_method": "zip"})
         self.write(project / ".runtime" / "zip-install.json",
                    {"schema_version": 1, "installation_method": "zip", "root": str(installation)})
         preferences = installation / "preferences.json"
         self.write(preferences, {"profile": "before"})
         with patch.object(suite.sys, "platform", "win32"), patch.dict(
-            os.environ, {"NIPAT_PROJECT_DIR": str(project), "LOCALAPPDATA": str(installation.parent),
-                         "NIPAT_SETTINGS_FILE": ""}
+            os.environ, {"NEWPAT_PROJECT_DIR": str(project), "LOCALAPPDATA": str(installation.parent),
+                         "NEWPAT_SETTINGS_FILE": ""}
         ):
-            self.driver.snapshot_installation()
-        self.assertIn(str(preferences), self.driver.identity_before)
+            driver.snapshot_installation()
+        self.assertIn(str(preferences), driver.identity_before)
         self.write(preferences, {"profile": "after"})
-        self.driver.integrity()
-        self.assertEqual(self.driver.report["checks"][-1]["status"], "FAIL")
+        driver.integrity()
+        self.assertEqual(driver.report["checks"][-1]["status"], "FAIL")
 
     def test_installed_release_identity_is_explicit_and_mismatches_fail_before_science(self):
         version, commit = "0.8.60", "c" * 40
@@ -131,8 +135,8 @@ class InstalledSuiteTests(unittest.TestCase):
         driver.report.update(status="FAIL", summary={})
         driver.write_html()
         markup = (driver.session / "report.html").read_text()
-        self.assertIn("<h1>Collaudo NIPAT 0.8.60</h1>", markup)
-        self.assertNotIn("Collaudo NIPAT 0.8.50", markup)
+        self.assertIn("<h1>Collaudo NewPat 0.8.60</h1>", markup)
+        self.assertNotIn("Collaudo NewPat 0.8.50", markup)
 
     def test_invalid_expected_installation_identity_creates_no_session(self):
         destination = self.root / "invalid-identity"
@@ -147,7 +151,7 @@ class InstalledSuiteTests(unittest.TestCase):
         return command[command.index("-File") + 2:]
 
     def test_every_probe_passes_the_real_cli_option_checks_before_runtime_access(self):
-        from nipat import cli
+        from newpat import cli
 
         probes = (["doctor", "--runtime"], ["settings", "--json"],
                   ["resources", "inspect", "--json"],
@@ -169,11 +173,11 @@ class InstalledSuiteTests(unittest.TestCase):
 
     def test_settings_probe_runs_the_real_cli_without_analysis_only_flags(self):
         environment = {key: value for key, value in os.environ.items()
-                       if not key.upper().startswith("NIPAT_")
+                       if not key.upper().startswith("NEWPAT_")
                        and key.upper() not in {"PYTHONHOME", "PYTHONPATH"}}
         environment.update(PYTHONPATH=str(ROOT / "src"), PYTHONIOENCODING="utf-8")
         result = subprocess.run(
-            [sys.executable, "-X", "utf8", "-m", "nipat", *self.cli_arguments(["settings", "--json"])],
+            [sys.executable, "-X", "utf8", "-m", "newpat", *self.cli_arguments(["settings", "--json"])],
             cwd=ROOT, env=environment, capture_output=True, text=True, encoding="utf-8", timeout=30,
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -234,6 +238,15 @@ class InstalledSuiteTests(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, re.escape(name)):
                         case["validate"](run)
                     shutil.copyfile(fixture / "outputs" / sample / name, output)
+        both_formats = models.fetal_sex_cases(fixture, self.driver.generated / "fetal-sex")
+        self.assertEqual(len(both_formats), 4)
+        for case, sample, original in zip(both_formats[1::2], models.FETAL_SEX_EXAMPLES, cases, strict=True):
+            autosomes, x, y = models.fetal_sex_inputs(fixture, sample)
+            merged = case["args"][2]
+            self.assertEqual(case["args"], ["fetal-sex", "--dnp", merged, "--y", y])
+            self.assertEqual(merged.name, autosomes.name)
+            self.assertEqual(merged.read_bytes(), autosomes.read_bytes() + x.read_bytes().partition(b"\n")[2])
+            self.assertEqual(case["validate"](self.driver.runs / sample), original["validate"](self.driver.runs / sample))
         metadata = {"combined": self.root, "positive": self.root,
                     "bams": [self.root / f"sample{i}.bam" for i in range(3)],
                     "pileups": [self.root / f"sample{i}.pileup" for i in range(3)]}

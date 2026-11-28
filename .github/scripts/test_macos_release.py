@@ -1,8 +1,14 @@
 import importlib.util
 import json
 from pathlib import Path
+import shutil
+import stat
 import tempfile
 import unittest
+from unittest.mock import patch
+import zipfile
+
+import macos_trial
 
 SPEC = importlib.util.spec_from_file_location("macos_release", Path(__file__).with_name("macos_release.py"))
 release = importlib.util.module_from_spec(SPEC)
@@ -12,7 +18,7 @@ SPEC.loader.exec_module(release)
 def native_fixture(root, architecture, manifest):
     directory = root / architecture
     directory.mkdir()
-    name = f"NIPAT-{manifest['version']}-macos-{architecture}.pkg"
+    name = f"NewPat-{manifest['version']}-macos-{architecture}.pkg"
     package = directory / name
     package.write_bytes(b"verified native package fixture " + architecture.encode())
     common = {
@@ -32,6 +38,51 @@ def native_fixture(root, architecture, manifest):
 
 
 class MacosReleaseTests(unittest.TestCase):
+    def test_final_trial_binds_the_archived_bytes_commit_and_clickable_launcher(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            package = folder / macos_trial.PACKAGE
+            package.write_bytes(b"reviewed arm64 package")
+            commit = "a" * 40
+            sha = release.digest(package)
+            record = {"version": "0.9.99", "source_commit": commit, "publication_authorized": False,
+                      "macos_arm64": {"file": package.name, "size": package.stat().st_size, "sha256": sha}}
+            evidence = folder / "installer-set-check.json"
+            evidence.write_text(json.dumps(record))
+            output = folder / "trial.zip"
+            # Model a checkout without an executable bit while leaving tracked
+            # sources untouched. A Windows checkout has the same limitation.
+            inputs = {macos_trial.LAUNCHER: "installer/macos/" + macos_trial.LAUNCHER,
+                      "mini_suite_macos.py": "scripts/mini_suite_macos.py",
+                      "LEGGIMI.txt": "docs/MINI_SUITE_MAC.md"}
+            checkout = folder / "checkout"
+            for source in inputs.values():
+                destination = checkout / source
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(macos_trial.PROJECT / source, destination)
+                destination.chmod(0o644)
+            with patch.object(macos_trial, "PROJECT", checkout):
+                macos_trial.build_kit(evidence, folder, commit, output)
+            with zipfile.ZipFile(output) as kit:
+                self.assertEqual(set(kit.namelist()), {package.name, macos_trial.LAUNCHER, "LEGGIMI.txt",
+                                                       "mini_suite_macos.py", "source-commit", "SHA256SUMS"})
+                self.assertEqual(kit.read(package.name), package.read_bytes())
+                self.assertEqual(kit.read("source-commit").decode(), commit + "\n")
+                self.assertEqual(kit.read("SHA256SUMS").decode(), f"{sha}  {package.name}\n")
+                for name, source in inputs.items():
+                    self.assertEqual(kit.read(name), (checkout / source).read_bytes())
+                for entry in kit.infolist():
+                    mode = 0o755 if entry.filename == macos_trial.LAUNCHER else 0o644
+                    self.assertEqual(entry.create_system, 3)
+                    self.assertEqual(entry.external_attr >> 16, stat.S_IFREG | mode)
+            output.unlink()
+            with self.assertRaisesRegex(ValueError, "exact source"):
+                macos_trial.build_kit(evidence, folder, "b" * 40, output)
+            package.write_bytes(b"X" * package.stat().st_size)
+            with self.assertRaisesRegex(ValueError, "SHA-256"):
+                macos_trial.build_kit(evidence, folder, commit, output)
+            self.assertFalse(output.exists())
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
@@ -52,6 +103,35 @@ class MacosReleaseTests(unittest.TestCase):
         report = json.loads(path.read_text())
         report[name] = value
         path.write_text(json.dumps(report))
+
+    def test_native_release_binds_arm_to_its_own_image_and_the_common_sources(self):
+        common = dict(self.manifest, version="0.9.99", release_tag="v0.9.99", source_sha256={"engine.py": "1" * 64})
+        arm = dict(common, schema_version=1, scientific_platform="linux/arm64", runtime_image="sha256:" + "e" * 64,
+                   engine_description_sha256="3" * 64,
+                   assets={"scientific_image": {"file": "newpat-scientific-0.9.99-arm64.tar.gz", "sha256": "d" * 64, "size": 95}})
+        root = self.root / "new"
+        root.mkdir()
+        directories = {}
+        for arch, science in (("arm64", arm), ("x86_64", common)):
+            folder = directories[arch] = native_fixture(root, arch, science)
+            for filename in ("macos-installer-build.json", "macos-package-verification.json"):
+                path = folder / filename
+                record = json.loads(path.read_bytes())
+                record["scientific_platform"] = "linux/arm64" if arch == "arm64" else "linux/amd64"
+                if "checks" in record:
+                    record["checks"] += ["docker-archive-architecture", "rosetta-disabled"]
+                    record["checks"].append("newpat-clean-install-identity")
+                path.write_text(json.dumps(record))
+        identity = directories["arm64"] / "arm64-scientific.json"
+        identity.write_text(json.dumps(arm))
+        pair = dict(self.pair, version="0.9.99")
+        result = release.extend_installer_set(pair, directories, common)
+        self.assertEqual(result["macos_arm64"]["scientific_identity_sha256"], release.digest(identity))
+        for changes in ({"runtime_image": common["runtime_image"]}, {"source_sha256": {}},
+                        {"scientific_platform": "linux/amd64"}, {"source_commit": "f" * 40}):
+            identity.write_text(json.dumps(dict(arm, **changes)))
+            with self.assertRaisesRegex(ValueError, "ARM64"):
+                release.extend_installer_set(pair, directories, common)
 
     def test_exact_native_packages_extend_pair_without_claiming_vm_execution(self):
         result = self.extend()

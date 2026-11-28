@@ -9,8 +9,8 @@ import zipfile
 
 import pytest
 
-from nipat.gui.results import ResultsStore, column_description
-from nipat.gui.app import DesktopApplication
+from newpat.desktop.results import ResultsStore, column_description
+from newpat.desktop.app import DesktopApplication
 
 
 @pytest.fixture
@@ -38,7 +38,7 @@ def make_run(root, module="contamination", name="example", marker="DNP", mapping
     run.mkdir(parents=True)
     write_json(run / "run.json", {"schema_version": 1, "workflow": module, "status": "succeeded",
                "run_name": "Esperimento è", "started_at": "2026-11-15T10:00:00Z", "finished_at": "2026-11-15T10:01:00Z",
-               "source": {"nipat_version": "0.8.99"}, "parameters": {"marker_type": marker, "sample_mapping": mapping or [
+               "source": {"newpat_version": "0.8.99"}, "parameters": {"marker_type": marker, "sample_mapping": mapping or [
                    {"sample_id": "A", "original_path": r"D:\campioni\Campione è.txt"}]}})
     (run / "output").mkdir()
     return run
@@ -116,7 +116,7 @@ def test_invalid_tables_and_mid_read_mutation_are_rejected(archive, monkeypatch)
     with pytest.raises(ValueError, match="completa"):
         store.table("example", f["id"])
     target.write_text("a\tb\n1\t2\n")
-    from nipat.gui import results
+    from newpat.desktop import results
     original = results._rows
     def changed(path):
         yield from original(path)
@@ -306,7 +306,7 @@ def test_prenatal_guides_require_valid_recorded_parameters_and_completed_step(ar
 
 def test_prenatal_workflow_steps_do_not_share_guides(archive):
     from test_workflow_five_modules import plan_for
-    from nipat_scientific.plan import validate_plan
+    from newpat_scientific.plan import validate_plan
     run = make_run(archive, "analysis")
     source = plan_for("SNP", called=False)
     prenatal = next(step for step in source["steps"] if step["workflow"] == "cpi")
@@ -392,7 +392,7 @@ def test_interactive_postnatal_curve_keeps_intervals_and_site_counts(archive):
 
 
 def test_interactive_curves_reject_partial_or_unbounded_reads_but_keep_original_table(archive, monkeypatch):
-    from nipat.gui import results
+    from newpat.desktop import results
 
     run = make_run(archive, "cpi")
     path = run / "output/curves/family_panel_1.tsv"
@@ -507,7 +507,7 @@ def test_export_roundtrip_preserves_scientific_identity_details_and_warnings(arc
     warning = {"code": "input.example", "message": "Original scientific warning"}
     if workflow:
         from test_workflow_five_modules import plan_for
-        from nipat_scientific.plan import validate_plan
+        from newpat_scientific.plan import validate_plan
         plan = validate_plan(plan_for("SNP", called=False))["plan"]
         steps = [{"id": step["id"], "workflow": step["workflow"], "status": "succeeded", "artifacts": {}}
                  for step in plan["steps"]]
@@ -632,7 +632,7 @@ def test_read_totals_preserve_integer_precision_and_missingness(archive):
 @pytest.mark.parametrize("explicit_marker", [True, False])
 def test_validated_workflow_preserves_snp_branch_without_callers(archive, explicit_marker):
     from test_workflow_five_modules import plan_for
-    from nipat_scientific.plan import validate_plan
+    from newpat_scientific.plan import validate_plan
     run = make_run(archive, "analysis")
     plan = validate_plan(plan_for("SNP", called=False))["plan"]
     if not explicit_marker:
@@ -663,7 +663,7 @@ def test_validated_workflow_preserves_snp_branch_without_callers(archive, explic
 
 def test_archive_reads_only_selected_cards_and_searches_all_runs(archive, monkeypatch):
     from unittest.mock import Mock
-    from nipat.gui import results
+    from newpat.desktop import results
     for number in range(36):
         make_run(archive, name=f"run-{number:02}", marker="DNP" if number % 2 else "SNP",
                  mapping=[{"sample_id": f"ID{number:02}", "original_path": f"Échantillon {number:02}.bam"}])

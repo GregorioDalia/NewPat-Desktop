@@ -3,8 +3,8 @@ import json
 
 import pytest
 
-from nipat.gui.analysis_report import build_report, report_case_options, report_cases
-from nipat.gui.results import ResultsStore
+from newpat.desktop.analysis_report import build_report, report_case_options, report_cases
+from newpat.desktop.results import ResultsStore
 from test_gui_results import artifact, make_run, table, validation, write_json
 
 
@@ -71,8 +71,7 @@ def test_prenatal_case_has_its_own_guides_and_curve(tmp_path):
     assert incomplete_curve["chart"] is None and incomplete_curve["notes"]
 
 
-@pytest.mark.parametrize("legacy", [False, True])
-def test_postnatal_scalar_and_historical_site_selections(tmp_path, legacy):
+def test_postnatal_scalar_and_its_contributing_sites(tmp_path):
     run = make_run(tmp_path, "cpin", marker="SNP")
     name = "native-family"
     headers = ["Trio", "Marker_type", "CPI", "Log10_CPI", "N_sites", "Matching_sites", "Mismatching_sites"]
@@ -80,12 +79,8 @@ def test_postnatal_scalar_and_historical_site_selections(tmp_path, legacy):
     settings = "output/scientific-settings.json"
     write_json(run / settings, {"schema_version": 1, "workflow": "cpin",
                                 "parameters": {"log_cpi_lower": -4, "log_cpi_upper": 4}})
-    if legacy:
-        headers.append("Analysis")
-        rows = [row + [subset] for subset in ["all_compatible_sites", "heterozygous_child_sites"]]
-    else:
-        headers.extend(["Mismatch_probability", "No_obligatory_allele_sites"])
-        rows = [row + ["0.001", "0"]]
+    headers.extend(["Mismatch_probability", "No_obligatory_allele_sites"])
+    rows = [row + ["0.001", "0"]]
     table(run / "output/Summary_Postnatal_CPI.txt", headers, rows)
     site = f"output/{name}_sites.txt"
     table(run / site, ["chr", "pos", "Status", "Paternity_Index"], [["chr1", "35", "eligible", "2"]])
@@ -94,21 +89,21 @@ def test_postnatal_scalar_and_historical_site_selections(tmp_path, legacy):
                             "settings": artifact(run, settings)})
     store = ResultsStore(tmp_path, language="en")
     cases = report_cases(store, "example")
-    assert len(cases) == (2 if legacy else 1)
+    assert len(cases) == 1
     report = build_report(store, "example", cases[0]["id"], detailed=True)
     assert report["facts"][0]["value"] == "8"
-    assert report["headline"] == ("Paternity conclusion unavailable" if legacy else "Inconclusive result")
-    if legacy:
-        assert report["table"] is None
-    else:
-        assert report["table"]["rows"][0][-1] == "2"
+    assert report["headline"] == "Inconclusive result"
+    assert report["table"]["rows"][0][-1] == "2"
+    assert report["charts"][-1]["title"] == "Contribution of individual sites to the CPI"
+    assert report["charts"][-1]["points"][0]["y"] == 2
     assert report["subject"] == "trio1"
     assert "from 3 sites" in report["result_basis"] and "allele frequencies" in report["result_basis"]
     assert report["subjects"] == [{"label": "Maternal sample", "value": "A · Campione è.txt"}]
     assert report["date"] == "2026-11-15T10:01:00Z" and report["version"] == "0.8.99"
-    if legacy:
-        assert all(case["selection"] for case in cases)
-        assert report["archive_entry"].endswith(" · All sites compatible with the mother")
+    # Subset rows do not identify which per-site observations belong in the report.
+    table(run / "output/Summary_Postnatal_CPI.txt", ["Trio", "Analysis", "CPI", "Log10_CPI"],
+          [[name, "heterozygous_child_sites", "8", "0.903089986991944"]])
+    assert report_cases(store, "example") == []
 
 
 @pytest.mark.parametrize(("module", "file"), [("dnp-call", "full_output_sample_0001.txt"), ("snp-call", "SNPcall_output.txt")])
@@ -213,7 +208,7 @@ def test_prenatal_chart_does_not_interpolate_across_an_absent_threshold(tmp_path
 
 
 def test_large_summary_exposes_partial_list_without_blocking_visible_results(tmp_path, monkeypatch):
-    from nipat.gui import results
+    from newpat.desktop import results
 
     run = make_run(tmp_path)
     table(run / "output/contamination_summary.txt", ["individuo", "informative_sites", "mean_contamination"],

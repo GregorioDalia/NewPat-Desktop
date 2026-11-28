@@ -1,19 +1,19 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-function Get-NipatProject {
+function Get-NewPatProject {
     return (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
 }
 
-function Resolve-NipatDirectory([string] $Directory) {
+function Resolve-NewPatDirectory([string] $Directory) {
     # Resolve from the caller's current location without requiring the directory to exist.
     # In particular, do not resolve relative settings against the launcher directory.
     return $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Directory)
 }
 
-function Set-NipatEnvironment([string] $Project) {
+function Set-NewPatEnvironment([string] $Project) {
     # These variables affect this child process only; the system is unchanged.
-    $env:NIPAT_PROJECT_DIR = $Project
+    $env:NEWPAT_PROJECT_DIR = $Project
     if (Test-Path -LiteralPath (Join-Path $Project '.runtime\zip-install.json') -PathType Leaf) {
         $env:PYTHONDONTWRITEBYTECODE = '1'
     }
@@ -23,8 +23,8 @@ function Set-NipatEnvironment([string] $Project) {
     $profile = $null
     if (Test-Path -LiteralPath $installerManifestPath -PathType Leaf) {
         . (Join-Path $Project 'installer\windows\bootstrap-common.ps1')
-        $installerManifest = Read-NipatInstallerManifest $installerManifestPath
-        $profile = Get-NipatInstallationProfile
+        $installerManifest = Read-NewPatInstallerManifest $installerManifestPath
+        $profile = Get-NewPatInstallationProfile
         if (-not (Test-Path -LiteralPath $backendFile -PathType Leaf)) {
             throw 'Installazione NewPat da completare: riaprire il setup della stessa versione.'
         }
@@ -46,12 +46,12 @@ function Set-NipatEnvironment([string] $Project) {
             -not [IO.Path]::IsPathRooted($installed.runs_dir)) {
             throw 'Configurazione dell installer non valida: riaprire la preparazione della propria installazione NewPat (collegamento locale per ZIP, menu Start per EXE).'
         }
-        Assert-NipatInstallationChannel $installed 'configurazione di avvio'
+        Assert-NewPatInstallationChannel $installed 'configurazione di avvio'
         $runtimeDirectory = ''
         if ($null -ne $installed.PSObject.Properties['runtime_dir']) { $runtimeDirectory = [string]$installed.runtime_dir }
-        Assert-NipatRuntimeNamespace $installed.wsl_distro $installerManifest.assets.rootfs.sha256 $runtimeDirectory
+        Assert-NewPatRuntimeNamespace $installed.wsl_distro $installerManifest.assets.rootfs.sha256 $runtimeDirectory
         if (Test-Path -LiteralPath (Join-Path $Project '.runtime\install-layout.json') -PathType Leaf) {
-            $layout = Read-NipatInstallLayout $Project
+            $layout = Read-NewPatInstallLayout $Project
             foreach ($name in @('app_dir', 'runtime_dir', 'cache_dir', 'data_dir', 'runs_dir')) {
                 if ($null -eq $installed.PSObject.Properties[$name] -or
                     [string]::IsNullOrWhiteSpace([string]$installed.$name) -or
@@ -64,36 +64,36 @@ function Set-NipatEnvironment([string] $Project) {
         # An installed application owns its defaults. An inherited shell may
         # belong to another installation. The application subsequently applies
         # its saved user preferences and explicit CLI flags to data/result paths.
-        foreach ($name in @('NIPAT_WORKSPACE_DIR', 'NIPAT_DATA_DIR', 'NIPAT_RUNS_DIR',
-            'NIPAT_BACKEND', 'NIPAT_WSL_DISTRO', 'NIPAT_RUNTIME_IMAGE')) {
+        foreach ($name in @('NEWPAT_WORKSPACE_DIR', 'NEWPAT_DATA_DIR', 'NEWPAT_RUNS_DIR',
+            'NEWPAT_BACKEND', 'NEWPAT_WSL_DISTRO', 'NEWPAT_RUNTIME_IMAGE')) {
             Remove-Item -LiteralPath ('Env:' + $name) -ErrorAction SilentlyContinue
         }
-        $env:NIPAT_BACKEND = 'wsl'
-        $env:NIPAT_WSL_DISTRO = $installed.wsl_distro
-        $env:NIPAT_RUNTIME_IMAGE = $installed.runtime_image
+        $env:NEWPAT_BACKEND = 'wsl'
+        $env:NEWPAT_WSL_DISTRO = $installed.wsl_distro
+        $env:NEWPAT_RUNTIME_IMAGE = $installed.runtime_image
     }
-    if ([string]::IsNullOrWhiteSpace($env:NIPAT_WORKSPACE_DIR)) {
+    if ([string]::IsNullOrWhiteSpace($env:NEWPAT_WORKSPACE_DIR)) {
         if ($null -ne $installed) {
-            $env:NIPAT_WORKSPACE_DIR = Split-Path -Parent $installed.data_dir
+            $env:NEWPAT_WORKSPACE_DIR = Split-Path -Parent $installed.data_dir
         } else {
-            $env:NIPAT_WORKSPACE_DIR = Split-Path -Parent $Project
+            $env:NEWPAT_WORKSPACE_DIR = Split-Path -Parent $Project
         }
     }
-    $env:NIPAT_WORKSPACE_DIR = Resolve-NipatDirectory $env:NIPAT_WORKSPACE_DIR
-    if ([string]::IsNullOrWhiteSpace($env:NIPAT_DATA_DIR)) {
-        if ($null -ne $installed) { $env:NIPAT_DATA_DIR = $installed.data_dir }
-        else { $env:NIPAT_DATA_DIR = Join-Path $env:NIPAT_WORKSPACE_DIR "data" }
+    $env:NEWPAT_WORKSPACE_DIR = Resolve-NewPatDirectory $env:NEWPAT_WORKSPACE_DIR
+    if ([string]::IsNullOrWhiteSpace($env:NEWPAT_DATA_DIR)) {
+        if ($null -ne $installed) { $env:NEWPAT_DATA_DIR = $installed.data_dir }
+        else { $env:NEWPAT_DATA_DIR = Join-Path $env:NEWPAT_WORKSPACE_DIR "data" }
     }
-    $env:NIPAT_DATA_DIR = Resolve-NipatDirectory $env:NIPAT_DATA_DIR
-    if ([string]::IsNullOrWhiteSpace($env:NIPAT_RUNS_DIR)) {
-        if ($null -ne $installed) { $env:NIPAT_RUNS_DIR = $installed.runs_dir }
-        else { $env:NIPAT_RUNS_DIR = Join-Path $env:NIPAT_WORKSPACE_DIR "runs" }
+    $env:NEWPAT_DATA_DIR = Resolve-NewPatDirectory $env:NEWPAT_DATA_DIR
+    if ([string]::IsNullOrWhiteSpace($env:NEWPAT_RUNS_DIR)) {
+        if ($null -ne $installed) { $env:NEWPAT_RUNS_DIR = $installed.runs_dir }
+        else { $env:NEWPAT_RUNS_DIR = Join-Path $env:NEWPAT_WORKSPACE_DIR "runs" }
     }
-    $env:NIPAT_RUNS_DIR = Resolve-NipatDirectory $env:NIPAT_RUNS_DIR
+    $env:NEWPAT_RUNS_DIR = Resolve-NewPatDirectory $env:NEWPAT_RUNS_DIR
 }
 
-function Initialize-NipatWritableDirectory([string] $Directory, [string] $Label) {
-    $probe = Join-Path $Directory (".nipat-write-check-" + [Guid]::NewGuid().ToString("N"))
+function Initialize-NewPatWritableDirectory([string] $Directory, [string] $Label) {
+    $probe = Join-Path $Directory (".newpat-write-check-" + [Guid]::NewGuid().ToString("N"))
     $stream = $null
     $created = $false
     try {
@@ -109,11 +109,11 @@ function Initialize-NipatWritableDirectory([string] $Directory, [string] $Label)
     }
 }
 
-function Get-NipatPython([string] $Project) {
+function Get-NewPatPython([string] $Project) {
     return (Join-Path $Project ".runtime\python\python.exe")
 }
 
-function Install-NipatPython([string] $Project) {
+function Install-NewPatPython([string] $Project) {
     if (-not [Environment]::Is64BitOperatingSystem) {
         throw "Questo pacchetto richiede Windows a 64 bit (x64)."
     }
@@ -124,8 +124,8 @@ function Install-NipatPython([string] $Project) {
     }
     $runtime = Join-Path $Project ".runtime"
     $pythonDirectory = Join-Path $runtime "python"
-    $python = Get-NipatPython $Project
-    $ready = Join-Path $pythonDirectory "nipat-python.ready"
+    $python = Get-NewPatPython $Project
+    $ready = Join-Path $pythonDirectory "newpat-python.ready"
     New-Item -ItemType Directory -Path $runtime -Force | Out-Null
     $archiveName = "python-3.12.10-embed-amd64.zip"
     $archive = Join-Path $Project ".distribution\$archiveName"
@@ -164,17 +164,17 @@ function Install-NipatPython([string] $Project) {
     # Relative paths keep the extracted project movable. No pip, site-packages or venv.
     @("python312.zip", ".", "..\..\src", "..\..") |
         Set-Content -LiteralPath (Join-Path $pythonDirectory "python312._pth") -Encoding ASCII
-    & $python -B -c "import sys; assert sys.version_info[:3] == (3,12,10); import nipat; print('Python locale:', sys.version.split()[0])" | Out-Host
+    & $python -B -c "import sys; assert sys.version_info[:3] == (3,12,10); import newpat; print('Python locale:', sys.version.split()[0])" | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Python portabile non funziona correttamente." }
     "3.12.10" | Set-Content -LiteralPath $ready -Encoding ASCII
     return $python
 }
 
-function Assert-NipatWslDevelopmentConfiguration {
-    if ($env:NIPAT_BACKEND -cne 'wsl' -or
-        [string]::IsNullOrWhiteSpace($env:NIPAT_WSL_DISTRO) -or
-        $env:NIPAT_WSL_DISTRO -cnotmatch '^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$' -or
-        $env:NIPAT_RUNTIME_IMAGE -cnotmatch '^sha256:[a-f0-9]{64}$') {
-        throw 'Per installare NewPat usare NewPat-Setup.exe. La preparazione del sorgente richiede un runtime WSL configurato: NIPAT_BACKEND=wsl, NIPAT_WSL_DISTRO e NIPAT_RUNTIME_IMAGE con ID sha256 completo. Consultare docs/WINDOWS_INSTALLER.md.'
+function Assert-NewPatWslDevelopmentConfiguration {
+    if ($env:NEWPAT_BACKEND -cne 'wsl' -or
+        [string]::IsNullOrWhiteSpace($env:NEWPAT_WSL_DISTRO) -or
+        $env:NEWPAT_WSL_DISTRO -cnotmatch '^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$' -or
+        $env:NEWPAT_RUNTIME_IMAGE -cnotmatch '^sha256:[a-f0-9]{64}$') {
+        throw 'Per installare NewPat usare NewPat-Setup.exe. La preparazione del sorgente richiede un runtime WSL configurato: NEWPAT_BACKEND=wsl, NEWPAT_WSL_DISTRO e NEWPAT_RUNTIME_IMAGE con ID sha256 completo. Consultare docs/WINDOWS_INSTALLER.md.'
     }
 }

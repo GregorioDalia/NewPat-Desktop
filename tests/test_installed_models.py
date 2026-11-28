@@ -40,7 +40,7 @@ class InstalledModelsTests(unittest.TestCase):
 
     def settings(self, workflow, **overrides):
         # These are observed payload metadata, not expected numerical answers.
-        registry = json.loads((ROOT / "src/nipat_scientific/settings_data.json").read_text())
+        registry = json.loads((ROOT / "src/newpat_scientific/settings_data.json").read_text())
         module = registry["workflows"][workflow]
         parameters = {name: entry["default"] for name, entry in module["parameters"].items()}
         parameters.update(overrides)
@@ -140,14 +140,14 @@ class InstalledModelsTests(unittest.TestCase):
 
     def test_expected_invalid_inputs_match_the_real_cli_diagnostic_before_execution(self):
         cases = models.build_cases(ROOT / "tests/fixtures", self.root / "generated")
-        environment = {**os.environ, "PYTHONPATH": str(ROOT / "src"), "NIPAT_PROJECT_DIR": str(ROOT),
-                       "NIPAT_WORKSPACE_DIR": str(self.root), "NIPAT_DATA_DIR": str(self.root / "data"),
-                       "NIPAT_RUNS_DIR": str(self.root / "runs"), "NIPAT_BACKEND": "native"}
+        environment = {**os.environ, "PYTHONPATH": str(ROOT / "src"), "NEWPAT_PROJECT_DIR": str(ROOT),
+                       "NEWPAT_WORKSPACE_DIR": str(self.root), "NEWPAT_DATA_DIR": str(self.root / "data"),
+                       "NEWPAT_RUNS_DIR": str(self.root / "runs"), "NEWPAT_BACKEND": "native"}
         if os.name == "nt":
-            environment.update(NIPAT_BACKEND="wsl", NIPAT_WSL_DISTRO="NIPAT-Desktop-test")
+            environment.update(NEWPAT_BACKEND="wsl", NEWPAT_WSL_DISTRO="NewPat-Desktop-test")
         for case in (item for item in cases if item.get("expect_failure")):
             with self.subTest(case=case["id"]):
-                result = subprocess.run([sys.executable, "-m", "nipat", "--dry-run", *map(str, case["args"]),
+                result = subprocess.run([sys.executable, "-m", "newpat", "--dry-run", *map(str, case["args"]),
                                          "--run-name", case["id"]],
                                         env=environment, capture_output=True, text=True, encoding="utf-8", timeout=30)
                 self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)

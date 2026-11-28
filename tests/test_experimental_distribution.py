@@ -1,32 +1,29 @@
-"""Official desktop and experimental installations remain separate."""
+"""NewPat installs its settings and runtime under product-owned roots."""
 
 import json
 import os
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
-from nipat import __version__
-from nipat.activity import windows_activity_path
-from nipat.distribution import CHANNEL, WINDOWS_DIRECTORY, is_experimental_version
-from nipat.installation import installation_inventory, inventory_lines
-from nipat.errors import ValidationError
-from nipat.paths import ProjectLayout
-from nipat.preferences import Preferences, preferences_path
-from nipat.terminal import Terminal
-from nipat.storage import validate_managed_directories
-from nipat.update_ui import run_updates
+from newpat.activity import windows_activity_path
+from newpat.distribution import CHANNEL, WINDOWS_DIRECTORY
+from newpat.installation import installation_inventory, inventory_lines
+from newpat.errors import ValidationError
+from newpat.paths import ProjectLayout
+from newpat.preferences import preferences_path
+from newpat.storage import validate_managed_directories
 
 
-class ExperimentalDistributionTests(unittest.TestCase):
+class DesktopDistributionTests(unittest.TestCase):
     def test_macos_data_cannot_overwrite_runtime_or_application(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder).resolve()
             app = root / "app"
             workspace = root / "workspace"
-            with patch.dict(os.environ, {"NIPAT_BACKEND": "lima"}), patch("nipat.storage.Path.home", return_value=root):
-                for selected in (workspace, root / ".nipat" / "lima", workspace / ".runtime", app / "data"):
+            with patch.dict(os.environ, {"NEWPAT_BACKEND": "lima"}), patch("newpat.storage.Path.home", return_value=root):
+                for selected in (workspace, root / ".newpat" / "lima", workspace / ".runtime", app / "data"):
                     layout = ProjectLayout(app, workspace, selected, root / "results", app / "compose.yaml")
                     with self.subTest(selected=selected), self.assertRaises(ValidationError):
                         validate_managed_directories(layout)
@@ -39,34 +36,6 @@ class ExperimentalDistributionTests(unittest.TestCase):
         self.assertEqual(profile["channel"], CHANNEL)
         self.assertEqual(profile["data_dir_name"], WINDOWS_DIRECTORY)
         self.assertEqual(profile["channel"], "desktop")
-        self.assertFalse(is_experimental_version(__version__))
-
-    def test_gui_preview_is_isolated_without_reclassifying_stable_releases(self):
-        for version in ("0.8.0a1", "0.9.0", "0.9.0a1", "0.9.0b2", "0.9.0rc1",
-                        "0.9.1", "0.9.1a1", "0.9.1b2", "0.9.1rc1", "0.9.5", "0.9.5rc1"):
-            with self.subTest(version=version):
-                self.assertTrue(is_experimental_version(version))
-        for version in ("0.8.99", "0.8.100", "0.9.2", "0.9.7", "0.9.8", "1.0.0"):
-            with self.subTest(version=version):
-                self.assertFalse(is_experimental_version(version))
-
-    def test_experimental_updater_never_contacts_feed_or_handoff(self):
-        with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder).resolve()
-            layout = ProjectLayout(root / "app", root, root / "data", root / "runs", root / "compose.yaml")
-            client, handoff, read = Mock(), Mock(), Mock()
-            messages = []
-            ui = Terminal(read=read, write=messages.append)
-            for version in ("0.8.0a1", "0.9.0", "0.9.0rc1", "0.9.1", "0.9.1rc1"):
-                for startup in (False, True):
-                    self.assertFalse(run_updates(ui, layout, Preferences(), client=client,
-                                                 handoff=handoff, startup=startup,
-                                                 current_version=version))
-            client.check.assert_not_called()
-            client.download.assert_not_called()
-            handoff.assert_not_called()
-            read.assert_not_called()
-            self.assertIn("separata dalla versione stabile", "\n".join(messages))
 
     def test_windows_preferences_and_lease_never_touch_stable_directory(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -76,7 +45,7 @@ class ExperimentalDistributionTests(unittest.TestCase):
             sentinel = stable / "preferences.json"
             sentinel.write_text('{"stable":true}')
             with patch.dict(os.environ, {"LOCALAPPDATA": str(root)}, clear=True), \
-                    patch("nipat.preferences.sys.platform", "win32"):
+                    patch("newpat.preferences.sys.platform", "win32"):
                 self.assertEqual(preferences_path(), root / WINDOWS_DIRECTORY / "preferences.json")
                 self.assertEqual(windows_activity_path(), root / WINDOWS_DIRECTORY / "activity.lock")
             self.assertEqual(sentinel.read_text(), '{"stable":true}')
@@ -85,9 +54,9 @@ class ExperimentalDistributionTests(unittest.TestCase):
     def test_macos_preferences_and_inventory_use_macos_contract(self):
         with tempfile.TemporaryDirectory() as folder:
             home = Path(folder).resolve()
-            with patch.dict(os.environ, {}, clear=True), patch("nipat.preferences.sys.platform", "darwin"), \
-                    patch("nipat.preferences.Path.home", return_value=home):
-                expected = home / "Library/Application Support/NIPAT-Desktop/preferences.json"
+            with patch.dict(os.environ, {}, clear=True), patch("newpat.preferences.sys.platform", "darwin"), \
+                    patch("newpat.preferences.Path.home", return_value=home):
+                expected = home / "Library/Application Support/NewPat-Desktop/preferences.json"
                 self.assertEqual(preferences_path(), expected)
                 inventory = installation_inventory(home)
             self.assertEqual(inventory["platform"], "macos")

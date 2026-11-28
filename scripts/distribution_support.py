@@ -1,4 +1,4 @@
-"""Verified distribution inputs shared by NIPAT installer builders."""
+"""Verified distribution inputs shared by NewPat installer builders."""
 
 from __future__ import annotations
 

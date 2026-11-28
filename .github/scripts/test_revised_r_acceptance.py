@@ -221,7 +221,7 @@ class RevisedRAcceptanceTests(unittest.TestCase):
             self.report["cases"].append({"case": name, "workflow": workflow, "status": "passed",
                 "unrounded_r_values": "identical", "table_sha256": {"result.tsv": "c" * 64}, "plots": {}})
         for case in self.report["cases"]:
-            case["scientific_reference"] = "SNPcall 2.0" if case["workflow"] == "snp-call" else "NIPAT 0.8.5"
+            case["scientific_reference"] = "SNPcall 2.0" if case["workflow"] == "snp-call" else "v0.8.5"
             case["plots_comparison"] = "renderable-and-bounded"
             for plot in case["plots"].values():
                 plot["page_size_points"] = [720, 432]
@@ -268,7 +268,7 @@ class RevisedRAcceptanceTests(unittest.TestCase):
                 self.verify()
         self.report = copy.deepcopy(complete)
         case = next(item for item in self.report["cases"] if item["workflow"] == "snp-call")
-        case["scientific_reference"] = "NIPAT 0.8.5"
+        case["scientific_reference"] = "v0.8.5"
         self.write_report()
         with self.assertRaisesRegex(ValueError, "wrong algorithm reference"):
             self.verify()

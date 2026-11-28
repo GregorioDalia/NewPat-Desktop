@@ -22,13 +22,13 @@ BASE_IMAGE = (
     "ubuntu:24.04@sha256:"
     "a2d43bffc46670d7108bb3c0468c67c5557c4c92e83e1e34cbff1322ad1b94dc"
 )
-RESULT_MARKER = "NIPAT_DEPENDENCY_RESULT="
+RESULT_MARKER = "NEWPAT_DEPENDENCY_RESULT="
 CHECKS = (
     "dependencies_initially_absent", "apt_installs_required_packages",
     "installed_cli_help_and_version", "no_automatic_docker_access",
     "no_runtime_preparation", "apt_sources_unchanged", "embedded_manifest_matches",
 )
-PACKAGES = ("python3.12", "docker.io", "docker-compose-v2", "nipat-desktop", "python3-gi", "gir1.2-gtk-3.0", "gir1.2-webkit2-4.1")
+PACKAGES = ("python3.12", "docker.io", "docker-compose-v2", "newpat-desktop", "python3-gi", "gir1.2-gtk-3.0", "gir1.2-webkit2-4.1")
 
 # Fixed paths keep untrusted filenames and manifest strings out of shell code.
 # policy-rc.d suppresses service startup in this dependency-only test container.
@@ -37,39 +37,39 @@ CONTAINER_SCRIPT = r'''set -euo pipefail
 test "$ID" = ubuntu && test "$VERSION_ID" = 24.04
 test "$(dpkg --print-architecture)" = amd64
 test ! -e /var/run/docker.sock
-for package in python3.12 docker.io docker-ce docker-compose-v2 docker-compose-plugin nipat-desktop python3-gi gir1.2-gtk-3.0 gir1.2-webkit2-4.1; do
+for package in python3.12 docker.io docker-ce docker-compose-v2 docker-compose-plugin newpat-desktop python3-gi gir1.2-gtk-3.0 gir1.2-webkit2-4.1; do
     status=$(dpkg-query -W -f='${db:Status-Status}' "$package" 2>/dev/null || true)
     if test "$status" = installed; then
         echo "Dependency unexpectedly present before APT: $package" >&2
         exit 1
     fi
 done
-useradd --create-home --user-group nipat-validation
-id -G nipat-validation > /tmp/nipat-groups-before
+useradd --create-home --user-group newpat-validation
+id -G newpat-validation > /tmp/newpat-groups-before
 find /etc/apt -type f \( -name '*.list' -o -name '*.sources' \) -print0 |
-    sort -z | xargs -0 -r sha256sum > /tmp/nipat-apt-sources-before
+    sort -z | xargs -0 -r sha256sum > /tmp/newpat-apt-sources-before
 printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d
 chmod 755 /usr/sbin/policy-rc.d
 export DEBIAN_FRONTEND=noninteractive LC_ALL=C.UTF-8
 apt-get update
-apt-get -y --no-install-recommends install /input/nipat.deb
+apt-get -y --no-install-recommends install /input/newpat.deb
 find /etc/apt -type f \( -name '*.list' -o -name '*.sources' \) -print0 |
-    sort -z | xargs -0 -r sha256sum > /tmp/nipat-apt-sources-after
-cmp /tmp/nipat-apt-sources-before /tmp/nipat-apt-sources-after
-id -G nipat-validation > /tmp/nipat-groups-after
-cmp /tmp/nipat-groups-before /tmp/nipat-groups-after
-if id -Gn nipat-validation | tr ' ' '\n' | grep -qx docker; then
+    sort -z | xargs -0 -r sha256sum > /tmp/newpat-apt-sources-after
+cmp /tmp/newpat-apt-sources-before /tmp/newpat-apt-sources-after
+id -G newpat-validation > /tmp/newpat-groups-after
+cmp /tmp/newpat-groups-before /tmp/newpat-groups-after
+if id -Gn newpat-validation | tr ' ' '\n' | grep -qx docker; then
     echo 'APT unexpectedly authorized the user to access Docker.' >&2
     exit 1
 fi
 docker --version
 docker compose version
-runuser -u nipat-validation -- /usr/bin/nipat --version > /tmp/nipat-version
-runuser -u nipat-validation -- /usr/bin/nipat --help > /tmp/nipat-help
-test -s /tmp/nipat-help
+runuser -u newpat-validation -- /usr/bin/newpat --version > /tmp/newpat-version
+runuser -u newpat-validation -- /usr/bin/newpat --help > /tmp/newpat-help
+test -s /tmp/newpat-help
 test ! -e /var/run/docker.sock
-test ! -e /home/nipat-validation/.local/share/nipat-desktop
-test ! -e /home/nipat-validation/.local/state/nipat-desktop
+test ! -e /home/newpat-validation/.local/share/newpat-desktop
+test ! -e /home/newpat-validation/.local/state/newpat-desktop
 python3.12 -I - <<'PY'
 import hashlib
 import json
@@ -84,16 +84,16 @@ assert Gtk.get_major_version() == 3 and WebKit2.get_major_version() >= 2
 
 manifest_bytes = Path('/input/installer-manifest.json').read_bytes()
 manifest = json.loads(manifest_bytes)
-assert Path('/opt/nipat-desktop/.distribution/installer-manifest.json').read_bytes() == manifest_bytes
-assert Path('/tmp/nipat-version').read_text().strip().endswith(manifest['version'])
+assert Path('/opt/newpat-desktop/.distribution/installer-manifest.json').read_bytes() == manifest_bytes
+assert Path('/tmp/newpat-version').read_text().strip().endswith(manifest['version'])
 packages = {}
-for package in ('python3.12', 'docker.io', 'docker-compose-v2', 'nipat-desktop', 'python3-gi', 'gir1.2-gtk-3.0', 'gir1.2-webkit2-4.1'):
+for package in ('python3.12', 'docker.io', 'docker-compose-v2', 'newpat-desktop', 'python3-gi', 'gir1.2-gtk-3.0', 'gir1.2-webkit2-4.1'):
     fields = subprocess.check_output(
         ['dpkg-query', '-W', '-f=${Status}\t${Version}', package], text=True,
     ).split('\t')
     assert len(fields) == 2 and fields[0] == 'install ok installed' and fields[1]
     packages[package] = fields[1]
-print('NIPAT_DEPENDENCY_RESULT=' + json.dumps({
+print('NEWPAT_DEPENDENCY_RESULT=' + json.dumps({
     'dependency_packages': packages,
     'checks': dict.fromkeys((
         'dependencies_initially_absent', 'apt_installs_required_packages',
@@ -137,7 +137,7 @@ def container_command(package: Path, manifest: Path) -> list[str]:
     return [
         "docker", "--host", "unix:///var/run/docker.sock", "run", "--rm", "--pull", "always",
         "--platform", "linux/amd64", "--interactive",
-        "--mount", f"type=bind,source={package},target=/input/nipat.deb,readonly",
+        "--mount", f"type=bind,source={package},target=/input/newpat.deb,readonly",
         "--mount", f"type=bind,source={manifest},target=/input/installer-manifest.json,readonly",
         "--entrypoint", "/bin/bash", BASE_IMAGE, "-s",
     ]
@@ -159,10 +159,10 @@ def verify(package: Path, manifest_path: Path, output: Path) -> None:
         "base_image": BASE_IMAGE, "checks": dict.fromkeys(CHECKS, False),
     }
     environment = {key: value for key, value in os.environ.items()
-                   if not key.startswith(("DOCKER", "COMPOSE", "NIPAT_", "PYTHON"))}
+                   if not key.startswith(("DOCKER", "COMPOSE", "NEWPAT_", "PYTHON"))}
     output.parent.mkdir(parents=True, exist_ok=True)
     try:
-        with tempfile.TemporaryDirectory(prefix="nipat-dependency-docker-") as configuration:
+        with tempfile.TemporaryDirectory(prefix="newpat-dependency-docker-") as configuration:
             environment["DOCKER_CONFIG"] = configuration
             result = subprocess.run(container_command(package, manifest_path),
                                     input=CONTAINER_SCRIPT.encode(), stdout=subprocess.PIPE,

@@ -59,18 +59,18 @@ class MacInstallerTests(unittest.TestCase):
         project = self.root / "project"
         project.mkdir()
         for relative, contents in {
-            "installer/macos/NIPAT.command": "#!/bin/sh\nexit 0\n",
-            "src/nipat/__init__.py": '__version__ = "0.8.2"\n',
+            "installer/macos/NewPat.command": "#!/bin/sh\nexit 0\n",
+            "src/newpat/__init__.py": '__version__ = "0.9.99"\n',
             "LICENSE": "Fixture license\n",
         }.items():
             path = project / relative
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(contents)
         files = sorted(path for path in project.rglob("*") if path.is_file())
-        scientific = self.root / "nipat-scientific.tar.gz"
+        scientific = self.root / "newpat-scientific.tar.gz"
         scientific.write_bytes(b"\x1f\x8bfixture-scientific-content")
         common = {
-            "version": "0.8.2", "release_tag": "v0.8.2", "source_commit": "a" * 40,
+            "version": "0.9.99", "release_tag": "v0.9.99", "source_commit": "a" * 40,
             "runtime_image": "sha256:" + "b" * 64,
             "source_sha256": {path.relative_to(project).as_posix(): builder.bundle.sha256_file(path)
                               for path in files},
@@ -94,7 +94,7 @@ class MacInstallerTests(unittest.TestCase):
         executable.chmod(0o755)
         record = {
             **{field: common[field] for field in ("version", "source_commit", "runtime_image")},
-            "architecture": "arm64", "runtime_vm_qualified": False,
+            "architecture": "arm64", "scientific_platform": "linux/arm64", "runtime_vm_qualified": False,
             "scientific_asset_sha256": common["assets"]["scientific_image"]["sha256"],
             "payload_inventory": builder.payload_inventory(payload),
         }
@@ -104,6 +104,8 @@ class MacInstallerTests(unittest.TestCase):
         payload, app, common, record = self.fixture()
         actual = verifier.verify_payload(payload, common, record)
         self.assertEqual(actual["channel"], "desktop")
+        self.assertEqual(actual["bundle_identifier"], "org.newpat.desktop")
+        self.assertEqual([item.name for item in (app / "Contents/Resources").glob("*.command")], ["NewPat.command"])
         self.assertEqual(actual["architecture"], "arm64")
         self.assertFalse(actual["runtime_vm_qualified"])
         self.assertTrue((app / "Contents/Resources/python/bin/python3").is_symlink())
@@ -117,9 +119,33 @@ class MacInstallerTests(unittest.TestCase):
         for name, expected in provenance["files_sha256"].items():
             self.assertEqual(builder.bundle.sha256_file(notices / name), expected, name)
 
+    def test_saved_image_platform_comes_from_the_digest_bound_docker_config(self):
+        arm = b'{"os":"linux","architecture":"arm64"}'
+        amd = b'{"os":"linux","architecture":"amd64"}'
+        path = self.root / "saved.tar.gz"
+        for prefix in ("blobs/sha256/", ""):
+            name = prefix + hashlib.sha256(arm).hexdigest() + ("" if prefix else ".json")
+            manifest = [{"Config": name, "RepoTags": [], "Layers": []}]
+            def save(raw, selected):
+                archive(path, [(name, raw, None), ("manifest.json", json.dumps(selected).encode(), None)])
+            save(arm, manifest)
+            self.assertEqual(builder.archive_platform(path), "linux/arm64")
+            for raw, selected in ((amd, manifest), (arm, manifest * 2),
+                                  (arm, [dict(manifest[0], RepoTags=["unrelated:latest"])])):
+                save(raw, selected)
+                with self.assertRaises(ValueError):
+                    builder.archive_platform(path)
+
+    def test_arm_package_rejects_the_windows_scientific_manifest(self):
+        manifest = {"version": "0.9.99", "installation_profile": builder.assets.EXPECTED_INSTALLATION_PROFILE,
+                    "schema_version": 1, "release_tag": "v0.9.99", "runtime_image": "sha256:" + "a" * 64,
+                    "source_commit": "b" * 40, "assets": {"scientific_image": {"file": "runtime-amd64.tar.gz"}}}
+        with self.assertRaisesRegex(ValueError, "ARM64"):
+            builder.validate_scientific_manifest(manifest, "arm64")
+
     def test_changed_scientific_archive_cannot_pass_package_verification(self):
         payload, app, common, record = self.fixture()
-        scientific = app / "Contents/Resources/app/.distribution/assets/nipat-scientific.tar.gz"
+        scientific = app / "Contents/Resources/app/.distribution/assets/newpat-scientific.tar.gz"
         scientific.write_bytes(b"different")
         with self.assertRaisesRegex(ValueError, "scientific archive"):
             verifier.verify_payload(payload, common, record)
@@ -128,13 +154,13 @@ class MacInstallerTests(unittest.TestCase):
         payload, app, common, record = self.fixture()
         alias = self.root / "payload-alias"
         alias.symlink_to(payload, target_is_directory=True)
-        self.assertEqual(verifier.verify_payload(alias, common, record)["version"], "0.8.2")
+        self.assertEqual(verifier.verify_payload(alias, common, record)["version"], "0.9.99")
         source_alias = alias / builder.APP_RELATIVE / "Contents/Resources/app"
-        self.assertEqual(launcher.load_manifest(source_alias)["version"], "0.8.2")
+        self.assertEqual(launcher.load_manifest(source_alias)["version"], "0.9.99")
 
     def test_changed_source_cannot_pass_package_verification(self):
         payload, app, common, record = self.fixture()
-        (app / "Contents/Resources/app/src/nipat/__init__.py").write_text("changed\n")
+        (app / "Contents/Resources/app/src/newpat/__init__.py").write_text("changed\n")
         with self.assertRaisesRegex(ValueError, "source mismatch"):
             verifier.verify_payload(payload, common, record)
 
@@ -150,6 +176,23 @@ class MacInstallerTests(unittest.TestCase):
         record["payload_inventory"] = builder.payload_inventory(payload)
         with self.assertRaisesRegex(ValueError, "launcher is missing"):
             verifier.verify_payload(payload, common, record)
+
+    def test_additional_command_launcher_rejected_even_if_inventory_matches(self):
+        payload, app, common, record = self.fixture()
+        (app / "Contents/Resources/other.command").touch(mode=0o755)
+        record["payload_inventory"] = builder.payload_inventory(payload)
+        with self.assertRaisesRegex(ValueError, "single NewPat command"):
+            verifier.verify_payload(payload, common, record)
+
+    def test_foreign_bundle_identifier_rejected_before_launch(self):
+        payload, app, common, record = self.fixture()
+        installed = app / "Contents/Resources/app"
+        manifest = installed / ".distribution/macos-manifest.json"
+        value = json.loads(manifest.read_text())
+        value["bundle_identifier"] = "org.example.desktop"
+        manifest.write_text(json.dumps(value))
+        with self.assertRaisesRegex(ValueError, "Manifest macOS"):
+            launcher.load_manifest(installed)
 
     def test_wrong_source_or_image_identity_rejected(self):
         payload, app, common, record = self.fixture()
@@ -187,16 +230,16 @@ class MacInstallerTests(unittest.TestCase):
             builder.dependency_archive(entry, self.root, path)
 
     def test_official_package_rejects_experiment_and_has_explicit_os_architecture(self):
-        self.assertEqual(builder.package_version("0.8.2"), "0.8.2")
-        self.assertEqual(builder.package_version("0.8.12"), "0.8.12")
+        self.assertEqual(builder.package_version("0.9.99"), "0.9.99")
+        self.assertEqual(builder.package_version("1.0.0"), "1.0.0")
         with self.assertRaises(ValueError):
             builder.package_version("0.7.2")
         with self.assertRaises(ValueError):
             builder.package_version("0.8.0")
         with self.assertRaises(ValueError):
-            builder.package_version("0.8.2a1")
+            builder.package_version("0.9.99a1")
         for architecture in ("arm64", "x86_64"):
-            parsed = ET.fromstring(builder.distribution_xml("0.8.2", architecture))
+            parsed = ET.fromstring(builder.distribution_xml("0.9.99", architecture))
             self.assertEqual(parsed.find("options").get("hostArchitectures"), architecture)
             self.assertEqual(parsed.find("allowed-os-versions/os-version").get("min"), "14.0")
 
@@ -218,15 +261,15 @@ class MacInstallerTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "virtualization entitlement"):
                 verifier.require_virtualization_entitlement(payload, b"")
 
-    def test_launcher_does_not_inherit_other_nipat_or_container_configuration(self):
+    def test_launcher_does_not_inherit_other_newpat_or_container_configuration(self):
         app = self.root / "Application/Contents/Resources/app"
-        inherited = {"NIPAT_BACKEND": "wsl", "DOCKER_HOST": "tcp://remote", "LIMA_HOME": "/stable/lima",
+        inherited = {"NEWPAT_BACKEND": "wsl", "DOCKER_HOST": "tcp://remote", "LIMA_HOME": "/stable/lima",
                      "PYTHONPATH": "/untrusted", "TERM": "xterm-256color"}
         with patch.object(launcher.Path, "home", return_value=self.root / "user"):
             env = launcher.environment(app, app.parent, inherited)
-        self.assertEqual(env["NIPAT_BACKEND"], "lima")
-        self.assertEqual(env["LIMA_HOME"], str(self.root / "user/.nipat/lima"))
-        self.assertEqual(env["NIPAT_WORKSPACE_DIR"], str(self.root / "user/Library/Application Support/NIPAT-Desktop"))
+        self.assertEqual(env["NEWPAT_BACKEND"], "lima")
+        self.assertEqual(env["LIMA_HOME"], str(self.root / "user/.newpat/lima"))
+        self.assertEqual(env["NEWPAT_WORKSPACE_DIR"], str(self.root / "user/Library/Application Support/NewPat-Desktop"))
         self.assertNotIn("DOCKER_HOST", env)
         self.assertNotIn("PYTHONPATH", env)
         self.assertEqual(env["TERM"], "xterm-256color")
@@ -234,7 +277,7 @@ class MacInstallerTests(unittest.TestCase):
     def test_launcher_validates_source_inventory_before_running_code(self):
         payload, app, common, record = self.fixture()
         source = app / "Contents/Resources/app"
-        self.assertEqual(launcher.load_manifest(source)["version"], "0.8.2")
+        self.assertEqual(launcher.load_manifest(source)["version"], "0.9.99")
         (source / "LICENSE").write_text("changed")
         with self.assertRaisesRegex(ValueError, "modificato"):
             launcher.load_manifest(source)
@@ -255,7 +298,7 @@ class MacInstallerTests(unittest.TestCase):
         state.mkdir(mode=0o755)
         (state / "activity.lock").touch(mode=0o644)
         with launcher.installation_session(state):
-            with self.assertRaisesRegex(ValueError, "sessione NewPat/NIPAT"):
+            with self.assertRaisesRegex(ValueError, "sessione NewPat"):
                 with launcher.installation_session(state, exclusive=True):
                     self.fail("Maintenance must not interrupt an active CLI")
         with launcher.installation_session(state, exclusive=True):

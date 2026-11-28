@@ -36,7 +36,7 @@ PREPARATION_FILES = (
 CATALOG_FILES = tuple(f"catalog_data/{workflow}.json" for workflow in SCRIPT_PATHS)
 WORKFLOW_INTERFACES = {
     "contamination": "contamination-v2", "snp-call": "snp-call-v2", "dnp-call": "dnp-call-v1",
-    "cpi": "cpi-v4", "cpin": "cpin-v2", "fetal-sex": "fetal-sex-v1",
+    "cpi": "cpi-v4", "cpin": "cpin-v2", "fetal-sex": "fetal-sex-v3",
 }
 
 
@@ -61,7 +61,7 @@ def describe_preparation(bundle_root: Path) -> dict:
     root = bundle_root.resolve()
     library = preparation_root(root)
     paths = [root / "engine" / "main.py", *(
-        library / "nipat_scientific" / name for name in (*PREPARATION_FILES, *CATALOG_FILES)
+        library / "newpat_scientific" / name for name in (*PREPARATION_FILES, *CATALOG_FILES)
     )]
     hashes = {}
     for path in paths:
@@ -156,11 +156,11 @@ def verify_bundle(bundle_root: Path) -> dict:
                                 "effective_file": "work/effective-scientific-settings.json"},
         "workflow-plan-all": {"interface": "workflow-plan-execution-v2", "workflows": list(SCRIPT_PATHS)},
         "progress": {
-            "interface": "nipat-progress-v1", "schema_version": 1,
+            "interface": "newpat-progress-v1", "schema_version": 1,
             "independent_of_diagnostics": True, "transport": "per-process-jsonl",
         },
         "parallel_execution": {
-            "interface": "nipat-parallel-v1", "schema_version": 1,
+            "interface": "newpat-parallel-v1", "schema_version": 1,
             "workflows": [name for name in SCRIPT_PATHS if name != "fetal-sex"], "default_mode": "auto",
             "modes": ["auto", "serial"], "max_workers": True,
             "budget_scope": "one scientific analysis; nested pools disabled",
@@ -178,8 +178,8 @@ def verify_bundle(bundle_root: Path) -> dict:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="nipat-scientific",
-        description="Verify and execute the R scripts bundled with the NIPAT image.",
+        prog="newpat-scientific",
+        description="Verify and execute the R scripts bundled with the NewPat image.",
     )
     commands = parser.add_subparsers(dest="command", required=True)
     describe = commands.add_parser("describe", help="Describe the verified scientific bundle.")
@@ -248,9 +248,9 @@ def run_preparation(command: list[str]) -> int:
 
 def normalize_request_settings(request: dict, workflow: str | None = None) -> dict:
     """Resolve effective settings before creating a work directory."""
-    from nipat_scientific.errors import ValidationError
-    from nipat_scientific.files import detect_marker_type
-    from nipat_scientific.settings import normalize_settings
+    from newpat_scientific.errors import ValidationError
+    from newpat_scientific.files import detect_marker_type
+    from newpat_scientific.settings import normalize_settings
 
     try:
         if not isinstance(request, dict) or request.get("workflow") not in SCRIPT_PATHS:
@@ -275,13 +275,13 @@ def normalize_request_settings(request: dict, workflow: str | None = None) -> di
 
 def run_validated_request(request: dict, script: Path, native_arguments: list[str]) -> int:
     """Supervise unchanged R and validate the same outputs as a plan step."""
-    from nipat_scientific.executor import _Cancellation, _run_process, _atomic_json
-    from nipat_scientific.outputs import validate_standalone_outputs
-    from nipat_scientific.presentation import prepare_presentation, finish_presentation
-    from nipat_scientific.progress import observed_phase as phase
-    from nipat_scientific.scratch import dnp_environment
-    from nipat_scientific.parallel import execution_environment
-    from nipat_scientific.settings import normalize_settings, settings_context
+    from newpat_scientific.executor import _Cancellation, _run_process, _atomic_json
+    from newpat_scientific.outputs import validate_standalone_outputs
+    from newpat_scientific.presentation import prepare_presentation, finish_presentation
+    from newpat_scientific.progress import observed_phase as phase
+    from newpat_scientific.scratch import dnp_environment
+    from newpat_scientific.parallel import execution_environment
+    from newpat_scientific.settings import normalize_settings, settings_context
 
     request = normalize_request_settings(request)
     cancellation = _Cancellation()
@@ -304,7 +304,7 @@ def run_validated_request(request: dict, script: Path, native_arguments: list[st
             return cancellation.exit_code if cancellation.signum is not None else code
         with phase("output-validation", workflow=request["workflow"]) as validation_state:
             if request["workflow"] == "fetal-sex":
-                from nipat_scientific.fetal_sex import publish_outputs
+                from newpat_scientific.fetal_sex import publish_outputs
                 publish_outputs(request)
             artifacts = validate_standalone_outputs(request)
             if cancellation.signum is not None:
@@ -323,7 +323,7 @@ def run_validated_request(request: dict, script: Path, native_arguments: list[st
                               "quality_warnings": artifacts.get("quality_warnings", []),
                               "scientific_settings": request["scientific_settings"]})
         for warning in artifacts.get("quality_warnings", []):
-            print(f"NIPAT output warning [{warning['code']}]: {warning}", file=sys.stderr, flush=True)
+            print(f"NewPat output warning [{warning['code']}]: {warning}", file=sys.stderr, flush=True)
         print(f"Scientific output contract verified: {report}", flush=True)
         return 0
     finally:
@@ -334,14 +334,18 @@ def run_validated_request(request: dict, script: Path, native_arguments: list[st
 def main(argv: list[str] | None = None) -> int:
     arguments = build_parser().parse_args(argv)
     observer = None
+    initial_oom_count = None
     try:
         description = verify_bundle(BUNDLE_ROOT)
         if arguments.command in {"execute", "execute-plan"}:
             library = preparation_root(BUNDLE_ROOT).resolve()
             sys.path.insert(0, str(library))
-            from nipat_scientific.performance import PerformanceSession
-            from nipat_scientific import progress
-            from nipat_scientific.progress import observed_phase as phase
+            from newpat_scientific.performance import PerformanceSession, oom_kill_counter, report_oom_kills
+            from newpat_scientific import progress
+            from newpat_scientific.progress import observed_phase as phase
+            oom_token = os.environ.get("NEWPAT_OOM_TOKEN", "")
+            if re.fullmatch(r"[a-f0-9]{32}", oom_token):
+                initial_oom_count = oom_kill_counter()
             observer = PerformanceSession.from_environment()
             if observer is not None:
                 observer.start()
@@ -349,7 +353,7 @@ def main(argv: list[str] | None = None) -> int:
             if arguments.json:
                 print(json.dumps(description, indent=2, sort_keys=True))
             else:
-                print(f"NIPAT scientific interface: {description['interface']}")
+                print(f"NewPat scientific interface: {description['interface']}")
                 print(f"Manifest SHA-256: {description['manifest']['sha256']}")
                 for workflow, source in description["workflows"].items():
                     print(f"{workflow}: {source['script']} ({source['sha256']})")
@@ -361,14 +365,14 @@ def main(argv: list[str] | None = None) -> int:
         if arguments.command in {"catalog", "validate-plan"}:
             library = preparation_root(BUNDLE_ROOT).resolve()
             sys.path.insert(0, str(library))
-            from nipat_scientific.errors import ValidationError
+            from newpat_scientific.errors import ValidationError
 
             try:
                 if arguments.command == "catalog":
-                    from nipat_scientific.catalog import load_catalog
+                    from newpat_scientific.catalog import load_catalog
                     result = load_catalog(arguments.workflow, source_root=BUNDLE_ROOT)
                 else:
-                    from nipat_scientific.plan import validate_plan
+                    from newpat_scientific.plan import validate_plan
                     result = validate_plan(json.loads(arguments.plan.read_text(encoding="utf-8")))
                 # JSON escapes preserve every Unicode value while keeping the
                 # transport independent of Windows console/pipe code pages.
@@ -380,8 +384,8 @@ def main(argv: list[str] | None = None) -> int:
         if arguments.command == "execute-plan":
             library = preparation_root(BUNDLE_ROOT).resolve()
             sys.path.insert(0, str(library))
-            from nipat_scientific.errors import ValidationError
-            from nipat_scientific.executor import execute_plan
+            from newpat_scientific.errors import ValidationError
+            from newpat_scientific.executor import execute_plan
 
             try:
                 document = json.loads(arguments.plan.read_text(encoding="utf-8"))
@@ -408,37 +412,37 @@ def main(argv: list[str] | None = None) -> int:
             sys.path.insert(0, str(library))
             # All required module paths were checked above. This exact bundled
             # library precedes PYTHONPATH; the desktop package is never imported.
-            from nipat_scientific.errors import ValidationError
+            from newpat_scientific.errors import ValidationError
 
             try:
                 request = json.loads(arguments.request.read_text(encoding="utf-8"))
             except (ValueError, UnicodeError) as exc:
                 raise BundleError(str(exc)) from exc
-            from nipat_scientific.settings import normalize_settings, settings_context
+            from newpat_scientific.settings import normalize_settings, settings_context
             request = normalize_request_settings(request, arguments.workflow)
             with progress.context(arguments.workflow, sample_ids=progress.request_sample_ids(request)):
                 try:
                     with phase("preparation", workflow=arguments.workflow) as preparation_state:
                         if arguments.workflow == "contamination":
-                            from nipat_scientific.contamination import prepare_contamination
+                            from newpat_scientific.contamination import prepare_contamination
                             native_arguments = prepare_contamination(request)
                         elif arguments.workflow == "fetal-sex":
-                            from nipat_scientific.fetal_sex import prepare_fetal_sex
+                            from newpat_scientific.fetal_sex import prepare_fetal_sex
                             native_arguments = prepare_fetal_sex(request)
                         elif arguments.workflow == "cpi":
-                            from nipat_scientific.cpi import prepare_cpi
+                            from newpat_scientific.cpi import prepare_cpi
                             native_arguments = prepare_cpi(request)
                         elif arguments.workflow == "cpin":
-                            from nipat_scientific.cpin import prepare_cpin
+                            from newpat_scientific.cpin import prepare_cpin
                             native_arguments = prepare_cpin(request)
                         elif arguments.workflow == "dnp-call":
-                            from nipat_scientific.dnp import prepare_dnp
+                            from newpat_scientific.dnp import prepare_dnp
                             prepared = prepare_dnp(request)
                             native_arguments = prepared.native_arguments
                             os.chdir(prepared.working_dir)
                         else:
-                            from nipat_scientific.files import require_snp_pileup
-                            from nipat_scientific.snp import prepare_snp
+                            from newpat_scientific.files import require_snp_pileup
+                            from newpat_scientific.snp import prepare_snp
                             prepared = prepare_snp(request)
                             if prepared.preparation_command is not None:
                                 returncode, acquisition = prepared.plan_acquisition(
@@ -468,7 +472,7 @@ def main(argv: list[str] | None = None) -> int:
         script = BUNDLE_ROOT / description["workflows"][arguments.workflow]["script"]
         library = preparation_root(BUNDLE_ROOT).resolve()
         sys.path.insert(0, str(library))
-        from nipat_scientific.parallel import execution_environment
+        from newpat_scientific.parallel import execution_environment
 
         # Replace this process so R receives the container's signals and its exit
         # code is reported directly, without an extra shell or Python supervisor.
@@ -476,9 +480,11 @@ def main(argv: list[str] | None = None) -> int:
             os.execvp("Rscript", ["Rscript", str(script), *native_arguments])
         raise BundleError("Rscript execution unexpectedly returned.")
     except (BundleError, OSError) as exc:
-        print(f"NIPAT scientific engine: {exc}", file=sys.stderr)
+        print(f"NewPat scientific engine: {exc}", file=sys.stderr)
         return 2
     finally:
+        if initial_oom_count is not None:
+            report_oom_kills(oom_token, initial_oom_count)
         if observer is not None:
             observer.stop()
 

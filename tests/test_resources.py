@@ -12,10 +12,10 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-from nipat.errors import RuntimeExecutionError, ValidationError
-from nipat.execution.options import ExecutionOptions
-from nipat.execution.transport import DockerTransport, WslDockerTransport
-from nipat.resources import (
+from newpat.errors import RuntimeExecutionError, ValidationError
+from newpat.experiments.options import ExecutionOptions
+from newpat.experiments.transport import DockerTransport, WslDockerTransport
+from newpat.resources import (
     ResourceManager, _decode_output, _lima_configuration, _memory_mib, _resource_lock,
     analysis_session, host_resources, suggested_resources, wsl_configuration,
 )
@@ -62,7 +62,7 @@ class ResourceConfigurationTests(unittest.TestCase):
             _lima_configuration(b"cpus: 2\ncpus: 4\nmemory: 4GiB\n")
 
     def test_utf16_wsl_console_output_is_decoded(self):
-        self.assertEqual(_decode_output("Ubuntu\r\nNIPAT\r\n".encode("utf-16-le")), "Ubuntu\r\nNIPAT\r\n")
+        self.assertEqual(_decode_output("Ubuntu\r\nNewPat\r\n".encode("utf-16-le")), "Ubuntu\r\nNewPat\r\n")
 
     def test_unrepresentable_memory_is_unavailable_instead_of_crashing(self):
         self.assertIsNone(_memory_mib("9" * 400 + "TB"))
@@ -86,11 +86,11 @@ class WslResourcesTests(unittest.TestCase):
         self.config = self.home / ".wslconfig"
         self.original = b"# user configuration\r\n[wsl2]\r\nmemory=4GB\r\nprocessors=2\r\n# retain\r\n[experimental]\r\nnetworkingMode=mirrored\r\n"
         self.config.write_bytes(self.original)
-        self.manager = ResourceManager(WslDockerTransport("NIPAT-Desktop"), home=self.home)
-        self.host_patch = patch("nipat.resources.host_resources", return_value=HOST)
+        self.manager = ResourceManager(WslDockerTransport("NewPat-Desktop"), home=self.home)
+        self.host_patch = patch("newpat.resources.host_resources", return_value=HOST)
         self.host_patch.start()
         self.addCleanup(self.host_patch.stop)
-        self.running_patch = patch.object(self.manager, "_running", return_value=("NIPAT-Desktop", "Ubuntu"))
+        self.running_patch = patch.object(self.manager, "_running", return_value=("NewPat-Desktop", "Ubuntu"))
         self.running = self.running_patch.start()
         self.addCleanup(self.running_patch.stop)
         self.idle_patch = patch.object(self.manager, "_assert_idle")
@@ -101,7 +101,7 @@ class WslResourcesTests(unittest.TestCase):
         preview = self.manager.preview(8192, 4)
         self.assertEqual(self.config.read_bytes(), self.original)
         self.assertEqual(preview.after, {"memory_mib": 8192, "cpus": 4})
-        self.assertEqual(preview.affected_running, ("NIPAT-Desktop", "Ubuntu"))
+        self.assertEqual(preview.affected_running, ("NewPat-Desktop", "Ubuntu"))
         self.assertIn("tutte le distribuzioni", " ".join(preview.warnings))
         self.assertNotIn("replacement", preview.as_dict())
 
@@ -110,7 +110,7 @@ class WslResourcesTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, "conferma"):
             self.manager.apply(preview, confirmed=False)
         self.assertEqual(self.config.read_bytes(), self.original)
-        self.assertFalse((self.home / ".nipat").exists())
+        self.assertFalse((self.home / ".newpat").exists())
 
     def test_save_creates_exact_backup_and_does_not_restart(self):
         preview = self.manager.preview(8192, 4)
@@ -172,7 +172,7 @@ class WslResourcesTests(unittest.TestCase):
 
     def test_global_restart_requires_same_previewed_instances(self):
         preview = self.manager.preview(8192, 4)
-        self.running.return_value = ("NIPAT-Desktop", "Ubuntu", "Other")
+        self.running.return_value = ("NewPat-Desktop", "Ubuntu", "Other")
         with patch.object(self.manager, "_wsl") as execute:
             with self.assertRaisesRegex(ValidationError, "VM attive"):
                 self.manager.apply(preview, confirmed=True, restart_confirmed=True)
@@ -181,20 +181,20 @@ class WslResourcesTests(unittest.TestCase):
 
     def test_restart_rechecks_instances_immediately_before_shutdown(self):
         preview = self.manager.preview(8192, 4)
-        self.running.side_effect = [("NIPAT-Desktop", "Ubuntu"), ("NIPAT-Desktop", "Ubuntu", "Other")]
+        self.running.side_effect = [("NewPat-Desktop", "Ubuntu"), ("NewPat-Desktop", "Ubuntu", "Other")]
         with patch.object(self.manager, "_wsl") as execute:
             result = self.manager.apply(preview, confirmed=True, restart_confirmed=True)
         execute.assert_not_called()
         self.assertEqual(result["status"], "saved-restart-required")
         self.assertTrue(result["warnings"])
 
-    def test_restart_starts_only_nipat_and_verifies_actual_resources(self):
+    def test_restart_starts_only_newpat_and_verifies_actual_resources(self):
         preview = self.manager.preview(8192, 4)
         with patch.object(self.manager, "_wsl", return_value="") as execute, patch.object(self.manager, "_effective", return_value={"memory_mib": 7900, "cpus": 4}):
             result = self.manager.apply(preview, confirmed=True, restart_confirmed=True)
         self.assertEqual(result["status"], "applied")
         self.assertEqual(execute.call_args_list[0].args[0], ["--shutdown"])
-        self.assertEqual(execute.call_args_list[1].args[0][:3], ["--distribution", "NIPAT-Desktop", "--user"])
+        self.assertEqual(execute.call_args_list[1].args[0][:3], ["--distribution", "NewPat-Desktop", "--user"])
         self.assertNotIn("Ubuntu", str(execute.call_args_list))
 
     def test_restart_failure_is_not_reported_as_applied(self):
@@ -244,16 +244,16 @@ class LimaResourcesTests(unittest.TestCase):
         self.instance = self.home / "instance"
         self.instance.mkdir()
         self.config = self.instance / "lima.yaml"
-        self.original = {"memory": "4GiB", "cpus": 2, "param": {"NipatOwner": "owner"}, "mounts": [{"location": "/Users"}]}
+        self.original = {"memory": "4GiB", "cpus": 2, "param": {"NewPatOwner": "owner"}, "mounts": [{"location": "/Users"}]}
         self.config.write_text(json.dumps(self.original))
         self.runtime = SimpleNamespace(instance_dir=self.instance, project=self.home,
-                                       _assert_owned=Mock(), _host_check=Mock(), lock=nullcontext,
+                                       _assert_owned=Mock(), _host_check=Mock(), lock=nullcontext, start_existing=Mock(),
                                        host_prefix=lambda: ["limactl"], _run=Mock(side_effect=self.execute))
         self.manager = ResourceManager(SimpleNamespace(backend="lima", runtime=self.runtime), home=self.home)
-        self.patch_host = patch("nipat.resources.host_resources", return_value=HOST)
+        self.patch_host = patch("newpat.resources.host_resources", return_value=HOST)
         self.patch_host.start()
         self.addCleanup(self.patch_host.stop)
-        self.patch_manifest = patch("nipat.macos_runtime.read_manifest", return_value={})
+        self.patch_manifest = patch("newpat.macos_runtime.read_manifest", return_value={})
         self.patch_manifest.start()
         self.addCleanup(self.patch_manifest.stop)
         self.patch_idle = patch.object(self.manager, "_assert_idle")
@@ -261,7 +261,7 @@ class LimaResourcesTests(unittest.TestCase):
         self.addCleanup(self.patch_idle.stop)
 
     def execute(self, argv, **kwargs):
-        from nipat.macos_runtime import INSTANCE
+        from newpat.macos_runtime import INSTANCE
         if "list" in argv:
             return json.dumps({"name": INSTANCE, "status": "Running"})
         if "edit" in argv:
@@ -284,6 +284,7 @@ class LimaResourcesTests(unittest.TestCase):
         self.assertEqual(changed["param"], self.original["param"])
         self.assertEqual(changed["mounts"], self.original["mounts"])
         self.assertEqual(result["status"], "applied")
+        self.runtime.start_existing.assert_called_once_with()
         self.assertTrue(Path(result["backup"]).is_file())
         arguments = [call.args[0] for call in self.runtime._run.call_args_list]
         self.assertLess(next(i for i, argv in enumerate(arguments) if "stop" in argv), next(i for i, argv in enumerate(arguments) if "edit" in argv))
@@ -311,14 +312,14 @@ class NativeResourceTests(unittest.TestCase):
 
     def test_native_snapshot_uses_local_engine_and_preserves_unknowns(self):
         manager = ResourceManager(DockerTransport())
-        with patch("nipat.resources._run", side_effect=RuntimeExecutionError("engine unavailable")) as run:
+        with patch("newpat.resources._run", side_effect=RuntimeExecutionError("engine unavailable")) as run:
             snapshot = manager.snapshot()
         self.assertEqual(run.call_args.args[0][:3], ["docker", "--host", "unix:///var/run/docker.sock"])
         self.assertIsNone(snapshot["runtime"]["effective"]["memory_mib"])
         self.assertTrue(snapshot["warnings"])
 
     def test_analysis_lock_is_nested_and_excludes_resource_change(self):
-        with tempfile.TemporaryDirectory() as temporary, patch("nipat.resources.Path.home", return_value=Path(temporary)), patch.dict(os.environ, {"NIPAT_BACKEND": "native"}):
+        with tempfile.TemporaryDirectory() as temporary, patch("newpat.resources.Path.home", return_value=Path(temporary)), patch.dict(os.environ, {"NEWPAT_BACKEND": "native"}):
             with analysis_session(), analysis_session():
                 with self.assertRaises(RuntimeExecutionError):
                     with _resource_lock(Path(temporary), "native", exclusive=True):
@@ -331,8 +332,8 @@ class NativeResourceTests(unittest.TestCase):
     def test_native_os_lock_excludes_other_process_resource_change(self):
         script = """import sys
 from pathlib import Path
-from nipat.resources import _resource_lock
-from nipat.errors import RuntimeExecutionError
+from newpat.resources import _resource_lock
+from newpat.errors import RuntimeExecutionError
 try:
     with _resource_lock(Path(sys.argv[1]), 'native', exclusive=sys.argv[2]=='exclusive'):
         print('acquired')
@@ -354,9 +355,9 @@ except RuntimeExecutionError:
         self.assertEqual(exclusive.stdout.strip(), "blocked")
         self.assertEqual(unlocked.stdout.strip(), "acquired")
 
-    def test_orphan_running_nipat_container_prevents_resource_changes(self):
+    def test_orphan_running_newpat_container_prevents_resource_changes(self):
         manager = ResourceManager(DockerTransport())
-        with patch.object(manager, "_docker", side_effect=["", "nipat-run-orphan"]):
+        with patch.object(manager, "_docker", side_effect=["", "newpat-run-orphan"]):
             with self.assertRaisesRegex(RuntimeExecutionError, "container NewPat attivi"):
                 manager._assert_idle()
 

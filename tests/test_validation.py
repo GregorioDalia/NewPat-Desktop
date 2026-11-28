@@ -2,9 +2,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from nipat.errors import ValidationError
-from nipat.validation.files import require_contamination_input
-from nipat.validation.integrity import verify_sha256_manifest
+from newpat.errors import ValidationError
+from newpat.validation.files import require_contamination_input
+from newpat.validation.integrity import verify_sha256_manifest
 
 
 class ValidationTests(unittest.TestCase):

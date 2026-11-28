@@ -18,16 +18,16 @@ import time
 import unittest
 from unittest.mock import Mock, patch
 
-from nipat.errors import RuntimeExecutionError, ValidationError
-from nipat.execution.progress import ProgressSnapshot
-from nipat.execution.runner import DockerComposeRunner
-from nipat.execution.transport import DockerTransport
-from nipat.gui.admission import DesktopAdmission
-from nipat.gui.jobs import GuiRunner, Job, JobManager
-from nipat.gui.plan import prepare_analysis
-from nipat.gui.service import GuiService
-from nipat.paths import ProjectLayout
-from nipat.preferences import Preferences, PreferencesStore
+from newpat.errors import RuntimeExecutionError, RuntimeInterruptedError, ValidationError
+from newpat.experiments.progress import ProgressSnapshot
+from newpat.experiments.runner import DockerComposeRunner
+from newpat.experiments.transport import DockerTransport
+from newpat.desktop.admission import DesktopAdmission
+from newpat.desktop.jobs import GuiRunner, Job, JobManager
+from newpat.desktop.plan import prepare_analysis
+from newpat.desktop.service import GuiService
+from newpat.paths import ProjectLayout
+from newpat.preferences import Preferences, PreferencesStore
 
 
 class GuiFixture(unittest.TestCase):
@@ -35,7 +35,7 @@ class GuiFixture(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name).resolve()
-        self.enterContext(patch("nipat.gui.jobs.DesktopAdmission",
+        self.enterContext(patch("newpat.desktop.jobs.DesktopAdmission",
                           side_effect=lambda runtime, ident: DesktopAdmission(runtime, ident, home=self.root)))
         project = self.root / "project"
         project.mkdir()
@@ -83,7 +83,7 @@ class GuiFixture(unittest.TestCase):
 
 class GuiPlanTests(GuiFixture):
     def test_cli_experiment_offers_igv_for_recorded_bams_only(self):
-        from nipat.execution.workflows import Workflows
+        from newpat.experiments.workflows import Workflows
 
         bam = Path(self.samples[0]["path"])
         runner = DockerComposeRunner(self.layout, dry_run=True, transport=DockerTransport(dry_run=True))
@@ -115,7 +115,7 @@ class GuiPlanTests(GuiFixture):
         self.assertFalse(self.layout.runs_dir.exists(), "preview must not create a run")
 
     def test_named_reference_is_bound_to_the_reviewed_fasta_and_reopened_in_igv(self):
-        from nipat.gui.results import ResultsStore
+        from newpat.desktop.results import ResultsStore
         from test_gui_igv import _bam
 
         entry = {"id": "reference-1", "build": "grch38", "label": "UCSC hg38",
@@ -225,7 +225,7 @@ class GuiPlanTests(GuiFixture):
 
 class GuiServiceTests(GuiFixture):
     def test_verified_macos_update_can_be_revealed_without_starting_an_installer(self):
-        from nipat.updates import UpdateAsset, UpdateCheck, UpdateOffer
+        from newpat.updates import UpdateAsset, UpdateCheck, UpdateOffer
         for platform in ("darwin-arm64", "darwin-x86_64"):
             with self.subTest(platform=platform):
                 package = self.file(platform + ".pkg", "test package")
@@ -233,11 +233,11 @@ class GuiServiceTests(GuiFixture):
                                     hashlib.sha256(package.read_bytes()).hexdigest(), "https://example.test/pkg")
                 offer = UpdateOffer("0.9.11", "v0.9.11", "stable", "a" * 40, 1, asset, "https://example.test/release")
                 service = self.service()
-                with (patch("nipat.updates.UpdateClient") as client,
-                      patch("nipat.updates.detect_platform", return_value=platform),
-                      patch("nipat.update_handoff.update_cache_directory", return_value=self.root),
-                      patch("nipat.update_handoff.begin_update") as handoff,
-                      patch("nipat.gui.service.subprocess.run") as native):
+                with (patch("newpat.updates.UpdateClient") as client,
+                      patch("newpat.updates.detect_platform", return_value=platform),
+                      patch("newpat.update_handoff.update_cache_directory", return_value=self.root),
+                      patch("newpat.update_handoff.begin_update") as handoff,
+                      patch("newpat.desktop.service.subprocess.run") as native):
                     client.return_value.check.return_value = UpdateCheck("available", "Available", offer)
                     client.return_value.download.return_value = package
                     token = service.call("updates.check", {"channel": "stable"})["offer_id"]
@@ -603,7 +603,7 @@ class GuiJobTests(GuiRuntimeFixture):
         self.assertEqual(service.call("runs.list")["total"], 0)
 
     def test_jobs_preparing_together_share_only_the_remaining_guest_quota(self):
-        from nipat.execution.options import ExecutionOptions
+        from newpat.experiments.options import ExecutionOptions
         prepared = prepare_analysis(self.draft(), self.layout)
         def runner(options):
             job = Job(replace(prepared, execution=options))
@@ -615,7 +615,7 @@ class GuiJobTests(GuiRuntimeFixture):
         def snapshot(**_):
             return {"runtime": {"effective": {"cpus": 4, "memory_mib": 3905}}}
         with ExitStack() as context:
-            context.enter_context(patch("nipat.resources.ResourceManager.snapshot", side_effect=snapshot))
+            context.enter_context(patch("newpat.resources.ResourceManager.snapshot", side_effect=snapshot))
             for instance in (first, second):
                 context.enter_context(instance._admission.registration())
                 # Both jobs are registered while inputs are being prepared.
@@ -633,7 +633,7 @@ class GuiJobTests(GuiRuntimeFixture):
                 self.assertEqual(instance.options.compose_limits()["mem_limit"], instance.options.memory_mb * 2**20)
 
     def test_desktop_step_grant_requires_matching_ack_and_never_resizes_compose(self):
-        from nipat.execution.options import ExecutionOptions
+        from newpat.experiments.options import ExecutionOptions
         prepared = prepare_analysis(self.draft(), self.layout)
         runner = GuiRunner(prepared, Job(prepared))
         run_dir = self.layout.new_run_dir("analysis", "step-grants")
@@ -641,7 +641,7 @@ class GuiJobTests(GuiRuntimeFixture):
         runner._bundled_workflow = "workflow-plan-all"
         snapshot = {"runtime": {"effective": {"cpus": 4, "memory_mib": 3905}}}
         contender = DesktopAdmission(runner._transport.metadata, "late", home=self.root)
-        with runner._admission.registration(), patch("nipat.resources.ResourceManager.snapshot", return_value=snapshot):
+        with runner._admission.registration(), patch("newpat.resources.ResourceManager.snapshot", return_value=snapshot):
             runner._record_resource_snapshot()
             with patch.object(DockerComposeRunner, "_describe_bundled_engine", return_value={}):
                 runner._describe_bundled_engine()
@@ -654,12 +654,12 @@ class GuiJobTests(GuiRuntimeFixture):
             compose_path = run_dir / "work/engine-compose.json"
             before = compose_path.read_bytes()
             service = json.loads(before)["services"]["scientific"]
-            self.assertEqual(service["environment"]["NIPAT_DESKTOP_SCHEDULER"],
+            self.assertEqual(service["environment"]["NEWPAT_DESKTOP_SCHEDULER"],
                              str(self.layout.container_path(scheduler.directory)))
             self.assertNotIn("mem_limit", service)
             # The registry timestamp may be identical across two ticket changes.
             # Advance the observer clock to the periodic rescan on each change.
-            clock = self.enterContext(patch("nipat.gui.admission.time", wraps=time))
+            clock = self.enterContext(patch("newpat.desktop.admission.time", wraps=time))
             clock.monotonic.return_value = 0.0
             scheduler.poll()
             self.assertFalse((scheduler.directory / "request.json").exists())
@@ -712,7 +712,7 @@ class GuiJobTests(GuiRuntimeFixture):
             return {"runtime": {"effective": {"cpus": 4, "memory_mib": 3905}}}
         first, second, third = make(), make(), make()
         with ExitStack() as context:
-            context.enter_context(patch("nipat.resources.ResourceManager.snapshot", side_effect=snapshot))
+            context.enter_context(patch("newpat.resources.ResourceManager.snapshot", side_effect=snapshot))
             with first._admission.registration():
                 first._record_resource_snapshot()
                 self.assertIsNone(first.options.memory_mb)
@@ -748,7 +748,7 @@ class GuiJobTests(GuiRuntimeFixture):
             self.assertIsNone(second.options.memory_mb)
 
     def test_crashed_session_releases_only_after_runtime_confirms_its_project_is_idle(self):
-        from nipat.execution.options import ExecutionOptions
+        from newpat.experiments.options import ExecutionOptions
         runtime = {"backend": "native"}
         # Leave a real cross-process registration behind, without running its
         # Python cleanup. The OS must release both Windows and POSIX owner locks.
@@ -756,8 +756,8 @@ class GuiJobTests(GuiRuntimeFixture):
 import os, sys
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
-from nipat.execution.options import ExecutionOptions
-from nipat.gui.admission import DesktopAdmission
+from newpat.experiments.options import ExecutionOptions
+from newpat.desktop.admission import DesktopAdmission
 ticket = DesktopAdmission({"backend": "native"}, "orphan", home=Path(sys.argv[2]))
 with ticket.registration():
     assert ticket.try_admit(4, 3905, ExecutionOptions(), lambda job: True) is not None
@@ -771,7 +771,7 @@ with ticket.registration():
                                str(self.root)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True) as child:
             try:
                 self.assertEqual(child.stdout.readline().strip(), "running")
-                with waiting.registration(), patch("nipat.gui.admission.time", wraps=time) as clock:
+                with waiting.registration(), patch("newpat.desktop.admission.time", wraps=time) as clock:
                     clock.monotonic.side_effect = [1, 4, 7]
                     clock.monotonic_ns.side_effect = time.monotonic_ns
                     self.assertIsNone(waiting.try_admit(4, 3905, ExecutionOptions(), idle))
@@ -788,14 +788,14 @@ with ticket.registration():
         self.assertEqual([call.args for call in idle.call_args_list], [("orphan",)] * 3)
 
     def test_uncertain_partial_cleanup_does_not_permanently_reduce_future_runs(self):
-        from nipat.execution.options import ExecutionOptions
+        from newpat.experiments.options import ExecutionOptions
         first, next_job = [DesktopAdmission({"backend": "native"}, name, home=self.root)
                            for name in ("first", "next")]
         with first.registration():
             first.try_admit(4, 4096, ExecutionOptions(cpus=1, memory_mb=1024), Mock())
             first.unconfirmed_cleanup = True
         idle = Mock(return_value=True)
-        with next_job.registration(), patch("nipat.gui.admission.time", wraps=time) as clock:
+        with next_job.registration(), patch("newpat.desktop.admission.time", wraps=time) as clock:
             clock.monotonic.side_effect = [1, 4]
             clock.monotonic_ns.side_effect = time.monotonic_ns
             self.assertIsNone(next_job.try_admit(4, 4096, ExecutionOptions(), idle))
@@ -804,7 +804,7 @@ with ticket.registration():
             self.assertEqual((allocation.cpus, allocation.memory_mib), (4, 4096))
 
     def test_missing_capacity_serializes_calculations_and_errors_return_the_quota(self):
-        from nipat.execution.options import ExecutionOptions
+        from newpat.experiments.options import ExecutionOptions
         first, second = [DesktopAdmission({"backend": "native"}, name, home=self.root)
                          for name in ("first", "second")]
         options = ExecutionOptions()
@@ -847,7 +847,7 @@ with ticket.registration():
         runner = GuiRunner(prepared, job)
         runner._log = io.StringIO()
         for code in (0, 1):
-            with self.subTest(code=code), patch("nipat.execution.runner.subprocess.run", return_value=
+            with self.subTest(code=code), patch("newpat.experiments.runner.subprocess.run", return_value=
                     subprocess.CompletedProcess(["runtime"], code, "runtime output\n", "runtime detail\n")):
                 if code:
                     with self.assertRaises(RuntimeExecutionError):
@@ -862,7 +862,7 @@ with ticket.registration():
             runner._capture_process(["runtime"])
         for code in (0, 1):
             with self.subTest(code=code), patch.object(DockerComposeRunner, "doctor", doctor), \
-                    patch("nipat.execution.runner.subprocess.run", return_value=
+                    patch("newpat.experiments.runner.subprocess.run", return_value=
                           subprocess.CompletedProcess(["runtime"], code, "checked\n", "detail\n")):
                 if code:
                     with self.assertRaises(RuntimeExecutionError):
@@ -925,7 +925,7 @@ with ticket.registration():
         self.assertEqual(metadata["status"], "interrupted")
 
     def test_final_result_closes_cancellation_before_saving_and_keeps_job_active(self):
-        from nipat.execution.tracking import RunRecord
+        from newpat.experiments.tracking import RunRecord
         save = RunRecord.save
         for expected in ("succeeded", "failed"):
             with self.subTest(expected=expected):
@@ -1063,6 +1063,66 @@ with ticket.registration():
         metadata = json.loads((self.layout.runs_dir / result["run_id"] / "run.json").read_text(encoding="utf-8"))
         self.assertEqual(metadata["status"], "failed")
 
+    def test_next_ordinary_job_in_same_gui_starts_vm_before_any_docker_command(self):
+        image = "sha256:" + "1" * 64
+        guest_running = True
+        starts = []
+        launched = []
+        class LocalRunner(GuiRunner):
+            def _capture_process(runner, command, **kwargs):
+                nonlocal guest_running
+                if command == ["fixture-lima", "ensure"]:
+                    starts.append(guest_running)
+                    guest_running = True
+                    return ""
+                self.assertTrue(guest_running)
+                if command[:2] == ["docker", "info"]:
+                    return "linux"
+                if "config" in command:
+                    return json.dumps({"services": {"scientific": {"image": image}}})
+                if "inspect" in command:
+                    return json.dumps({"id": image, "os": "linux", "architecture": "arm64"})
+                self.assertEqual(command[:2], ["docker", "run"])
+                return "test runtime"
+
+            def _run_command(runner, command, *, working_dir=None):
+                nonlocal guest_running
+                launched.append(runner.last_run_dir)
+                if len(launched) == 1:
+                    guest_running = False
+                    raise RuntimeInterruptedError("VM stopped")
+                output = runner.last_run_dir / "output" / "workflow"
+                output.mkdir()
+                steps = runner._record.data["parameters"]["plan"]["steps"]
+                (output / "workflow-state.json").write_text(json.dumps({
+                    "schema_version": 1, "interface": "workflow-plan-execution-v2", "status": "succeeded",
+                    "steps": [dict(step, status="succeeded") for step in steps],
+                }))
+
+        class LocalTransport(DockerTransport):
+            backend = "lima"
+            metadata = {"backend": "lima", "lima_instance": "newpat", "lima_home": str(self.root)}
+            def ensure_command(self):
+                return ["fixture-lima", "ensure"]
+
+        manager = JobManager(runner_factory=LocalRunner)
+        with (patch.object(DockerTransport, "from_environment", return_value=LocalTransport()),
+              patch("newpat.experiments.runner.platform.machine", return_value="arm64"),
+              patch.object(GuiRunner, "_record_resource_snapshot"),
+              patch.object(GuiRunner, "_describe_bundled_engine")):
+            prepared = prepare_analysis(self.draft(), self.layout)
+            first = manager.wait(manager.start(prepared)["id"], 5)
+            self.assertEqual(first["status"], "interrupted", first)
+            previous = self.layout.runs_dir / first["run_id"] / "run.json"
+            before = previous.read_bytes()
+            second = manager.wait(manager.start(prepared)["id"], 5)
+        self.assertEqual(second["status"], "succeeded", second)
+        self.assertEqual(starts, [True, False])
+        self.assertEqual(launched, [previous.parent, self.layout.runs_dir / second["run_id"]])
+        self.assertNotEqual(first["run_id"], second["run_id"])
+        self.assertEqual(previous.read_bytes(), before)
+        self.assertFalse(json.loads(before)["execution_options"]["performance_diagnostics"])
+
 
 class GuiPrepareTests(GuiRuntimeFixture):
     def completed_caller(self, *, gui=False, status="succeeded", count=4):
@@ -1093,8 +1153,9 @@ class GuiPrepareTests(GuiRuntimeFixture):
             "workflow": "dnp-call", "status": "passed", "artifacts": {"dnp-tables": artifacts}}))
         if gui:
             draft = self.draft("dnp", ["cpi", "cpin"])
-            draft["scientific_settings"] = {"cpin": {"min_child_reads": 7, "site_selection": "other_allele",
-                                                       "err_const_snp": 0.003}}
+            draft["scientific_settings"] = {"cpin": {"mismatch_probability_snp": 0.003,
+                "include_hom_het": True, "include_hom_hom": False, "include_het_het": False,
+                "include_het_hom": False}}
             (directory / "gui.json").write_text(json.dumps({"schema_version": 1,
                 "name": "Original GUI experiment", "draft": draft}))
         return directory
@@ -1130,6 +1191,15 @@ class GuiPrepareTests(GuiRuntimeFixture):
         self.assertEqual(draft["resources"]["DNP"]["popfreq"], str(self.dnp_freq))
         prepared = prepare_analysis(draft, self.layout)
         self.assertEqual([step["workflow"] for step in prepared.preview["steps"]], ["cpin"])
+
+    def test_fetal_followup_offers_verified_caller_tables_without_assigning_a_mother(self):
+        self.completed_caller(gui=True)
+        draft = self.service().run_prepare("previous", "fetal-sex")
+        self.assertEqual(draft["caller"], "tables")
+        self.assertEqual(draft["fetal_sex"], {"id": "", "source": "sample-tables", "dnp": "", "y": ""})
+        self.assertEqual({r["kind"] for r in draft["samples"]}, {"dnp-table"})
+        self.assertEqual({r["id"] for r in draft["samples"]}, {"Child", "Mother", "Father", "Plasma"})
+        self.assertTrue(all(Path(r["path"]).is_file() for r in draft["samples"]))
 
     def test_incomplete_or_unidentified_counts_do_not_silently_restart_callers(self):
         directory = self.completed_caller(status="failed")

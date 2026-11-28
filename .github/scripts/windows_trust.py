@@ -79,7 +79,7 @@ def verify(report_path: Path, manifest: dict, installer_sha256: str,
         all_sources[path] = item["sha256"]
         if PurePosixPath(path).suffix.casefold() in EXTENSIONS:
             expected[path] = item["sha256"]
-    expected["setup/NIPAT-Setup.exe"] = installer_sha256
+    expected["setup/NewPat-Setup.exe"] = installer_sha256
     archives = report.get("embedded_archives")
     _require(isinstance(archives, list) and len(archives) == 1, "missing embedded CPython archive")
     archive = archives[0]

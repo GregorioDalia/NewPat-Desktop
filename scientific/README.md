@@ -1,6 +1,6 @@
 # Scientific programs and reference models
 
-NewPat packages six R programs from [DNPcall](https://github.com/fravasini/DNPcall) and [NEWPAT](https://github.com/lpistacchia/NEWPAT). The image includes R, samtools, their dependencies and the `nipat_scientific` preparation library. Before execution the engine checks all six operational scripts against [SHA256SUMS](SHA256SUMS). Analyses use the copies inside the verified image. The host client owns file selection and run records.
+NewPat packages six R programs from [DNPcall](https://github.com/fravasini/DNPcall) and [NEWPAT](https://github.com/lpistacchia/NEWPAT). The image includes R, samtools, their dependencies and the `newpat_scientific` preparation library. Before execution the engine checks all six operational scripts against [SHA256SUMS](SHA256SUMS). Analyses use the copies inside the verified image. The host client owns file selection and run records.
 
 | Workflow | Bundled source |
 | --- | --- |
@@ -21,7 +21,7 @@ The full scientific qualification also compares the candidate with frozen script
 
 | Analysis | Reference used in full scientific qualification |
 | --- | --- |
-| DNPcall | NIPAT 0.8.5 commit `eafadf7002a9c7d7c1b9af9ccafc47d698a059e5`, frozen in `tests/reference_r/0.8.5`. |
+| DNPcall | Version `v0.8.5`, commit `eafadf7002a9c7d7c1b9af9ccafc47d698a059e5`, archived in `tests/reference_r/0.8.5`. |
 | SNPcall | [Upstream SNPcall 2.0](https://github.com/lpistacchia/NEWPAT/tree/ce59f4beeeec710b1b42d425cb87d7aad729f71d/SNPcall), Git blob `7a2e01e94c9e278af52aa861646fec3b16df8b1c`. Local reference `tests/reference_r/2.0/SNPcall.R` has SHA-256 `855a96c897d1bcb8ce30b725baecfa739d01be323252da07554a63aa66965da4`. |
 | Contamination, prenatal and postnatal CPI | [NEWPAT snapshot](https://github.com/lpistacchia/NEWPAT/tree/c753afc4be62dfc0b81b8cb683a6e850516f5ffd), frozen in `tests/reference_r/NEWPAT_20261126`, plus independent analytical expectations. The [20-marker prenatal examples](../tests/fixtures/prenatal_cpi/README.md) include expected results for both SNPs and DNPs. |
 
@@ -39,7 +39,7 @@ Large intermediates use the runtime's Linux scratch storage. The client manages 
 
 ## SNPcall
 
-SNPcall 2.0 takes a panel and a pileup with reference, quality and QNAME fields. In BAM mode the engine creates three-base BED windows and calls samtools before R. For a compatible indexed BAM, concurrent tasks cover disjoint chromosomes and reassemble the pileup in header order. A failed partition or a pool that exceeds its memory allowance triggers a fresh sequential scan. A failed sequential scan stops execution. The default `-d 0` removes the depth cap. A four-column panel uses `chr,pos,ref,alt`. A three-column panel with `pos=chr:position` is normalized to the same format. Both accept positions from 2 through 2147483646 inclusive.
+SNPcall 2.0 takes a panel and a pileup with reference, quality and QNAME fields. In BAM mode the engine creates three-base BED windows and calls samtools before R. For a compatible indexed BAM, concurrent tasks cover disjoint chromosomes and reassemble the pileup in header order. A failed partition or a pool that exceeds its memory allowance triggers a fresh sequential scan. A failed sequential scan stops execution. The default maximum depth is 2147483647 reads per position in each BAM. NewPat passes the equivalent `-d 0` to samtools 1.21. A four-column panel uses `chr,pos,ref,alt`. A three-column panel with `pos=chr:position` is normalized to the same format. Both accept positions from 2 through 2147483646 inclusive.
 
 `output/SNPcall_output.txt` contains 17 columns covering coordinates and alleles, REF/ALT/Other counts, total, REF fraction, `GL0`/`GL1`/`GL2`, `GT`, indel statistics and observed bases with counts. GL values are natural log likelihoods using central-base Phred scores for REF/ALT observations. The default Other fraction threshold of 0.1 makes `GT` missing at or above the threshold. Central indels are counted before filtering. A flanking indel can also exclude a read. The ratio is `N_REF / (N_REF + N_ALT)`.
 
@@ -61,7 +61,7 @@ Postnatal CPI takes mother–father–child trios and SNP/DNP frequencies. The m
 
 ## Fetal sex
 
-NewPat runs the upstream R script from [NEWPAT revision dde1a75](https://github.com/lpistacchia/NEWPAT/tree/dde1a759e4b994a42ec9c9651f896394c546b109/Fetal_sex). The three inputs come from one maternal cfDNA sample: autosomal and X DNP counts, and Y SNP counts. Use X and Y panels previously validated for specificity. For the two published examples the expected ratios (A, B, C) are (1, 0, 0) with outcome F and (0.125, 1.5, 12) with outcome M. Missing ratios or a combination outside both sets of thresholds gives Undetermined. The author describes the thresholds as preliminary.
+NewPat runs the upstream R script from [NEWPAT revision dde1a75](https://github.com/lpistacchia/NEWPAT/tree/dde1a759e4b994a42ec9c9651f896394c546b109/Fetal_sex). All counts come from one maternal cfDNA sample. The adapter can split a combined DNP table by chromosome or read separate autosomal and X tables. It passes both regions and the separate Y SNP table to the original R script. Use X and Y panels previously validated for specificity. For the two published examples the expected ratios (A, B, C) are (1, 0, 0) with outcome F and (0.125, 1.5, 12) with outcome M. Missing ratios or a combination outside both sets of thresholds gives Undetermined. The author describes the thresholds as preliminary.
 
 ## Configuration and verification
 

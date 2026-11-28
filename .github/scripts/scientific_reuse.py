@@ -31,7 +31,7 @@ import native_evidence
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
-from nipat.repository import REPOSITORY_ID, build_repository, official_actions_context
+from newpat.repository import REPOSITORY_ID, build_repository, official_actions_context
 
 REPOSITORY = build_repository()
 API_ROOT = f"https://api.github.com/repos/{REPOSITORY}/"
@@ -48,10 +48,10 @@ LOOKUP_ERRORS = (OSError, http.client.HTTPException, EOFError, ValueError, KeyEr
 SEARCH_BUDGET_SECONDS = 120
 PRODUCER_STEPS = ("Seal successful scientific qualification for exact-image reuse", "Retain reusable scientific qualification")
 CHECK_DIRECTORIES = (
-    "nipat-engine-check", "nipat-presentation-check", "nipat-performance-check",
-    "nipat-native-r-check", "nipat-five-modules-check", "nipat-r-equivalence-check",
+    "newpat-engine-check", "newpat-presentation-check", "newpat-performance-check",
+    "newpat-native-r-check", "newpat-five-modules-check", "newpat-r-equivalence-check",
 )
-RESTORE_DIRECTORIES = (*CHECK_DIRECTORIES, "nipat-validation")
+RESTORE_DIRECTORIES = (*CHECK_DIRECTORIES, "newpat-validation")
 STEPS = (
     "Verify bundled scientific scripts without host sources",
     "Verify original sample labels and unchanged scientific results",
@@ -62,8 +62,8 @@ STEPS = (
     "Compare scientific cores with immutable versioned references",
 )
 REPORTS = {
-    "nipat-r-equivalence-check/artifacts/r-equivalence.json": "callers",
-    "nipat-five-modules-check/artifacts/five-module-qualification.json": "analyses",
+    "newpat-r-equivalence-check/artifacts/r-equivalence.json": "callers",
+    "newpat-five-modules-check/artifacts/five-module-qualification.json": "analyses",
 }
 
 
@@ -135,7 +135,7 @@ def selected_path(name):
     if len(parts) < 2 or PurePosixPath(name).suffix.lower() not in ALLOWED:
         return False
     return (parts[0] in CHECK_DIRECTORIES or
-            (len(parts) >= 4 and parts[:2] == ("nipat-validation", "runs")
+            (len(parts) >= 4 and parts[:2] == ("newpat-validation", "runs")
              and parts[-1] in {"run.json", "execution.log"}))
 
 
@@ -165,10 +165,10 @@ def raw_evidence(runner_temp):
 def verify_required(evidence, image, commit):
     require(all(f"{directory}/verification.log" in evidence for directory in CHECK_DIRECTORIES),
             "Scientific gate logs are incomplete")
-    require(any(name.startswith("nipat-validation/runs/") and name.endswith("/run.json") for name in evidence)
-            and any(name.startswith("nipat-validation/runs/") and name.endswith("/execution.log") for name in evidence),
+    require(any(name.startswith("newpat-validation/runs/") and name.endswith("/run.json") for name in evidence)
+            and any(name.startswith("newpat-validation/runs/") and name.endswith("/execution.log") for name in evidence),
             "Self-test execution evidence is incomplete")
-    performance = json.loads(evidence.get("nipat-performance-check/artifacts/verification.json", b"null"))
+    performance = json.loads(evidence.get("newpat-performance-check/artifacts/verification.json", b"null"))
     require(isinstance(performance, dict) and performance.get("schema_version") == 1
             and performance.get("status") == "passed" and performance.get("image_id") == image["id"],
             "Performance qualification report is missing or belongs to another image")
@@ -308,7 +308,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 def api_request(path):
     request = urllib.request.Request(api_url(path), headers={"Accept": "application/vnd.github+json",
-                                                           "User-Agent": "nipat-scientific-reuse"})
+                                                           "User-Agent": "newpat-scientific-reuse"})
     token = os.environ.get("GH_TOKEN", "")
     if token:
         request.add_unredirected_header("Authorization", f"Bearer {token}")
@@ -430,7 +430,7 @@ def artifact_for(document, run, tree, job, kind="qualification"):
             and all(isinstance(artifact, dict) for artifact in document["artifacts"]), "Invalid artifact list")
     artifacts = document.get("artifacts", [])
     require(type(document.get("total_count")) is int and document["total_count"] == len(artifacts), "Artifact list is incomplete")
-    name = f"nipat-scientific-{kind}-{run['run_attempt']}-{tree}"
+    name = f"newpat-scientific-{kind}-{run['run_attempt']}-{tree}"
     matches = [artifact for artifact in artifacts if artifact.get("name") == name]
     require(len(matches) == 1 and matches[0].get("expired") is False, "Scientific artifact is missing, expired or ambiguous")
     artifact = matches[0]
@@ -507,7 +507,7 @@ def restore_files(evidence, runner_temp):
     targets = [runner_temp / name for name in RESTORE_DIRECTORIES]
     require(all(not path.exists() and not path.is_symlink() for path in targets), "Scientific restore target already exists")
     installed = []
-    with tempfile.TemporaryDirectory(prefix=".nipat-reuse-", dir=runner_temp) as temporary:
+    with tempfile.TemporaryDirectory(prefix=".newpat-reuse-", dir=runner_temp) as temporary:
         staging = Path(temporary)
         for name, data in evidence.items():
             require(selected_path(name), "Unsafe restore path")
@@ -628,11 +628,11 @@ def restore(image, output, runner_temp, *, fetch=fetch_json, download=download_a
                             "A main push needs a qualification of its exact PR head")
                 run_id, attempt = candidate["id"], candidate["run_attempt"]
                 artifacts = fetch(f"actions/runs/{run_id}/artifacts?per_page=100", deadline=deadline)
-                name = f"nipat-scientific-qualification-{attempt}-{source['tree']}"
+                name = f"newpat-scientific-qualification-{attempt}-{source['tree']}"
                 require(any(artifact.get("name") == name for artifact in artifacts.get("artifacts", [])), "No artifact for this source tree")
                 job = validate_job(fetch(f"actions/runs/{run_id}/attempts/{attempt}/jobs?per_page=100", deadline=deadline), candidate)
                 artifact = artifact_for(artifacts, candidate, source["tree"], job)
-                with tempfile.TemporaryDirectory(prefix="nipat-scientific-proof-") as temporary:
+                with tempfile.TemporaryDirectory(prefix="newpat-scientific-proof-") as temporary:
                     directory = Path(temporary)
                     downloaded = directory / "artifact.zip"
                     download(artifact, downloaded, deadline=deadline)

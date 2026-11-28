@@ -5,10 +5,10 @@ import unittest
 from contextlib import nullcontext
 from pathlib import Path
 
-from nipat.adapters.panels import read_position_panel
-from nipat.errors import ValidationError
-from nipat.execution.workflows import Workflows
-from nipat.paths import ProjectLayout
+from newpat.adapters.panels import read_position_panel
+from newpat.errors import ValidationError
+from newpat.experiments.workflows import Workflows
+from newpat.paths import ProjectLayout
 
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
@@ -65,7 +65,7 @@ class InputModeTests(unittest.TestCase):
         self.assertEqual(len(self.runner.calls), 1)
         command = self.runner.calls[0]
         self.assertEqual(command[:4],
-                         ["python3", "/opt/nipat/engine/main.py", "execute", "snp-call"])
+                         ["python3", "/opt/newpat/engine/main.py", "execute", "snp-call"])
         request = json.loads((run / "work/engine-request.json").read_text(encoding="utf-8"))
         self.assertEqual(request, {
             "schema_version": 1, "workflow": "snp-call", "mode": "pileup",
@@ -111,7 +111,7 @@ class InputModeTests(unittest.TestCase):
         run = self.workflows.snp_call(bam=bam, reference=reference, panel=panel)
         self.assertEqual(len(self.runner.calls), 1)
         self.assertEqual(self.runner.calls[0][:4],
-                         ["python3", "/opt/nipat/engine/main.py", "execute", "snp-call"])
+                         ["python3", "/opt/newpat/engine/main.py", "execute", "snp-call"])
         request = json.loads((run / "work/engine-request.json").read_text(encoding="utf-8"))
         self.assertEqual(request["mode"], "bam")
         self.assertEqual(request["bam"], "/workspace/inputs/bam/sample.bam")
@@ -181,7 +181,7 @@ class InputModeTests(unittest.TestCase):
         run = self.workflows.cpi(**args, err_const=0.01)
         command = self.runner.calls[0]
         self.assertEqual(command, [
-            "python3", "/opt/nipat/engine/main.py", "execute", "cpi", "--request",
+            "python3", "/opt/newpat/engine/main.py", "execute", "cpi", "--request",
             str(self.layout.container_path(run / "work/engine-request.json")),
         ])
         self.assertEqual(self.cpi_request(run), {

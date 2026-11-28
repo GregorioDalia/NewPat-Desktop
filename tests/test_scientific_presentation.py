@@ -8,9 +8,9 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from nipat_scientific.errors import ValidationError
-from nipat_scientific.plan import validate_plan
-from nipat_scientific.presentation import (
+from newpat_scientific.errors import ValidationError
+from newpat_scientific.plan import validate_plan
+from newpat_scientific.presentation import (
     _copy_table, _filename, _interpretation_notes, _unique_labels, finish_plan_presentation, finish_presentation,
     normalize_presentation, prepare_presentation, step_presentation,
     validate_request_presentation,
@@ -219,7 +219,7 @@ class PresentationTests(unittest.TestCase):
                 path.write_text("synthetic", encoding="utf-8")
                 records[key] = {"path": path.relative_to(root).as_posix()}
             group = {"id": "group_0001", "samples": ["a", "b"], "plots": [records.pop("plot")], **records}
-            with patch("nipat_scientific.presentation.hashlib.file_digest", wraps=hashlib.file_digest) as digests:
+            with patch("newpat_scientific.presentation.hashlib.file_digest", wraps=hashlib.file_digest) as digests:
                 report = finish_plan_presentation({"presentation": {}},
                                                   {"status": "succeeded", "steps": [], "snp_summary": [group]}, root)
             self.assertEqual([Path(call.args[0].name) for call in digests.call_args_list],

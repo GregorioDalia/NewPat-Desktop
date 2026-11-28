@@ -22,7 +22,7 @@ def verify_report_igv_capture(page, app, check):
         "locus": "chrDnpSynthetic:30-74",
     })
     prepared.update(available=True, site="chrDnpSynthetic:50-51", marker="DNP", build="synthetic")
-    navigation = page.evaluate("NipatIGV.getNavigation()")
+    navigation = page.evaluate("NewPatIGV.getNavigation()")
     capture = "options => window.NewPatReportIGV.capture(options, {language:'en'})"
     view = page.evaluate(capture, prepared)
     check(bool(view) and view["tracks"] == names and view["locus"] == prepared["locus"] and
@@ -60,14 +60,14 @@ def verify_report_igv_capture(page, app, check):
         c.abort();return await job;
     }""", prepared)
     check(cancelled is None and page.locator('iframe[src="report-igv.html"]').count() == 0 and
-          page.evaluate("NipatIGV.getNavigation()") == navigation,
+          page.evaluate("NewPatIGV.getNavigation()") == navigation,
           "Capture cleanup releases its isolated viewer and preserves the interactive IGV session")
     verify_archived_report_pdf(page, app, check)
 
 
 def verify_archived_report_pdf(page, app, check):
     """Native-shaped synthetic oracle archive plus the shipped indexed BAMs, through the save dialog."""
-    from nipat.execution.tracking import file_evidence
+    from newpat.experiments.tracking import file_evidence
     from test_gui_results import artifact, table, validation, write_json
 
     data = ROOT / "examples" / "synthetic-trio"
@@ -126,11 +126,11 @@ def test_offline_report_igv_capture(tmp_path):
                      if (exe := shutil.which(name))), None)
     if not chromium:
         pytest.skip("System Chromium is required for this browser test")
-    from nipat.gui.app import DesktopApplication
+    from newpat.desktop.app import DesktopApplication
 
-    from nipat.gui.service import GuiService
-    from nipat.paths import ProjectLayout
-    from nipat.preferences import PreferencesStore
+    from newpat.desktop.service import GuiService
+    from newpat.paths import ProjectLayout
+    from newpat.preferences import PreferencesStore
 
     layout = ProjectLayout.discover(runs_dir=tmp_path / "runs", data_dir=tmp_path / "data")
     app = DesktopApplication(host=object(), service=GuiService(layout, preferences_store=PreferencesStore(tmp_path / "settings.json")))

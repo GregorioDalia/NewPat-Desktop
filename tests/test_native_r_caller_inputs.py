@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 import unittest
 
-from nipat_scientific.settings import describe_settings, normalize_settings
+from newpat_scientific.settings import describe_settings, normalize_settings
 
 from native_engine_helpers import execute_workflow
 from native_r_helpers import NATIVE_R_AVAILABLE, NATIVE_R_REASON
@@ -18,15 +18,15 @@ from test_native_r_edge_cases import HELPERS, PAYLOAD, table
 @unittest.skipUnless(NATIVE_R_AVAILABLE, NATIVE_R_REASON)
 class NativeCallerInputs(unittest.TestCase):
     def setUp(self):
-        temporary = tempfile.TemporaryDirectory(prefix="nipat-audit-")
+        temporary = tempfile.TemporaryDirectory(prefix="newpat-audit-")
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
-        self.env = dict(os.environ, NIPAT_EXECUTION_MODE="serial",
-                        NIPAT_PARALLEL_HELPER=str(HELPERS / "parallel.R"),
-                        NIPAT_SETTINGS_HELPER=str(HELPERS / "settings.R"),
-                        NIPAT_SETTINGS_REGISTRY=str(HELPERS / "settings_data.json"),
-                        NIPAT_PLOTS_HELPER=str(HELPERS / "plots.R"))
-        self.env.pop("NIPAT_SCIENTIFIC_SETTINGS", None)
+        self.env = dict(os.environ, NEWPAT_EXECUTION_MODE="serial",
+                        NEWPAT_PARALLEL_HELPER=str(HELPERS / "parallel.R"),
+                        NEWPAT_SETTINGS_HELPER=str(HELPERS / "settings.R"),
+                        NEWPAT_SETTINGS_REGISTRY=str(HELPERS / "settings_data.json"),
+                        NEWPAT_PLOTS_HELPER=str(HELPERS / "plots.R"))
+        self.env.pop("NEWPAT_SCIENTIFIC_SETTINGS", None)
 
     def run_r(self, script, arguments, *, root=None):
         return subprocess.run(
@@ -78,6 +78,28 @@ class NativeCallerInputs(unittest.TestCase):
                 actual = table(output / "output/SNPcall_output.txt")
                 self.assertEqual({row["chr"]: (row["N_REF"], row["N_ALT"], row["GT"]) for row in actual},
                                  expected)
+
+    def test_bam_depth_default_and_saved_limit_reach_both_scientific_tables(self):
+        reference = self.fasta(("chr1",))
+        bam = self.bam("sample_0001", [("chr1", 100)], [("chr1", f"read{i}", "AAAA") for i in range(9001)])
+        for caller in ("dnp-call", "snp-call"):
+            panel = self.root / f"{caller}.tsv"
+            if caller == "dnp-call":
+                panel.write_text("chr1\t50\t51\tAA\tGG\n")
+                inputs = {"samples": [{"sample_id": "sample_0001", "path": str(bam)}], "parallel": False}
+                result_table = "output/individual_outputs/full_output_sample_0001.txt"
+            else:
+                panel.write_text("chr\tpos\tref\talt\nchr1\t50\tA\tG\n")
+                inputs = {"mode": "bam", "bam": str(bam), "pileup": None}
+                result_table = "output/SNPcall_output.txt"
+            for label, overrides, expected in (("default", {}, "9001"), ("saved", {"max_depth": 8000}, "8000")):
+                with self.subTest(caller=caller, depth=label):
+                    output = self.root / f"{caller}-{label}"
+                    result = self.execute(caller, output, panel=str(panel), reference=reference,
+                                          scientific_settings={**overrides, "baq": False}, **inputs)
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    row, = table(output / result_table)
+                    self.assertEqual((row["N_REF"], row["N_ALT"], row["GT"]), (expected, "0", "0/0"))
 
     def test_dnp_accepts_at_in_covered_contig(self):
         reference = self.fasta(("chr@1",))
@@ -175,14 +197,14 @@ class NativeCallerInputs(unittest.TestCase):
     def test_dnp_rejects_wrong_reference_and_represents_empty_sample(self):
         self.assertIsNotNone(shutil.which("samtools"), "Native DNP checks require samtools")
         self.env.update(PYTHONPATH=str(HELPERS.parent),
-                        NIPAT_DNP_KEEP_PILEUP="1",
-                        NIPAT_DNP_BLOCKS_HELPER=str(HELPERS / "dnp_blocks.R"),
-                        NIPAT_DNP_PILEUP_HELPER=str(HELPERS / "dnp_pileup.py"))
+                        NEWPAT_DNP_KEEP_PILEUP="1",
+                        NEWPAT_DNP_BLOCKS_HELPER=str(HELPERS / "dnp_blocks.R"),
+                        NEWPAT_DNP_PILEUP_HELPER=str(HELPERS / "dnp_pileup.py"))
         settings = self.root / "dnp-settings.json"
         settings.write_text(json.dumps({"schema_version": 1, "workflow": "dnp-call",
                                         "parameters": normalize_settings("dnp-call", {"baq": False}),
                                         "constants": describe_settings("dnp-call")["constants"]}))
-        self.env["NIPAT_SCIENTIFIC_SETTINGS"] = str(settings)
+        self.env["NEWPAT_SCIENTIFIC_SETTINGS"] = str(settings)
         reference = self.root / "reference.fa"
         reference.write_text(">01\n" + "A" * 100 + "\n")
         subprocess.run(["samtools", "faidx", str(reference)], check=True, capture_output=True)

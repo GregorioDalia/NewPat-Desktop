@@ -6,13 +6,13 @@ import re
 import tempfile
 import unittest
 
-from nipat_scientific.dnp import prepare_dnp
-from nipat_scientific.errors import ValidationError
+from newpat_scientific.dnp import prepare_dnp
+from newpat_scientific.errors import ValidationError
 
 
 class DnpEngineTests(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="nipat_dnp_")
+        self.temporary = tempfile.TemporaryDirectory(prefix="newpat_dnp_")
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name).resolve()
         self.inputs = self.root / "inputs"

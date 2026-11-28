@@ -52,7 +52,7 @@ Check overlapping worker events in `work/parallel/*.jsonl` for actual concurrenc
 | Process RSS | Resident memory for an R, samtools or supervising process. Summing RSS can double-count shared pages. |
 | CPU and I/O | Counters visible inside the container. Host filesystems, caching and virtualization affect attribution. |
 
-Use the same memory source across runs. Periodic samples can miss short peaks. A kernel peak reflects activity up to the last successful counter read. Leave missing measurements unavailable. Exit code 137 indicates termination. Check `OOMKilled`, cgroup events and resource diagnostics before attributing it to memory.
+Use the same memory source across runs. Periodic samples can miss short peaks. A kernel peak reflects activity up to the last successful counter read. Leave missing measurements unavailable. For exit code 137, check the diagnosis in `run.json`. Docker can flag an out-of-memory termination of the container. When a child process is killed and the engine survives, an increase in the Linux cgroup `oom_kill` counter during the command confirms that the kernel killed a process in that group for lack of memory. Use the scientific step log and the per-process samples to identify the affected phase. Exit code 137 alone leaves the cause open.
 
 <a id="consultazione-dei-risultati"></a>
 
@@ -99,11 +99,11 @@ python scripts/benchmark_workflows.py \
 
 `benchmark.json` retains inputs, times, resources and available summaries. To compare one, two and N BAMs in one experiment, pass the desired counts to `--sample-counts` (for example, `1 2 4` for a four-file list). For each count the supervisor selects that many entries from the start of the same ordered list. To measure several desktop experiments competing for the runtime, launch the same workload as separate experiments, record their submission times and compare the elapsed time to finish the whole group with each run’s individual time and resource grants.
 
-The [installed synthetic suite](WINDOWS_INSTALLATION_TEST.md) checks known workloads. For a physical Apple Silicon comparison, the [Mac worker benchmark](MACOS_INSTALLER.md#compare-worker-settings-on-an-apple-silicon-mac) uses the installed package and checks each condition against the serial output. The [candidate audit](AUDIT_0.9.10.md#portable-cpu-and-memory-policy) identifies which measurements came from earlier Mac runs and which exercised the policy on Linux. Measure representative local inputs to estimate elapsed time on a particular machine. [Run records](RUNS.md) · [Docker statistics](https://docs.docker.com/reference/cli/docker/container/stats/) · [Linux cgroup v2 counters](https://docs.kernel.org/admin-guide/cgroup-v2.html)
+The [installed synthetic suite](WINDOWS_INSTALLATION_TEST.md) checks known workloads. For a physical Apple Silicon comparison, the [Mac worker benchmark](MACOS_INSTALLER.md#compare-worker-settings-on-an-apple-silicon-mac) uses the installed package and checks each condition against the serial output. The [0.9.10 audit](https://github.com/GregorioDalia/NewPat-Desktop/blob/v0.9.10/docs/AUDIT_0.9.10.md#portable-cpu-and-memory-policy) identifies which measurements came from earlier Mac runs and which exercised the policy on Linux. Measure representative local inputs to estimate elapsed time on a particular machine. [Run records](RUNS.md) · [Docker statistics](https://docs.docker.com/reference/cli/docker/container/stats/) · [Linux cgroup v2 counters](https://docs.kernel.org/admin-guide/cgroup-v2.html)
 
 <a id="collaudo-dei-cinque-moduli-nella-0850"></a>
 <a id="collaudo-del-parallelismo-0812"></a>
 <a id="collaudo-del-pileup-parallelo-0813"></a>
 <a id="collaudo-delle-ottimizzazioni-0814"></a>
 
-Earlier experiments and their test conditions are indexed in the [historical performance studies](https://github.com/GregorioDalia/nipat-desktop/blob/c2b936b6d581137746b372b9bbade2318bae716c/docs/archive/README.md#audits-tests-and-decisions).
+Earlier experiments and their test conditions are indexed in the [historical performance studies](https://github.com/GregorioDalia/NewPat-Desktop/blob/c2b936b6d581137746b372b9bbade2318bae716c/docs/archive/README.md#audits-tests-and-decisions).

@@ -21,7 +21,7 @@ from snp_output_helpers import write_snp_auxiliary
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = PROJECT_ROOT / "engine" / "main.py"
-SPEC = importlib.util.spec_from_file_location("nipat_bundled_engine", MODULE_PATH)
+SPEC = importlib.util.spec_from_file_location("newpat_bundled_engine", MODULE_PATH)
 assert SPEC is not None and SPEC.loader is not None
 engine = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(engine)
@@ -29,13 +29,13 @@ SPEC.loader.exec_module(engine)
 
 class EnginePackageTests(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="nipat engine ")
+        self.temporary = tempfile.TemporaryDirectory(prefix="newpat engine ")
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name).resolve()
         (self.root / "engine").mkdir()
         shutil.copyfile(MODULE_PATH, self.root / "engine" / "main.py")
-        shutil.copytree(PROJECT_ROOT / "src" / "nipat_scientific",
-                        self.root / "lib" / "nipat_scientific",
+        shutil.copytree(PROJECT_ROOT / "src" / "newpat_scientific",
+                        self.root / "lib" / "newpat_scientific",
                         ignore=shutil.ignore_patterns("__pycache__"))
         scientific = self.root / "scientific"
         scientific.mkdir()
@@ -68,7 +68,7 @@ class EnginePackageTests(unittest.TestCase):
         self.assertEqual(set(metadata["workflows"]), set(engine.SCRIPT_PATHS))
         self.assertEqual(metadata["workflow_interfaces"], {
             "contamination": "contamination-v2", "snp-call": "snp-call-v2", "dnp-call": "dnp-call-v1",
-            "cpi": "cpi-v4", "cpin": "cpin-v2", "fetal-sex": "fetal-sex-v1",
+            "cpi": "cpi-v4", "cpin": "cpin-v2", "fetal-sex": "fetal-sex-v3",
         })
         self.assertEqual(metadata["plan_execution"], {
             "interface": "workflow-plan-execution-v2", "schema_version": 1,
@@ -85,20 +85,20 @@ class EnginePackageTests(unittest.TestCase):
         })
         hashes = metadata["preparation"]["file_sha256"]
         self.assertEqual(len(hashes), 1 + len(engine.PREPARATION_FILES) + len(engine.CATALOG_FILES))
-        self.assertIn("lib/nipat_scientific/performance.py", hashes)
+        self.assertIn("lib/newpat_scientific/performance.py", hashes)
         for name in ("scratch.py", "dnp_pileup.py", "dnp_blocks.R", "progress.py", "progress.R", "parallel.py", "parallel.R"):
-            self.assertIn(f"lib/nipat_scientific/{name}", hashes)
+            self.assertIn(f"lib/newpat_scientific/{name}", hashes)
         self.assertIn("engine/main.py", hashes)
-        self.assertIn("lib/nipat_scientific/contamination.py", hashes)
-        self.assertIn("lib/nipat_scientific/snp.py", hashes)
-        self.assertIn("lib/nipat_scientific/dnp.py", hashes)
-        self.assertIn("lib/nipat_scientific/cpi.py", hashes)
-        self.assertIn("lib/nipat_scientific/catalog.py", hashes)
-        self.assertIn("lib/nipat_scientific/plan.py", hashes)
-        self.assertIn("lib/nipat_scientific/executor.py", hashes)
-        self.assertIn("lib/nipat_scientific/desktop_scheduling.py", hashes)
+        self.assertIn("lib/newpat_scientific/contamination.py", hashes)
+        self.assertIn("lib/newpat_scientific/snp.py", hashes)
+        self.assertIn("lib/newpat_scientific/dnp.py", hashes)
+        self.assertIn("lib/newpat_scientific/cpi.py", hashes)
+        self.assertIn("lib/newpat_scientific/catalog.py", hashes)
+        self.assertIn("lib/newpat_scientific/plan.py", hashes)
+        self.assertIn("lib/newpat_scientific/executor.py", hashes)
+        self.assertIn("lib/newpat_scientific/desktop_scheduling.py", hashes)
         for workflow in engine.SCRIPT_PATHS:
-            self.assertIn(f"lib/nipat_scientific/catalog_data/{workflow}.json", hashes)
+            self.assertIn(f"lib/newpat_scientific/catalog_data/{workflow}.json", hashes)
         for relative, digest in hashes.items():
             self.assertEqual(hashlib.sha256((self.root / relative).read_bytes()).hexdigest(), digest)
         for workflow, relative in engine.SCRIPT_PATHS.items():
@@ -109,7 +109,7 @@ class EnginePackageTests(unittest.TestCase):
 
     def test_image_plan_gate_accepts_inferred_marker_and_rejects_wrong_marker(self):
         spec = importlib.util.spec_from_file_location(
-            "nipat_package_plan_gate", PROJECT_ROOT / "scripts/verify_engine_package.py")
+            "newpat_package_plan_gate", PROJECT_ROOT / "scripts/verify_engine_package.py")
         helper = importlib.util.module_from_spec(spec)
         with patch.object(sys, "path", [str(PROJECT_ROOT / "scripts"), *sys.path]):
             spec.loader.exec_module(helper)
@@ -138,11 +138,11 @@ class EnginePackageTests(unittest.TestCase):
             helper.check_plan_contract("fixture-image", invalid)
 
     def test_numeric_regression_provenance_accepts_complete_engine_source_inventory(self):
-        from nipat.errors import ValidationError
-        from nipat.paths import ProjectLayout
+        from newpat.errors import ValidationError
+        from newpat.paths import ProjectLayout
 
         spec = importlib.util.spec_from_file_location(
-            "nipat_regression_provenance", PROJECT_ROOT / "scripts/verify_contamination_update.py")
+            "newpat_regression_provenance", PROJECT_ROOT / "scripts/verify_contamination_update.py")
         helper = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(helper)
         code, output, errors = self.call_main(["describe", "--json"])
@@ -162,10 +162,10 @@ class EnginePackageTests(unittest.TestCase):
         record = {"status": "succeeded", "workflow": "contamination", "source": {"role": "client"},
                   "input_mounts": [], "runtime": {"engine": metadata, "image_id": "sha256:" + "a" * 64},
                   "commands": [{"argv": ["docker", "compose", "-f", str(compose), "run", "scientific",
-                                           "python3", "/opt/nipat/engine/main.py", "execute", "contamination"]}]}
+                                           "python3", "/opt/newpat/engine/main.py", "execute", "contamination"]}]}
         (run / "run.json").write_text(json.dumps(record), encoding="utf-8")
         helper.check_bundled_run(run, layout)
-        del metadata["preparation"]["file_sha256"]["lib/nipat_scientific/outputs.py"]
+        del metadata["preparation"]["file_sha256"]["lib/newpat_scientific/outputs.py"]
         (run / "run.json").write_text(json.dumps(record), encoding="utf-8")
         with self.assertRaisesRegex(ValidationError, "preparazione"):
             helper.check_bundled_run(run, layout)
@@ -186,10 +186,10 @@ class EnginePackageTests(unittest.TestCase):
             verifier.check_snp_rejected_before_r("samtools failed", output)
 
     def test_snp_plan_accepts_anonymous_scratch_without_relaxing_input_isolation(self):
-        from nipat.paths import ProjectLayout
+        from newpat.paths import ProjectLayout
 
         spec = importlib.util.spec_from_file_location(
-            "nipat_snp_plan_provenance", PROJECT_ROOT / "scripts/verify_snp_workflow.py")
+            "newpat_snp_plan_provenance", PROJECT_ROOT / "scripts/verify_snp_workflow.py")
         helper = importlib.util.module_from_spec(spec)
         with patch.object(sys, "path", [str(PROJECT_ROOT / "scripts"), *sys.path]):
             spec.loader.exec_module(helper)
@@ -199,7 +199,7 @@ class EnginePackageTests(unittest.TestCase):
         (run / "work").mkdir(parents=True)
         record = {
             "status": "succeeded", "source": {"role": "client"},
-            "commands": [{"argv": ["python3", "/opt/nipat/engine/main.py", "execute-plan"]}],
+            "commands": [{"argv": ["python3", "/opt/newpat/engine/main.py", "execute-plan"]}],
             "runtime": {"engine": {"plan_execution": {"workflows": ["snp-call"]}}},
             "input_mounts": [{"container_path": "/inputs/sample.bam"}],
         }
@@ -324,7 +324,7 @@ class EnginePackageTests(unittest.TestCase):
         self.assertEqual(json.loads(result.stdout)["interface"], "native-r-v1")
 
     def test_missing_bundled_preparation_module_does_not_fall_back_to_host(self):
-        (self.root / "lib" / "nipat_scientific" / "contamination.py").unlink()
+        (self.root / "lib" / "newpat_scientific" / "contamination.py").unlink()
         environment = os.environ.copy()
         environment["PYTHONPATH"] = str(PROJECT_ROOT / "src")
         result = subprocess.run(
@@ -379,7 +379,7 @@ class EnginePackageTests(unittest.TestCase):
 
     @unittest.skipIf(os.name == "nt", "POSIX executable fixture exercises container process replacement.")
     def test_process_replacement_preserves_rscript_exit_status_and_arguments(self):
-        from nipat_scientific.parallel import THREAD_LIMITS
+        from newpat_scientific.parallel import THREAD_LIMITS
 
         fake_bin = self.root / "bin"
         fake_bin.mkdir()
@@ -396,8 +396,8 @@ class EnginePackageTests(unittest.TestCase):
         fake_rscript.chmod(0o755)
         environment = os.environ.copy()
         environment.update({name: "8" for name in THREAD_LIMITS})
-        environment["NIPAT_EXECUTION_MODE"] = "serial"
-        environment["NIPAT_MAX_WORKERS"] = "8"
+        environment["NEWPAT_EXECUTION_MODE"] = "serial"
+        environment["NEWPAT_MAX_WORKERS"] = "8"
         # The native engine must use its own bundled helper when no desktop
         # installation is available on the import path.
         environment["PYTHONPATH"] = str(self.root / "absent application")
@@ -425,7 +425,7 @@ class EnginePackageTests(unittest.TestCase):
 
     def test_relocated_catalog_matches_sources_without_desktop_or_checkout(self):
         self.assertFalse((self.root / "src").exists())
-        self.assertFalse((self.root / "lib/nipat").exists())
+        self.assertFalse((self.root / "lib/newpat").exists())
         result = self.relocated_command("catalog", "--json")
         self.assertEqual(result.returncode, 0, result.stderr)
         catalog = json.loads(result.stdout)
@@ -446,7 +446,7 @@ class EnginePackageTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue(result.stdout.isascii())
         expected = {
-            workflow: json.loads((self.root / "lib/nipat_scientific/catalog_data" /
+            workflow: json.loads((self.root / "lib/newpat_scientific/catalog_data" /
                                   f"{workflow}.json").read_text(encoding="utf-8"))
             for workflow in engine.SCRIPT_PATHS
         }
@@ -454,7 +454,7 @@ class EnginePackageTests(unittest.TestCase):
         self.assertEqual(json.loads(result.stdout)["workflows"], expected)
 
     def test_missing_catalog_never_falls_back_to_checkout(self):
-        path = self.root / "lib/nipat_scientific/catalog_data/cpi.json"
+        path = self.root / "lib/newpat_scientific/catalog_data/cpi.json"
         path.unlink()
         result = self.relocated_command("catalog", "--json")
         self.assertEqual(result.returncode, 2)
@@ -508,7 +508,7 @@ class EnginePackageTests(unittest.TestCase):
         plan_file.write_text(json.dumps(document), encoding="utf-8")
         run_dir = self.root / "new-workflow"
         report = {"status": "failed", "exit_code": 37}
-        with patch("nipat_scientific.executor.execute_plan", return_value=report) as execute:
+        with patch("newpat_scientific.executor.execute_plan", return_value=report) as execute:
             code, output, errors = self.call_main([
                 "execute-plan", "--plan", str(plan_file), "--run-dir", str(run_dir), "--json",
             ])
@@ -524,7 +524,7 @@ class EnginePackageTests(unittest.TestCase):
         plan_file = self.root / "plan.json"
         plan_file.write_text("{}", encoding="utf-8")
         run_dir = self.root / "new-workflow"
-        with patch("nipat_scientific.executor.execute_plan", return_value={
+        with patch("newpat_scientific.executor.execute_plan", return_value={
             "status": "failed", "exit_code": 37, "error": "Scientific child failed.",
         }):
             code, output, errors = self.call_main([
@@ -538,12 +538,12 @@ class EnginePackageTests(unittest.TestCase):
         plan_file = self.root / "plan.json"
         plan_file.write_text("{not JSON}", encoding="utf-8")
         run_dir = self.root / "new-workflow"
-        with patch("nipat_scientific.executor.execute_plan") as execute:
+        with patch("newpat_scientific.executor.execute_plan") as execute:
             code, output, errors = self.call_main([
                 "execute-plan", "--plan", str(plan_file), "--run-dir", str(run_dir),
             ])
         self.assertEqual(code, 2)
-        self.assertIn("NIPAT scientific engine:", errors)
+        self.assertIn("NewPat scientific engine:", errors)
         self.assertEqual(output, "")
         execute.assert_not_called()
         self.assertFalse(run_dir.exists())
@@ -551,7 +551,7 @@ class EnginePackageTests(unittest.TestCase):
     def test_modified_source_prevents_plan_execution(self):
         source = self.root / "scientific" / engine.SCRIPT_PATHS["dnp-call"]
         source.write_bytes(source.read_bytes() + b"\n# changed\n")
-        with patch("nipat_scientific.executor.execute_plan") as execute:
+        with patch("newpat_scientific.executor.execute_plan") as execute:
             code, _, errors = self.call_main([
                 "execute-plan", "--plan", str(self.root / "absent-plan.json"),
                 "--run-dir", str(self.root / "new-workflow"),
@@ -598,7 +598,7 @@ class EnginePackageTests(unittest.TestCase):
         self.assertEqual((run_dir / "steps/contamination/work/inputs/table_0001.txt").read_bytes(),
                          sample.read_bytes())
         self.assertFalse((self.root / "src").exists())
-        self.assertFalse((self.root / "lib/nipat").exists())
+        self.assertFalse((self.root / "lib/newpat").exists())
 
     def cpi_request(self):
         inputs = self.root / "CPI original inputs ,= è"
@@ -709,7 +709,7 @@ class EnginePackageTests(unittest.TestCase):
     def dnp_request(self, parallel=False):
         # Container aliases are deliberately shell-safe even when the bundled
         # application, source panel and run root have arbitrary user names.
-        temporary = tempfile.TemporaryDirectory(prefix="nipat_dnp_aliases_")
+        temporary = tempfile.TemporaryDirectory(prefix="newpat_dnp_aliases_")
         self.addCleanup(temporary.cleanup)
         inputs = Path(temporary.name).resolve()
         panel = self.root / "selected panel = à.txt"
@@ -869,7 +869,7 @@ class EnginePackageTests(unittest.TestCase):
             "Path(sys.argv[sys.argv.index('-o') + 1]).write_text('chr1\\t100\\tA\\t1\\t.\\tI\\tread1\\n')\n"
         )
         run = self.root / "plan-run"
-        environment["NIPAT_EXECUTION_MODE"] = "serial"
+        environment["NEWPAT_EXECUTION_MODE"] = "serial"
         result = self.relocated_command("execute-plan", "--plan", str(plan_file),
                                         "--run-dir", str(run), "--json", extra_env=environment)
         self.assertEqual(result.returncode, 37, result.stderr)

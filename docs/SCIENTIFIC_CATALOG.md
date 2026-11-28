@@ -9,7 +9,7 @@ newpat parameters snp-call --section preparation --lang en
 newpat parameters --json
 ```
 
-In a source checkout use `python -m nipat`. The packaged Windows wrapper and macOS command launcher accept the same arguments. JSON includes both languages. The `--lang` and `--section` options control text display. [Platform launchers](USER_GUIDE.md)
+In a source checkout use `python -m newpat`. The packaged Windows wrapper and macOS command launcher accept the same arguments. JSON includes both languages. The `--lang` and `--section` options control text display. [Platform launchers](USER_GUIDE.md)
 
 ## Reading an entry
 
@@ -48,7 +48,7 @@ Every module entry identifies the R source path, SHA-256 and reviewed line range
 The client ships a local catalog. To query the copy packaged with the engine, run the following inside the scientific image.
 
 ```sh
-python3 /opt/nipat/engine/main.py catalog cpi --json
+python3 /opt/newpat/engine/main.py catalog cpi --json
 ```
 
 The engine identity includes catalog and plan-validator hashes. These identify the reviewed files. Numerical tests and domain validation address correctness. The [workflow contract](WORKFLOW_CONTRACT.md) explains typed links between analyses and the distinction between plan validation and execution.

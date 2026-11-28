@@ -8,7 +8,7 @@ import re
 import subprocess
 
 
-REPORT_PATH = "nipat-native-r-check/native-r.json"
+REPORT_PATH = "newpat-native-r-check/native-r.json"
 RUNNER = ".github/scripts/check_native_r.py"
 SETTINGS_TEST = "tests/test_scientific_settings.py"
 SUPPORT = {RUNNER, SETTINGS_TEST, "tests/native_r_helpers.py", "tests/native_engine_helpers.py",

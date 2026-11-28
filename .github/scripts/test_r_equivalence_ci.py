@@ -36,7 +36,7 @@ class REquivalenceCI(unittest.TestCase):
         self.assertNotRegex(step, r"(?m)^        if:")
         self.assertIn("qualification_evidence.py --preflight", step)
         for directory in ("engine", "presentation", "performance", "native-r", "five-modules", "r-equivalence"):
-            self.assertIn(f'"$RUNNER_TEMP/nipat-{directory}-check"', step)
+            self.assertIn(f'"$RUNNER_TEMP/newpat-{directory}-check"', step)
         final = job_text(workflow, "installer-required")
         self.assertIn("qualification_evidence.py", final)
         self.assertIn("--installer-set build/verified-installers/installer-set-check.json", final)
@@ -46,9 +46,9 @@ class REquivalenceCI(unittest.TestCase):
         for name, identifier in (("ci.yml", "scientific"),
                                  ("windows-installer.yml", "linux-runtime")):
             job = job_text((ROOT / ".github/workflows" / name).read_text(), identifier)
-            self.assertIn('scripts/verify_five_modules.py --image "$NIPAT_RUNTIME_IMAGE"', job)
+            self.assertIn('scripts/verify_five_modules.py --image "$NEWPAT_RUNTIME_IMAGE"', job)
             self.assertIn('--output "$TMPDIR/artifacts" --full', job)
-            self.assertIn('${{ runner.temp }}/nipat-five-modules-check/', job)
+            self.assertIn('${{ runner.temp }}/newpat-five-modules-check/', job)
             step = next(step for step in job.split("      - name:") if "scripts/verify_five_modules.py" in step)
             self.assertNotIn("continue-on-error:", step)
 
@@ -56,9 +56,9 @@ class REquivalenceCI(unittest.TestCase):
         for name, identifier in (("ci.yml", "scientific"), ("windows-installer.yml", "linux-runtime")):
             job = job_text((ROOT / ".github/workflows" / name).read_text(), identifier)
             self.assertIn("/qualification/.github/scripts/check_native_r.py", job)
-            self.assertIn("--env PYTHONPATH=/opt/nipat/lib:/qualification/src", job)
+            self.assertIn("--env PYTHONPATH=/opt/newpat/lib:/qualification/src", job)
             self.assertIn("--network=none", job)
-            self.assertIn("${{ runner.temp }}/nipat-native-r-check/", job)
+            self.assertIn("${{ runner.temp }}/newpat-native-r-check/", job)
             self.assertIn("--report /evidence/native-r.json", job)
         gate = (ROOT / ".github/scripts/check_native_r.py").read_text()
         self.assertIn("self.skipped", gate)
@@ -142,9 +142,9 @@ class REquivalenceCI(unittest.TestCase):
                 self.assertEqual(re.findall(r"(?m)^        if: (.+)$", step),
                                  ["steps.scientific_reuse.outputs.reused != 'true'"])
                 self.assertIn('set -o pipefail', step)
-                self.assertIn('scripts/verify_r_equivalence.py --image "$NIPAT_RUNTIME_IMAGE"', step)
+                self.assertIn('scripts/verify_r_equivalence.py --image "$NEWPAT_RUNTIME_IMAGE"', step)
                 self.assertIn('--output-dir "$TMPDIR/artifacts"', step)
-                self.assertIn('${{ runner.temp }}/nipat-r-equivalence-check/', job)
+                self.assertIn('${{ runner.temp }}/newpat-r-equivalence-check/', job)
                 self.assertLess(job.index("Build scientific runtime"), job.index(CHECK_NAME))
                 if name == "windows-installer.yml":
                     self.assertLess(job.index(CHECK_NAME), job.index("Export pinned assets"))

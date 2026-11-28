@@ -1,8 +1,8 @@
 # Real Windows handles and child processes; no WSL, Docker, installation or network activity.
 . (Join-Path $PSScriptRoot 'activity-lock.ps1')
-$temporary = Join-Path ([IO.Path]::GetTempPath()) ('nipat-activity-test-' + [Guid]::NewGuid().ToString('N'))
+$temporary = Join-Path ([IO.Path]::GetTempPath()) ('newpat-activity-test-' + [Guid]::NewGuid().ToString('N'))
 $originalLocalAppData = $env:LOCALAPPDATA
-$originalToken = [Environment]::GetEnvironmentVariable('NIPAT_SETUP_ACTIVITY_TOKEN', 'Process')
+$originalToken = [Environment]::GetEnvironmentVariable('NEWPAT_SETUP_ACTIVITY_TOKEN', 'Process')
 $lease = $null
 $shared = $null
 $assertions = 0
@@ -22,42 +22,42 @@ try {
     $distribution = Join-Path $fixture '.distribution'
     [IO.Directory]::CreateDirectory($helperDirectory) | Out-Null
     [IO.Directory]::CreateDirectory($distribution) | Out-Null
-    $helper = Join-Path $fixture 'src\nipat\windows_install_activity.py'
-    Assert-Rejected { Get-NipatActivityRuntime $helperDirectory } 'missing Python helper never triggers local compilation'
+    $helper = Join-Path $fixture 'src\newpat\windows_install_activity.py'
+    Assert-Rejected { Get-NewPatActivityRuntime $helperDirectory } 'missing Python helper never triggers local compilation'
     [IO.Directory]::CreateDirectory((Split-Path -Parent $helper)) | Out-Null
-    Copy-Item -LiteralPath (Join-Path $PSScriptRoot '../../src/nipat/windows_install_activity.py') -Destination $helper
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot '../../src/newpat/windows_install_activity.py') -Destination $helper
     $manifestPath = Join-Path $distribution 'installer-manifest.json'
     $inventoryPath = Join-Path $distribution 'application-files.json'
     [IO.File]::WriteAllText($manifestPath, ('{"source_commit":"' + ('a' * 40) + '"}'))
-    Assert-Rejected { Get-NipatActivityRuntime $helperDirectory } 'installed helper requires its package inventory'
+    Assert-Rejected { Get-NewPatActivityRuntime $helperDirectory } 'installed helper requires its package inventory'
     $record = [ordered]@{
         schema_version = 1; installation_channel = 'desktop'; source_commit = 'a' * 40
-        files = @([ordered]@{ path = 'src/nipat/windows_install_activity.py'
+        files = @([ordered]@{ path = 'src/newpat/windows_install_activity.py'
             sha256 = (Get-FileHash -LiteralPath $helper -Algorithm SHA256).Hash.ToLowerInvariant() })
     }
     $record | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $inventoryPath -Encoding UTF8
-    Assert-Rejected { Get-NipatActivityRuntime $helperDirectory } 'installed helper never falls back to PATH when pinned Python is missing'
+    Assert-Rejected { Get-NewPatActivityRuntime $helperDirectory } 'installed helper never falls back to PATH when pinned Python is missing'
     $record.source_commit = 'b' * 40
     $record | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $inventoryPath -Encoding UTF8
-    Assert-Rejected { Get-NipatActivityRuntime $helperDirectory } 'helper inventory from another build rejected'
+    Assert-Rejected { Get-NewPatActivityRuntime $helperDirectory } 'helper inventory from another build rejected'
     $record.source_commit = 'a' * 40
     $record | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $inventoryPath -Encoding UTF8
     [IO.File]::AppendAllText($helper, 'changed')
-    Assert-Rejected { Get-NipatActivityRuntime $helperDirectory } 'changed helper rejected before execution'
+    Assert-Rejected { Get-NewPatActivityRuntime $helperDirectory } 'changed helper rejected before execution'
     $env:LOCALAPPDATA = Join-Path $temporary 'local data with spaces'
-    [Environment]::SetEnvironmentVariable('NIPAT_SETUP_ACTIVITY_TOKEN', $null, 'Process')
-    $path = Get-NipatActivityLockPath
+    [Environment]::SetEnvironmentVariable('NEWPAT_SETUP_ACTIVITY_TOKEN', $null, 'Process')
+    $path = Get-NewPatActivityLockPath
     Assert-Test (-not (Test-Path -LiteralPath $path)) 'path discovery does not create the lock file'
     $shared = [IO.File]::Open($path, [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::ReadWrite)
     Assert-Test (-not $shared.SafeFileHandle.IsInvalid) 'a running client acquires a shared handle'
-    Assert-Rejected { Enter-NipatInstallationActivity } 'standalone setup and removal refuse a running session'
-    Assert-Test ([string]::IsNullOrEmpty($env:NIPAT_SETUP_ACTIVITY_TOKEN)) 'failed acquisition leaves no setup token'
+    Assert-Rejected { Enter-NewPatInstallationActivity } 'standalone setup and removal refuse a running session'
+    Assert-Test ([string]::IsNullOrEmpty($env:NEWPAT_SETUP_ACTIVITY_TOKEN)) 'failed acquisition leaves no setup token'
     $shared.Dispose(); $shared = $null
 
-    $lease = Enter-NipatInstallationActivity
+    $lease = Enter-NewPatInstallationActivity
     Assert-Test (-not $lease.Borrowed) 'standalone setup owns its exclusive lease'
     Assert-Test ($lease.Token -cmatch ("^$PID`:[a-f0-9]{32}$")) 'standalone token identifies its live PowerShell process'
-    Assert-Test (-not (Test-NipatInheritedActivity)) 'a token does not exempt its owner as its own ancestor'
+    Assert-Test (-not (Test-NewPatInheritedActivity)) 'a token does not exempt its owner as its own ancestor'
     Assert-Rejected { [IO.File]::Open($path, [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite) } 'a standalone preparation blocks new client sessions'
 
     $child = Join-Path $temporary 'child-activity.ps1'
@@ -66,13 +66,13 @@ param([string] $Helper, [string] $ResultFile)
 . $Helper
 $childLease = $null
 try {
-    $childLease = Enter-NipatInstallationActivity
-    $result = @{ borrowed = $childLease.Borrowed; token = $env:NIPAT_SETUP_ACTIVITY_TOKEN }
+    $childLease = Enter-NewPatInstallationActivity
+    $result = @{ borrowed = $childLease.Borrowed; token = $env:NEWPAT_SETUP_ACTIVITY_TOKEN }
     [IO.File]::WriteAllText($ResultFile, ($result | ConvertTo-Json), (New-Object Text.UTF8Encoding($false)))
 } catch {
     [IO.File]::WriteAllText($ResultFile, $_.Exception.Message, (New-Object Text.UTF8Encoding($false)))
     exit 1
-} finally { Exit-NipatInstallationActivity $childLease }
+} finally { Exit-NewPatInstallationActivity $childLease }
 '@, (New-Object Text.UTF8Encoding($false)))
     $childResult = Join-Path $temporary 'child-result.json'
     $powershell = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
@@ -83,41 +83,41 @@ try {
     Assert-Test ($result.borrowed -and $result.token -ceq $lease.Token) 'bootstrap child borrows the existing lease without replacing its token'
     Assert-Test (-not $lease.Handle.SafeFileHandle.IsClosed) 'child completion does not dispose the owner file handle'
 
-    [Environment]::SetEnvironmentVariable('NIPAT_SETUP_ACTIVITY_TOKEN', ("$PID`:" + ('0' * 32)), 'Process')
+    [Environment]::SetEnvironmentVariable('NEWPAT_SETUP_ACTIVITY_TOKEN', ("$PID`:" + ('0' * 32)), 'Process')
     & $powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File $child `
         -Helper (Join-Path $PSScriptRoot 'activity-lock.ps1') -ResultFile $childResult
     Assert-Test ($LASTEXITCODE -ne 0) 'an ancestor PID with no matching live event cannot bypass the lease'
-    [Environment]::SetEnvironmentVariable('NIPAT_SETUP_ACTIVITY_TOKEN', ('4294967295:' + $lease.Token.Split(':')[1]), 'Process')
+    [Environment]::SetEnvironmentVariable('NEWPAT_SETUP_ACTIVITY_TOKEN', ('4294967295:' + $lease.Token.Split(':')[1]), 'Process')
     & $powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File $child `
         -Helper (Join-Path $PSScriptRoot 'activity-lock.ps1') -ResultFile $childResult
     Assert-Test ($LASTEXITCODE -ne 0) 'an event without a real ancestor cannot bypass the lease'
     $oldToken = $lease.Token
-    Exit-NipatInstallationActivity $lease; $lease = $null
-    Assert-Test ([string]::IsNullOrEmpty($env:NIPAT_SETUP_ACTIVITY_TOKEN)) 'owner cleanup removes the token'
+    Exit-NewPatInstallationActivity $lease; $lease = $null
+    Assert-Test ([string]::IsNullOrEmpty($env:NEWPAT_SETUP_ACTIVITY_TOKEN)) 'owner cleanup removes the token'
 
-    [Environment]::SetEnvironmentVariable('NIPAT_SETUP_ACTIVITY_TOKEN', $oldToken, 'Process')
+    [Environment]::SetEnvironmentVariable('NEWPAT_SETUP_ACTIVITY_TOKEN', $oldToken, 'Process')
     & $powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File $child `
         -Helper (Join-Path $PSScriptRoot 'activity-lock.ps1') -ResultFile $childResult
     Assert-Test ($LASTEXITCODE -eq 0) 'a subsequent independent preparation can acquire the released file'
     $result = Get-Content -LiteralPath $childResult -Raw -Encoding UTF8 | ConvertFrom-Json
     Assert-Test (-not $result.borrowed -and $result.token -cne $oldToken) 'a stale event token does not authorize borrowing'
-    [Environment]::SetEnvironmentVariable('NIPAT_SETUP_ACTIVITY_TOKEN', $null, 'Process')
+    [Environment]::SetEnvironmentVariable('NEWPAT_SETUP_ACTIVITY_TOKEN', $null, 'Process')
 
     try {
-        $lease = Enter-NipatInstallationActivity
+        $lease = Enter-NewPatInstallationActivity
         throw 'simulated setup failure'
     } catch {
         Assert-Test ($_.Exception.Message -ceq 'simulated setup failure') 'exercise caller failure after acquisition'
     } finally {
-        Exit-NipatInstallationActivity $lease; $lease = $null
+        Exit-NewPatInstallationActivity $lease; $lease = $null
     }
-    $lease = Enter-NipatInstallationActivity
+    $lease = Enter-NewPatInstallationActivity
     Assert-Test (-not $lease.Borrowed) 'a failed preparation releases the lease for retry'
     Write-Host "PASS: $assertions activity lease checks; shared clients, standalone setup/removal, child authorization and failure recovery."
 } finally {
-    Exit-NipatInstallationActivity $lease
+    Exit-NewPatInstallationActivity $lease
     if ($null -ne $shared) { $shared.Dispose() }
     $env:LOCALAPPDATA = $originalLocalAppData
-    [Environment]::SetEnvironmentVariable('NIPAT_SETUP_ACTIVITY_TOKEN', $originalToken, 'Process')
+    [Environment]::SetEnvironmentVariable('NEWPAT_SETUP_ACTIVITY_TOKEN', $originalToken, 'Process')
     if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary -Recurse -Force }
 }

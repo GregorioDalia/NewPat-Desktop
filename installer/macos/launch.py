@@ -12,20 +12,21 @@ import signal
 import subprocess
 import sys
 
-STATE = Path("/Library/Application Support/NIPAT-Desktop Installer")
+STATE = Path("/Library/Application Support/NewPat-Desktop Installer")
 SHA256 = re.compile(r"[a-f0-9]{64}\Z")
 CLI_CODE = ("import sys; sys.path.insert(0, sys.argv.pop(1)); "
-            "from nipat.cli import main; raise SystemExit(main())")
+            "from newpat.cli import main; raise SystemExit(main())")
 RUNTIME_CODE = ("import sys; sys.path.insert(0, sys.argv.pop(1)); "
-                "from nipat.macos_runtime import main; raise SystemExit(main())")
+                "from newpat.macos_runtime import main; raise SystemExit(main())")
 
 
 def load_manifest(app: Path) -> dict:
     app = app.resolve()
     manifest = json.loads((app / ".distribution/macos-manifest.json").read_text())
     if (manifest.get("schema_version") != 1 or manifest.get("channel") != "desktop"
+            or manifest.get("bundle_identifier") != "org.newpat.desktop"
             or manifest.get("architecture") not in {"arm64", "x86_64"}
-            or not re.fullmatch(r"0\.[89]\.\d+", manifest.get("version", ""))
+            or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", manifest.get("version", ""))
             or not re.fullmatch(r"[a-f0-9]{40}", manifest.get("source_commit", ""))):
         raise ValueError("Manifest macOS non valido; reinstallare NewPat.")
     source_hashes = manifest.get("source_sha256")
@@ -47,18 +48,18 @@ def load_manifest(app: Path) -> dict:
 
 
 def environment(app: Path, resources: Path, inherited: dict[str, str]) -> dict[str, str]:
-    workspace = Path.home() / "Library/Application Support/NIPAT-Desktop"
+    workspace = Path.home() / "Library/Application Support/NewPat-Desktop"
     clean = {key: value for key, value in inherited.items()
-             if not key.startswith(("NIPAT_", "PYTHON", "DOCKER", "COMPOSE", "LIMA_"))}
+             if not key.startswith(("NEWPAT_", "PYTHON", "DOCKER", "COMPOSE", "LIMA_"))}
     clean.update({
         "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
-        "NIPAT_PROJECT_DIR": str(app), "NIPAT_BACKEND": "lima",
-        "NIPAT_WORKSPACE_DIR": str(workspace),
-        "NIPAT_DATA_DIR": str(workspace / "data"),
-        "NIPAT_RUNS_DIR": str(workspace / "runs"),
-        "NIPAT_LIMA_EXECUTABLE": str(resources / "lima/bin/limactl"),
-        "LIMA_HOME": str(Path.home() / ".nipat/lima"),
-        "NIPAT_LAUNCHER_PID": str(os.getpid()),
+        "NEWPAT_PROJECT_DIR": str(app), "NEWPAT_BACKEND": "lima",
+        "NEWPAT_WORKSPACE_DIR": str(workspace),
+        "NEWPAT_DATA_DIR": str(workspace / "data"),
+        "NEWPAT_RUNS_DIR": str(workspace / "runs"),
+        "NEWPAT_LIMA_EXECUTABLE": str(resources / "lima/bin/limactl"),
+        "LIMA_HOME": str(Path.home() / ".newpat/lima"),
+        "NEWPAT_LAUNCHER_PID": str(os.getpid()),
     })
     return clean
 
@@ -75,23 +76,23 @@ def installation_session(state: Path = STATE, *, exclusive: bool = False):
         try:
             fcntl.flock(stream, (fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH) | fcntl.LOCK_NB)
         except BlockingIOError as exc:
-            raise ValueError("Un'altra sessione NewPat/NIPAT è attiva; chiuderla prima della manutenzione o attendere la fine dell'aggiornamento.") from exc
+            raise ValueError("Un'altra sessione NewPat è attiva; chiuderla prima della manutenzione o attendere la fine dell'aggiornamento.") from exc
         if (state / "update-in-progress").exists():
             raise ValueError("Installazione NewPat incompleta; rieseguire il pacchetto .pkg.")
         yield stream
 
 
 def mount_repair_required(app: Path, resources: Path, workspace: Path) -> bool:
-    """Check the current application path before taking an exclusive lease."""
+    """Check managed mounts and Rosetta before selecting the installation lease."""
     source = str(app / "src")
     if source not in sys.path:
         sys.path.insert(0, source)
-    from nipat.macos_runtime import LimaRuntime
-    from nipat.errors import NipatError
+    from newpat.macos_runtime import LimaRuntime
+    from newpat.errors import NewPatError
     try:
         runtime = LimaRuntime(app, workspace, resources / "lima/bin/limactl")
         return runtime.requires_mount_repair()
-    except NipatError as exc:
+    except NewPatError as exc:
         raise ValueError(str(exc)) from exc
 
 
@@ -114,53 +115,78 @@ def gui_startup(app: Path):
     source = str(app / "src")
     if source not in sys.path:
         sys.path.insert(0, source)
-    from nipat.gui import startup
+    from newpat.desktop import startup
     return startup
 
 
+def validate_host_installation(app: Path) -> None:
+    if platform.machine() != load_manifest(app)["architecture"]:
+        raise ValueError("Installare il pacchetto NewPat per l'architettura di questo Mac.")
+
+
+class _RetryWithExclusiveLease(Exception):
+    """The guest still sees the previous installation at the same path."""
+
+
 def launch(arguments: list[str], app: Path) -> int:
+    try:
+        return _launch(arguments, app, refresh_mount=False)
+    except _RetryWithExclusiveLease:
+        # Release the shared session first. Validate the installation again in
+        # case a package transaction intervened before we reacquire the lease.
+        return _launch(arguments, app, refresh_mount=True)
+
+
+def _launch(arguments: list[str], app: Path, *, refresh_mount: bool) -> int:
     if sys.platform != "darwin" or os.geteuid() == 0:
         raise ValueError("Avviare NewPat su macOS con il proprio utente, senza sudo.")
     if int(platform.mac_ver()[0].split(".")[0]) < 14:
         raise ValueError("NewPat richiede macOS 14 o successivo.")
-    manifest = load_manifest(app)
-    if platform.machine() != manifest["architecture"]:
-        raise ValueError("Installare il pacchetto NewPat per l'architettura di questo Mac.")
+    if not refresh_mount:
+        validate_host_installation(app)
     resources = app.parent
     env = environment(app, resources, dict(os.environ))
     python = resources / "python/bin/python3.12"
-    workspace = Path(env["NIPAT_WORKSPACE_DIR"])
+    workspace = Path(env["NEWPAT_WORKSPACE_DIR"])
     for path in (workspace, workspace / "data", workspace / "runs"):
         path.mkdir(parents=True, exist_ok=True)
     runtime = [str(python), "-I", "-B", "-c", RUNTIME_CODE, str(app / "src")]
     maintenance = len(arguments) >= 2 and arguments[0] == "--runtime" and arguments[1] in {"stop", "remove-runtime"}
     prepare = not arguments or arguments[0] != "--runtime" or arguments[1:2] == ["prepare"]
-    relocation = prepare and ("--mount" in arguments or any(value.startswith("--mount=") for value in arguments)
-                              or mount_repair_required(app, resources, workspace))
+    relocation = refresh_mount or (prepare and (
+        "--mount" in arguments or any(value.startswith("--mount=") for value in arguments)
+        or mount_repair_required(app, resources, workspace)))
     with installation_session(exclusive=maintenance or relocation) as lease:
+        if refresh_mount:
+            validate_host_installation(app)
         if relocation:
-            env["NIPAT_RUNTIME_MAINTENANCE"] = "1"
-        if arguments and arguments[0] == "--runtime":
+            env["NEWPAT_RUNTIME_MAINTENANCE"] = "1"
+        runtime_only = bool(arguments and arguments[0] == "--runtime")
+        if runtime_only and not prepare:
             return run_foreground([*runtime, *arguments[1:]], env=env)
         graphical = not arguments or arguments == ["gui"]
         with (gui_startup(app).preparation_notice(app) if graphical else nullcontext()):
-            prepared = run_foreground([*runtime, "prepare"], env=env)
+            prepared = run_foreground([*runtime, *(arguments[1:] if runtime_only else ["prepare"])], env=env)
+        if prepared == os.EX_TEMPFAIL and not relocation:
+            raise _RetryWithExclusiveLease
         if prepared:
             if graphical:
                 gui_startup(app).show_startup_error(app,
                     "Preparazione dell’ambiente non completata. Consultare il log in " + str(workspace))
             return prepared
+        if runtime_only:
+            return 0
         if relocation:
             import fcntl
-            # Migration has completed. Normal execution keeps a shared lease,
+            # Runtime preparation has completed. Normal execution keeps a shared lease,
             # allowing other clients without letting an installer replace us.
             fcntl.flock(lease, fcntl.LOCK_SH)
-            env.pop("NIPAT_RUNTIME_MAINTENANCE", None)
+            env.pop("NEWPAT_RUNTIME_MAINTENANCE", None)
         state = json.loads((workspace / ".runtime/macos/runtime.json").read_text())
         identifier = state.get("runtime_image", "")
         if not re.fullmatch(r"sha256:[a-f0-9]{64}", identifier):
             raise ValueError("Identita del runtime preparato non valida.")
-        env["NIPAT_RUNTIME_IMAGE"] = identifier
+        env["NEWPAT_RUNTIME_IMAGE"] = identifier
         return run_foreground([str(python), "-I", "-B", "-c", CLI_CODE,
                                str(app / "src"), *(arguments or ["gui"])],
                               env=env, cwd=workspace / "data")

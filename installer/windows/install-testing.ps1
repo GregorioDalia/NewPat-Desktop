@@ -31,9 +31,9 @@ function Get-VerifiedAsset($Record, [string]$Directory, [string]$ReleasePath) {
         $temporary = $target + '.download-' + [Guid]::NewGuid().ToString('N')
         try {
             . (Join-Path $PSScriptRoot 'install-profile.ps1')
-            $baseUrl = (Get-NipatOnlineRepository) + $ReleasePath
+            $baseUrl = (Get-NewPatOnlineRepository) + $ReleasePath
             $client = New-Object Net.WebClient
-            $client.Headers.Add('User-Agent', 'NIPAT-Testing-Installer')
+            $client.Headers.Add('User-Agent', 'NewPat-Testing-Installer')
             try { $client.DownloadFile(($BaseUrl + $Record.file), $temporary) }
             finally { $client.Dispose() }
             if ((Get-Item -LiteralPath $temporary).Length -ne [long]$Record.size -or
@@ -78,7 +78,7 @@ function Assert-TestingBundle([string]$Archive, [string]$Bundle) {
             if (-not $path.StartsWith(($Bundle.TrimEnd('\') + '\'), [StringComparison]::OrdinalIgnoreCase)) { throw 'Percorso del pacchetto non valido.' }
             Assert-PlainPath $path
             if (-not (Test-Path -LiteralPath $path -PathType Leaf) -or (Get-Item -LiteralPath $path).Length -ne $entry.Length) {
-                throw ('Estrazione incompleta: ' + $entry.FullName + '. Estrarre nuovamente il pacchetto senza modificare la cartella NIPAT.')
+                throw ('Estrazione incompleta: ' + $entry.FullName + '. Estrarre nuovamente il pacchetto senza modificare la cartella NewPat.')
             }
             $source = $entry.Open()
             try { $expected = [Convert]::ToBase64String($hash.ComputeHash($source)) } finally { $source.Dispose() }
@@ -106,7 +106,7 @@ function Assert-TestingRoot([string]$Root) {
     Assert-PlainPath $marker
     $owner = Get-Content -LiteralPath $marker -Raw -Encoding UTF8 | ConvertFrom-Json
     if (@($owner.PSObject.Properties).Count -ne 3 -or $owner.schema_version -ne 1 -or
-        $owner.product -cne 'nipat-desktop' -or $owner.installation_method -cne 'zip') {
+        $owner.product -cne 'newpat-desktop' -or $owner.installation_method -cne 'zip') {
         throw 'La destinazione non appartiene a un installazione ZIP NewPat Testing.'
     }
     foreach ($name in @('current.json', 'pending.json')) {
@@ -131,16 +131,10 @@ function Assert-TestingRoot([string]$Root) {
 function Get-TestingInstallRoot([string]$DownloadDirectory, [bool]$DefaultDestination,
         [string]$ExpectedVersion = '', [string]$ExpectedSource = '') {
     if ($DefaultDestination) {
-        $base = Join-Path $env:LOCALAPPDATA 'NIPAT-Testing'
-        $root = Join-Path $base 'NIPAT'
-        $legacy = Join-Path $base '0.9.0\pacchetto\NIPAT'
-        # Upgrade the previously published preview in place, keeping experiments,
-        # preferences and scientific runtime. Never discover/adopt the stable app.
-        if (-not (Test-Path -LiteralPath $root) -and (Test-Path -LiteralPath $legacy)) { $root = $legacy }
+        $base = Join-Path $env:LOCALAPPDATA 'NewPat-Testing'
+        $root = Join-Path $base 'NewPat'
     } else {
-        $root = Join-Path $DownloadDirectory 'NIPAT'
-        $legacy = Join-Path $DownloadDirectory 'pacchetto\NIPAT'
-        if (-not (Test-Path -LiteralPath $root) -and (Test-Path -LiteralPath $legacy)) { $root = $legacy }
+        $root = Join-Path $DownloadDirectory 'NewPat'
     }
     Assert-TestingRoot $root
     $testingMarker = Join-Path $root 'testing.json'
@@ -155,10 +149,9 @@ function Get-TestingInstallRoot([string]$DownloadDirectory, [bool]$DefaultDestin
             $path = Join-Path $root $name
             if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { continue }
             $pointer = Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json
-            # The original 0.9.0 Testing installer used this unmarked layout.
-            # A newer first installation can stop before its marker is written.
-            if (($root -ieq $legacy -and $pointer.version -ceq '0.9.0') -or
-                ($ExpectedVersion -and $pointer.version -ceq $ExpectedVersion -and $pointer.source_commit -ceq $ExpectedSource)) { continue }
+            # A first installation can stop before its marker is written.
+            if ($ExpectedVersion -and $pointer.version -ceq $ExpectedVersion -and
+                $pointer.source_commit -ceq $ExpectedSource) { continue }
             throw 'La destinazione contiene una installazione ZIP diversa. Scegliere una cartella separata per NewPat Testing.'
         }
     }
@@ -168,9 +161,9 @@ function Get-TestingInstallRoot([string]$DownloadDirectory, [bool]$DefaultDestin
 function Set-TestingAppShortcuts([string]$Root, [string]$Project) {
     Assert-TestingRoot $Root
     . (Join-Path $Project 'installer\windows\zip-common.ps1')
-    Assert-NipatZipRoot $Root
-    Write-NipatJsonAtomic (Join-Path $Root 'testing.json') ([ordered]@{ schema_version = 1; channel = 'testing' })
-    Set-NipatZipShortcuts $Root $Project
+    Assert-NewPatZipRoot $Root
+    Write-NewPatJsonAtomic (Join-Path $Root 'testing.json') ([ordered]@{ schema_version = 1; channel = 'testing' })
+    Set-NewPatZipShortcuts $Root $Project
 }
 
 function Open-TestingApp([string]$Root, [string]$Project) {
@@ -192,7 +185,7 @@ try {
     $version = $metadata.version
     $releasePath = '/releases/download/v' + $version + '/'
     $defaultDestination = -not $Destination
-    if ($defaultDestination) { $Destination = Join-Path $env:LOCALAPPDATA ('NIPAT-Testing\' + $version) }
+    if ($defaultDestination) { $Destination = Join-Path $env:LOCALAPPDATA ('NewPat-Testing\' + $version) }
     $destination = [IO.Path]::GetFullPath($Destination)
     Assert-PlainPath $destination
     [IO.Directory]::CreateDirectory($destination) | Out-Null
@@ -202,9 +195,9 @@ try {
         $payload = Get-VerifiedAsset $metadata.payload $destination $releasePath
         $setup = Get-VerifiedAsset $metadata.setup $destination $releasePath
         $arguments = @(
-            ('/NIPATPACKAGE="' + $payload + '"'), ('/NIPATVERSION=' + $version),
-            ('/NIPATSOURCE=' + $metadata.source_commit), ('/NIPATSHA256=' + $metadata.payload.sha256),
-            ('/NIPATSIZE=' + $metadata.payload.size)
+            ('/NEWPATPACKAGE="' + $payload + '"'), ('/NEWPATVERSION=' + $version),
+            ('/NEWPATSOURCE=' + $metadata.source_commit), ('/NEWPATSHA256=' + $metadata.payload.sha256),
+            ('/NEWPATSIZE=' + $metadata.payload.size)
         )
         $process = Start-Process -FilePath $setup -ArgumentList $arguments -Wait -PassThru
         exit $process.ExitCode

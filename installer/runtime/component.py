@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 
-SOURCE_FILES = ("Dockerfile", "component.py", "nipat-engine", "write-provenance.py", "wsl.conf")
+SOURCE_FILES = ("Dockerfile", "component.py", "newpat-engine", "write-provenance.py", "wsl.conf")
 
 
 def source_inventory(directory: Path) -> dict[str, str]:
@@ -22,7 +22,7 @@ def component_identity(provenance: dict) -> str:
     """Hash resolved software inputs, excluding the exported image's own ID."""
     identity = {key: value for key, value in provenance.items()
                 if key not in {"component_sha256", "rootfs_image_id"}}
-    if (identity.get("schema_version") != 2 or identity.get("vendor") != "nipat-desktop"
+    if (identity.get("schema_version") != 2 or identity.get("vendor") != "newpat-desktop"
             or identity.get("purpose") != "dedicated-wsl-runtime"
             or set(identity.get("source_sha256", {})) != set(SOURCE_FILES)
             or not identity.get("apt_packages")

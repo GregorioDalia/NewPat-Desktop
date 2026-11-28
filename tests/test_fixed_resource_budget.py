@@ -7,11 +7,11 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-from nipat.execution.options import ExecutionOptions
-from nipat.execution.runner import DockerComposeRunner
-from nipat.execution.transport import DockerTransport
-from nipat.paths import ProjectLayout
-from nipat.resources import fixed_execution_budget
+from newpat.experiments.options import ExecutionOptions
+from newpat.experiments.runner import DockerComposeRunner
+from newpat.experiments.transport import DockerTransport
+from newpat.paths import ProjectLayout
+from newpat.resources import fixed_execution_budget
 
 
 def snapshot(memory=8192, cpus=4):
@@ -30,7 +30,7 @@ class FixedResourceBudgetTests(unittest.TestCase):
         self.assertEqual(policy["memory_budget_mib"], 3276)
         self.assertEqual(policy["worker_ceiling"], 2)
         self.assertEqual(policy["memory_allocation_per_worker_mib"], 1638)
-        self.assertEqual(policy["interface"], "nipat-fixed-resources-v1")
+        self.assertEqual(policy["interface"], "newpat-fixed-resources-v1")
         state["host"]["memory_mib"] = 2048
         self.assertEqual(fixed_execution_budget(state)["memory_capacity_mib"], 2048)
 
@@ -79,11 +79,11 @@ class FixedResourceBudgetTests(unittest.TestCase):
             frozen = fixed_execution_budget(snapshot())
             runner._record = Mock(run_dir=run, data={"resource_snapshot": snapshot(), "resource_budget": copy.deepcopy(frozen)})
             runner._record.data["resource_snapshot"]["runtime"]["effective"]["memory_mib"] = 1
-            with patch("nipat.resources.ResourceManager.snapshot") as inspect:
+            with patch("newpat.resources.ResourceManager.snapshot") as inspect:
                 runner._write_engine_compose("sha256:" + "a" * 64)
             inspect.assert_not_called()
             env = json.loads((run / "work/engine-compose.json").read_text())["services"]["scientific"]["environment"]
-            self.assertEqual(json.loads(env["NIPAT_FIXED_RESOURCE_BUDGET"]), frozen)
+            self.assertEqual(json.loads(env["NEWPAT_FIXED_RESOURCE_BUDGET"]), frozen)
 
 
 if __name__ == "__main__":

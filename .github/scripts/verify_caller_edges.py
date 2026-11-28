@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = ROOT / "tests/fixtures"
 sys.path[:0] = [str(ROOT / "src"), str(ROOT / "scripts")]
 
-from nipat.validation.self_test import compare_snp_outputs
+from newpat.validation.self_test import compare_snp_outputs
 from verify_dnp_engine import expected_rows, keyed_rows
 from verify_engine_package import run_container, write_request
 
@@ -57,7 +57,7 @@ def verify_edges(image: str, work: Path) -> None:
         done
         samtools view -b -o sample_0001.bam /inputs/dnp.sam
         samtools view -b -o snp.bam /inputs/snp.sam
-        exec python3 /opt/nipat/engine/main.py execute-plan \
+        exec python3 /opt/newpat/engine/main.py execute-plan \
             --plan /results/work/request.json --run-dir /results/workflow
     """], inputs=inputs, results=results)
     steps = results / "workflow/steps"

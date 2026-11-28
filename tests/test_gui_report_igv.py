@@ -6,10 +6,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from nipat.execution.tracking import file_evidence
-from nipat.gui.analysis_report import report_cases
-from nipat.gui.app import DesktopApplication
-from nipat.gui.results import ResultsStore
+from newpat.experiments.tracking import file_evidence
+from newpat.desktop.analysis_report import report_cases
+from newpat.desktop.app import DesktopApplication
+from newpat.desktop.results import ResultsStore
 from test_gui_igv import _bam, _reference
 from test_gui_results import artifact, make_run, table, validation, write_json
 
@@ -53,7 +53,7 @@ def test_batch_uses_only_correct_caller_bam_and_site_and_verifies_reference_once
         tables.append(artifact(run, relative, sample=name))
     validation(run, "dnp-call", {"dnp-tables": tables})
     first, second = report_cases(store, "example")
-    from nipat.gui import references
+    from newpat.desktop import references
     checked = []
     original = references.indexed_reference_identity
 
@@ -106,8 +106,7 @@ def test_postnatal_trio_excludes_unrelated_sample_and_noncontributing_coordinate
     partial = view(case["id"])
     assert not partial["available"] and partial["site"] == "1:3-3" and "tracks" not in partial
     table(summary, [*fields, "Analysis"], [["family", "SNP", 2, 0.301, 1, 1, 0, 0.001, "heterozygous_child_sites"]])
-    (case,) = report_cases(store, "example")
-    assert "site" not in view(case["id"])
+    assert report_cases(store, "example") == []
 
 
 @pytest.mark.parametrize(("chrom", "expected"), [("X", False), ("chr1", True)])

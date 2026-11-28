@@ -1,45 +1,45 @@
 # Execute the complete CLI script unchanged, retaining unrounded scientific data.
 # Paths come from the environment so commandArgs() remains the native interface.
-.nipat_eq_records <- list()
-.nipat_eq_results <- Sys.getenv("NIPAT_EQ_RESULTS", unset = "/results")
-.nipat_eq_capture_dir <- file.path(.nipat_eq_results, "cpi-capture")
-dir.create(.nipat_eq_capture_dir, showWarnings = FALSE)
-.nipat_eq_capture_counter <- 0L
+.newpat_eq_records <- list()
+.newpat_eq_results <- Sys.getenv("NEWPAT_EQ_RESULTS", unset = "/results")
+.newpat_eq_capture_dir <- file.path(.newpat_eq_results, "cpi-capture")
+dir.create(.newpat_eq_capture_dir, showWarnings = FALSE)
+.newpat_eq_capture_counter <- 0L
 # Retain the already computed pileup only for the differential audit. Intercept
 # exactly the historical final cleanup command; all samtools execution and R
 # computation still use the original source and arguments.
-if (identical(Sys.getenv("NIPAT_EQ_KEEP_PILEUP"), "1")) {
+if (identical(Sys.getenv("NEWPAT_EQ_KEEP_PILEUP"), "1")) {
   system <- function(command, ...) {
     if (identical(command, "rm mpileup.txt")) return(invisible(0L))
     base::system(command, ...)
   }
 }
-.nipat_eq_wrap_cpi <- function(original) {
+.newpat_eq_wrap_cpi <- function(original) {
   force(original)
   function(madre_df, padre_df, dnp_list, cutoff_label, err_const) {
     inputs <- list(madre_df, padre_df, dnp_list, cutoff_label, err_const)
     value <- original(madre_df, padre_df, dnp_list, cutoff_label, err_const)
-    matches <- which(vapply(.nipat_eq_records,
+    matches <- which(vapply(.newpat_eq_records,
       function(record) identical(record$inputs, inputs), logical(1)))
     if (length(matches)) {
-      stopifnot(identical(.nipat_eq_records[[matches[1]]]$value, value))
+      stopifnot(identical(.newpat_eq_records[[matches[1]]]$value, value))
     } else {
-      .nipat_eq_records[[length(.nipat_eq_records) + 1L]] <<-
+      .newpat_eq_records[[length(.newpat_eq_records) + 1L]] <<-
         list(inputs = inputs, value = value)
       # Forked workers inherit this wrapper but not subsequent parent memory.
       # Each process writes a distinct audit record after the real calculation;
       # scientific inputs, values and output files are never rewritten here.
-      .nipat_eq_capture_counter <<- .nipat_eq_capture_counter + 1L
+      .newpat_eq_capture_counter <<- .newpat_eq_capture_counter + 1L
       saveRDS(list(inputs = inputs, value = value), file.path(
-        .nipat_eq_capture_dir, paste0(Sys.getpid(), "-", .nipat_eq_capture_counter, ".rds")),
+        .newpat_eq_capture_dir, paste0(Sys.getpid(), "-", .newpat_eq_capture_counter, ".rds")),
         compress = FALSE, version = 3)
     }
     value
   }
 }
 
-.nipat_eq_cpi_records <- function() {
-  records <- lapply(sort(list.files(.nipat_eq_capture_dir, full.names = TRUE,
+.newpat_eq_cpi_records <- function() {
+  records <- lapply(sort(list.files(.newpat_eq_capture_dir, full.names = TRUE,
                                    pattern = "\\.rds$")), readRDS)
   unique_records <- list()
   for (record in records) {
@@ -59,14 +59,14 @@ if (identical(Sys.getenv("NIPAT_EQ_KEEP_PILEUP"), "1")) {
   unique_records[order(keys, method = "radix")]
 }
 
-.nipat_eq_script <- Sys.getenv("NIPAT_EQ_SCRIPT")
-.nipat_eq_workflow <- Sys.getenv("NIPAT_EQ_WORKFLOW")
-stopifnot(nzchar(.nipat_eq_script), nzchar(.nipat_eq_workflow))
-if (.nipat_eq_workflow == "snp-call") {
+.newpat_eq_script <- Sys.getenv("NEWPAT_EQ_SCRIPT")
+.newpat_eq_workflow <- Sys.getenv("NEWPAT_EQ_WORKFLOW")
+stopifnot(nzchar(.newpat_eq_script), nzchar(.newpat_eq_workflow))
+if (.newpat_eq_workflow == "snp-call") {
   # The frozen 2.0 file has an unconditional native BAM-list entry point.
   # Evaluate its definitions unchanged, excluding only that final invocation;
   # the candidate is safely sourceable and uses the same call_sample interface.
-  expressions <- parse(.nipat_eq_script, keep.source = TRUE)
+  expressions <- parse(.newpat_eq_script, keep.source = TRUE)
   for (expression in expressions) {
     if (identical(expression, quote(main()))) next
     if (is.call(expression) && identical(expression[[1]], as.name("if")) &&
@@ -83,7 +83,7 @@ if (.nipat_eq_workflow == "snp-call") {
   panel_path <- value_for("--snplist")
   if (file.info(pileup)$size > 0L) {
     dataframe_final <- call_sample(pileup, panel_path)
-  } else if (grepl("tests/reference_r/2.0/", .nipat_eq_script, fixed = TRUE)) {
+  } else if (grepl("tests/reference_r/2.0/", .newpat_eq_script, fixed = TRUE)) {
     # Literal fallback from the upstream BAM worker (lines507-514), which is
     # outside call_sample. No counts or estimates are inferred here.
     panel <- readr::read_tsv(panel_path, col_types=readr::cols(.default=readr::col_character()),
@@ -99,12 +99,12 @@ if (.nipat_eq_workflow == "snp-call") {
   }
   write.table(dataframe_final, value_for("--out"), sep="\t", quote=FALSE, row.names=FALSE)
 } else {
-for (.nipat_eq_expression in parse(.nipat_eq_script, keep.source = TRUE)) {
-  eval(.nipat_eq_expression, envir = .GlobalEnv)
-  if (.nipat_eq_workflow == "cpi" && is.call(.nipat_eq_expression) &&
-      identical(.nipat_eq_expression[[1]], as.name("<-")) &&
-      identical(.nipat_eq_expression[[2]], as.name("run_CPI_iteration"))) {
-    run_CPI_iteration <- .nipat_eq_wrap_cpi(run_CPI_iteration)
+for (.newpat_eq_expression in parse(.newpat_eq_script, keep.source = TRUE)) {
+  eval(.newpat_eq_expression, envir = .GlobalEnv)
+  if (.newpat_eq_workflow == "cpi" && is.call(.newpat_eq_expression) &&
+      identical(.newpat_eq_expression[[1]], as.name("<-")) &&
+      identical(.newpat_eq_expression[[2]], as.name("run_CPI_iteration"))) {
+    run_CPI_iteration <- .newpat_eq_wrap_cpi(run_CPI_iteration)
   }
 }
 
@@ -114,13 +114,13 @@ for (.nipat_eq_expression in parse(.nipat_eq_script, keep.source = TRUE)) {
 # NA_count/DNP_name after exporting the canonical genotype table. Revised
 # plotting keeps those derived presentation fields separate. Exclude only these
 # two known plot fields on both sides; all canonical values/types remain exact.
-.nipat_eq_value <- switch(.nipat_eq_workflow,
+.newpat_eq_value <- switch(.newpat_eq_workflow,
   "dnp-call" = list(samples = lapply(results, function(result) {
     list(final = result$final, genotypes = result$indiv_final)
   }), summary = final_merged_data[, setdiff(names(final_merged_data),
       c("NA_count", "DNP_name")), drop = FALSE]),
   "snp-call" = dataframe_final,
   "contamination" = contamination_summary,
-  "cpi" = .nipat_eq_cpi_records(),
+  "cpi" = .newpat_eq_cpi_records(),
   stop("Unknown workflow"))
-saveRDS(.nipat_eq_value, file.path(.nipat_eq_results, "scientific-values.rds"), compress = FALSE, version = 3)
+saveRDS(.newpat_eq_value, file.path(.newpat_eq_results, "scientific-values.rds"), compress = FALSE, version = 3)

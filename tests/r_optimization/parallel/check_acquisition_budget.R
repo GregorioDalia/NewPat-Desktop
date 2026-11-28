@@ -5,8 +5,8 @@
 root <- normalizePath(commandArgs(trailingOnly = TRUE)[[1L]], mustWork = TRUE)
 
 main <- function() {
-  variables <- c("NIPAT_EXECUTION_MODE", "NIPAT_MAX_WORKERS", "NIPAT_PARALLEL_CHILD",
-                 "NIPAT_TEST_FAIL_ACQUISITION", "NIPAT_DNP_OPTIMIZED_IO")
+  variables <- c("NEWPAT_EXECUTION_MODE", "NEWPAT_MAX_WORKERS", "NEWPAT_PARALLEL_CHILD",
+                 "NEWPAT_TEST_FAIL_ACQUISITION", "NEWPAT_DNP_OPTIMIZED_IO")
   previous <- Sys.getenv(variables, unset = NA_character_)
   on.exit(for (name in names(previous)) {
     if (is.na(previous[[name]])) Sys.unsetenv(name) else
@@ -27,7 +27,7 @@ main <- function() {
     "    parser.add_argument('--' + name, required=True)",
     "args = parser.parse_args()",
     "budget = json.loads(pathlib.Path(args.budget).read_text())",
-    "assert budget['schema_version'] == 1 and budget['interface'] == 'nipat-parallel-v1'",
+    "assert budget['schema_version'] == 1 and budget['interface'] == 'newpat-parallel-v1'",
     "assert type(budget['workers']) is int and 1 <= budget['workers'] <= 5",
     "assert budget['workers'] <= budget['tasks']",
     "assert budget['workers'] <= budget['cpu_limit']",
@@ -39,7 +39,7 @@ main <- function() {
     "assert bams and bams == [f'mounted-sample-{i+1}.bam' for i in range(len(bams))]",
     "if 'input_bams' in budget: assert budget['input_bams'] == len(bams)",
     "assert pathlib.Path(args.reference).read_text() == '>chr1\\nACGT\\n'",
-    "if os.environ.get('NIPAT_TEST_FAIL_ACQUISITION') == '1': sys.exit(23)",
+    "if os.environ.get('NEWPAT_TEST_FAIL_ACQUISITION') == '1': sys.exit(23)",
     "pathlib.Path(args.output).write_text('fixture-pileup\\n')",
     "pathlib.Path(args.metadata).write_text(json.dumps({'budget': budget}))"
   ), helper)
@@ -90,15 +90,15 @@ main <- function() {
     work <- file.path(directory, configuration$name)
     dir.create(work)
     setwd(work)
-    Sys.setenv(NIPAT_DNP_OPTIMIZED_IO = if (isTRUE(configuration$optimized)) "1" else "0",
-               NIPAT_EXECUTION_MODE = configuration$mode,
-               NIPAT_MAX_WORKERS = configuration$maximum)
-    if (configuration$name == "failure") Sys.setenv(NIPAT_TEST_FAIL_ACQUISITION = "1")
-    Sys.unsetenv("NIPAT_PARALLEL_CHILD")
-    if (configuration$name == "nested") Sys.setenv(NIPAT_PARALLEL_CHILD = "1")
+    Sys.setenv(NEWPAT_DNP_OPTIMIZED_IO = if (isTRUE(configuration$optimized)) "1" else "0",
+               NEWPAT_EXECUTION_MODE = configuration$mode,
+               NEWPAT_MAX_WORKERS = configuration$maximum)
+    if (configuration$name == "failure") Sys.setenv(NEWPAT_TEST_FAIL_ACQUISITION = "1")
+    Sys.unsetenv("NEWPAT_PARALLEL_CHILD")
+    if (configuration$name == "nested") Sys.setenv(NEWPAT_PARALLEL_CHILD = "1")
     environment <- new.env(parent = globalenv())
-    sys.source(file.path(root, "src/nipat_scientific/parallel.R"), environment)
-    sys.source(file.path(root, "src/nipat_scientific/dnp_blocks.R"), environment)
+    sys.source(file.path(root, "src/newpat_scientific/parallel.R"), environment)
+    sys.source(file.path(root, "src/newpat_scientific/dnp_blocks.R"), environment)
     # Exercise both measured capacities deterministically, including on CI
     # runners with a smaller allocation. The policy consumes the real R budget.
     limited <- configuration$name %in% c("limited", "multi-limited", "pair-at-budget", "pair-over-budget",
@@ -106,11 +106,11 @@ main <- function() {
                                          "pair-only", "one-cpu", "unknown-reference")
     cpus <- if (configuration$name == "one-cpu") 1L else if (limited) 4L else 32L
     memory <- if (configuration$name == "pair-only") 6200L else if (limited) 3905L else 15858L
-    environment$nipat_parallel_capacity <- function() list(
+    environment$newpat_parallel_capacity <- function() list(
       cpu_limit = cpus, worker_ceiling = cpus, memory_budget_mib = floor(0.8 * memory),
       memory_capacity_mib = memory, memory_reserve_fraction = 0.20,
-      interface = "nipat-fixed-resources-v1", source = "assigned-capacity-at-run-start")
-    environment$nipat_parallel_rss_mib <- function() switch(configuration$name,
+      interface = "newpat-fixed-resources-v1", source = "assigned-capacity-at-run-start")
+    environment$newpat_parallel_rss_mib <- function() switch(configuration$name,
       "pair-at-budget" = 244, "pair-over-budget" = 245,
       "larger-pair-at-budget" = 234, "larger-pair-over-budget" = 235, 125)
     chromosomes <- if (configuration$name == "one-chromosome") "chr1" else paste0("chr", 1:6)
@@ -118,7 +118,7 @@ main <- function() {
     samples <- if (is.null(configuration$samples)) 1L else configuration$samples
     bam_names <- sprintf("mounted-sample-%d.bam", seq_len(samples))
     environment$r_bamlist <- data.frame(bam = bam_names)
-    environment$nipat_cfg <- list(max_depth = switch(configuration$name,
+    environment$newpat_cfg <- list(max_depth = switch(configuration$name,
       "unlimited-depth" = 0L, "high-depth" = 8001L, "multi-high-depth" = 8001L, 8000L),
       baq = TRUE, mapping_quality_adjustment = 0L, count_overlaps = FALSE, include_orphans = FALSE,
       min_base_quality = 13L, redo_baq = configuration$name == "recompute-baq",
@@ -164,8 +164,11 @@ main <- function() {
       if (.Platform$OS.type != "windows") {
         expected <- switch(configuration$name, "capable" = 5L, "maximum-two" = 2L,
                            "limited" = 2L, "pair-at-budget" = 2L, "pair-only" = 2L, "larger-pair-at-budget" = 2L,
-                           "multi-bam" = 5L, "multi-capped" = 2L, "three-bams" = 3L, 1L)
+                           "multi-bam" = 5L, "multi-capped" = 2L, "three-bams" = 3L,
+                           "unlimited-depth" = 5L, "high-depth" = 5L, "multi-high-depth" = 5L, 1L)
         stopifnot(evidence$budget$workers == expected)
+        if (configuration$name %in% c("unlimited-depth", "high-depth", "multi-high-depth"))
+          stopifnot(identical(evidence$budget$verify_depth_limit, 8000L))
         if (configuration$name %in% c("multi-bam", "multi-limited", "three-bams", "eight-bams")) {
           stopifnot(evidence$budget$input_bams == samples,
                     evidence$budget$memory_per_worker_mib == 576 * samples,

@@ -8,22 +8,22 @@ import tempfile
 import unittest
 from unittest.mock import patch, MagicMock
 
-from nipat.activity import activity_session, _authorized_setup_child, windows_activity_path
-from nipat.errors import NipatError
+from newpat.activity import activity_session, _authorized_setup_child, windows_activity_path
+from newpat.errors import NewPatError
 
 
 class ActivityTests(unittest.TestCase):
     def test_source_checkout_has_no_linux_package_lease(self):
-        with tempfile.TemporaryDirectory() as directory, patch('nipat.activity.sys.platform', 'linux'):
+        with tempfile.TemporaryDirectory() as directory, patch('newpat.activity.sys.platform', 'linux'):
             with activity_session(project_dir=Path(directory)):
                 self.assertEqual(list(Path(directory).iterdir()), [])
 
     def test_windows_lease_is_shared_noninheritable_and_released_on_failure(self):
         kernel = MagicMock()
         kernel.CreateFileW.return_value = 123
-        with tempfile.TemporaryDirectory() as directory, patch('nipat.activity.sys.platform', 'win32'), \
-                patch('nipat.activity._authorized_setup_child', return_value=False), \
-                patch('nipat.activity._windows_kernel', return_value=kernel), \
+        with tempfile.TemporaryDirectory() as directory, patch('newpat.activity.sys.platform', 'win32'), \
+                patch('newpat.activity._authorized_setup_child', return_value=False), \
+                patch('newpat.activity._windows_kernel', return_value=kernel), \
                 patch.dict(os.environ, {'LOCALAPPDATA': str(Path(directory).resolve())}):
             with self.assertRaisesRegex(RuntimeError, 'analysis failed'):
                 with activity_session(project_dir=Path(directory)):
@@ -33,18 +33,18 @@ class ActivityTests(unittest.TestCase):
             kernel.CloseHandle.assert_called_once_with(123)
 
     def test_missing_or_stale_setup_token_does_not_bypass_lease(self):
-        with patch.dict(os.environ, {'NIPAT_SETUP_ACTIVITY_TOKEN': '123:' + 'a' * 32}), \
-                patch('nipat.activity._windows_ancestors', return_value={456}):
+        with patch.dict(os.environ, {'NEWPAT_SETUP_ACTIVITY_TOKEN': '123:' + 'a' * 32}), \
+                patch('newpat.activity._windows_ancestors', return_value={456}):
             self.assertFalse(_authorized_setup_child())
-        with patch.dict(os.environ, {'NIPAT_SETUP_ACTIVITY_TOKEN': 'forged'}):
+        with patch.dict(os.environ, {'NEWPAT_SETUP_ACTIVITY_TOKEN': 'forged'}):
             self.assertFalse(_authorized_setup_child())
 
     def test_live_ancestor_and_event_are_both_required(self):
         kernel = MagicMock()
         kernel.OpenEventW.return_value = 0
-        with patch.dict(os.environ, {'NIPAT_SETUP_ACTIVITY_TOKEN': '123:' + 'a' * 32}), \
-                patch('nipat.activity._windows_ancestors', return_value={123}), \
-                patch('nipat.activity._windows_kernel', return_value=kernel):
+        with patch.dict(os.environ, {'NEWPAT_SETUP_ACTIVITY_TOKEN': '123:' + 'a' * 32}), \
+                patch('newpat.activity._windows_ancestors', return_value={123}), \
+                patch('newpat.activity._windows_kernel', return_value=kernel):
             self.assertFalse(_authorized_setup_child())
             kernel.OpenEventW.return_value = 321
             self.assertTrue(_authorized_setup_child())
@@ -53,9 +53,9 @@ class ActivityTests(unittest.TestCase):
     @unittest.skipUnless(sys.platform == 'win32', 'requires Windows kernel sharing semantics')
     def test_actual_second_process_blocks_exclusive_update_until_session_exits(self):
         import ctypes
-        from nipat.activity import _windows_kernel
+        from newpat.activity import _windows_kernel
         with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {'LOCALAPPDATA': directory}):
-            script = ('import sys; from pathlib import Path; from nipat.activity import activity_session; '
+            script = ('import sys; from pathlib import Path; from newpat.activity import activity_session; '
                       'ctx=activity_session(project_dir=Path.cwd()); ctx.__enter__(); '
                       'print("ready", flush=True); sys.stdin.readline(); ctx.__exit__(None,None,None)')
             child = subprocess.Popen([sys.executable, '-c', script], stdin=subprocess.PIPE,

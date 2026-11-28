@@ -1,0 +1,184 @@
+name: Native scientific parity
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/native-scientific-parity.yml'
+      - '.github/scripts/compare_native_oracles.py'
+      - '.github/scripts/test_compare_native_oracles.py'
+      - 'docker/scientific-runtime/**'
+      - '.github/scripts/export_arm_science.py'
+      - 'scripts/build_macos_installer.py'
+      - 'scripts/verify_macos_package.py'
+      - 'scripts/benchmark_macos_candidate.py'
+      - 'scripts/mini_suite_macos.py'
+      - 'docs/MINI_SUITE_MAC.md'
+      - 'installer/macos/**'
+      - 'src/newpat/macos_runtime.py'
+      - 'src/newpat/experiments/transport.py'
+      - 'src/newpat/experiments/runner.py'
+      - 'scientific/**'
+      - 'src/newpat_scientific/**'
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-scientific-parity-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  native:
+    name: Scientific oracles on ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+            machine: x86_64
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            machine: aarch64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 150
+    env:
+      ARCH: ${{ matrix.arch }}
+      MACHINE: ${{ matrix.machine }}
+      IMAGE: newpat-scientific:qualification
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Require native runner and Docker daemon
+        run: |
+          test "$(uname -m)" = "$MACHINE"
+          test "$(docker version --format '{{.Server.Os}}/{{.Server.Arch}}')" = "linux/$ARCH"
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+      - name: Build the scientific payload for the host architecture
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: docker/scientific-runtime/Dockerfile
+          platforms: linux/${{ matrix.arch }}
+          tags: ${{ env.IMAGE }}
+          load: true
+          pull: true
+          provenance: false
+          cache-from: |
+            type=gha,version=2,scope=newpat-native-qualification-${{ matrix.arch }}
+            type=gha,version=2,scope=newpat-scientific-linux-${{ matrix.arch }}
+          cache-to: type=gha,version=2,scope=newpat-native-qualification-${{ matrix.arch }},mode=max,ignore-error=true
+      - name: Record the tested image, native R and source revision
+        run: |
+          mkdir -p "$RUNNER_TEMP/evidence"
+          platform=$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$IMAGE")
+          r_arch=$(docker run --rm --network=none --entrypoint Rscript "$IMAGE" -e 'cat(R.version$arch)')
+          test "$platform" = "linux/$ARCH"
+          test "$r_arch" = "$MACHINE"
+          git rev-parse HEAD > "$RUNNER_TEMP/evidence/source-commit"
+          docker image inspect --format '{{.Id}}' "$IMAGE" > "$RUNNER_TEMP/evidence/image-id"
+          printf 'runner=%s\nimage=%s\nR=%s\n' "$MACHINE" "$platform" "$r_arch" > "$RUNNER_TEMP/evidence/architecture.txt"
+      - name: Run the installed payload against the synthetic scientific oracles
+        run: |
+          set -o pipefail
+          docker run --rm --network=none --cpus=4 --memory=8g \
+            --mount "type=bind,source=$GITHUB_WORKSPACE,target=/qualification,readonly" \
+            --workdir /qualification --env PYTHONPATH=/opt/newpat/lib:/qualification/src \
+            --mount "type=bind,source=$RUNNER_TEMP/evidence,target=/evidence" \
+            --entrypoint python3 "$IMAGE" /qualification/.github/scripts/check_native_r.py \
+            --report /evidence/native-r.json 2>&1 | tee "$RUNNER_TEMP/evidence/native-r.log"
+      - name: Export the tested ARM64 image for the Apple Silicon installer
+        if: matrix.arch == 'arm64' && (github.event_name != 'pull_request' || startsWith(github.head_ref, 'release/'))
+        run: python3 .github/scripts/export_arm_science.py "$RUNNER_TEMP/evidence" "$RUNNER_TEMP/arm-assets"
+      - name: Store the native installer inputs
+        if: matrix.arch == 'arm64' && (github.event_name != 'pull_request' || startsWith(github.head_ref, 'release/'))
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: newpat-arm64-runtime-assets
+          path: ${{ runner.temp }}/arm-assets/
+          compression-level: 0
+          retention-days: 7
+          if-no-files-found: error
+      - name: Retain the independently produced ARM64 identity
+        if: matrix.arch == 'arm64' && (github.event_name != 'pull_request' || startsWith(github.head_ref, 'release/'))
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: newpat-arm64-scientific-identity
+          path: ${{ runner.temp }}/arm-assets/installer-manifest.json
+          retention-days: 14
+          if-no-files-found: error
+      - name: Retain the qualification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: scientific-oracles-${{ matrix.arch }}
+          path: ${{ runner.temp }}/evidence/
+          overwrite: true
+          if-no-files-found: ignore
+          retention-days: 14
+
+  compare:
+    name: Same scientific oracle cases pass on both architectures
+    needs: native
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: scientific-oracles-*
+          path: ${{ runner.temp }}/oracles
+      - name: Verify both reports against the tested checkout and compare coverage
+        run: python3 .github/scripts/compare_native_oracles.py "$RUNNER_TEMP/oracles" >> "$GITHUB_STEP_SUMMARY"
+
+  macos-preview:
+    name: Apple Silicon candidate package and clean-install checks
+    if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'release/')
+    needs: compare
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12.10'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: newpat-arm64-runtime-assets
+          path: build/arm-assets
+      - name: Build and verify the exact native package
+        env:
+          PYTHONPATH: src
+        run: |
+          python scripts/build_macos_installer.py --manifest build/arm-assets/installer-manifest.json \
+            --architecture arm64 --output build/arm-package
+          pkg=(build/arm-package/*.pkg)
+          python scripts/verify_macos_package.py --package "${pkg[0]}" \
+            --manifest build/arm-assets/installer-manifest.json --report build/arm-package/macos-package-verification.json
+          mkdir -p build/preview
+          version=$(python -c "import tomllib;print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          cp "${pkg[0]}" "build/preview/NewPat-$version-macos-arm64.pkg"
+          cp installer/macos/Run-Mac-Comparison.command installer/macos/Mini-Test-NewPat.command build/preview/
+          cp scripts/mini_suite_macos.py docs/MINI_SUITE_MAC.md build/preview/
+          cp docs/MACOS_CANDIDATE_TEST.md build/preview/README.md
+          git rev-parse HEAD > build/preview/source-commit
+          (cd build/preview && shasum -a 256 *.pkg > SHA256SUMS)
+          (cd build/preview && zip -q -0 ../NewPat-Apple-Silicon-Trial.zip ./*)
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: NewPat-Apple-Silicon-Trial
+          path: build/NewPat-Apple-Silicon-Trial.zip
+          compression-level: 0
+          retention-days: 14
+          if-no-files-found: error

@@ -4,7 +4,7 @@ La demo guidata di NewPat esegue DNP e SNP su tre campioni simulati. Puoi provar
 
 ## Apri la demo
 
-1. Avvia NewPat. Su Windows, se hai installato lo ZIP completo, apri il collegamento `NewPat.lnk` nella cartella `NIPAT` creata dall’installazione. Con il setup EXE usa **NewPat** nel menu Start. Su macOS apri **NewPat** da Applicazioni. Puoi scegliere l’italiano dalla bandiera nella barra superiore.
+1. Avvia NewPat. Su Windows, se hai installato lo ZIP completo, apri il collegamento `NewPat.lnk` nella cartella `NewPat` creata dall’installazione. Con il setup EXE usa **NewPat** nel menu Start. Su macOS apri **NewPat** da Applicazioni. Puoi scegliere l’italiano dalla bandiera nella barra superiore.
 2. Apri **Ambiente e guida → Dati di esempio → Apri demo**. Se avevi già modificato una bozza, NewPat ti chiede conferma prima di sostituirla. Nel **Riepilogo** trovi `mother`, `father` e `child`, il riferimento sintetico e i pannelli DNP e SNP già selezionati. Puoi espandere **Risultati attesi della demo** prima di iniziare.
 3. Premi **Avvia esperimento** e segui l’esecuzione in **Attività**. Quando compare **Completato**, apri **Esperimenti e risultati → Demo DNP e SNP → Risultati**.
 
@@ -27,12 +27,14 @@ DNP e SNP assegnano un genotipo ai siti di ogni campione. Le stime di parentela 
 | Eseguire la demo | Basta **Apri demo**. NewPat ha già il riferimento e gli altri file necessari. |
 | Salvare i dati di prova per riutilizzarli | Scegli **Ambiente e guida → Salva dati di esempio**, poi una cartella scrivibile, per esempio Documenti. NewPat vi crea `synthetic-trio`. Se esiste già, scegli un’altra cartella. |
 | Analizzare dati tuoi | In **Nuovo esperimento**, aggiungi i singoli BAM dalla cartella in cui li conservi. Seleziona il file FASTA usato per allinearli e il pannello corrispondente a ciascun tipo di marcatore. Lascia gli indici accanto ai file. |
-| Indicare l’installazione Windows ZIP a uno strumento di collaudo | Se viene richiesta la cartella con `current.json`, scegli la cartella `NIPAT` che contiene quel file e `NewPat.lnk`. Per la distinta richiesta dei dati indica la cartella in cui hai conservato i campioni. |
-| Ritrovare i risultati sul disco | Apri l’esperimento e scegli **Apri cartella esperimento**. Con lo ZIP Windows, per impostazione predefinita i risultati sono in `NIPAT\runs`. |
+| Indicare l’installazione Windows ZIP a uno strumento di collaudo | Se viene richiesta la cartella con `current.json`, scegli la cartella `NewPat` che contiene quel file e `NewPat.lnk`. Per la distinta richiesta dei dati indica la cartella in cui hai conservato i campioni. |
+| Ritrovare i risultati sul disco | Apri l’esperimento e scegli **Apri cartella esperimento**. Con lo ZIP Windows, per impostazione predefinita i risultati sono in `NewPat\runs`. |
 
 Nella cartella `synthetic-trio`, il `README.md` spiega come provare anche **Contaminazione**, **CPI prenatale** e **CPI postnatale** e confrontare i risultati con quelli attesi. Per confrontare i tempi fra due computer usa i file della sottocartella `timing` e le ripetizioni indicate nel README. Gli stessi dati sono disponibili anche nello [ZIP di esempio](../examples/newpat-synthetic-trio.zip).
 
 ## Per gli esperimenti successivi
+
+Se hai già i conteggi DNP e SNP, scegli **Tabelle di calling** nella schermata dei file di **Nuovo esperimento** e aggiungi ogni file una sola volta. Assegna lo stesso ID alle tabelle dello stesso campione. In **Analisi**, per il sesso fetale seleziona il cfDNA materno e indica quali tabelle contengono i DNP degli autosomi e di X e gli SNP di Y. Puoi usare una sola tabella DNP per autosomi e X oppure due tabelle separate. Se selezioni anche il CPI, assegna i campioni ai ruoli della coppia o del trio.
 
 Per esportare i risultati, apri l’esperimento e scegli **Esporta report PDF**. Spunta le analisi da includere e controlla campione o famiglia, marcatori e pannello. Con **Report sintetico** ogni risultato ha una pagina propria. Con **Report dettagliato** ogni risultato inizia su una nuova pagina, con lo spazio necessario per grafici e tabelle. **Sintesi e dettagli** inserisce ogni sintesi subito prima dei relativi dettagli. Premi **Salva PDF** una volta. Ad esempio, selezionando DNP, contaminazione e CPI prenatale ottieni un unico PDF con tre sintesi consecutive.
 

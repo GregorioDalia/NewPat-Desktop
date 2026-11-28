@@ -11,7 +11,7 @@ import urllib.parse
 import urllib.request
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
-from nipat.repository import OFFICIAL_REPOSITORIES, REPOSITORY_ID, REPOSITORY_INFO_URL, build_repository
+from newpat.repository import OFFICIAL_REPOSITORIES, REPOSITORY_ID, REPOSITORY_INFO_URL, build_repository
 
 REPOSITORY = build_repository()
 MAX_BYTES = 2 * 1024**3
@@ -41,7 +41,7 @@ class RestrictedRedirect(urllib.request.HTTPRedirectHandler):
 def fetch_json(url, *, repository=REPOSITORY):
     require(allowed_url(url), "Invalid release metadata URL")
     request = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json",
-                                                 "User-Agent": "nipat-ci-evidence"})
+                                                 "User-Agent": "newpat-ci-evidence"})
     parsed = urllib.parse.urlsplit(url)
     token = os.environ.get("GH_TOKEN", "")
     if (token and repository in OFFICIAL_REPOSITORIES and parsed.scheme == "https" and parsed.netloc == "api.github.com"
@@ -127,9 +127,9 @@ def release_inputs(tag, kinds, output):
     downloaded = {}
     for kind in kinds:
         if kind == "deb":
-            names = [name for name in assets if name.startswith("nipat-desktop_") and name.endswith("_amd64.deb")]
+            names = [name for name in assets if name.startswith("newpat-desktop_") and name.endswith("_amd64.deb")]
             deb_version = re.sub(r"(a|b|rc)([0-9]+)$", r"~\1\2", manifest["version"])
-            require(names == [f"nipat-desktop_{deb_version}_amd64.deb"],
+            require(names == [f"newpat-desktop_{deb_version}_amd64.deb"],
                     "Expected one Ubuntu package matching the requested release version")
             downloaded[kind] = download(names[0])
         else:

@@ -10,15 +10,15 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from nipat_scientific.errors import ValidationError
-from nipat_scientific.executor import PlanExecutionError, execute_plan
+from newpat_scientific.errors import ValidationError
+from newpat_scientific.executor import PlanExecutionError, execute_plan
 from snp_output_helpers import write_snp_auxiliary
 
 
 @unittest.skipUnless(os.name == "posix", "scientific execution runs inside the Linux image")
 class SnpWorkflowExecutionTests(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="nipat-snp-plan-")
+        self.temporary = tempfile.TemporaryDirectory(prefix="newpat-snp-plan-")
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name).resolve()
         self.inputs = self.root / "original inputs $ ,="
@@ -103,7 +103,7 @@ class SnpWorkflowExecutionTests(unittest.TestCase):
 
     def test_snp_progress_has_measured_boundaries_and_original_plan_identity(self):
         events_dir = self.root / "progress"
-        with patch.dict(os.environ, {"NIPAT_PROGRESS_DIR": str(events_dir), "NIPAT_PERFORMANCE_DIR": ""}):
+        with patch.dict(os.environ, {"NEWPAT_PROGRESS_DIR": str(events_dir), "NEWPAT_PERFORMANCE_DIR": ""}):
             result = self.execute()
         self.assertEqual(result["status"], "succeeded")
         events = [json.loads(line) for path in events_dir.glob("*.jsonl")
@@ -349,7 +349,7 @@ class SnpQualificationPolicyTests(unittest.TestCase):
         self.outer.mkdir(parents=True)
         self.budget = {"mode": "auto", "workers": 2, "tasks": 2, "cpu_limit": 4,
                        "memory_worker_limit": 4, "reason": "fixed-capacity-task-budget",
-                       "resource_policy": "nipat-fixed-resources-v1",
+                       "resource_policy": "newpat-fixed-resources-v1",
                        "workload_model": "max-loaded-coordinator-rss-x2-and-module-estimate",
                        "memory_per_worker_mib": 1024}
         self.state = {"snp_parallel": self.budget, "steps": []}
@@ -361,7 +361,7 @@ class SnpQualificationPolicyTests(unittest.TestCase):
         self.write_outer()
 
     def write_events(self, directory, budget, *, label, workers, coordinator, indices):
-        base = {**budget, "schema_version": 1, "interface": "nipat-parallel-v1",
+        base = {**budget, "schema_version": 1, "interface": "newpat-parallel-v1",
                 "coordinator_pid": coordinator, "label": label}
         events = [{**base, "event": "plan", "observed_at_unix": 0}]
         for index in indices:
@@ -391,7 +391,7 @@ class SnpQualificationPolicyTests(unittest.TestCase):
                           coordinator=10, indices=(1, 2))
 
     def check(self, mode="auto", *, require_inner=True):
-        from nipat.execution.options import ExecutionOptions
+        from newpat.experiments.options import ExecutionOptions
         return self.verifier.check_snp_execution_policy(self.root, self.state, count=len(self.state["steps"]),
             options=ExecutionOptions(execution_mode=mode, max_workers=2), require_inner=require_inner)
 

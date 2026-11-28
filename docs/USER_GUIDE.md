@@ -15,13 +15,13 @@ This guide covers input formats and repeatable commands for the six scientific m
 For a Windows setup installation, open PowerShell and set the launcher variable once for the examples in this guide:
 
 ```powershell
-$appDir = (Get-ItemProperty -LiteralPath 'HKCU:\Software\NIPAT\desktop' -Name app_dir).app_dir
+$appDir = (Get-ItemProperty -LiteralPath 'HKCU:\Software\NewPat\desktop' -Name app_dir).app_dir
 $newpat = Join-Path $appDir 'newpat.cmd'
 & $newpat --version
 & $newpat --help
 ```
 
-For a complete ZIP installation, open the installed `NIPAT` folder in File Explorer. Open PowerShell **in that folder**, alongside `current.json` and `NewPat.lnk`, and run:
+For a complete ZIP installation, open the installed `NewPat` folder in File Explorer. Open PowerShell **in that folder**, alongside `current.json` and `NewPat.lnk`, and run:
 
 ```powershell
 $active = Get-Content -Raw -LiteralPath '.\current.json' | ConvertFrom-Json
@@ -37,10 +37,10 @@ Supply your own data paths in the commands below. Global options such as `--runs
 
 | Installation | Default results directory |
 | --- | --- |
-| Windows, guided EXE | `%LOCALAPPDATA%\NIPAT-Desktop\runs` unless changed in setup |
-| Windows, complete ZIP | `runs\` under the active `NIPAT` folder containing `current.json` |
-| macOS | `~/Library/Application Support/NIPAT-Desktop/runs` |
-| Ubuntu | `$XDG_DATA_HOME/nipat-desktop/runs`, or `~/.local/share/nipat-desktop/runs` when the variable is unset |
+| Windows, guided EXE | `%LOCALAPPDATA%\NewPat-Desktop\runs` unless changed in setup |
+| Windows, complete ZIP | `runs\` under the active `NewPat` folder containing `current.json` |
+| macOS | `~/Library/Application Support/NewPat-Desktop/runs` |
+| Ubuntu | `$XDG_DATA_HOME/newpat-desktop/runs`, or `~/.local/share/newpat-desktop/runs` when the variable is unset |
 | Source checkout | A `runs` directory next to the checkout, unless the workspace or results directory is overridden |
 
 Use the run's open-folder action to find an experiment if a custom directory was selected. Keep data and results in writable locations separate from the installed program. On Windows the runtime uses fixed local drives. On macOS the paths must be accessible to Lima. On Ubuntu they must be accessible to the local Docker Engine. Relative paths on the command line resolve from the current directory. Relative paths inside a BAM list resolve from the list file's directory.
@@ -103,8 +103,6 @@ The desktop labels this analysis **Postnatal CPI**. The CLI command and configur
 & $newpat cpin --input-dir ".\trios" --trios "A:A:A" --popfreq ".\population.tsv"
 ```
 
-When opening a profile saved under the earlier postnatal model, review the selected genotype groups before comparing results. The migration preserves the previous mismatch weights and selects the union of the earlier mother–child groups. The previous minimum child-allele support has no equivalent trio-wide coverage threshold. Choose a coverage threshold for the new experiment if needed.
-
 See [input validation](INPUT_VALIDATION.md) for file checks and warnings, and the [scientific catalog](SCIENTIFIC_CATALOG.md) for formulas, thresholds and settings.
 
 ## Inspect and set scientific parameters
@@ -153,9 +151,18 @@ Choose the existing-tables option in the workflow or use `workflow analyze --cal
 
 ## Fetal sex from maternal cfDNA
 
-Select three calling tables from the same maternal sample. The autosomal and X tables use DNP coordinates and the Y table uses SNP coordinates. A paternal sample is unnecessary. Use X and Y markers validated for specificity.
+For a maternal cfDNA BAM, run both callers on the same sample. Include autosomal and X loci in the DNP panel and Y loci in the SNP panel. With several BAMs, the ID after `--fetal-sex` selects the maternal one. NewPat reuses its counts for this estimate. Use X and Y markers previously validated for specificity.
 
 ```powershell
+& $newpat workflow analyze --caller both --sample Mother ".\maternal.bam" `
+  --reference ".\genome.fa" --dnp-panel ".\autosomes-X.txt" --snp-panel ".\snp-with-Y.tsv" `
+  --fetal-sex Mother
+```
+
+You can also start from existing count tables. When the DNPcall panel includes both autosomal and X positions, supply its per-sample DNP table and the Y SNP table. NewPat assigns every DNP row to its region using the chromosome column, then applies the usual scientific filters. You can also supply separate autosomal and X DNP tables.
+
+```powershell
+& $newpat fetal-sex --dnp ".\maternal_DNP.txt" --y ".\maternal_Y.txt"
 & $newpat fetal-sex --autosomes ".\maternal_autosomes.txt" --x ".\maternal_X.txt" --y ".\maternal_Y.txt"
 ```
 

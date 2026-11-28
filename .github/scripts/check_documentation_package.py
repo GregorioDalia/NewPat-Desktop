@@ -14,8 +14,8 @@ from check_docs import local_links
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path[:0] = [str(ROOT / "src"), str(ROOT)]
-from nipat import __version__
-from nipat.cli import build_parser
+from newpat import __version__
+from newpat.cli import build_parser
 from installer.windows import testing_package, zip_package
 from scripts.distribution_support import sha256_file, source_files
 
@@ -28,7 +28,7 @@ GUIDES = ("README.md", "OVERVIEW.md", "docs/README.md", "docs/QUICKSTART_IT.md",
           "docs/RESOURCES.md", "docs/CODE_GUIDE.md", "docs/ARCHITECTURE.md", "docs/ROADMAP.md", "docs/CI_CD.md",
           "docs/VALIDATION.md", "docs/WORKFLOW_CONTRACT.md", "docs/INSTALLER_ACCEPTANCE.md",
           ".github/RELEASE.md", "scientific/README.md", "engine/README.md", f"docs/RELEASE_{__version__}.md")
-LAUNCH = re.compile(r"^(?:newpat|\.\\newpat\.cmd|python -m nipat|& \$newpat)(?:\s+|$)")
+LAUNCH = re.compile(r"^(?:newpat|\.\\newpat\.cmd|python -m (?:newpat|newpat)|& \$newpat)(?:\s+|$)")
 
 
 def commands(text):
@@ -137,7 +137,7 @@ def check_package(root, work):
     members = {"app/" + name: path for name, path in files.items()}
     members["README.txt"] = root / "installer/windows/zip-readme.txt"
     check_members(output / complete["file"], members)
-    for name in ("NIPAT-Setup.exe", f"NIPAT-{version}-Windows-payload.zip"):
+    for name in ("NewPat-Setup.exe", f"NewPat-{version}-Windows-payload.zip"):
         (output / name).write_bytes(b"package identity fixture")
     testing = testing_package.build(root / "installer/windows", output, manifest)
     check_members(output / testing["file"], {"README.txt": root / "installer/windows/testing-readme.txt"})

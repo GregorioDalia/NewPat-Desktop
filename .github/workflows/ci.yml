@@ -135,7 +135,7 @@ jobs:
           xvfb-run --auto-servernum --server-args="-screen 0 1440x1000x24" \
             dbus-run-session -- /usr/bin/python3.12 scripts/verify_gui_app.py \
               --app "$GITHUB_WORKSPACE" --python /usr/bin/python3.12 \
-              --workspace "$RUNNER_TEMP/nipat-source-native-gui" \
+              --workspace "$RUNNER_TEMP/newpat-source-native-gui" \
               --report build/source-native-gui/linux-source-smoke.json \
               --screenshot build/source-native-gui/linux-source-smoke.png \
               --scope source-native-application
@@ -143,7 +143,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: nipat-linux-source-native-gui
+          name: newpat-linux-source-native-gui
           path: build/source-native-gui/
           retention-days: 14
           if-no-files-found: ignore
@@ -158,7 +158,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: nipat-gui-interactions
+          name: newpat-gui-interactions
           path: build/gui-interactions/
           retention-days: 14
           if-no-files-found: ignore
@@ -180,7 +180,7 @@ jobs:
         if: ${{ !cancelled() && steps.coverage_reports.outcome == 'success' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: nipat-python-quality
+          name: newpat-python-quality
           path: build/quality/
           retention-days: 14
           if-no-files-found: error
@@ -191,7 +191,7 @@ jobs:
           python .github/scripts/check_docs.py
           python .github/scripts/check_documentation_package.py
       - name: Check dedicated daemon helper syntax
-        run: bash -n installer/runtime/nipat-engine
+        run: bash -n installer/runtime/newpat-engine
 
   windows-checks:
     name: Windows client (Server 2022; simulated Windows 10/11 decisions)
@@ -226,7 +226,7 @@ jobs:
         run: |
           $python = (Get-Command python -CommandType Application).Source
           python scripts/verify_gui_app.py --app "$env:GITHUB_WORKSPACE" --python "$python" `
-            --workspace "$env:RUNNER_TEMP/nipat-source-native-gui" `
+            --workspace "$env:RUNNER_TEMP/newpat-source-native-gui" `
             --report build/source-native-gui/windows-source-smoke.json `
             --screenshot build/source-native-gui/windows-source-smoke.png `
             --scope source-native-application
@@ -235,7 +235,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: nipat-windows-source-native-gui
+          name: newpat-windows-source-native-gui
           path: build/source-native-gui/
           retention-days: 14
           if-no-files-found: ignore
@@ -248,7 +248,7 @@ jobs:
         if: always() && needs.changes.outputs.desktop_scope != 'focused'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: nipat-windows-installer-fixture
+          name: newpat-windows-installer-fixture
           path: build/windows-installer-fixture/
           retention-days: 14
           if-no-files-found: error
@@ -282,7 +282,7 @@ jobs:
         timeout-minutes: 5
         run: |
           python scripts/verify_gui_app.py --app "$GITHUB_WORKSPACE" --python "$(command -v python)" \
-            --workspace "$RUNNER_TEMP/nipat-source-native-gui" \
+            --workspace "$RUNNER_TEMP/newpat-source-native-gui" \
             --report build/source-native-gui/macos-source-smoke.json \
             --screenshot build/source-native-gui/macos-source-smoke.png \
             --scope source-native-application
@@ -290,7 +290,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: nipat-macos-source-native-gui-${{ matrix.architecture }}
+          name: newpat-macos-source-native-gui-${{ matrix.architecture }}
           path: build/source-native-gui/
           retention-days: 14
           if-no-files-found: ignore
@@ -306,7 +306,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: nipat-macos-client-${{ matrix.architecture }}
+          name: newpat-macos-client-${{ matrix.architecture }}
           path: build/macos-client-check.json
           retention-days: 14
           if-no-files-found: ignore
@@ -318,7 +318,7 @@ jobs:
     timeout-minutes: 90
     env:
       PYTHONPATH: src
-      NIPAT_RUNTIME_IMAGE: nipat-scientific-runtime:ci-test
+      NEWPAT_RUNTIME_IMAGE: newpat-scientific-runtime:ci-test
     steps:
       - name: Checkout source
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -339,7 +339,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           python .github/scripts/scientific_reuse.py restore --promote-image \
-            --image "$NIPAT_RUNTIME_IMAGE" --output-dir build/scientific-reuse \
+            --image "$NEWPAT_RUNTIME_IMAGE" --output-dir build/scientific-reuse \
             --runner-temp "$RUNNER_TEMP" --output "$GITHUB_OUTPUT"
       - name: Set up Buildx
         if: steps.scientific_reuse.outputs.reused != 'true'
@@ -351,88 +351,88 @@ jobs:
           context: .
           file: docker/scientific-runtime/Dockerfile
           platforms: linux/amd64
-          tags: ${{ env.NIPAT_RUNTIME_IMAGE }}
+          tags: ${{ env.NEWPAT_RUNTIME_IMAGE }}
           load: true
           pull: true
           provenance: false
-          cache-from: type=gha,version=2,scope=nipat-scientific-linux-amd64
-          cache-to: type=gha,version=2,scope=nipat-scientific-linux-amd64,mode=max,ignore-error=true
+          cache-from: type=gha,version=2,scope=newpat-scientific-linux-amd64
+          cache-to: type=gha,version=2,scope=newpat-scientific-linux-amd64,mode=max,ignore-error=true
       - name: Exercise the desktop caller plan with the bundled synthetic trio
-        run: python .github/scripts/verify_caller_smoke.py --image "$NIPAT_RUNTIME_IMAGE"
+        run: python .github/scripts/verify_caller_smoke.py --image "$NEWPAT_RUNTIME_IMAGE"
       - name: Verify distribution notices in the built image
         run: |
           set -o pipefail
           sha256sum LICENSE THIRD_PARTY_NOTICES.md |
-            docker run --rm -i --network=none --workdir /opt/nipat --entrypoint sha256sum "$NIPAT_RUNTIME_IMAGE" --check -
+            docker run --rm -i --network=none --workdir /opt/newpat --entrypoint sha256sum "$NEWPAT_RUNTIME_IMAGE" --check -
       - name: Verify bundled scientific scripts without host sources
         if: steps.scientific_reuse.outputs.reused != 'true'
         env:
-          TMPDIR: ${{ runner.temp }}/nipat-engine-check
+          TMPDIR: ${{ runner.temp }}/newpat-engine-check
         run: |
           mkdir -p "$TMPDIR"
           set -o pipefail
-          python scripts/verify_engine_package.py --image "$NIPAT_RUNTIME_IMAGE" 2>&1 | tee "$TMPDIR/verification.log"
+          python scripts/verify_engine_package.py --image "$NEWPAT_RUNTIME_IMAGE" 2>&1 | tee "$TMPDIR/verification.log"
       - name: Verify original sample labels and unchanged scientific results
         if: steps.scientific_reuse.outputs.reused != 'true'
         env:
-          TMPDIR: ${{ runner.temp }}/nipat-presentation-check
+          TMPDIR: ${{ runner.temp }}/newpat-presentation-check
         run: |
           mkdir -p "$TMPDIR"
           set -o pipefail
-          python scripts/verify_presentation.py --image "$NIPAT_RUNTIME_IMAGE" --output-dir "$TMPDIR/artifacts" 2>&1 | tee "$TMPDIR/verification.log"
+          python scripts/verify_presentation.py --image "$NEWPAT_RUNTIME_IMAGE" --output-dir "$TMPDIR/artifacts" 2>&1 | tee "$TMPDIR/verification.log"
       - name: Scientific regression and input-mode checks
         if: steps.scientific_reuse.outputs.reused != 'true'
         env:
-          NIPAT_DATA_DIR: ${{ runner.temp }}/nipat-validation/data
-          NIPAT_RUNS_DIR: ${{ runner.temp }}/nipat-validation/runs
+          NEWPAT_DATA_DIR: ${{ runner.temp }}/newpat-validation/data
+          NEWPAT_RUNS_DIR: ${{ runner.temp }}/newpat-validation/runs
         run: |
-          mkdir -p "$NIPAT_DATA_DIR" "$NIPAT_RUNS_DIR"
-          python -m nipat doctor --runtime
-          python -m nipat self-test
+          mkdir -p "$NEWPAT_DATA_DIR" "$NEWPAT_RUNS_DIR"
+          python -m newpat doctor --runtime
+          python -m newpat self-test
       - name: Verify optional performance evidence and unchanged DNP results
         if: steps.scientific_reuse.outputs.reused != 'true'
         env:
-          TMPDIR: ${{ runner.temp }}/nipat-performance-check
+          TMPDIR: ${{ runner.temp }}/newpat-performance-check
         run: |
           mkdir -p "$TMPDIR"
           set -o pipefail
-          python scripts/verify_performance.py --image "$NIPAT_RUNTIME_IMAGE" --output-dir "$TMPDIR/artifacts" 2>&1 | tee "$TMPDIR/verification.log"
+          python scripts/verify_performance.py --image "$NEWPAT_RUNTIME_IMAGE" --output-dir "$TMPDIR/artifacts" 2>&1 | tee "$TMPDIR/verification.log"
       - name: Verify native scientific edge cases and settings in the installed image
         if: steps.scientific_reuse.outputs.reused != 'true'
         env:
-          TMPDIR: ${{ runner.temp }}/nipat-native-r-check
+          TMPDIR: ${{ runner.temp }}/newpat-native-r-check
         run: |
           mkdir -p "$TMPDIR"
           set -o pipefail
           docker run --rm --network=none --cpus=4 --memory=8g \
             --mount "type=bind,source=$GITHUB_WORKSPACE,target=/qualification,readonly" \
-            --workdir /qualification --env PYTHONPATH=/opt/nipat/lib:/qualification/src \
+            --workdir /qualification --env PYTHONPATH=/opt/newpat/lib:/qualification/src \
             --mount "type=bind,source=$TMPDIR,target=/evidence" \
-            --entrypoint python3 "$NIPAT_RUNTIME_IMAGE" /qualification/.github/scripts/check_native_r.py \
+            --entrypoint python3 "$NEWPAT_RUNTIME_IMAGE" /qualification/.github/scripts/check_native_r.py \
             --report /evidence/native-r.json \
             2>&1 | tee "$TMPDIR/verification.log"
       - name: Verify updated CPI Contamination and CPIN models
         if: steps.scientific_reuse.outputs.reused != 'true'
         env:
-          TMPDIR: ${{ runner.temp }}/nipat-five-modules-check
+          TMPDIR: ${{ runner.temp }}/newpat-five-modules-check
         run: |
           mkdir -p "$TMPDIR"
           set -o pipefail
-          python scripts/verify_five_modules.py --image "$NIPAT_RUNTIME_IMAGE" --output "$TMPDIR/artifacts" --full 2>&1 | tee "$TMPDIR/verification.log"
+          python scripts/verify_five_modules.py --image "$NEWPAT_RUNTIME_IMAGE" --output "$TMPDIR/artifacts" --full 2>&1 | tee "$TMPDIR/verification.log"
       - name: Compare scientific cores with immutable versioned references
         if: steps.scientific_reuse.outputs.reused != 'true'
         env:
-          TMPDIR: ${{ runner.temp }}/nipat-r-equivalence-check
+          TMPDIR: ${{ runner.temp }}/newpat-r-equivalence-check
         run: |
           mkdir -p "$TMPDIR"
           set -o pipefail
-          python scripts/verify_r_equivalence.py --image "$NIPAT_RUNTIME_IMAGE" --output-dir "$TMPDIR/artifacts" 2>&1 | tee "$TMPDIR/verification.log"
+          python scripts/verify_r_equivalence.py --image "$NEWPAT_RUNTIME_IMAGE" --output-dir "$TMPDIR/artifacts" 2>&1 | tee "$TMPDIR/verification.log"
       - name: Export qualified scientific Docker image
         id: scientific_image_export
         if: steps.scientific_reuse.outputs.reused != 'true' && github.repository_id == '1307623649' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         continue-on-error: true
         run: |
-          image_id=$(docker image inspect --format '{{.Id}}' "$NIPAT_RUNTIME_IMAGE")
+          image_id=$(docker image inspect --format '{{.Id}}' "$NEWPAT_RUNTIME_IMAGE")
           docker image save --output "$RUNNER_TEMP/scientific-runtime.tar.partial" "$image_id"
           mv "$RUNNER_TEMP/scientific-runtime.tar.partial" "$RUNNER_TEMP/scientific-runtime.tar"
       - name: Seal successful scientific qualification for exact-image reuse
@@ -440,7 +440,7 @@ jobs:
         id: scientific_qualification
         run: |
           python .github/scripts/scientific_reuse.py seal \
-            --image "$NIPAT_RUNTIME_IMAGE" --output-dir build/scientific-qualification \
+            --image "$NEWPAT_RUNTIME_IMAGE" --output-dir build/scientific-qualification \
             --runtime-archive "$RUNNER_TEMP/scientific-runtime.tar"
           echo "source_tree=$(git rev-parse 'HEAD^{tree}')" >> "$GITHUB_OUTPUT"
       - name: Retain reusable scientific qualification
@@ -449,7 +449,7 @@ jobs:
         # have separate immutable artifacts; ordinary diagnostics remain below.
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: nipat-scientific-qualification-${{ github.run_attempt }}-${{ steps.scientific_qualification.outputs.source_tree }}
+          name: newpat-scientific-qualification-${{ github.run_attempt }}-${{ steps.scientific_qualification.outputs.source_tree }}
           path: build/scientific-qualification/
           retention-days: 14
           if-no-files-found: error
@@ -458,7 +458,7 @@ jobs:
         continue-on-error: true
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: nipat-scientific-image-${{ github.run_attempt }}-${{ steps.scientific_qualification.outputs.source_tree }}
+          name: newpat-scientific-image-${{ github.run_attempt }}-${{ steps.scientific_qualification.outputs.source_tree }}
           path: ${{ runner.temp }}/scientific-runtime.tar
           retention-days: 3
           compression-level: 1
@@ -467,16 +467,16 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: nipat-ci-scientific-logs
+          name: newpat-ci-scientific-logs
           path: |
-            ${{ runner.temp }}/nipat-validation/runs/**/run.json
-            ${{ runner.temp }}/nipat-validation/runs/**/execution.log
-            ${{ runner.temp }}/nipat-engine-check/
-            ${{ runner.temp }}/nipat-presentation-check/
-            ${{ runner.temp }}/nipat-performance-check/
-            ${{ runner.temp }}/nipat-r-equivalence-check/
-            ${{ runner.temp }}/nipat-five-modules-check/
-            ${{ runner.temp }}/nipat-native-r-check/
+            ${{ runner.temp }}/newpat-validation/runs/**/run.json
+            ${{ runner.temp }}/newpat-validation/runs/**/execution.log
+            ${{ runner.temp }}/newpat-engine-check/
+            ${{ runner.temp }}/newpat-presentation-check/
+            ${{ runner.temp }}/newpat-performance-check/
+            ${{ runner.temp }}/newpat-r-equivalence-check/
+            ${{ runner.temp }}/newpat-five-modules-check/
+            ${{ runner.temp }}/newpat-native-r-check/
             build/scientific-reuse/reuse.json
           retention-days: 14
           if-no-files-found: ignore
@@ -488,7 +488,7 @@ jobs:
     timeout-minutes: 35
     env:
       PYTHONPATH: src
-      NIPAT_RUNTIME_IMAGE: nipat-scientific-runtime:ci-test
+      NEWPAT_RUNTIME_IMAGE: newpat-scientific-runtime:ci-test
     steps:
       - name: Checkout desktop and synthetic inputs
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -506,13 +506,13 @@ jobs:
           context: .
           file: docker/scientific-runtime/Dockerfile
           platforms: linux/amd64
-          tags: ${{ env.NIPAT_RUNTIME_IMAGE }}
+          tags: ${{ env.NEWPAT_RUNTIME_IMAGE }}
           load: true
           pull: true
           provenance: false
-          cache-from: type=gha,version=2,scope=nipat-scientific-linux-amd64
+          cache-from: type=gha,version=2,scope=newpat-scientific-linux-amd64
       - name: Verify the desktop caller plan and expected counts
-        run: python .github/scripts/verify_caller_smoke.py --image "$NIPAT_RUNTIME_IMAGE"
+        run: python .github/scripts/verify_caller_smoke.py --image "$NEWPAT_RUNTIME_IMAGE"
 
   runtime:
     needs: [changes, linux-checks, windows-checks]
@@ -532,20 +532,20 @@ jobs:
           context: .
           file: installer/runtime/Dockerfile
           platforms: linux/amd64
-          tags: nipat-wsl-rootfs:ci-test
+          tags: newpat-wsl-rootfs:ci-test
           load: true
           pull: true
           provenance: false
-          cache-from: type=gha,version=2,scope=nipat-wsl-rootfs-linux-amd64
-          cache-to: type=gha,version=2,scope=nipat-wsl-rootfs-linux-amd64,mode=max,ignore-error=true
+          cache-from: type=gha,version=2,scope=newpat-wsl-rootfs-linux-amd64
+          cache-to: type=gha,version=2,scope=newpat-wsl-rootfs-linux-amd64,mode=max,ignore-error=true
       - name: Exercise daemon startup and exact component provenance
         # Isolated Linux runtime integration; this does not claim Windows/WSL acceptance.
         run: |
           docker run --rm --privileged --cgroupns=host \
             --mount type=volume,target=/var/lib/docker --mount type=volume,target=/var/lib/containerd \
             --entrypoint /bin/bash \
-            nipat-wsl-rootfs:ci-test -euc \
-            '/usr/local/bin/nipat-engine ensure; /usr/local/bin/nipat-engine ensure; docker info --format "{{.OSType}}"; docker compose version; test -s /etc/nipat-runtime.json'
+            newpat-wsl-rootfs:ci-test -euc \
+            '/usr/local/bin/newpat-engine ensure; /usr/local/bin/newpat-engine ensure; docker info --format "{{.OSType}}"; docker compose version; test -s /etc/newpat-runtime.json'
 
   packaging:
     needs: [changes, linux-checks, windows-checks]

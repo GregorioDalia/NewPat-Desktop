@@ -4,13 +4,13 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from nipat_scientific.errors import ValidationError
-from nipat_scientific.snp import prepare_snp
+from newpat_scientific.errors import ValidationError
+from newpat_scientific.snp import prepare_snp
 
 
 class SnpEngineTests(unittest.TestCase):
     def setUp(self):
-        temporary = tempfile.TemporaryDirectory(prefix="nipat SNP à ")
+        temporary = tempfile.TemporaryDirectory(prefix="newpat SNP à ")
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name).resolve()
         self.inputs = self.root / "inputs"

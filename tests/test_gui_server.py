@@ -7,10 +7,10 @@ import tempfile
 import unittest
 from urllib.parse import quote, urlsplit
 
-from nipat.errors import RuntimeExecutionError
-from nipat.gui.igv import LocalIGV
-from nipat.gui.plan import prepare_analysis
-from nipat.gui.server import DesktopServer, MAX_RPC_BYTES, byte_range
+from newpat.errors import RuntimeExecutionError
+from newpat.desktop.igv import LocalIGV
+from newpat.desktop.plan import prepare_analysis
+from newpat.desktop.server import DesktopServer, MAX_RPC_BYTES, byte_range
 
 
 class ByteRangeTests(unittest.TestCase):
@@ -38,8 +38,8 @@ class DesktopTransportTests(unittest.TestCase):
         self.root = Path(temporary.name)
         self.assets = self.root / "web"
         self.assets.mkdir()
-        (self.assets / "index.html").write_text("<!doctype html><title>NIPAT</title>", encoding="utf-8")
-        (self.assets / "app.js").write_text("window.app = 'NIPAT';", encoding="utf-8")
+        (self.assets / "index.html").write_text("<!doctype html><title>NewPat</title>", encoding="utf-8")
+        (self.assets / "app.js").write_text("window.app = 'NewPat';", encoding="utf-8")
         self.secret = self.root / "private.txt"
         self.secret.write_bytes(b"private genomic bytes")
         self.calls = []
@@ -79,7 +79,7 @@ class DesktopTransportTests(unittest.TestCase):
             self.assertNotEqual(self.server.token, second.token)
         status, headers, body = self.request("GET", self.path("web/index.html"))
         self.assertEqual(status, 200)
-        self.assertIn(b"NIPAT", body)
+        self.assertIn(b"NewPat", body)
         self.assertIn("text/html", headers["Content-Type"])
         self.assertEqual(headers["Cache-Control"], "no-store")
         self.assertEqual(headers["X-Content-Type-Options"], "nosniff")
@@ -176,7 +176,7 @@ class DesktopTransportTests(unittest.TestCase):
         _, _, body = self.rpc({"method": "runtime"})
         self.assertEqual(json.loads(body)["error"]["message"],
                          "Avvia l’ambiente scientifico e riprova.")
-        with self.assertLogs("nipat.gui.server", level="ERROR"):
+        with self.assertLogs("newpat.desktop.server", level="ERROR"):
             _, _, body = self.rpc({"method": "unexpected"})
         self.assertEqual(json.loads(body)["error"]["code"], "internal_error")
         self.assertNotIn(b"private implementation details", body)
@@ -228,7 +228,7 @@ class DesktopTransportTests(unittest.TestCase):
         self.assertEqual(source.read_bytes(), data)
 
     def test_reference_range_refuses_replaced_file_after_opening_viewer(self):
-        from nipat.execution.tracking import input_stat_snapshot
+        from newpat.experiments.tracking import input_stat_snapshot
         source = self.root / "genome.fa"
         source.write_bytes(b">a\nACGT\n")
         route = urlsplit(self.server.register(source, expected_identity=input_stat_snapshot(source.stat()))["url"]).path

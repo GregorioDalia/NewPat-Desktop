@@ -8,13 +8,13 @@ from contextlib import nullcontext, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
-from nipat.cli import build_parser, main
-from nipat.errors import RuntimeExecutionError, ValidationError
-from nipat.execution.runner import DockerComposeRunner
-from nipat.execution.transport import DockerTransport
-from nipat.execution.workflows import Workflows
-from nipat.paths import ProjectLayout
-from nipat_scientific.plan import validate_plan
+from newpat.cli import build_parser, main
+from newpat.errors import RuntimeExecutionError, ValidationError
+from newpat.experiments.runner import DockerComposeRunner
+from newpat.experiments.transport import DockerTransport
+from newpat.experiments.workflows import Workflows
+from newpat.paths import ProjectLayout
+from newpat_scientific.plan import validate_plan
 
 
 class RecordingRunner:
@@ -76,7 +76,7 @@ class WorkflowClientTests(unittest.TestCase):
         self.assertEqual(len(self.runner.calls), 1)
         command, working_dir = self.runner.calls[0]
         self.assertEqual(command, [
-            "python3", "/opt/nipat/engine/main.py", "execute-plan", "--plan",
+            "python3", "/opt/newpat/engine/main.py", "execute-plan", "--plan",
             str(self.layout.container_path(run / "work" / "engine-plan.json")),
             "--run-dir", str(self.layout.container_path(run / "output" / "workflow")),
         ])
@@ -159,9 +159,9 @@ class WorkflowClientTests(unittest.TestCase):
         self.workflows = Workflows(self.layout, DockerComposeRunner(
             self.layout, dry_run=True, transport=DockerTransport(),
         ))
-        with patch("nipat.execution.runner.subprocess.Popen") as popen, \
-                patch("nipat.execution.runner.subprocess.run") as process_run, \
-                patch("nipat.execution.tracking.platform.platform", return_value="Test OS"), \
+        with patch("newpat.experiments.runner.subprocess.Popen") as popen, \
+                patch("newpat.experiments.runner.subprocess.run") as process_run, \
+                patch("newpat.experiments.tracking.platform.platform", return_value="Test OS"), \
                 redirect_stdout(io.StringIO()):
             run = self.invoke()
         popen.assert_not_called()
@@ -213,10 +213,10 @@ class WorkflowClientTests(unittest.TestCase):
         args = build_parser().parse_args(argv)
         self.assertEqual(args.preset, "dnp-contamination")
         self.assertEqual(args.bam, [self.bam])
-        with patch("nipat.cli.ProjectLayout.discover", return_value=self.layout), \
-                patch("nipat.cli.activity_session", return_value=nullcontext()), \
-                patch("nipat.cli.DockerComposeRunner"), \
-                patch("nipat.cli.Workflows") as workflows, redirect_stdout(io.StringIO()):
+        with patch("newpat.cli.ProjectLayout.discover", return_value=self.layout), \
+                patch("newpat.cli.activity_session", return_value=nullcontext()), \
+                patch("newpat.cli.DockerComposeRunner"), \
+                patch("newpat.cli.Workflows") as workflows, redirect_stdout(io.StringIO()):
             workflows.return_value.dnp_contamination.return_value = self.layout.runs_dir / "chosen"
             self.assertEqual(main(argv), 0)
         workflows.return_value.dnp_contamination.assert_called_once_with(
@@ -387,9 +387,9 @@ class WorkflowClientTests(unittest.TestCase):
         arguments = self.cpi_arguments(include_contamination=True)
         self.workflows = Workflows(self.layout, DockerComposeRunner(self.layout, dry_run=True,
                                                                    transport=DockerTransport()))
-        with patch("nipat.execution.runner.subprocess.Popen") as popen, \
-                patch("nipat.execution.runner.subprocess.run") as process_run, \
-                patch("nipat.execution.tracking.platform.platform", return_value="Test OS"), \
+        with patch("newpat.experiments.runner.subprocess.Popen") as popen, \
+                patch("newpat.experiments.runner.subprocess.run") as process_run, \
+                patch("newpat.experiments.tracking.platform.platform", return_value="Test OS"), \
                 redirect_stdout(io.StringIO()):
             run = self.workflows.dnp_cpi(**arguments)
         popen.assert_not_called()
@@ -412,9 +412,9 @@ class WorkflowClientTests(unittest.TestCase):
             if preset == "dnp-contamination-cpi":
                 argv += ["--contamination-panel", str(self.panel)]
             with self.subTest(preset=preset), \
-                    patch("nipat.cli.ProjectLayout.discover", return_value=self.layout), \
-                    patch("nipat.cli.activity_session", return_value=nullcontext()), \
-                    patch("nipat.cli.DockerComposeRunner"), patch("nipat.cli.Workflows") as workflows, \
+                    patch("newpat.cli.ProjectLayout.discover", return_value=self.layout), \
+                    patch("newpat.cli.activity_session", return_value=nullcontext()), \
+                    patch("newpat.cli.DockerComposeRunner"), patch("newpat.cli.Workflows") as workflows, \
                     redirect_stdout(io.StringIO()):
                 workflows.return_value.dnp_cpi.return_value = self.layout.runs_dir / "chosen"
                 self.assertEqual(main(argv), 0)
@@ -431,6 +431,46 @@ class WorkflowClientTests(unittest.TestCase):
 
     def snp_panel(self):
         return self.write("SNP panel.tsv", b"pos\tref\talt\nchr1:100\tA\tC\n")
+
+    def maternal_calling_inputs(self):
+        other = self.write("Other.bam", b"other BAM")
+        return {"caller": "both", "analyses": [], "reference": self.reference,
+                "samples": [("Other", other), ("Mother", self.bam)],
+                "dnp_panel": self.write("sex-dnp.tsv", b"chr1 100 101 AA CC\nX 21 22 AG TT\n"),
+                "snp_panel": self.write("sex-snp.tsv", b"pos\tref\talt\nchr1:100\tA\tC\nchrY:21\tA\tG\n"),
+                "fetal_sex": ("Mother",)}
+
+    def test_fetal_sex_takes_same_maternal_bam_from_both_callers(self):
+        inputs = self.maternal_calling_inputs()
+        cli = build_parser().parse_args(["workflow", "analyze", "--caller", "both",
+                                         "--fetal-sex", "Mother"])
+        inputs["fetal_sex"] = cli.fetal_sex
+        run = self.workflows.analyze(**inputs, dnp_analyses=["contamination"])
+        plan = self.plan(run)
+        self.assertEqual([s["kind"] for s in plan["samples"]], ["bam", "bam"])
+        self.assertCountEqual([step["workflow"] for step in plan["steps"]],
+                              ["dnp-call", "snp-call", "snp-call", "contamination", "fetal-sex"])
+        self.assertEqual(plan["steps"][-1]["inputs"],
+                         {"dnp": {"step": "dnp", "output": "dnp-tables", "sample": "Mother"},
+                          "y": {"step": "snp_0002", "output": "snp-tables", "sample": "Mother"}})
+        record = self.runner.records[0][1]
+        self.assertEqual(record["parameters"]["fetal_sex"], {"sample_id": "Mother", "bam": str(self.bam)})
+        self.assertEqual(sum(m["host_path"] == str(self.bam) for m in record["mounts"].mappings), 1)
+        self.assertEqual(len(self.runner.calls), 1)
+
+    def test_fetal_sex_rejects_missing_callers_sample_and_regions_before_start(self):
+        inputs = self.maternal_calling_inputs()
+        for changes, message in (
+            ({"caller": "dnp"}, "DNPcall e SNPcall"),
+            ({"caller": "snp"}, "DNPcall e SNPcall"),
+            ({"fetal_sex": ("Absent",)}, "BAM selezionati"),
+            ({"dnp_panel": self.panel}, "autosomici e X"),
+            ({"dnp_panel": self.write("x-only.tsv", b"chrX 21 22 AA CC\n")}, "autosomici e X"),
+            ({"snp_panel": self.snp_panel()}, "marcatori Y"),
+        ):
+            with self.subTest(changes=changes), self.assertRaisesRegex(ValidationError, message):
+                self.workflows.analyze(**(inputs | changes))
+        self.assert_not_started()
 
     def test_optional_snp_steps_reuse_each_bam_once_without_changing_dnp_handoff(self):
         panel = self.snp_panel()
@@ -550,8 +590,8 @@ class WorkflowClientTests(unittest.TestCase):
     def test_snp_batch_dry_run_never_invokes_runtime_or_writes_results(self):
         self.workflows = Workflows(self.layout, DockerComposeRunner(self.layout, dry_run=True,
                                                                    transport=DockerTransport()))
-        with patch("nipat.execution.runner.subprocess.Popen") as popen, \
-                patch("nipat.execution.runner.subprocess.run") as process_run, redirect_stdout(io.StringIO()):
+        with patch("newpat.experiments.runner.subprocess.Popen") as popen, \
+                patch("newpat.experiments.runner.subprocess.run") as process_run, redirect_stdout(io.StringIO()):
             run = self.workflows.snp_batch(bams=[self.bam], reference=self.reference, panel=self.snp_panel())
         popen.assert_not_called()
         process_run.assert_not_called()
@@ -570,9 +610,9 @@ class WorkflowClientTests(unittest.TestCase):
                                    {"bams": None, "bamlist": None, "pileups": [Path("a.txt"), Path("b.txt")],
                                     "reference": None})):
             argv = ["workflow", "snp-batch", *options, "--panel", str(panel), "--run-name", "batch"]
-            with patch("nipat.cli.ProjectLayout.discover", return_value=self.layout), \
-                    patch("nipat.cli.activity_session", return_value=nullcontext()), \
-                    patch("nipat.cli.DockerComposeRunner"), patch("nipat.cli.Workflows") as workflows, \
+            with patch("newpat.cli.ProjectLayout.discover", return_value=self.layout), \
+                    patch("newpat.cli.activity_session", return_value=nullcontext()), \
+                    patch("newpat.cli.DockerComposeRunner"), patch("newpat.cli.Workflows") as workflows, \
                     redirect_stdout(io.StringIO()):
                 workflows.return_value.snp_batch.return_value = self.layout.runs_dir / "batch"
                 self.assertEqual(main(argv), 0)

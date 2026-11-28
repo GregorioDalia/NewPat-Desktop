@@ -9,8 +9,8 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request
 from unittest.mock import Mock, patch
 
-from nipat.repository import LEGACY_REPOSITORY, RENAMED_REPOSITORY, REPOSITORY_ID
-from nipat.updates import (
+from newpat.repository import REPOSITORY, REPOSITORY_ID
+from newpat.updates import (
     API, WEB, REPOSITORY_INFO_URL, UpdateAsset, UpdateClient, UpdateError, UpdateOffer,
     _SafeRedirectHandler, detect_platform, version_key, manifest_filename,
 )
@@ -34,7 +34,7 @@ class FakeNetwork:
     def __init__(self):
         self.routes = {}
         self.calls = []
-        self.add_json(REPOSITORY_INFO_URL, {"id": int(REPOSITORY_ID), "full_name": LEGACY_REPOSITORY})
+        self.add_json(REPOSITORY_INFO_URL, {"id": int(REPOSITORY_ID), "full_name": REPOSITORY})
 
     def add_json(self, url, data):
         self.routes[url] = json.dumps(data).encode()
@@ -56,17 +56,17 @@ def release_fixture(version="0.7.0", *, prerelease=False, platform="windows-x86_
         if suffix in version:
             deb_version = version.replace(suffix, "~" + suffix)
             break
-    name = "NIPAT-Setup.exe" if platform == "windows-x86_64" else f"nipat-desktop_{deb_version}_amd64.deb"
+    name = "NewPat-Setup.exe" if platform == "windows-x86_64" else f"newpat-desktop_{deb_version}_amd64.deb"
     if platform.startswith("darwin-"):
-        name = f"NIPAT-{version}-macos-{platform.removeprefix('darwin-')}.pkg"
+        name = f"NewPat-{version}-macos-{platform.removeprefix('darwin-')}.pkg"
     if platform == "windows-zip-x86_64":
-        name = f"NIPAT-{version}-Windows-completo.zip"
+        name = f"NewPat-{version}-Windows-complete.zip"
     if platform == "windows-bootstrap-x86_64":
-        name = f"NIPAT-{version}-Windows-payload.zip"
+        name = f"NewPat-{version}-Windows-payload.zip"
     asset = {"platform": platform, "name": name, "size": len(payload),
              "sha256": hashlib.sha256(payload).hexdigest(),
              "url": f"{WEB}/releases/download/{tag}/{name}"}
-    manifest = {"schema_version": 1, "product": "nipat-desktop", "version": version,
+    manifest = {"schema_version": 1, "product": "newpat-desktop", "version": version,
                 "release_tag": tag, "channel": "testing" if prerelease else "stable",
                 "source_commit": SOURCE, "minimum_updater_version": 1, "assets": [asset],
                 "release_notes_url": f"{WEB}/releases/tag/{tag}"}
@@ -100,49 +100,23 @@ class UpdateDiscoveryTests(unittest.TestCase):
     def check(self, channel="testing", current="0.6.0", platform="windows-x86_64"):
         return self.client.check(current, channel, platform)
 
-    def test_renamed_repository_can_serve_unchanged_historical_manifests(self):
+    def test_all_platforms_use_the_official_newpat_asset_url(self):
         for platform in ("windows-x86_64", "windows-zip-x86_64", "windows-bootstrap-x86_64",
                          "linux-x86_64", "darwin-arm64", "darwin-x86_64"):
-            for historical in (True, False):
-                with self.subTest(platform=platform, historical=historical):
-                    release, manifest = release_fixture("0.9.9", platform=platform)
-                    self.network.add_json(REPOSITORY_INFO_URL, {"id": int(REPOSITORY_ID), "full_name": RENAMED_REPOSITORY})
-                    new_web = f"https://github.com/{RENAMED_REPOSITORY}"
-                    new_api = f"https://api.github.com/repos/{RENAMED_REPOSITORY}"
-                    release = json.loads(json.dumps(release).replace(WEB, new_web))
-                    if not historical:
-                        manifest = json.loads(json.dumps(manifest).replace(WEB, new_web))
-                    self.network.add_json(new_api + "/releases?per_page=100&page=1", [release])
-                    self.network.add_json(new_api + "/git/ref/tags/v0.9.9",
-                                          {"ref": "refs/tags/v0.9.9", "object": {"type": "commit", "sha": SOURCE}})
-                    self.network.add_json(release["assets"][0]["browser_download_url"], manifest)
-                    offer = self.check(channel="stable", current="0.9.8", platform=platform).offer
-                    self.assertIsNotNone(offer)
-                    self.assertEqual(offer.asset.url, release["assets"][1]["browser_download_url"])
-                    self.assertEqual(offer.release_notes_url, release["html_url"])
+            with self.subTest(platform=platform):
+                release, manifest = release_fixture("0.9.100", platform=platform)
+                self.install((release, manifest))
+                offer = self.check(channel="stable", current="0.9.99", platform=platform).offer
+                self.assertIsNotNone(offer)
+                self.assertEqual(offer.asset.url, release["assets"][1]["browser_download_url"])
+                self.assertEqual(offer.release_notes_url, release["html_url"])
 
     def test_rejects_same_name_with_wrong_repository_id_and_unexpected_name_with_right_id(self):
-        for repo_id, repository in [(1, LEGACY_REPOSITORY), (int(REPOSITORY_ID), "someone/NewPat-Desktop")]:
+        for repo_id, repository in [(1, REPOSITORY), (int(REPOSITORY_ID), "someone/NewPat-Desktop")]:
             self.network.calls.clear()
             self.network.add_json(REPOSITORY_INFO_URL, {"id": repo_id, "full_name": repository})
             self.assertEqual(self.check().status, "invalid_metadata")
             self.assertEqual([url for url, _ in self.network.calls], [REPOSITORY_INFO_URL])
-
-    def test_gui_preview_never_consumes_an_automatic_update_feed(self):
-        for version in ("0.9.0", "0.9.0rc1", "0.9.1", "0.9.1rc1"):
-            for channel in ("stable", "testing"):
-                with self.subTest(version=version, channel=channel):
-                    result = self.check(channel, current=version)
-                    self.assertEqual(result.status, "manual_update")
-                    self.assertIsNone(result.offer)
-        self.assertEqual(self.network.calls, [])
-
-    def test_0899_stable_feed_behavior_is_preserved(self):
-        self.install(release_fixture("0.8.100"))
-        result = self.check("stable", current="0.8.99")
-        self.assertEqual(result.status, "available")
-        self.assertEqual(result.offer.version, "0.8.100")
-        self.assertTrue(self.network.calls)
 
     def test_mac_uses_its_own_feed_and_architecture_specific_package(self):
         for architecture in ("arm64", "x86_64"):
@@ -151,23 +125,23 @@ class UpdateDiscoveryTests(unittest.TestCase):
                 self.install(release_fixture("0.8.2", platform="darwin-" + architecture))
                 result = self.check(platform="darwin-" + architecture, current="0.8.1")
                 self.assertEqual(result.status, "available")
-                self.assertEqual(result.offer.asset.name, f"NIPAT-0.8.2-macos-{architecture}.pkg")
+                self.assertEqual(result.offer.asset.name, f"NewPat-0.8.2-macos-{architecture}.pkg")
                 self.assertTrue(any(url.endswith("update-manifest-macos.json") for url, _ in self.network.calls))
                 self.assertFalse(any(url.endswith("/update-manifest.json") for url, _ in self.network.calls))
 
-    def test_mac_architecture_detection_and_legacy_feed_selection(self):
+    def test_mac_architecture_detection_and_platform_feed_selection(self):
         for architecture in ("arm64", "x86_64"):
-            with patch("nipat.updates.sys.platform", "darwin"), patch(
-                    "nipat.updates.host_platform.machine", return_value=architecture):
+            with patch("newpat.updates.sys.platform", "darwin"), patch(
+                    "newpat.updates.host_platform.machine", return_value=architecture):
                 self.assertEqual(detect_platform(), "darwin-" + architecture)
         self.assertEqual(manifest_filename("windows-x86_64"), "update-manifest.json")
         self.assertEqual(manifest_filename("linux-x86_64"), "update-manifest.json")
 
     def test_windows_channels_select_only_their_own_manifest_and_package(self):
         for platform, feed, name in (
-            ("windows-x86_64", "update-manifest.json", "NIPAT-Setup.exe"),
-            ("windows-zip-x86_64", "update-manifest-windows-zip.json", "NIPAT-0.8.99-Windows-completo.zip"),
-            ("windows-bootstrap-x86_64", "update-manifest-windows-bootstrap.json", "NIPAT-0.8.99-Windows-payload.zip"),
+            ("windows-x86_64", "update-manifest.json", "NewPat-Setup.exe"),
+            ("windows-zip-x86_64", "update-manifest-windows-zip-v2.json", "NewPat-0.8.99-Windows-complete.zip"),
+            ("windows-bootstrap-x86_64", "update-manifest-windows-bootstrap-v2.json", "NewPat-0.8.99-Windows-payload.zip"),
         ):
             with self.subTest(platform=platform):
                 self.setUp()
@@ -181,7 +155,7 @@ class UpdateDiscoveryTests(unittest.TestCase):
                 self.assertEqual(requested, [feed])
 
     def test_bootstrap_payload_cannot_be_substituted_with_exe_or_full_zip(self):
-        for name in ("NIPAT-Setup.exe", "NIPAT-0.8.99-Windows-completo.zip"):
+        for name in ("NewPat-Setup.exe", "NewPat-0.8.99-Windows-complete.zip"):
             with self.subTest(name=name):
                 self.setUp()
                 release, manifest = release_fixture("0.8.99", platform="windows-bootstrap-x86_64")
@@ -202,7 +176,7 @@ class UpdateDiscoveryTests(unittest.TestCase):
         result = self.check()
         self.assertEqual(result.status, "available")
         self.assertEqual(result.offer.version, "0.10.0")
-        self.assertEqual(result.offer.asset_name, "NIPAT-Setup.exe")
+        self.assertEqual(result.offer.asset_name, "NewPat-Setup.exe")
         self.assertEqual(result.offer.size, len(PAYLOAD))
         self.assertFalse(any("/v0.9.0/" in url for url, _ in self.network.calls))
 
@@ -237,13 +211,13 @@ class UpdateDiscoveryTests(unittest.TestCase):
         self.assertEqual(self.check().status, "no_eligible_release")
         result = self.check(platform="linux-x86_64")
         self.assertEqual(result.status, "available")
-        self.assertEqual(result.offer.asset.name, "nipat-desktop_0.7.0_amd64.deb")
+        self.assertEqual(result.offer.asset.name, "newpat-desktop_0.7.0_amd64.deb")
 
     def test_debian_prerelease_asset_name_uses_tilde(self):
         self.install(release_fixture("0.7.0rc2", platform="linux-x86_64", prerelease=True))
         result = self.check(platform="linux-x86_64")
         self.assertEqual(result.status, "available")
-        self.assertEqual(result.offer.asset.name, "nipat-desktop_0.7.0~rc2_amd64.deb")
+        self.assertEqual(result.offer.asset.name, "newpat-desktop_0.7.0~rc2_amd64.deb")
 
     def test_wrong_repository_and_manifest_urls_are_refused_before_fetch(self):
         for field in ("html_url", "manifest_url"):
@@ -275,10 +249,10 @@ class UpdateDiscoveryTests(unittest.TestCase):
             lambda m: m.update(channel="testing"), lambda m: m.update(minimum_updater_version=True),
             lambda m: m.update(assets=[]), lambda m: m.update(unrecognized=True),
             lambda m: m.update(release_notes_url="https://example.com/notes"),
-            lambda m: m["assets"][0].update(name="../NIPAT-Setup.exe"),
+            lambda m: m["assets"][0].update(name="../NewPat-Setup.exe"),
             lambda m: m["assets"][0].update(size=True),
             lambda m: m["assets"][0].update(size=2**31),
-            lambda m: m["assets"][0].update(url="https://example.com/NIPAT-Setup.exe"),
+            lambda m: m["assets"][0].update(url="https://example.com/NewPat-Setup.exe"),
         ]
         for mutate in mutations:
             with self.subTest(mutate=mutate):
@@ -356,7 +330,7 @@ class UpdateDiscoveryTests(unittest.TestCase):
 
     def test_redirects_require_https_and_official_asset_host(self):
         handler = _SafeRedirectHandler()
-        request = Request(f"{WEB}/releases/download/v0.7.0/NIPAT-Setup.exe")
+        request = Request(f"{WEB}/releases/download/v0.7.0/NewPat-Setup.exe")
         for url in ("http://release-assets.githubusercontent.com/file", "https://evil.example/file",
                     "https://github.com@evil.example/file", "https://github.com:444/file"):
             with self.subTest(url=url), self.assertRaises(UpdateError):
@@ -366,13 +340,13 @@ class UpdateDiscoveryTests(unittest.TestCase):
         self.assertTrue(redirected.full_url.startswith("https://release-assets.githubusercontent.com/"))
 
     def test_platform_detection_rejects_unsupported_architecture(self):
-        with patch("nipat.updates.sys.platform", "win32"), patch("nipat.updates.host_platform.machine", return_value="AMD64"):
+        with patch("newpat.updates.sys.platform", "win32"), patch("newpat.updates.host_platform.machine", return_value="AMD64"):
             self.assertEqual(detect_platform(), "windows-x86_64")
         for operating_system, architecture in (("win32", "arm64"), ("linux", "arm64"),
                                                 ("darwin", "i386"), ("freebsd", "x86_64")):
             with self.subTest(operating_system=operating_system, architecture=architecture), \
-                    patch("nipat.updates.sys.platform", operating_system), \
-                    patch("nipat.updates.host_platform.machine", return_value=architecture), \
+                    patch("newpat.updates.sys.platform", operating_system), \
+                    patch("newpat.updates.host_platform.machine", return_value=architecture), \
                     self.assertRaises(UpdateError) as rejected:
                 detect_platform()
             self.assertEqual(rejected.exception.status, "unsupported_platform")

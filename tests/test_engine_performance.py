@@ -10,7 +10,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from nipat_scientific import performance
+from newpat_scientific import performance
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,7 +21,7 @@ SPEC.loader.exec_module(engine)
 
 class EnginePerformanceTests(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="nipat-performance-")
+        self.temporary = tempfile.TemporaryDirectory(prefix="newpat-performance-")
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name).resolve()
         self.cgroup = self.root / "cgroup"
@@ -71,6 +71,35 @@ class EnginePerformanceTests(unittest.TestCase):
         self.assertEqual(sample["memory_current_bytes"], 20)
         self.assertIsNone(sample["memory_peak_bytes"])
 
+    def test_scientific_child_exit_137_reports_only_same_cgroup_kill_increase(self):
+        self.membership(value="0::/analysis\n")
+        nested = self.cgroup / "analysis"
+        request = self.root / "request.json"
+        request.write_text(json.dumps({"workflow": "contamination", "marker_type": "DNP",
+                                       "work_dir": str(self.root / "work"), "out_dir": str(self.root / "out")}))
+        real_counter = performance.oom_kill_counter
+        token = "a" * 32
+        for updated, moved, expected in (("oom_kill 6", False, True), ("oom_kill 5", False, False),
+                                         ("oom_kill 3", False, False), ("oom 20", False, False),
+                                         ("oom_kill 6", True, False)):
+            with self.subTest(updated=updated, moved=moved):
+                self.metric("memory.events", "max 150\noom 100\noom_kill 5", nested)
+                def killed(*_args):
+                    if moved:
+                        (nested / "memory.events").rename(nested / "previous")
+                    self.metric("memory.events", updated, nested)
+                    return 137
+                errors = io.StringIO()
+                with patch.dict(os.environ, {"NEWPAT_OOM_TOKEN": token}, clear=True), \
+                        contextlib.redirect_stderr(errors), \
+                        patch.object(performance, "oom_kill_counter", side_effect=lambda: real_counter(self.cgroup, self.proc)), \
+                        patch("newpat_scientific.contamination.prepare_contamination", return_value=[]), \
+                        patch("newpat_scientific.presentation.prepare_presentation", return_value=["Rscript"]), \
+                        patch("newpat_scientific.executor._run_process", side_effect=killed):
+                    self.assertEqual(engine.main(["execute", "contamination", "--request", str(request)]), 137)
+                self.assertEqual(f"NewPat cgroup oom_kill {token} 5 6" in errors.getvalue(), expected)
+                self.assertFalse((self.root / "performance").exists())
+
     def test_missing_membership_never_falls_back_to_host_root(self):
         self.metric("memory.current", "999999")
         observed = performance.cgroup_sample(self.cgroup, self.proc)
@@ -90,6 +119,7 @@ class EnginePerformanceTests(unittest.TestCase):
             "32 22 0:28 / /sys/fs/cgroup/cpu,cpuacct ro - cgroup cgroup rw,cpu,cpuacct\n")
         self.metric("memory/analysis/memory.usage_in_bytes", "100")
         self.metric("memory/analysis/memory.max_usage_in_bytes", "200")
+        self.metric("memory/analysis/memory.oom_control", "oom_kill_disable 0\nunder_oom 0\noom_kill 3\n")
         self.metric("cpu,cpuacct/analysis/cpuacct.usage", "300")
         observed = performance.cgroup_sample(self.cgroup, self.proc)
         self.assertEqual(observed["version"], 1)
@@ -97,6 +127,9 @@ class EnginePerformanceTests(unittest.TestCase):
         self.assertEqual(observed["memory_peak_bytes"], 200)
         self.assertEqual(observed["cpu_usage_ns"], 300)
         self.assertIsNone(observed["io_devices"])
+        self.assertEqual(performance.oom_kill_counter(self.cgroup, self.proc)[1], 3)
+        self.metric("memory/analysis/memory.oom_control", "oom_kill_disable 0\nunder_oom 1\n")
+        self.assertIsNone(performance.oom_kill_counter(self.cgroup, self.proc))
 
     def test_proc_records_only_allowed_names_and_no_arguments(self):
         for pid, name in ((11, "R"), (12, "samtools"), (13, "private-patient")):
@@ -229,11 +262,11 @@ class EnginePerformanceTests(unittest.TestCase):
                                        "out_dir": str(self.root / "output")}))
         recorded = []
         for enabled in (False, True):
-            environment = {"NIPAT_PERFORMANCE_DIR": str(self.root / "enabled")} if enabled else {}
+            environment = {"NEWPAT_PERFORMANCE_DIR": str(self.root / "enabled")} if enabled else {}
             with patch.dict(os.environ, environment, clear=True), \
-                    patch("nipat_scientific.contamination.prepare_contamination", return_value=["panel", "inputs", "outputs"]), \
-                    patch("nipat_scientific.presentation.prepare_presentation", return_value=["Rscript", "science.R", "panel", "inputs", "outputs"]), \
-                    patch("nipat_scientific.executor._run_process", return_value=23) as run:
+                    patch("newpat_scientific.contamination.prepare_contamination", return_value=["panel", "inputs", "outputs"]), \
+                    patch("newpat_scientific.presentation.prepare_presentation", return_value=["Rscript", "science.R", "panel", "inputs", "outputs"]), \
+                    patch("newpat_scientific.executor._run_process", return_value=23) as run:
                 code = engine.main(["execute", "contamination", "--request", str(request)])
                 recorded.append((code, run.call_args.args[:3]))
         self.assertEqual(recorded[0], recorded[1])

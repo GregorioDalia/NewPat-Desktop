@@ -1,6 +1,6 @@
 # Real temporary-file inventory/selection tests, no installed WSL or registry writes.
 . (Join-Path $PSScriptRoot 'maintenance.ps1') -LibraryOnly
-$temporary = Join-Path ([IO.Path]::GetTempPath()) ('nipat-maintenance-' + [Guid]::NewGuid().ToString('N'))
+$temporary = Join-Path ([IO.Path]::GetTempPath()) ('newpat-maintenance-' + [Guid]::NewGuid().ToString('N'))
 $project = Join-Path $temporary 'app'
 [IO.Directory]::CreateDirectory($project) | Out-Null
 $checks = 0
@@ -18,11 +18,11 @@ function Add-MaintenanceFile([string] $Path, [string] $Text) {
     [IO.File]::WriteAllText($Path, $Text, (New-Object Text.UTF8Encoding($false)))
     return $Path
 }
-$manifestFunction = (Get-Command Read-NipatInstallerManifest).ScriptBlock
-$repairFunction = (Get-Command Assert-NipatRepairableInstallation).ScriptBlock
-$backupsFunction = (Get-Command Get-NipatMaintenanceBackups).ScriptBlock
-$planFunction = (Get-Command Get-NipatRuntimeRemovalPlan).ScriptBlock
-$removeFunction = (Get-Command Invoke-NipatRuntimeRemoval).ScriptBlock
+$manifestFunction = (Get-Command Read-NewPatInstallerManifest).ScriptBlock
+$repairFunction = (Get-Command Assert-NewPatRepairableInstallation).ScriptBlock
+$backupsFunction = (Get-Command Get-NewPatMaintenanceBackups).ScriptBlock
+$planFunction = (Get-Command Get-NewPatRuntimeRemovalPlan).ScriptBlock
+$removeFunction = (Get-Command Invoke-NewPatRuntimeRemoval).ScriptBlock
 try {
     # Exercise the real script entrypoint: imported -LibraryOnly parameters must
     # not swallow a caller's operation or replace its explicitly selected path.
@@ -48,9 +48,9 @@ try {
         source_commit = ('a' * 40)
         assets = [pscustomobject]@{ rootfs = [pscustomobject]@{ sha256 = ('1' * 64) }; scientific_image = [pscustomobject]@{ sha256 = ('2' * 64) } }
     }
-    function Read-NipatInstallerManifest([string] $Path) { return $script:manifest }
-    function Assert-NipatRepairableInstallation([string] $Project) { return $script:manifest }
-    function Get-NipatMaintenanceBackups([string] $Project) { return @() }
+    function Read-NewPatInstallerManifest([string] $Path) { return $script:manifest }
+    function Assert-NewPatRepairableInstallation([string] $Project) { return $script:manifest }
+    function Get-NewPatMaintenanceBackups([string] $Project) { return @() }
     $targets = @()
     foreach ($name in @('active', 'previous', 'obsolete')) {
         $directory = Join-Path $temporary $name
@@ -59,7 +59,7 @@ try {
         (Get-Item -LiteralPath $receipt).LastWriteTimeUtc = [DateTime]::UtcNow.AddDays(
             $(if ($name -ceq 'obsolete') { -2 } else { -1 }))
         $targets += [pscustomobject]@{
-            Distro = ('NIPAT-Desktop-' + $name); Directory = $directory; OwnershipPath = $receipt
+            Distro = ('NewPat-Desktop-' + $name); Directory = $directory; OwnershipPath = $receipt
             RootfsSha256 = $(if ($name -ceq 'active') { '1' * 64 } elseif ($name -ceq 'previous') { '3' * 64 } else { '4' * 64 })
         }
     }
@@ -69,41 +69,41 @@ try {
         $cache += [pscustomobject]@{ Path = $path; Sha256 = ($digit * 64) }
     }
     $script:plan = [pscustomobject]@{ Targets = $targets; CacheFiles = $cache; ProtectedRoots = @($project) }
-    Add-MaintenanceFile (Join-Path $project '.runtime\backend.json') '{"installation_channel":"desktop","wsl_distro":"NIPAT-Desktop-active"}' | Out-Null
-    $inventory = Get-NipatMaintenanceInventory $project $plan
+    Add-MaintenanceFile (Join-Path $project '.runtime\backend.json') '{"installation_channel":"desktop","wsl_distro":"NewPat-Desktop-active"}' | Out-Null
+    $inventory = Get-NewPatMaintenanceInventory $project $plan
     Assert-Test ($inventory.schema_version -eq 1 -and $inventory.runtimes.Count -eq 3) 'inventory contains exact owned runtimes'
     $active = @($inventory.runtimes | Where-Object active)[0]
     $previous = @($inventory.runtimes | Where-Object retained)[0]
     $obsolete = @($inventory.runtimes | Where-Object removable)[0]
-    Assert-Test (-not $active.removable -and -not $previous.removable -and $obsolete.name -ceq 'NIPAT-Desktop-obsolete') 'active and most recent previous runtimes are protected'
+    Assert-Test (-not $active.removable -and -not $previous.removable -and $obsolete.name -ceq 'NewPat-Desktop-obsolete') 'active and most recent previous runtimes are protected'
     Assert-Test ($obsolete.size_bytes -gt 0 -and @($inventory.cache | Where-Object removable).Count -eq 1) 'sizes reported and current/previous archives retained'
-    Assert-Rejected { Assert-NipatMaintenanceSelection $inventory 'cleanup' $active.id } 'active runtime cannot be selected'
-    Assert-Rejected { Assert-NipatMaintenanceSelection $inventory 'cleanup' $previous.id } 'retained runtime cannot be selected'
-    Assert-Rejected { Assert-NipatMaintenanceSelection $inventory 'cleanup' 'unrecognized-id' } 'unknown target cannot be selected'
-    Assert-NipatMaintenanceSelection $inventory 'cleanup' $obsolete.id
-    Assert-NipatMaintenanceSelection $inventory 'recover' 'current-installation'
-    Assert-Rejected { Assert-NipatMaintenanceSelection $inventory 'recover' 'backup-directory' } 'partial backups never authorize version rollback'
-    function Get-NipatRuntimeRemovalPlan([string] $Project, [switch] $InspectOnly) { return $script:plan }
+    Assert-Rejected { Assert-NewPatMaintenanceSelection $inventory 'cleanup' $active.id } 'active runtime cannot be selected'
+    Assert-Rejected { Assert-NewPatMaintenanceSelection $inventory 'cleanup' $previous.id } 'retained runtime cannot be selected'
+    Assert-Rejected { Assert-NewPatMaintenanceSelection $inventory 'cleanup' 'unrecognized-id' } 'unknown target cannot be selected'
+    Assert-NewPatMaintenanceSelection $inventory 'cleanup' $obsolete.id
+    Assert-NewPatMaintenanceSelection $inventory 'recover' 'current-installation'
+    Assert-Rejected { Assert-NewPatMaintenanceSelection $inventory 'recover' 'backup-directory' } 'partial backups never authorize version rollback'
+    function Get-NewPatRuntimeRemovalPlan([string] $Project, [switch] $InspectOnly) { return $script:plan }
     $script:removedSelection = $null
-    function Invoke-NipatRuntimeRemoval($Plan) { $script:removedSelection = $Plan }
-    Invoke-NipatMaintenanceCleanup $project $obsolete.id
+    function Invoke-NewPatRuntimeRemoval($Plan) { $script:removedSelection = $Plan }
+    Invoke-NewPatMaintenanceCleanup $project $obsolete.id
     Assert-Test ($removedSelection.Targets.Count -eq 1 -and $removedSelection.Targets[0].Distro -ceq $obsolete.name -and
         $removedSelection.CacheFiles.Count -eq 0 -and $removedSelection.RuntimeRoots.Count -eq 0) 'cleanup delegates only the selected exact target, no roots or other runtime'
     $cacheTarget = @($inventory.cache | Where-Object removable)[0]
-    Invoke-NipatMaintenanceCleanup $project $cacheTarget.id
+    Invoke-NewPatMaintenanceCleanup $project $cacheTarget.id
     Assert-Test ($removedSelection.Targets.Count -eq 0 -and $removedSelection.CacheFiles.Count -eq 1) 'cache cleanup delegates exactly one verified archive'
     [IO.File]::Delete((Join-Path $project '.runtime\backend.json'))
-    $incomplete = Get-NipatMaintenanceInventory $project $plan
+    $incomplete = Get-NewPatMaintenanceInventory $project $plan
     Assert-Test (@($incomplete.runtimes | Where-Object removable).Count -eq 0 -and @($incomplete.cache | Where-Object removable).Count -eq 0) 'without an active runtime ordinary cleanup remains unavailable'
     $ready = Join-Path $project '.runtime\maintenance\test\ready.json'
     [IO.Directory]::CreateDirectory((Split-Path -Parent $ready)) | Out-Null
-    Write-NipatMaintenanceReady $project $ready 'recover' 'current-installation'
+    Write-NewPatMaintenanceReady $project $ready 'recover' 'current-installation'
     $ack = Get-Content -LiteralPath $ready -Raw -Encoding UTF8 | ConvertFrom-Json
     Assert-Test ($ack.status -ceq 'waiting-for-client' -and $ack.target_id -ceq 'current-installation') 'handoff acknowledgement identifies the requested action'
-    Assert-Rejected { Write-NipatMaintenanceReady $project $ready 'cleanup' 'target' } 'existing acknowledgement is never overwritten'
-    Assert-Rejected { Write-NipatMaintenanceReady $project (Join-Path $temporary 'outside\ready.json') 'cleanup' 'target' } 'handoff acknowledgement cannot escape application maintenance directory'
+    Assert-Rejected { Write-NewPatMaintenanceReady $project $ready 'cleanup' 'target' } 'existing acknowledgement is never overwritten'
+    Assert-Rejected { Write-NewPatMaintenanceReady $project (Join-Path $temporary 'outside\ready.json') 'cleanup' 'target' } 'handoff acknowledgement cannot escape application maintenance directory'
     Add-MaintenanceFile (Join-Path (Split-Path -Parent $ready) 'cancelled.json') '{}' | Out-Null
-    Assert-Rejected { Assert-NipatMaintenanceNotCancelled $ready } 'cancelled handoff cannot proceed after the client closes'
+    Assert-Rejected { Assert-NewPatMaintenanceNotCancelled $ready } 'cancelled handoff cannot proceed after the client closes'
     foreach ($case in @(
         @{ Name = 'normal-exit'; Code = 0; Cancelled = $false; Accepted = $false },
         @{ Name = 'failed-client'; Code = 1; Cancelled = $false; Accepted = $false },
@@ -123,31 +123,31 @@ try {
         $authorized = $false
         try {
             $null = $client.Handle
-            try { Wait-NipatMaintenanceClient $client $caseReady 20; $authorized = $true } catch { }
+            try { Wait-NewPatMaintenanceClient $client $caseReady 20; $authorized = $true } catch { }
             Assert-Test ($authorized -eq $case.Accepted) ($case.Name + ': only explicit exit 85 without cancellation authorizes mutation')
         } finally {
             if (-not $client.HasExited) { $client.Kill(); $client.WaitForExit(5000) | Out-Null }
             $client.Dispose()
         }
     }
-    Set-Item Function:Assert-NipatRepairableInstallation -Value $repairFunction
+    Set-Item Function:Assert-NewPatRepairableInstallation -Value $repairFunction
     $source = Add-MaintenanceFile (Join-Path $project 'source.py') 'verified source'
     $payload = [pscustomobject]@{
         schema_version = 1; installation_channel = 'desktop'; source_commit = $manifest.source_commit
-        files = [object[]]@([pscustomobject]@{ path = 'source.py'; sha256 = (Get-NipatRepairFileHash $source) })
+        files = [object[]]@([pscustomobject]@{ path = 'source.py'; sha256 = (Get-NewPatRepairFileHash $source) })
     }
     Add-MaintenanceFile (Join-Path $project '.distribution\application-files.json') ($payload | ConvertTo-Json -Depth 8) | Out-Null
-    Assert-NipatRepairableInstallation $project | Out-Null
+    Assert-NewPatRepairableInstallation $project | Out-Null
     Add-MaintenanceFile $source 'modified source' | Out-Null
-    Assert-Rejected { Assert-NipatRepairableInstallation $project } 'repair refuses a modified payload before any bootstrap execution'
+    Assert-Rejected { Assert-NewPatRepairableInstallation $project } 'repair refuses a modified payload before any bootstrap execution'
     [IO.File]::Delete($source)
-    Assert-Rejected { Assert-NipatRepairableInstallation $project } 'repair refuses incomplete payload and asks for reinstall'
+    Assert-Rejected { Assert-NewPatRepairableInstallation $project } 'repair refuses incomplete payload and asks for reinstall'
     Write-Host "PASS: $checks installation maintenance checks."
 } finally {
-    Set-Item Function:Read-NipatInstallerManifest -Value $manifestFunction
-    Set-Item Function:Assert-NipatRepairableInstallation -Value $repairFunction
-    Set-Item Function:Get-NipatMaintenanceBackups -Value $backupsFunction
-    Set-Item Function:Get-NipatRuntimeRemovalPlan -Value $planFunction
-    Set-Item Function:Invoke-NipatRuntimeRemoval -Value $removeFunction
+    Set-Item Function:Read-NewPatInstallerManifest -Value $manifestFunction
+    Set-Item Function:Assert-NewPatRepairableInstallation -Value $repairFunction
+    Set-Item Function:Get-NewPatMaintenanceBackups -Value $backupsFunction
+    Set-Item Function:Get-NewPatRuntimeRemovalPlan -Value $planFunction
+    Set-Item Function:Invoke-NewPatRuntimeRemoval -Value $removeFunction
     if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary -Recurse -Force }
 }

@@ -4,9 +4,9 @@ suppressPackageStartupMessages({
   library(tools)
 })
 
-source(Sys.getenv("NIPAT_PARALLEL_HELPER", unset="/opt/nipat/lib/nipat_scientific/parallel.R"))
-source(Sys.getenv("NIPAT_SETTINGS_HELPER", unset="/opt/nipat/lib/nipat_scientific/settings.R"))
-nipat_cfg <- nipat_settings("contamination")
+source(Sys.getenv("NEWPAT_PARALLEL_HELPER", unset="/opt/newpat/lib/newpat_scientific/parallel.R"))
+source(Sys.getenv("NEWPAT_SETTINGS_HELPER", unset="/opt/newpat/lib/newpat_scientific/settings.R"))
+newpat_cfg <- newpat_settings("contamination")
 
 args <- commandArgs(trailingOnly = TRUE)
 
@@ -28,8 +28,8 @@ if (all(c("--include_zero", "--exclude_zero") %in% options)) {
   stop("choose either --include_zero or --exclude_zero, not both")
 }
 include_zero_sites <- if ("--exclude_zero" %in% options) FALSE else
-  if ("--include_zero" %in% options) TRUE else nipat_cfg$include_zero
-nipat_cfg$include_zero <- include_zero_sites
+  if ("--include_zero" %in% options) TRUE else newpat_cfg$include_zero
+newpat_cfg$include_zero <- include_zero_sites
 message("Sites with N_unexpected = 0: ",
         if (include_zero_sites) "included (original behaviour)" else "excluded")
 
@@ -53,7 +53,7 @@ first_fields <- clean(raw_fields)
 has_header <- "chr" %in% first_fields &&
   ("pos" %in% first_fields || all(c("pos1", "pos2") %in% first_fields))
 
-dnplist <- nipat_read_marker_table(panel_file, header=has_header, sep="\t",
+dnplist <- newpat_read_marker_table(panel_file, header=has_header, sep="\t",
                       stringsAsFactors=FALSE, check.names=FALSE, chromosome_column=if (has_header) raw_fields[match("chr", first_fields)] else "V1",
                       quote="", comment.char="",
                       colClasses=if (has_header) {
@@ -123,7 +123,7 @@ contamination_summary <- data.frame(
 
 process_df <- function(file_path) {
 
-  df <- nipat_read_marker_table(
+  df <- newpat_read_marker_table(
     file_path,
     header = TRUE,
     sep = "\t",
@@ -198,18 +198,18 @@ process_df <- function(file_path) {
     ) %>%
     filter(
       !is.na(ratio_Other),
-      ratio_Other <= nipat_cfg$other_fraction_max
+      ratio_Other <= newpat_cfg$other_fraction_max
     )
 
   # keep informative positions and compute contamination per site
   filtered_df <- df %>%
     filter(
-      ratio_REF_ALT >= nipat_cfg$homozygous_ref_min |
-        ratio_REF_ALT <= nipat_cfg$homozygous_alt_max
+      ratio_REF_ALT >= newpat_cfg$homozygous_ref_min |
+        ratio_REF_ALT <= newpat_cfg$homozygous_alt_max
     ) %>%
     mutate(
       N_unexpected = ifelse(
-        ratio_REF_ALT >= nipat_cfg$homozygous_ref_min,
+        ratio_REF_ALT >= newpat_cfg$homozygous_ref_min,
         N_ALT,
         N_REF
       ),
@@ -224,10 +224,10 @@ process_df <- function(file_path) {
   filtered_df
   }
   row_tasks <- max(1L, ceiling(nrow(df) / 50000L))
-  row_workers <- nipat_parallel_workers(row_tasks)
+  row_workers <- newpat_parallel_workers(row_tasks)
   if (row_workers > 1L) {
     boundaries <- floor(seq(0, nrow(df), length.out=row_workers + 1L))
-    chunks <- nipat_parallel_lapply(seq_len(row_workers), function(index) {
+    chunks <- newpat_parallel_lapply(seq_len(row_workers), function(index) {
       rows <- seq.int(boundaries[index] + 1L, boundaries[index + 1L])
       informative_rows(df[rows, , drop=FALSE])
     }, label="contamination-rows", workers=row_workers)
@@ -272,13 +272,13 @@ process_df <- function(file_path) {
 sample_names <- file_path_sans_ext(basename(chip_files))
 if (anyDuplicated(tolower(sample_names))) stop("Duplicate sample output names")
 if (!length(chip_files)) stop("No calling-output tables remain after excluding the panel")
-nipat_write_settings("contamination", nipat_cfg, output_dir)
+newpat_write_settings("contamination", newpat_cfg, output_dir)
 # The file size is a useful workload observation only for uncompressed text.
 # Keep unfamiliar inputs on the existing single-table path; the loaded rows
 # can still use the shared pool when the sample stage runs in the coordinator.
 sample_memory_mib <- function(paths) {
   if (length(paths) < 2L) return(NULL)
-  rss <- nipat_parallel_rss_mib()
+  rss <- newpat_parallel_rss_mib()
   sizes <- file.size(paths)
   if (!is.finite(rss) || any(!is.finite(sizes) | sizes <= 0) ||
       !all(file_test("-f", paths))) return(NULL)
@@ -296,7 +296,7 @@ sample_memory_mib <- function(paths) {
   2 * rss + 64 * max(sizes) / 1024^2
 }
 sample_memory <- sample_memory_mib(chip_files)
-summary_rows <- nipat_parallel_lapply(chip_files, process_df, label="contamination-samples",
+summary_rows <- newpat_parallel_lapply(chip_files, process_df, label="contamination-samples",
                                       memory_mib=sample_memory, workload_observed=!is.null(sample_memory))
 contamination_summary <- do.call(rbind, summary_rows)
 

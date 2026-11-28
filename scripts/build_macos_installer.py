@@ -24,15 +24,16 @@ import urllib.request
 from xml.sax.saxutils import escape
 
 _SPEC = importlib.util.spec_from_file_location(
-    "nipat_mac_assets", Path(__file__).with_name("build_windows_installer_assets.py"))
+    "newpat_mac_assets", Path(__file__).with_name("build_windows_installer_assets.py"))
 assets = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(assets)
 bundle = assets.bundle
 
 APP_NAME = "NewPat.app"
 APP_RELATIVE = Path("Applications") / APP_NAME
-IDENTIFIER = "org.nipat.desktop"
+IDENTIFIER = "org.newpat.desktop"
 BUILD_RECORD = "macos-installer-build.json"
+SCIENTIFIC_PLATFORMS = {"arm64": "linux/arm64", "x86_64": "linux/amd64"}
 MACHO_MAGICS = {b"\xfe\xed\xfa\xce", b"\xce\xfa\xed\xfe", b"\xfe\xed\xfa\xcf",
                 b"\xcf\xfa\xed\xfe", b"\xca\xfe\xba\xbe", b"\xbe\xba\xfe\xca"}
 
@@ -44,12 +45,60 @@ def read_json(path: Path) -> dict:
     return value
 
 
-def verified_inputs(project: Path, manifest_path: Path, description_path: Path,
+def archive_platform(archive: Path) -> str:
+    """Read the config selected by docker save without unpacking scientific layers."""
+    configs = {}
+    images = None
+    with tarfile.open(archive, "r|gz") as stream:
+        for item in stream:
+            if not item.isfile() or item.size > 2 * 1024 * 1024:
+                continue
+            if item.name == "manifest.json":
+                if images is not None:
+                    raise ValueError("Ambiguous Docker archive manifest")
+                images = json.load(stream.extractfile(item))
+            elif re.fullmatch(r"(?:blobs/sha256/[a-f0-9]{64}|[a-f0-9]{64}\.json)", item.name):
+                raw = stream.extractfile(item).read()
+                digest = hashlib.sha256(raw).hexdigest()
+                if digest != Path(item.name).stem:
+                    continue
+                try:
+                    config = json.loads(raw)
+                except (ValueError, UnicodeDecodeError):
+                    continue
+                if isinstance(config, dict) and "os" in config and "architecture" in config:
+                    configs[item.name] = f"{config['os']}/{config['architecture']}"
+    if not isinstance(images, list) or len(images) != 1 or not isinstance(images[0], dict):
+        raise ValueError("Expected exactly one saved scientific image")
+    if images[0].get("RepoTags") or images[0].get("Config") not in configs:
+        raise ValueError("Expected a tagless Docker image with a digest-bound configuration")
+    return configs[images[0]["Config"]]
+
+
+def validate_scientific_manifest(manifest: dict, architecture: str) -> str:
+    if architecture == "x86_64":
+        assets.validate_manifest(manifest)
+        return "linux/amd64"
+    version = package_version(manifest["version"])
+    assets.validate_installation_profile(manifest.get("installation_profile"))
+    entry = manifest.get("assets", {}).get("scientific_image", {})
+    if (architecture != "arm64" or manifest.get("scientific_platform") != "linux/arm64"
+            or manifest.get("schema_version") != 1 or manifest.get("release_tag") != f"v{version}"
+            or not re.fullmatch(r"[a-f0-9]{40}", str(manifest.get("source_commit")))
+            or not re.fullmatch(r"sha256:[a-f0-9]{64}", str(manifest.get("runtime_image")))
+            or entry.get("file") != f"newpat-scientific-{version}-arm64.tar.gz"
+            or not re.fullmatch(r"[a-f0-9]{64}", str(entry.get("sha256")))
+            or type(entry.get("size")) is not int or not 0 < entry["size"] < assets.MAX_ASSET_BYTES
+            or not re.fullmatch(r"[a-f0-9]{64}", str(manifest.get("engine_description_sha256")))):
+        raise ValueError("The Apple Silicon package requires the qualified Linux ARM64 scientific archive")
+    return "linux/arm64"
+
+
+def verified_inputs(project: Path, manifest_path: Path, description_path: Path, architecture: str,
                     *, require_clean: bool = True) -> tuple[dict, list[Path], Path, dict]:
     manifest = read_json(manifest_path)
-    assets.validate_manifest(manifest)
-    if package_version(manifest["version"]) != manifest["version"]:
-        raise ValueError("The macOS package requires an official 0.8.2 or later release.")
+    desired_platform = validate_scientific_manifest(manifest, architecture)
+    package_version(manifest["version"])
     if manifest.get("installation_profile", {}).get("channel") != "desktop":
         raise ValueError("The package must use the official desktop identity.")
     if assets.checked_version(project) != manifest["version"]:
@@ -64,9 +113,8 @@ def verified_inputs(project: Path, manifest_path: Path, description_path: Path,
     if hashes != manifest.get("source_sha256"):
         raise ValueError("Source inventory differs from the verified scientific build.")
     required = {"installer/macos/dependencies.json", "installer/macos/launch.py",
-                "installer/macos/NIPAT.command", "installer/macos/launcher.c",
-                "installer/macos/migrate_legacy.py",
-                "installer/macos/package-guard.c", "src/nipat/macos_runtime.py",
+                "installer/macos/NewPat.command", "installer/macos/launcher.c",
+                "installer/macos/package-guard.c", "src/newpat/macos_runtime.py",
                 "LICENSE", "THIRD_PARTY_NOTICES.md"}
     if not required.issubset(hashes):
         raise ValueError("The distribution allowlist is missing macOS package sources.")
@@ -83,8 +131,15 @@ def verified_inputs(project: Path, manifest_path: Path, description_path: Path,
             raise ValueError(f"Python dependency notice missing or changed: {name}")
     entry = manifest["assets"]["scientific_image"]
     archive = manifest_path.parent / entry["file"]
-    if assets.asset_metadata(archive, manifest["release_tag"]) != entry:
+    metadata = assets.asset_metadata(archive, manifest["release_tag"])
+    if architecture == "arm64":
+        metadata.pop("url")
+        if bundle.sha256_file(description_path) != manifest["engine_description_sha256"]:
+            raise ValueError("Engine description differs from the qualified ARM64 image")
+    if metadata != entry:
         raise ValueError("Scientific archive bytes do not match the original manifest.")
+    if archive_platform(archive) != desired_platform:
+        raise ValueError("Embedded Docker archive architecture differs from the requested macOS package")
     description = read_json(description_path)
     # Engine metadata is produced by the same verified image job, never by the Mac host.
     if not description or not isinstance(description.get("workflows"), (dict, list)):
@@ -143,9 +198,9 @@ def safe_extract(archive: Path, destination: Path) -> None:
 
 
 def package_version(version: str) -> str:
-    if (not re.fullmatch(r"0\.[89]\.[0-9]+", version)
-            or tuple(map(int, version.split("."))) < (0, 8, 2)):
-        raise ValueError("Expected an official 0.8.2 or later version.")
+    if (not re.fullmatch(r"(?:0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*)){2}", version)
+            or tuple(map(int, version.split("."))) < (0, 9, 99)):
+        raise ValueError("Expected an official NewPat version from 0.9.99 onwards.")
     return version
 
 
@@ -155,6 +210,7 @@ def mac_manifest(manifest: dict, architecture: str, dependencies: dict, descript
         "schema_version": 1, "provider": "lima", "channel": "desktop",
         "version": manifest["version"], "release_tag": manifest["release_tag"],
         "source_commit": manifest["source_commit"], "architecture": architecture,
+        "scientific_platform": SCIENTIFIC_PLATFORMS[architecture],
         "minimum_macos": "14.0", "bundle_identifier": IDENTIFIER,
         "lima_version": dependencies["lima_version"],
         "python_version": dependencies["python_version"],
@@ -182,7 +238,7 @@ def distribution_xml(version: str, architecture: str) -> str:
   <license file="LICENSE.txt" mime-type="text/plain"/>
   <choices-outline><line choice="default"/></choices-outline>
   <choice id="default" visible="false"><pkg-ref id="{IDENTIFIER}"/></choice>
-  <pkg-ref id="{IDENTIFIER}" version="{package_version(version)}" onConclusion="none">NIPAT-component.pkg</pkg-ref>
+  <pkg-ref id="{IDENTIFIER}" version="{package_version(version)}" onConclusion="none">NewPat-component.pkg</pkg-ref>
 </installer-gui-script>
 '''
 
@@ -241,10 +297,7 @@ def stage_payload(project: Path, root: Path, manifest: dict, files: list[Path], 
     metadata = mac_manifest(manifest, architecture, dependencies, description)
     (source_root / ".distribution/macos-manifest.json").write_text(
         json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
-    shutil.copyfile(project / "installer/macos/NIPAT.command", resources / "NIPAT.command")
-    (resources / "NIPAT.command").chmod(0o755)
-    # Canonical public CLI; retain the original entrypoint for existing scripts.
-    shutil.copyfile(resources / "NIPAT.command", resources / "NewPat.command")
+    shutil.copyfile(project / "installer/macos/NewPat.command", resources / "NewPat.command")
     (resources / "NewPat.command").chmod(0o755)
     (app / "Contents/MacOS").mkdir()
     plist = {
@@ -255,7 +308,7 @@ def stage_payload(project: Path, root: Path, manifest: dict, files: list[Path], 
         "CFBundleVersion": manifest["version"], "LSMinimumSystemVersion": "14.0",
         "CFBundleIconFile": "NewPat.icns", "LSApplicationCategoryType": "public.app-category.education",
         "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True},
-        "NSHumanReadableCopyright": "NIPAT contributors; GNU GPL version 3 or later",
+        "NSHumanReadableCopyright": "NewPat contributors; GNU GPL version 3 or later",
     }
     (app / "Contents/Info.plist").write_bytes(plistlib.dumps(plist, sort_keys=True))
     return app
@@ -268,14 +321,14 @@ def build(project: Path, manifest_path: Path, output: Path, architecture: str,
         raise ValueError("Build each macOS installer on a native macOS runner of that architecture.")
     if int(platform.mac_ver()[0].split(".")[0]) < 14:
         raise ValueError("The builder requires macOS 14 or later.")
-    manifest, files, scientific, description = verified_inputs(project, manifest_path, description_path)
+    manifest, files, scientific, description = verified_inputs(project, manifest_path, description_path, architecture)
     dependencies = read_json(project / "installer/macos/dependencies.json")
     output.mkdir(parents=True, exist_ok=True)
-    name = f"NIPAT-{manifest['version']}-macos-{architecture}.pkg"
+    name = f"NewPat-{manifest['version']}-macos-{architecture}.pkg"
     target = output / name
     if target.exists() or (output / BUILD_RECORD).exists():
         raise ValueError("Installer output already exists; choose a new output directory.")
-    with tempfile.TemporaryDirectory(prefix="nipat-macos-build-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="newpat-macos-build-") as temporary:
         work = Path(temporary)
         native = dependencies["architectures"][architecture]
         python = dependency_archive(native["python"], work, python_archive)
@@ -286,10 +339,10 @@ def build(project: Path, manifest_path: Path, output: Path, architecture: str,
         subprocess.run(["/usr/bin/clang", "-Os", "-arch", architecture,
                         "-mmacosx-version-min=14.0", str(project / "installer/macos/launcher.c"),
                         "-o", str(app / "Contents/MacOS/NewPat")], check=True)
-        icons = work / "NIPAT.iconset"
+        icons = work / "NewPat.iconset"
         icons.mkdir()
         for size in (16, 32, 128, 256, 512):
-            source = "newpat-icon-small.png" if size == 16 else "nipat-icon.png"
+            source = "newpat-icon-small.png" if size == 16 else "newpat-icon.png"
             for scale in (1, 2):
                 destination = icons / f"icon_{size}x{size}{'@2x' if scale == 2 else ''}.png"
                 subprocess.run(["/usr/bin/sips", "-z", str(size * scale), str(size * scale),
@@ -315,18 +368,18 @@ def build(project: Path, manifest_path: Path, output: Path, architecture: str,
         subprocess.run(["/usr/bin/pkgbuild", "--root", str(payload), "--identifier", IDENTIFIER,
                         "--version", package_version(manifest["version"]), "--install-location", "/",
                         "--ownership", "recommended", "--scripts", str(scripts),
-                        "--component-plist", str(components), str(work / "NIPAT-component.pkg")], check=True)
+                        "--component-plist", str(components), str(work / "NewPat-component.pkg")], check=True)
         (work / "Distribution.xml").write_text(distribution_xml(manifest["version"], architecture))
         welcome = (
             "NewPat\n\n"
             "Installs NewPat for macOS 14 or later.\n"
             "Python, Lima and the scientific image are included. Start NewPat\n"
             "from Applications after installation. The first start needs an Internet connection\n"
-            "to prepare its dedicated Linux VM. On Apple Silicon, Rosetta for Linux is required.\n\n"
+            "to prepare its dedicated Linux VM. The scientific engine runs natively on this architecture.\n\n"
             "This package has no Developer ID signature or Apple notarization. Local security\n"
             "policy may prevent installation or launch. No security setting is changed.\n"
             "Runtime execution on physical Intel and Apple Silicon Macs is not yet qualified.\n"
-            "Data and results remain in your Library/Application Support/NIPAT-Desktop.\n")
+            "Data and results remain in your Library/Application Support/NewPat-Desktop.\n")
         installer_resources = work / "installer-resources"
         installer_resources.mkdir()
         (installer_resources / "Welcome.txt").write_text(welcome)
@@ -336,7 +389,8 @@ def build(project: Path, manifest_path: Path, output: Path, architecture: str,
         record = {
             "schema_version": 1, "distribution": "self-contained-macos-lima",
             "version": manifest["version"], "source_commit": manifest["source_commit"],
-            "architecture": architecture, "platform": "darwin", "package": target.name,
+            "architecture": architecture, "platform": "darwin",
+            "scientific_platform": SCIENTIFIC_PLATFORMS[architecture], "package": target.name,
             "package_sha256": bundle.sha256_file(target), "package_size": target.stat().st_size,
             "scientific_asset_sha256": manifest["assets"]["scientific_image"]["sha256"],
             "runtime_image": manifest["runtime_image"], "runtime_vm_qualified": False,
@@ -344,6 +398,8 @@ def build(project: Path, manifest_path: Path, output: Path, architecture: str,
             "payload_inventory": inventory,
         }
         (output / BUILD_RECORD).write_text(json.dumps(record, indent=2) + "\n")
+    if architecture == "arm64":
+        shutil.copyfile(manifest_path, output / "arm64-scientific.json")
     return target
 
 

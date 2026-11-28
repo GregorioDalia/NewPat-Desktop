@@ -1,6 +1,6 @@
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/branding/nipat-logo-dark.svg">
-  <img src="assets/branding/nipat-logo.svg" alt="NewPat" width="335">
+  <source media="(prefers-color-scheme: dark)" srcset="assets/branding/newpat-logo-dark.svg">
+  <img src="assets/branding/newpat-logo.svg" alt="NewPat" width="335">
 </picture>
 
 # NewPat
@@ -11,16 +11,16 @@ Analyses run on your computer. NewPat packages R and samtools with the scientifi
 
 ## Download
 
-Open the **latest stable research release** and expand **Assets**. Select the package for your computer using the table below. The release page also lists the checksums. [Download NewPat](https://github.com/GregorioDalia/nipat-desktop/releases/latest)
+Open **Assets** on the [latest stable release](https://github.com/GregorioDalia/NewPat-Desktop/releases/latest) and choose the package for your system. Match the version in the filename to the release tag. If you are testing 0.9.99 before publication, use the installer supplied with the candidate kit. Check its commit and checksum when reporting results.
 
-This guide describes **0.9.10**. The release notes record its status and changes. If you use 0.9.9, its tagged guide covers the launcher names and features available in that build. [0.9.9 documentation](https://github.com/GregorioDalia/nipat-desktop/blob/v0.9.9/README.md) · [What changes in 0.9.10](docs/RELEASE_0.9.10.md)
-
-| System | Asset to choose | Installation guide |
+| System | Release asset | Installation guide |
 | --- | --- | --- |
-| Windows 11 x64 or Windows 10 22H2 x64 (build 19045) | `NewPat-Setup.exe` for standard setup, or the complete Windows ZIP for a folder-based installation | [Windows and WSL2](docs/WINDOWS_INSTALLER.md) |
-| macOS 14 or later, Apple Silicon (M-series) | The package ending in `macos-arm64.pkg` | [macOS and Lima](docs/MACOS_INSTALLER.md) |
-| macOS 14 or later, Intel | The package ending in `macos-x86_64.pkg` | [macOS and Lima](docs/MACOS_INSTALLER.md) |
-| Ubuntu 24.04 LTS, x86_64 | The package ending in `amd64.deb` | [Ubuntu and Docker Engine](docs/LINUX_INSTALLER.md) |
+| Windows 11 x64 or Windows 10 22H2 x64 (build 19045) | `NewPat-<version>-Windows-complete.zip` or [NewPat-Setup.exe](https://github.com/GregorioDalia/NewPat-Desktop/releases/latest/download/NewPat-Setup.exe) | [Windows and WSL2](docs/WINDOWS_INSTALLER.md) |
+| macOS 14 or later, Apple Silicon (M-series) | `NewPat-<version>-macos-arm64.pkg` | [macOS and Lima](docs/MACOS_INSTALLER.md) |
+| macOS 14 or later, Intel | `NewPat-<version>-macos-x86_64.pkg` | [macOS and Lima](docs/MACOS_INSTALLER.md) |
+| Ubuntu 24.04 LTS, x86_64 | `newpat-desktop_<version>_amd64.deb` | [Ubuntu and Docker Engine](docs/LINUX_INSTALLER.md) |
+
+[Stable release checksums](https://github.com/GregorioDalia/NewPat-Desktop/releases/latest/download/SHA256SUMS) · [NewPat 0.9.99 release notes](docs/RELEASE_0.9.99.md)
 
 ## What you can analyze
 
@@ -31,7 +31,9 @@ This guide describes **0.9.10**. The release notes record its status and changes
 | **Contamination** | SNP or DNP count tables and a matching coordinate panel | Per-site contamination estimates and a summary per sample |
 | **Prenatal CPI** | Count tables for maternal cell-free DNA and the alleged father, sample pairings, and population allele frequencies | Fetal fraction and CPI, a curve across read thresholds, and separate contributions from putative heterozygous and optional homozygous fetal sites |
 | **Postnatal CPI** | Mother, alleged father and child count tables, sample trios, and population allele frequencies | One CPI per trio, its base-10 logarithm and a table of included and excluded sites |
-| **Fetal sex** | Autosomal DNP, X DNP and Y SNP count tables from the same maternal cfDNA sample | F, M or Undetermined, three ratios and three site tables |
+| **Fetal sex** | Maternal DNP counts for autosomes and X (one file or two), plus maternal Y SNP counts | F, M or Undetermined, three ratios and three site tables |
+
+For fetal sex, NewPat 0.9.99 accepts separate autosomal and X DNP tables, a combined autosomal/X table, or input from both callers running directly on the maternal BAM.
 
 Run a module on its own or build a workflow. DNPcall and SNPcall can share BAM inputs and feed separate analyses. Each branch uses its own panels and population frequencies. For parentage analyses, assign samples to family roles explicitly.
 

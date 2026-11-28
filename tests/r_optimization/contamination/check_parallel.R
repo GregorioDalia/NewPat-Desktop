@@ -4,11 +4,11 @@ arguments <- commandArgs(trailingOnly = TRUE)
 if (length(arguments) != 1L) stop("Expected one repository root argument")
 repository <- normalizePath(arguments[[1L]], mustWork = TRUE)
 relative <- "scientific/vendor/NEWPAT/contamination/detect_contamination.R"
-Sys.setenv(NIPAT_PARALLEL_HELPER = file.path(repository, "src/nipat_scientific/parallel.R"),
-           NIPAT_SETTINGS_HELPER = file.path(repository, "src/nipat_scientific/settings.R"),
-           NIPAT_MAX_WORKERS = "2")
-source(Sys.getenv("NIPAT_PARALLEL_HELPER"))
-root <- tempfile("nipat-contamination-parallel-")
+Sys.setenv(NEWPAT_PARALLEL_HELPER = file.path(repository, "src/newpat_scientific/parallel.R"),
+           NEWPAT_SETTINGS_HELPER = file.path(repository, "src/newpat_scientific/settings.R"),
+           NEWPAT_MAX_WORKERS = "2")
+source(Sys.getenv("NEWPAT_PARALLEL_HELPER"))
+root <- tempfile("newpat-contamination-parallel-")
 dir.create(root)
 
 panel <- data.frame(chr = "chr1", pos1 = 10:19, pos2 = 11:20)
@@ -33,7 +33,7 @@ write.table(template[6:9, ], file.path(duplicate_dir, "last", "same.txt"),
 run_case <- function(name, input, source_root, mode) {
   output <- file.path(root, name)
   log_dir <- paste0(output, "-workers")
-  Sys.setenv(NIPAT_EXECUTION_MODE = mode, NIPAT_PARALLEL_LOG_DIR = log_dir)
+  Sys.setenv(NEWPAT_EXECUTION_MODE = mode, NEWPAT_PARALLEL_LOG_DIR = log_dir)
   values <- new.env(parent = globalenv())
   values$commandArgs <- function(trailingOnly = FALSE) c(panel_path, input, output)
   source_path <- if (source_root == "reference")
@@ -119,10 +119,10 @@ stopifnot(evidence$plan$workers == 2L, length(evidence$pids) >= 2L,
           !evidence$plan$coordinator_pid %in% evidence$pids,
           evidence$plan$workload_model == "max-loaded-coordinator-rss-x2-and-module-estimate",
           evidence$plan$memory_per_worker_mib > 2 * evidence$plan$coordinator_rss_mib - 1)
-old_memory <- Sys.getenv("NIPAT_MEMORY_LIMIT_MIB", unset = NA_character_)
-Sys.setenv(NIPAT_MEMORY_LIMIT_MIB = "1")
+old_memory <- Sys.getenv("NEWPAT_MEMORY_LIMIT_MIB", unset = NA_character_)
+Sys.setenv(NEWPAT_MEMORY_LIMIT_MIB = "1")
 limited <- run_case("batch-limited", batch, repository, "auto")
-if (is.na(old_memory)) Sys.unsetenv("NIPAT_MEMORY_LIMIT_MIB") else Sys.setenv(NIPAT_MEMORY_LIMIT_MIB = old_memory)
+if (is.na(old_memory)) Sys.unsetenv("NEWPAT_MEMORY_LIMIT_MIB") else Sys.setenv(NEWPAT_MEMORY_LIMIT_MIB = old_memory)
 compare(expected, limited)
 evidence <- batch_plan(limited)
 stopifnot(evidence$plan$workers == 1L, evidence$plan$reason == "workload-exceeds-budget-serial",

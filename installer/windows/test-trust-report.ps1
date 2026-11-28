@@ -4,23 +4,23 @@ function Assert-Trust([bool]$Condition, [string]$Message) {
     if (-not $Condition) { throw "Trust inventory test failed: $Message" }
     $script:checks++
 }
-$temporary = Join-Path ([IO.Path]::GetTempPath()) ('nipat-trust-test-' + [Guid]::NewGuid().ToString('N'))
+$temporary = Join-Path ([IO.Path]::GetTempPath()) ('newpat-trust-test-' + [Guid]::NewGuid().ToString('N'))
 try {
     $app = Join-Path $temporary 'app'
     $distribution = Join-Path $app '.distribution'
     [IO.Directory]::CreateDirectory($distribution) | Out-Null
     $scriptPath = Join-Path $app 'unsigned.ps1'
     [IO.File]::WriteAllText($scriptPath, 'Write-Output "fixture"')
-    $unsigned = Get-NipatTrustFile $scriptPath 'app/unsigned.ps1'
+    $unsigned = Get-NewPatTrustFile $scriptPath 'app/unsigned.ps1'
     Assert-Trust ($unsigned.signature_status -ceq 'NotSigned' -and $null -eq $unsigned.signer) 'unsigned script stays unsigned'
     try {
         function Get-AuthenticodeSignature { param([string]$LiteralPath) return [pscustomobject]@{ Status = 'HashMismatch' } }
         $rejected = $false
-        try { Get-NipatTrustFile $scriptPath 'app/unsigned.ps1' | Out-Null } catch { $rejected = $true }
+        try { Get-NewPatTrustFile $scriptPath 'app/unsigned.ps1' | Out-Null } catch { $rejected = $true }
         Assert-Trust $rejected 'an invalid signature fails closed'
     } finally { Remove-Item Function:Get-AuthenticodeSignature }
     $native = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
-    $signed = Get-NipatTrustFile $native 'fixture/powershell.exe'
+    $signed = Get-NewPatTrustFile $native 'fixture/powershell.exe'
     Assert-Trust ($signed.signature_status -ceq 'Valid' -and $signed.signer.subject) 'actual Windows signature inspected'
     Add-Type -AssemblyName System.IO.Compression
     Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -35,14 +35,14 @@ try {
         (@{ version = '0.8.20'; source_commit = ('a' * 40) } | ConvertTo-Json))
     $output = Join-Path $temporary 'report.json'
     $archiveHash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash
-    Write-NipatTrustReport $app $native $output
+    Write-NewPatTrustReport $app $native $output
     $report = Get-Content -LiteralPath $output -Raw | ConvertFrom-Json
     Assert-Trust ($report.files.Count -eq 5 -and $report.counts.Valid -eq 4 -and $report.counts.NotSigned -eq 1) 'stage, setup and archived executables inspected'
     Assert-Trust ($report.smart_app_control.status -ceq 'not-performed' -and $report.assessment -ceq 'unsigned-components-present') 'inventory does not claim SAC acceptance'
     Assert-Trust ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ceq $archiveHash) 'archived executable inspection preserves source bytes'
     Assert-Trust (@(Get-ChildItem -LiteralPath $app -Recurse -Filter '*.exe').Count -eq 0) 'archive inspection leaves no extracted executable in stage'
     $rejected = $false
-    try { Write-NipatTrustReport $app $native $output } catch { $rejected = $true }
+    try { Write-NewPatTrustReport $app $native $output } catch { $rejected = $true }
     Assert-Trust $rejected 'existing evidence is never overwritten'
 
     # The collector reads bounded event fields only; unrelated XML/command
@@ -57,7 +57,7 @@ try {
         $queryObservation.Filter = $FilterHashtable
         $event = [pscustomobject]@{ Id = 3077; RecordId = 42; TimeCreated = [DateTime]::UtcNow }
         $event | Add-Member -MemberType ScriptMethod -Name ToXml -Value {
-            $path = [Security.SecurityElement]::Escape((Join-Path $env:USERPROFILE 'Downloads\NIPAT-Setup.exe'))
+            $path = [Security.SecurityElement]::Escape((Join-Path $env:USERPROFILE 'Downloads\NewPat-Setup.exe'))
             return ('<Event><EventData><Data Name="FileName">' + $path + '</Data>' +
                 '<Data Name="ProcessName">\Device\HarddiskVolume3\Users\private-user\app.exe</Data>' +
                 '<Data Name="PolicyName">VerifiedAndReputableDesktop</Data>' +

@@ -10,8 +10,8 @@ import zipfile
 
 import pytest
 
-from nipat_scientific.files import require_count_input, require_population_frequencies
-from nipat_scientific.panels import read_dnp_list, read_position_panel, read_snp_list
+from newpat_scientific.files import require_count_input, require_population_frequencies
+from newpat_scientific.panels import read_dnp_list, read_position_panel, read_snp_list
 
 
 EXAMPLES = Path(__file__).resolve().parents[1] / "examples"

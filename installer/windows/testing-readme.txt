@@ -11,7 +11,7 @@ installation it already recognizes.
 
 The testing entry point downloads the version named in testing-release.json
 and verifies its size and SHA-256 hash. Its default installation directory is
-%LOCALAPPDATA%\NIPAT-Testing\NIPAT. An existing recognized testing installation
+%LOCALAPPDATA%\NewPat-Testing\NewPat. An existing recognized testing installation
 may be reused. Keep its directory in place; it contains your preferences,
 experiments, data, results and runtime. The default testing installation is
 separate from the stable desktop installation.
@@ -26,7 +26,7 @@ the entry for that exact filename in SHA256SUMS on the official release page.
 Record the file named in the dialog and its message if the block persists.
 The Windows guide describes installation and diagnostics:
 
-https://github.com/GregorioDalia/nipat-desktop/blob/main/docs/WINDOWS_INSTALLER.md
+https://github.com/GregorioDalia/NewPat-Desktop/blob/main/docs/WINDOWS_INSTALLER.md
 
 Maintainers can explicitly target the existing desktop installation with the
 -UseSetup option of install-testing.ps1. This installs the verified testing

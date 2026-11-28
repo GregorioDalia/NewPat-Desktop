@@ -1,9 +1,9 @@
 """Charts use values and identities from the selected archived result."""
 import pytest
 
-from nipat.gui.analysis_report import build_report, report_cases
-from nipat.gui.report_charts import detail_charts
-from nipat.gui.results import ResultsStore
+from newpat.desktop.analysis_report import build_report, report_cases
+from newpat.desktop.report_charts import detail_charts
+from newpat.desktop.results import ResultsStore
 from test_gui_results import artifact, make_run, table, validation
 
 
@@ -18,7 +18,7 @@ def test_postnatal_site_indices_show_only_eligible_sites_including_true_zero():
     (chart,) = detail_charts("cpin", source, "it")
     assert [(p["label"], p["y"]) for p in chart["points"]] == [("chr1:20–21", 2), ("chr2:40–41", 0)]
     assert "prime 4 su 80" in chart["caption"]
-    assert detail_charts("cpin", source, "it", legacy_selection=True) == []
+    assert detail_charts("cpin", {"rows": [rows[1]], "total": 1}, "it") == []
 
 
 @pytest.mark.parametrize("module", ["dnp-call", "snp-call"])

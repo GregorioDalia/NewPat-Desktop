@@ -6,10 +6,10 @@ from unittest.mock import Mock
 
 import pytest
 
-from nipat.errors import ValidationError
-from nipat.gui.analysis_report import report_cases
-from nipat.gui.report_bundle import build_bundle, selected_ids
-from nipat.gui.results import ResultsStore
+from newpat.errors import ValidationError
+from newpat.desktop.analysis_report import report_cases
+from newpat.desktop.report_bundle import build_bundle, selected_ids
+from newpat.desktop.results import ResultsStore
 from test_gui_app import app
 from test_gui_results import make_run, table
 
