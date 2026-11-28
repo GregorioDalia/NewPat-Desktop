@@ -49,6 +49,18 @@ class InstallationEvidenceTests(unittest.TestCase):
         updated["checks"]["all_five_workflows"] = True
         self.verify(updated)
 
+    def test_clean_installer_requires_six_workflows_and_verified_sex_example(self):
+        self.manifest["version"] = "0.9.99"
+        checks = dict.fromkeys(VERIFY.installation_checks("0.9.10"), True)
+        with self.assertRaisesRegex(ValueError, "required Linux installation check"):
+            self.verify(dict(self.evidence, checks=checks))
+        del checks["all_five_workflows"]
+        checks["all_six_workflows"] = True
+        self.verify(dict(self.evidence, checks=checks))
+        del checks["fetal_sex_example"]
+        with self.assertRaisesRegex(ValueError, "required Linux installation check"):
+            self.verify(dict(self.evidence, checks=checks))
+
     def test_090_retains_five_workflows_and_bootstrap_evidence(self):
         self.manifest["version"] = "0.9.0"
         complete = copy.deepcopy(self.evidence)
@@ -137,7 +149,7 @@ class DependencyEvidenceTests(unittest.TestCase):
             "package_sha256": "c" * 64, "runtime_archive_sha256": "b" * 64,
             "base_image": "ubuntu:24.04@sha256:" + "d" * 64,
             "dependency_packages": dict.fromkeys(
-                ("python3.12", "docker.io", "docker-compose-v2", "nipat-desktop"), "1.2.3"),
+                ("python3.12", "docker.io", "docker-compose-v2", "newpat-desktop"), "1.2.3"),
             "checks": dict.fromkeys(VERIFY.DEPENDENCY_CHECKS, True),
         }
 
@@ -209,16 +221,16 @@ class WindowsClientEvidenceTests(unittest.TestCase):
         self.manifest_bytes = b"reviewed shared manifest"
         self.manifest = {
             "version": "0.7.0a1", "source_commit": "a" * 40,
-            "source_sha256": {"src/nipat/cli.py": "c" * 64},
+            "source_sha256": {"src/newpat/cli.py": "c" * 64},
         }
         self.installer_sha256 = "d" * 64
         self.launcher_sha256 = "e" * 64
         self.bundle = VERIFY.load_module(
-            "nipat_review_test_distribution", VERIFY.PROJECT / "scripts/distribution_support.py",
+            "newpat_review_test_distribution", VERIFY.PROJECT / "scripts/distribution_support.py",
         )
         files = dict(self.manifest["source_sha256"])
         files.update({
-            "release.json": "f" * 64, "NIPAT.exe": self.launcher_sha256,
+            "release.json": "f" * 64, "NewPat.exe": self.launcher_sha256,
             "installer/windows/EnableWsl.exe": "1" * 64,
             ".distribution/installer-manifest.json": hashlib.sha256(self.manifest_bytes).hexdigest(),
             f".distribution/{self.bundle.PYTHON_NAME}": self.bundle.PYTHON_SHA256,
@@ -250,11 +262,11 @@ class WindowsClientEvidenceTests(unittest.TestCase):
     def test_0899_client_binds_script_entrypoint_without_unsigned_helpers(self):
         manifest = copy.deepcopy(self.manifest)
         manifest["version"] = "0.8.99"
-        manifest["source_sha256"]["2_AVVIA.cmd"] = "9" * 64
+        manifest["source_sha256"]["2_LAUNCH.cmd"] = "9" * 64
         inventory = copy.deepcopy(self.inventory)
         inventory["files"] = [item for item in inventory["files"]
-                              if item["path"] not in {"NIPAT.exe", "installer/windows/EnableWsl.exe"}]
-        inventory["files"].append({"path": "2_AVVIA.cmd", "sha256": "9" * 64})
+                              if item["path"] not in {"NewPat.exe", "installer/windows/EnableWsl.exe"}]
+        inventory["files"].append({"path": "2_LAUNCH.cmd", "sha256": "9" * 64})
         evidence = copy.deepcopy(self.evidence)
         evidence.update(schema_version=2, version="0.8.99", entrypoint_sha256="9" * 64)
         del evidence["launcher_sha256"]
@@ -269,7 +281,7 @@ class WindowsClientEvidenceTests(unittest.TestCase):
                 inventory_bytes=raw)
 
         check(inventory)
-        for helper in ("NIPAT.exe", "installer/windows/EnableWsl.exe", "installer/windows/NipatActivityNative.dll"):
+        for helper in ("NewPat.exe", "installer/windows/EnableWsl.exe", "installer/windows/NewPatActivityNative.dll"):
             changed = copy.deepcopy(inventory)
             changed["files"].append({"path": helper, "sha256": "0" * 64})
             with self.subTest(helper=helper), self.assertRaisesRegex(ValueError, "obsolete unsigned"):
@@ -284,7 +296,7 @@ class WindowsClientEvidenceTests(unittest.TestCase):
     def test_0850_requires_settings_and_five_module_client_evidence(self):
         self.manifest["version"] = "0.8.50"
         self.evidence["version"] = "0.8.50"
-        self.inventory["files"].append({"path": "installer/windows/NipatActivityNative.dll", "sha256": "2" * 64})
+        self.inventory["files"].append({"path": "installer/windows/NewPatActivityNative.dll", "sha256": "2" * 64})
         self.inventory_bytes = json.dumps(self.inventory).encode("utf-8")
         self.evidence["application_inventory_sha256"] = hashlib.sha256(self.inventory_bytes).hexdigest()
         with self.assertRaises(ValueError):
@@ -304,7 +316,7 @@ class WindowsClientEvidenceTests(unittest.TestCase):
         self.manifest["version"] = self.evidence["version"] = "0.8.20"
         with self.assertRaisesRegex(ValueError, "Windows application inventory differs"):
             self.verify(self.evidence)
-        self.inventory["files"].append({"path": "installer/windows/NipatActivityNative.dll", "sha256": "7" * 64})
+        self.inventory["files"].append({"path": "installer/windows/NewPatActivityNative.dll", "sha256": "7" * 64})
         self.inventory_bytes = json.dumps(self.inventory).encode()
         self.evidence["application_inventory_sha256"] = hashlib.sha256(self.inventory_bytes).hexdigest()
         self.verify(self.evidence)
@@ -357,7 +369,7 @@ class WindowsClientEvidenceTests(unittest.TestCase):
             changed = copy.deepcopy(self.inventory)
             changed[field] = value
             mutations.append((field, changed))
-        for path in ("src/nipat/cli.py", "NIPAT.exe", ".distribution/installer-manifest.json",
+        for path in ("src/newpat/cli.py", "NewPat.exe", ".distribution/installer-manifest.json",
                      f".distribution/{self.bundle.PYTHON_NAME}"):
             changed = copy.deepcopy(self.inventory)
             next(item for item in changed["files"] if item["path"] == path)["sha256"] = "0" * 64
@@ -365,7 +377,7 @@ class WindowsClientEvidenceTests(unittest.TestCase):
         changed = copy.deepcopy(self.inventory)
         changed["files"].pop()
         mutations.append(("missing file", changed))
-        for path in ("extra.py", "src/nipat/cli.py", "SRC/NIPAT/CLI.PY"):
+        for path in ("extra.py", "src/newpat/cli.py", "SRC/NewPat/CLI.PY"):
             changed = copy.deepcopy(self.inventory)
             changed["files"].append({"path": path, "sha256": "2" * 64})
             mutations.append(("extra or ambiguous file " + path, changed))
@@ -380,7 +392,7 @@ class WindowsClientEvidenceTests(unittest.TestCase):
 class WindowsInstallerFixtureTests(unittest.TestCase):
     def test_fixture_is_bound_to_source_and_cannot_claim_production_installation(self):
         manifest = {"version": "0.8.60", "source_commit": "a" * 40,
-                    "source_sha256": {"installer/windows/NIPAT.iss": "b" * 64}}
+                    "source_sha256": {"installer/windows/NewPat.iss": "b" * 64}}
         evidence = {
             "schema_version": 1, "scenario": "compiled-installer-fixture-on-server-2022",
             "source_commit": "a" * 40, "source_definition_sha256": "b" * 64,
@@ -410,7 +422,7 @@ class WindowsInstallerFixtureTests(unittest.TestCase):
 class FrozenInstallerFixtureTests(unittest.TestCase):
     def test_099_requires_one_frozen_setup_and_explicit_fixture_substitutions(self):
         manifest = {"version": "0.8.99", "source_commit": "a" * 40,
-                    "source_sha256": {"installer/windows/NIPAT.iss": "b" * 64}}
+                    "source_sha256": {"installer/windows/NewPat.iss": "b" * 64}}
         evidence = {
             "schema_version": 1, "scenario": "compiled-installer-fixture-on-server-2022",
             "source_commit": "a" * 40, "source_definition_sha256": "b" * 64,
@@ -419,18 +431,11 @@ class FrozenInstallerFixtureTests(unittest.TestCase):
             "smart_app_control": "not-performed",
             "substitutions": ["Windows workstation/elevation setup gate", "uninstaller elevation gate",
                               "synthetic runtime bootstrap and payload", "host Python interpreter for fixture"],
-            "checks": dict.fromkeys(("installed_0.8.99", "installed_0.9.0", "upgrade_backup",
+            "checks": dict.fromkeys(("installed_0.9.99", "installed_0.9.100", "upgrade_backup",
                 "reboot_exit_code", "silent_removal_preserves_data", "frozen_setup_reused",
                 "bootstrap_marker", "display_version_matches_payload", "resume_archives_cached"), True),
         }
         VERIFY.verify_windows_installer_fixture(evidence, manifest)
-        current_manifest = dict(manifest, version="0.9.10")
-        with self.assertRaisesRegex(ValueError, "fixture is incomplete"):
-            VERIFY.verify_windows_installer_fixture(evidence, current_manifest)
-        current = copy.deepcopy(evidence)
-        for older, newer in (("0.8.99", "0.9.10"), ("0.9.0", "0.9.11")):
-            current["checks"]["installed_" + newer] = current["checks"].pop("installed_" + older)
-        VERIFY.verify_windows_installer_fixture(current, current_manifest)
         for key in evidence["checks"]:
             for value in (None, False, 1):
                 changed = copy.deepcopy(evidence)
@@ -449,97 +454,18 @@ class FrozenInstallerFixtureTests(unittest.TestCase):
 
 
 class VersionedInstallerSetTests(unittest.TestCase):
-    def test_06_retains_legacy_windows_record_while_07_requires_client_evidence(self):
+    def test_historical_package_set_cannot_qualify_as_a_clean_build(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            windows, linux, assets = (root / name for name in ("windows", "linux", "assets"))
-            for folder in (windows, linux, assets):
+            assets, linux = root / "assets", root / "linux"
+            for folder in (assets, linux):
                 folder.mkdir()
-            manifest = {"version": "0.6.0", "source_commit": "a" * 40, "assets": {
-                "scientific_image": {"file": "science.tar.gz", "sha256": "b" * 64, "size": 1},
-            }}
-            for folder in (linux, assets):
-                (folder / "installer-manifest.json").write_bytes(b"same manifest")
-            record = {"file": "nipat-desktop_0.6.0_amd64.deb", "sha256": "c" * 64}
-            (linux / "linux-installer-build.json").write_text(json.dumps(record), encoding="utf-8")
-            (linux / "SHA256SUMS").write_text(f"{record['sha256']}  {record['file']}\n", encoding="ascii")
-            for name in ("linux-installation-check.json", "linux-dependency-check.json"):
-                (linux / name).write_text("{}", encoding="utf-8")
-            publisher = SimpleNamespace(prepare_assets=lambda *args: manifest, sha256=lambda path: "d" * 64,
-                                        requires_windows_zip=lambda version: False)
-            builder = SimpleNamespace(verify_package=lambda *args: record)
-            with patch.object(VERIFY, "load_module", side_effect=lambda name, path: (
-                    publisher if name == "nipat_review_publisher" else builder)), \
-                    patch.object(VERIFY, "verify_installation_check"), \
-                    patch.object(VERIFY, "verify_dependency_check"):
-                result = VERIFY.verify_set(windows, linux, assets, root / "result06", "a" * 40)
-                self.assertEqual(result["windows"], {"file": "NIPAT-Setup.exe", "sha256": "d" * 64})
-                self.assertFalse(result["publication_authorized"])
-                manifest["version"] = "0.7.0a1"
-                with self.assertRaisesRegex(ValueError, "windows-client-check.json"):
-                    VERIFY.verify_set(windows, linux, assets, root / "result07", "a" * 40)
-                self.assertFalse((root / "result07").exists())
-
-
-
-class RealUpgradeEvidenceTests(unittest.TestCase):
-    def setUp(self):
-        self.manifest_bytes = b"candidate manifest"
-        self.manifest = {"version": "0.7.2", "source_commit": "a" * 40,
-                         "assets": {"scientific_image": {"sha256": "b" * 64}}}
-        self.package = {"sha256": "c" * 64}
-        checker = VERIFY.load_module("upgrade_test_baseline", VERIFY.PROJECT / "scripts/verify_linux_upgrade.py")
-        self.evidence = {
-            "schema_version": 1, "platform": "ubuntu-24.04-amd64",
-            "scenario": "prepared-ci-runner-real-upgrade", "version": "0.7.2", "source_commit": "a" * 40,
-            "installer_manifest_sha256": hashlib.sha256(self.manifest_bytes).hexdigest(),
-            "package_sha256": "c" * 64, "runtime_archive_sha256": "b" * 64,
-            "previous": copy.deepcopy(checker.BASELINE), "nonroot_uid": 1001,
-            "resolved_runtime_image": "sha256:" + "d" * 64, "checks": dict.fromkeys(checker.CHECKS, True),
-        }
-
-    def verify(self, evidence):
-        VERIFY.verify_upgrade_check(evidence, self.manifest, self.manifest_bytes, self.package)
-
-    def test_new_contract_does_not_reinterpret_older_release_evidence(self):
-        self.assertFalse(VERIFY.requires_reliability_evidence("0.7.1"))
-        self.assertFalse(VERIFY.requires_reliability_evidence("0.6.0"))
-        self.assertTrue(VERIFY.requires_reliability_evidence("0.7.2"))
-        self.assertTrue(VERIFY.requires_reliability_evidence("0.7.2a1"))
-        self.verify(self.evidence)
-
-    def test_rejects_reinstall_as_upgrade_and_substituted_baseline(self):
-        for key, value in (("version", "0.7.2"), ("sha256", "f" * 64), ("source_commit", "f" * 40)):
-            changed = copy.deepcopy(self.evidence)
-            changed["previous"][key] = value
-            with self.subTest(key=key), self.assertRaises(ValueError):
-                self.verify(changed)
-
-    def test_0910_installer_set_rejects_a_successful_legacy_baseline_upgrade(self):
-        self.manifest["version"] = self.evidence["version"] = "0.9.10"
-        checker = VERIFY.load_module("upgrade_test_baseline", VERIFY.PROJECT / "scripts/verify_linux_upgrade.py")
-        self.evidence["previous"] = checker.baseline_for("0.9.9")
-        with self.assertRaisesRegex(ValueError, "Linux upgrade evidence mismatch"):
-            self.verify(self.evidence)
-        self.evidence["previous"] = checker.baseline_for("0.9.10")
-        self.verify(self.evidence)
-
-    def test_rejects_missing_failed_and_nonboolean_checks_or_candidate_mismatch(self):
-        for check in self.evidence["checks"]:
-            for value in (False, 1, "true", None):
-                changed = copy.deepcopy(self.evidence)
-                if value is None:
-                    del changed["checks"][check]
-                else:
-                    changed["checks"][check] = value
-                with self.subTest(check=check, value=value), self.assertRaises(ValueError):
-                    self.verify(changed)
-        for key, value in (("nonroot_uid", 0), ("nonroot_uid", True), ("package_sha256", "e" * 64),
-                           ("source_commit", "e" * 40), ("resolved_runtime_image", "latest")):
-            changed = copy.deepcopy(self.evidence)
-            changed[key] = value
-            with self.subTest(key=key), self.assertRaises(ValueError):
-                self.verify(changed)
+                (folder / "installer-manifest.json").write_text("{}")
+            publisher = SimpleNamespace(prepare_assets=lambda *_: {"version": "0.9.10"})
+            with patch.object(VERIFY, "load_module", return_value=publisher), self.assertRaisesRegex(
+                    ValueError, "requires a clean NewPat release"):
+                VERIFY.verify_set(root / "windows", linux, assets, root / "result", "a" * 40)
+            self.assertFalse((root / "result").exists())
 
 
 if __name__ == "__main__":

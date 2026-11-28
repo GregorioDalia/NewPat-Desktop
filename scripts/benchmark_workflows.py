@@ -19,7 +19,7 @@ import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from newpat.errors import NipatError
+from newpat.errors import NewPatError
 from newpat.experiments.options import ExecutionOptions
 from newpat.experiments.runner import PLAN_WORKFLOWS, _finish_cleanup
 from newpat.experiments.workflows import _select_bams
@@ -227,7 +227,7 @@ def main(argv=None) -> int:
             "schema_version": 1, "started_at": datetime.now(timezone.utc).isoformat(),
             "workflow": args.workflow, "parallel": args.parallel, "options": options.as_dict(),
             "ram_measurement": "Maximum reported R-process RSS observation; not a continuous or whole-container peak",
-            "timing_measurement": "Command wall time includes NIPAT preparation and runtime startup; step times come from recorded UTC timestamps",
+            "timing_measurement": "Command wall time includes NewPat preparation and runtime startup; step times come from recorded UTC timestamps",
             "cases": [],
         }
         report_path = output / "benchmark.json"
@@ -266,7 +266,7 @@ def main(argv=None) -> int:
                     return 1
         print(f"Benchmark report: {report_path}")
         return 0
-    except (NipatError, OSError, ValueError, subprocess.SubprocessError) as exc:
+    except (NewPatError, OSError, ValueError, subprocess.SubprocessError) as exc:
         print(f"Benchmark failed: {exc}", file=sys.stderr)
         return 2
 

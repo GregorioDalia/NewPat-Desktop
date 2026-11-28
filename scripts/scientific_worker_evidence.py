@@ -33,7 +33,7 @@ def verify_parallel_execution(directory: Path, *, mode: str, cap: int | None,
     for path in files:
         for line in path.read_text(encoding="utf-8").splitlines():
             value = json.loads(line)
-            if value.get("interface") != "nipat-parallel-v1" or value.get("schema_version") != 1:
+            if value.get("interface") != "newpat-parallel-v1" or value.get("schema_version") != 1:
                 raise ValueError("Invalid scientific worker event schema")
             events.append(value)
     plans = [event for event in events if event.get("event") == "plan"]

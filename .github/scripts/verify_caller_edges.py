@@ -57,7 +57,7 @@ def verify_edges(image: str, work: Path) -> None:
         done
         samtools view -b -o sample_0001.bam /inputs/dnp.sam
         samtools view -b -o snp.bam /inputs/snp.sam
-        exec python3 /opt/nipat/engine/main.py execute-plan \
+        exec python3 /opt/newpat/engine/main.py execute-plan \
             --plan /results/work/request.json --run-dir /results/workflow
     """], inputs=inputs, results=results)
     steps = results / "workflow/steps"

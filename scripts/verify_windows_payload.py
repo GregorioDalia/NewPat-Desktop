@@ -80,10 +80,6 @@ def verify_payload(app: Path) -> tuple[dict, dict]:
         recorded[entry["path"]] = entry["sha256"]
     generated = {"release.json", ".distribution/installer-manifest.json",
                  f".distribution/{PYTHON_ARCHIVE}"}
-    current = re.match(r"(\d+)\.(\d+)\.(\d+)", manifest["version"])
-    if not current or tuple(map(int, current.groups())) < (0, 8, 99):
-        generated.update({"NIPAT.exe", "installer/windows/EnableWsl.exe",
-                          "installer/windows/NipatActivityNative.dll"})
     require(set(recorded) == set(sources) | generated, "Incomplete application inventory.")
     require(all(recorded[path] == value for path, value in sources.items()), "Source digest mismatch.")
     require(recorded[f".distribution/{PYTHON_ARCHIVE}"] == PYTHON_SHA256,
@@ -176,12 +172,12 @@ def fixtures(work: Path) -> dict[str, Path]:
 
 def exercise_client(app: Path, work: Path, manifest: dict) -> None:
     environment = {key: value for key, value in os.environ.items()
-                   if not key.upper().startswith(("NEWPAT_", "NIPAT_")) and key.upper() not in {"PYTHONPATH", "PYTHONHOME"}}
-    environment.update({"NIPAT_PROJECT_DIR": str(app), "NIPAT_WORKSPACE_DIR": str(work),
-                        "NIPAT_DATA_DIR": str(work / "data"), "NIPAT_RUNS_DIR": str(work / "runs"),
+                   if not key.upper().startswith("NEWPAT_") and key.upper() not in {"PYTHONPATH", "PYTHONHOME"}}
+    environment.update({"NEWPAT_PROJECT_DIR": str(app), "NEWPAT_WORKSPACE_DIR": str(work),
+                        "NEWPAT_DATA_DIR": str(work / "data"), "NEWPAT_RUNS_DIR": str(work / "runs"),
                         "LOCALAPPDATA": str(work / "local-app-data"), "APPDATA": str(work / "roaming"),
-                        "NIPAT_BACKEND": "wsl", "NIPAT_WSL_DISTRO": "NIPAT-Package-Verification",
-                        "NIPAT_RUNTIME_IMAGE": manifest["runtime_image"], "PYTHONIOENCODING": "utf-8"})
+                        "NEWPAT_BACKEND": "wsl", "NEWPAT_WSL_DISTRO": "NewPat-Package-Verification",
+                        "NEWPAT_RUNTIME_IMAGE": manifest["runtime_image"], "PYTHONIOENCODING": "utf-8"})
     logs = work / "logs"
     logs.mkdir()
     cwd = work / "working directory è"
@@ -198,7 +194,7 @@ def exercise_client(app: Path, work: Path, manifest: dict) -> None:
         return result.stdout
 
     version = re.match(r"([0-9]+)\.([0-9]+)\.([0-9]+)", manifest["version"])
-    brand = "NewPat" if version and tuple(map(int, version.groups())) >= (0, 9, 5) else "NIPAT"
+    brand = "NewPat" if version and tuple(map(int, version.groups())) >= (0, 9, 5) else "NewPat"
     require(invoke("version", ["--version"]).strip() == f"{brand} {manifest['version']}", "Wrong packaged version.")
     # Use the real embedded interpreter's ._pth, exactly as self-test does.
     # --help verifies every packaged entrypoint/import without starting WSL or R.

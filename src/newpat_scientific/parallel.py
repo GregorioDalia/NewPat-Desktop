@@ -31,7 +31,7 @@ def execution_environment(work_dir: Path | None = None):
         if directory.is_symlink():
             raise ValueError("Parallel diagnostics directory cannot be a symbolic link")
         directory.mkdir(parents=True, exist_ok=True)
-        values["NIPAT_PARALLEL_LOG_DIR"] = str(directory)
+        values["NEWPAT_PARALLEL_LOG_DIR"] = str(directory)
     previous = {name: os.environ.get(name) for name in values}
     try:
         os.environ.update(values)

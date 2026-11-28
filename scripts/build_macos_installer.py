@@ -24,14 +24,14 @@ import urllib.request
 from xml.sax.saxutils import escape
 
 _SPEC = importlib.util.spec_from_file_location(
-    "nipat_mac_assets", Path(__file__).with_name("build_windows_installer_assets.py"))
+    "newpat_mac_assets", Path(__file__).with_name("build_windows_installer_assets.py"))
 assets = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(assets)
 bundle = assets.bundle
 
 APP_NAME = "NewPat.app"
 APP_RELATIVE = Path("Applications") / APP_NAME
-IDENTIFIER = "org.nipat.desktop"
+IDENTIFIER = "org.newpat.desktop"
 BUILD_RECORD = "macos-installer-build.json"
 SCIENTIFIC_PLATFORMS = {"arm64": "linux/arm64", "x86_64": "linux/amd64"}
 MACHO_MAGICS = {b"\xfe\xed\xfa\xce", b"\xce\xfa\xed\xfe", b"\xfe\xed\xfa\xcf",
@@ -98,8 +98,7 @@ def verified_inputs(project: Path, manifest_path: Path, description_path: Path, 
                     *, require_clean: bool = True) -> tuple[dict, list[Path], Path, dict]:
     manifest = read_json(manifest_path)
     desired_platform = validate_scientific_manifest(manifest, architecture)
-    if package_version(manifest["version"]) != manifest["version"]:
-        raise ValueError("The macOS package requires an official 0.8.2 or later release.")
+    package_version(manifest["version"])
     if manifest.get("installation_profile", {}).get("channel") != "desktop":
         raise ValueError("The package must use the official desktop identity.")
     if assets.checked_version(project) != manifest["version"]:
@@ -115,7 +114,6 @@ def verified_inputs(project: Path, manifest_path: Path, description_path: Path, 
         raise ValueError("Source inventory differs from the verified scientific build.")
     required = {"installer/macos/dependencies.json", "installer/macos/launch.py",
                 "installer/macos/NewPat.command", "installer/macos/launcher.c",
-                "installer/macos/migrate_legacy.py",
                 "installer/macos/package-guard.c", "src/newpat/macos_runtime.py",
                 "LICENSE", "THIRD_PARTY_NOTICES.md"}
     if not required.issubset(hashes):
@@ -200,9 +198,9 @@ def safe_extract(archive: Path, destination: Path) -> None:
 
 
 def package_version(version: str) -> str:
-    if (not re.fullmatch(r"0\.[89]\.[0-9]+", version)
-            or tuple(map(int, version.split("."))) < (0, 8, 2)):
-        raise ValueError("Expected an official 0.8.2 or later version.")
+    if (not re.fullmatch(r"(?:0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*)){2}", version)
+            or tuple(map(int, version.split("."))) < (0, 9, 99)):
+        raise ValueError("Expected an official NewPat version from 0.9.99 onwards.")
     return version
 
 
@@ -240,7 +238,7 @@ def distribution_xml(version: str, architecture: str) -> str:
   <license file="LICENSE.txt" mime-type="text/plain"/>
   <choices-outline><line choice="default"/></choices-outline>
   <choice id="default" visible="false"><pkg-ref id="{IDENTIFIER}"/></choice>
-  <pkg-ref id="{IDENTIFIER}" version="{package_version(version)}" onConclusion="none">NIPAT-component.pkg</pkg-ref>
+  <pkg-ref id="{IDENTIFIER}" version="{package_version(version)}" onConclusion="none">NewPat-component.pkg</pkg-ref>
 </installer-gui-script>
 '''
 
@@ -301,9 +299,6 @@ def stage_payload(project: Path, root: Path, manifest: dict, files: list[Path], 
         json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
     shutil.copyfile(project / "installer/macos/NewPat.command", resources / "NewPat.command")
     (resources / "NewPat.command").chmod(0o755)
-    # Keep the previous entrypoint available to installed scripts.
-    shutil.copyfile(resources / "NewPat.command", resources / "NIPAT.command")
-    (resources / "NIPAT.command").chmod(0o755)
     (app / "Contents/MacOS").mkdir()
     plist = {
         "CFBundleIdentifier": IDENTIFIER, "CFBundleName": "NewPat",
@@ -313,7 +308,7 @@ def stage_payload(project: Path, root: Path, manifest: dict, files: list[Path], 
         "CFBundleVersion": manifest["version"], "LSMinimumSystemVersion": "14.0",
         "CFBundleIconFile": "NewPat.icns", "LSApplicationCategoryType": "public.app-category.education",
         "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True},
-        "NSHumanReadableCopyright": "NIPAT contributors; GNU GPL version 3 or later",
+        "NSHumanReadableCopyright": "NewPat contributors; GNU GPL version 3 or later",
     }
     (app / "Contents/Info.plist").write_bytes(plistlib.dumps(plist, sort_keys=True))
     return app
@@ -329,11 +324,11 @@ def build(project: Path, manifest_path: Path, output: Path, architecture: str,
     manifest, files, scientific, description = verified_inputs(project, manifest_path, description_path, architecture)
     dependencies = read_json(project / "installer/macos/dependencies.json")
     output.mkdir(parents=True, exist_ok=True)
-    name = f"NIPAT-{manifest['version']}-macos-{architecture}.pkg"
+    name = f"NewPat-{manifest['version']}-macos-{architecture}.pkg"
     target = output / name
     if target.exists() or (output / BUILD_RECORD).exists():
         raise ValueError("Installer output already exists; choose a new output directory.")
-    with tempfile.TemporaryDirectory(prefix="nipat-macos-build-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="newpat-macos-build-") as temporary:
         work = Path(temporary)
         native = dependencies["architectures"][architecture]
         python = dependency_archive(native["python"], work, python_archive)
@@ -344,7 +339,7 @@ def build(project: Path, manifest_path: Path, output: Path, architecture: str,
         subprocess.run(["/usr/bin/clang", "-Os", "-arch", architecture,
                         "-mmacosx-version-min=14.0", str(project / "installer/macos/launcher.c"),
                         "-o", str(app / "Contents/MacOS/NewPat")], check=True)
-        icons = work / "NIPAT.iconset"
+        icons = work / "NewPat.iconset"
         icons.mkdir()
         for size in (16, 32, 128, 256, 512):
             source = "newpat-icon-small.png" if size == 16 else "newpat-icon.png"
@@ -373,7 +368,7 @@ def build(project: Path, manifest_path: Path, output: Path, architecture: str,
         subprocess.run(["/usr/bin/pkgbuild", "--root", str(payload), "--identifier", IDENTIFIER,
                         "--version", package_version(manifest["version"]), "--install-location", "/",
                         "--ownership", "recommended", "--scripts", str(scripts),
-                        "--component-plist", str(components), str(work / "NIPAT-component.pkg")], check=True)
+                        "--component-plist", str(components), str(work / "NewPat-component.pkg")], check=True)
         (work / "Distribution.xml").write_text(distribution_xml(manifest["version"], architecture))
         welcome = (
             "NewPat\n\n"
@@ -384,7 +379,7 @@ def build(project: Path, manifest_path: Path, output: Path, architecture: str,
             "This package has no Developer ID signature or Apple notarization. Local security\n"
             "policy may prevent installation or launch. No security setting is changed.\n"
             "Runtime execution on physical Intel and Apple Silicon Macs is not yet qualified.\n"
-            "Data and results remain in your Library/Application Support/NIPAT-Desktop.\n")
+            "Data and results remain in your Library/Application Support/NewPat-Desktop.\n")
         installer_resources = work / "installer-resources"
         installer_resources.mkdir()
         (installer_resources / "Welcome.txt").write_text(welcome)

@@ -43,8 +43,8 @@ class ReleaseGuards(unittest.TestCase):
             "rootfs_provenance": {"source_commit": COMMIT},
             "source_sha256": {n: hashlib.sha256(b).hexdigest() for n, b in self.sources.items()}, "assets": {},
         }
-        (self.setup / "NIPAT-Setup.exe").write_bytes(b"installer fixture")
-        for key, stem in (("rootfs", "nipat-wsl-rootfs"), ("scientific_image", "nipat-scientific-runtime")):
+        (self.setup / "NewPat-Setup.exe").write_bytes(b"installer fixture")
+        for key, stem in (("rootfs", "newpat-wsl-rootfs"), ("scientific_image", "newpat-scientific-runtime")):
             name = f"{stem}-0.3.0a1-amd64.tar.gz"
             path = self.runtime / name
             path.write_bytes(key.encode())
@@ -56,7 +56,7 @@ class ReleaseGuards(unittest.TestCase):
         data = json.dumps(self.manifest).encode()
         for folder in (self.setup, self.runtime):
             (folder / publisher.MANIFEST).write_bytes(data)
-        for folder, names in ((self.setup, ["NIPAT-Setup.exe"]), (self.runtime,
+        for folder, names in ((self.setup, ["NewPat-Setup.exe"]), (self.runtime,
             [publisher.MANIFEST] + [a["file"] for a in self.manifest["assets"].values()])):
             (folder / "SHA256SUMS").write_text("".join(f"{publisher.sha256(folder/n)}  {n}\n" for n in names))
 
@@ -78,7 +78,7 @@ class ReleaseGuards(unittest.TestCase):
             entry["url"] = entry["url"].replace(previous_version, version)
             (self.runtime / old).rename(self.runtime / entry["file"])
         self.write_manifests()
-        (self.setup / "NIPAT.exe").write_bytes(b"MZ launcher fixture")
+        (self.setup / "NewPat.exe").write_bytes(b"MZ launcher fixture")
         self.write_installer_evidence()
 
     def test_windows_review_stdin_entrypoint_verifies_sources_in_an_isolated_interpreter(self):
@@ -108,7 +108,7 @@ class ReleaseGuards(unittest.TestCase):
                                   cwd=self.root)
         check = run_step()
         self.assertEqual(check.returncode, 0, check.stderr)
-        self.assertEqual((build / "verified-release/NIPAT-Setup.exe").read_bytes(), b"installer fixture")
+        self.assertEqual((build / "verified-release/NewPat-Setup.exe").read_bytes(), b"installer fixture")
         (build / "output" / publisher.MANIFEST).write_bytes(b"altered")
         rejected = run_step()
         self.assertNotEqual(rejected.returncode, 0)
@@ -122,17 +122,16 @@ class ReleaseGuards(unittest.TestCase):
         self.assertEqual(publisher.BOOTSTRAP_SOURCES, module.BOOTSTRAP_SOURCES)
         self.assertIn(".github/scripts/install_inno.ps1", publisher.BOOTSTRAP_SOURCES)
 
-    def test_new_brand_preserves_review_of_historical_profile(self):
-        self.make_desktop_package("0.9.1")
-        profile = dict(publisher.LEGACY_DESKTOP_INSTALLATION_PROFILE)
-        self.manifest["installation_profile"] = profile
-        publisher.verify_installation_profile(self.manifest, COMMIT, lambda *_: json.dumps(profile))
-        self.manifest["version"] = "0.9.5"
-        with self.assertRaisesRegex(ValueError, "required isolated desktop namespace"):
-            publisher.verify_installation_profile(self.manifest, COMMIT, lambda *_: json.dumps(profile))
-        self.manifest["installation_profile"] = publisher.DESKTOP_INSTALLATION_PROFILE
-        publisher.verify_installation_profile(self.manifest, COMMIT,
-                                               lambda *_: json.dumps(publisher.DESKTOP_INSTALLATION_PROFILE))
+    def test_release_rejects_preexisting_installation_identity(self):
+        self.make_desktop_package("0.9.99")
+        expected = publisher.DESKTOP_INSTALLATION_PROFILE
+        for key in ("app_id", "app_dir_name", "data_dir_name", "distro_prefix"):
+            profile = dict(expected, **{key: "other-product"})
+            self.manifest["installation_profile"] = profile
+            with self.subTest(field=key), self.assertRaisesRegex(ValueError, "isolated desktop namespace"):
+                publisher.verify_installation_profile(self.manifest, COMMIT, lambda *_: json.dumps(profile))
+        self.manifest["installation_profile"] = expected
+        publisher.verify_installation_profile(self.manifest, COMMIT, lambda *_: json.dumps(expected))
 
     def test_online_bootstrap_is_bound_separately_from_versioned_payload(self):
         self.make_desktop_package("0.8.99")
@@ -141,21 +140,21 @@ class ReleaseGuards(unittest.TestCase):
             self.manifest["source_sha256"][name] = "a" * 64
         inventory = self.setup / "application-files.json"
         inventory.write_bytes(b"reviewed inventory fixture")
-        payload = {"file": "NIPAT-0.8.99-Windows-payload.zip", "sha256": "b" * 64,
+        payload = {"file": "NewPat-0.8.99-Windows-payload.zip", "sha256": "b" * 64,
                    "version": "0.8.99", "source_commit": COMMIT}
         inputs = {name: self.manifest["source_sha256"][name] for name in publisher.BOOTSTRAP_SOURCES}
         inputs[f".distribution/{publisher.PYTHON_NAME}"] = publisher.PYTHON_SHA256
         record = {
-            "schema_version": 2, "distribution": "online-bootstrap", "bootstrap_version": "1.1.0",
-            "version": "0.8.99", "source_commit": COMMIT, "file": "NIPAT-Setup.exe",
-            "sha256": publisher.sha256(self.setup / "NIPAT-Setup.exe"),
-            "size": (self.setup / "NIPAT-Setup.exe").stat().st_size,
+            "schema_version": 2, "distribution": "online-bootstrap", "bootstrap_version": "2.0.0",
+            "version": "0.8.99", "source_commit": COMMIT, "file": "NewPat-Setup.exe",
+            "sha256": publisher.sha256(self.setup / "NewPat-Setup.exe"),
+            "size": (self.setup / "NewPat-Setup.exe").stat().st_size,
             "installer_manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
             "application_inventory_sha256": publisher.sha256(inventory),
             "installation_profile": publisher.DESKTOP_INSTALLATION_PROFILE,
             "bootstrap_inputs_sha256": inputs, "payload_record": payload,
         }
-        (self.setup / "NIPAT.exe").unlink()
+        (self.setup / "NewPat.exe").unlink()
         path = self.setup / "installer-build.json"
         with patch.object(publisher, "verify_windows_payload", return_value=payload):
             path.write_text(json.dumps(record))
@@ -174,8 +173,8 @@ class ReleaseGuards(unittest.TestCase):
         self.make_wsl_package(version)
         self.desktop = self.root / "desktop"
         self.desktop.mkdir()
-        self.package_name = f"NIPAT-DockerDesktop-{version}-windows-x64.zip"
-        launcher = (self.setup / "NIPAT.exe").read_bytes()
+        self.package_name = f"NewPat-DockerDesktop-{version}-windows-x64.zip"
+        launcher = (self.setup / "NewPat.exe").read_bytes()
         python_archive = b"portable Python fixture"
         python_hash = hashlib.sha256(python_archive).hexdigest()
         pin = patch.object(publisher, "PYTHON_SHA256", python_hash)
@@ -192,16 +191,16 @@ class ReleaseGuards(unittest.TestCase):
             "schema_version": 1, "package_version": version,
             "source_git": {"commit": COMMIT, "dirty": False, "available": True},
             "source_sha256": self.manifest["source_sha256"], "runtime": runtime,
-            "launcher": {"file": "NIPAT.exe", "sha256": hashlib.sha256(launcher).hexdigest(), "size": len(launcher)},
+            "launcher": {"file": "NewPat.exe", "sha256": hashlib.sha256(launcher).hexdigest(), "size": len(launcher)},
             "python": {"version": "3.12.10", "architecture": "amd64", "archive_sha256": python_hash},
         }
-        self.package_entries = {"nipat-desktop/" + name: contents for name, contents in self.sources.items()}
+        self.package_entries = {"newpat-desktop/" + name: contents for name, contents in self.sources.items()}
         self.package_entries.update({
-            "nipat-desktop/release.json": json.dumps(release).encode(),
-            "nipat-desktop/NIPAT.exe": launcher,
-            "nipat-desktop/.distribution/" + publisher.PYTHON_NAME: python_archive,
-            "nipat-desktop/.distribution/runtime.tar": (self.runtime / scientific["file"]).read_bytes(),
-            "nipat-desktop/.distribution/runtime.json": json.dumps(runtime).encode(),
+            "newpat-desktop/release.json": json.dumps(release).encode(),
+            "newpat-desktop/NewPat.exe": launcher,
+            "newpat-desktop/.distribution/" + publisher.PYTHON_NAME: python_archive,
+            "newpat-desktop/.distribution/runtime.tar": (self.runtime / scientific["file"]).read_bytes(),
+            "newpat-desktop/.distribution/runtime.json": json.dumps(runtime).encode(),
         })
         self.write_package()
 
@@ -213,19 +212,19 @@ class ReleaseGuards(unittest.TestCase):
         evidence = {
             "schema_version": 1, "version": self.manifest["version"], "source_commit": COMMIT,
             "file": self.package_name, "sha256": publisher.sha256(path), "size": path.stat().st_size,
-            "launcher_sha256": publisher.sha256(self.setup / "NIPAT.exe"),
+            "launcher_sha256": publisher.sha256(self.setup / "NewPat.exe"),
         }
         (self.desktop / "package-build.json").write_text(json.dumps(evidence), encoding="utf-8")
         self.write_installer_evidence()
 
     def write_installer_evidence(self):
-        installer = self.setup / "NIPAT-Setup.exe"
+        installer = self.setup / "NewPat-Setup.exe"
         evidence = {
             "schema_version": 1, "distribution": "self-contained-wsl",
             "version": self.manifest["version"], "source_commit": COMMIT,
-            "file": "NIPAT-Setup.exe", "sha256": publisher.sha256(installer), "size": installer.stat().st_size,
+            "file": "NewPat-Setup.exe", "sha256": publisher.sha256(installer), "size": installer.stat().st_size,
             "installer_manifest_sha256": publisher.sha256(self.setup / publisher.MANIFEST),
-            "launcher_sha256": publisher.sha256(self.setup / "NIPAT.exe"),
+            "launcher_sha256": publisher.sha256(self.setup / "NewPat.exe"),
             "embedded_assets": {
                 key: {field: self.manifest["assets"][key][field] for field in ("file", "sha256", "size")}
                 for key in ("rootfs", "scientific_image")
@@ -248,14 +247,14 @@ class ReleaseGuards(unittest.TestCase):
 
     def make_docker_installer(self):
         self.make_dual_package("0.4.1")
-        (self.desktop / "NIPAT-DockerDesktop-Setup.exe").write_bytes(b"Docker installer fixture")
+        (self.desktop / "NewPat-DockerDesktop-Setup.exe").write_bytes(b"Docker installer fixture")
         self.write_docker_installer_evidence()
 
     def write_docker_installer_evidence(self):
-        installer = self.desktop / "NIPAT-DockerDesktop-Setup.exe"
+        installer = self.desktop / "NewPat-DockerDesktop-Setup.exe"
         package = self.desktop / self.package_name
         scientific = self.manifest["assets"]["scientific_image"]
-        staged_hashes = {name.removeprefix("nipat-desktop/"): hashlib.sha256(contents).hexdigest()
+        staged_hashes = {name.removeprefix("newpat-desktop/"): hashlib.sha256(contents).hexdigest()
                          for name, contents in self.package_entries.items()}
         staged_hashes[".distribution/docker-desktop.json"] = hashlib.sha256(
             b'{"schema_version":1,"distribution":"docker-desktop-installer"}\n').hexdigest()
@@ -266,7 +265,7 @@ class ReleaseGuards(unittest.TestCase):
             "package_file": package.name, "package_sha256": publisher.sha256(package),
             "package_bytes": package.stat().st_size,
             "installer_manifest_sha256": publisher.sha256(self.setup / publisher.MANIFEST),
-            "launcher_sha256": publisher.sha256(self.setup / "NIPAT.exe"),
+            "launcher_sha256": publisher.sha256(self.setup / "NewPat.exe"),
             "runtime_archive_sha256": scientific["sha256"], "runtime_archive_bytes": scientific["size"],
             "staged_files_sha256": staged_hashes,
         }
@@ -278,7 +277,7 @@ class ReleaseGuards(unittest.TestCase):
         evidence = self.root / "pair"
         linux.mkdir()
         evidence.mkdir()
-        package = linux / f"nipat-desktop_{version}_amd64.deb"
+        package = linux / f"newpat-desktop_{version}_amd64.deb"
         package.write_bytes(b"deb fixture; actual package validation is covered by builder tests")
         for name in ("linux-installer-build.json", "linux-installation-check.json", "linux-dependency-check.json"):
             (linux / name).write_text("{}")
@@ -286,7 +285,7 @@ class ReleaseGuards(unittest.TestCase):
             "schema_version": 1, "version": version, "source_commit": COMMIT,
             "installer_manifest_sha256": publisher.sha256(self.setup / publisher.MANIFEST),
             "scientific_archive": self.manifest["assets"]["scientific_image"],
-            "windows": {"file": "NIPAT-Setup.exe", "sha256": publisher.sha256(self.setup / "NIPAT-Setup.exe")},
+            "windows": {"file": "NewPat-Setup.exe", "sha256": publisher.sha256(self.setup / "NewPat-Setup.exe")},
             "linux": {"file": package.name, "sha256": publisher.sha256(package)},
             "publication_authorized": False,
         }
@@ -330,7 +329,7 @@ class ReleaseGuards(unittest.TestCase):
         self.assertEqual(len(calls), 1)
         self.assertEqual(calls[0][1], {"project": self.root / "exact-built-source"})
         digests = publisher.checksums(self.root / "release/SHA256SUMS")
-        self.assertIn("NIPAT-Setup.exe", digests)
+        self.assertIn("NewPat-Setup.exe", digests)
         self.assertIn(parts[2]["linux"]["file"], digests)
         for name in ("installer-set-check.json", "desktop-acceptance.json", "linux-dependency-check.json",
                      "linux-installation-check.json", "release-provenance.json", "update-manifest.json"):
@@ -341,7 +340,7 @@ class ReleaseGuards(unittest.TestCase):
         self.assertEqual(provenance["publication_commit"], "b" * 40)
         self.assertFalse(any("DockerDesktop" in name for name in digests))
         update = json.loads((self.root / "release/update-manifest.json").read_text())
-        self.assertEqual(update["product"], "nipat-desktop")
+        self.assertEqual(update["product"], "newpat-desktop")
         self.assertEqual(update["channel"], "testing")
         self.assertEqual(update["source_commit"], COMMIT)
         self.assertEqual(update["minimum_updater_version"], 1)
@@ -383,7 +382,7 @@ class ReleaseGuards(unittest.TestCase):
     def test_update_manifest_rejects_replaced_package_after_pair_verification(self):
         parts = self.joint_fixture()
         self.prepare_joint(*parts)
-        (self.root / "release/NIPAT-Setup.exe").write_bytes(b"different installer")
+        (self.root / "release/NewPat-Setup.exe").write_bytes(b"different installer")
         with self.assertRaisesRegex(ValueError, "differs from the accepted build"):
             publisher.write_update_manifest(self.root / "release", self.manifest, parts[2], "testing")
 
@@ -420,7 +419,7 @@ class ReleaseGuards(unittest.TestCase):
         update = json.loads((output / "update-manifest.json").read_text())
         self.assertEqual(update["version"], "0.7.1")
         self.assertEqual({asset["name"] for asset in update["assets"]},
-                         {"NIPAT-Setup.exe", "nipat-desktop_0.7.1_amd64.deb"})
+                         {"NewPat-Setup.exe", "newpat-desktop_0.7.1_amd64.deb"})
 
     def test_07_joint_release_requires_retained_windows_evidence(self):
         parts = self.joint_fixture("0.7.1")
@@ -486,12 +485,12 @@ class ReleaseGuards(unittest.TestCase):
     def multiplatform_fixture(self, version="0.8.2"):
         linux, evidence, actual, validator, record = self.reliability_fixture()
         self.make_desktop_package(version)
-        package = linux / f"nipat-desktop_{version}_amd64.deb"
+        package = linux / f"newpat-desktop_{version}_amd64.deb"
         (linux / actual["linux"]["file"]).rename(package)
         actual.update(version=version, installer_manifest_sha256=publisher.sha256(self.setup / publisher.MANIFEST))
         actual["scientific_archive"] = {key: self.manifest["assets"]["scientific_image"][key]
                                         for key in ("file", "sha256", "size")}
-        actual["windows"]["sha256"] = publisher.sha256(self.setup / "NIPAT-Setup.exe")
+        actual["windows"]["sha256"] = publisher.sha256(self.setup / "NewPat-Setup.exe")
         actual["linux"]["file"] = package.name
         native = publisher.load_module("mac_fixture", Path(__file__).with_name("test_macos_release.py"))
         helper = publisher.load_module("mac_release_fixture", Path(__file__).with_name("macos_release.py"))
@@ -522,7 +521,7 @@ class ReleaseGuards(unittest.TestCase):
         self.assertEqual({key: value for key, value in windows_linux.items() if key != "assets"},
                          {key: value for key, value in macos.items() if key != "assets"})
         for arch in ("arm64", "x86_64"):
-            for name in (f"NIPAT-0.8.2-macos-{arch}.pkg", f"macos-{arch}-package-verification.json",
+            for name in (f"NewPat-0.8.2-macos-{arch}.pkg", f"macos-{arch}-package-verification.json",
                          f"macos-{arch}-installer-build.json"):
                 self.assertEqual(hashes[name], publisher.sha256(output / name))
         for entry in windows_linux["assets"] + macos["assets"]:
@@ -542,8 +541,8 @@ class ReleaseGuards(unittest.TestCase):
             for entry in manifest["assets"]:
                 self.assertEqual(entry["sha256"], hashes[entry["name"]])
                 self.assertIn("/releases/download/v0.8.5/", entry["url"])
-        for name in ("NIPAT-Setup.exe", "nipat-desktop_0.8.5_amd64.deb",
-                     "NIPAT-0.8.5-macos-arm64.pkg", "NIPAT-0.8.5-macos-x86_64.pkg"):
+        for name in ("NewPat-Setup.exe", "newpat-desktop_0.8.5_amd64.deb",
+                     "NewPat-0.8.5-macos-arm64.pkg", "NewPat-0.8.5-macos-x86_64.pkg"):
             self.assertIn(name, hashes)
 
     def revised_r_fixture(self):
@@ -653,7 +652,7 @@ class ReleaseGuards(unittest.TestCase):
             if args == ("git", "rev-parse", "HEAD"):
                 return "b" * 40
             self.assertEqual(args[:3], ("gh", "run", "download"))
-            folder = Path(args[-1]) / "nipat-runtime-assets"
+            folder = Path(args[-1]) / "newpat-runtime-assets"
             folder.mkdir(parents=True, exist_ok=True)
             (folder / publisher.MANIFEST).write_text(json.dumps(self.manifest))
             return ""
@@ -719,7 +718,7 @@ class ReleaseGuards(unittest.TestCase):
         self.prepare()
         result = publisher.checksums(self.root / "release/SHA256SUMS")
         self.assertEqual(len(result), 4)
-        self.assertIn("NIPAT-Setup.exe", result)
+        self.assertIn("NewPat-Setup.exe", result)
         self.assertEqual(len(list((self.root / "release").iterdir())), 5)
 
     def test_rejects_corrupt_asset_before_staging(self):
@@ -730,7 +729,7 @@ class ReleaseGuards(unittest.TestCase):
         self.assertFalse((self.root / "release").exists())
 
     def test_rejects_wrong_exe_checksum(self):
-        (self.setup / "NIPAT-Setup.exe").write_bytes(b"different exe")
+        (self.setup / "NewPat-Setup.exe").write_bytes(b"different exe")
         with self.assertRaisesRegex(ValueError, "Installer checksum"):
             self.prepare()
 
@@ -759,7 +758,7 @@ class ReleaseGuards(unittest.TestCase):
         source = {name: (publisher.PROJECT / "installer/runtime" / name).read_bytes()
                   for name in component.SOURCE_FILES}
         provenance = {
-            "schema_version": 2, "vendor": "nipat-desktop", "purpose": "dedicated-wsl-runtime",
+            "schema_version": 2, "vendor": "newpat-desktop", "purpose": "dedicated-wsl-runtime",
             "source_sha256": {name: hashlib.sha256(value).hexdigest() for name, value in source.items()},
             "apt_packages": {"docker-ce": "29.9.1"}, "base_image": "debian@sha256:" + "d" * 64,
             "docker_engine_version": "Docker version 29.9.1", "compose_version": "2.40.3",
@@ -772,7 +771,7 @@ class ReleaseGuards(unittest.TestCase):
         changed["apt_packages"]["docker-ce"] = "changed"
         with self.assertRaisesRegex(ValueError, "identity mismatch"):
             publisher.verify_rootfs_source(changed, COMMIT, read)
-        source["nipat-engine"] += b"\n# unexpected\n"
+        source["newpat-engine"] += b"\n# unexpected\n"
         with self.assertRaisesRegex(ValueError, "source mismatch"):
             publisher.verify_rootfs_source(provenance, COMMIT, read)
 
@@ -791,7 +790,7 @@ class ReleaseGuards(unittest.TestCase):
         result = publisher.checksums(self.root / "release/SHA256SUMS")
         self.assertEqual(len(result), 5)
         self.assertIn(self.package_name, result)
-        self.assertNotIn("NIPAT.exe", result)  # It is included in each package, not a standalone release asset.
+        self.assertNotIn("NewPat.exe", result)  # It is included in each package, not a standalone release asset.
         self.assertEqual((self.root / "release" / self.package_name).read_bytes(),
                          (self.desktop / self.package_name).read_bytes())
 
@@ -800,8 +799,8 @@ class ReleaseGuards(unittest.TestCase):
         self.prepare(desktop=self.desktop)
         result = publisher.checksums(self.root / "release/SHA256SUMS")
         self.assertEqual(len(result), 5)
-        self.assertIn("NIPAT-Setup.exe", result)
-        self.assertIn("NIPAT-DockerDesktop-Setup.exe", result)
+        self.assertIn("NewPat-Setup.exe", result)
+        self.assertIn("NewPat-DockerDesktop-Setup.exe", result)
         self.assertNotIn(self.package_name, result)
         self.assertFalse((self.root / "release" / self.package_name).exists())
         self.assertFalse((self.root / "release/docker-installer-build.json").exists())
@@ -814,9 +813,9 @@ class ReleaseGuards(unittest.TestCase):
         self.assertEqual(evidence["installation_profile"], result["installation_profile"])
         assets = publisher.checksums(self.root / "release/SHA256SUMS")
         self.assertEqual(set(assets), {
-            "NIPAT-Setup.exe", publisher.MANIFEST,
-            "nipat-wsl-rootfs-0.6.0-amd64.tar.gz",
-            "nipat-scientific-runtime-0.6.0-amd64.tar.gz",
+            "NewPat-Setup.exe", publisher.MANIFEST,
+            "newpat-wsl-rootfs-0.6.0-amd64.tar.gz",
+            "newpat-scientific-runtime-0.6.0-amd64.tar.gz",
         })
 
     def test_desktop_rejects_preview_identity_even_when_source_matches(self):
@@ -864,7 +863,7 @@ class ReleaseGuards(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Docker Desktop deliverables are not supported"):
             self.prepare(desktop=desktop)
         for folder in (self.setup, self.runtime):
-            for name in ("NIPAT-DockerDesktop-Setup.exe", "NIPAT-DockerDesktop-0.6.0-windows-x64.zip",
+            for name in ("NewPat-DockerDesktop-Setup.exe", "NewPat-DockerDesktop-0.6.0-windows-x64.zip",
                          "package-build.json", "docker-installer-build.json"):
                 with self.subTest(folder=folder.name, name=name):
                     path = folder / name
@@ -877,9 +876,9 @@ class ReleaseGuards(unittest.TestCase):
     def test_desktop_rejects_missing_or_foreign_manifest_profile(self):
         self.make_desktop_package()
         original = copy.deepcopy(self.manifest["installation_profile"])
-        for key, value in (("channel", "stable"), ("app_dir_name", "NIPAT"),
-                           ("data_dir_name", "NIPAT"), ("distro_prefix", "NIPAT-Runtime-"),
-                           ("resume_key", "NIPAT-ResumeSetup"), ("schema_version", True)):
+        for key, value in (("channel", "stable"), ("app_dir_name", "NewPat"),
+                           ("data_dir_name", "NewPat"), ("distro_prefix", "NewPat-Runtime-"),
+                           ("resume_key", "NewPat-ResumeSetup"), ("schema_version", True)):
             with self.subTest(field=key):
                 self.manifest["installation_profile"] = dict(original, **{key: value})
                 self.write_manifests()
@@ -927,7 +926,7 @@ class ReleaseGuards(unittest.TestCase):
                 if mutation == "missing":
                     del evidence["installation_profile"]
                 else:
-                    evidence["installation_profile"]["app_dir_name"] = "NIPAT"
+                    evidence["installation_profile"]["app_dir_name"] = "NewPat"
                 path.write_text(json.dumps(evidence))
                 with self.assertRaisesRegex(ValueError, "installer build evidence mismatch"):
                     self.prepare()
@@ -973,7 +972,7 @@ class ReleaseGuards(unittest.TestCase):
         self.make_dual_package("0.4.1")
         with self.assertRaisesRegex(ValueError, "Docker installer"):
             self.prepare(desktop=self.desktop)
-        (self.desktop / "NIPAT-DockerDesktop-Setup.exe").write_bytes(b"Docker installer fixture")
+        (self.desktop / "NewPat-DockerDesktop-Setup.exe").write_bytes(b"Docker installer fixture")
         with self.assertRaisesRegex(ValueError, "Missing Docker installer build evidence"):
             self.prepare(desktop=self.desktop)
         self.assertFalse((self.root / "release").exists())
@@ -1011,19 +1010,19 @@ class ReleaseGuards(unittest.TestCase):
 
     def test_041_rejects_docker_exe_corruption_and_companion_slices(self):
         self.make_docker_installer()
-        installer = self.desktop / "NIPAT-DockerDesktop-Setup.exe"
+        installer = self.desktop / "NewPat-DockerDesktop-Setup.exe"
         original = installer.read_bytes()
         installer.write_bytes(b"wrong executable")
         with self.assertRaisesRegex(ValueError, "Docker installer build evidence mismatch"):
             self.prepare(desktop=self.desktop)
         installer.write_bytes(original)
-        (self.desktop / "NIPAT-DockerDesktop-Setup-1.BIN").write_bytes(b"slice")
+        (self.desktop / "NewPat-DockerDesktop-Setup-1.BIN").write_bytes(b"slice")
         with self.assertRaisesRegex(ValueError, "Docker installer cannot have companion"):
             self.prepare(desktop=self.desktop)
 
     def test_041_checks_docker_installer_limit_before_hashing(self):
         self.make_docker_installer()
-        installer = self.desktop / "NIPAT-DockerDesktop-Setup.exe"
+        installer = self.desktop / "NewPat-DockerDesktop-Setup.exe"
         package = self.desktop / self.package_name
         with patch.object(publisher, "MAX_ASSET_BYTES", installer.stat().st_size), \
                 patch.object(publisher, "sha256", side_effect=AssertionError("Must reject size before hashing")):
@@ -1049,7 +1048,7 @@ class ReleaseGuards(unittest.TestCase):
 
     def test_rejects_installer_companion_data_slices(self):
         self.make_dual_package()
-        (self.setup / "NIPAT-Setup-1.BIN").write_bytes(b"external payload")
+        (self.setup / "NewPat-Setup-1.BIN").write_bytes(b"external payload")
         with self.assertRaisesRegex(ValueError, "companion data slices"):
             self.prepare(desktop=self.desktop)
 
@@ -1067,9 +1066,9 @@ class ReleaseGuards(unittest.TestCase):
                     self.prepare(desktop=self.desktop)
 
     def test_installer_size_limit_is_checked_before_hashing(self):
-        limit = (self.setup / "NIPAT-Setup.exe").stat().st_size
+        limit = (self.setup / "NewPat-Setup.exe").stat().st_size
         with patch.object(publisher, "MAX_ASSET_BYTES", limit), \
-                self.assertRaisesRegex(ValueError, ">= 2 GiB file: NIPAT-Setup.exe"):
+                self.assertRaisesRegex(ValueError, ">= 2 GiB file: NewPat-Setup.exe"):
             self.prepare()
         self.assertFalse((self.root / "release").exists())
 
@@ -1083,36 +1082,36 @@ class ReleaseGuards(unittest.TestCase):
 
     def test_rejects_docker_source_different_from_verified_commit(self):
         self.make_dual_package()
-        self.package_entries["nipat-desktop/README.md"] = b"changed source"
+        self.package_entries["newpat-desktop/README.md"] = b"changed source"
         self.write_package()
         with self.assertRaisesRegex(ValueError, "content hash mismatch: README"):
             self.prepare(desktop=self.desktop)
 
     def test_rejects_extra_docker_files_even_with_matching_outer_hash(self):
         self.make_dual_package()
-        self.package_entries["nipat-desktop/data/patient.txt"] = b"unapproved data"
+        self.package_entries["newpat-desktop/data/patient.txt"] = b"unapproved data"
         self.write_package()
         with self.assertRaisesRegex(ValueError, "unexpected files"):
             self.prepare(desktop=self.desktop)
 
     def test_rejects_docker_launcher_different_from_wsl_launcher(self):
         self.make_dual_package()
-        self.package_entries["nipat-desktop/NIPAT.exe"] = b"MZ different binary"
+        self.package_entries["newpat-desktop/NewPat.exe"] = b"MZ different binary"
         self.write_package()
-        with self.assertRaisesRegex(ValueError, "Docker launcher size|content hash mismatch: NIPAT"):
+        with self.assertRaisesRegex(ValueError, "Docker launcher size|content hash mismatch: NewPat"):
             self.prepare(desktop=self.desktop)
 
     def test_rejects_different_scientific_archive_inside_docker_package(self):
         self.make_dual_package()
-        data = self.package_entries["nipat-desktop/.distribution/runtime.tar"]
-        self.package_entries["nipat-desktop/.distribution/runtime.tar"] = b"x" * len(data)
+        data = self.package_entries["newpat-desktop/.distribution/runtime.tar"]
+        self.package_entries["newpat-desktop/.distribution/runtime.tar"] = b"x" * len(data)
         self.write_package()
         with self.assertRaisesRegex(ValueError, "content hash mismatch: .distribution/runtime.tar"):
             self.prepare(desktop=self.desktop)
 
     def test_rejects_mixed_docker_package_release_metadata(self):
         self.make_dual_package()
-        entry = "nipat-desktop/release.json"
+        entry = "newpat-desktop/release.json"
         original = json.loads(self.package_entries[entry])
         for key, changed in (("source_git", {"commit": "d" * 40, "dirty": False, "available": True}),
                              ("package_version", "0.3.0a1"), ("runtime", {}), ("python", {})):
@@ -1138,7 +1137,7 @@ class ReleaseGuards(unittest.TestCase):
                 publisher.validate_run(altered, COMMIT, 123)
 
     def test_resume_requires_matching_draft_and_uploaded_digests(self):
-        path = self.setup / "NIPAT-Setup.exe"
+        path = self.setup / "NewPat-Setup.exe"
         files = {path.name: path}
         release = {"draft": True, "prerelease": True, "target_commitish": COMMIT,
                    "tag_name": "v0.3.0a1", "body": "notes", "assets": []}
@@ -1207,38 +1206,6 @@ class ReleaseGuards(unittest.TestCase):
                 self.check_gui_publication_channel(version)
         self.assertEqual(publisher.publication_channel("0.9.2", "stable"), "stable")
 
-    def test_newpat_assets_keep_identical_legacy_aliases(self):
-        output = self.root / "aliases"
-        output.mkdir()
-        names = ("NIPAT-Setup.exe", "NIPAT-0.9.5-Windows-completo.zip",
-                 "NIPAT-0.9.5-Testing-installazione.zip", "NIPAT-0.9.5-macos-arm64.pkg",
-                 "nipat-desktop_0.9.5_amd64.deb")
-        for name in names:
-            (output / name).write_bytes(("verified bytes for " + name).encode())
-        manifest = output / "update-manifest.json"
-        manifest.write_bytes(b'legacy updater names are preserved')
-        publisher.add_public_asset_aliases(output, "0.9.1")
-        self.assertEqual(len(list(output.iterdir())), len(names) + 1)
-        publisher.add_public_asset_aliases(output, "0.9.5")
-        publisher.add_public_asset_aliases(output, "0.9.5")
-        for name in names:
-            alias = name.replace("NIPAT-", "NewPat-", 1).replace("nipat-desktop_", "newpat-desktop_", 1)
-            self.assertEqual((output / alias).read_bytes(), (output / name).read_bytes())
-        self.assertEqual(manifest.read_bytes(), b'legacy updater names are preserved')
-        self.assertEqual(len(list(output.iterdir())), 2 * len(names) + 1)
-        (output / "NewPat-Setup.exe").write_bytes(b"unverified replacement")
-        with self.assertRaisesRegex(ValueError, "alias collision"):
-            publisher.add_public_asset_aliases(output, "0.9.5")
-
-    def test_newpat_asset_aliases_reject_links(self):
-        output = self.root / "linked-aliases"
-        output.mkdir()
-        source = output / "NIPAT-Setup.exe"
-        source.write_bytes(b"verified")
-        (output / "NewPat-Setup.exe").symlink_to(source)
-        with self.assertRaisesRegex(ValueError, "alias collision"):
-            publisher.add_public_asset_aliases(output, "0.9.5")
-
     def check_gui_publication_channel(self, version):
         payload = self.root / "create-gui.json"
         with patch.object(publisher, "command", return_value='{"id": 12345}') as command, \
@@ -1255,7 +1222,7 @@ class ReleaseGuards(unittest.TestCase):
         sent = json.loads(payload.read_text())
         self.assertTrue(sent["prerelease"])
         self.assertEqual(sent["make_latest"], "false")
-        self.assertIn(f"NewPat {version} Testing" if publisher.uses_newpat_brand(version) else f"Desktop {version} Preview", sent["name"])
+        self.assertIn(f"NewPat {version} Testing", sent["name"])
 
     def test_testing_entrypoint_is_bound_to_reviewed_scripts_and_exact_payloads(self):
         for version in ("0.9.0", "0.9.1", "0.9.5"):
@@ -1266,11 +1233,11 @@ class ReleaseGuards(unittest.TestCase):
         manifest = {"version": version, "source_commit": COMMIT}
         helper = publisher.load_module("testing_entrypoint_fixture",
                                        publisher.PROJECT / "installer/windows/testing_package.py")
-        for filename in (f"NIPAT-{version}-Windows-completo.zip", f"NIPAT-{version}-Windows-payload.zip"):
+        for filename in (f"NewPat-{version}-Windows-complete.zip", f"NewPat-{version}-Windows-payload.zip"):
             (self.setup / filename).write_bytes(filename.encode())
         expected = helper.build(publisher.PROJECT / "installer/windows", self.setup, manifest)
         self.assertEqual(publisher.verify_windows_testing(self.setup, manifest), expected)
-        (self.setup / f"NIPAT-{version}-Windows-payload.zip").write_bytes(b"replaced payload")
+        (self.setup / f"NewPat-{version}-Windows-payload.zip").write_bytes(b"replaced payload")
         with self.assertRaisesRegex(ValueError, "payload identity"):
             publisher.verify_windows_testing(self.setup, manifest)
         (self.setup / expected["file"]).unlink()
@@ -1298,7 +1265,7 @@ class ReleaseGuards(unittest.TestCase):
         command.assert_called_once()
 
     def prepared_draft(self, channel="testing"):
-        path = self.setup / "NIPAT-Setup.exe"
+        path = self.setup / "NewPat-Setup.exe"
         files = {path.name: path}
         release = {
             "id": 42, "draft": True, "prerelease": channel == "testing", "target_commitish": COMMIT,
@@ -1320,7 +1287,7 @@ class ReleaseGuards(unittest.TestCase):
         self.assertTrue(result["draft"])
         create.assert_called_once()
         command.assert_called_once_with("gh", "release", "upload", "v0.6.0",
-                                        str(files["NIPAT-Setup.exe"]), "--repo", publisher.REPO)
+                                        str(files["NewPat-Setup.exe"]), "--repo", publisher.REPO)
 
     def test_prepare_resumes_complete_draft_without_reuploading(self):
         files, prepared = self.prepared_draft()
@@ -1338,9 +1305,9 @@ class ReleaseGuards(unittest.TestCase):
         linux, evidence, actual, validator, record = self.multiplatform_fixture()
         if decision is not None:
             record["decision"] = decision
-        fixtures = {"nipat-windows-setup": self.setup, "nipat-runtime-assets": self.runtime,
-                    "nipat-linux-setup": linux, "nipat-installer-set-evidence": evidence,
-                    **{f"nipat-macos-setup-{arch}": path for arch, path in self.native_directories.items()}}
+        fixtures = {"newpat-windows-setup": self.setup, "newpat-runtime-assets": self.runtime,
+                    "newpat-linux-setup": linux, "newpat-installer-set-evidence": evidence,
+                    **{f"newpat-macos-setup-{arch}": path for arch, path in self.native_directories.items()}}
         self.single_pass = state = {"downloads": [], "mutations": [], "reads": 0, "release": None}
         version = self.manifest["version"]
         run = {"id": 123, "head_sha": COMMIT, "status": "completed", "conclusion": "success",

@@ -150,7 +150,7 @@ The execution owns the `work` and `output` directories. The plan identifies samp
 ## Plan execution
 
 ```sh
-python3 /opt/nipat/engine/main.py execute-plan \
+python3 /opt/newpat/engine/main.py execute-plan \
   --plan /workspace/run/work/engine-plan.json \
   --run-dir /workspace/run/output/workflow
 ```

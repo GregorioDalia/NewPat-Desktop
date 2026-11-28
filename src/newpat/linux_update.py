@@ -23,15 +23,15 @@ import time
 
 
 HANDOFF_EXIT_CODE = 85
-APP = Path("/opt/nipat-desktop")
+APP = Path("/opt/newpat-desktop")
 PKEXEC = Path("/usr/bin/pkexec")
 APT = Path("/usr/bin/apt-get")
 TERMINAL = Path("/usr/bin/x-terminal-emulator")
 PYTHON = Path("/usr/bin/python3.12")
-LOCK = Path("/var/lib/nipat-desktop/activity.lock")
-MARKER = Path("/var/lib/nipat-desktop/update-in-progress")
+LOCK = Path("/var/lib/newpat-desktop/activity.lock")
+MARKER = Path("/var/lib/newpat-desktop/update-in-progress")
 SHA256 = re.compile(r"[0-9a-f]{64}\Z")
-PACKAGE = re.compile(r"(?:nipat-desktop|newpat-desktop)_[0-9]+\.[0-9]+\.[0-9]+(?:~(?:a|b|rc)[0-9]+)?_amd64\.deb\Z")
+PACKAGE = re.compile(r"newpat-desktop_[0-9]+\.[0-9]+\.[0-9]+(?:~(?:a|b|rc)[0-9]+)?_amd64\.deb\Z")
 MAX_PACKAGE_SIZE = 2 * 1024**3
 
 
@@ -110,7 +110,7 @@ def _cache_directory() -> Path:
     base = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache")
     if not base.is_absolute():
         raise LinuxUpdateError("XDG_CACHE_HOME deve essere un percorso assoluto.")
-    cache = base / "nipat-desktop" / "updates"
+    cache = base / "newpat-desktop" / "updates"
     _reject_symlinks(cache)
     cache.mkdir(parents=True, exist_ok=True, mode=0o700)
     _reject_symlinks(cache)
@@ -140,7 +140,7 @@ def start_linux_update(package: Path, expected_sha256: str, expected_size: int,
         raise LinuxUpdateError("La configurazione del pacchetto e' incompleta. "
                                "Completare prima la precedente operazione APT.")
     pids = {int(parent_pid or os.getpid())}
-    outer = os.environ.get("NIPAT_LAUNCHER_PID", "")
+    outer = os.environ.get("NEWPAT_LAUNCHER_PID", "")
     if outer.isdecimal() and int(outer) > 1:
         pids.add(int(outer))
     parents = [{"pid": pid, "start": _process_identity(pid)} for pid in sorted(pids)]
@@ -295,7 +295,7 @@ def run_handoff(request_path: Path) -> int:
         _write_json(state, {"phase": "preparing_runtime", "package": str(package)})
         # This remains the original unprivileged user; the installed launcher
         # verifies the new manifest/runtime and runs self-test before the menu.
-        completed = subprocess.run(["/usr/bin/nipat", "--setup"], check=False)
+        completed = subprocess.run(["/usr/bin/newpat", "--setup"], check=False)
         if completed.returncode != 0:
             raise LinuxUpdateError("Pacchetto installato; preparazione dell'ambiente non completata. "
                                    "Avviare NewPat per riprendere la preparazione.")
@@ -303,7 +303,7 @@ def run_handoff(request_path: Path) -> int:
         # The transaction is finished. Replace this helper with the installed
         # launcher so a terminal Ctrl+C cannot make subprocess.run kill that
         # launcher while its CLI is recovering to the menu with a live lease.
-        os.execv("/usr/bin/nipat", ["/usr/bin/nipat"])
+        os.execv("/usr/bin/newpat", ["/usr/bin/newpat"])
     except (LinuxUpdateError, OSError, KeyboardInterrupt) as exc:
         message = str(exc) or "Aggiornamento interrotto."
         _write_json(state, {"phase": "failed", "error": message})

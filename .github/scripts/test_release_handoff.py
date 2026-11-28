@@ -13,7 +13,7 @@ import automatic_release as automatic
 from ci_changes import changed_paths
 import publish_windows_release as publisher
 import qualification_evidence as qualification
-from newpat.repository import LEGACY_REPOSITORY, RENAMED_REPOSITORY
+from newpat.repository import REPOSITORY
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -40,7 +40,7 @@ class AcceptanceBuildTests(unittest.TestCase):
         checker.validate_build(self.record, self.run, self.jobs)
         for field, value in (("id", 12), ("head_sha", "f" * 40), ("conclusion", "failure"),
                              ("event", "pull_request"), ("path", ".github/workflows/ci.yml"),
-                             ("head_repository", {"full_name": "fork/nipat"})):
+                             ("head_repository", {"full_name": "fork/newpat"})):
             with self.subTest(field=field), self.assertRaises(ValueError):
                 checker.validate_build(self.record, dict(self.run, **{field: value}), self.jobs)
         for index in range(len(self.jobs)):
@@ -50,7 +50,7 @@ class AcceptanceBuildTests(unittest.TestCase):
                 checker.validate_build(self.record, self.run, jobs)
 
     def test_evidence_must_belong_to_exact_nonexpired_build(self):
-        artifact = {"name": "nipat-installer-set-evidence", "expired": False,
+        artifact = {"name": "newpat-installer-set-evidence", "expired": False,
                     "workflow_run": {"id": self.run["id"], "head_sha": self.run["head_sha"]}}
         self.assertEqual(checker.evidence_artifact({"artifacts": [artifact]}, self.record), artifact)
         for candidate in (dict(artifact, expired=True), dict(artifact, workflow_run={"id": 12}),
@@ -181,7 +181,7 @@ class AutomaticPublicationTests(unittest.TestCase):
 
     def test_completed_main_ci_selects_acceptance_only(self):
         self.assertEqual(self.paths(paths=[RECORD_PATH]), [RECORD_PATH])
-        for paths in ([RECORD_PATH, "src/nipat/cli.py"], []):
+        for paths in ([RECORD_PATH, "src/newpat/cli.py"], []):
             with self.subTest(paths=paths), self.assertRaisesRegex(ValueError, "push range"):
                 self.paths(paths=paths)
 
@@ -219,7 +219,7 @@ class AutomaticPublicationTests(unittest.TestCase):
         for field, value in (("id", 124), ("run_attempt", 1), ("head_sha", "c" * 40), ("head_branch", "feature"),
                              ("event", "pull_request"), ("path", ".github/workflows/other.yml"),
                              ("conclusion", "failure"), ("status", "in_progress"),
-                             ("head_repository", {"full_name": "fork/nipat"})):
+                             ("head_repository", {"full_name": "fork/newpat"})):
             with self.subTest(field=field), self.assertRaises(ValueError):
                 self.paths(run=dict(self.run, **{field: value}))
 
@@ -254,12 +254,12 @@ class AutomaticPublicationTests(unittest.TestCase):
                     "draft": False, "prerelease": False, "id": 42}
         version = record["version"]
         names = {
-            "NIPAT-Setup.exe": "windows_installer_sha256",
-            f"nipat-desktop_{version}_amd64.deb": "linux_installer_sha256",
-            f"NIPAT-{version}-macos-arm64.pkg": "macos_arm64_installer_sha256",
-            f"NIPAT-{version}-macos-x86_64.pkg": "macos_x86_64_installer_sha256",
+            "NewPat-Setup.exe": "windows_installer_sha256",
+            f"newpat-desktop_{version}_amd64.deb": "linux_installer_sha256",
+            f"NewPat-{version}-macos-arm64.pkg": "macos_arm64_installer_sha256",
+            f"NewPat-{version}-macos-x86_64.pkg": "macos_x86_64_installer_sha256",
             "installer-manifest.json": "installer_manifest_sha256",
-            f"nipat-scientific-runtime-{version}-amd64.tar.gz": "scientific_archive_sha256",
+            f"newpat-scientific-runtime-{version}-amd64.tar.gz": "scientific_archive_sha256",
             "qualification-evidence.zip": "qualification_evidence_sha256",
         }
         existing["assets"] = [{"name": name, "state": "uploaded", "digest": "sha256:" + record[field]}
@@ -301,22 +301,22 @@ class AutomaticPublicationTests(unittest.TestCase):
         existing = {"tag_name": "v0.8.95", "target_commitish": record["source_commit"],
                     "draft": False, "prerelease": False, "id": 42}
         names = {
-            "NIPAT-Setup.exe": "windows_installer_sha256",
-            "NIPAT-0.8.95-Windows-completo.zip": "windows_zip_sha256",
-            "nipat-desktop_0.8.95_amd64.deb": "linux_installer_sha256",
-            "NIPAT-0.8.95-macos-arm64.pkg": "macos_arm64_installer_sha256",
-            "NIPAT-0.8.95-macos-x86_64.pkg": "macos_x86_64_installer_sha256",
+            "NewPat-Setup.exe": "windows_installer_sha256",
+            "NewPat-0.8.95-Windows-complete.zip": "windows_zip_sha256",
+            "newpat-desktop_0.8.95_amd64.deb": "linux_installer_sha256",
+            "NewPat-0.8.95-macos-arm64.pkg": "macos_arm64_installer_sha256",
+            "NewPat-0.8.95-macos-x86_64.pkg": "macos_x86_64_installer_sha256",
             "installer-manifest.json": "installer_manifest_sha256",
-            "nipat-scientific-runtime-0.8.95-amd64.tar.gz": "scientific_archive_sha256",
+            "newpat-scientific-runtime-0.8.95-amd64.tar.gz": "scientific_archive_sha256",
             "qualification-evidence.zip": "qualification_evidence_sha256",
         }
         existing["assets"] = [{"name": name, "state": "uploaded", "digest": "sha256:" + record[field]}
                               for name, field in names.items()]
         with patch.object(publisher, "check_tag"):
             self.assertIsNone(automatic.publication_arguments(record, existing))
-            for replacement in (None, {"name": "NIPAT-0.8.95-Windows-completo.zip",
+            for replacement in (None, {"name": "NewPat-0.8.95-Windows-complete.zip",
                                        "state": "uploaded", "digest": "sha256:" + "f" * 64}):
-                assets = [asset for asset in existing["assets"] if not asset["name"].endswith("completo.zip")]
+                assets = [asset for asset in existing["assets"] if not asset["name"].endswith("complete.zip")]
                 if replacement is not None:
                     assets.append(replacement)
                 with self.subTest(replacement=replacement), self.assertRaisesRegex(ValueError, "accepted asset bytes"):
@@ -337,51 +337,45 @@ class AutomaticPublicationTests(unittest.TestCase):
         existing = {"tag_name": "v" + version, "target_commitish": record["source_commit"],
                     "draft": False, "prerelease": channel == "testing", "id": 42}
         names = {
-            "NIPAT-Setup.exe": "windows_installer_sha256",
-            f"NIPAT-{version}-Windows-completo.zip": "windows_zip_sha256",
-            f"NIPAT-{version}-Windows-payload.zip": "windows_payload_sha256",
-            f"nipat-desktop_{version}_amd64.deb": "linux_installer_sha256",
-            f"NIPAT-{version}-macos-arm64.pkg": "macos_arm64_installer_sha256",
-            f"NIPAT-{version}-macos-x86_64.pkg": "macos_x86_64_installer_sha256",
+            "NewPat-Setup.exe": "windows_installer_sha256",
+            f"NewPat-{version}-Windows-complete.zip": "windows_zip_sha256",
+            f"NewPat-{version}-Windows-payload.zip": "windows_payload_sha256",
+            f"newpat-desktop_{version}_amd64.deb": "linux_installer_sha256",
+            f"NewPat-{version}-macos-arm64.pkg": "macos_arm64_installer_sha256",
+            f"NewPat-{version}-macos-x86_64.pkg": "macos_x86_64_installer_sha256",
             "installer-manifest.json": "installer_manifest_sha256",
-            f"nipat-scientific-runtime-{version}-amd64.tar.gz": "scientific_archive_sha256",
+            f"newpat-scientific-runtime-{version}-amd64.tar.gz": "scientific_archive_sha256",
             "qualification-evidence.zip": "qualification_evidence_sha256",
         }
         if version in {"0.9.0", "0.9.1", "0.9.5"}:
             record["windows_testing_sha256"] = "d" * 64
-            names[f"NIPAT-{version}-Testing-installazione.zip"] = "windows_testing_sha256"
-        if publisher.uses_newpat_brand(version):
-            names.update({publisher.public_asset_name(name): field for name, field in list(names.items())
-                          if publisher.public_asset_name(name) != name})
+            names[f"NewPat-{version}-Testing-installer.zip"] = "windows_testing_sha256"
         existing["assets"] = [{"name": name, "state": "uploaded", "size": 100,
                                "digest": "sha256:" + record[field]} for name, field in names.items()]
         for filename, platform, feed in (
-            (f"NIPAT-{version}-Windows-payload.zip", "windows-bootstrap-x86_64",
-             publisher.WINDOWS_BOOTSTRAP_UPDATE_MANIFEST),
-            (f"NIPAT-{version}-Windows-completo.zip", "windows-zip-x86_64",
-             publisher.WINDOWS_ZIP_UPDATE_MANIFEST),
+            (f"NewPat-{version}-Windows-payload.zip", "windows-bootstrap-x86_64",
+             publisher.windows_feed_filename("bootstrap", version)),
+            (f"NewPat-{version}-Windows-complete.zip", "windows-zip-x86_64",
+             publisher.windows_feed_filename("zip", version)),
         ):
-            document = {"schema_version": 1, "product": "nipat-desktop", "version": version,
+            document = {"schema_version": 1, "product": "newpat-desktop", "version": version,
                 "release_tag": "v" + version, "channel": channel, "source_commit": record["source_commit"],
-                "minimum_updater_version": 1, "assets": [{"platform": platform, "name": filename,
+                "minimum_updater_version": 2, "assets": [{"platform": platform, "name": filename,
                 "size": 100, "sha256": record[names[filename]],
-                "url": f"https://github.com/{LEGACY_REPOSITORY}/releases/download/v{version}/{filename}"}],
-                "release_notes_url": f"https://github.com/{LEGACY_REPOSITORY}/releases/tag/v{version}"}
+                "url": f"https://github.com/{REPOSITORY}/releases/download/v{version}/{filename}"}],
+                "release_notes_url": f"https://github.com/{REPOSITORY}/releases/tag/v{version}"}
             digest = automatic.hashlib.sha256((json.dumps(document, indent=2) + "\n").encode()).hexdigest()
             existing["assets"].append({"name": feed, "state": "uploaded", "digest": "sha256:" + digest})
         with patch.object(publisher, "check_tag"):
             self.assertIsNone(automatic.publication_arguments(record, existing))
-            with patch.object(publisher, "REPO", RENAMED_REPOSITORY):
-                self.assertIsNone(automatic.publication_arguments(record, existing))
-            required = [f"NIPAT-{version}-Windows-payload.zip", publisher.WINDOWS_BOOTSTRAP_UPDATE_MANIFEST]
-            if publisher.uses_newpat_brand(version):
-                required.extend(name for name in names if name.startswith(("NewPat-", "newpat-desktop_")))
-                altered = copy.deepcopy(existing)
-                next(asset for asset in altered["assets"] if asset["name"] == "NewPat-Setup.exe")["size"] += 1
-                with self.assertRaisesRegex(ValueError, "verified legacy size"):
-                    automatic.publication_arguments(record, altered)
+            mixed = copy.deepcopy(existing)
+            mixed["assets"].append({"name": "NIPAT-Setup.exe", "state": "uploaded", "size": 100,
+                                    "digest": "sha256:" + record["windows_installer_sha256"]})
+            with self.assertRaisesRegex(ValueError, "retired product name"):
+                automatic.publication_arguments(record, mixed)
+            required = [f"NewPat-{version}-Windows-payload.zip", publisher.windows_feed_filename("bootstrap", version), *names]
             if version in {"0.9.0", "0.9.1", "0.9.5"}:
-                required.append(f"NIPAT-{version}-Testing-installazione.zip")
+                required.append(f"NewPat-{version}-Testing-installer.zip")
                 missing_digest = dict(record)
                 del missing_digest["windows_testing_sha256"]
                 with self.assertRaisesRegex(ValueError, "testing entrypoint digest"):
@@ -410,7 +404,7 @@ class AutomaticPublicationTests(unittest.TestCase):
         self.assertIn("    branches: [main]", automatic_workflow)
         self.assertIn("github.event.workflow_run.event == 'push'", automatic_workflow)
         self.assertIn("ref: ${{ github.event.workflow_run.head_sha }}", automatic_workflow)
-        self.assertIn("group: publish-nipat-release", automatic_workflow)
+        self.assertIn("group: publish-newpat-release", automatic_workflow)
         self.assertNotIn("pull_request_target", automatic_workflow)
 
 

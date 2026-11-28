@@ -64,7 +64,7 @@ class CliAdmissionTests(unittest.TestCase):
         compose = json.loads((directory / record["engine_compose"]).read_text(encoding="utf-8"))
         service = compose["services"]["scientific"]
         environment = service["environment"]
-        budget = json.loads(environment["NIPAT_FIXED_RESOURCE_BUDGET"])
+        budget = json.loads(environment["NEWPAT_FIXED_RESOURCE_BUDGET"])
         self.assertEqual(budget, record["resource_budget"])
         return record, service, budget
 

@@ -33,35 +33,6 @@ def normalize_config(value: object) -> dict:
     return copy.deepcopy(value)
 
 
-def migrate_saved_settings(value: object) -> dict:
-    """Read a saved profile or archived draft under the revised postnatal model."""
-    settings = copy.deepcopy(value)
-    post = settings.get("cpin") if isinstance(settings, dict) else None
-    if isinstance(post, dict):
-        # Child allele support and whole-trio coverage measure different quantities.
-        if "min_child_reads" in post:
-            reads = post.pop("min_child_reads")
-            if type(reads) is not int or not 1 <= reads < 2147483647:
-                raise ValidationError("Il supporto allelico salvato per il figlio non è valido.")
-        for marker in ("snp", "dnp"):
-            old, new = f"err_const_{marker}", f"mismatch_probability_{marker}"
-            if old in post:
-                if new in post:
-                    raise ValidationError(f"Due valori salvati per {new}.")
-                post[new] = post.pop(old)
-        if "site_selection" in post:
-            selection = post.pop("site_selection")
-            if not isinstance(selection, str) or selection not in {"all", "both", "other_allele"}:
-                raise ValidationError("La selezione dei siti postnatali salvata non è valida.")
-            # Preserve the union of the selected legacy site groups.
-            for pair in ("hom_hom", "hom_het", "het_hom", "het_het"):
-                key = f"include_{pair}"
-                if key in post:
-                    raise ValidationError("Il profilo mescola selezioni postnatali di due versioni.")
-                post[key] = pair == "hom_het" or (pair == "hom_hom" and selection != "other_allele")
-    return normalize_config(settings)
-
-
 def load_scientific_config(path: Path | None = None, overrides: list[str] | None = None) -> dict:
     config = {}
     if path is not None:
@@ -69,7 +40,7 @@ def load_scientific_config(path: Path | None = None, overrides: list[str] | None
             config = json.loads(path.read_text(encoding="utf-8-sig"), object_pairs_hook=_unique_settings)
         except (UnicodeError, ValueError) as exc:
             raise ValidationError(f"Configurazione scientifica JSON non valida: {path}: {exc}") from exc
-        config = migrate_saved_settings(config)
+        config = normalize_config(config)
     for override in overrides or []:
         if "=" not in override or "." not in override.split("=", 1)[0]:
             raise ValidationError("Usare --set modulo.parametro=valore, per esempio snp-call.min_base_quality=20.")

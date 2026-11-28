@@ -173,7 +173,7 @@ def check_dnp_workflow(identifier: str, root: Path, *, run_container, run_image,
         "chrDnpSynthetic\t230\t231\tGC\tAT\n", encoding="utf-8",
     )
     run_container(identifier, [
-        "python3", "/opt/nipat/engine/main.py", "run", "dnp-call", "--",
+        "python3", "/opt/newpat/engine/main.py", "run", "dnp-call", "--",
         "--bamlist=work/bamlist.txt", "--DNPs=work/DNP_list.txt",
         "--reference=/inputs/reference.fa", "--out=output",
     ], inputs=inputs, results=native, working_dir="/results")
@@ -268,7 +268,7 @@ def check_dnp_client_without_host_scripts(identifier: str, root: Path, inputs: P
         f"'{selected_bams[1].relative_to(originals_dir).as_posix()}'\n", encoding="utf-8-sig",
     )
     originals = {path: path.read_bytes() for path in originals_dir.rglob("*") if path.is_file()}
-    with patch.dict(os.environ, {"NIPAT_RUNTIME_IMAGE": identifier, "NIPAT_BACKEND": "native"}):
+    with patch.dict(os.environ, {"NEWPAT_RUNTIME_IMAGE": identifier, "NEWPAT_BACKEND": "native"}):
         workflow = Workflows(layout, DockerComposeRunner(layout))
         single = workflow.dnp_call(bam=original_bams[0], reference=reference, panel=panel,
                                    run_name="complete-dnp-single")

@@ -29,7 +29,7 @@ def export(evidence, destination):
     description = destination / "engine-description.json"
     with description.open("xb") as output:
         subprocess.run(["docker", "run", "--rm", "--pull=never", "--network=none", "--read-only", "--tmpfs", "/tmp",
-                        "--platform=linux/arm64", image, "python3", "/opt/nipat/engine/main.py", "describe", "--json"],
+                        "--platform=linux/arm64", image, "python3", "/opt/newpat/engine/main.py", "describe", "--json"],
                        check=True, stdout=output)
     asset = builder.assets.asset_metadata(archive, f"v{version}")
     asset.pop("url")

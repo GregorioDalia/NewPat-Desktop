@@ -42,9 +42,9 @@ For BAM experiments and the **IGV viewer**, choose **GRCh37 / hg19**, **GRCh38 /
 - **Obtain a standard reference.** Choose the build and start its UCSC download. The download screen reports progress. After verification and indexing, the reference is available locally for both experiments and IGV. Allow about 1 GB of network traffic and at least 4.5 GB of free disk space per build for preparation. With the reference installed, subsequent selections work offline.
 - **Check the variant.** The downloadable presets are the UCSC initial hg19 and hg38 FASTA releases with `chr`-prefixed names. A BAM aligned against a numbered-contig GRCh37 FASTA, for example, should use that file. The original hg19 mitochondrial sequence also differs from the GRC GRCh37 sequence. Choosing a build preserves input coordinates. [UCSC assembly conventions](https://genome.ucsc.edu/FAQ/FAQreleases.html) · [UCSC hg19 downloads](https://hgdownload.soe.ucsc.edu/goldenPath/hg19/bigZips/initial/) · [UCSC hg38 downloads](https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/initial/)
 
-NewPat verifies the full contents of a registered FASTA and its indexes when you select it or validate an experiment that uses it. Opening the picker uses a shorter check for large FASTAs. If NewPat reports a changed reference, confirm that the FASTA and indexes belong together and register them again. References saved by an earlier preview with file metadata alone need one new registration to record their content digests.
+NewPat verifies the full contents of a registered FASTA and its indexes when you select it or validate an experiment that uses it. Opening the picker uses a shorter check for large FASTAs. If NewPat reports a changed reference, confirm that the FASTA and indexes belong together and register them again.
 
-NewPat checks the reference sequence against every row of its FAI and, for BGZF files, the block offsets in its GZI. New desktop BAM experiments record SHA-256 fingerprints for these files. Opening IGV from an experiment verifies the selected files against the recorded fingerprints. Older experiments can use fingerprints in their input manifest. If some are missing, IGV displays a warning. Choosing a different reference manually opens a separate selection.
+NewPat checks the reference sequence against every row of its FAI and, for BGZF files, the block offsets in its GZI. New desktop BAM experiments record SHA-256 fingerprints for these files. Opening IGV from an experiment verifies the selected files against the recorded fingerprints. If an input fingerprint is missing, IGV displays a warning. Choosing a different reference manually opens a separate selection.
 
 ## Find or reopen results
 
@@ -80,22 +80,19 @@ Select the marker branch and the sample, pair or trio in **Experiments and resul
 
 The default lower and upper limits are −4 and +4. You can change the two numbers before a run. An exact boundary is shown separately. These indicators describe the position of the reported index and do not assign a parentage verdict.
 
-## Read prenatal and archived postnatal CPI plots
+## Inspect prenatal CPI curves
 
-New postnatal experiments return a scalar and site table. Older experiments may include threshold plots from the previous postnatal model.
+Select the pair and panel. Each point represents a minimum fetal read count (`Iteration`). The index series gives `log_CPI` on a base-10 logarithmic scale. The site-count series gives the number of matching (`NotMismatch`) and mismatching (`Mismatch`) sites with a valid paternal index. The HET and HOM columns identify contributors in each group.
 
-Hover over a point or click it to see the original table values. With the keyboard, press **Tab** to focus the plot, use the arrow keys to move through the points on the page, **Home** or **End** to reach its ends, and **Esc** to dismiss the details.
+Use the separate panels for the index and site counts, or select the combined view. In that view, read log CPI in black on the left axis and site counts on the right. Green shows matching sites and dashed orange shows mismatches. Lines connect consecutive integer thresholds with recorded values. Across pages the plot keeps the same scale.
 
-| Result | Horizontal axis | Index series | Site counts |
-| --- | --- | --- | --- |
-| Prenatal CPI | `Iteration`, the minimum fetal read count | `log_CPI`, already on a base-10 logarithmic scale | `NotMismatch` and `Mismatch` |
-| Archived postnatal curves | Inclusive interval from `Min_child_reads` to `Through_min_child_reads` | `Log10_CPI`, already on a base-10 logarithmic scale | `N_sites`, `Matching_sites` and `Mismatching_sites` |
+Hover over or click a point to see its recorded values. With the keyboard, press **Tab** to focus the plot, use the arrow keys to move between points, **Home** or **End** to reach the ends of the page, and **Esc** to dismiss the details.
 
-The separate views give the index and counts their own panels. The combined view shows log CPI in black and recorded mismatches with a dashed orange line. For the revised prenatal model, the green series counts matching sites with a valid paternal index and the orange series counts mismatching sites with a valid index. The HET and HOM counts identify the contributors in each group. Older prenatal curves can include candidates with an unassigned paternal genotype in `NotMismatch`; their `InfSites_father` column gives the actual number contributing. For postnatal CPI, the green series shows `Matching_sites`. Read the index on the left axis and counts on the right. Total postnatal site counts remain available in the separate view and point details.
+Interactive files are limited to 20,000 rows and 16 MiB each. The plot and detail table display 1,000 rows per page. For larger files, open the original results table or PDF.
 
-Prenatal lines connect consecutive integer thresholds with recorded values. Postnatal segments show values that apply across the stated interval. The postnatal count axis uses a linear transformation of the counts to fit the log CPI display range; point details always show the original counts. The plot uses stored guide values when available and identifies when it uses the observed range. The scale is shared across pages. Missing or invalid values remain available in the original table.
+## Inspect a postnatal trio
 
-Interactive files are limited to 20,000 rows and 16 MiB each. The plot and detail table display 1,000 rows per page. For larger files, open the results table or original PDF. The PDF includes the scientific plot's layout, guides and annotations.
+Select the trio and panel. The summary records a single postnatal CPI, its base-10 logarithm and the number of contributing loci (`N_sites`). Open the site table to inspect each locus's genotypes, inclusion or exclusion reason and PI contribution. A trio with zero contributing sites has no numerical CPI.
 
 ## Inspect alignments in IGV
 

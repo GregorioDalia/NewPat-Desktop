@@ -285,7 +285,7 @@ class JobManager:
         while self._pending and len(self._preparing) < 2:
             job_id, job = self._pending.popitem(last=False)
             job.thread = threading.Thread(target=self._execute, args=(job,),
-                                          name="nipat-analysis-" + job.id[:8], daemon=False)
+                                          name="newpat-analysis-" + job.id[:8], daemon=False)
             self._preparing.add(job_id)
             try:
                 job.thread.start()
@@ -384,7 +384,7 @@ class JobManager:
             job.status = "cancel_requested"
             job.log("Annullamento richiesto: attendo l’arresto sicuro e il salvataggio dei risultati disponibili.")
         threading.Thread(target=self._stop_owned, args=(job,),
-                         name="nipat-stop-" + job.id[:8], daemon=True).start()
+                         name="newpat-stop-" + job.id[:8], daemon=True).start()
         return job.snapshot()
 
     def _stop_owned(self, job: Job) -> None:

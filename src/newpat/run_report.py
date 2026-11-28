@@ -242,7 +242,7 @@ def _parallel_section(run_dir: Path, metadata: dict) -> str:
                         incomplete = True
                         continue
                     if (not isinstance(event, dict) or event.get("schema_version") != 1
-                            or event.get("interface") != "nipat-parallel-v1"):
+                            or event.get("interface") != "newpat-parallel-v1"):
                         incomplete = True
                         continue
                     label, coordinator = event.get("label"), event.get("coordinator_pid")

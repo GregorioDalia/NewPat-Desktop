@@ -12,7 +12,7 @@ from newpat_scientific.errors import ValidationError
 
 class CpiEngineTests(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="nipat CPI engine ")
+        self.temporary = tempfile.TemporaryDirectory(prefix="newpat CPI engine ")
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name).resolve()
         self.inputs = self.root / "original inputs ,= è"

@@ -18,45 +18,31 @@ import platform
 import re
 import shutil
 import subprocess
+import sys
 import tarfile
 import uuid
 
 
-APP = Path("/opt/nipat-desktop")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+from newpat.distribution import supported_stable_release
+
+
+APP = Path("/opt/newpat-desktop")
 COMMAND = "/usr/bin/newpat"
-LEGACY_COMMAND = "/usr/bin/nipat"
-PACKAGE = "nipat-desktop"
+PACKAGE = "newpat-desktop"
 DOCKER = ["/usr/bin/docker", "--host", "unix:///var/run/docker.sock"]
 CHECKS = (
     "package_installation", "initial_setup", "immutable_runtime_binding",
-    "all_five_workflows", "private_inputs_unchanged", "user_owned_results",
+    "all_six_workflows", "private_inputs_unchanged", "user_owned_results",
     "repeated_launch", "package_reinstallation",
     "package_removal_preserves_user_data", "shared_docker_unchanged",
-    "automatic_workflow_plan", "preferences_preserved",
+    "automatic_workflow_plan", "preferences_preserved", "fetal_sex_example",
 )
 
 
 def checks_for_version(version: str) -> tuple[str, ...]:
-    require(isinstance(version, str) and re.fullmatch(r"0\.[6789]\.\d+(?:(?:a|b|rc)\d+)?", version) is not None,
-            "The installed-package check supports Desktop 0.6 through 0.9 releases.")
-    require(not version.startswith("0.8.") or (re.fullmatch(r"0\.8\.[0-9]+", version) and int(version.split(".")[2]) >= 2),
-            "The official Desktop check starts at 0.8.2.")
-    checks = CHECKS[:-2] if version.startswith("0.6.") else CHECKS
-    if not current_model(version):
-        checks = tuple("all_four_workflows" if key == "all_five_workflows" else key for key in checks)
-    if has_fetal_sex(version):
-        return (*checks, "fetal_sex_example")
-    return checks
-
-
-def has_fetal_sex(version: str) -> bool:
-    parsed = re.match(r"^(\d+)\.(\d+)\.(\d+)", version)
-    return parsed is not None and tuple(map(int, parsed.groups())) >= (0, 9, 10)
-
-
-def current_model(version: str) -> bool:
-    parsed = re.match(r"^(\d+)\.(\d+)\.(\d+)", version)
-    return parsed is not None and tuple(map(int, parsed.groups())) >= (0, 8, 50)
+    require(supported_stable_release(version), "Expected a NewPat release version from 0.9.99 onwards.")
+    return CHECKS
 
 
 def sha256(path: Path) -> str:
@@ -120,13 +106,13 @@ def check_state(state: dict, manifest: dict, manifest_hash: str) -> str:
     return image
 
 
-def check_workflows(runs: Path, uid: int, *, five_modules: bool = True) -> None:
+def check_workflows(runs: Path, uid: int) -> None:
     records = [json.loads(path.read_text()) for path in runs.glob("*/run.json")]
     successful = {record.get("workflow") for record in records
                   if record.get("status") == "succeeded"}
-    required = {"dnp-call", "snp-call", "contamination", "cpi"} | ({"cpin"} if five_modules else set())
+    required = {"dnp-call", "snp-call", "contamination", "cpi", "cpin", "fetal-sex"}
     require(required <= successful,
-            f"Installed CLI did not complete all {'five' if five_modules else 'four'} workflows: {successful}")
+            f"Installed CLI did not complete all six workflows: {successful}")
     files = [path for path in runs.rglob("*") if path.is_file()]
     require(bool(files), "No installed CLI results were written.")
     require(all(path.stat().st_uid == uid for path in files),
@@ -183,14 +169,12 @@ def check_automatic_plan(run_directory: Path, fixture: Path, manifest: dict,
             and record.get("bundled_workflow") == "workflow-plan-with-snp",
             "Installed automatic workflow did not complete.")
     source = record["source"]
-    require(source.get("role") == "client" and source.get("nipat_version") == manifest["version"]
+    require(source.get("role") == "client" and source.get("newpat_version") == manifest["version"]
             and source["release"]["source_git"]["commit"] == manifest["source_commit"]
             and record["runtime"]["image_id"] == image,
             "Installed workflow does not identify the tested package and loaded image.")
-    modern = current_model(manifest["version"])
     require(set(record["runtime"]["engine"]["plan_execution"]["workflows"])
-            == ({"dnp-call", "snp-call", "contamination", "cpi"} | ({"cpin"} if modern else set())
-                | ({"fetal-sex"} if has_fetal_sex(manifest["version"]) else set())),
+            == {"dnp-call", "snp-call", "contamination", "cpi", "cpin", "fetal-sex"},
             "Installed image lacks the complete plan interface.")
     require(len(record["commands"]) == 1 and "execute-plan" in record["commands"][0]["argv"],
             "Installed composition must execute in one scientific container.")
@@ -220,12 +204,8 @@ def check_automatic_plan(run_directory: Path, fixture: Path, manifest: dict,
         check_dnp_table(checked_artifact(root, artifact), fixture, sample)
     # In the synthetic SAMs, Other dinucleotides share the REF first base.
     snp_counts = (((21, 0), (11, 10), (1, 20)), ((1, 20), (13, 8), (21, 0)))
-    version = re.match(r"^(\d+)\.(\d+)\.(\d+)", manifest["version"])
-    require(version is not None, "Installed package has an invalid version.")
-    snp2 = tuple(map(int, version.groups())) >= (0, 8, 30)
-    allele_columns = ("REF", "ALT") if snp2 else ("Reference", "Alternative")
-    count_columns = (("N_REF", "N_ALT", "N_Other", "total_count") if snp2 else
-                     ("N_Reference", "N_Alternative", "N_Altro", "total_count"))
+    allele_columns = ("REF", "ALT")
+    count_columns = ("N_REF", "N_ALT", "N_Other", "total_count")
     for number, expected_counts in enumerate(snp_counts, 1):
         identifier = f"sample_{number:04d}"
         step = steps[f"snp_{number:04d}"]
@@ -243,26 +223,25 @@ def check_automatic_plan(run_directory: Path, fixture: Path, manifest: dict,
                     and tuple(int(row[name]) for name in count_columns)
                     == (*counts, 0, 21) and abs(float(row["ratio"]) - counts[0] / 21) < 1e-12,
                     "Installed SNP counts differ from the independent SAM oracle.")
-            if snp2:
-                require(set(row) == {"chr", "pos", "REF", "ALT", "N_REF", "N_ALT", "N_Other",
-                        "total_count", "ratio", "GL0", "GL1", "GL2", "GT", "reads_discarded_for_indels",
-                        "ratio_reads_discarded_for_indels", "combined_bases", "combined_counts"},
-                        "Installed SNPcall2.0 output does not have all17 scientific columns.")
-                # The committed SAM declares21 indel-free Phred40 observations.
-                error = 10 ** -4
-                likelihoods = (counts[0] * math.log1p(-error) + counts[1] * math.log(error),
-                               21 * math.log(0.5),
-                               counts[0] * math.log(error) + counts[1] * math.log1p(-error))
-                genotype = ("0/0", "0/1", "1/1")[max(range(3), key=likelihoods.__getitem__)]
-                observed = {base: count for base, count in sorted(zip(alleles, counts)) if count}
-                require(all(math.isclose(float(row[f"GL{index}"]), value, rel_tol=1e-12, abs_tol=1e-12)
-                            for index, value in enumerate(likelihoods)) and row["GT"] == genotype,
-                        "Installed SNP2 likelihoods or genotype differ from the independent Phred40 oracle.")
-                require(int(row["reads_discarded_for_indels"]) == 0
-                        and float(row["ratio_reads_discarded_for_indels"]) == 0
-                        and row["combined_bases"] == "-".join(observed)
-                        and row["combined_counts"] == "-".join(str(count) for count in observed.values()),
-                        "Installed SNP2 indel statistics or allele observations differ from the SAM oracle.")
+            require(set(row) == {"chr", "pos", "REF", "ALT", "N_REF", "N_ALT", "N_Other",
+                    "total_count", "ratio", "GL0", "GL1", "GL2", "GT", "reads_discarded_for_indels",
+                    "ratio_reads_discarded_for_indels", "combined_bases", "combined_counts"},
+                    "Installed SNPcall2.0 output does not have all 17 scientific columns.")
+            # The committed SAM declares 21 indel-free Phred40 observations.
+            error = 10 ** -4
+            likelihoods = (counts[0] * math.log1p(-error) + counts[1] * math.log(error),
+                           21 * math.log(0.5),
+                           counts[0] * math.log(error) + counts[1] * math.log1p(-error))
+            genotype = ("0/0", "0/1", "1/1")[max(range(3), key=likelihoods.__getitem__)]
+            observed = {base: count for base, count in sorted(zip(alleles, counts)) if count}
+            require(all(math.isclose(float(row[f"GL{index}"]), value, rel_tol=1e-12, abs_tol=1e-12)
+                        for index, value in enumerate(likelihoods)) and row["GT"] == genotype,
+                    "Installed SNP2 likelihoods or genotype differ from the independent Phred40 oracle.")
+            require(int(row["reads_discarded_for_indels"]) == 0
+                    and float(row["ratio_reads_discarded_for_indels"]) == 0
+                    and row["combined_bases"] == "-".join(observed)
+                    and row["combined_counts"] == "-".join(str(count) for count in observed.values()),
+                    "Installed SNP2 indel statistics or allele observations differ from the SAM oracle.")
         preparation = step["artifacts"]["preparation"]
         require(len(preparation) == 2 and {item["kind"] for item in preparation} == {"regions-bed", "pileup"}
                 and step["preparation_exit_code"] == 0 and (root / step["preparation_log"]).is_file(),
@@ -272,7 +251,7 @@ def check_automatic_plan(run_directory: Path, fixture: Path, manifest: dict,
     contamination = steps["contamination"]["artifacts"]
     rows = read_table(checked_artifact(root, contamination["summary"]))
     require(len(rows) == 2 and {row["individuo"] for row in rows} == {"table_0001", "table_0002"}
-            and all(int(row["informative_sites" if modern else "informative_DNPs"]) == 2 and float(row["mean_contamination"]) == 0
+            and all(int(row["informative_sites"]) == 2 and float(row["mean_contamination"]) == 0
                     and float(row["sd_contamination"]) == 0 for row in rows),
             "Installed Contamination differs from the two homozygous loci per sample.")
     tables = contamination["contamination-tables"]
@@ -314,7 +293,6 @@ def verify(package: Path, manifest_path: Path, work: Path, output: Path) -> None
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest_hash = sha256(manifest_path)
     checks = checks_for_version(manifest["version"])
-    composed = "automatic_workflow_plan" in checks
     evidence = {
         "schema_version": 1, "distribution": "native-linux-deb",
         "platform": "ubuntu-24.04-amd64", "scenario": "prepared-ci-runner",
@@ -327,7 +305,7 @@ def verify(package: Path, manifest_path: Path, work: Path, output: Path) -> None
     work.mkdir(parents=True, mode=0o700)
     work.chmod(0o700)
     environment = {key: value for key, value in os.environ.items()
-                   if not key.startswith(("NEWPAT_", "NIPAT_", "PYTHON", "DOCKER_", "COMPOSE_"))}
+                   if not key.startswith(("NEWPAT_", "PYTHON", "DOCKER_", "COMPOSE_"))}
     environment.update({"XDG_DATA_HOME": str(work / "user data with spaces"),
                         "XDG_STATE_HOME": str(work / "user state with spaces"),
                         "XDG_CONFIG_HOME": str(work / "user configuration è"),
@@ -335,7 +313,7 @@ def verify(package: Path, manifest_path: Path, work: Path, output: Path) -> None
     data = Path(environment["XDG_DATA_HOME"]) / PACKAGE
     state_file = Path(environment["XDG_STATE_HOME"]) / PACKAGE / "state.json"
     configuration_before = docker_configuration(Path.home())
-    foreign_tag = "nipat-linux-install-check-unrelated:" + uuid.uuid4().hex
+    foreign_tag = "newpat-linux-install-check-unrelated:" + uuid.uuid4().hex
     foreign_image = None
     installed = False
     try:
@@ -375,7 +353,7 @@ def verify(package: Path, manifest_path: Path, work: Path, output: Path) -> None
             if len(fields := line.split("\t")) == 3 and fields[1] == "install ok installed"
         }
         print("Installed dependency packages: " + json.dumps(evidence["dependency_packages"]), flush=True)
-        require(APP.is_dir() and Path(COMMAND).is_file() and Path(LEGACY_COMMAND).is_file(), "Installed application or launcher missing.")
+        require(APP.is_dir() and Path(COMMAND).is_file(), "Installed application or launcher missing.")
         installed_manifest = APP / ".distribution/installer-manifest.json"
         require(sha256(installed_manifest) == manifest_hash, "Installed common manifest differs.")
         scientific = manifest["assets"]["scientific_image"]
@@ -384,7 +362,6 @@ def verify(package: Path, manifest_path: Path, work: Path, output: Path) -> None
                 and sha256(installed_archive) == scientific["sha256"],
                 "The installed scientific archive differs from the Windows archive.")
         run([COMMAND, "--version"], environment=environment, cwd=work)
-        run([LEGACY_COMMAND, "--version"], environment=environment, cwd=work)
         require(not state_file.exists(), "--version unexpectedly prepared a runtime.")
         run([COMMAND, "--setup"], environment=environment, cwd=work)
         evidence["checks"]["initial_setup"] = True
@@ -449,32 +426,30 @@ def verify(package: Path, manifest_path: Path, work: Path, output: Path) -> None
         preferences.chmod(0o600)
         preferences_before = snapshot(configuration)
         run([COMMAND, "wizard"], environment=environment, cwd=work, input_bytes=b"0\n")
-        if composed:
-            run([COMMAND, "workflow", "dnp-contamination-cpi", "--pair", "installed_pair", str(bam), str(paternal),
-                 "--reference", str(inputs / "reference.fa"), "--panel", str(inputs / "DNP_list.txt"),
-                 "--popfreq", str(population), "--snp-panel", str(snp_panel), "--run-name", "installed-automatic-plan"],
-                environment=environment, cwd=work)
-            check_automatic_plan(data / "runs/installed-automatic-plan", fixture, manifest, image, [bam, paternal])
-            evidence["checks"]["automatic_workflow_plan"] = True
-        if has_fetal_sex(manifest["version"]):
-            fixture_root = APP / "tests/fixtures/fetal_sex"
-            for case in ("Female_fetus", "Male_fetus"):
-                argv = [COMMAND, "fetal-sex", "--run-name", "installed-" + case]
-                for option, region in (("--autosomes", "autosomes"), ("--x", "X"), ("--y", "Y")):
-                    argv.extend([option, str(fixture_root / "inputs" / f"{case}_{region}.txt")])
-                run(argv, environment=environment, cwd=work)
-                result = data / "runs" / ("installed-" + case) / "output"
-                for name in ("Fetal_sex_summary.txt", "Autosomal_informative_sites.txt",
-                             "X_informative_sites.txt", "Y_sites.txt"):
-                    expected_file = fixture_root / "outputs" / case / name
-                    require(read_table(result / name) == read_table(expected_file),
-                            f"Installed fetal sex result differs from the reference: {case}/{expected_file.name}")
-            evidence["checks"]["fetal_sex_example"] = True
+        run([COMMAND, "workflow", "dnp-contamination-cpi", "--pair", "installed_pair", str(bam), str(paternal),
+             "--reference", str(inputs / "reference.fa"), "--panel", str(inputs / "DNP_list.txt"),
+             "--popfreq", str(population), "--snp-panel", str(snp_panel), "--run-name", "installed-automatic-plan"],
+            environment=environment, cwd=work)
+        check_automatic_plan(data / "runs/installed-automatic-plan", fixture, manifest, image, [bam, paternal])
+        evidence["checks"]["automatic_workflow_plan"] = True
+        fixture_root = APP / "tests/fixtures/fetal_sex"
+        for case in ("Female_fetus", "Male_fetus"):
+            argv = [COMMAND, "fetal-sex", "--run-name", "installed-" + case]
+            for option, region in (("--autosomes", "autosomes"), ("--x", "X"), ("--y", "Y")):
+                argv.extend([option, str(fixture_root / "inputs" / f"{case}_{region}.txt")])
+            run(argv, environment=environment, cwd=work)
+            result = data / "runs" / ("installed-" + case) / "output"
+            for name in ("Fetal_sex_summary.txt", "Autosomal_informative_sites.txt",
+                         "X_informative_sites.txt", "Y_sites.txt"):
+                expected_file = fixture_root / "outputs" / case / name
+                require(read_table(result / name) == read_table(expected_file),
+                        f"Installed fetal sex result differs from the reference: {case}/{expected_file.name}")
+        evidence["checks"]["fetal_sex_example"] = True
         require(snapshot(inputs) == originals, "The installed workflow changed original inputs.")
         require(snapshot(configuration) == preferences_before, "Installed analysis changed saved preferences.")
         evidence["checks"]["private_inputs_unchanged"] = True
-        check_workflows(data / "runs", os.getuid(), five_modules=current_model(manifest["version"]))
-        evidence["checks"]["all_five_workflows" if current_model(manifest["version"]) else "all_four_workflows"] = True
+        check_workflows(data / "runs", os.getuid())
+        evidence["checks"]["all_six_workflows"] = True
         evidence["checks"]["user_owned_results"] = True
         sentinel = data / "data/user-sentinel.txt"
         sentinel.write_text("User data must survive reinstall and removal.\n", encoding="utf-8")
@@ -487,14 +462,13 @@ def verify(package: Path, manifest_path: Path, work: Path, output: Path) -> None
         evidence["checks"]["package_reinstallation"] = True
         run(["sudo", "-n", "apt-get", "-y", "remove", PACKAGE], environment=environment, cwd=work)
         installed = False
-        require(not Path(COMMAND).exists() and not Path(LEGACY_COMMAND).exists(),
+        require(not Path(COMMAND).exists(),
                 "Package removal left a launcher installed.")
         require(snapshot(data) == preserved and state_file.is_file()
                 and snapshot(configuration) == preferences_before,
                 "Package removal deleted or changed user data, results, preferences or runtime state.")
         evidence["checks"]["package_removal_preserves_user_data"] = True
-        if composed:
-            evidence["checks"]["preferences_preserved"] = True
+        evidence["checks"]["preferences_preserved"] = True
         foreign_after = json.loads(run([*DOCKER, "image", "inspect", foreign_tag],
                                        environment=environment, cwd=work))
         require(foreign_after[0]["Id"] == foreign_image, "Package lifecycle changed an unrelated image.")
@@ -502,10 +476,8 @@ def verify(package: Path, manifest_path: Path, work: Path, output: Path) -> None
                 "Package lifecycle changed the user's Docker context or daemon configuration.")
         run([*DOCKER, "image", "inspect", image], environment=environment, cwd=work)
         evidence["checks"]["shared_docker_unchanged"] = True
-        print("PASS: Linux package installation, four individual scientific analyses"
-              + (" and one automatic four-analysis plan" if composed else "")
-              + " as a non-root user, numeric results, repeated launch, reinstallation "
-              "and removal preserving data, preferences and shared Docker.", flush=True)
+        print("PASS: installed six scientific modules and checked their results, the automatic analysis "
+              "plan, repeated launch, reinstallation and removal on the shared Docker host.", flush=True)
     finally:
         output.write_text(json.dumps(evidence, indent=2) + "\n", encoding="utf-8")
         if installed:

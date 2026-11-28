@@ -1,6 +1,6 @@
 # NewPat documentation
 
-For a first run, install the package for your operating system, then open the guided demo with the three bundled samples. [Guida rapida in italiano](QUICKSTART_IT.md) · [English demo instructions](GUI.md#try-the-shared-example) · [0.9.10 release notes](RELEASE_0.9.10.md)
+For a first run, install the package for your operating system, then open the guided demo with the three bundled samples. [Guida rapida in italiano](QUICKSTART_IT.md) · [English demo instructions](GUI.md#try-the-shared-example) · [0.9.99 release notes](RELEASE_0.9.99.md)
 
 <a id="installare"></a>
 
@@ -37,4 +37,4 @@ For the published version, choose the installer under **Assets** on the release 
 | Trace a workflow from the desktop client to the scientific engine | [Architecture](ARCHITECTURE.md) · [Workflow contract](WORKFLOW_CONTRACT.md) · [Engine interface](../engine/README.md) |
 | Check a scientific module, its inputs and the evidence for its results | [Scientific components](../scientific/README.md) · [Scientific CI checks](CI_CD.md#scientific-checks) · [Validation worksheet](VALIDATION.md) |
 | Review a change, qualify an installer set or publish an accepted release | [CI and packaging](CI_CD.md) · [Installer acceptance](INSTALLER_ACCEPTANCE.md) · [Publication procedure](../.github/RELEASE.md) |
-| Review the 0.9.10 audit and outstanding verification work | [0.9.10 code audit](AUDIT_0.9.10.md) · [Verification priorities](ROADMAP.md) |
+| Review verification priorities for the current release | [Release roadmap](ROADMAP.md) |

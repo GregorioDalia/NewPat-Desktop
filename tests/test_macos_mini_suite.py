@@ -45,7 +45,7 @@ def test_mini_records_failures_and_completes_independent_cases(tmp_path, monkeyp
                                                       "source_commit": commit, "version": "0.9.99"})
     pinned = tmp_path / "source-commit"
     pinned.write_text("c" * 40 if problem == "wrong-build" else commit)
-    state = tmp_path / "Library/Application Support/NIPAT-Desktop/.runtime/macos/runtime.json"
+    state = tmp_path / "Library/Application Support/NewPat-Desktop/.runtime/macos/runtime.json"
     write(state, {"phase": "ready", "source_commit": commit, "runtime_image": image})
     monkeypatch.syspath_prepend(str(ROOT / "scripts/acceptance"))
     monkeypatch.setattr(sys, "platform", "darwin")

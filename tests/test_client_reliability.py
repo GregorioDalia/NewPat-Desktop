@@ -105,9 +105,9 @@ class StorageParityTests(unittest.TestCase):
 
     def test_direct_discovery_rejects_reserved_location_without_creating_it(self):
         target = self.root / "cache" / "analyses"
-        with patch.dict(os.environ, {"NIPAT_PROJECT_DIR": str(self.project),
-                                    "NIPAT_WORKSPACE_DIR": str(self.root),
-                                    "NIPAT_DATA_DIR": str(self.layout.data_dir)}):
+        with patch.dict(os.environ, {"NEWPAT_PROJECT_DIR": str(self.project),
+                                    "NEWPAT_WORKSPACE_DIR": str(self.root),
+                                    "NEWPAT_DATA_DIR": str(self.layout.data_dir)}):
             with self.assertRaisesRegex(ValidationError, "riservata"):
                 ProjectLayout.discover(runs_dir=target)
         self.assertFalse(target.exists())
@@ -195,7 +195,7 @@ class ExecutionPreferencesTests(unittest.TestCase):
 class RecoveryPresentationTests(unittest.TestCase):
     def report(self):
         return {"run_dir": "/research/runs/case", "run_name": "case", "recorded_status": "running",
-                "backend_matches": True, "containers": [{"container_name": "nipat-run-test",
+                "backend_matches": True, "containers": [{"container_name": "newpat-run-test",
                     "state": "running", "owned": True}], "stop_requested": False}
 
     def test_catalogs_have_identical_keys_and_format_fields(self):
@@ -337,7 +337,7 @@ class ClientRoutingTests(unittest.TestCase):
             with self.subTest(cleanup=cleanup, state=state):
                 report = RecoveryPresentationTests().report()
                 report["containers"][0]["cleanup"] = {"status": "removed"}
-                item = {"container_name": "nipat-run-second", "state": state}
+                item = {"container_name": "newpat-run-second", "state": state}
                 if cleanup is not None:
                     item["cleanup"] = {"status": cleanup}
                 report["containers"].append(item)

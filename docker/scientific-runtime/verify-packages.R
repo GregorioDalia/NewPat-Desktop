@@ -1,6 +1,6 @@
 # The dated CRAN repository also constrains transitive dependency resolution.
 expected <- read.delim(
-  "/usr/share/nipat/r-packages.tsv",
+  "/usr/share/newpat/r-packages.tsv",
   colClasses = "character",
   check.names = FALSE
 )
@@ -27,6 +27,6 @@ for (i in seq_len(nrow(expected))) {
 # Retain all installed packages, including dependencies and R's base packages.
 inventory <- installed.packages()[, c("Package", "Version", "Built"), drop = FALSE]
 inventory <- inventory[order(inventory[, "Package"], inventory[, "Version"]), , drop = FALSE]
-write.table(inventory, "/usr/share/nipat/r-versions.tsv",
+write.table(inventory, "/usr/share/newpat/r-versions.tsv",
             sep = "\t", quote = FALSE, row.names = FALSE)
-message("Verified ", nrow(expected), " pinned NIPAT R packages.")
+message("Verified ", nrow(expected), " pinned NewPat R packages.")

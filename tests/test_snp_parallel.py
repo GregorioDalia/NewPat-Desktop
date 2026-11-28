@@ -31,14 +31,14 @@ if args[0] == "-e":
     estimate = None if args[-1] == "unknown" else int(args[-1])
     capacity = int(os.environ.get("SNP_FIXTURE_MEMORY_MIB", 16384))
     slots = max(1, capacity // estimate) if estimate else 1
-    cap = int(os.environ.get("NIPAT_MAX_WORKERS") or tasks)
+    cap = int(os.environ.get("NEWPAT_MAX_WORKERS") or tasks)
     print(json.dumps({"mode":"auto", "max_workers":cap, "workers":min(tasks,cap,slots),
                       "tasks":tasks, "memory_budget_mib":capacity+60, "coordinator_rss_mib":60,
                       "memory_per_worker_mib":estimate, "reason":"controlled-test-budget"}))
     raise SystemExit(0)
 if pathlib.Path(args[0]).name == "contamination.R":
     selected, output = pathlib.Path(args[2]), pathlib.Path(args[3])
-    (output / "scientific-settings.json").write_bytes(pathlib.Path(os.environ["NIPAT_SCIENTIFIC_SETTINGS"]).read_bytes())
+    (output / "scientific-settings.json").write_bytes(pathlib.Path(os.environ["NEWPAT_SCIENTIFIC_SETTINGS"]).read_bytes())
     names = [source.stem for source in sorted(selected.iterdir())]
     for name in names:
         (output / ("contamination_" + name + ".txt")).write_text("chr\tpos\tcontamination\nchr1\t10\t0.01\n")
@@ -58,7 +58,7 @@ if mode != "normal":
     time.sleep(120)
 time.sleep(.25)
 out = pathlib.Path(args[args.index("--out")+1])
-(out.parent / "scientific-settings.json").write_bytes(pathlib.Path(os.environ["NIPAT_SCIENTIFIC_SETTINGS"]).read_bytes())
+(out.parent / "scientific-settings.json").write_bytes(pathlib.Path(os.environ["NEWPAT_SCIENTIFIC_SETTINGS"]).read_bytes())
 out.write_text("chr\tpos\tREF\tALT\tN_REF\tN_ALT\tN_Other\ttotal_count\tratio\tGL0\tGL1\tGL2\tGT\treads_discarded_for_indels\tratio_reads_discarded_for_indels\tcombined_bases\tcombined_counts\n"
                "chr1\t10\tA\tG\t1\t1\t0\t2\t0.5\t-9.21\t-1.386\t-9.21\t0/1\t0\t0\tA-G\t1-1\n")
 summary = out.parent / "summary"
@@ -76,7 +76,7 @@ for name in ("N_genotypes", "Ref_read_count", "Alt_read_count", "Other_read_coun
 @unittest.skipUnless(os.name == "posix", "Scientific batch execution runs inside Linux")
 class SnpParallelTests(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="nipat-snp-batch-")
+        self.temporary = tempfile.TemporaryDirectory(prefix="newpat-snp-batch-")
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name).resolve()
         self.bin = self.root / "bin"
@@ -97,7 +97,7 @@ class SnpParallelTests(unittest.TestCase):
                 "inputs": {"sample": f"sample{index}", "panel": str(panel), "reference": None},
                 "parameters": {"mode": "pileup"}})
         self.environment = {"PATH": str(self.bin) + os.pathsep + os.environ["PATH"],
-                            "NIPAT_PARALLEL_CHILD": "", "NIPAT_EXECUTION_MODE": "auto", "NIPAT_MAX_WORKERS": ""}
+                            "NEWPAT_PARALLEL_CHILD": "", "NEWPAT_EXECUTION_MODE": "auto", "NEWPAT_MAX_WORKERS": ""}
 
     def execute(self, run, **environment):
         with patch.dict(os.environ, {**self.environment, **environment}), \
@@ -110,13 +110,13 @@ class SnpParallelTests(unittest.TestCase):
 
     def test_three_samples_auto_and_manual_two_equal_serial_without_nested_workers(self):
         serial_dir = self.root / "serial"
-        serial = self.execute(serial_dir, NIPAT_EXECUTION_MODE="serial")
+        serial = self.execute(serial_dir, NEWPAT_EXECUTION_MODE="serial")
         self.assertEqual(serial["status"], "succeeded", serial)
         expected = self.table_values(serial, serial_dir)
         self.assertFalse((serial_dir / "parallel/snp").exists())
         for mode, cap, expected_workers in (("auto", "", 3), ("manual", "2", 2)):
             run = self.root / mode
-            state = self.execute(run, NIPAT_MAX_WORKERS=cap)
+            state = self.execute(run, NEWPAT_MAX_WORKERS=cap)
             self.assertEqual(state["status"], "succeeded", state)
             self.assertEqual(expected, self.table_values(state, run))
             self.assertEqual(state, json.loads((run / "workflow-state.json").read_text()))
@@ -133,8 +133,8 @@ class SnpParallelTests(unittest.TestCase):
             self.assertEqual(maximum, expected_workers)
             for record in state["steps"]:
                 observed = json.loads((run / record["work_dir"] / "observed-environment.json").read_text())
-                self.assertEqual(observed["NIPAT_PARALLEL_CHILD"], "1")
-                self.assertEqual(observed["NIPAT_MAX_WORKERS"], "1")
+                self.assertEqual(observed["NEWPAT_PARALLEL_CHILD"], "1")
+                self.assertEqual(observed["NEWPAT_MAX_WORKERS"], "1")
                 self.assertTrue(all(observed[key] == "1" for key in THREAD_LIMITS))
                 worker_state = json.loads((run / "parallel/snp" / f"state-{record['id']}.json").read_text())
                 self.assertEqual(record, worker_state)
@@ -146,7 +146,7 @@ class SnpParallelTests(unittest.TestCase):
         pileup = Path(self.plan["samples"][2]["path"])
         with pileup.open("a") as stream:
             stream.write("chr1\t10\tA\t1\t.\tI\t" + "x" * (2 * 1024 * 1024) + "\n")
-        state = self.execute(run, NIPAT_MAX_WORKERS="3", SNP_FIXTURE_MEMORY_MIB="3200")
+        state = self.execute(run, NEWPAT_MAX_WORKERS="3", SNP_FIXTURE_MEMORY_MIB="3200")
         self.assertEqual(state["status"], "succeeded", state)
         self.assertEqual(state["snp_parallel"]["workers"], 2)
         directory = run / "parallel/snp"
@@ -183,7 +183,7 @@ class SnpParallelTests(unittest.TestCase):
             return sizes[int(step["id"][-1])] * 1024**2, {"basis": "fixture"}
         run = self.root / "weighted"
         with patch("newpat_scientific.snp_parallel._sample_estimate", side_effect=estimate):
-            state = self.execute(run, NIPAT_MAX_WORKERS="4", SNP_FIXTURE_MEMORY_MIB="1900")
+            state = self.execute(run, NEWPAT_MAX_WORKERS="4", SNP_FIXTURE_MEMORY_MIB="1900")
         self.assertEqual(state["status"], "succeeded", state)
         self.assertEqual(state["snp_parallel"]["workers"], 3)
         observed = self.active_sets(run / "parallel/snp")
@@ -197,7 +197,7 @@ class SnpParallelTests(unittest.TestCase):
             size = None if step["id"] == "snp0" else 800 * 1024**2
             return size, {"basis": "fixture"}
         with patch("newpat_scientific.snp_parallel._sample_estimate", side_effect=estimate):
-            state = self.execute(run, NIPAT_MAX_WORKERS="3", SNP_FIXTURE_MEMORY_MIB="2200")
+            state = self.execute(run, NEWPAT_MAX_WORKERS="3", SNP_FIXTURE_MEMORY_MIB="2200")
         self.assertEqual(state["status"], "succeeded", state)
         self.assertEqual(state["snp_parallel"]["workers"], 2)
         directory = run / "parallel/snp"
@@ -208,8 +208,8 @@ class SnpParallelTests(unittest.TestCase):
         self.assertEqual([s["id"] for s in state["steps"]], ["snp0", "snp1", "snp2"])
         for index, record in enumerate(state["steps"]):
             env = json.loads((run / record["work_dir"] / "observed-environment.json").read_text())
-            self.assertEqual(env["NIPAT_PARALLEL_CHILD"], "" if index == 0 else "1")
-            self.assertEqual(env["NIPAT_MAX_WORKERS"], "3" if index == 0 else "1")
+            self.assertEqual(env["NEWPAT_PARALLEL_CHILD"], "" if index == 0 else "1")
+            self.assertEqual(env["NEWPAT_MAX_WORKERS"], "3" if index == 0 else "1")
 
     def test_bam_estimate_uses_decompressed_records_or_bounded_depth_then_real_panel_count(self):
         reference = self.root / "reference.fa"
@@ -363,7 +363,7 @@ class SnpParallelTests(unittest.TestCase):
             "samples": [{"sample": "sample2", "step": "snp2", "output": "snp-tables"},
                         {"sample": "sample0", "step": "snp0", "output": "snp-tables"}],
             "panel": str(panel)}, "parameters": {}})
-        with patch.dict(os.environ, {**self.environment, "NIPAT_MAX_WORKERS": "2"}), \
+        with patch.dict(os.environ, {**self.environment, "NEWPAT_MAX_WORKERS": "2"}), \
                 patch("newpat_scientific.snp_summary.finalize_snp_summaries", return_value=[]):
             run = self.root / "mixed"
             state = execute_plan(self.plan, run_dir=run,
@@ -379,9 +379,9 @@ class SnpParallelTests(unittest.TestCase):
         self.assertTrue(all(row["status"] == "succeeded" for row in state["steps"]))
 
     def test_ineligible_plans_never_query_a_budget_or_launch_workers(self):
-        scenarios = [({"NIPAT_EXECUTION_MODE": "serial"}, self.plan),
-                     ({"NIPAT_MAX_WORKERS": "1"}, self.plan),
-                     ({"NIPAT_PARALLEL_CHILD": "1"}, self.plan),
+        scenarios = [({"NEWPAT_EXECUTION_MODE": "serial"}, self.plan),
+                     ({"NEWPAT_MAX_WORKERS": "1"}, self.plan),
+                     ({"NEWPAT_PARALLEL_CHILD": "1"}, self.plan),
                      ({}, {"steps": self.plan["steps"][:1]})]
         with patch("newpat_scientific.snp_parallel._query_budget") as budget:
             for environment, plan in scenarios:
@@ -470,7 +470,7 @@ class SnpParallelTests(unittest.TestCase):
 
                 run = self.root / failure
                 with patch.object(Path, "read_text", read):
-                    state = self.execute(run, NIPAT_MAX_WORKERS="2")
+                    state = self.execute(run, NEWPAT_MAX_WORKERS="2")
                 self.assertEqual(state["status"], "failed", state)
                 self.assertEqual(state["error"]["code"], "execution.worker_state", state["error"])
                 self.assertIn("state-snp0.json", state["error"]["message"])
@@ -502,7 +502,7 @@ class SnpParallelTests(unittest.TestCase):
 
     def test_failure_stops_running_siblings_and_does_not_start_pending_sample(self):
         run = self.root / "failed"
-        state = self.execute(run, NIPAT_MAX_WORKERS="2", SNP_FIXTURE_MODE="fail")
+        state = self.execute(run, NEWPAT_MAX_WORKERS="2", SNP_FIXTURE_MODE="fail")
         self.assertEqual(state["status"], "failed", state)
         self.assertEqual(state["exit_code"], 17)
         self.assertEqual(state["steps"][0]["status"], "failed")
@@ -522,7 +522,7 @@ class SnpParallelTests(unittest.TestCase):
 
         run = self.root / "failed-with-unreadable-sibling"
         with patch.object(Path, "read_text", read):
-            state = self.execute(run, NIPAT_MAX_WORKERS="2", SNP_FIXTURE_MODE="fail")
+            state = self.execute(run, NEWPAT_MAX_WORKERS="2", SNP_FIXTURE_MODE="fail")
         self.assertEqual(state["status"], "failed", state)
         self.assertEqual(state["exit_code"], 17)
         self.assertEqual(state["error"]["code"], "execution.process")
@@ -542,7 +542,7 @@ class SnpParallelTests(unittest.TestCase):
                 "from newpat_scientific.executor import execute_plan; c=json.load(open(sys.argv[1])); "
                 "p=patch('newpat_scientific.snp_summary.finalize_snp_summaries',return_value=[]); p.start(); "
                 "execute_plan(c['plan'],run_dir=Path(c['run']),script_paths={'snp-call':Path(c['script'])})")
-        environment = {**os.environ, **self.environment, "NIPAT_MAX_WORKERS": "2", "SNP_FIXTURE_MODE": "cancel"}
+        environment = {**os.environ, **self.environment, "NEWPAT_MAX_WORKERS": "2", "SNP_FIXTURE_MODE": "cancel"}
         with (self.root / "coordinator.log").open("wb") as log:
             coordinator = subprocess.Popen([sys.executable, "-c", code, str(config)], env=environment, stdout=log, stderr=log)
             try:

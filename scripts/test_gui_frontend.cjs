@@ -18,10 +18,10 @@ handlers['references.list']=()=>({entries:referenceTestEntries});
 handlers['references.download_status']=()=>transferTestState;
 handlers['references.resolve']=({id})=>({entry:referenceTestEntries.find(e=>e.id===id)});
 handlers['runs.curve']=p=>handlers['runs.table']({...p,offset:0,limit:20000});
-const env={console,document,performance:testClock,Intl,URL,AbortController,location:{href:'http://127.0.0.1:1234/token/web/index.html',origin:'http://127.0.0.1:1234'},setTimeout:()=>1,clearTimeout(){},fetch:async(url,options)=>{assert.equal(url,'../api');const body=JSON.parse(options.body);requests.push(body);const fn=handlers[body.method];assert(fn,'Unexpected RPC '+body.method);return{ok:true,json:async()=>({id:body.id,result:fn(body.params)})}},NipatIGV:{dispose(){navigationCallback=null},getNavigation(){return {locus:env.locus||'all',chromosome:env.locus&&env.locus!=='all'?env.locus.split(':')[0]:'all',chromosomes:[{name:'chr1',length:1000000},{name:'X',length:100000}],canBack:!!env.locus,canZoom:!!env.locus&&env.locus!=='all',wholeGenome:!env.locus||env.locus==='all'}},onNavigation(callback){navigationCallback=callback;callback(this.getNavigation());return()=>{navigationCallback=null}},async wholeGenome(){await this.search('all')},async back(){await this.search('chr1:100-200')},async zoomIn(){await this.search('chr1:125-175')},async zoomOut(){await this.search('chr1:50-250')},setLanguage(){},resize(){},async mount(node,config){env.viewer={node,config}},async search(locus){env.locus=locus;navigationCallback?.(this.getNavigation())},async exportSession(){return {locus:'chr1:100-200',tracks:[]}}}};env.window=env;vm.createContext(env);vm.runInContext(fs.readFileSync(path.join(web,'i18n.js'),'utf8'),env);vm.runInContext(fs.readFileSync(path.join(web,'app.js'),'utf8'),env);
+const env={console,document,performance:testClock,Intl,URL,AbortController,location:{href:'http://127.0.0.1:1234/token/web/index.html',origin:'http://127.0.0.1:1234'},setTimeout:()=>1,clearTimeout(){},fetch:async(url,options)=>{assert.equal(url,'../api');const body=JSON.parse(options.body);requests.push(body);const fn=handlers[body.method];assert(fn,'Unexpected RPC '+body.method);return{ok:true,json:async()=>({id:body.id,result:fn(body.params)})}},NewPatIGV:{dispose(){navigationCallback=null},getNavigation(){return {locus:env.locus||'all',chromosome:env.locus&&env.locus!=='all'?env.locus.split(':')[0]:'all',chromosomes:[{name:'chr1',length:1000000},{name:'X',length:100000}],canBack:!!env.locus,canZoom:!!env.locus&&env.locus!=='all',wholeGenome:!env.locus||env.locus==='all'}},onNavigation(callback){navigationCallback=callback;callback(this.getNavigation());return()=>{navigationCallback=null}},async wholeGenome(){await this.search('all')},async back(){await this.search('chr1:100-200')},async zoomIn(){await this.search('chr1:125-175')},async zoomOut(){await this.search('chr1:50-250')},setLanguage(){},resize(){},async mount(node,config){env.viewer={node,config}},async search(locus){env.locus=locus;navigationCallback?.(this.getNavigation())},async exportSession(){return {locus:'chr1:100-200',tracks:[]}}}};env.window=env;vm.createContext(env);vm.runInContext(fs.readFileSync(path.join(web,'i18n.js'),'utf8'),env);vm.runInContext(fs.readFileSync(path.join(web,'app.js'),'utf8'),env);
 const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(condition,label)=>{assert(condition,label);checks.push(label)};
 (async()=>{
- await tick();await tick();const app=env.NipatApp;
+ await tick();await tick();const app=env.NewPatApp;
  const recent=app.state.recentRuns;
  const emptyActivity=app.renderActivity();
  check(emptyActivity.includes('Nessuna analisi avviata in questa sessione')&&emptyActivity.includes('data-view="archive"'),'Empty Activity identifies its session and opens the archive');
@@ -128,13 +128,13 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
   ['it','Risultato non disponibile (NA)','Nelle tabelle, NA indica che il programma non ha potuto determinare il valore.'],
   ['en','Unavailable result (NA)','In the tables, NA means the program could not determine the value.'],
  ]){
-  env.NipatI18n.setLanguage(language);
+  env.NewPatI18n.setLanguage(language);
   app.state.catalogModule='dnp-call';app.state.catalogSearch='(NA)';app.render();
   const glossary=element('main').innerHTML;
   check(glossary.includes(`<h3>${label}</h3><p>${description}</p></div>`),'The DNP glossary explains the literal table marker once in '+language);
   check((glossary.match(/class="parameter-row"/g)||[]).length===1,'The literal marker can be searched in '+language);
  }
- env.NipatI18n.setLanguage('it');app.state.catalogModule='all';app.state.catalogSearch='';app.render();
+ env.NewPatI18n.setLanguage('it');app.state.catalogModule='all';app.state.catalogSearch='';app.render();
  check(app.constantValue('cpi','population_frequencies',{}).includes('<mn>0</mn><mo>&lt;</mo><mi>p</mi><mo>≤</mo><mn>1</mn>'),'CPI domain excludes zero and includes one');
  const prenatalFilter={dataset:{parameter:'cpi|min_fetal_percent|draft'},type:'number',value:'2.5'};
  app.onValue(prenatalFilter);
@@ -241,13 +241,13 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
  check(app.state.view==='igv'&&requests.some(r=>r.method==='igv.about'&&Object.keys(r.params).length===0),'Guide action sends no file or session parameters and preserves the viewer');
  handlers['igv.about']=()=>({opened:false});
  await assert.rejects(app.action('igv-about',{}),/browser predefinito/);
- await app.changeLanguage('en');check(env.NipatI18n.language==='en'&&requests.some(r=>r.method==='ui.save'&&r.params.preferences.language==='en'),'Language choice persisted');await app.navigate('new');check(element('main').innerHTML.includes('Add samples')&&!element('main').innerHTML.includes('Aggiungi campioni'),'Main workflow translated to English');
- check(app.choiceLabel('both')==='Both site selections'&&env.NipatI18n.t('frequencyDomain').includes('zero is excluded'),'English scientific labels carry the same meaning');
+ await app.changeLanguage('en');check(env.NewPatI18n.language==='en'&&requests.some(r=>r.method==='ui.save'&&r.params.preferences.language==='en'),'Language choice persisted');await app.navigate('new');check(element('main').innerHTML.includes('Add samples')&&!element('main').innerHTML.includes('Aggiungi campioni'),'Main workflow translated to English');
+ check(app.choiceLabel('both')==='Both site selections'&&env.NewPatI18n.t('frequencyDomain').includes('zero is excluded'),'English scientific labels carry the same meaning');
  app.onValue({dataset:{field:'source'},type:'select-one',value:'tables'});check(app.state.draft.caller==='tables'&&app.state.draft.samples.length===0,'Tables path excludes raw input calling');app.state.sampleKind='dnp-table';dialogPaths=['/counts/A.txt'];await app.action('add-samples',{});app.onValue({dataset:{branch:'DNP|cpin'},type:'checkbox',checked:true});check(app.selectedModules().join(',')==='cpin','Tables-only CPIN does not run DNP or SNP');
  await app.navigate('settings');await app.action('save-preferences',{});check(requests.some(r=>r.method==='preferences.save'&&r.params.baseline),'Preferences save uses concurrency baseline');await app.navigate('environment');app.state.runtimeMemory=4096;app.state.runtimeCpus=2;await app.action('preview-resources',{});check(!requests.some(r=>r.method==='resources.apply'),'Resource preview makes no mutation');await app.action('apply-resources',{});check(requests.at(-2).method==='resources.apply'&&requests.at(-2).params.confirmed,'Resources apply only confirmed preview');await app.action('check-updates',{});await app.action('download-update',{});await app.action('confirm-install-update',{});check(requests.at(-1).method==='app.close','Successful install handoff requests native close');
- const previousCheck=handlers['updates.check'],previousDownload=handlers['updates.download'],previousLanguage=env.NipatI18n.language;
+ const previousCheck=handlers['updates.check'],previousDownload=handlers['updates.download'],previousLanguage=env.NewPatI18n.language;
  for(const [language,architecture,caption] of [['it','arm64','Mostra nel Finder'],['en','x86_64','Show in Finder']]){
-  env.NipatI18n.setLanguage(language);
+  env.NewPatI18n.setLanguage(language);
   handlers['updates.check']=()=>({status:'available',offer_id:architecture,offer:{version:'0.9.11',channel:'stable',asset:{platform:'darwin-'+architecture}}});
   handlers['updates.download']=()=>({status:'verified',path:'/Users/A & B/Library/Caches/NewPat-'+architecture+'.pkg'});
   handlers['updates.reveal']=()=>({status:'revealed'});
@@ -259,11 +259,11 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
   check(requests.at(-1).method==='updates.reveal'&&requests.at(-1).params.offer_id===architecture,'Finder receives only the selected offer');
   check(!requests.slice(before).some(r=>r.method==='updates.install'||r.method==='app.close'),'Mac manual installation keeps the application open');
  }
- handlers['updates.check']=previousCheck;handlers['updates.download']=previousDownload;delete handlers['updates.reveal'];env.NipatI18n.setLanguage(previousLanguage);
+ handlers['updates.check']=previousCheck;handlers['updates.download']=previousDownload;delete handlers['updates.reveal'];env.NewPatI18n.setLanguage(previousLanguage);
  await app.navigate('igv');app.state.igv.reference={fasta:'/ref.fa',index:'/ref.fa.fai'};app.state.igv.tracks=[{name:'Sample',path:'/a.bam',index:'/a.bam.bai'}];await app.action('igv-load',{});check(env.viewer&&requests.some(r=>r.method==='igv.prepare'&&r.params.reference.fasta==='/ref.fa'),'IGV registers real local source paths');app.state.igv.locus='chr1:100-200';await app.action('igv-search',{});check(env.locus==='chr1:100-200','Locus search reaches embedded IGV');app.state.igv.reference.fasta='/unapplied.fa';await app.action('igv-save',{});check(!JSON.stringify(requests.at(-1).params).includes('/token/'),'Saved IGV session contains no ephemeral capability URL');check(requests.at(-1).params.session.reference.fasta==='/ref.fa','IGV session saves the displayed sources, not unapplied form edits');
 
  // Regression coverage for real service contracts and stale asynchronous responses.
- check(document.documentElement.dataset.nipatReady==='true','Native readiness set only after successful boot');
+ check(document.documentElement.dataset.newpatReady==='true','Native readiness set only after successful boot');
  const sparse=app.normalizeDraft({caller:'snp',samples:[{id:'A',path:'/a.pileup',kind:'snp-pileup'}],branches:{SNP:[]},scientific_settings:{'snp-call':{max_depth:7}}});
  check(Array.isArray(sparse.branches.DNP)&&sparse.scientific_settings.cpin.min_coverage===null&&sparse.scientific_settings['snp-call'].max_depth===7,'Legacy reuse normalized without losing recorded overrides');
  app.state.draft=sparse;app.state.draft.reference='/hidden.fa';app.state.draft.branches.DNP=['cpin'];app.state.draft.families.cpin=[{id:'hidden'}];const clean=app.submittedDraft();check(clean.reference===null&&clean.branches.DNP.length===0&&clean.families.cpin.length===0,'Hidden reference branches and families omitted from submitted plan');
@@ -546,7 +546,7 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
  await app.action('igv-load',{});app.state.igv.navigation={wholeGenome:true};check(app.renderIgvNavigation().includes('under 100,000 bases'),'Loaded alignment at whole-genome scale shows zoom instructions');app.state.igv.navigation={start:1,end:100,wholeGenome:false};check(app.renderIgvNavigation().includes('If no reads appear'),'Narrow region guidance does not invent absent coverage');
  app.state.igv.loadedSources.tracks=[{path:'/sample.CRAM'}];check(!app.renderIgvNavigation().includes('The reference is open'),'CRAM is recognised as an alignment');
  check(html.includes('<title>NewPat</title>')&&element('breadcrumb').textContent.startsWith('NewPat / '),'Visible shell and breadcrumb use the NewPat name');
- check(Object.values(env.NipatI18n.strings).every(pair=>pair.every(value=>!value.includes('NIPAT'))),'All UI translations use the new product name');
+ check(Object.values(env.NewPatI18n.strings).every(pair=>pair.every(value=>!value.includes('NIPAT'))),'All UI translations use the new product name');
  app.state.run={...run,version:'0.8.99'};app.state.runTab='provenance';check(app.renderRun().includes('Application version</dt><dd>0.8.99'),'Historical provenance keeps its recorded version without assigning a new historical brand');
  // Interactive scientific curves use original rows, offline, with mouse and keyboard details.
  const prenatal={file:{id:'prenatal',name:'family_panel_A.csv',kind:'table',cutoff:'A'},columns:[{key:'Iteration',label:'Minimum fetal reads'},{key:'log_CPI',label:'log₁₀(CPI)'},{key:'CPI',label:'CPI'},{key:'NotMismatch',label:'Matching sites'},{key:'Mismatch',label:'Mismatching sites'}],rows:[{Iteration:'2',log_CPI:'-3.123456789012345',CPI:'0.0007525631256789',NotMismatch:'12',Mismatch:'2'},{Iteration:'3',log_CPI:'0',CPI:'1',NotMismatch:'10',Mismatch:'0'},{Iteration:'4',log_CPI:'NA',CPI:'Inf',NotMismatch:'8',Mismatch:'1'}],total:3,has_more:false};
@@ -617,8 +617,8 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const check=(conditio
  check(app.renderNew().includes('data-parameter="snp-call|other_fraction_max|draft"'),'Catalog search leaves wizard parameters visible');
  check(app.state.draft===wizard&&app.state.step===2&&!app.renderNew().includes('data-execution="dnp_block_mib|draft"'),'Returning to the wizard preserves its SNP draft and omits inapplicable DNP-only execution settings');
  await app.action('page-back',{});check(app.state.step===1&&app.state.draft.name==='Draft to keep','Back within the wizard keeps sample inputs intact');
- for(const [key,pair] of Object.entries(env.NipatI18n.strings))check(pair.length===2&&pair.every(x=>typeof x==='string'&&x.length),'Translation pair '+key);
- const listBeforeFailure=handlers['runs.list'];handlers['runs.list']=()=>{throw new Error('Archive unavailable')};await app.boot();check(!document.documentElement.dataset.nipatReady&&element('main').innerHTML.includes('Impossibile caricare'),'Failed initial archive load cannot report native app readiness');handlers['runs.list']=listBeforeFailure;await app.boot();check(document.documentElement.dataset.nipatReady==='true','Retry bootstrap restores readiness only after successful render');
+ for(const [key,pair] of Object.entries(env.NewPatI18n.strings))check(pair.length===2&&pair.every(x=>typeof x==='string'&&x.length),'Translation pair '+key);
+ const listBeforeFailure=handlers['runs.list'];handlers['runs.list']=()=>{throw new Error('Archive unavailable')};await app.boot();check(!document.documentElement.dataset.newpatReady&&element('main').innerHTML.includes('Impossibile caricare'),'Failed initial archive load cannot report native app readiness');handlers['runs.list']=listBeforeFailure;await app.boot();check(document.documentElement.dataset.newpatReady==='true','Retry bootstrap restores readiness only after successful render');
  await app.navigate('environment');
  for(const lang of ['it','en']){
   await app.changeLanguage(lang);

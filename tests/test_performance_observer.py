@@ -20,8 +20,8 @@ from newpat.paths import ProjectLayout
 
 CONTAINER = "a" * 64
 IMAGE = "sha256:" + "b" * 64
-NAME = "nipat-run-" + "c" * 32
-LABELS = {"org.nipat.execution-token": "d" * 32}
+NAME = "newpat-run-" + "c" * 32
+LABELS = {"org.newpat.execution-token": "d" * 32}
 
 
 def stats(**changes):
@@ -372,7 +372,7 @@ class RunnerObserverTests(unittest.TestCase):
         self.assertEqual(record["commands"][0]["performance_diagnostics"]["summary"], "performance/summary.json")
         self.assertEqual(factory.return_value.start.call_count, 1)
         argv = launched.call_args.args[0]
-        self.assertTrue(any(part.startswith("NIPAT_PERFORMANCE_DIR=/workspace/runs/case/performance/engine")
+        self.assertTrue(any(part.startswith("NEWPAT_PERFORMANCE_DIR=/workspace/runs/case/performance/engine")
                             for part in argv))
 
     def test_failure_and_cancellation_still_stop_the_observer(self):
@@ -415,7 +415,7 @@ class RunnerObserverTests(unittest.TestCase):
                 if dry:
                     launched.assert_not_called()
                 else:
-                    self.assertFalse(any(part.startswith("NIPAT_PERFORMANCE_DIR=")
+                    self.assertFalse(any(part.startswith("NEWPAT_PERFORMANCE_DIR=")
                                          for part in launched.call_args.args[0]))
                 self.assertNotIn("performance_diagnostics", record["commands"][0])
 

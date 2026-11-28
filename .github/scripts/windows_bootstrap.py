@@ -1,7 +1,7 @@
 """Prepare, reuse and bind the stable online installer independently of app versions."""
 from __future__ import annotations
 
-from release_layout import source_path
+from release_layout import uses_newpat_layout
 
 import argparse
 import hashlib
@@ -14,10 +14,10 @@ import tempfile
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
-BOOTSTRAP_VERSION = "1.2.0"
+BOOTSTRAP_VERSION = "2.0.0"
 BOOTSTRAP_SOURCES = (
-    "installer/windows/NIPAT.iss", "installer/windows/bootstrap-profile.iss",
-    "installer/windows/bootstrap_download.py", "LICENSE", "assets/branding/nipat-icon.ico",
+    "installer/windows/NewPat.iss", "installer/windows/bootstrap-profile.iss",
+    "installer/windows/bootstrap_download.py", "LICENSE", "assets/branding/newpat-icon.ico",
     ".github/scripts/install_inno.ps1",
 )
 PYTHON_NAME = "python-3.12.10-embed-amd64.zip"
@@ -42,8 +42,7 @@ def digest(path):
 
 
 def identities(manifest):
-    names = [source_path(path, manifest["version"]) for path in BOOTSTRAP_SOURCES]
-    result = {name: manifest["source_sha256"][name] for name in names}
+    result = {name: manifest["source_sha256"][name] for name in BOOTSTRAP_SOURCES}
     result[".distribution/" + PYTHON_NAME] = PYTHON_SHA256
     require(all(isinstance(value, str) and re.fullmatch(r"[a-f0-9]{64}", value)
                 for value in result.values()), "Invalid stable bootstrap inputs")
@@ -111,6 +110,8 @@ def reuse(stage, output, *, fetcher=None):
             "Bootstrap reuse requires a stable public release")
     tag = metadata.get("tag_name", "")
     require(re.fullmatch(r"v\d+\.\d+\.\d+", tag), "Unexpected bootstrap baseline tag")
+    if not uses_newpat_layout(tag[1:]):
+        return False
     assets = {asset["name"]: asset for asset in metadata["assets"]}
     require(len(assets) == len(metadata["assets"]), "Duplicate baseline release assets")
     if "installer-build.json" not in assets:
@@ -125,20 +126,20 @@ def reuse(stage, output, *, fetcher=None):
                 "Baseline asset identity is invalid")
         return release.checked_download(url, destination, checksum[7:], asset["size"], maximum=maximum)
 
-    with tempfile.TemporaryDirectory(prefix="nipat-bootstrap-reuse-") as directory:
+    with tempfile.TemporaryDirectory(prefix="newpat-bootstrap-reuse-") as directory:
         record = json.loads(download("installer-build.json", Path(directory) / "build.json", 1024 * 1024).read_bytes())
         if (record.get("schema_version") != 2 or record.get("distribution") != "online-bootstrap"
                 or record.get("bootstrap_version") != BOOTSTRAP_VERSION
                 or record.get("bootstrap_inputs_sha256") != expected):
             return False
-        asset = assets.get("NIPAT-Setup.exe", {})
-        require(record.get("file") == "NIPAT-Setup.exe" and record.get("version") == tag[1:]
+        asset = assets.get("NewPat-Setup.exe", {})
+        require(record.get("file") == "NewPat-Setup.exe" and record.get("version") == tag[1:]
                 and asset.get("digest") == "sha256:" + record.get("sha256", "")
                 and asset.get("size") == record.get("size"), "Baseline bootstrap record differs from its asset")
         output = Path(output)
         output.mkdir(parents=True, exist_ok=True)
-        require(not (output / "NIPAT-Setup.exe").exists(), "Bootstrap output already exists")
-        download("NIPAT-Setup.exe", output / "NIPAT-Setup.exe", 64 * 1024 * 1024)
+        require(not (output / "NewPat-Setup.exe").exists(), "Bootstrap output already exists")
+        download("NewPat-Setup.exe", output / "NewPat-Setup.exe", 64 * 1024 * 1024)
     return True
 
 
@@ -152,7 +153,7 @@ def record(stage, output):
     payload_record = payload.verify(output / payload.filename(manifest["version"]), manifest, inventory)
     require(json.loads((output / "windows-payload-build.json").read_bytes()) == payload_record,
             "Desktop payload build record changed")
-    setup = output / "NIPAT-Setup.exe"
+    setup = output / "NewPat-Setup.exe"
     require(setup.is_file() and not setup.is_symlink() and 0 < setup.stat().st_size < 64 * 1024 * 1024,
             "Stable bootstrap is missing or exceeds its 64 MiB limit")
     result = {
@@ -166,7 +167,7 @@ def record(stage, output):
     }
     (output / "installer-build.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     shutil.copyfile(manifest_path, output / "installer-manifest.json")
-    (output / "SHA256SUMS").write_text(f"{result['sha256']}  NIPAT-Setup.exe\n", encoding="ascii")
+    (output / "SHA256SUMS").write_text(f"{result['sha256']}  NewPat-Setup.exe\n", encoding="ascii")
     return result
 
 

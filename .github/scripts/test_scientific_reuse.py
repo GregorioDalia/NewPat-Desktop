@@ -42,7 +42,7 @@ class ScientificReuseTests(unittest.TestCase):
         for name, (workflow, *_) in reuse.acceptance.analysis_expected_cases().items():
             filename = {"cpin": "Summary_Postnatal_CPI.txt", "cpi": "Summary_FetalFraction_CPI.csv",
                         "contamination": "contamination_summary.txt"}[workflow]
-            self.evidence[f"nipat-five-modules-check/artifacts/{name}/output/{filename}"] = b"qualified summary\r\n"
+            self.evidence[f"newpat-five-modules-check/artifacts/{name}/output/{filename}"] = b"qualified summary\r\n"
             digest = reuse.sha256(b"qualified summary\r\n")
             analysis_cases.append({"name": name, "workflow": workflow, "status": "passed",
                                    "summary_sha256": digest, "output_sha256": {filename: digest}})
@@ -51,9 +51,9 @@ class ScientificReuseTests(unittest.TestCase):
         self.enterContext(patch.object(reuse.native_evidence, "git_source", side_effect=lambda commit, path: sources[path]))
         self.evidence.update({
             reuse.native_evidence.REPORT_PATH: json.dumps(report).encode(),
-            "nipat-validation/runs/self-test/run.json": b'{"status":"passed"}\n',
-            "nipat-validation/runs/self-test/execution.log": b"PASS\n",
-            "nipat-performance-check/artifacts/verification.json": json.dumps({
+            "newpat-validation/runs/self-test/run.json": b'{"status":"passed"}\n',
+            "newpat-validation/runs/self-test/execution.log": b"PASS\n",
+            "newpat-performance-check/artifacts/verification.json": json.dumps({
                 "schema_version": 1, "status": "passed", "image_id": IMAGE["id"]}).encode(),
             next(name for name, kind in reuse.REPORTS.items() if kind == "callers"): json.dumps({
                 "schema_version": 1, "status": "passed", "inputs_unchanged": True,
@@ -81,7 +81,7 @@ class ScientificReuseTests(unittest.TestCase):
                     "completed_at": "2026-11-13T10:20:00Z", "steps": [
                     {"name": name, "status": "completed", "conclusion": "success"} for name in (*reuse.STEPS, *reuse.PRODUCER_STEPS)]}
         self.commit = {"sha": HEAD, "tree": {"sha": TREE}, "parents": []}
-        self.artifact = {"id": 44, "name": f"nipat-scientific-qualification-1-{TREE}", "expired": False,
+        self.artifact = {"id": 44, "name": f"newpat-scientific-qualification-1-{TREE}", "expired": False,
                          "created_at": "2026-11-13T10:19:00Z", "workflow_run": {"id": 123,
                          "head_sha": HEAD, "repository_id": int(reuse.REPOSITORY_ID), "head_repository_id": int(reuse.REPOSITORY_ID)}}
         self.remote = self.root / "github-artifact.zip"
@@ -171,7 +171,7 @@ class ScientificReuseTests(unittest.TestCase):
         self.runtime_zip = self.root / "runtime.zip"
         with zipfile.ZipFile(self.runtime_zip, "w", zipfile.ZIP_DEFLATED) as archive:
             archive.write(tar, reuse.RUNTIME_TAR)
-        self.runtime_artifact = {**copy.deepcopy(self.artifact), "id": 45, "name": f"nipat-scientific-image-1-{TREE}",
+        self.runtime_artifact = {**copy.deepcopy(self.artifact), "id": 45, "name": f"newpat-scientific-image-1-{TREE}",
                                  "digest": "sha256:" + reuse.sha256(self.runtime_zip.read_bytes()),
                                  "size_in_bytes": self.runtime_zip.stat().st_size}
 
@@ -278,8 +278,8 @@ class ScientificReuseTests(unittest.TestCase):
         self.assertEqual(result["producer"]["pull_request"]["number"], 12)
         self.assertEqual(result["artifact"]["digest"], self.artifact["digest"])
         self.assertEqual(result["scientific_job_id"], self.job["id"])
-        self.assertEqual((self.consumer_temp / "nipat-engine-check/verification.log").read_bytes(),
-                         self.evidence["nipat-engine-check/verification.log"])
+        self.assertEqual((self.consumer_temp / "newpat-engine-check/verification.log").read_bytes(),
+                         self.evidence["newpat-engine-check/verification.log"])
 
     def test_main_requires_the_merged_pr_to_match_the_checked_out_push(self):
         original = self.merged_pr()
@@ -361,7 +361,7 @@ class ScientificReuseTests(unittest.TestCase):
         original_run, original_job, original_artifact = copy.deepcopy(self.run), copy.deepcopy(self.job), copy.deepcopy(self.artifact)
         changes = (
             lambda: self.run.update(conclusion="failure"),
-            lambda: self.run["head_repository"].update(id=10, full_name="outsider/nipat-desktop"),
+            lambda: self.run["head_repository"].update(id=10, full_name="outsider/newpat-desktop"),
             lambda: self.job.update(run_attempt=2),
             lambda: self.job.update(conclusion="skipped"),
             lambda: self.job["steps"][0].update(conclusion="skipped"),
@@ -392,10 +392,10 @@ class ScientificReuseTests(unittest.TestCase):
 
     def test_unsafe_zip_paths_symlinks_duplicates_and_non_text_are_rejected(self):
         cases = [([("../outside.json", b"{}")]), ([('/outside.json', b'{}')]),
-                 ([("nipat-engine-check/a.json", b"{}"), ("nipat-engine-check/A.json", b"{}")]),
-                 ([("nipat-engine-check/a.json", b"{}"), ("nipat-engine-check/a.json/b.json", b"{}")]),
-                 ([("nipat-engine-check/bad.json", b"\xff")])]
-        symlink = zipfile.ZipInfo("nipat-engine-check/link.json")
+                 ([("newpat-engine-check/a.json", b"{}"), ("newpat-engine-check/A.json", b"{}")]),
+                 ([("newpat-engine-check/a.json", b"{}"), ("newpat-engine-check/a.json/b.json", b"{}")]),
+                 ([("newpat-engine-check/bad.json", b"\xff")])]
+        symlink = zipfile.ZipInfo("newpat-engine-check/link.json")
         symlink.external_attr = (stat.S_IFLNK | 0o777) << 16
         cases.append([(symlink, b"/outside")])
         for index, members in enumerate(cases):
@@ -482,7 +482,7 @@ class ScientificReuseTests(unittest.TestCase):
 
     def test_archive_size_and_entry_bounds_are_enforced_before_decompression(self):
         with zipfile.ZipFile(self.root / "bounded.zip", "w") as archive:
-            archive.writestr("nipat-engine-check/a.json", b"12345")
+            archive.writestr("newpat-engine-check/a.json", b"12345")
         for limits in ({"maximum": 4, "max_file": 8, "max_entries": 2},
                        {"maximum": 8, "max_file": 4, "max_entries": 2},
                        {"maximum": 8, "max_file": 8, "max_entries": 0}):

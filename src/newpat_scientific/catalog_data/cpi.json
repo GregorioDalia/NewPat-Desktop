@@ -3,7 +3,7 @@
   "workflow": "cpi",
   "source": {
     "path": "scientific/vendor/NEWPAT/CPI_from_cffDNA/cfDNA_CPI_estimator.R",
-    "sha256": "e21bdf3fc3a994bff2f1b8684b81510fab1f316ab49b9e7ccca6db8cdb43f5a8",
+    "sha256": "059b3784eaedf96a5f36a37db9e305eda1b6fa1a1ccdeb38ece3143aede320fd",
     "line_count": 776
   },
   "public_parameters": [
@@ -17,7 +17,7 @@
       "default": null,
       "required": true,
       "unit": null,
-      "nipat": {
+      "newpat": {
         "cli": [
           "--input-dir"
         ],
@@ -45,7 +45,7 @@
       "default": null,
       "required": true,
       "unit": null,
-      "nipat": {
+      "newpat": {
         "cli": [
           "--runs-dir",
           "--run-name"
@@ -74,7 +74,7 @@
       "default": null,
       "required": true,
       "unit": null,
-      "nipat": {
+      "newpat": {
         "cli": [
           "--pairs"
         ],
@@ -102,7 +102,7 @@
       "default": null,
       "required": true,
       "unit": null,
-      "nipat": {
+      "newpat": {
         "cli": [
           "--mother-prefix"
         ],
@@ -130,7 +130,7 @@
       "default": null,
       "required": true,
       "unit": null,
-      "nipat": {
+      "newpat": {
         "cli": [
           "--father-prefix"
         ],
@@ -158,7 +158,7 @@
       "default": null,
       "required": true,
       "unit": null,
-      "nipat": {
+      "newpat": {
         "cli": [
           "--popfreq"
         ],
@@ -186,7 +186,7 @@
       "default": null,
       "required": false,
       "unit": null,
-      "nipat": {
+      "newpat": {
         "cli": [
           "--panel",
           "--cutoff",
@@ -217,7 +217,7 @@
       "default": null,
       "required": false,
       "unit": null,
-      "nipat": {
+      "newpat": {
         "cli": [
           "--panel"
         ],
@@ -245,7 +245,7 @@
       "default": null,
       "required": false,
       "unit": null,
-      "nipat": {
+      "newpat": {
         "cli": [
           "--err-const"
         ],
@@ -273,7 +273,7 @@
       "default": 0.001,
       "required": false,
       "unit": null,
-      "nipat": {
+      "newpat": {
         "cli": [
           "--set",
           "--scientific-config"
@@ -302,7 +302,7 @@
       "default": 8.92303778101497e-05,
       "required": false,
       "unit": null,
-      "nipat": {
+      "newpat": {
         "cli": [
           "--set",
           "--scientific-config"
@@ -331,7 +331,7 @@
       "default": null,
       "required": false,
       "unit": "reads",
-      "nipat": {
+      "newpat": {
         "cli": [
           "--set",
           "--scientific-config"
@@ -360,7 +360,7 @@
       "default": null,
       "required": false,
       "unit": "percent",
-      "nipat": {
+      "newpat": {
         "cli": [
           "--set",
           "--scientific-config"
@@ -389,7 +389,7 @@
       "default": false,
       "required": false,
       "unit": null,
-      "nipat": {
+      "newpat": {
         "cli": [
           "--set",
           "--scientific-config"
@@ -418,7 +418,7 @@
       "default": null,
       "required": false,
       "unit": "reads",
-      "nipat": {
+      "newpat": {
         "cli": [
           "--set",
           "--scientific-config"
@@ -447,7 +447,7 @@
       "default": 0.1,
       "required": false,
       "unit": "proportion",
-      "nipat": {
+      "newpat": {
         "cli": [
           "--set",
           "--scientific-config"
@@ -913,7 +913,7 @@
       },
       "evidence": {
         "path": "src/newpat_scientific/settings.py",
-        "sha256": "5d983923351965fdb3959ca8f0383d2fd880c286ee7dc4a3bde3862289399555",
+        "sha256": "becfd9167cbc3baaa2f72d53f5db837bbea69248805f8b76192b4d584367183d",
         "source_lines": [
           1,
           206
@@ -921,7 +921,7 @@
         "dependencies": [
           {
             "path": "src/newpat_scientific/settings.R",
-            "sha256": "5237eb7eec90acdcaa2803ef71b1928b70d848818c05e6c4e44585cd715ce867",
+            "sha256": "f89a401eb35536a9d6f2a08282ba6b6227791da8d49f521b9f98aec5528cfe44",
             "source_lines": [
               1,
               104
@@ -993,7 +993,7 @@
         "nested_pools": false,
         "ordered_reduction": true,
         "max_workers": "user ceiling bounded by resources",
-        "resource_policy": "nipat-fixed-resources-v1",
+        "resource_policy": "newpat-fixed-resources-v1",
         "capacity_basis": "assigned-capacity-at-run-start",
         "capacity_memory_fraction": 0.8,
         "memory_estimate": "max(2 * loaded coordinator RSS, module estimate); serial if workload is not observed",
@@ -1015,7 +1015,7 @@
       },
       "evidence": {
         "path": "src/newpat_scientific/parallel.R",
-        "sha256": "7c83def1907d041decf7dd8705aaf1f92bcd401d7b1fba38aaf788962a5dd47a",
+        "sha256": "9267aaa3ec7548727ae3ae7031d6580bd5e1864f61583def5b66930a1e566932",
         "source_lines": [
           1,
           322
@@ -1023,7 +1023,7 @@
         "dependencies": [
           {
             "path": "src/newpat_scientific/parallel.py",
-            "sha256": "bcdf3866e76419ac0b2879bf292be2a45eeb69ec6a590332652423f1aade87f7",
+            "sha256": "ded8a919041c529c9941df7d1ada53e04903afe7d380b7fad42489a596b03c77",
             "source_lines": [
               1,
               44
@@ -1035,7 +1035,7 @@
               101,
               149
             ],
-            "sha256": "f661408e8859caae8c73d9c5e59e14b0edadf5a585405962bc1739f5a66d3833"
+            "sha256": "37a8f88e50255c125954d973b2856475019b313d9f9d0fbd6c928b58b606be35"
           },
           {
             "path": "src/newpat/experiments/runner.py",
@@ -1043,7 +1043,7 @@
               115,
               136
             ],
-            "sha256": "bd39a6b67eb42c05a883492b2314677e96a9ceac26c9a0cda856937a3055c6cc"
+            "sha256": "69e87c6ac9ce026d72638937f83bf5711044b8c276a5baf60c3b8cb1be36c2c0"
           },
           {
             "path": "src/newpat/experiments/runner.py",
@@ -1051,7 +1051,7 @@
               208,
               233
             ],
-            "sha256": "bd39a6b67eb42c05a883492b2314677e96a9ceac26c9a0cda856937a3055c6cc"
+            "sha256": "69e87c6ac9ce026d72638937f83bf5711044b8c276a5baf60c3b8cb1be36c2c0"
           },
           {
             "path": "src/newpat/desktop/jobs.py",
@@ -1059,7 +1059,7 @@
               109,
               119
             ],
-            "sha256": "d027a93a0b11895e1173499cc7f80ad8531b0ea6587f91cb97e6fb4d27a4d274"
+            "sha256": "87bb5198df13b70f2f35aec72de6821648ba8a4f6d8891582de6ba842bd9f30f"
           },
           {
             "path": "src/newpat/desktop/admission.py",
@@ -1067,7 +1067,7 @@
               1,
               449
             ],
-            "sha256": "73ebfe7868b2d9c3ea90274d8f31599a8a1fa6674fe974dffbb288b14b10b4c1"
+            "sha256": "6b913d5072da1f6fbdca739ca517acf608fa7d22668dce9919b2c425b7247333"
           },
           {
             "path": "src/newpat_scientific/desktop_scheduling.py",
@@ -1075,7 +1075,7 @@
               1,
               141
             ],
-            "sha256": "f454913d31cdfd5c8f8fd937a7dbe0e4e603495b76ed93a248613043f14e6d4e"
+            "sha256": "2de2c8e0af80a69860fe053b090f5875d6a7a203e221782775b1309696b9aed0"
           },
           {
             "path": "src/newpat_scientific/executor.py",
@@ -1083,7 +1083,7 @@
               462,
               603
             ],
-            "sha256": "0d87f2a5a4d0a860d7cdde62a6295074c1e0f2859f2c256b477cabe218d10285"
+            "sha256": "aef287c549ded718593627a04b62dc004c2b59c5832c9982a62921561bf65b15"
           },
           {
             "path": "src/newpat/experiments/runner.py",
@@ -1091,7 +1091,7 @@
               228,
               231
             ],
-            "sha256": "bd39a6b67eb42c05a883492b2314677e96a9ceac26c9a0cda856937a3055c6cc"
+            "sha256": "69e87c6ac9ce026d72638937f83bf5711044b8c276a5baf60c3b8cb1be36c2c0"
           }
         ]
       }
@@ -1145,7 +1145,7 @@
         "dependencies": [
           {
             "path": "src/newpat_scientific/presentation.R",
-            "sha256": "526eb6609f7b13ff6d6cb74f81f9844861d1e11891798112b53c524cd0d80659",
+            "sha256": "c6b2ef8132e5e32deeae59b59d2cc829103801d1e75a03afbdeedd6470773137",
             "source_lines": [
               1,
               163

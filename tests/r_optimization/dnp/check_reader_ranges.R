@@ -35,24 +35,24 @@ check_bytes <- function(bytes, expected_rows) {
   path <- tempfile(fileext = ".pileup")
   on.exit(unlink(path))
   writeBin(bytes, path)
-  index <- suppressWarnings(nipat_dnp_index(path))
+  index <- suppressWarnings(newpat_dnp_index(path))
   stopifnot(index$rows == expected_rows)
   requests <- list(seq_len(expected_rows), rev(seq_len(expected_rows)),
                    c(1L, expected_rows), c(2L, 2L, 3L, 1L),
                    c(1L, 2L, expected_rows), expected_rows)
   for (rows in requests) {
     stopifnot(identical(capture(old_read, index, rows),
-                        capture(nipat_dnp_read, index, rows)))
+                        capture(newpat_dnp_read, index, rows)))
     checks <<- checks + 1L
   }
   # The optimized reader's empty-frame types are unchanged.
   connection <- file(path, "rb")
   on.exit(close(connection), add = TRUE)
-  empty <- nipat_dnp_read(index, integer(), connection)
+  empty <- newpat_dnp_read(index, integer(), connection)
   stopifnot(nrow(empty) == 0L, ncol(empty) == length(index$classes))
   # A small target exercises range boundaries without a large test allocation.
   rows <- c(1L, 2L, 2L, 3L, expected_rows, 1L)
-  ranges <- nipat_dnp_read_ranges(index, rows, max_bytes = 64)
+  ranges <- newpat_dnp_read_ranges(index, rows, max_bytes = 64)
   reconstructed <- integer()
   for (number in seq_along(ranges$offsets)) {
     selected <- rows[seq.int(ranges$first[[number]], ranges$last[[number]])]
@@ -92,17 +92,17 @@ check_bytes(nul, 3L)
 # including readChar's character(0) when a coalesced request starts past EOF.
 truncated <- tempfile(fileext = ".pileup")
 writeLines(lines, truncated, useBytes = TRUE)
-truncated_index <- nipat_dnp_index(truncated)
+truncated_index <- newpat_dnp_index(truncated)
 for (bytes in list(charToRaw(paste0(lines[[1L]], "\n")), raw())) {
   writeBin(bytes, truncated)
   stopifnot(identical(capture(old_read, truncated_index, 1:8),
-                      capture(nipat_dnp_read, truncated_index, 1:8)))
+                      capture(newpat_dnp_read, truncated_index, 1:8)))
   checks <- checks + 1L
 }
 unlink(truncated)
 oversize <- list(offsets = c(0, 1, 8 * 1024^2 + 2),
                  lengths = c(1, 8 * 1024^2 + 1, 1))
-oversize_ranges <- nipat_dnp_read_ranges(oversize, 1:3)
+oversize_ranges <- newpat_dnp_read_ranges(oversize, 1:3)
 stopifnot(identical(oversize_ranges$first, 1:3),
           identical(oversize_ranges$last, 1:3),
           identical(oversize_ranges$lengths, oversize$lengths))
@@ -110,7 +110,7 @@ checks <- checks + 1L
 # The helper must not join two valid large rows into an invalid nchars value,
 # even if a caller supplies an unbounded target. No multi-GB allocation needed.
 huge <- list(offsets = c(0, 2^30, 2^31), lengths = rep(2^30, 3))
-huge_ranges <- nipat_dnp_read_ranges(huge, 1:3, max_bytes = Inf)
+huge_ranges <- newpat_dnp_read_ranges(huge, 1:3, max_bytes = Inf)
 stopifnot(identical(huge_ranges$first, 1:3),
           identical(huge_ranges$last, 1:3),
           all(huge_ranges$lengths < .Machine$integer.max))
@@ -121,9 +121,9 @@ cat("DNP byte-range reader:", checks,
 # Compare the joint-pileup decoder and its fallback with the standard reader.
 # Count scanner calls to ensure ordinary pileups actually exercise the shortcut.
 check_arm_decoder <- function() {
-  flag <- "NIPAT_DNP_OPTIMIZED_IO"
+  flag <- "NEWPAT_DNP_OPTIMIZED_IO"
   previous <- Sys.getenv(flag, unset = NA_character_)
-  on.exit(if (is.na(previous)) Sys.unsetenv(flag) else Sys.setenv(NIPAT_DNP_OPTIMIZED_IO = previous))
+  on.exit(if (is.na(previous)) Sys.unsetenv(flag) else Sys.setenv(NEWPAT_DNP_OPTIMIZED_IO = previous))
   api <- new.env(parent = globalenv())
   sys.source(file.path(root, "src/newpat_scientific/dnp_blocks.R"), api)
   scans <- 0L
@@ -136,13 +136,13 @@ check_arm_decoder <- function() {
   count <- 0L
   compare <- function(text, rows, columns = NULL, expected_scans = 0L, classes = NULL) {
     writeBin(charToRaw(text), path)
-    index <- nipat_dnp_index(path)
+    index <- newpat_dnp_index(path)
     if (!is.null(classes)) index$classes <- classes
-    reader <- function(i, r, c) api$nipat_dnp_read(i, r, c, columns)
+    reader <- function(i, r, c) api$newpat_dnp_read(i, r, c, columns)
     Sys.unsetenv(flag)
     standard <- capture(reader, index, rows)
     scans <<- 0L
-    Sys.setenv(NIPAT_DNP_OPTIMIZED_IO = "1")
+    Sys.setenv(NEWPAT_DNP_OPTIMIZED_IO = "1")
     arm <- capture(reader, index, rows)
     stopifnot(identical(arm, standard), scans == expected_scans)
     count <<- count + 1L

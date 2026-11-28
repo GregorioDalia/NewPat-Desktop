@@ -14,7 +14,7 @@ import tarfile
 import tempfile
 import uuid
 
-_SPEC = importlib.util.spec_from_file_location("nipat_security_release", Path(__file__).with_name("release_inputs.py"))
+_SPEC = importlib.util.spec_from_file_location("newpat_security_release", Path(__file__).with_name("release_inputs.py"))
 release = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(release)
 TOOLS = {
@@ -95,7 +95,7 @@ def main():
         summary["release"] = json.loads((output / "inputs/release-inputs.json").read_text())
         syft = install_tool("syft", tools_dir)
         grype = install_tool("grype", tools_dir)
-        imported = "nipat-security-rootfs:" + uuid.uuid4().hex
+        imported = "newpat-security-rootfs:" + uuid.uuid4().hex
         subprocess.run(["docker", "image", "import", str(downloads["rootfs"]), imported], check=True)
         with scientific_scan_tar(downloads["scientific_image"], output) as scientific_tar:
             for name, source in (("scientific", "docker-archive:" + str(scientific_tar)),

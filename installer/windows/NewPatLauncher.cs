@@ -7,7 +7,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 
-internal static class NipatLauncher
+internal static class NewPatLauncher
 {
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern uint GetConsoleProcessList(uint[] processes, uint count);
@@ -49,7 +49,7 @@ internal static class NipatLauncher
         string runner = Path.Combine(project, "scripts", "windows", "run.ps1");
         if (!File.Exists(bridge) || !File.Exists(runner)) {
             throw new FileNotFoundException(
-                "Pacchetto NewPat incompleto. Ripristinare l'installazione con NewPat-Setup.exe; NIPAT.exe deve restare nella cartella del programma.");
+                "Pacchetto NewPat incompleto. Ripristinare l'installazione con NewPat-Setup.exe; NewPat.exe deve restare nella cartella del programma.");
         }
         string powershell = Path.Combine(Environment.SystemDirectory,
             "WindowsPowerShell", "v1.0", "powershell.exe");
@@ -67,8 +67,8 @@ internal static class NipatLauncher
             WorkingDirectory = Environment.CurrentDirectory,
             UseShellExecute = false
         };
-        start.EnvironmentVariables["NIPAT_LAUNCH_ARGUMENTS"] = String.Join("\n", encoded);
-        start.EnvironmentVariables["NIPAT_LAUNCH_ARGUMENT_COUNT"] = arguments.Length.ToString(
+        start.EnvironmentVariables["NEWPAT_LAUNCH_ARGUMENTS"] = String.Join("\n", encoded);
+        start.EnvironmentVariables["NEWPAT_LAUNCH_ARGUMENT_COUNT"] = arguments.Length.ToString(
             System.Globalization.CultureInfo.InvariantCulture);
         // The scientific child handles Ctrl+C; keep the wrapper alive to return
         // that child's status rather than abandoning it in the background.

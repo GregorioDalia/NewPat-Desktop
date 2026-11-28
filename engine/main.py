@@ -156,11 +156,11 @@ def verify_bundle(bundle_root: Path) -> dict:
                                 "effective_file": "work/effective-scientific-settings.json"},
         "workflow-plan-all": {"interface": "workflow-plan-execution-v2", "workflows": list(SCRIPT_PATHS)},
         "progress": {
-            "interface": "nipat-progress-v1", "schema_version": 1,
+            "interface": "newpat-progress-v1", "schema_version": 1,
             "independent_of_diagnostics": True, "transport": "per-process-jsonl",
         },
         "parallel_execution": {
-            "interface": "nipat-parallel-v1", "schema_version": 1,
+            "interface": "newpat-parallel-v1", "schema_version": 1,
             "workflows": [name for name in SCRIPT_PATHS if name != "fetal-sex"], "default_mode": "auto",
             "modes": ["auto", "serial"], "max_workers": True,
             "budget_scope": "one scientific analysis; nested pools disabled",
@@ -343,7 +343,7 @@ def main(argv: list[str] | None = None) -> int:
             from newpat_scientific.performance import PerformanceSession, oom_kill_counter, report_oom_kills
             from newpat_scientific import progress
             from newpat_scientific.progress import observed_phase as phase
-            oom_token = os.environ.get("NIPAT_OOM_TOKEN", "")
+            oom_token = os.environ.get("NEWPAT_OOM_TOKEN", "")
             if re.fullmatch(r"[a-f0-9]{32}", oom_token):
                 initial_oom_count = oom_kill_counter()
             observer = PerformanceSession.from_environment()

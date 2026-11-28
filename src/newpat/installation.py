@@ -10,7 +10,7 @@ import time
 import uuid
 
 from newpat.activity import _safe_parent
-from newpat.errors import NipatError
+from newpat.errors import NewPatError
 from newpat.processes import background_process_options
 
 MAX_INVENTORY_BYTES = 2 * 1024 * 1024
@@ -18,13 +18,13 @@ MAX_INVENTORY_BYTES = 2 * 1024 * 1024
 
 def _command(project: Path, operation: str) -> list[str]:
     if sys.platform != "win32":
-        raise NipatError("La manutenzione dell'ambiente dedicato e' disponibile nell'installazione Windows.")
+        raise NewPatError("La manutenzione dell'ambiente dedicato e' disponibile nell'installazione Windows.")
     project = project.absolute()
     _safe_parent(project)
     worker = project / "installer" / "windows" / "maintenance.ps1"
     _safe_parent(worker)
     if not worker.is_file():
-        raise NipatError("Componente di manutenzione mancante. Reinstallare il pacchetto NewPat verificato.")
+        raise NewPatError("Componente di manutenzione mancante. Reinstallare il pacchetto NewPat verificato.")
     powershell = Path(os.environ.get("WINDIR", r"C:\Windows")) / "System32/WindowsPowerShell/v1.0/powershell.exe"
     return [str(powershell), "-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass",
             "-File", str(worker), "-Project", str(project), "-Operation", operation]
@@ -34,8 +34,8 @@ def installation_inventory(project: Path) -> dict:
     if sys.platform == "darwin":
         return {"schema_version": 1, "platform": "macos", "runtimes": [], "cache": [],
                 "backups": [], "recovery": {"id": "current-installation", "recoverable": False,
-                "reason": "NewPat usa un ambiente Lima dedicato in ~/.nipat/lima. "
-                          "Impostazioni e risultati sono in ~/Library/Application Support/NIPAT-Desktop. "
+                "reason": "NewPat usa un ambiente Lima dedicato in ~/.newpat/lima. "
+                          "Impostazioni e risultati sono in ~/Library/Application Support/NewPat-Desktop. "
                           "Per preparazione, diagnostica e rimozione consultare la guida macOS inclusa nell'applicazione."},
                 "warnings": []}
     if sys.platform != "win32":
@@ -48,9 +48,9 @@ def installation_inventory(project: Path) -> dict:
                                 check=False, timeout=180, **background_process_options())
         if result.returncode:
             detail = result.stderr.decode("utf-8", errors="replace").strip()
-            raise NipatError("Inventario di installazione non disponibile: " + detail[:2000])
+            raise NewPatError("Inventario di installazione non disponibile: " + detail[:2000])
         if len(result.stdout) > MAX_INVENTORY_BYTES:
-            raise NipatError("Inventario troppo grande: consultare i log di installazione.")
+            raise NewPatError("Inventario troppo grande: consultare i log di installazione.")
         value = json.loads(result.stdout.decode("utf-8-sig"))
         if (not isinstance(value, dict) or type(value.get("schema_version")) is not int
                 or value["schema_version"] != 1 or value.get("platform") != "windows"
@@ -67,7 +67,7 @@ def installation_inventory(project: Path) -> dict:
                     raise ValueError("elemento dell'inventario non valido")
         return value
     except (OSError, subprocess.SubprocessError, ValueError, RecursionError) as exc:
-        raise NipatError(f"Impossibile leggere l'inventario di installazione: {exc}") from exc
+        raise NewPatError(f"Impossibile leggere l'inventario di installazione: {exc}") from exc
 
 
 def maintenance_selection(inventory: dict, operation: str, target: str) -> dict:
@@ -80,7 +80,7 @@ def maintenance_selection(inventory: dict, operation: str, target: str) -> dict:
                    if item.get("id") == target]
         if len(matches) == 1 and matches[0].get("removable") is True:
             return matches[0]
-    raise NipatError("Operazione non disponibile per l'elemento selezionato. Nessun componente e' stato modificato.")
+    raise NewPatError("Operazione non disponibile per l'elemento selezionato. Nessun componente e' stato modificato.")
 
 
 def start_maintenance(project: Path, operation: str, target: str) -> Path:
@@ -107,23 +107,23 @@ def start_maintenance(project: Path, operation: str, target: str) -> Path:
         deadline = time.monotonic() + 120
         while time.monotonic() < deadline:
             if process.poll() is not None:
-                raise NipatError("Il componente di manutenzione si e' chiuso prima del passaggio. NewPat resta aperto.")
+                raise NewPatError("Il componente di manutenzione si e' chiuso prima del passaggio. NewPat resta aperto.")
             if ready.is_file():
                 _safe_parent(ready)
                 with ready.open("rb") as stream:
                     content = stream.read(16385)
                 if len(content) > 16384:
-                    raise NipatError("Conferma di manutenzione non valida.")
+                    raise NewPatError("Conferma di manutenzione non valida.")
                 value = json.loads(content.decode("utf-8-sig"))
                 if value != {"schema_version": 1, "status": "waiting-for-client",
                              "operation": operation, "target_id": target}:
-                    raise NipatError("Conferma di manutenzione non valida.")
+                    raise NewPatError("Conferma di manutenzione non valida.")
                 acknowledged = True
                 return directory / "result.json"
             time.sleep(0.05)
-        raise NipatError("Il componente di manutenzione non ha confermato l'avvio. NewPat resta aperto.")
+        raise NewPatError("Il componente di manutenzione non ha confermato l'avvio. NewPat resta aperto.")
     except (OSError, ValueError, RecursionError) as exc:
-        raise NipatError(f"Passaggio alla manutenzione non riuscito: {exc}") from exc
+        raise NewPatError(f"Passaggio alla manutenzione non riuscito: {exc}") from exc
     finally:
         if process is not None and not acknowledged and process.poll() is None:
             # The worker is still waiting for this live client. Cancel that
@@ -146,7 +146,7 @@ def start_maintenance(project: Path, operation: str, target: str) -> Path:
             except (OSError, subprocess.SubprocessError) as exc:
                 detail = ("Il componente ha ricevuto il segnale di annullamento."
                           if marker_written else "Non e' stato possibile registrare l'annullamento.")
-                raise NipatError("Arresto della finestra di manutenzione non confermato; "
+                raise NewPatError("Arresto della finestra di manutenzione non confermato; "
                                  "chiuderla prima di uscire da NewPat. " + detail) from exc
 
 

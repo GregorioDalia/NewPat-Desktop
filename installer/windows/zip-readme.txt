@@ -2,10 +2,10 @@ NewPat for Windows — complete ZIP
 
 1. For a published release, download the complete Windows ZIP from its Assets.
    For an Actions review build, extract the artifact first and find the inner
-   NIPAT-<version>-Windows-complete.zip. Extract all files from that inner ZIP into
+   NewPat-<version>-Windows-complete.zip. Extract all files from that inner ZIP into
    a permanent folder on a local fixed drive.
 2. As a regular Windows user, double-click 1_INSTALL.cmd.
-3. When preparation finishes, NewPat opens. Next time, open NIPAT\NewPat.lnk
+3. When preparation finishes, NewPat opens. Next time, open NewPat\NewPat.lnk
    inside the extracted folder. This shortcut opens the app with its own icon.
 
 For a first experiment, choose Environment and help > Open demo. Review the
@@ -13,18 +13,18 @@ three simulated samples and start the analysis. The expected results and
 Italian instructions are in app\docs\QUICKSTART_IT.md.
 
 For an upgrade from 0.9.9, extract to a fresh directory and run the included
-install-zip.ps1 with -InstallRoot pointing to your existing NIPAT folder.
+install-zip.ps1 with -InstallRoot pointing to your existing NewPat folder.
 See app\docs\WINDOWS_INSTALLER.md for the complete PowerShell command.
 Opening 1_INSTALL.cmd in an unrelated fresh folder creates a new installation.
 
 The complete ZIP includes Python 3.12.10, the WSL filesystem and the scientific
 runtime. Windows may need internet access, administrator approval or a restart
 to install or update Microsoft's WSL components. If you restart, open the same
-NIPAT\NewPat.lnk shortcut to resume preparation with the cached files.
+NewPat\NewPat.lnk shortcut to resume preparation with the cached files.
 
-Keep the installed NIPAT folder at its original location. WSL registers it on
+Keep the installed NewPat folder at its original location. WSL registers it on
 this computer. It contains the application, WSL filesystem, cache, input data
-(NIPAT\data) and results (NIPAT\runs). After successful preparation, you can
+(NewPat\data) and results (NewPat\runs). After successful preparation, you can
 remove the downloaded ZIP and the initially extracted app and assets folders.
 Updates from the app use the complete ZIP and preserve the installed folder.
 The classic EXE installation has a separate data directory.
@@ -44,4 +44,4 @@ dialog and the message. For a prepared installation, keep the setup log.
 The Windows installation guide on GitHub explains the available installation
 methods and how to collect diagnostic information:
 
-https://github.com/GregorioDalia/nipat-desktop/blob/main/docs/WINDOWS_INSTALLER.md
+https://github.com/GregorioDalia/NewPat-Desktop/blob/main/docs/WINDOWS_INSTALLER.md

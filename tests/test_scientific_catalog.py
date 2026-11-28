@@ -94,7 +94,7 @@ class ScientificCatalogTests(unittest.TestCase):
                 legacy = next(item for item in document["public_parameters"]
                               if item["id"] == "parallel")
                 self.assertEqual(legacy["r_names"], ["--parallel"])
-                self.assertEqual(legacy["nipat"]["mapping"], "managed")
+                self.assertEqual(legacy["newpat"]["mapping"], "managed")
                 parsed = build_parser().parse_args([
                     "--execution-mode", "serial", "dnp-call", "--bam", "sample.bam",
                     "--reference", "reference.fa", "--panel", "panel.txt", "--parallel",
@@ -122,8 +122,8 @@ class ScientificCatalogTests(unittest.TestCase):
                                     for flag in action.option_strings}
             for entry in document["public_parameters"]:
                 with self.subTest(workflow=workflow, parameter=entry["id"]):
-                    self.assertNotEqual(entry["nipat"]["mapping"], "missing")
-                    self.assertTrue(set(entry["nipat"]["cli"]).issubset(flags))
+                    self.assertNotEqual(entry["newpat"]["mapping"], "missing")
+                    self.assertTrue(set(entry["newpat"]["cli"]).issubset(flags))
 
     def test_changed_r_requires_a_new_review_even_if_still_valid_r(self):
         document = load_catalog("snp-call")["workflows"]["snp-call"]

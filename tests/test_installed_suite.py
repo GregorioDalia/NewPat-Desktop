@@ -89,27 +89,20 @@ class InstalledSuiteTests(unittest.TestCase):
         driver = suite.Suite(project, self.root / "zip-session", "a" * 40,
                              installation_version="0.9.99", installation_commit="a" * 40)
         self.write(installation / "installation.json",
-                   {"schema_version": 1, "product": "nipat-desktop", "installation_method": "zip"})
+                   {"schema_version": 1, "product": "newpat-desktop", "installation_method": "zip"})
         self.write(project / ".runtime" / "zip-install.json",
                    {"schema_version": 1, "installation_method": "zip", "root": str(installation)})
         preferences = installation / "preferences.json"
         self.write(preferences, {"profile": "before"})
         with patch.object(suite.sys, "platform", "win32"), patch.dict(
-            os.environ, {"NIPAT_PROJECT_DIR": str(project), "LOCALAPPDATA": str(installation.parent),
-                         "NIPAT_SETTINGS_FILE": ""}
+            os.environ, {"NEWPAT_PROJECT_DIR": str(project), "LOCALAPPDATA": str(installation.parent),
+                         "NEWPAT_SETTINGS_FILE": ""}
         ):
             driver.snapshot_installation()
         self.assertIn(str(preferences), driver.identity_before)
         self.write(preferences, {"profile": "after"})
         driver.integrity()
         self.assertEqual(driver.report["checks"][-1]["status"], "FAIL")
-
-    def test_historical_installed_client_keeps_its_original_experiments_namespace(self):
-        historical = self.app / "src/nipat"
-        historical.mkdir(parents=True)
-        (historical / "__init__.py").touch()
-        driver = suite.Suite(self.app, self.root / "historical-suite", "b" * 40)
-        self.assertEqual((driver.client_package, driver.experiments_package), ("nipat", "nipat.execution"))
 
     def test_installed_release_identity_is_explicit_and_mismatches_fail_before_science(self):
         version, commit = "0.8.60", "c" * 40
@@ -142,8 +135,8 @@ class InstalledSuiteTests(unittest.TestCase):
         driver.report.update(status="FAIL", summary={})
         driver.write_html()
         markup = (driver.session / "report.html").read_text()
-        self.assertIn("<h1>Collaudo NIPAT 0.8.60</h1>", markup)
-        self.assertNotIn("Collaudo NIPAT 0.8.50", markup)
+        self.assertIn("<h1>Collaudo NewPat 0.8.60</h1>", markup)
+        self.assertNotIn("Collaudo NewPat 0.8.50", markup)
 
     def test_invalid_expected_installation_identity_creates_no_session(self):
         destination = self.root / "invalid-identity"
@@ -180,7 +173,7 @@ class InstalledSuiteTests(unittest.TestCase):
 
     def test_settings_probe_runs_the_real_cli_without_analysis_only_flags(self):
         environment = {key: value for key, value in os.environ.items()
-                       if not key.upper().startswith("NIPAT_")
+                       if not key.upper().startswith("NEWPAT_")
                        and key.upper() not in {"PYTHONHOME", "PYTHONPATH"}}
         environment.update(PYTHONPATH=str(ROOT / "src"), PYTHONIOENCODING="utf-8")
         result = subprocess.run(

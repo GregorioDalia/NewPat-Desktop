@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import patch, MagicMock
 
 from newpat.activity import activity_session, _authorized_setup_child, windows_activity_path
-from newpat.errors import NipatError
+from newpat.errors import NewPatError
 
 
 class ActivityTests(unittest.TestCase):
@@ -33,16 +33,16 @@ class ActivityTests(unittest.TestCase):
             kernel.CloseHandle.assert_called_once_with(123)
 
     def test_missing_or_stale_setup_token_does_not_bypass_lease(self):
-        with patch.dict(os.environ, {'NIPAT_SETUP_ACTIVITY_TOKEN': '123:' + 'a' * 32}), \
+        with patch.dict(os.environ, {'NEWPAT_SETUP_ACTIVITY_TOKEN': '123:' + 'a' * 32}), \
                 patch('newpat.activity._windows_ancestors', return_value={456}):
             self.assertFalse(_authorized_setup_child())
-        with patch.dict(os.environ, {'NIPAT_SETUP_ACTIVITY_TOKEN': 'forged'}):
+        with patch.dict(os.environ, {'NEWPAT_SETUP_ACTIVITY_TOKEN': 'forged'}):
             self.assertFalse(_authorized_setup_child())
 
     def test_live_ancestor_and_event_are_both_required(self):
         kernel = MagicMock()
         kernel.OpenEventW.return_value = 0
-        with patch.dict(os.environ, {'NIPAT_SETUP_ACTIVITY_TOKEN': '123:' + 'a' * 32}), \
+        with patch.dict(os.environ, {'NEWPAT_SETUP_ACTIVITY_TOKEN': '123:' + 'a' * 32}), \
                 patch('newpat.activity._windows_ancestors', return_value={123}), \
                 patch('newpat.activity._windows_kernel', return_value=kernel):
             self.assertFalse(_authorized_setup_child())

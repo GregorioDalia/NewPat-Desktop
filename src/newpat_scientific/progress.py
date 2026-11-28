@@ -14,7 +14,7 @@ import re
 import threading
 import uuid
 
-INTERFACE = "nipat-progress-v1"
+INTERFACE = "newpat-progress-v1"
 MAX_FILE_BYTES = 4 * 1024 * 1024
 MAX_LINE_BYTES = 16 * 1024
 _PHASE = re.compile(r"[a-z][a-z0-9-]{0,79}\Z")
@@ -62,17 +62,17 @@ def validate_event(value):
 def emit(event, phase, *, workflow=None, step_id=None, sample_ids=(),
          completed=None, total=None, unit=None, outcome=None):
     """Append a validated event, or quietly leave scientific execution untouched."""
-    directory = os.environ.get("NIPAT_PROGRESS_DIR")
+    directory = os.environ.get("NEWPAT_PROGRESS_DIR")
     if not directory:
         return
     try:
-        workflow = workflow or os.environ.get("NIPAT_PROGRESS_WORKFLOW", "analysis")
-        step_id = step_id or os.environ.get("NIPAT_PROGRESS_STEP_ID") or None
+        workflow = workflow or os.environ.get("NEWPAT_PROGRESS_WORKFLOW", "analysis")
+        step_id = step_id or os.environ.get("NEWPAT_PROGRESS_STEP_ID") or None
         if not sample_ids:
-            sample_ids = json.loads(os.environ.get("NIPAT_PROGRESS_SAMPLE_IDS", "[]"))
-        sample_map = json.loads(os.environ.get("NIPAT_PROGRESS_SAMPLE_MAP", "{}"))
+            sample_ids = json.loads(os.environ.get("NEWPAT_PROGRESS_SAMPLE_IDS", "[]"))
+        sample_map = json.loads(os.environ.get("NEWPAT_PROGRESS_SAMPLE_MAP", "{}"))
         sample_ids = [sample_map.get(value, value) for value in sample_ids]
-        token = os.environ.get("NIPAT_PROGRESS_SOURCE", "")
+        token = os.environ.get("NEWPAT_PROGRESS_SOURCE", "")
         if not re.fullmatch(r"[a-f0-9]{32}", token):
             token = "0" * 32
         key = (directory, workflow, step_id, token, os.getpid())
@@ -118,11 +118,11 @@ def emit(event, phase, *, workflow=None, step_id=None, sample_ids=(),
 @contextmanager
 def context(workflow, *, step_id=None, sample_ids=(), sample_map=None):
     """Supply a stable scope and a fresh invocation nonce to Python and R children."""
-    updates = {"NIPAT_PROGRESS_WORKFLOW": workflow, "NIPAT_PROGRESS_STEP_ID": step_id or "",
-               "NIPAT_PROGRESS_SAMPLE_IDS": json.dumps(list(sample_ids)),
-               "NIPAT_PROGRESS_SAMPLE_MAP": json.dumps(sample_map or {}),
-               "NIPAT_PROGRESS_SOURCE": uuid.uuid4().hex,
-               "NIPAT_PROGRESS_R_HELPER": str(Path(__file__).with_suffix(".R"))}
+    updates = {"NEWPAT_PROGRESS_WORKFLOW": workflow, "NEWPAT_PROGRESS_STEP_ID": step_id or "",
+               "NEWPAT_PROGRESS_SAMPLE_IDS": json.dumps(list(sample_ids)),
+               "NEWPAT_PROGRESS_SAMPLE_MAP": json.dumps(sample_map or {}),
+               "NEWPAT_PROGRESS_SOURCE": uuid.uuid4().hex,
+               "NEWPAT_PROGRESS_R_HELPER": str(Path(__file__).with_suffix(".R"))}
     previous = {key: os.environ.get(key) for key in updates}
     os.environ.update(updates)
     try:

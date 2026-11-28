@@ -28,9 +28,9 @@ class DesktopStepBudgetTests(unittest.TestCase):
         self.control = self.root / "desktop-scheduling"
         self.control.mkdir()
         self.initial = budget(max_workers=2)
-        self.initial_env = {"NIPAT_DESKTOP_SCHEDULER": str(self.control),
-                            "NIPAT_FIXED_RESOURCE_BUDGET": json.dumps(self.initial),
-                            "NIPAT_CPU_LIMIT": "3.5", "NIPAT_MEMORY_LIMIT_MIB": "3072", "NIPAT_MAX_WORKERS": "2"}
+        self.initial_env = {"NEWPAT_DESKTOP_SCHEDULER": str(self.control),
+                            "NEWPAT_FIXED_RESOURCE_BUDGET": json.dumps(self.initial),
+                            "NEWPAT_CPU_LIMIT": "3.5", "NEWPAT_MEMORY_LIMIT_MIB": "3072", "NEWPAT_MAX_WORKERS": "2"}
         self.enterContext(patch.dict(os.environ, self.initial_env))
         self.cancellation = _Cancellation()
         self.scheduler = DesktopStepBudget(self.control, _atomic_json)
@@ -49,15 +49,15 @@ class DesktopStepBudgetTests(unittest.TestCase):
         self.request_and_grant(self.first, budget(1.5, 1200))
         self.assertEqual(self.scheduler.boundary(self.cancellation),
             {"token": self.first, "cpu_limit": 1.5, "memory_capacity_mib": 1200, "worker_ceiling": 1})
-        self.assertEqual(os.environ["NIPAT_CPU_LIMIT"], "1.5")
+        self.assertEqual(os.environ["NEWPAT_CPU_LIMIT"], "1.5")
         self.assertIsNone(self.scheduler.boundary(self.cancellation))
         self.request_and_grant(self.second, budget(8, 8192))
         self.scheduler.boundary(self.cancellation)
-        effective = json.loads(os.environ["NIPAT_FIXED_RESOURCE_BUDGET"])
+        effective = json.loads(os.environ["NEWPAT_FIXED_RESOURCE_BUDGET"])
         self.assertEqual((effective["cpu_limit"], effective["memory_capacity_mib"], effective["worker_ceiling"]),
                          (3.5, 3072, 2))
         self.assertEqual(effective["memory_budget_mib"], 2457)
-        self.assertEqual(os.environ["NIPAT_MAX_WORKERS"], "2")
+        self.assertEqual(os.environ["NEWPAT_MAX_WORKERS"], "2")
         self.scheduler.restore()
         self.assertTrue(all(os.environ[key] == value for key, value in self.initial_env.items()))
 
@@ -106,7 +106,7 @@ class DesktopStepBudgetTests(unittest.TestCase):
         with patch("newpat_scientific.desktop_scheduling._GRANT_TIMEOUT", 0), self.assertRaisesRegex(PlanExecutionError, "Timed out"):
             self.scheduler.boundary(self.cancellation)
         self.assertEqual(json.loads((self.control / "ack.json").read_text())["token"], self.first)
-        self.assertEqual(os.environ["NIPAT_FIXED_RESOURCE_BUDGET"], self.initial_env["NIPAT_FIXED_RESOURCE_BUDGET"])
+        self.assertEqual(os.environ["NEWPAT_FIXED_RESOURCE_BUDGET"], self.initial_env["NEWPAT_FIXED_RESOURCE_BUDGET"])
         for invalid in ({"memory_capacity_mib": 0}, {"cpu_limit": False}, {"worker_ceiling": 1.5},
                         {"memory_reserve_fraction": 1}, {"interface": "unknown"}):
             with self.subTest(invalid=invalid):
@@ -139,7 +139,7 @@ class DesktopStepBudgetTests(unittest.TestCase):
         plan, scripts = self.snp_plan()
         self.request_and_grant(self.first, budget(2, 2000))
         def batch(plan, state, *args, **kwargs):
-            self.assertEqual(os.environ["NIPAT_MEMORY_LIMIT_MIB"], "2000")
+            self.assertEqual(os.environ["NEWPAT_MEMORY_LIMIT_MIB"], "2000")
             self.request_and_grant(self.second, budget(1, 1000))
             for step in state["steps"]:
                 step.update(status="succeeded", artifacts={"snp-tables": []})
@@ -147,7 +147,7 @@ class DesktopStepBudgetTests(unittest.TestCase):
             return True
         def summary(*args, before_group):
             before_group()
-            self.assertEqual(os.environ["NIPAT_MEMORY_LIMIT_MIB"], "1000")
+            self.assertEqual(os.environ["NEWPAT_MEMORY_LIMIT_MIB"], "1000")
             return []
         with patch("newpat_scientific.snp_parallel.execute_independent_snp_steps", side_effect=batch), \
                 patch("newpat_scientific.snp_summary.finalize_snp_summaries", side_effect=summary):

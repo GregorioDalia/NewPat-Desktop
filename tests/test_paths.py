@@ -9,7 +9,7 @@ from newpat.paths import ProjectLayout
 
 
 def _layout(tmp_path: Path) -> ProjectLayout:
-    project = tmp_path / "nipat-desktop"
+    project = tmp_path / "newpat-desktop"
     project.mkdir(parents=True)
     return ProjectLayout(
         project_dir=project,
@@ -27,9 +27,9 @@ class PathTests(unittest.TestCase):
             project = root / "project"
             project.mkdir()
             with patch.dict(os.environ, {
-                "NIPAT_PROJECT_DIR": str(project), "NIPAT_WORKSPACE_DIR": str(root),
-                "NIPAT_DATA_DIR": str(root / "external-data"),
-                "NIPAT_RUNS_DIR": str(root / "external-results"),
+                "NEWPAT_PROJECT_DIR": str(project), "NEWPAT_WORKSPACE_DIR": str(root),
+                "NEWPAT_DATA_DIR": str(root / "external-data"),
+                "NEWPAT_RUNS_DIR": str(root / "external-results"),
             }):
                 layout = ProjectLayout.discover()
                 self.assertEqual(layout.data_dir, (root / "external-data").resolve())
@@ -98,7 +98,7 @@ class PathTests(unittest.TestCase):
             script.touch()
             self.assertEqual(
                 layout.container_path(script),
-                PurePosixPath("/workspace/nipat-desktop/scientific/script.R"),
+                PurePosixPath("/workspace/newpat-desktop/scientific/script.R"),
             )
 
     def test_container_path_rejects_external_file(self) -> None:

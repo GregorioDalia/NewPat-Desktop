@@ -265,7 +265,7 @@ class LocalIGV:
         if any(input_stat_snapshot(p.stat()) != identity for p, identity in identities.items()):
             self.fail("Il riferimento è cambiato durante il controllo.", "The reference changed during verification.")
         urls = {p: self.register_reference(p, expected_identity=identity)["url"] for p, identity in identities.items()}
-        ref = {"id": "nipat-local", "name": fasta.name, "fastaURL": urls[fasta], "indexURL": urls[fai]}
+        ref = {"id": "newpat-local", "name": fasta.name, "fastaURL": urls[fasta], "indexURL": urls[fai]}
         sources = {"reference": {"fasta": str(fasta), "index": str(fai), **actual}, "tracks": []}
         if reference.get("historical_identity_incomplete"):
             sources["reference"]["historical_identity_incomplete"] = True

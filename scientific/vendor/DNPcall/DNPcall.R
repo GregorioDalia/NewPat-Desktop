@@ -81,12 +81,12 @@ format_df_decimals <- function(df, digits = 3) {
 
 # The legacy --parallel argument remains accepted. The common execution policy
 # selects automatic or serial work for all R modules and caps the global pool.
-source(Sys.getenv("NIPAT_PARALLEL_HELPER", unset = "/opt/nipat/lib/nipat_scientific/parallel.R"))
-source(Sys.getenv("NIPAT_SETTINGS_HELPER", unset = file.path(dirname(Sys.getenv(
-  "NIPAT_PARALLEL_HELPER", unset = "/opt/nipat/lib/nipat_scientific/parallel.R")), "settings.R")))
-nipat_cfg <- nipat_settings("dnp-call")
-nipat_write_settings("dnp-call", nipat_cfg, output)
-source(Sys.getenv("NIPAT_PLOTS_HELPER", unset = "/opt/nipat/lib/nipat_scientific/plots.R"))
+source(Sys.getenv("NEWPAT_PARALLEL_HELPER", unset = "/opt/newpat/lib/newpat_scientific/parallel.R"))
+source(Sys.getenv("NEWPAT_SETTINGS_HELPER", unset = file.path(dirname(Sys.getenv(
+  "NEWPAT_PARALLEL_HELPER", unset = "/opt/newpat/lib/newpat_scientific/parallel.R")), "settings.R")))
+newpat_cfg <- newpat_settings("dnp-call")
+newpat_write_settings("dnp-call", newpat_cfg, output)
+source(Sys.getenv("NEWPAT_PLOTS_HELPER", unset = "/opt/newpat/lib/newpat_scientific/plots.R"))
 
 
 
@@ -138,15 +138,15 @@ RefAltDNP <- make_RefAltDNP(r_DNPlist)
 
 
 # Scientific formulas stay below; this helper only indexes and bounds input.
-source(Sys.getenv("NIPAT_DNP_BLOCKS_HELPER", unset = "/opt/nipat/lib/nipat_scientific/dnp_blocks.R"))
-nipat_progress <- function(...) invisible(NULL)
-progress_helper <- Sys.getenv("NIPAT_PROGRESS_R_HELPER")
+source(Sys.getenv("NEWPAT_DNP_BLOCKS_HELPER", unset = "/opt/newpat/lib/newpat_scientific/dnp_blocks.R"))
+newpat_progress <- function(...) invisible(NULL)
+progress_helper <- Sys.getenv("NEWPAT_PROGRESS_R_HELPER")
 if (nzchar(progress_helper)) {
   tryCatch(source(progress_helper), error = function(error) invisible(NULL))
 }
 
 cat("\nMaking mpileup...\n")
-dnp_scratch <- Sys.getenv("NIPAT_DNP_SCRATCH")
+dnp_scratch <- Sys.getenv("NEWPAT_DNP_SCRATCH")
 if (!nzchar(dnp_scratch)) {
   dir.create("work", showWarnings = FALSE)
   dnp_scratch <- tempfile("dnp-", tmpdir = "work")
@@ -154,15 +154,15 @@ if (!nzchar(dnp_scratch)) {
 dir.create(dnp_scratch, recursive = TRUE, showWarnings = FALSE)
 dnp_scratch <- normalizePath(dnp_scratch, mustWork = TRUE)
 pileup_path <- file.path(dnp_scratch, "mpileup.txt")
-pileup_helper <- Sys.getenv("NIPAT_DNP_PILEUP_HELPER", unset = "/opt/nipat/lib/nipat_scientific/dnp_pileup.py")
+pileup_helper <- Sys.getenv("NEWPAT_DNP_PILEUP_HELPER", unset = "/opt/newpat/lib/newpat_scientific/dnp_pileup.py")
 # samtools finishes before R starts its block workers. Give the helper the acquisition
 # budget so independent pools cannot overbook the same container.
 # The helper checks indices and dictionaries, then caps concurrent samtools
 # processes by the number of target chromosomes.
-acquisition_budget <- nipat_dnp_acquisition_budget(r_DNPlist$chr, nrow(r_bamlist), nipat_cfg, reference)
+acquisition_budget <- newpat_dnp_acquisition_budget(r_DNPlist$chr, nrow(r_bamlist), newpat_cfg, reference)
 acquisition_budget_path <- file.path("work", "dnp-acquisition-budget.json")
 dir.create(dirname(acquisition_budget_path), recursive = TRUE, showWarnings = FALSE)
-jsonlite::write_json(c(list(schema_version = 1L, interface = "nipat-parallel-v1"),
+jsonlite::write_json(c(list(schema_version = 1L, interface = "newpat-parallel-v1"),
                        acquisition_budget), acquisition_budget_path,
                      auto_unbox = TRUE, pretty = TRUE, digits = NA, null = "null")
 acquisition_started <- proc.time()[["elapsed"]]
@@ -173,7 +173,7 @@ acquisition_status <- system2("python3", c(shQuote(pileup_helper),
   "--budget", shQuote(acquisition_budget_path)))
 if (acquisition_status != 0L) stop("DNP pileup acquisition failed")
 acquisition_seconds <- unname(proc.time()[["elapsed"]] - acquisition_started)
-if (identical(Sys.getenv("NIPAT_DNP_KEEP_PILEUP"), "1")) {
+if (identical(Sys.getenv("NEWPAT_DNP_KEEP_PILEUP"), "1")) {
   if (!file.copy(pileup_path, "mpileup.txt", overwrite = FALSE)) stop("Cannot retain test pileup")
 }
 
@@ -187,8 +187,8 @@ read_samplelist <- function(bamlist_file) {
 samplelist <- read_samplelist(bamlist)
 
 cat("\nReading mpileup...\n")
-nipat_progress("start", "pileup-index")
-pileup_index <- nipat_dnp_index(pileup_path, empty_samples=length(samplelist))
+newpat_progress("start", "pileup-index")
+pileup_index <- newpat_dnp_index(pileup_path, empty_samples=length(samplelist))
 # Observed reference bases belong to the reference assembly, independent of
 # what the reads carry. A swapped REF/ALT would invert an otherwise plausible call.
 pileup_keys <- paste(pileup_index$chromosomes[pileup_index$chromosome], pileup_index$positions, sep=":")
@@ -198,9 +198,9 @@ expected <- c(substr(r_DNPlist$REF, 1L, 1L), substr(r_DNPlist$REF, 2L, 2L))
 bases <- toupper(pileup_index$reference[match(panel_keys, pileup_keys)])
 mismatch <- which(!is.na(bases) & bases != toupper(expected))
 if (length(mismatch)) stop("DNP panel REF differs from pileup at ", panel_keys[mismatch[[1L]]])
-block_plan <- nipat_dnp_plan(pileup_index, ForUniqReads, RefAltDNP)
+block_plan <- newpat_dnp_plan(pileup_index, ForUniqReads, RefAltDNP)
 # Persist the strategy before scientific processing, including on later errors.
-nipat_dnp_write_metrics("work/dnp-blocks.json", list(
+newpat_dnp_write_metrics("work/dnp-blocks.json", list(
   schema_version = 1L, status = "started", index_rows = pileup_index$rows,
   index_bytes = pileup_index$bytes, column_classes = pileup_index$classes,
   acquisition_seconds = acquisition_seconds, index_seconds = pileup_index$elapsed_seconds,
@@ -211,7 +211,7 @@ nipat_dnp_write_metrics("work/dnp-blocks.json", list(
   repeated_qname_rows = pileup_index$repeated_qname_rows,
   memory_limit_scope = "raw input proxy; complete windows and legacy compatibility groups are never split or truncated"
 ))
-nipat_progress("end", "pileup-index", outcome = "succeeded")
+newpat_progress("end", "pileup-index", outcome = "succeeded")
 # Every sample/block pair shares one bounded pool. Complete global index and
 # compatibility groups are constructed once before any worker is started.
 common_columns <- 3
@@ -234,7 +234,7 @@ prepare_individual <- function(i) {
     }
   }
 
-  nipat_progress("start", "dnp-processing", sample_ids = i)
+  newpat_progress("start", "dnp-processing", sample_ids = i)
   final_df_elab <- function(dataframe_final2, df_grouped, dfIND_summary) {
     FINAL_df <- merge(dataframe_final2, df_grouped, by.x = "DNPs", by.y = "chr1", all = TRUE)
 
@@ -248,7 +248,7 @@ prepare_individual <- function(i) {
     final$Alternative <- gsub('\\|', '', final$Alternative)
     final$combined_bases <- gsub('\\|', '', final$combined_bases)
 
-    final$.nipat_sort_key <- FINAL_df$DNPs
+    final$.newpat_sort_key <- FINAL_df$DNPs
     final <- final %>%
       mutate(pos1 = as.numeric(pos1),
              pos2 = as.numeric(pos2)) %>%
@@ -256,8 +256,8 @@ prepare_individual <- function(i) {
 
     final <- final %>%
       relocate(indel_reads, indel_ratio, .after = total_count)
-    sort_keys <- final$.nipat_sort_key
-    final$.nipat_sort_key <- NULL
+    sort_keys <- final$.newpat_sort_key
+    final$.newpat_sort_key <- NULL
 
       colnames(final) <- c("chr", "pos1", "pos2",
                           "REF", "ALT", "N_REF",
@@ -725,7 +725,7 @@ prepare_individual <- function(i) {
 
   # Mark GT as NA when Other reaches the configured fraction of all reads.
   dataframe_final2 <- dataframe_final %>%
-    mutate(GT=ifelse(N_Altro/(N_Altro+N_Reference+N_Alternative) >= nipat_cfg$other_fraction_max, NA, GT))
+    mutate(GT=ifelse(N_Altro/(N_Altro+N_Reference+N_Alternative) >= newpat_cfg$other_fraction_max, NA, GT))
 
   result <- final_df_elab(dataframe_final2, df_grouped, dfIND_summary)
   result$has_likelihoods <- !is.null(res) && nrow(res) > 0L
@@ -748,12 +748,12 @@ prepare_individual <- function(i) {
       !any(vapply(block_results, function(value) value$has_likelihoods, logical(1)))) {
     stop("DNP sample has no retained reference/alternative likelihoods")
   }
-  final <- nipat_dnp_combine(block_results)
+  final <- newpat_dnp_combine(block_results)
   indiv_final <- final[, c("chr", "pos1", "pos2", "REF", "ALT", "GT")]
   rm(block_results)
   colnames(indiv_final)[6] <- paste0("GT_", i)
-  nipat_progress("end", "dnp-processing", sample_ids = i, outcome = "succeeded")
-  nipat_progress("start", "plots", sample_ids = i)
+  newpat_progress("end", "dnp-processing", sample_ids = i, outcome = "succeeded")
+  newpat_progress("start", "plots", sample_ids = i)
 
 
   final_formatted <- format_df_decimals(final)
@@ -764,7 +764,7 @@ prepare_individual <- function(i) {
   dir.create(indiv_plot_dir, showWarnings = FALSE, recursive = TRUE)
 
 
-  nipat_sample_plots(final, indiv_plot_dir, i, locus_kind = "DNP")
+  newpat_sample_plots(final, indiv_plot_dir, i, locus_kind = "DNP")
 
   end_ind_time <- Sys.time()
   end_ind_mem <- get_memory_usage_mb()
@@ -775,7 +775,7 @@ prepare_individual <- function(i) {
   cat(paste0("\n>>> Summary for ", i, ":\n"))
   cat(paste0("Execution Time (seconds): ", ind_exec_time, "\n"))
   cat(paste0("Maximum observed R-process RSS (MiB): ", peak_ind_mem, "\n"))
-  nipat_progress("end", "plots", sample_ids = i, outcome = "succeeded")
+  newpat_progress("end", "plots", sample_ids = i, outcome = "succeeded")
   return(list(indiv_final = indiv_final, final = final, peak_mem = peak_ind_mem,
               block_metrics = block_metrics, block_workers = block_workers,
               observed_block_workers = observed_block_workers,
@@ -792,10 +792,10 @@ processors <- lapply(samplelist, prepare_individual)
 sample_columns <- lapply(seq_along(samplelist), function(number) {
   c(seq_len(common_columns), common_columns + (number - 1L) * 4L + seq_len(4L))
 })
-processed_samples <- nipat_dnp_process_samples(pileup_index, block_plan, ForUniqReads,
+processed_samples <- newpat_dnp_process_samples(pileup_index, block_plan, ForUniqReads,
   RefAltDNP, lapply(processors, function(processor) processor$compute), columns = sample_columns,
   progress = function(sample_number, completed, total) {
-    nipat_progress("progress", "dnp-processing", sample_ids = samplelist[[sample_number]],
+    newpat_progress("progress", "dnp-processing", sample_ids = samplelist[[sample_number]],
                    completed = completed, total = total, unit = "loci")
   })
 ncores <- processed_samples$workers
@@ -849,9 +849,9 @@ cat(paste0("Number of individuals processed: ", length(samplelist), "\n"))
 
 
 # Plot only copies of the final genotype table; retain every scientific row.
-nipat_genotype_summary(final_merged_data, file.path(output, "summary"), locus_kind = "DNP")
+newpat_genotype_summary(final_merged_data, file.path(output, "summary"), locus_kind = "DNP")
 
-nipat_dnp_write_metrics("work/dnp-blocks.json", c(processing_totals, list(
+newpat_dnp_write_metrics("work/dnp-blocks.json", c(processing_totals, list(
   schema_version = 1L, status = "succeeded", acquisition_seconds = acquisition_seconds,
   index_seconds = pileup_index$elapsed_seconds, index_rows = pileup_index$rows,
   index_bytes = pileup_index$bytes, column_classes = pileup_index$classes,

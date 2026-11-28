@@ -10,7 +10,7 @@ import sys
 # Embedded Python excludes the script directory from its default search path.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from newpat.errors import NipatError, ValidationError
+from newpat.errors import NewPatError, ValidationError
 from newpat.experiments.runner import DockerComposeRunner
 from newpat.experiments.workflows import Workflows
 from newpat.paths import ProjectLayout
@@ -65,7 +65,7 @@ def main() -> int:
     layout = ProjectLayout.discover()
     try:
         if layout.project_dir != Path(__file__).resolve().parents[1]:
-            raise ValidationError("Usare la venv di questa repository e verificare NIPAT_PROJECT_DIR.")
+            raise ValidationError("Usare la venv di questa repository e verificare NEWPAT_PROJECT_DIR.")
         fixture = layout.project_dir / "tests/fixtures/cpin"
         workflow = Workflows(layout, DockerComposeRunner(layout))
         for marker in ("SNP", "DNP"):
@@ -79,7 +79,7 @@ def main() -> int:
                 raise ValidationError("CPIN: un input originale è stato modificato.")
             check_outputs(run_dir, marker)
             check_bundled_run(run_dir, layout, workflow="cpin")
-    except (NipatError, OSError) as exc:
+    except (NewPatError, OSError) as exc:
         print(f"Verifica CPIN fallita: {exc}", file=sys.stderr)
         return 1
     print("Verifica CPI postnatale superata per SNP e DNP, con un valore per trio e i dettagli di ogni sito.")

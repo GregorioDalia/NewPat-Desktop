@@ -1,15 +1,15 @@
 # Fixed launcher bridge: all user arguments are decoded as data and splatted.
-# This file is called by NIPAT.exe; ordinary CLI/script launchers stay available.
+# This file is called by NewPat.exe; ordinary CLI/script launchers stay available.
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 try {
-    $encoded = [string]$env:NIPAT_LAUNCH_ARGUMENTS
-    $countText = [string]$env:NIPAT_LAUNCH_ARGUMENT_COUNT
-    Remove-Item Env:NIPAT_LAUNCH_ARGUMENTS -ErrorAction SilentlyContinue
-    Remove-Item Env:NIPAT_LAUNCH_ARGUMENT_COUNT -ErrorAction SilentlyContinue
+    $encoded = [string]$env:NEWPAT_LAUNCH_ARGUMENTS
+    $countText = [string]$env:NEWPAT_LAUNCH_ARGUMENT_COUNT
+    Remove-Item Env:NEWPAT_LAUNCH_ARGUMENTS -ErrorAction SilentlyContinue
+    Remove-Item Env:NEWPAT_LAUNCH_ARGUMENT_COUNT -ErrorAction SilentlyContinue
     $count = 0
     if (-not [int]::TryParse($countText, [ref]$count) -or $count -lt 1) {
-        throw 'Avviare NIPAT.exe dalla cartella completa del programma.'
+        throw 'Avviare NewPat.exe dalla cartella completa del programma.'
     }
     $encodedArguments = $encoded.Split([char]10)
     if ($encodedArguments.Length -ne $count) {

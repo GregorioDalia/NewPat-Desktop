@@ -91,10 +91,10 @@ def run_snp_example(layout: ProjectLayout, run_name: str | None = None) -> Path:
 def run_self_tests(layout: ProjectLayout) -> None:
     """Run every existing reference check in its own fresh run directory."""
     environment = os.environ.copy()
-    environment["NEWPAT_PROJECT_DIR"] = environment["NIPAT_PROJECT_DIR"] = str(layout.project_dir)
-    environment["NEWPAT_WORKSPACE_DIR"] = environment["NIPAT_WORKSPACE_DIR"] = str(layout.workspace_dir)
-    environment["NEWPAT_DATA_DIR"] = environment["NIPAT_DATA_DIR"] = str(layout.data_dir)
-    environment["NEWPAT_RUNS_DIR"] = environment["NIPAT_RUNS_DIR"] = str(layout.runs_dir)
+    environment["NEWPAT_PROJECT_DIR"] = str(layout.project_dir)
+    environment["NEWPAT_WORKSPACE_DIR"] = str(layout.workspace_dir)
+    environment["NEWPAT_DATA_DIR"] = str(layout.data_dir)
+    environment["NEWPAT_RUNS_DIR"] = str(layout.runs_dir)
     environment["PYTHONPATH"] = str(layout.project_dir / "src") + (
         os.pathsep + environment["PYTHONPATH"] if environment.get("PYTHONPATH") else ""
     )

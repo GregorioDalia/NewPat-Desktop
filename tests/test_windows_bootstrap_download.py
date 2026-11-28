@@ -12,7 +12,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location(
-    "nipat_bootstrap_download", ROOT / "installer/windows/bootstrap_download.py")
+    "newpat_bootstrap_download", ROOT / "installer/windows/bootstrap_download.py")
 bootstrap = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(bootstrap)
 
@@ -21,11 +21,11 @@ def sha(value):
     return hashlib.sha256(value).hexdigest()
 
 
-def package(tmp_path, *, version="0.9.10", corrupt_member=False, extra=None):
+def package(tmp_path, *, version="0.9.99", app_id=bootstrap.APP_ID, corrupt_member=False, extra=None):
     members = {"app/2_LAUNCH.cmd": b"@echo fixture", "assets/rootfs.tar.gz": b"rootfs",
                "assets/scientific.tar.gz": b"scientific"}
     manifest = {"schema_version": 1, "version": version, "source_commit": "a" * 40,
-                "installation_profile": {"channel": "desktop"}, "assets": {
+                "installation_profile": {"channel": "desktop", "app_id": app_id}, "assets": {
                     "rootfs": {"file": "rootfs.tar.gz", "sha256": sha(b"rootfs"), "size": 6},
                     "scientific_image": {"file": "scientific.tar.gz", "sha256": sha(b"scientific"), "size": 10}}}
     members["app/.distribution/installer-manifest.json"] = json.dumps(manifest).encode()
@@ -49,14 +49,14 @@ def package(tmp_path, *, version="0.9.10", corrupt_member=False, extra=None):
 
 
 def feed():
-    name = "NIPAT-0.9.10-Windows-payload.zip"
-    return {"schema_version": 1, "product": "nipat-desktop", "version": "0.9.10",
-            "source_commit": "a" * 40, "release_tag": "v0.9.10", "channel": "stable",
+    name = "NewPat-0.9.99-Windows-payload.zip"
+    return {"schema_version": 1, "product": "newpat-desktop", "version": "0.9.99",
+            "source_commit": "a" * 40, "release_tag": "v0.9.99", "channel": "stable",
             "minimum_updater_version": 2,
-            "release_notes_url": bootstrap.REPOSITORY + "/releases/tag/v0.9.10",
+            "release_notes_url": bootstrap.REPOSITORY + "/releases/tag/v0.9.99",
             "assets": [{"platform": "windows-bootstrap-x86_64", "name": name,
                         "size": 123, "sha256": "b" * 64,
-                        "url": bootstrap.REPOSITORY + "/releases/download/v0.9.10/" + name}]}
+                        "url": bootstrap.REPOSITORY + "/releases/download/v0.9.99/" + name}]}
 
 
 def test_new_setup_refuses_payloads_from_legacy_layout():
@@ -64,13 +64,21 @@ def test_new_setup_refuses_payloads_from_legacy_layout():
         bootstrap._target("0.9.9", "a" * 40, "b" * 64, 100)
 
 
+def test_payload_must_match_newpat_installation_identity(tmp_path):
+    archive, target = package(tmp_path, app_id="other-desktop")
+    destination = tmp_path / "extracted"
+    with pytest.raises(ValueError, match="provenienza"):
+        bootstrap.extract_payload(archive, destination, target)
+    assert not destination.exists()
+
+
 def test_freeze_can_install_new_compatible_application_versions(tmp_path):
-    for version in ("0.9.10", "0.9.11", "1.2.3"):
+    for version in ("0.9.99", "0.9.100", "1.2.3"):
         base = tmp_path / version
         base.mkdir()
         archive, target = package(base, version=version)
         bootstrap._target(version, target["source_commit"], target["sha256"], target["size"])
-        destination = base / "NIPAT con spazi è"
+        destination = base / "NewPat con spazi è"
         manifest = bootstrap.extract_payload(archive, destination, target)
         assert manifest["version"] == version
         assert (destination / "app/2_LAUNCH.cmd").read_bytes() == b"@echo fixture"
@@ -126,8 +134,8 @@ def test_existing_destination_and_symlinks_rejected_without_data_loss(tmp_path):
 
 def test_official_feed_and_origin_are_bound():
     valid = feed()
-    assert bootstrap.validate_feed(valid)["version"] == "0.9.10"
-    valid["assets"][0]["url"] = "https://github.com/another/repo/releases/download/v0.9.10/payload.zip"
+    assert bootstrap.validate_feed(valid)["version"] == "0.9.99"
+    valid["assets"][0]["url"] = "https://github.com/another/repo/releases/download/v0.9.99/payload.zip"
     with pytest.raises(ValueError, match="ufficiale"):
         bootstrap.validate_feed(valid)
     valid = feed()
@@ -162,11 +170,11 @@ def test_manual_setup_downloads_from_current_verified_repository(monkeypatch, ac
     monkeypatch.setattr(bootstrap, "_open", get)
     target = bootstrap.current_target()
     assert urls == [bootstrap.REPOSITORY_API, expected + "/releases/latest/download/" + bootstrap.FEED_NAME]
-    assert target["url"] == expected + "/releases/download/v0.9.10/NIPAT-0.9.10-Windows-payload.zip"
+    assert target["url"] == expected + "/releases/download/v0.9.99/NewPat-0.9.99-Windows-payload.zip"
 
 
 @pytest.mark.parametrize(("repo_id", "name"), [
-    (1, "GregorioDalia/nipat-desktop"), (1307623649, "other/NewPat-Desktop"),
+    (1, "GregorioDalia/NewPat-Desktop"), (1307623649, "other/NewPat-Desktop"),
     (1307623649, "GregorioDalia/another-project"),
 ])
 def test_manual_setup_rejects_different_repository_before_fetching_feed(monkeypatch, repo_id, name):
@@ -192,12 +200,12 @@ def test_explicit_update_does_not_resolve_latest(tmp_path, monkeypatch):
                              "--error-file", str(tmp_path / "error.txt"),
                              "--report-file", str(tmp_path / "report.ini")])
     assert result == 0
-    assert "version=0.9.10" in (tmp_path / "report.ini").read_text(encoding="utf-16")
+    assert "version=0.9.99" in (tmp_path / "report.ini").read_text(encoding="utf-16")
 
 
 def test_partial_update_identity_fails_before_network_or_mutation(tmp_path, monkeypatch):
     monkeypatch.setattr(bootstrap, "current_target", lambda: pytest.fail("Partial identity queried latest"))
-    assert bootstrap.main(["--version", "0.9.10", "--destination", str(tmp_path / "extracted"),
+    assert bootstrap.main(["--version", "0.9.99", "--destination", str(tmp_path / "extracted"),
                            "--error-file", str(tmp_path / "error.txt"),
                            "--report-file", str(tmp_path / "report.ini")]) == 1
     assert not (tmp_path / "extracted").exists()
@@ -207,13 +215,18 @@ def test_downgrade_and_reused_version_rejected(tmp_path):
     metadata = tmp_path / ".distribution"
     metadata.mkdir()
     manifest = metadata / "installer-manifest.json"
-    manifest.write_text(json.dumps({"version": "0.9.11", "source_commit": "a" * 40}))
+    installed = {"version": "0.9.100", "source_commit": "a" * 40}
+    manifest.write_text(json.dumps(installed))
+    with pytest.raises(ValueError, match="altro prodotto"):
+        bootstrap.check_installed(tmp_path, "0.9.100", "a" * 40)
+    installed["installation_profile"] = {"channel": "desktop", "app_id": bootstrap.APP_ID}
+    manifest.write_text(json.dumps(installed))
     with pytest.raises(ValueError, match="recente"):
-        bootstrap.check_installed(tmp_path, "0.9.10", "b" * 40)
+        bootstrap.check_installed(tmp_path, "0.9.99", "b" * 40)
     with pytest.raises(ValueError, match="differenti"):
-        bootstrap.check_installed(tmp_path, "0.9.11", "b" * 40)
-    bootstrap.check_installed(tmp_path, "0.9.11", "a" * 40)
-    bootstrap.check_installed(tmp_path, "0.9.12", "b" * 40)
+        bootstrap.check_installed(tmp_path, "0.9.100", "b" * 40)
+    bootstrap.check_installed(tmp_path, "0.9.100", "a" * 40)
+    bootstrap.check_installed(tmp_path, "0.9.101", "b" * 40)
 
 
 @pytest.mark.skipif(__import__("os").name != "nt", reason="Windows file sharing contract")
@@ -257,7 +270,7 @@ def test_new_unlisted_staging_file_is_rejected_before_installation(tmp_path):
 
 
 def test_download_keeps_existing_file_and_removes_only_its_own_partial(tmp_path, monkeypatch):
-    target = {"url": "https://github.com/unused", "version": "0.9.10",
+    target = {"url": "https://github.com/unused", "version": "0.9.99",
               "size": 5, "sha256": sha(b"valid")}
     destination = tmp_path / "download.zip"
     monkeypatch.setattr(bootstrap, "_open", lambda url: io.BytesIO(b"wrong"))

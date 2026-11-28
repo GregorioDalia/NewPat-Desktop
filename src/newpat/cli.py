@@ -9,7 +9,7 @@ from pathlib import Path
 from newpat import __version__
 from newpat.branding import PRODUCT_NAME, CLI_NAME
 from newpat.activity import activity_session
-from newpat.errors import NipatError
+from newpat.errors import NewPatError
 from newpat.experiments.options import ExecutionOptions
 from newpat.desktop.admission import CoordinatedComposeRunner as DockerComposeRunner
 from newpat.experiments.workflows import Workflows
@@ -562,7 +562,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{completion_label}: {run_dir}")
         else:
             parser.error(f"Comando non gestito: {args.command}")
-    except (NipatError, OSError) as exc:
+    except (NewPatError, OSError) as exc:
         print(f"Errore: {exc}", file=sys.stderr)
         return 2
     except KeyboardInterrupt:

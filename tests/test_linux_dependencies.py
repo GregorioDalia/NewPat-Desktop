@@ -48,7 +48,7 @@ class LinuxDependencyTests(unittest.TestCase):
 
     def test_preview_package_does_not_satisfy_desktop_installation(self):
         changed = copy.deepcopy(self.result)
-        changed["dependency_packages"]["nipat-05-preview"] = changed["dependency_packages"].pop("nipat-desktop")
+        changed["dependency_packages"]["newpat-05-preview"] = changed["dependency_packages"].pop("newpat-desktop")
         with self.assertRaisesRegex(ValueError, "Missing installed dependency versions"):
             CHECK.parse_result(self.result_text(changed))
 
@@ -59,7 +59,7 @@ class LinuxDependencyTests(unittest.TestCase):
             CHECK.parse_result(self.result_text(changed))
 
     def test_container_has_readonly_inputs_and_no_host_socket_or_privilege(self):
-        command = CHECK.container_command(Path("/tmp/NIPAT test/package.deb"), Path("/tmp/manifest.json"))
+        command = CHECK.container_command(Path("/tmp/NewPat test/package.deb"), Path("/tmp/manifest.json"))
         mounts = [command[index + 1] for index, argument in enumerate(command) if argument == "--mount"]
         self.assertEqual(len(mounts), 2)
         self.assertTrue(all(mount.endswith(",readonly") for mount in mounts))
@@ -73,7 +73,7 @@ class LinuxDependencyTests(unittest.TestCase):
     def test_failed_container_cannot_write_successful_evidence(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            package, manifest, output = root / "nipat.deb", root / "manifest.json", root / "result.json"
+            package, manifest, output = root / "newpat.deb", root / "manifest.json", root / "result.json"
             package.write_bytes(b"package bytes")
             manifest.write_text(json.dumps({
                 "source_commit": "a" * 40, "assets": {"scientific_image": {"sha256": "b" * 64}},
@@ -89,7 +89,7 @@ class LinuxDependencyTests(unittest.TestCase):
     def test_success_binds_package_manifest_and_archive(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            package, manifest, output = root / "nipat.deb", root / "manifest.json", root / "result.json"
+            package, manifest, output = root / "newpat.deb", root / "manifest.json", root / "result.json"
             package.write_bytes(b"package bytes")
             manifest.write_text(json.dumps({
                 "source_commit": "a" * 40, "assets": {"scientific_image": {"sha256": "b" * 64}},

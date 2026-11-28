@@ -39,7 +39,7 @@ def read_record(path, revision):
 def validate_build(record, run, jobs):
     if publisher.requires_gui_prerelease(record["version"]):
         publisher.require(record.get("publication_channel") == "testing",
-                          "NIPAT GUI preview acceptance requires the explicit testing channel")
+                          "NewPat GUI preview acceptance requires the explicit testing channel")
     publisher.validate_run(run, record["source_commit"], record["build_run_id"])
     publisher.require(run["event"] == "workflow_dispatch", "Accepted installer build must be manually dispatched")
     for name in publisher.required_build_jobs(record["version"]):
@@ -49,7 +49,7 @@ def validate_build(record, run, jobs):
 
 
 def evidence_artifact(document, record):
-    matches = [item for item in document["artifacts"] if item.get("name") == "nipat-installer-set-evidence"]
+    matches = [item for item in document["artifacts"] if item.get("name") == "newpat-installer-set-evidence"]
     publisher.require(len(matches) == 1, "Missing or ambiguous build evidence artifact")
     artifact = matches[0]
     identity = artifact.get("workflow_run") or {}
@@ -91,7 +91,7 @@ def verify_record(path, revision, *, fetch=fetch_json, download=download_artifac
     jobs = fetch(f"actions/runs/{run_id}/jobs?per_page=100")["jobs"]
     validate_build(record, run, jobs)
     artifact = evidence_artifact(fetch(f"actions/runs/{run_id}/artifacts?per_page=100"), record)
-    with tempfile.TemporaryDirectory(prefix="nipat-acceptance-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="newpat-acceptance-") as temporary:
         directory = Path(temporary)
         archive = directory / "artifact.zip"
         download(artifact, archive)

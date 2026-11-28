@@ -38,7 +38,7 @@ def make_run(root, module="contamination", name="example", marker="DNP", mapping
     run.mkdir(parents=True)
     write_json(run / "run.json", {"schema_version": 1, "workflow": module, "status": "succeeded",
                "run_name": "Esperimento è", "started_at": "2026-11-15T10:00:00Z", "finished_at": "2026-11-15T10:01:00Z",
-               "source": {"nipat_version": "0.8.99"}, "parameters": {"marker_type": marker, "sample_mapping": mapping or [
+               "source": {"newpat_version": "0.8.99"}, "parameters": {"marker_type": marker, "sample_mapping": mapping or [
                    {"sample_id": "A", "original_path": r"D:\campioni\Campione è.txt"}]}})
     (run / "output").mkdir()
     return run

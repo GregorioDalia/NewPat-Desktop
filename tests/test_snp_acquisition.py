@@ -25,8 +25,8 @@ class SnpAcquisitionTests(unittest.TestCase):
         self.output = self.root / "pileup.txt"
         self.command = ["samtools", "mpileup", "-d", "0", "-o", str(self.output), str(self.bam)]
         self.metadata = self.root / "snp-acquisition.json"
-        self.enterContext(patch.dict(os.environ, {"NIPAT_EXECUTION_MODE": "auto", "NIPAT_MAX_WORKERS": "3",
-                                                "NIPAT_PARALLEL_CHILD": "0"}))
+        self.enterContext(patch.dict(os.environ, {"NEWPAT_EXECUTION_MODE": "auto", "NEWPAT_MAX_WORKERS": "3",
+                                                "NEWPAT_PARALLEL_CHILD": "0"}))
         self.bin = self.root / "bin"
         self.bin.mkdir()
         self.enterContext(patch.dict(os.environ, {"PATH": str(self.bin) + os.pathsep + os.environ["PATH"]}))
@@ -70,9 +70,9 @@ class SnpAcquisitionTests(unittest.TestCase):
     def test_dictionary_order_and_fallbacks(self):
         self.assertEqual(self.planned()[0], sys.executable)
         self.assertEqual(json.loads(self.metadata.read_text())["contigs"], list(self.contigs))
-        with patch.dict(os.environ, {"NIPAT_PARALLEL_CHILD": "1"}):
+        with patch.dict(os.environ, {"NEWPAT_PARALLEL_CHILD": "1"}):
             self.assertEqual(self.planned(), self.command)
-        with patch.dict(os.environ, {"NIPAT_EXECUTION_MODE": "serial"}):
+        with patch.dict(os.environ, {"NEWPAT_EXECUTION_MODE": "serial"}):
             self.assertEqual(self.planned(), self.command)
         self.assertEqual(self.planned("unsorted"), self.command)
         self.assertIsNone(json.loads(self.metadata.read_text())["parallel"]["observed_max_processes"])

@@ -74,20 +74,20 @@ class ScientificReuseWorkflows(unittest.TestCase):
 
         self.assertIn("id: scientific_qualification", producer[seal_name])
         self.assertIn('scientific_reuse.py seal', producer[seal_name])
-        self.assertIn('--image "$NIPAT_RUNTIME_IMAGE" --output-dir build/scientific-qualification', producer[seal_name])
+        self.assertIn('--image "$NEWPAT_RUNTIME_IMAGE" --output-dir build/scientific-qualification', producer[seal_name])
         self.assertIn("source_tree=$(git rev-parse 'HEAD^{tree}')", producer[seal_name])
         self.assertIn('>> "$GITHUB_OUTPUT"', producer[seal_name])
         self.assertLess(self.producer.index(seal_name), self.producer.index(upload_name))
         upload = producer[upload_name]
         self.assertIn("actions/upload-artifact@", upload)
-        self.assertIn("name: nipat-scientific-qualification-${{ github.run_attempt }}-"
+        self.assertIn("name: newpat-scientific-qualification-${{ github.run_attempt }}-"
                       "${{ steps.scientific_qualification.outputs.source_tree }}", upload)
         self.assertIn("path: build/scientific-qualification/", upload)
         self.assertIn("if-no-files-found: error", upload)
         # Failure diagnostics remain separate and cannot masquerade as reusable evidence.
         diagnostics = producer["Retain scientific diagnostics"]
         self.assertIn("if: always()", diagnostics)
-        self.assertIn("name: nipat-ci-scientific-logs", diagnostics)
+        self.assertIn("name: newpat-ci-scientific-logs", diagnostics)
 
     def test_image_is_saved_by_id_and_its_exact_archive_is_sealed_before_upload(self):
         producer = steps(self.producer)
@@ -106,7 +106,7 @@ class ScientificReuseWorkflows(unittest.TestCase):
         self.assertIn('--runtime-archive "$RUNNER_TEMP/scientific-runtime.tar"', seal)
         self.assertIn("if: steps.scientific_qualification.outcome == 'success' && steps.scientific_image_export.outcome == 'success'", upload)
         self.assertIn("actions/upload-artifact@", upload)
-        self.assertIn("name: nipat-scientific-image-${{ github.run_attempt }}-"
+        self.assertIn("name: newpat-scientific-image-${{ github.run_attempt }}-"
                       "${{ steps.scientific_qualification.outputs.source_tree }}", upload)
         self.assertIn("path: ${{ runner.temp }}/scientific-runtime.tar", upload)
         self.assertIn("retention-days: 3", upload)
@@ -128,7 +128,7 @@ class ScientificReuseWorkflows(unittest.TestCase):
         self.assertIn("GH_TOKEN: ${{ github.token }}", restore)
         self.assertIn("scientific_reuse.py restore", restore)
         self.assertIn("--promote-image", restore)
-        self.assertIn('--image "$NIPAT_RUNTIME_IMAGE" --output-dir build/scientific-reuse', restore)
+        self.assertIn('--image "$NEWPAT_RUNTIME_IMAGE" --output-dir build/scientific-reuse', restore)
         self.assertIn('--runner-temp "$RUNNER_TEMP" --output "$GITHUB_OUTPUT"', restore)
         for name in CHECKS:
             self.assertLess(self.runtime.index(restore_name), self.runtime.index(name))
@@ -167,7 +167,7 @@ class ScientificReuseWorkflows(unittest.TestCase):
         self.assertIn('--source-commit "$(git rev-parse HEAD)"', export)
         shipped = runtime["Load and execute exported image in the shipped engine"]
         for argument in ("test-runtime-image.ps1", "-ManifestPath build/assets/installer-manifest.json",
-                         "-AssetDirectory build/assets", "-RootfsImage nipat-wsl-rootfs:exported-test"):
+                         "-AssetDirectory build/assets", "-RootfsImage newpat-wsl-rootfs:exported-test"):
             self.assertIn(argument, shipped)
 
     def test_final_installer_binding_and_evidence_collection_are_not_conditional_on_reuse(self):
@@ -194,10 +194,10 @@ class ScientificReuseWorkflows(unittest.TestCase):
         self.assertIn("--source scientific-origin build/scientific-reuse",
                       runtime["Preflight scientific evidence before building installers"])
         retained = runtime["Retain regression logs and metadata"]
-        self.assertIn("name: nipat-scientific-check-logs", retained)
+        self.assertIn("name: newpat-scientific-check-logs", retained)
         self.assertIn("build/scientific-reuse/reuse.json", retained)
         final = steps(jobs(self.installer)["installer-required"])
-        self.assertIn("name: nipat-scientific-check-logs", final["Download synthetic scientific diagnostics"])
+        self.assertIn("name: newpat-scientific-check-logs", final["Download synthetic scientific diagnostics"])
         self.assertIn("path: build/evidence/scientific", final["Download synthetic scientific diagnostics"])
         self.assertIn("--source scientific build/evidence/scientific",
                       final["Preserve bounded synthetic qualification evidence for accepted releases"])

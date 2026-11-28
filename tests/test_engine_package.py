@@ -21,7 +21,7 @@ from snp_output_helpers import write_snp_auxiliary
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = PROJECT_ROOT / "engine" / "main.py"
-SPEC = importlib.util.spec_from_file_location("nipat_bundled_engine", MODULE_PATH)
+SPEC = importlib.util.spec_from_file_location("newpat_bundled_engine", MODULE_PATH)
 assert SPEC is not None and SPEC.loader is not None
 engine = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(engine)
@@ -29,7 +29,7 @@ SPEC.loader.exec_module(engine)
 
 class EnginePackageTests(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="nipat engine ")
+        self.temporary = tempfile.TemporaryDirectory(prefix="newpat engine ")
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name).resolve()
         (self.root / "engine").mkdir()
@@ -109,7 +109,7 @@ class EnginePackageTests(unittest.TestCase):
 
     def test_image_plan_gate_accepts_inferred_marker_and_rejects_wrong_marker(self):
         spec = importlib.util.spec_from_file_location(
-            "nipat_package_plan_gate", PROJECT_ROOT / "scripts/verify_engine_package.py")
+            "newpat_package_plan_gate", PROJECT_ROOT / "scripts/verify_engine_package.py")
         helper = importlib.util.module_from_spec(spec)
         with patch.object(sys, "path", [str(PROJECT_ROOT / "scripts"), *sys.path]):
             spec.loader.exec_module(helper)
@@ -142,7 +142,7 @@ class EnginePackageTests(unittest.TestCase):
         from newpat.paths import ProjectLayout
 
         spec = importlib.util.spec_from_file_location(
-            "nipat_regression_provenance", PROJECT_ROOT / "scripts/verify_contamination_update.py")
+            "newpat_regression_provenance", PROJECT_ROOT / "scripts/verify_contamination_update.py")
         helper = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(helper)
         code, output, errors = self.call_main(["describe", "--json"])
@@ -162,7 +162,7 @@ class EnginePackageTests(unittest.TestCase):
         record = {"status": "succeeded", "workflow": "contamination", "source": {"role": "client"},
                   "input_mounts": [], "runtime": {"engine": metadata, "image_id": "sha256:" + "a" * 64},
                   "commands": [{"argv": ["docker", "compose", "-f", str(compose), "run", "scientific",
-                                           "python3", "/opt/nipat/engine/main.py", "execute", "contamination"]}]}
+                                           "python3", "/opt/newpat/engine/main.py", "execute", "contamination"]}]}
         (run / "run.json").write_text(json.dumps(record), encoding="utf-8")
         helper.check_bundled_run(run, layout)
         del metadata["preparation"]["file_sha256"]["lib/newpat_scientific/outputs.py"]
@@ -189,7 +189,7 @@ class EnginePackageTests(unittest.TestCase):
         from newpat.paths import ProjectLayout
 
         spec = importlib.util.spec_from_file_location(
-            "nipat_snp_plan_provenance", PROJECT_ROOT / "scripts/verify_snp_workflow.py")
+            "newpat_snp_plan_provenance", PROJECT_ROOT / "scripts/verify_snp_workflow.py")
         helper = importlib.util.module_from_spec(spec)
         with patch.object(sys, "path", [str(PROJECT_ROOT / "scripts"), *sys.path]):
             spec.loader.exec_module(helper)
@@ -199,7 +199,7 @@ class EnginePackageTests(unittest.TestCase):
         (run / "work").mkdir(parents=True)
         record = {
             "status": "succeeded", "source": {"role": "client"},
-            "commands": [{"argv": ["python3", "/opt/nipat/engine/main.py", "execute-plan"]}],
+            "commands": [{"argv": ["python3", "/opt/newpat/engine/main.py", "execute-plan"]}],
             "runtime": {"engine": {"plan_execution": {"workflows": ["snp-call"]}}},
             "input_mounts": [{"container_path": "/inputs/sample.bam"}],
         }
@@ -396,8 +396,8 @@ class EnginePackageTests(unittest.TestCase):
         fake_rscript.chmod(0o755)
         environment = os.environ.copy()
         environment.update({name: "8" for name in THREAD_LIMITS})
-        environment["NIPAT_EXECUTION_MODE"] = "serial"
-        environment["NIPAT_MAX_WORKERS"] = "8"
+        environment["NEWPAT_EXECUTION_MODE"] = "serial"
+        environment["NEWPAT_MAX_WORKERS"] = "8"
         # The native engine must use its own bundled helper when no desktop
         # installation is available on the import path.
         environment["PYTHONPATH"] = str(self.root / "absent application")
@@ -709,7 +709,7 @@ class EnginePackageTests(unittest.TestCase):
     def dnp_request(self, parallel=False):
         # Container aliases are deliberately shell-safe even when the bundled
         # application, source panel and run root have arbitrary user names.
-        temporary = tempfile.TemporaryDirectory(prefix="nipat_dnp_aliases_")
+        temporary = tempfile.TemporaryDirectory(prefix="newpat_dnp_aliases_")
         self.addCleanup(temporary.cleanup)
         inputs = Path(temporary.name).resolve()
         panel = self.root / "selected panel = à.txt"
@@ -869,7 +869,7 @@ class EnginePackageTests(unittest.TestCase):
             "Path(sys.argv[sys.argv.index('-o') + 1]).write_text('chr1\\t100\\tA\\t1\\t.\\tI\\tread1\\n')\n"
         )
         run = self.root / "plan-run"
-        environment["NIPAT_EXECUTION_MODE"] = "serial"
+        environment["NEWPAT_EXECUTION_MODE"] = "serial"
         result = self.relocated_command("execute-plan", "--plan", str(plan_file),
                                         "--run-dir", str(run), "--json", extra_env=environment)
         self.assertEqual(result.returncode, 37, result.stderr)

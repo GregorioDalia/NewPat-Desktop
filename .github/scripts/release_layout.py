@@ -17,5 +17,6 @@ def source_path(path, version):
         return path.replace("/nipat_scientific/", "/newpat_scientific/", 1)
     if path.startswith("assets/branding/nipat-"):
         return path.replace("/nipat-", "/newpat-", 1)
-    return {"src/nipat/cli.py": "src/newpat/cli.py",
+    return {"installer/runtime/nipat-engine": "installer/runtime/newpat-engine",
+            "src/nipat/cli.py": "src/newpat/cli.py",
             "installer/windows/NIPAT.iss": "installer/windows/NewPat.iss"}.get(path, path)

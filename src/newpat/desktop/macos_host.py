@@ -167,7 +167,7 @@ class _Window:
     def _make_delegate(self):
         c = self.cocoa
         klass = c.objc.objc_allocateClassPair(c.cls("NSObject"),
-            ("NIPATDelegate_" + uuid.uuid4().hex).encode(), 0)
+            ("NewPatDelegate_" + uuid.uuid4().hex).encode(), 0)
         if not klass:
             raise NativeHostError("Impossibile creare la finestra NewPat.")
         methods = [
@@ -563,7 +563,7 @@ def run_window(url: str, title: str = "NewPat", on_close=None, *, smoke_test=Fal
     """Run the Cocoa window on the process main thread, without opening Safari.
 
     The WKWebView data store is nonpersistent; durable application data belongs
-    to the supplied NIPAT service, not to a WebKit cache or browser profile.
+    to the supplied NewPat service, not to a WebKit cache or browser profile.
     """
     global _active_host
     if sys.platform != "darwin":

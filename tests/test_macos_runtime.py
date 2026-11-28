@@ -38,13 +38,13 @@ class MacRuntimeTests(unittest.TestCase):
         self.executable = self.home / "lima" / "bin" / "limactl"
         self.executable.parent.mkdir(parents=True)
         self.executable.write_text("fixture")
-        self.workspace = self.home / "Library" / "Application Support" / "NIPAT-Desktop"
+        self.workspace = self.home / "Library" / "Application Support" / "NewPat-Desktop"
         self.runtime = LimaRuntime(self.project, self.workspace, self.executable, home=self.home)
         self.archive = self.project / ".distribution" / "assets" / "runtime.tar.gz"
         self.archive.parent.mkdir(parents=True)
         self.archive.write_bytes(b"verified fixture archive")
         self.manifest = {
-            "schema_version": 1, "channel": CHANNEL, "version": "0.8.0a1", "source_commit": "c" * 40,
+            "schema_version": 1, "channel": CHANNEL, "version": "0.9.99", "bundle_identifier": "org.newpat.desktop", "source_commit": "c" * 40,
             "architecture": "x86_64", "scientific_platform": "linux/amd64", "lima_version": LIMA_VERSION, "runtime_image": SOURCE_ID,
             "scientific_asset": {"name": self.archive.name, "sha256": file_sha256(self.archive)},
             "engine_description": engine_metadata(),
@@ -55,7 +55,7 @@ class MacRuntimeTests(unittest.TestCase):
 
     def test_overlong_home_is_still_rejected_before_creating_files(self):
         home = self.home / ("long-name-" * 15)
-        workspace = home / "Library/Application Support/NIPAT-Desktop"
+        workspace = home / "Library/Application Support/NewPat-Desktop"
         with self.assertRaisesRegex(ValidationError, "troppo lungo"):
             LimaRuntime(self.project, workspace, self.executable, home=home)
         self.assertFalse(home.exists())
@@ -64,7 +64,7 @@ class MacRuntimeTests(unittest.TestCase):
         _write_json(self.runtime.owner_path, self.owner)
         self.runtime.instance_dir.mkdir(parents=True)
         (self.runtime.instance_dir / "lima.yaml").write_text(
-            "param:\n  NipatOwner: " + self.owner["token"] + "\n", encoding="utf-8",
+            "param:\n  NewPatOwner: " + self.owner["token"] + "\n", encoding="utf-8",
         )
 
     def ready_state(self):
@@ -150,6 +150,7 @@ class MacRuntimeTests(unittest.TestCase):
         self.assertEqual(read_manifest(self.project), self.manifest)
         mutations = [
             lambda m: m.update(channel="experimental08"),
+            lambda m: m.update(bundle_identifier="org.other.desktop"),
             lambda m: m.update(runtime_image="arbitrary:latest"),
             lambda m: m["scientific_asset"].update(name="../runtime.tar.gz"),
             lambda m: m.update(engine_description={}),
@@ -184,7 +185,7 @@ class MacRuntimeTests(unittest.TestCase):
             self.assertRegex(config["images"][0]["digest"], r"^sha256:[a-f0-9]{64}$")
             self.assertIn("24.04", config["images"][0]["location"])
             self.assertNotIn("curl", config["provision"][0]["script"])
-            self.assertIn("$PARAM_NipatOwner", config["provision"][0]["script"])
+            self.assertIn("$PARAM_NewPatOwner", config["provision"][0]["script"])
             self.assertFalse(config["ssh"]["forwardAgent"])
 
     def test_native_evidence_checks_real_guest_image_and_r_before_recording_samtools(self):
@@ -200,7 +201,7 @@ class MacRuntimeTests(unittest.TestCase):
                     with self.assertRaisesRegex(RuntimeExecutionError, "architettura di R"):
                         self.runtime.native_evidence(LOADED_ID)
 
-    def test_existing_owned_arm_guest_migrates_with_same_mounts_and_native_image(self):
+    def test_owned_arm_guest_enforces_native_execution_and_preserves_mounts(self):
         self.manifest.update(architecture="arm64", scientific_platform="linux/arm64", version="0.9.99")
         _write_json(self.project / ".distribution/macos-manifest.json", self.manifest)
         self.owned_vm()
@@ -209,7 +210,7 @@ class MacRuntimeTests(unittest.TestCase):
         previous.update(cpus=3, memory="4096MiB", disk="65GiB")
         config = self.runtime.instance_dir / "lima.yaml"
         _write_json(config, previous)
-        _write_json(self.runtime.state_path, {"version": "0.9.10", "runtime_image": SOURCE_ID, "phase": "ready"})
+        _write_json(self.runtime.state_path, {"version": "0.9.99", "runtime_image": SOURCE_ID, "phase": "ready"})
         disk = self.runtime.instance_dir / "diffdisk"
         disk.write_text("retained guest disk")
         info = {"status": "Running", "active": "old-container", "commands": []}
@@ -243,7 +244,7 @@ class MacRuntimeTests(unittest.TestCase):
                 self.assertIn("--platform=linux/arm64", argv)
                 return json.dumps(self.manifest["engine_description"])
             self.fail(argv)
-        with patch.dict(os.environ, {"NIPAT_RUNTIME_MAINTENANCE": "1", "NIPAT_LAUNCHER_PID": str(os.getppid())}), \
+        with patch.dict(os.environ, {"NEWPAT_RUNTIME_MAINTENANCE": "1", "NEWPAT_LAUNCHER_PID": str(os.getppid())}), \
                 patch.object(self.runtime, "_host_check"), patch.object(self.runtime, "_run", side_effect=execute):
             self.assertTrue(self.runtime.requires_mount_repair())
             with self.assertRaisesRegex(ValidationError, "attivi"):
@@ -335,7 +336,7 @@ class MacRuntimeTests(unittest.TestCase):
                 return self.application_digest()
             self.fail(f"Unexpected command during orphan recovery: {argv}")
 
-        lease = {"NIPAT_RUNTIME_MAINTENANCE": "1", "NIPAT_LAUNCHER_PID": str(os.getppid())}
+        lease = {"NEWPAT_RUNTIME_MAINTENANCE": "1", "NEWPAT_LAUNCHER_PID": str(os.getppid())}
         with (redirect_stdout(io.StringIO()), patch.dict(os.environ, lease),
               patch.object(runtime, "_host_check"), patch.object(runtime, "_run", side_effect=execute)):
             self.assertTrue(runtime.requires_mount_repair())
@@ -346,7 +347,7 @@ class MacRuntimeTests(unittest.TestCase):
             self.assertFalse(runtime.requires_mount_repair())
             self.assertEqual(runtime.prepare(), state)
         self.assertEqual((len(starts), len(imports)), (1, 1))
-        backups = list(runtime.lima_home.parent.glob("recovered-nipat-*/nipat"))
+        backups = list(runtime.lima_home.parent.glob("recovered-newpat-*/newpat"))
         self.assertEqual(len(backups), 1)
         self.assertEqual((backups[0] / "lima.yaml").read_bytes(), prior)
         self.assertEqual((backups[0] / "diffdisk").read_bytes(), b"original virtual disk")
@@ -358,7 +359,7 @@ class MacRuntimeTests(unittest.TestCase):
         yaml = runtime.instance_dir / "lima.yaml"
         original = json.loads(yaml.read_text())
         active = {"name": INSTANCE, "dir": str(runtime.instance_dir), "status": "Stopped"}
-        lease = {"NIPAT_RUNTIME_MAINTENANCE": "1", "NIPAT_LAUNCHER_PID": str(os.getppid())}
+        lease = {"NEWPAT_RUNTIME_MAINTENANCE": "1", "NEWPAT_LAUNCHER_PID": str(os.getppid())}
         cases = [
             ("running", {"status": "Running"}, original),
             ("protected", {"protected": True}, original),
@@ -368,7 +369,7 @@ class MacRuntimeTests(unittest.TestCase):
             ("wrong_directory", {"dir": str(runtime.lima_home / "foreign")}, original),
             ("wrong_name", {"name": "foreign"}, original),
             ("no_provision", {}, dict(original, provision=[])),
-            ("foreign_token", {}, dict(original, param={"NipatOwner": "unrelated"})),
+            ("foreign_token", {}, dict(original, param={"NewPatOwner": "unrelated"})),
         ]
         for label, info, config in cases:
             _write_json(yaml, config)
@@ -382,7 +383,7 @@ class MacRuntimeTests(unittest.TestCase):
             self.assertEqual(yaml.read_bytes(), before)
             self.assertEqual((runtime.instance_dir / "diffdisk").read_bytes(), b"original virtual disk")
             self.assertFalse(runtime.owner_path.exists())
-            self.assertFalse(list(runtime.lima_home.parent.glob("recovered-nipat-*")))
+            self.assertFalse(list(runtime.lima_home.parent.glob("recovered-newpat-*")))
 
     def test_orphan_recovery_requires_launcher_maintenance_and_rejects_linked_paths(self):
         runtime = self.orphaned_vm()
@@ -392,13 +393,13 @@ class MacRuntimeTests(unittest.TestCase):
         linked_file.write_bytes(original)
         info = json.dumps({"name": INSTANCE, "dir": str(runtime.instance_dir), "status": "Stopped",
                            "config": json.loads(original)})
-        lease = {"NIPAT_RUNTIME_MAINTENANCE": "1", "NIPAT_LAUNCHER_PID": str(os.getppid())}
+        lease = {"NEWPAT_RUNTIME_MAINTENANCE": "1", "NEWPAT_LAUNCHER_PID": str(os.getppid())}
         for label in ("no-exclusive-lease", "wrong-launcher", "linked-config", "dangling-owner"):
             environment = dict(lease)
             if label == "no-exclusive-lease":
-                environment["NIPAT_RUNTIME_MAINTENANCE"] = "0"
+                environment["NEWPAT_RUNTIME_MAINTENANCE"] = "0"
             elif label == "wrong-launcher":
-                environment["NIPAT_LAUNCHER_PID"] = str(os.getppid() + 1)
+                environment["NEWPAT_LAUNCHER_PID"] = str(os.getppid() + 1)
             elif label == "linked-config":
                 config_file.unlink()
                 config_file.symlink_to(linked_file)
@@ -410,7 +411,7 @@ class MacRuntimeTests(unittest.TestCase):
                   self.assertRaises((ValidationError, RuntimeExecutionError))):
                 runtime.prepare()
             self.assertTrue(all("list" in call.args[0] for call in run.call_args_list))
-            self.assertFalse(list(runtime.lima_home.parent.glob("recovered-nipat-*")))
+            self.assertFalse(list(runtime.lima_home.parent.glob("recovered-newpat-*")))
             self.assertEqual((runtime.instance_dir / "diffdisk").read_bytes(), b"original virtual disk")
             if label == "linked-config":
                 self.assertTrue(config_file.is_symlink())
@@ -428,7 +429,7 @@ class MacRuntimeTests(unittest.TestCase):
         runtime.instance_dir.symlink_to(target, target_is_directory=True)
         config = json.loads((target / "lima.yaml").read_text())
         info = json.dumps({"name": INSTANCE, "dir": str(runtime.instance_dir), "status": "Stopped", "config": config})
-        lease = {"NIPAT_RUNTIME_MAINTENANCE": "1", "NIPAT_LAUNCHER_PID": str(os.getppid())}
+        lease = {"NEWPAT_RUNTIME_MAINTENANCE": "1", "NEWPAT_LAUNCHER_PID": str(os.getppid())}
         with (patch.dict(os.environ, lease), patch.object(runtime, "_host_check"),
               patch.object(runtime, "_run", return_value=info) as execute,
               self.assertRaises((ValidationError, RuntimeExecutionError))):
@@ -436,7 +437,7 @@ class MacRuntimeTests(unittest.TestCase):
         self.assertTrue(all("list" in call.args[0] for call in execute.call_args_list))
         self.assertTrue(runtime.instance_dir.is_symlink())
         self.assertEqual((target / "diffdisk").read_bytes(), b"original virtual disk")
-        self.assertFalse(list(runtime.lima_home.parent.glob("recovered-nipat-*")))
+        self.assertFalse(list(runtime.lima_home.parent.glob("recovered-newpat-*")))
 
     def test_remove_rejects_forged_ownership_and_preserves_analyses(self):
         self.owned_vm()
@@ -444,12 +445,12 @@ class MacRuntimeTests(unittest.TestCase):
         data = self.workspace / "data" / "keep.bam"
         data.parent.mkdir(parents=True)
         data.write_text("original")
-        (self.runtime.instance_dir / "lima.yaml").write_text("param:\n  NipatOwner: foreign\n")
+        (self.runtime.instance_dir / "lima.yaml").write_text("param:\n  NewPatOwner: foreign\n")
         with patch.object(self.runtime, "_run") as execute:
             with self.assertRaises(ValidationError):
                 self.runtime.remove_runtime()
             execute.assert_not_called()
-        (self.runtime.instance_dir / "lima.yaml").write_text("param:\n  NipatOwner: " + self.owner["token"] + "\n")
+        (self.runtime.instance_dir / "lima.yaml").write_text("param:\n  NewPatOwner: " + self.owner["token"] + "\n")
         with patch.object(self.runtime, "_run", return_value="") as execute:
             self.runtime.remove_runtime()
             self.assertEqual(execute.call_args.args[0][-3:], ["delete", "--force", INSTANCE])
@@ -482,7 +483,7 @@ class MacRuntimeTests(unittest.TestCase):
 
         def execute(argv, **kwargs):
             if "start" in argv:
-                self.assertIn("--name=nipat", argv)
+                self.assertIn("--name=newpat", argv)
                 self.runtime.instance_dir.mkdir(parents=True)
                 (self.runtime.instance_dir / "lima.yaml").write_bytes(Path(argv[-1]).read_bytes())
                 return "started"
@@ -562,19 +563,19 @@ class MacRuntimeTests(unittest.TestCase):
         temporary = self.home / "T"
         temporary.mkdir()
         environment = patch.dict(os.environ, {"TMPDIR": str(temporary),
-                                "NIPAT_RUNTIME_MAINTENANCE": "1",
-                                "NIPAT_LAUNCHER_PID": str(os.getppid())})
+                                "NEWPAT_RUNTIME_MAINTENANCE": "1",
+                                "NEWPAT_LAUNCHER_PID": str(os.getppid())})
         environment.start()
         self.addCleanup(environment.stop)
         self.owner["mounts"] = self.runtime.default_mounts()
         if old_application:
-            old = Path(external.name) / "NIPAT Desktop.app/Contents/Resources/app"
+            old = Path(external.name) / "moved" / "NewPat.app/Contents/Resources/app"
             self.owner["mounts"].append({"location": str(old), "mountPoint": str(old), "writable": False})
         custom = {"location": "/Volumes/Scientific Data", "mountPoint": "/Volumes/Scientific Data", "writable": True}
         self.owner["mounts"].append(custom)
         self.owned_vm()
         self.ready_state()
-        config = {"param": {"NipatOwner": self.owner["token"]}, "memory": "6144MiB", "cpus": 3,
+        config = {"param": {"NewPatOwner": self.owner["token"]}, "memory": "6144MiB", "cpus": 3,
                   "mounts": copy.deepcopy(self.owner["mounts"]), "disk": "65GiB"}
         _write_json(self.runtime.instance_dir / "lima.yaml", config)
         runtime = LimaRuntime(new_project, self.workspace, self.executable, home=self.home)
@@ -624,7 +625,7 @@ class MacRuntimeTests(unittest.TestCase):
         after = json.loads((runtime.instance_dir / "lima.yaml").read_text())
         for key in ("memory", "cpus", "disk", "param"):
             self.assertEqual(after[key], before[key])
-        retained = [item for item in before["mounts"] if not item["location"].endswith("NIPAT Desktop.app/Contents/Resources/app")]
+        retained = [item for item in before["mounts"] if not item["location"].endswith("/moved/NewPat.app/Contents/Resources/app")]
         self.assertEqual(after["mounts"][:-1], retained)
         self.assertEqual(after["mounts"][-1], {"location": str(runtime.project), "mountPoint": str(runtime.project), "writable": False})
         self.assertTrue(list(runtime.directory.glob("mount-backup-*.json")))
@@ -633,13 +634,13 @@ class MacRuntimeTests(unittest.TestCase):
     def test_desktop_to_applications_relocation_preserves_vm_and_configuration(self):
         self.assert_successful_relocation()
 
-    def test_newpat_rename_preserves_vm_and_custom_configuration(self):
+    def test_relocating_app_bundle_preserves_vm_and_custom_configuration(self):
         self.assert_successful_relocation(old_application=True)
 
-    def test_existing_legacy_app_and_custom_readonly_mounts_are_preserved(self):
+    def test_existing_application_and_custom_readonly_mounts_are_preserved(self):
         runtime, state, execute, before = self.relocated_runtime(old_application=True)
-        legacy = next(item["location"] for item in before["mounts"] if "NIPAT Desktop.app" in item["location"])
-        Path(legacy).mkdir(parents=True)
+        previous = next(item["location"] for item in before["mounts"] if "/moved/NewPat.app/" in item["location"])
+        Path(previous).mkdir(parents=True)
         custom = {"location": str(self.home / "custom-readonly"),
                   "mountPoint": str(self.home / "custom-readonly"), "writable": False}
         before["mounts"].append(custom)
@@ -652,10 +653,10 @@ class MacRuntimeTests(unittest.TestCase):
         actual = json.loads((runtime.instance_dir / "lima.yaml").read_text())
         self.assertEqual(actual["mounts"][:-1], before["mounts"])
 
-    def test_modified_legacy_mount_is_never_retired_as_application_mount(self):
+    def test_modified_previous_mount_is_never_retired_as_application_mount(self):
         runtime, state, execute, before = self.relocated_runtime(old_application=True)
         for item in before["mounts"]:
-            if "NIPAT Desktop.app" in item["location"]:
+            if "/moved/NewPat.app/" in item["location"]:
                 item["writable"] = True
         _write_json(runtime.instance_dir / "lima.yaml", before)
         with patch.object(runtime, "_host_check"), patch.object(runtime, "_run", side_effect=execute):
@@ -674,7 +675,7 @@ class MacRuntimeTests(unittest.TestCase):
 
     def test_mount_repair_requires_exclusive_launcher_lease(self):
         runtime, state, execute, before = self.relocated_runtime()
-        with patch.dict(os.environ, {"NIPAT_RUNTIME_MAINTENANCE": "0"}), patch.object(runtime, "_host_check"), patch.object(runtime, "_run", side_effect=execute):
+        with patch.dict(os.environ, {"NEWPAT_RUNTIME_MAINTENANCE": "0"}), patch.object(runtime, "_host_check"), patch.object(runtime, "_run", side_effect=execute):
             with self.assertRaisesRegex(ValidationError, "Chiudere tutte le sessioni"):
                 runtime.prepare()
         self.assertFalse(any("stop" in call or "edit" in call for call in state["commands"]))
@@ -692,7 +693,7 @@ class MacRuntimeTests(unittest.TestCase):
         self.assertEqual(state["status"], "Running")
         self.assertFalse(any("delete" in call for call in state["commands"]))
 
-    def test_failed_guest_probe_restores_old_mounts_after_newpat_rename(self):
+    def test_failed_guest_probe_restores_old_mounts_after_app_relocation(self):
         runtime, state, execute, before = self.relocated_runtime(old_application=True)
         owner_before = runtime.owner_path.read_bytes()
         config_before = (runtime.instance_dir / "lima.yaml").read_bytes()
@@ -737,21 +738,21 @@ class MacRuntimeTests(unittest.TestCase):
                     actions.append(action)
                     return subprocess.CompletedProcess(argv, 0, "", "")
 
-                environment = {"NIPAT_LAUNCHER_PID": str(os.getppid()), "NIPAT_RUNTIME_MAINTENANCE": ""}
+                environment = {"NEWPAT_LAUNCHER_PID": str(os.getppid()), "NEWPAT_RUNTIME_MAINTENANCE": ""}
                 with (patch.dict(os.environ, environment), patch.object(LimaRuntime, "from_environment", return_value=self.runtime),
                       patch.object(self.runtime, "_host_check"), patch.object(self.runtime, "_verify_image"),
                       patch.object(self.runtime, "_instance_info", return_value=self.instance_info()),
                       patch("newpat.macos_runtime.subprocess.run", side_effect=guest)):
                     self.assertEqual(main(["prepare"]), os.EX_TEMPFAIL)
                     self.assertNotIn("stop", actions)
-                    os.environ["NIPAT_RUNTIME_MAINTENANCE"] = "1"
+                    os.environ["NEWPAT_RUNTIME_MAINTENANCE"] = "1"
                     with self.assertRaisesRegex(ValidationError, "container attivi"):
                         self.runtime.prepare()
                     self.assertNotIn("stop", actions)
                     active = ""
                     self.assertEqual(main(["prepare"]), 0)
                     self.assertEqual(actions[-2:], ["stop", "start"])
-                    os.environ["NIPAT_RUNTIME_MAINTENANCE"] = ""
+                    os.environ["NEWPAT_RUNTIME_MAINTENANCE"] = ""
                     self.assertEqual(main(["prepare"]), 0)
                     self.assertEqual(actions.count("stop"), 1)
 
@@ -773,7 +774,7 @@ class MacRuntimeTests(unittest.TestCase):
                         return subprocess.CompletedProcess(argv, code, stdout, stderr)
                     return subprocess.CompletedProcess(argv, 0, "", "")
 
-                with (patch.dict(os.environ, {"NIPAT_RUNTIME_MAINTENANCE": "1", "NIPAT_LAUNCHER_PID": str(os.getppid())}),
+                with (patch.dict(os.environ, {"NEWPAT_RUNTIME_MAINTENANCE": "1", "NEWPAT_LAUNCHER_PID": str(os.getppid())}),
                       patch.object(self.runtime, "_host_check"), patch.object(self.runtime, "_instance_info", return_value=self.instance_info()),
                       patch("newpat.macos_runtime.subprocess.run", side_effect=guest) as runner, self.assertRaises(RuntimeExecutionError)):
                     self.runtime.prepare()
@@ -802,7 +803,7 @@ class MacRuntimeTests(unittest.TestCase):
         self.assertEqual(command[-1], str(value))
         self.assertNotIn("sh", command)
         self.assertNotIn("-c", command)
-        self.assertIn("LIMA_HOME=" + str(self.home / ".nipat/lima"), command)
+        self.assertIn("LIMA_HOME=" + str(self.home / ".newpat/lima"), command)
         self.assertIn("SSH=/usr/bin/ssh", command)
         self.assertIn("--workdir=/", command)
         from platform import machine
@@ -810,7 +811,7 @@ class MacRuntimeTests(unittest.TestCase):
         self.assertIn("DOCKER_DEFAULT_PLATFORM=" + scientific_platform(machine()), command)
 
     def test_paths_outside_mounts_and_escaping_symlinks_are_rejected(self):
-        outside = Path("/unshared/nipat/file.bam")
+        outside = Path("/unshared/newpat/file.bam")
         with self.assertRaisesRegex(ValidationError, "non condivisa"):
             self.runtime.host_path(outside)
         link = self.home / "escape"

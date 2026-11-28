@@ -255,7 +255,7 @@ def audit(project: Path, root: Path, samtools: str) -> dict:
             saved = work / "effective-settings.json"
             saved.write_text(json.dumps({"schema_version": 1, "workflow": "dnp-call",
                                          "parameters": parameters, "constants": caller["constants"]}))
-            with patch.dict(os.environ, NIPAT_SCIENTIFIC_SETTINGS=str(saved)):
+            with patch.dict(os.environ, NEWPAT_SCIENTIFIC_SETTINGS=str(saved)):
                 execute(command, output=work / "helper.stdout")
             oracle[oracle.index("-d") + 1] = str(depth)
         expected = execute([*oracle, "-b", str(bamlist)], output=work / "sequential.pileup")
@@ -335,7 +335,7 @@ def audit(project: Path, root: Path, samtools: str) -> dict:
                    expected_contigs=contigs, require_overlap=True)
     compare_budget("chromosomes-multiple", [paths["sparse"], paths["dense"]], 4,
                    expected_contigs=contigs, require_overlap=True)
-    with patch.dict(os.environ, NIPAT_DNP_OPTIMIZED_IO="1"):
+    with patch.dict(os.environ, NEWPAT_DNP_OPTIMIZED_IO="1"):
         details = compare_budget("clustered-bounded-region", [paths["dense"], paths["sparse"]],
                                  1, expected_contigs=contigs)
     regions = [row["region"] for row in details["processes"] if "region" in row]

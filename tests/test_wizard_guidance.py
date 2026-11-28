@@ -74,12 +74,11 @@ class WizardGuidanceTests(unittest.TestCase):
     def assert_no_errors(self, ui):
         self.assertEqual([text for kind, text in ui.events if kind == "error"], [])
 
-    def test_help_matches_saved_update_channel_and_experimental_policy_without_actions(self):
+    def test_help_matches_saved_update_channel_without_actions(self):
         store = PreferencesStore(self.root / "settings.json")
         for version, channel, expected in (
-            ("0.8.80", "stable", "Canale aggiornamenti selezionato: Stabile"),
-            ("0.8.80", "testing", "Canale aggiornamenti selezionato: Testing"),
-            ("0.8.80rc1", "stable", "gli aggiornamenti automatici sono disabilitati"),
+            ("0.9.99", "stable", "Canale aggiornamenti selezionato: Stabile"),
+            ("0.9.99", "testing", "Canale aggiornamenti selezionato: Testing"),
         ):
             with self.subTest(version=version, channel=channel):
                 store.save(Preferences(update_channel=channel))
@@ -96,10 +95,7 @@ class WizardGuidanceTests(unittest.TestCase):
                 self.assertIn(expected, output)
                 self.assertIn("W -> 5 collega DNPcall e/o SNPcall", output)
                 self.assertIn("CPI postnatale, anche partendo da tabelle esistenti", output)
-                if version == "0.8.80":
-                    self.assertNotIn("versione sperimentale", output)
-                else:
-                    self.assertNotIn("Canale aggiornamenti selezionato:", output)
+                self.assertNotIn("versione sperimentale", output)
                 updates.assert_not_called()
                 self.assertEqual(workflows.mock_calls, [])
 

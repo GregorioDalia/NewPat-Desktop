@@ -21,9 +21,10 @@ import urllib.parse
 import urllib.request
 import zipfile
 
-BOOTSTRAP_VERSION = "1.2.0"
+BOOTSTRAP_VERSION = "2.0.0"
+APP_ID = "B870A3DA-56E8-4F27-A571-86FCEDD83F25"
 REPOSITORY_ID = 1307623649
-OFFICIAL_REPOSITORIES = ("GregorioDalia/NewPat-Desktop", "GregorioDalia/nipat-desktop")
+OFFICIAL_REPOSITORIES = ("GregorioDalia/NewPat-Desktop",)
 REPOSITORY = "https://github.com/" + OFFICIAL_REPOSITORIES[0]
 REPOSITORY_API = f"https://api.github.com/repositories/{REPOSITORY_ID}"
 FEED_NAME = "update-manifest-windows-bootstrap-v2.json"
@@ -57,7 +58,7 @@ def _sha(stream):
 
 def _target(version, source, sha256, size):
     if (not isinstance(version, str) or not VERSION.fullmatch(version)
-            or tuple(map(int, version.split("."))) < (0, 9, 10)
+            or tuple(map(int, version.split("."))) < (0, 9, 99)
             or not isinstance(source, str) or not COMMIT.fullmatch(source)
             or not isinstance(sha256, str) or not SHA256.fullmatch(sha256)
             or type(size) is not int or not 0 < size <= MAX_DOWNLOAD):
@@ -70,7 +71,7 @@ def validate_feed(value):
               "minimum_updater_version", "assets", "release_notes_url"}
     if (not isinstance(value, dict) or set(value) != fields
             or type(value["schema_version"]) is not int or value["schema_version"] != 1
-            or value["product"] != "nipat-desktop" or value["channel"] != "stable"
+            or value["product"] != "newpat-desktop" or value["channel"] != "stable"
             or type(value["minimum_updater_version"]) is not int
             or value["minimum_updater_version"] != 2
             or not isinstance(value["assets"], list) or len(value["assets"]) != 1):
@@ -80,7 +81,7 @@ def validate_feed(value):
         raise ValueError("Descrizione del pacchetto non valida")
     target = _target(value["version"], value["source_commit"], asset["sha256"], asset["size"])
     tag = "v" + target["version"]
-    name = "NIPAT-" + target["version"] + "-Windows-payload.zip"
+    name = "NewPat-" + target["version"] + "-Windows-payload.zip"
     asset_path = "/releases/download/" + tag + "/" + name
     allowed_urls = tuple("https://github.com/" + repo + asset_path for repo in OFFICIAL_REPOSITORIES)
     allowed_notes = tuple("https://github.com/" + repo + "/releases/tag/" + tag for repo in OFFICIAL_REPOSITORIES)
@@ -109,7 +110,7 @@ class _GitHubRedirects(urllib.request.HTTPRedirectHandler):
 def _open(url):
     if url != REPOSITORY_API and not _approved_url(url):
         raise ValueError("Indirizzo download non consentito")
-    request = urllib.request.Request(url, headers={"User-Agent": "NIPAT-Setup/" + BOOTSTRAP_VERSION})
+    request = urllib.request.Request(url, headers={"User-Agent": "NewPat-Setup/" + BOOTSTRAP_VERSION})
     return urllib.request.build_opener(_GitHubRedirects()).open(request, timeout=60)
 
 
@@ -204,6 +205,11 @@ def _locked_reader(path):
         yield stream
 
 
+def _current_profile(manifest):
+    profile = manifest.get("installation_profile")
+    return isinstance(profile, dict) and profile.get("channel") == "desktop" and profile.get("app_id") == APP_ID
+
+
 def extract_payload(package, destination, target, *, check_only=False):
     """Verify the entire archive before extraction, then hash each written file."""
     package = _plain_path(package)
@@ -238,7 +244,7 @@ def extract_payload(package, destination, target, *, check_only=False):
             inventory = _json(inventory_bytes)
             if (manifest.get("version") != target["version"]
                     or manifest.get("source_commit") != target["source_commit"]
-                    or manifest.get("installation_profile", {}).get("channel") != "desktop"
+                    or not _current_profile(manifest)
                     or inventory.get("schema_version") != 1
                     or inventory.get("installation_channel") != "desktop"
                     or inventory.get("source_commit") != target["source_commit"]):
@@ -315,6 +321,8 @@ def check_installed(project, version, source):
     if not manifest_path.exists():
         return
     installed = _json(manifest_path.read_bytes())
+    if not _current_profile(installed):
+        raise ValueError("La cartella contiene un altro prodotto. Scegliere una nuova destinazione per NewPat.")
     old_version = installed.get("version", "")
     if not VERSION.fullmatch(old_version):
         raise ValueError("Versione installata non riconosciuta; nessun file viene sostituito")
@@ -361,11 +369,11 @@ def main(argv=None):
         else:
             print("Ricerca dell'ultima versione stabile di NewPat...", flush=True)
             target = current_target()
-            package = args.destination.parent / "nipat-payload-download.zip"
+            package = args.destination.parent / "newpat-payload-download.zip"
             download(target, package)
         print("Verifica completa del pacchetto NewPat " + target["version"] + "...", flush=True)
         extract_payload(package, args.destination, target)
-        args.report_file.write_text("[NIPAT]\nversion=" + target["version"] + "\nsource_commit="
+        args.report_file.write_text("[NewPat]\nversion=" + target["version"] + "\nsource_commit="
                                     + target["source_commit"] + "\nsha256=" + target["sha256"]
                                     + "\nsize=" + str(target["size"]) + "\n", encoding="utf-16")
         print("Pacchetto verificato. Avvio dell'installazione guidata.", flush=True)

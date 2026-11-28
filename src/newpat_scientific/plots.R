@@ -2,7 +2,7 @@
 # Bound PDF page dimensions even for large panels or sample counts.
 # Rendering uses the original scientific tables as input.
 
-nipat_count_classes <- function(values, max_bins = 80L) {
+newpat_count_classes <- function(values, max_bins = 80L) {
   if (!is.numeric(values) || any(!is.na(values) &
       (!is.finite(values) | values < 0 | values != floor(values)))) {
     stop("Read counts must be non-negative whole numbers or NA")
@@ -33,17 +33,17 @@ nipat_count_classes <- function(values, max_bins = 80L) {
   result
 }
 
-nipat_integer_breaks <- function(limits) {
+newpat_integer_breaks <- function(limits) {
   values <- pretty(limits)
   unique(round(values[is.finite(values) & values >= 0 & abs(values - round(values)) < 1e-8]))
 }
 
-nipat_plot_pages <- function(pages) {
+newpat_plot_pages <- function(pages) {
   if (!length(pages)) stop("A plot document requires at least one page")
-  structure(pages, class = c("nipat_plot_pages", "list"))
+  structure(pages, class = c("newpat_plot_pages", "list"))
 }
 
-grid.draw.nipat_plot_pages <- function(x, recording = TRUE) {
+grid.draw.newpat_plot_pages <- function(x, recording = TRUE) {
   for (number in seq_along(x)) {
     if (number > 1L) grid::grid.newpage()
     page <- x[[number]]
@@ -54,8 +54,8 @@ grid.draw.nipat_plot_pages <- function(x, recording = TRUE) {
   invisible(x)
 }
 
-nipat_read_count_plot <- function(values, title, colour, locus_kind) {
-  counts <- nipat_count_classes(values)
+newpat_read_count_plot <- function(values, title, colour, locus_kind) {
+  counts <- newpat_count_classes(values)
   width <- attr(counts, "bin_width")
   ticks <- unique(c(1L, if (nrow(counts) > 1L) seq.int(2L, nrow(counts), by = max(1L, ceiling(nrow(counts) / 20L))), nrow(counts)))
   ticks <- ticks[ticks <= nrow(counts)]
@@ -66,13 +66,13 @@ nipat_read_count_plot <- function(values, title, colour, locus_kind) {
       caption = paste0("Zero counts are shown separately; positive class width: ",
                        format(width, scientific = FALSE, trim = TRUE), " reads. Missing counts, if any, have a separate bar.")) +
     ggplot2::scale_x_discrete(breaks = as.character(counts$class[ticks]), drop = FALSE) +
-    ggplot2::scale_y_continuous(breaks = nipat_integer_breaks, expand = ggplot2::expansion(mult = c(0, 0.08))) +
+    ggplot2::scale_y_continuous(breaks = newpat_integer_breaks, expand = ggplot2::expansion(mult = c(0, 0.08))) +
     ggplot2::theme_minimal(base_size = 11) +
     ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 60, hjust = 1, size = 8),
                    plot.caption = ggplot2::element_text(hjust = 0, size = 8))
 }
 
-nipat_sample_plots <- function(final, directory, sample, locus_kind = "SNP") {
+newpat_sample_plots <- function(final, directory, sample, locus_kind = "SNP") {
   stopifnot(all(c("GT", "N_REF", "N_ALT", "N_Other") %in% names(final)))
   dir.create(directory, recursive = TRUE, showWarnings = FALSE)
   observed <- as.character(final$GT)
@@ -83,7 +83,7 @@ nipat_sample_plots <- function(final, directory, sample, locus_kind = "SNP") {
   plot <- ggplot2::ggplot(counts, ggplot2::aes(x = Genotype, y = Loci)) +
     ggplot2::geom_col(fill = "steelblue", width = 0.75) +
     ggplot2::scale_x_discrete(drop = FALSE) +
-    ggplot2::scale_y_continuous(breaks = nipat_integer_breaks, expand = ggplot2::expansion(mult = c(0, 0.08))) +
+    ggplot2::scale_y_continuous(breaks = newpat_integer_breaks, expand = ggplot2::expansion(mult = c(0, 0.08))) +
     ggplot2::labs(title = "Genotype assignments", x = "Genotype", y = paste0("Number of ", locus_kind, " loci"),
       caption = "Unassigned (NA) includes loci without sufficient usable evidence and calls excluded by the scientific model.") +
     ggplot2::theme_minimal(base_size = 11) +
@@ -94,13 +94,13 @@ nipat_sample_plots <- function(final, directory, sample, locus_kind = "SNP") {
     list("N_ALT", "Alternative read counts", "red3", "Alt_read_count"),
     list("N_Other", "Other read counts", "steelblue", "Other_read_count"))
   for (specification in specifications) {
-    plot <- nipat_read_count_plot(final[[specification[[1]]]], specification[[2]], specification[[3]], locus_kind)
+    plot <- newpat_read_count_plot(final[[specification[[1]]]], specification[[2]], specification[[3]], locus_kind)
     ggsave(file.path(directory, paste0(sample, "_", specification[[4]], ".pdf")), plot = plot, width = 11, height = 5, device = grDevices::cairo_pdf)
   }
   invisible(NULL)
 }
 
-nipat_unassigned_pages <- function(merged, locus_kind = "SNP", per_page = 35L) {
+newpat_unassigned_pages <- function(merged, locus_kind = "SNP", per_page = 35L) {
   gt_columns <- grep("^GT_", names(merged), value = TRUE)
   if (!length(gt_columns)) stop("Genotype summary requires GT_<sample> columns")
   labels <- if (identical(locus_kind, "DNP")) {
@@ -114,19 +114,19 @@ nipat_unassigned_pages <- function(merged, locus_kind = "SNP", per_page = 35L) {
     frame <- data.frame(locus = factor(labels[selected], levels = unique(labels[selected])), count = counts[selected])
     ggplot2::ggplot(frame, ggplot2::aes(x = locus, y = count)) +
       ggplot2::geom_col(fill = "steelblue2", width = 0.8) +
-      ggplot2::scale_y_continuous(limits = c(0, max(1L, length(gt_columns))), breaks = nipat_integer_breaks) +
+      ggplot2::scale_y_continuous(limits = c(0, max(1L, length(gt_columns))), breaks = newpat_integer_breaks) +
       ggplot2::labs(title = "Unassigned genotypes", x = paste0(locus_kind, " locus"), y = "Samples with unassigned genotype (NA)",
         subtitle = paste0("Page ", number, " of ", length(groups), " | ", length(gt_columns), " sample(s)")) +
       ggplot2::theme_minimal(base_size = 11) +
       ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 60, hjust = 1, size = 8))
   })
-  nipat_plot_pages(pages)
+  newpat_plot_pages(pages)
 }
 
-nipat_genotype_summary <- function(merged, directory, locus_kind = "SNP") {
+newpat_genotype_summary <- function(merged, directory, locus_kind = "SNP") {
   dir.create(directory, recursive = TRUE, showWarnings = FALSE)
   ggsave(file.path(directory, "Unassigned_genotypes.pdf"),
-         plot = nipat_unassigned_pages(merged, locus_kind), width = 12, height = 6, device = grDevices::cairo_pdf)
+         plot = newpat_unassigned_pages(merged, locus_kind), width = 12, height = 6, device = grDevices::cairo_pdf)
   gt_columns <- grep("^GT_", names(merged), value = TRUE)
   if (length(gt_columns) >= 2L) {
     binary <- as.data.frame(lapply(merged[, gt_columns, drop = FALSE], function(x) !is.na(x)))
@@ -134,7 +134,7 @@ nipat_genotype_summary <- function(merged, directory, locus_kind = "SNP") {
     plot <- ComplexUpset::upset(binary, intersect = names(binary), min_size = 0,
       name = paste0(locus_kind, "s with assigned GT"),
       base_annotations = list("Intersection size" = ComplexUpset::intersection_size() +
-        ggplot2::scale_y_continuous(breaks = nipat_integer_breaks)),
+        ggplot2::scale_y_continuous(breaks = newpat_integer_breaks)),
       set_sizes = ComplexUpset::upset_set_size() + ggplot2::scale_y_continuous(
         breaks = function(limits) {
           values <- pretty(limits)
@@ -150,9 +150,9 @@ nipat_genotype_summary <- function(merged, directory, locus_kind = "SNP") {
   invisible(NULL)
 }
 
-nipat_cpi_pages <- function(plots, per_page = 4L) {
+newpat_cpi_pages <- function(plots, per_page = 4L) {
   groups <- split(seq_along(plots), ceiling(seq_along(plots) / per_page))
-  nipat_plot_pages(lapply(groups, function(indices) {
+  newpat_plot_pages(lapply(groups, function(indices) {
     patchwork::wrap_plots(plots[indices], ncol = min(2L, length(indices)))
   }))
 }
@@ -179,5 +179,5 @@ if (sys.nframe() == 0L) {
     old <- paste0("GT_", labels$internal_id)
     names(table)[match(old, names(table), nomatch = 0L)] <- paste0("GT_", labels$display_name)[old %in% names(table)]
   }
-  nipat_genotype_summary(table, option("--out"), "SNP")
+  newpat_genotype_summary(table, option("--out"), "SNP")
 }

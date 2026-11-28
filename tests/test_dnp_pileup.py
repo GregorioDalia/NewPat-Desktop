@@ -173,7 +173,7 @@ class DnpPileupTests(unittest.TestCase):
         self.samples([True, True])
         settings = {"min_base_quality": 21, "min_mapping_quality": 17, "max_depth": 500,
                     "baq": False, "count_overlaps": True, "include_orphans": True}
-        for budget in (None, {"schema_version": 1, "interface": "nipat-parallel-v1",
+        for budget in (None, {"schema_version": 1, "interface": "newpat-parallel-v1",
                              "mode": "serial", "workers": 1}):
             with self.subTest(budget=budget), settings_context("dnp-call", settings, self.root / "settings"):
                 result = self.generate(budget)
@@ -325,7 +325,7 @@ class DnpPileupTests(unittest.TestCase):
             outputs = []
             for optimized_io, workers in (('', 1), ('1', 1), ('1', 2)):
                 with self.subTest(empty=empty, optimized_io=optimized_io, workers=workers), patch.dict(
-                        os.environ, MPILEUP_EMPTY=empty, NIPAT_DNP_OPTIMIZED_IO=optimized_io):
+                        os.environ, MPILEUP_EMPTY=empty, NEWPAT_DNP_OPTIMIZED_IO=optimized_io):
                     result = self.generate({'mode': 'auto', 'workers': workers})
                     direct = result['parallel'].get('output_strategy') == 'direct-dictionary-order'
                     self.assertEqual(direct, bool(optimized_io) and workers == 1)
@@ -345,7 +345,7 @@ class DnpPileupTests(unittest.TestCase):
         self.bed.write_text("tiny\t5\t10\nspread\t100\t110\ncluster\t1000040\t1000050\n"
                             "spread\t1800000\t1800004\ncluster\t50\t54\n")
         for flag, expected in (("", "cluster"), ("1", "{cluster}:51-1000050")):
-            with self.subTest(flag=flag), patch.dict(os.environ, NIPAT_DNP_OPTIMIZED_IO=flag):
+            with self.subTest(flag=flag), patch.dict(os.environ, NEWPAT_DNP_OPTIMIZED_IO=flag):
                 result = self.generate({"mode": "auto", "workers": 1})
                 args = [item["args"] for item in self.commands() if item["stage"] == "mpileup"]
                 self.assertEqual([cmd[cmd.index("-r") + 1] for cmd in args], [expected, "spread", "tiny"])
@@ -361,7 +361,7 @@ class DnpPileupTests(unittest.TestCase):
     def test_streamed_failure_on_second_contig_discards_first_contig(self):
         self.samples([True])
         self.bed.write_text('chr2\t0\t10\nchr1\t0\t10\n')
-        with patch.dict(os.environ, MPILEUP_FAIL_CONTIG='chr1', NIPAT_DNP_OPTIMIZED_IO='1'):
+        with patch.dict(os.environ, MPILEUP_FAIL_CONTIG='chr1', NEWPAT_DNP_OPTIMIZED_IO='1'):
             with self.assertRaises(dnp_pileup.PileupError):
                 self.generate({'mode': 'auto', 'workers': 1})
         result = json.loads(self.metadata.read_text())
@@ -467,7 +467,7 @@ class DnpPileupTests(unittest.TestCase):
                 os.kill(item['pid'], 0)
 
     def test_streamed_cancellation_discards_output_and_reaps_child(self):
-        with patch.dict(os.environ, NIPAT_DNP_OPTIMIZED_IO='1'):
+        with patch.dict(os.environ, NEWPAT_DNP_OPTIMIZED_IO='1'):
             self.check_chromosome_cancellation(1)
 
     def test_parallel_cancellation_reaps_all_children_and_records_partial_evidence(self):

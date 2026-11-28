@@ -161,7 +161,7 @@ class ContainerPerformanceObserver:
         with (self.directory / "summary.json").open("x", encoding="utf-8") as handle:
             json.dump(self._summary, handle, indent=2)
             handle.write("\n")
-        self._thread = threading.Thread(target=self._collect, name="nipat-performance", daemon=True)
+        self._thread = threading.Thread(target=self._collect, name="newpat-performance", daemon=True)
         self._thread.start()
 
     def _stats(self) -> dict:

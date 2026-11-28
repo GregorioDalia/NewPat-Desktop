@@ -58,7 +58,7 @@ Run:
 ```sh
 python scripts/verify_five_modules.py --full --output build/qualification
 # CI: use the installed R/Python payload, with its hashes checked first.
-python scripts/verify_five_modules.py --image "$NIPAT_RUNTIME_IMAGE" --full --output build/qualification-image
+python scripts/verify_five_modules.py --image "$NEWPAT_RUNTIME_IMAGE" --full --output build/qualification-image
 ```
 
 The reference comparisons use scientific tables. Plot bytes are excluded from numerical comparisons. DNP/SNP calling, native installers, and the

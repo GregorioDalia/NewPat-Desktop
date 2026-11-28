@@ -13,7 +13,7 @@ from newpat_scientific.errors import ValidationError
 
 class ContaminationEngineTests(unittest.TestCase):
     def setUp(self):
-        temporary = tempfile.TemporaryDirectory(prefix="nipat contamination ")
+        temporary = tempfile.TemporaryDirectory(prefix="newpat contamination ")
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name).resolve()
         self.inputs = self.root / "inputs"

@@ -18,7 +18,7 @@ from newpat.processes import background_process_options
 from newpat.experiments.tracking import read_run_metadata, read_run_status, utc_now
 
 
-CONTAINER_NAME = re.compile(r"nipat-run-[0-9a-f]{32}\Z")
+CONTAINER_NAME = re.compile(r"newpat-run-[0-9a-f]{32}\Z")
 IMAGE_ID = re.compile(r"sha256:[0-9a-f]{64}\Z")
 CONTAINER_ID = re.compile(r"[0-9a-f]{64}\Z")
 RECOVERABLE_STATES = frozenset({"created", "running", "restarting", "paused", "exited", "dead"})
@@ -26,9 +26,9 @@ RECOVERABLE_STATES = frozenset({"created", "running", "restarting", "paused", "e
 
 def ownership_labels(run_dir: Path, run_id: str) -> dict[str, str]:
     return {
-        "org.nipat.product": "nipat-desktop",
-        "org.nipat.run-id": run_id,
-        "org.nipat.run-path-sha256": hashlib.sha256(
+        "org.newpat.product": "newpat-desktop",
+        "org.newpat.run-id": run_id,
+        "org.newpat.run-path-sha256": hashlib.sha256(
             str(run_dir.resolve()).encode("utf-8")
         ).hexdigest(),
     }

@@ -12,7 +12,7 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[2]
-PAYLOAD = Path("/opt/nipat")
+PAYLOAD = Path("/opt/newpat")
 REPORT_SCHEMA_VERSION = 2
 
 
@@ -84,7 +84,7 @@ def main():
     from native_r_helpers import NATIVE_R_AVAILABLE, NATIVE_R_REASON
     if not NATIVE_R_AVAILABLE:
         raise RuntimeError("Packaged R prerequisites are incomplete: " + NATIVE_R_REASON)
-    os.environ["NIPAT_NATIVE_TEST_PAYLOAD_ROOT"] = str(PAYLOAD)
+    os.environ["NEWPAT_NATIVE_TEST_PAYLOAD_ROOT"] = str(PAYLOAD)
     loader = unittest.TestLoader()
     suite = unittest.TestSuite(loader.discover(str(ROOT / "tests"), pattern=pattern)
                               for pattern in ("test_native_r_*.py", "test_scientific_settings.py"))

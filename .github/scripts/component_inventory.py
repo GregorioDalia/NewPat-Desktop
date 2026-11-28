@@ -33,7 +33,7 @@ def verify(path, manifest):
         raise ValueError("Component inventory source identity mismatch")
     science, wsl = value["scientific"], value["wsl"]
     # The exporter records its original Docker image ID in the manifest, but
-    # that export-only field is not inside /etc/nipat-runtime.json. Importing
+    # that export-only field is not inside /etc/newpat-runtime.json. Importing
     # the exact rootfs archive also creates a new image ID; record it separately.
     marker = {key: item for key, item in manifest["rootfs_provenance"].items()
               if key != "rootfs_image_id"}
@@ -74,14 +74,14 @@ def main():
     value = {
         "schema_version": 1, "source_commit": args.source_commit,
         "scientific": {"image_id": image_id(args.scientific_image),
-            "apt_packages_tsv": run(args.scientific_image, "cat", "/usr/share/nipat/apt-versions.tsv"),
+            "apt_packages_tsv": run(args.scientific_image, "cat", "/usr/share/newpat/apt-versions.tsv"),
             "r_packages_tsv": run(args.scientific_image, "Rscript", "-e",
                 'write.table(installed.packages()[,c("Package","Version","License")], row.names=FALSE, quote=FALSE, sep="\\t")'),
             "samtools_version": run(args.scientific_image, "samtools", "--version"),
         },
         "wsl": {"image_id": image_id(args.rootfs_image),
-            "apt_packages_tsv": run(args.rootfs_image, "cat", "/usr/share/nipat/apt-versions.tsv"),
-            "component_provenance": json.loads(run(args.rootfs_image, "cat", "/etc/nipat-runtime.json")),
+            "apt_packages_tsv": run(args.rootfs_image, "cat", "/usr/share/newpat/apt-versions.tsv"),
+            "component_provenance": json.loads(run(args.rootfs_image, "cat", "/etc/newpat-runtime.json")),
         },
         "scope": "Resolved installed package inventories; not a completeness guarantee for a vulnerability scan.",
     }

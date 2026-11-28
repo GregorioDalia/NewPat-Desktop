@@ -2,7 +2,7 @@
 
 The fixtures declare synthetic counts and population frequencies. Expected
 answers below follow their documented arithmetic, never candidate output or R.
-Only the caller of build_cases executes NIPAT, using its installed backend.
+Only the caller of build_cases executes NewPat, using its installed backend.
 """
 
 from __future__ import annotations

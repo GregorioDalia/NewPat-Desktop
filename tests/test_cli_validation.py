@@ -588,11 +588,11 @@ runpy.run_path(str(script), run_name="__main__")
                     self.assertEqual(invocation.args[0][:4], [sys.executable, '-X', 'utf8', '-u'])
                 self.assertEqual(Path(run.call_args_list[0].args[0][4]).name,
                                  'verify_snp_example.py')
-                self.assertEqual(run.call_args_list[0].kwargs['env']['NIPAT_PROJECT_DIR'],
+                self.assertEqual(run.call_args_list[0].kwargs['env']['NEWPAT_PROJECT_DIR'],
                                  str(project))
-                self.assertEqual(run.call_args_list[0].kwargs['env']['NIPAT_DATA_DIR'],
+                self.assertEqual(run.call_args_list[0].kwargs['env']['NEWPAT_DATA_DIR'],
                                  str(layout.data_dir))
-                self.assertEqual(run.call_args_list[0].kwargs['env']['NIPAT_RUNS_DIR'],
+                self.assertEqual(run.call_args_list[0].kwargs['env']['NEWPAT_RUNS_DIR'],
                                  str(layout.runs_dir))
 
     def test_cli_rejects_dry_self_test(self):

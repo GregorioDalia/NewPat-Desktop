@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from acceptance.installed_models import (FETAL_SEX_EXAMPLES, check_fetal_sex,
                                         combined_fetal_dnp, copy_fetal_sex_fixtures, fetal_sex_inputs, tree_hashes)
-from newpat.errors import NipatError
+from newpat.errors import NewPatError
 from newpat.experiments.runner import DockerComposeRunner
 from newpat.experiments.workflows import Workflows
 from newpat.paths import ProjectLayout
@@ -46,7 +46,7 @@ def main():
                     print(f"{sample} ({label}): {result['fetal_sex']} (four matching tables), {run}", flush=True)
             if tree_hashes(Path(directory)) != hashes:
                 raise ValueError("Fetal-sex inputs or reference outputs changed during execution.")
-    except (NipatError, ValueError, OSError) as exc:
+    except (NewPatError, ValueError, OSError) as exc:
         print(f"Fetal-sex verification failed: {exc}", file=sys.stderr)
         return 1
     return 0

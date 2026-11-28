@@ -10,7 +10,7 @@ if (-not (Test-Path -LiteralPath $CompilerPath -PathType Leaf)) {
 }
 $project = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $temporary = Join-Path ([IO.Path]::GetTempPath()) (
-    'nipat installer & ' + [char]0x00e8 + [char]0x03a9 + '-' + [Guid]::NewGuid().ToString('N'))
+    'newpat installer & ' + [char]0x00e8 + [char]0x03a9 + '-' + [Guid]::NewGuid().ToString('N'))
 $stage = Join-Path $temporary 'stage with spaces'
 $app = Join-Path $stage 'app'
 $assets = Join-Path $temporary 'runtime archives'
@@ -24,12 +24,12 @@ try {
     }
     # Exercise the native sharing contract used by Inno without running an installer.
     # A session holds shared read access; installation and removal require exclusive access.
-    if (-not ('NipatInstallerActivityContract' -as [type])) {
+    if (-not ('NewPatInstallerActivityContract' -as [type])) {
         Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
-public static class NipatInstallerActivityContract {
+public static class NewPatInstallerActivityContract {
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     public static extern SafeFileHandle CreateFileW(string name, uint access, uint share,
         IntPtr attributes, uint disposition, uint flags, IntPtr template);
@@ -41,15 +41,15 @@ public static class NipatInstallerActivityContract {
     $activityPath = Join-Path $temporary 'activity.lock'
     $activityHandles = New-Object 'System.Collections.Generic.List[System.IDisposable]'
     try {
-        $session = [NipatInstallerActivityContract]::CreateFileW($activityPath, 2147483648, 3,
+        $session = [NewPatInstallerActivityContract]::CreateFileW($activityPath, 2147483648, 3,
             [IntPtr]::Zero, 4, 0x80, [IntPtr]::Zero)
         $activityHandles.Add($session)
         if ($session.IsInvalid) { throw 'Il contratto attivita non apre la sessione condivisa.' }
-        $otherSession = [NipatInstallerActivityContract]::CreateFileW($activityPath, 2147483648, 3,
+        $otherSession = [NewPatInstallerActivityContract]::CreateFileW($activityPath, 2147483648, 3,
             [IntPtr]::Zero, 4, 0x80, [IntPtr]::Zero)
         $activityHandles.Add($otherSession)
         if ($otherSession.IsInvalid) { throw 'Due sessioni devono poter coesistere.' }
-        $blockedSetup = [NipatInstallerActivityContract]::CreateFileW($activityPath, 2147483648, 0,
+        $blockedSetup = [NewPatInstallerActivityContract]::CreateFileW($activityPath, 2147483648, 0,
             [IntPtr]::Zero, 4, 0x80, [IntPtr]::Zero)
         $blockedSetupError = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
         $activityHandles.Add($blockedSetup)
@@ -57,19 +57,19 @@ public static class NipatInstallerActivityContract {
             throw 'Un setup deve essere rifiutato mentre una sessione mantiene il lock.'
         }
         $session.Dispose(); $otherSession.Dispose()
-        $setupLease = [NipatInstallerActivityContract]::CreateFileW($activityPath, 2147483648, 0,
+        $setupLease = [NewPatInstallerActivityContract]::CreateFileW($activityPath, 2147483648, 0,
             [IntPtr]::Zero, 4, 0x80, [IntPtr]::Zero)
         $activityHandles.Add($setupLease)
         if ($setupLease.IsInvalid) { throw 'Il setup deve ottenere il lock dopo la chiusura delle sessioni.' }
         [uint32] $handleFlags = 0
-        if (-not [NipatInstallerActivityContract]::GetHandleInformation($setupLease, [ref] $handleFlags) -or
+        if (-not [NewPatInstallerActivityContract]::GetHandleInformation($setupLease, [ref] $handleFlags) -or
             ($handleFlags -band 1) -ne 0) { throw 'Il lock esclusivo non deve essere ereditabile.' }
-        $blockedSession = [NipatInstallerActivityContract]::CreateFileW($activityPath, 2147483648, 3,
+        $blockedSession = [NewPatInstallerActivityContract]::CreateFileW($activityPath, 2147483648, 3,
             [IntPtr]::Zero, 4, 0x80, [IntPtr]::Zero)
         $activityHandles.Add($blockedSession)
         if (-not $blockedSession.IsInvalid) { throw 'Una nuova sessione non deve entrare durante il setup.' }
         $setupLease.Dispose()
-        $resumedSession = [NipatInstallerActivityContract]::CreateFileW($activityPath, 2147483648, 3,
+        $resumedSession = [NewPatInstallerActivityContract]::CreateFileW($activityPath, 2147483648, 3,
             [IntPtr]::Zero, 4, 0x80, [IntPtr]::Zero)
         $activityHandles.Add($resumedSession)
         if ($resumedSession.IsInvalid) { throw 'La chiusura del setup deve liberare le nuove sessioni.' }
@@ -166,14 +166,14 @@ public static class NipatInstallerActivityContract {
     $profile = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'install-profile.json') -Raw -Encoding UTF8 |
         ConvertFrom-Json
     $definitions = [ordered]@{
-        NipatVersion = '0.6.0'
-        NipatAppId = ('{{' + $profile.app_id + '}')
-        NipatDisplayName = $profile.display_name
-        NipatAppDirectory = $profile.app_dir_name
-        NipatDataDirectory = $profile.data_dir_name
-        NipatResumeKey = $profile.resume_key
+        NewPatVersion = '0.6.0'
+        NewPatAppId = ('{{' + $profile.app_id + '}')
+        NewPatDisplayName = $profile.display_name
+        NewPatAppDirectory = $profile.app_dir_name
+        NewPatDataDirectory = $profile.data_dir_name
+        NewPatResumeKey = $profile.resume_key
     }
-    $profileLines = @('; Compile-only fixture; not an installable NIPAT package.')
+    $profileLines = @('; Compile-only fixture; not an installable NewPat package.')
     foreach ($name in $definitions.Keys) {
         $profileLines += ('#define ' + $name + ' "' + $definitions[$name] + '"')
     }
@@ -182,10 +182,10 @@ public static class NipatInstallerActivityContract {
     $assetLines = @('; Compile-only archives are never installed or executed.')
     foreach ($name in @('rootfs-compile-only.tar.gz', 'scientific-compile-only.tar.gz')) {
         $asset = Join-Path $assets $name
-        [IO.File]::WriteAllBytes($asset, [Text.Encoding]::ASCII.GetBytes('NIPAT compiler fixture: ' + $name))
+        [IO.File]::WriteAllBytes($asset, [Text.Encoding]::ASCII.GetBytes('NewPat compiler fixture: ' + $name))
         $digest = (Get-FileHash -LiteralPath $asset -Algorithm SHA256).Hash.ToLowerInvariant()
         $assetLines += ('Source: "{#RuntimeAssetsDir}\' + $name + '"; ' +
-            'DestDir: "{code:GetNipatCacheDir}"; DestName: "' + $digest + '-' + $name + '"; ' +
+            'DestDir: "{code:GetNewPatCacheDir}"; DestName: "' + $digest + '-' + $name + '"; ' +
             'Hash: "' + $digest + '"; Flags: ignoreversion uninsneveruninstall nocompression solidbreak')
     }
     [IO.File]::WriteAllLines((Join-Path $stage 'runtime-assets.iss'), [string[]] $assetLines,
@@ -201,7 +201,7 @@ public static class NipatInstallerActivityContract {
     & $CompilerPath '/Qp' "/DStageDir=$stage" "/DRuntimeAssetsDir=$assets" "/DOutputDir=$output" `
         (Join-Path $PSScriptRoot 'NewPat.iss')
     if ($LASTEXITCODE -ne 0) { throw 'La compilazione della definizione installer e fallita.' }
-    $setup = Join-Path $output 'NIPAT-Setup.exe'
+    $setup = Join-Path $output 'NewPat-Setup.exe'
     if (-not (Test-Path -LiteralPath $setup -PathType Leaf) -or
         (Get-Item -LiteralPath $setup).Length -le 0) {
         throw 'Il compilatore non ha prodotto il file setup atteso.'

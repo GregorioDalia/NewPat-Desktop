@@ -207,5 +207,5 @@ class QuietRunnerProgressTests(unittest.TestCase):
                 self.assertFalse(observers[0]._thread.is_alive())
                 self.assertEqual(snapshots[-1].status, "cancelled" if interrupted else "failed" if code else "succeeded")
                 self.assertEqual(snapshots[-1].elapsed_seconds, 9.0)
-                self.assertIn("NIPAT_PROGRESS_DIR=/workspace/runs/case/progress", launched.call_args.args[0])
+                self.assertIn("NEWPAT_PROGRESS_DIR=/workspace/runs/case/progress", launched.call_args.args[0])
                 self.assertEqual(runner._record.data["commands"][0]["progress"]["directory"], "progress")

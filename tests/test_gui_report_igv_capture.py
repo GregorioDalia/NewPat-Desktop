@@ -22,7 +22,7 @@ def verify_report_igv_capture(page, app, check):
         "locus": "chrDnpSynthetic:30-74",
     })
     prepared.update(available=True, site="chrDnpSynthetic:50-51", marker="DNP", build="synthetic")
-    navigation = page.evaluate("NipatIGV.getNavigation()")
+    navigation = page.evaluate("NewPatIGV.getNavigation()")
     capture = "options => window.NewPatReportIGV.capture(options, {language:'en'})"
     view = page.evaluate(capture, prepared)
     check(bool(view) and view["tracks"] == names and view["locus"] == prepared["locus"] and
@@ -60,7 +60,7 @@ def verify_report_igv_capture(page, app, check):
         c.abort();return await job;
     }""", prepared)
     check(cancelled is None and page.locator('iframe[src="report-igv.html"]').count() == 0 and
-          page.evaluate("NipatIGV.getNavigation()") == navigation,
+          page.evaluate("NewPatIGV.getNavigation()") == navigation,
           "Capture cleanup releases its isolated viewer and preserves the interactive IGV session")
     verify_archived_report_pdf(page, app, check)
 

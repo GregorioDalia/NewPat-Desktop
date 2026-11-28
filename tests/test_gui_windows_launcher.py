@@ -19,14 +19,14 @@ LAUNCHER = ROOT / "scripts/windows/gui-launch.py"
 
 
 def load_launcher():
-    spec = importlib.util.spec_from_file_location("nipat_gui_launcher", LAUNCHER)
+    spec = importlib.util.spec_from_file_location("newpat_gui_launcher", LAUNCHER)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
 
 def test_gui_launch_logs_streams_and_restores_them(tmp_path, monkeypatch):
-    monkeypatch.setenv("NIPAT_WORKSPACE_DIR", str(tmp_path / "User files & è"))
+    monkeypatch.setenv("NEWPAT_WORKSPACE_DIR", str(tmp_path / "User files & è"))
     original = sys.stdout, sys.stderr
 
     def launch(args):
@@ -44,7 +44,7 @@ def test_gui_launch_logs_streams_and_restores_them(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize("exception", [False, True])
 def test_startup_failure_is_visible_even_without_a_console(tmp_path, monkeypatch, exception):
-    monkeypatch.setenv("NIPAT_WORKSPACE_DIR", str(tmp_path))
+    monkeypatch.setenv("NEWPAT_WORKSPACE_DIR", str(tmp_path))
     notices = []
     monkeypatch.setattr(windows_host, "notify", lambda *args: notices.append(args))
 
@@ -62,8 +62,8 @@ def test_startup_failure_is_visible_even_without_a_console(tmp_path, monkeypatch
     assert ("fixture startup failure" if exception else "installation is currently busy") in log
 
 
-def test_native_window_uses_packaged_nipat_identity_and_icon():
-    assert windows_host.APP_USER_MODEL_ID == "NIPAT.Desktop"
+def test_native_window_uses_packaged_newpat_identity_and_icon():
+    assert windows_host.APP_USER_MODEL_ID == "NewPat.Desktop"
     icon = windows_host.application_icon()
     assert icon == ROOT / "assets/branding/newpat-icon.ico"
     assert icon.read_bytes().startswith(b"\x00\x00\x01\x00")
@@ -76,9 +76,9 @@ def test_detached_pythonw_keeps_gui_activity_lease_after_launcher_exits(tmp_path
     pythonw = Path(sys.executable).with_name("pythonw.exe")
     assert pythonw.is_file(), "Windows qualification requires the official windowed interpreter"
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "local"))
-    env = dict(os.environ, NIPAT_PROJECT_DIR=str(ROOT), NIPAT_WORKSPACE_DIR=str(tmp_path / "User & è"),
+    env = dict(os.environ, NEWPAT_PROJECT_DIR=str(ROOT), NEWPAT_WORKSPACE_DIR=str(tmp_path / "User & è"),
                PYTHONPATH=str(ROOT / "src"))
-    for name in ("NIPAT_DATA_DIR", "NIPAT_RUNS_DIR", "NIPAT_SETUP_ACTIVITY_TOKEN"):
+    for name in ("NEWPAT_DATA_DIR", "NEWPAT_RUNS_DIR", "NEWPAT_SETUP_ACTIVITY_TOKEN"):
         env.pop(name, None)
     ready, release, finished = (tmp_path / name for name in ("ready.json", "release", "finished"))
     child = tmp_path / "windowed fixture.py"

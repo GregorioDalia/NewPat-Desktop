@@ -60,7 +60,7 @@ class NativeFamilyOracle(unittest.TestCase):
                         pairs = list(EXPECTED) if mode == "serial" else list(reversed(EXPECTED))
                         run = root / mode
                         process = execute_workflow(
-                            "cpi", run, execution_mode=mode, env=dict(os.environ, NIPAT_MAX_WORKERS="3"),
+                            "cpi", run, execution_mode=mode, env=dict(os.environ, NEWPAT_MAX_WORKERS="3"),
                             marker_type=marker, samples=samples if mode == "serial" else samples[::-1],
                             pairs=",".join(f"{m}:{f}" for m, f in pairs),
                             mother_prefix="Mother", father_prefix="Father", popfreq=str(population),

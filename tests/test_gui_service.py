@@ -654,7 +654,7 @@ class GuiJobTests(GuiRuntimeFixture):
             compose_path = run_dir / "work/engine-compose.json"
             before = compose_path.read_bytes()
             service = json.loads(before)["services"]["scientific"]
-            self.assertEqual(service["environment"]["NIPAT_DESKTOP_SCHEDULER"],
+            self.assertEqual(service["environment"]["NEWPAT_DESKTOP_SCHEDULER"],
                              str(self.layout.container_path(scheduler.directory)))
             self.assertNotIn("mem_limit", service)
             # The registry timestamp may be identical across two ticket changes.
@@ -1101,7 +1101,7 @@ with ticket.registration():
 
         class LocalTransport(DockerTransport):
             backend = "lima"
-            metadata = {"backend": "lima", "lima_instance": "nipat", "lima_home": str(self.root)}
+            metadata = {"backend": "lima", "lima_instance": "newpat", "lima_home": str(self.root)}
             def ensure_command(self):
                 return ["fixture-lima", "ensure"]
 
@@ -1153,8 +1153,9 @@ class GuiPrepareTests(GuiRuntimeFixture):
             "workflow": "dnp-call", "status": "passed", "artifacts": {"dnp-tables": artifacts}}))
         if gui:
             draft = self.draft("dnp", ["cpi", "cpin"])
-            draft["scientific_settings"] = {"cpin": {"min_child_reads": 7, "site_selection": "other_allele",
-                                                       "err_const_snp": 0.003}}
+            draft["scientific_settings"] = {"cpin": {"mismatch_probability_snp": 0.003,
+                "include_hom_het": True, "include_hom_hom": False, "include_het_het": False,
+                "include_het_hom": False}}
             (directory / "gui.json").write_text(json.dumps({"schema_version": 1,
                 "name": "Original GUI experiment", "draft": draft}))
         return directory

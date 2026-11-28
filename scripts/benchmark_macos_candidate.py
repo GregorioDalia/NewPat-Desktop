@@ -18,7 +18,7 @@ sys.path.insert(0, str(PROJECT / "src"))
 sys.path.insert(0, str(PROJECT / "scripts/acceptance"))
 from installed_suite import verify_run
 from installed_workflows import check_plan
-from newpat.errors import NipatError
+from newpat.errors import NewPatError
 from newpat.macos_runtime import LimaRuntime, rosetta_enabled
 
 
@@ -100,7 +100,7 @@ def run_benchmark(output, commit):
     require(sys.platform == "darwin" and platform.machine() == "arm64", "Apple Silicon Mac required")
     resources = PROJECT.parent
     launcher = resources / "NewPat.command"
-    workspace = Path.home() / "Library/Application Support/NIPAT-Desktop"
+    workspace = Path.home() / "Library/Application Support/NewPat-Desktop"
     runtime = LimaRuntime(PROJECT, workspace, resources / "lima/bin/limactl")
     manifest = read(PROJECT / ".distribution/macos-manifest.json")
     require(manifest["source_commit"] == commit and manifest["scientific_platform"] == "linux/arm64",
@@ -173,7 +173,7 @@ def run_benchmark(output, commit):
                 save()
         compare(baseline, report)
         report["status"] = "PASS"
-    except (NipatError, OSError, ValueError, KeyError, AssertionError, RuntimeError, subprocess.SubprocessError, KeyboardInterrupt) as exc:
+    except (NewPatError, OSError, ValueError, KeyError, AssertionError, RuntimeError, subprocess.SubprocessError, KeyboardInterrupt) as exc:
         report.update(status="FAILED", error=str(exc) or type(exc).__name__)
         raise
     finally:

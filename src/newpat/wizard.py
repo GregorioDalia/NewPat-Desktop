@@ -12,8 +12,7 @@ from typing import Callable
 from newpat.environment import setting
 from newpat import __version__
 from newpat.catalog_ui import show_catalog
-from newpat.distribution import is_experimental_version
-from newpat.errors import NipatError
+from newpat.errors import NewPatError
 from newpat.i18n import translate
 from newpat.installation import show_installation
 from newpat.recovery_ui import show_incomplete_runs
@@ -78,18 +77,12 @@ def _select_workflow(ui: Terminal) -> str | None:
 
 def _help(ui: Terminal, layout: ProjectLayout, runner=None, *, dry_run: bool = False,
           update_channel: str = "stable") -> bool:
-    if is_experimental_version(__version__):
-        update_help = (
-            "Questa versione sperimentale usa installer separati disponibili su GitHub. "
-            "Verifica aggiornamenti indica dove trovarli; gli aggiornamenti automatici sono disabilitati."
-        )
-    else:
-        channel = "Testing" if update_channel == "testing" else "Stabile"
-        update_help = (
-            f"Canale aggiornamenti selezionato: {channel}. Verifica aggiornamenti consulta le release "
-            "su GitHub e propone download e installazione con conferma. Configura -> Aggiornamenti "
-            "permette di cambiare canale e attivare la verifica all'avvio."
-        )
+    channel = "Testing" if update_channel == "testing" else "Stabile"
+    update_help = (
+        f"Canale aggiornamenti selezionato: {channel}. Verifica aggiornamenti consulta le release "
+        "su GitHub e propone download e installazione con conferma. Configura -> Aggiornamenti "
+        "permette di cambiare canale e attivare la verifica all'avvio."
+    )
     pages = {
         "1": ("Come usare NewPat", (
             "Selezionare un'analisi dal menu e seguire le indicazioni mostrate prima di ogni campo.",
@@ -366,7 +359,7 @@ def run_wizard(
                             ui.message(f"Esecuzione interrotta: {last_run}", kind="warning")
                             ui.message("Log e risultati parziali sono conservati; la voce 6 permette di consultarli. Il workflow non viene ripreso automaticamente.", kind="muted")
                         raise
-                    except (NipatError, OSError) as exc:
+                    except (NewPatError, OSError) as exc:
                         had_failure = True
                         failed_run = workflows.runner.last_run_dir
                         if isinstance(failed_run, Path) and failed_run != previous_run:
@@ -406,7 +399,7 @@ def run_wizard(
                 requested_diagnostics = False
                 workflows.runner.options = settings.execution_options()
                 ui.message("Operazione annullata. Ritorno al menu principale.")
-            except (NipatError, OSError) as exc:
+            except (NewPatError, OSError) as exc:
                 had_failure = True
                 ui.message(f"Operazione non riuscita: {exc}", kind="error")
     except (EOFError, KeyboardInterrupt):

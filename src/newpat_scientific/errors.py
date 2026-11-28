@@ -1,8 +1,8 @@
-class NipatError(Exception):
+class NewPatError(Exception):
     """Base exception for errors that should be shown directly to the user."""
 
 
-class ValidationError(NipatError):
+class ValidationError(NewPatError):
     """Raised when an input is missing or incompatible with a workflow."""
 
 

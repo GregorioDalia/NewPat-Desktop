@@ -35,8 +35,8 @@ jobs:
     outputs:
       version: ${{ steps.source-version.outputs.version }}
     env:
-      NIPAT_CHECK_ACCEPTANCE_DELTA: '1'
-      NIPAT_OBSERVED_BASELINE: ${{ inputs.observed_baseline }}
+      NEWPAT_CHECK_ACCEPTANCE_DELTA: '1'
+      NEWPAT_OBSERVED_BASELINE: ${{ inputs.observed_baseline }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -96,7 +96,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: nipat-windows-gui-dependencies
+          name: newpat-windows-gui-dependencies
           path: build/gui/
           retention-days: 14
           if-no-files-found: ignore
@@ -104,7 +104,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: nipat-windows-installer-fixture
+          name: newpat-windows-installer-fixture
           path: build/windows-installer-fixture/
           retention-days: 14
           if-no-files-found: error
@@ -119,7 +119,7 @@ jobs:
       pull-requests: read
     env:
       PYTHONPATH: src
-      NIPAT_RUNTIME_IMAGE: nipat-scientific-runtime:installer-test
+      NEWPAT_RUNTIME_IMAGE: newpat-scientific-runtime:installer-test
     steps:
       - name: Checkout exact source
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -147,7 +147,7 @@ jobs:
       - name: Validate local documentation links and anchors
         run: python .github/scripts/check_docs.py
       - name: Check dedicated daemon helper syntax
-        run: bash -n installer/runtime/nipat-engine
+        run: bash -n installer/runtime/newpat-engine
       - &review-buildx
         name: Set up Buildx
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
@@ -157,7 +157,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           python .github/scripts/scientific_reuse.py restore --promote-image --wait-for-active-ci \
-            --image "$NIPAT_RUNTIME_IMAGE" --output-dir build/scientific-reuse \
+            --image "$NEWPAT_RUNTIME_IMAGE" --output-dir build/scientific-reuse \
             --runner-temp "$RUNNER_TEMP" --output "$GITHUB_OUTPUT"
       - name: Build scientific runtime using the dependency cache
         if: steps.scientific_reuse.outputs.reused != 'true'
@@ -166,88 +166,88 @@ jobs:
           context: .
           file: docker/scientific-runtime/Dockerfile
           platforms: linux/amd64
-          tags: ${{ env.NIPAT_RUNTIME_IMAGE }}
+          tags: ${{ env.NEWPAT_RUNTIME_IMAGE }}
           load: true
           pull: true
           provenance: false
-          cache-from: type=gha,version=2,scope=nipat-scientific-linux-amd64
-          cache-to: type=gha,version=2,scope=nipat-scientific-linux-amd64,mode=max,ignore-error=true
+          cache-from: type=gha,version=2,scope=newpat-scientific-linux-amd64
+          cache-to: type=gha,version=2,scope=newpat-scientific-linux-amd64,mode=max,ignore-error=true
       - name: Verify bundled scientific scripts without host sources
         if: steps.scientific_reuse.outputs.reused != 'true'
         env:
-          TMPDIR: ${{ runner.temp }}/nipat-engine-check
+          TMPDIR: ${{ runner.temp }}/newpat-engine-check
         run: |
           mkdir -p "$TMPDIR"
           set -o pipefail
-          python scripts/verify_engine_package.py --image "$NIPAT_RUNTIME_IMAGE" 2>&1 | tee "$TMPDIR/verification.log"
+          python scripts/verify_engine_package.py --image "$NEWPAT_RUNTIME_IMAGE" 2>&1 | tee "$TMPDIR/verification.log"
       - name: Verify original sample labels and unchanged scientific results
         if: steps.scientific_reuse.outputs.reused != 'true'
         env:
-          TMPDIR: ${{ runner.temp }}/nipat-presentation-check
+          TMPDIR: ${{ runner.temp }}/newpat-presentation-check
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends poppler-utils
           mkdir -p "$TMPDIR"
           set -o pipefail
-          python scripts/verify_presentation.py --image "$NIPAT_RUNTIME_IMAGE" --output-dir "$TMPDIR/artifacts" 2>&1 | tee "$TMPDIR/verification.log"
+          python scripts/verify_presentation.py --image "$NEWPAT_RUNTIME_IMAGE" --output-dir "$TMPDIR/artifacts" 2>&1 | tee "$TMPDIR/verification.log"
       - name: Scientific regression and input-mode checks
         if: steps.scientific_reuse.outputs.reused != 'true'
         env:
-          NIPAT_DATA_DIR: ${{ runner.temp }}/nipat-validation/data
-          NIPAT_RUNS_DIR: ${{ runner.temp }}/nipat-validation/runs
+          NEWPAT_DATA_DIR: ${{ runner.temp }}/newpat-validation/data
+          NEWPAT_RUNS_DIR: ${{ runner.temp }}/newpat-validation/runs
         run: |
-          mkdir -p "$NIPAT_DATA_DIR" "$NIPAT_RUNS_DIR"
+          mkdir -p "$NEWPAT_DATA_DIR" "$NEWPAT_RUNS_DIR"
           python -m newpat doctor --runtime
           python -m newpat self-test
       - name: Verify optional performance evidence and unchanged DNP results
         if: steps.scientific_reuse.outputs.reused != 'true'
         env:
-          TMPDIR: ${{ runner.temp }}/nipat-performance-check
+          TMPDIR: ${{ runner.temp }}/newpat-performance-check
         run: |
           mkdir -p "$TMPDIR"
           set -o pipefail
-          python scripts/verify_performance.py --image "$NIPAT_RUNTIME_IMAGE" --output-dir "$TMPDIR/artifacts" 2>&1 | tee "$TMPDIR/verification.log"
+          python scripts/verify_performance.py --image "$NEWPAT_RUNTIME_IMAGE" --output-dir "$TMPDIR/artifacts" 2>&1 | tee "$TMPDIR/verification.log"
       - name: Verify native scientific edge cases and settings in the installed image
         if: steps.scientific_reuse.outputs.reused != 'true'
         env:
-          TMPDIR: ${{ runner.temp }}/nipat-native-r-check
+          TMPDIR: ${{ runner.temp }}/newpat-native-r-check
         run: |
           mkdir -p "$TMPDIR"
           set -o pipefail
           docker run --rm --network=none --cpus=4 --memory=8g \
             --mount "type=bind,source=$GITHUB_WORKSPACE,target=/qualification,readonly" \
-            --workdir /qualification --env PYTHONPATH=/opt/nipat/lib:/qualification/src \
+            --workdir /qualification --env PYTHONPATH=/opt/newpat/lib:/qualification/src \
             --mount "type=bind,source=$TMPDIR,target=/evidence" \
-            --entrypoint python3 "$NIPAT_RUNTIME_IMAGE" /qualification/.github/scripts/check_native_r.py \
+            --entrypoint python3 "$NEWPAT_RUNTIME_IMAGE" /qualification/.github/scripts/check_native_r.py \
             --report /evidence/native-r.json \
             2>&1 | tee "$TMPDIR/verification.log"
       - name: Verify updated CPI Contamination and CPIN models
         if: steps.scientific_reuse.outputs.reused != 'true'
         env:
-          TMPDIR: ${{ runner.temp }}/nipat-five-modules-check
+          TMPDIR: ${{ runner.temp }}/newpat-five-modules-check
         run: |
           mkdir -p "$TMPDIR"
           set -o pipefail
-          python scripts/verify_five_modules.py --image "$NIPAT_RUNTIME_IMAGE" --output "$TMPDIR/artifacts" --full 2>&1 | tee "$TMPDIR/verification.log"
+          python scripts/verify_five_modules.py --image "$NEWPAT_RUNTIME_IMAGE" --output "$TMPDIR/artifacts" --full 2>&1 | tee "$TMPDIR/verification.log"
       - name: Compare scientific cores with immutable versioned references
         if: steps.scientific_reuse.outputs.reused != 'true'
         env:
-          TMPDIR: ${{ runner.temp }}/nipat-r-equivalence-check
+          TMPDIR: ${{ runner.temp }}/newpat-r-equivalence-check
         run: |
           mkdir -p "$TMPDIR"
           set -o pipefail
-          python scripts/verify_r_equivalence.py --image "$NIPAT_RUNTIME_IMAGE" --output-dir "$TMPDIR/artifacts" 2>&1 | tee "$TMPDIR/verification.log"
+          python scripts/verify_r_equivalence.py --image "$NEWPAT_RUNTIME_IMAGE" --output-dir "$TMPDIR/artifacts" 2>&1 | tee "$TMPDIR/verification.log"
       - name: Preflight scientific evidence before building installers
         # These complete check directories dominate the eventual bundle. Platform
         # reports and the selected self-test logs are checked in the final bundle.
         run: |
           python .github/scripts/qualification_evidence.py --preflight \
-            --source engine "$RUNNER_TEMP/nipat-engine-check" \
-            --source presentation "$RUNNER_TEMP/nipat-presentation-check" \
-            --source performance "$RUNNER_TEMP/nipat-performance-check" \
-            --source native-r "$RUNNER_TEMP/nipat-native-r-check" \
-            --source five-modules "$RUNNER_TEMP/nipat-five-modules-check" \
-            --source r-equivalence "$RUNNER_TEMP/nipat-r-equivalence-check" \
+            --source engine "$RUNNER_TEMP/newpat-engine-check" \
+            --source presentation "$RUNNER_TEMP/newpat-presentation-check" \
+            --source performance "$RUNNER_TEMP/newpat-performance-check" \
+            --source native-r "$RUNNER_TEMP/newpat-native-r-check" \
+            --source five-modules "$RUNNER_TEMP/newpat-five-modules-check" \
+            --source r-equivalence "$RUNNER_TEMP/newpat-r-equivalence-check" \
             --source quality build/quality \
             --source scientific-origin build/scientific-reuse \
             --source synthetic-fixtures tests/fixtures \
@@ -258,37 +258,31 @@ jobs:
           context: .
           file: installer/runtime/Dockerfile
           platforms: linux/amd64
-          tags: nipat-wsl-rootfs:installer-test
+          tags: newpat-wsl-rootfs:installer-test
           load: true
           pull: true
           provenance: false
-          cache-from: type=gha,version=2,scope=nipat-wsl-rootfs-linux-amd64
-          cache-to: type=gha,version=2,scope=nipat-wsl-rootfs-linux-amd64,mode=max,ignore-error=true
+          cache-from: type=gha,version=2,scope=newpat-wsl-rootfs-linux-amd64
+          cache-to: type=gha,version=2,scope=newpat-wsl-rootfs-linux-amd64,mode=max,ignore-error=true
       - name: Check daemon startup in isolated Linux container
         # This exercises the helper on Linux; it is not a live Windows/WSL installation test.
         run: |
           docker run --rm --privileged --cgroupns=host \
             --mount type=volume,target=/var/lib/docker --mount type=volume,target=/var/lib/containerd \
             --entrypoint /bin/bash \
-            nipat-wsl-rootfs:installer-test -euc \
-            '/usr/local/bin/nipat-engine ensure; /usr/local/bin/nipat-engine ensure; docker info --format "{{.OSType}}"; docker compose version'
-      - &review-fetch-rootfs
-        name: Fetch the published WSL component for verified reuse
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: python .github/scripts/release_inputs.py --tag v0.7.2 --kind rootfs --output-dir build/previous-runtime
+            newpat-wsl-rootfs:installer-test -euc \
+            '/usr/local/bin/newpat-engine ensure; /usr/local/bin/newpat-engine ensure; docker info --format "{{.OSType}}"; docker compose version'
       - name: Export pinned assets and trusted installer manifest
         run: &export-and-stage |
           python scripts/build_windows_installer_assets.py export \
             --output-dir build/assets --source-commit "$(git rev-parse HEAD)" \
-            --scientific-image "$NIPAT_RUNTIME_IMAGE" --rootfs-image nipat-wsl-rootfs:installer-test \
-            --reuse-rootfs-directory build/previous-runtime
+            --scientific-image "$NEWPAT_RUNTIME_IMAGE" --rootfs-image newpat-wsl-rootfs:installer-test
           python scripts/build_windows_installer_assets.py stage \
             --manifest build/assets/installer-manifest.json --stage-dir build/windows-installer
       - name: Record the description from the exact scientific image
         run: |
-          docker run --rm --network none --read-only --tmpfs /tmp "$NIPAT_RUNTIME_IMAGE" \
-            python3 /opt/nipat/engine/main.py describe --json > build/assets/engine-description.json
+          docker run --rm --network none --read-only --tmpfs /tmp "$NEWPAT_RUNTIME_IMAGE" \
+            python3 /opt/newpat/engine/main.py describe --json > build/assets/engine-description.json
       - name: Import the exact selected rootfs archive for qualification
         run: |
           python - <<'PYCODE'
@@ -298,12 +292,12 @@ jobs:
           root = Path('build/assets')
           manifest = json.loads((root / 'installer-manifest.json').read_text())
           subprocess.run(['docker', 'image', 'import', str(root / manifest['assets']['rootfs']['file']),
-                          'nipat-wsl-rootfs:exported-test'], check=True)
+                          'newpat-wsl-rootfs:exported-test'], check=True)
           PYCODE
       - name: Record resolved component inventories
         run: |
           python .github/scripts/component_inventory.py \
-            --scientific-image "$NIPAT_RUNTIME_IMAGE" --rootfs-image nipat-wsl-rootfs:exported-test \
+            --scientific-image "$NEWPAT_RUNTIME_IMAGE" --rootfs-image newpat-wsl-rootfs:exported-test \
             --source-commit "$(git rev-parse HEAD)" --output build/assets/component-inventory.json
       - name: Load and execute exported image in the shipped engine
         shell: pwsh
@@ -311,11 +305,11 @@ jobs:
           ./installer/windows/test-runtime-image.ps1 `
             -ManifestPath build/assets/installer-manifest.json `
             -AssetDirectory build/assets `
-            -RootfsImage nipat-wsl-rootfs:exported-test
+            -RootfsImage newpat-wsl-rootfs:exported-test
       - name: Retain runtime assets for reviewed release or offline setup
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: nipat-runtime-assets
+          name: newpat-runtime-assets
           path: build/assets/
           compression-level: 0
           retention-days: 14
@@ -323,7 +317,7 @@ jobs:
       - name: Retain exact app and trusted manifest for Windows compilation
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: nipat-installer-inputs
+          name: newpat-installer-inputs
           path: build/windows-installer/
           include-hidden-files: true
           compression-level: 0
@@ -333,16 +327,16 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: nipat-scientific-check-logs
+          name: newpat-scientific-check-logs
           path: |
-            ${{ runner.temp }}/nipat-validation/runs/**/run.json
-            ${{ runner.temp }}/nipat-validation/runs/**/execution.log
-            ${{ runner.temp }}/nipat-engine-check/
-            ${{ runner.temp }}/nipat-presentation-check/
-            ${{ runner.temp }}/nipat-performance-check/
-            ${{ runner.temp }}/nipat-r-equivalence-check/
-            ${{ runner.temp }}/nipat-five-modules-check/
-            ${{ runner.temp }}/nipat-native-r-check/
+            ${{ runner.temp }}/newpat-validation/runs/**/run.json
+            ${{ runner.temp }}/newpat-validation/runs/**/execution.log
+            ${{ runner.temp }}/newpat-engine-check/
+            ${{ runner.temp }}/newpat-presentation-check/
+            ${{ runner.temp }}/newpat-performance-check/
+            ${{ runner.temp }}/newpat-r-equivalence-check/
+            ${{ runner.temp }}/newpat-five-modules-check/
+            ${{ runner.temp }}/newpat-native-r-check/
             build/quality/
             build/scientific-reuse/reuse.json
           retention-days: 14
@@ -372,17 +366,17 @@ jobs:
       - name: Download staged app and trusted manifest
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: nipat-installer-inputs
+          name: newpat-installer-inputs
           path: build/windows-installer
       - name: Download exact runtime archives for the independent Windows packages
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: nipat-runtime-assets
+          name: newpat-runtime-assets
           path: build/assets
       - name: Download the compiled installer fixture evidence
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: nipat-windows-installer-fixture
+          name: newpat-windows-installer-fixture
           path: build/output
       - &review-inventory
         name: Record the application payload for safe reinstall and repair
@@ -394,7 +388,7 @@ jobs:
         shell: powershell
         run: |
           $compiler = & ./.github/scripts/install_inno.ps1 -Destination (Join-Path $env:RUNNER_TEMP 'InnoSetup')
-          "NIPAT_ISCC=$compiler" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "NEWPAT_ISCC=$compiler" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Build the independent desktop payload and stable bootstrap inputs
         shell: powershell
         run: |
@@ -421,7 +415,7 @@ jobs:
           $bootstrap = (Resolve-Path 'build/windows-installer/bootstrap').Path
           $script = (Resolve-Path 'installer/windows/NewPat.iss').Path
           $output = (Resolve-Path 'build/output').Path
-          & $env:NIPAT_ISCC "/DStageDir=$stage" "/DBootstrapDir=$bootstrap" "/DOutputDir=$output" $script
+          & $env:NEWPAT_ISCC "/DStageDir=$stage" "/DBootstrapDir=$bootstrap" "/DOutputDir=$output" $script
           if ($LASTEXITCODE -ne 0) { throw 'Inno Setup bootstrap compilation failed.' }
       - name: Bind the stable EXE to its inputs and the distinct release payload
         shell: powershell
@@ -471,9 +465,9 @@ jobs:
           $ErrorActionPreference = 'Stop'
           & installer/windows/test-packaged-client.ps1 `
             -StageDirectory 'build/windows-installer' `
-            -InstallerPath 'build/output/NIPAT-Setup.exe' `
+            -InstallerPath 'build/output/NewPat-Setup.exe' `
             -OutputPath 'build/output/windows-client-check.json' `
-            -WorkDirectory (Join-Path $env:RUNNER_TEMP ('NIPAT packaged client ' + [char]0x00e8))
+            -WorkDirectory (Join-Path $env:RUNNER_TEMP ('NewPat packaged client ' + [char]0x00e8))
           if ($LASTEXITCODE -ne 0) { throw 'Packaged Windows client verification failed.' }
           Copy-Item 'build/windows-installer/app/.distribution/application-files.json' 'build/output/application-files.json'
       - name: Record Authenticode status of final setup, scripts and embedded Python
@@ -482,12 +476,12 @@ jobs:
         run: |
           & installer/windows/write-trust-report.ps1 `
             -ApplicationDirectory 'build/windows-installer/app' `
-            -InstallerPath 'build/output/NIPAT-Setup.exe' `
+            -InstallerPath 'build/output/NewPat-Setup.exe' `
             -OutputPath 'build/output/windows-trust-check.json'
       - name: Retain installer for review (no release publication)
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: nipat-windows-setup
+          name: newpat-windows-setup
           path: build/output/
           compression-level: 0
           retention-days: 14
@@ -496,14 +490,14 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: nipat-windows-client-logs
+          name: newpat-windows-client-logs
           path: |
             build/output/windows-client-check.json
             build/output/windows-native-smoke.json
             build/output/windows-native-smoke.png
             build/output/windows-native-dependencies.json
-            ${{ runner.temp }}/NIPAT packaged client è/logs/
-            ${{ runner.temp }}/NIPAT packaged client è/runs/
+            ${{ runner.temp }}/NewPat packaged client è/logs/
+            ${{ runner.temp }}/NewPat packaged client è/runs/
           retention-days: 14
           if-no-files-found: ignore
 
@@ -525,7 +519,7 @@ jobs:
       - name: Download the exact runtime archives used by Windows
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: nipat-runtime-assets
+          name: newpat-runtime-assets
           path: build/assets
       - name: Build the self-contained Ubuntu package
         run: |
@@ -552,7 +546,7 @@ jobs:
           python scripts/verify_linux_installer.py \
             --package "${package[0]}" \
             --manifest build/assets/installer-manifest.json \
-            --work-dir "$RUNNER_TEMP/NIPAT Linux installation check" \
+            --work-dir "$RUNNER_TEMP/NewPat Linux installation check" \
             --output build/linux-output/linux-installation-check.json \
             --system-package-test
       - name: Exercise the packaged native GTK application
@@ -561,33 +555,18 @@ jobs:
           sudo apt-get install -y --no-install-recommends xvfb xauth dbus-x11 python3-cairo python3-gi-cairo
           package=(build/linux-output/*.deb)
           test "${#package[@]}" -eq 1
-          dpkg-deb --extract "${package[0]}" "$RUNNER_TEMP/nipat-native-gui-package"
-          app="$RUNNER_TEMP/nipat-native-gui-package/opt/nipat-desktop"
+          dpkg-deb --extract "${package[0]}" "$RUNNER_TEMP/newpat-native-gui-package"
+          app="$RUNNER_TEMP/newpat-native-gui-package/opt/newpat-desktop"
           xvfb-run --auto-servernum --server-args="-screen 0 1440x1000x24" \
             dbus-run-session -- /usr/bin/python3.12 "$app/scripts/verify_gui_app.py" \
               --app "$app" --python /usr/bin/python3.12 \
-              --workspace "$RUNNER_TEMP/nipat-native-gui-workspace" \
+              --workspace "$RUNNER_TEMP/newpat-native-gui-workspace" \
               --report "$GITHUB_WORKSPACE/build/linux-output/linux-native-smoke.json" \
               --screenshot "$GITHUB_WORKSPACE/build/linux-output/linux-native-smoke.png"
-      - name: Fetch the published Ubuntu 0.9.10 upgrade baseline
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: python .github/scripts/release_inputs.py --tag v0.9.10 --kind deb --output-dir build/upgrade-baseline
-      - name: Upgrade the real previous package and preserve research data
-        run: |
-          package=(build/linux-output/*.deb)
-          test "${#package[@]}" -eq 1
-          set -o pipefail
-          python scripts/verify_linux_upgrade.py \
-            --previous-package build/upgrade-baseline/nipat-desktop_0.9.10_amd64.deb \
-            --package "${package[0]}" --manifest build/assets/installer-manifest.json \
-            --work-dir "$RUNNER_TEMP/NIPAT Linux upgrade check" \
-            --output build/linux-output/linux-upgrade-check.json --system-package-test \
-            2>&1 | tee build/linux-output/linux-upgrade.log
       - name: Retain the Ubuntu package and installation evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: nipat-linux-setup
+          name: newpat-linux-setup
           path: build/linux-output/
           compression-level: 0
           retention-days: 14
@@ -596,23 +575,21 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: nipat-linux-installation-logs
+          name: newpat-linux-installation-logs
           path: |
             build/linux-output/linux-dependency-check.json
             build/linux-output/linux-installation-check.json
             build/linux-output/linux-native-smoke.json
             build/linux-output/linux-native-smoke.png
-            build/linux-output/linux-upgrade-check.json
-            build/linux-output/linux-upgrade.log
-            ${{ runner.temp }}/NIPAT Linux installation check/user state with spaces/nipat-desktop/setup.log
-            ${{ runner.temp }}/NIPAT Linux installation check/user state with spaces/nipat-desktop/state.json
-            ${{ runner.temp }}/NIPAT Linux installation check/user data with spaces/nipat-desktop/runs/**/run.json
-            ${{ runner.temp }}/NIPAT Linux installation check/user data with spaces/nipat-desktop/runs/**/execution.log
-            ${{ runner.temp }}/NIPAT Linux installation check/user data with spaces/nipat-desktop/runs/**/workflow-state.json
-            ${{ runner.temp }}/NIPAT Linux installation check/user data with spaces/nipat-desktop/runs/**/engine-plan.json
-            ${{ runner.temp }}/NIPAT Linux installation check/user data with spaces/nipat-desktop/runs/**/request.json
-            ${{ runner.temp }}/NIPAT Linux installation check/user data with spaces/nipat-desktop/runs/**/command.log
-            ${{ runner.temp }}/NIPAT Linux installation check/user data with spaces/nipat-desktop/runs/**/preparation.log
+            ${{ runner.temp }}/NewPat Linux installation check/user state with spaces/newpat-desktop/setup.log
+            ${{ runner.temp }}/NewPat Linux installation check/user state with spaces/newpat-desktop/state.json
+            ${{ runner.temp }}/NewPat Linux installation check/user data with spaces/newpat-desktop/runs/**/run.json
+            ${{ runner.temp }}/NewPat Linux installation check/user data with spaces/newpat-desktop/runs/**/execution.log
+            ${{ runner.temp }}/NewPat Linux installation check/user data with spaces/newpat-desktop/runs/**/workflow-state.json
+            ${{ runner.temp }}/NewPat Linux installation check/user data with spaces/newpat-desktop/runs/**/engine-plan.json
+            ${{ runner.temp }}/NewPat Linux installation check/user data with spaces/newpat-desktop/runs/**/request.json
+            ${{ runner.temp }}/NewPat Linux installation check/user data with spaces/newpat-desktop/runs/**/command.log
+            ${{ runner.temp }}/NewPat Linux installation check/user data with spaces/newpat-desktop/runs/**/preparation.log
           retention-days: 14
           if-no-files-found: ignore
 
@@ -632,7 +609,7 @@ jobs:
             asset: newpat-arm64-runtime-assets
           - runner: macos-15-intel
             architecture: x86_64
-            asset: nipat-runtime-assets
+            asset: newpat-runtime-assets
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     env:
@@ -673,7 +650,7 @@ jobs:
       - name: Retain the package and bound verification report
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: nipat-macos-setup-${{ matrix.architecture }}
+          name: newpat-macos-setup-${{ matrix.architecture }}
           path: build/macos-output/
           compression-level: 0
           retention-days: 14
@@ -682,7 +659,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: nipat-macos-client-${{ matrix.architecture }}
+          name: newpat-macos-client-${{ matrix.architecture }}
           path: |
             build/macos-client-check.json
             build/macos-output/macos-native-smoke.json
@@ -719,42 +696,42 @@ jobs:
       - name: Download the Windows installer
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: nipat-windows-setup
+          name: newpat-windows-setup
           path: build/windows-output
       - name: Download the Ubuntu package
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: nipat-linux-setup
+          name: newpat-linux-setup
           path: build/linux-output
       - name: Download the Apple Silicon package
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: nipat-macos-setup-arm64
+          name: newpat-macos-setup-arm64
           path: build/macos-arm64
       - name: Download the Intel package
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: nipat-macos-setup-x86_64
+          name: newpat-macos-setup-x86_64
           path: build/macos-x86_64
       - name: Download the shared runtime identity
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: nipat-runtime-assets
+          name: newpat-runtime-assets
           path: build/assets
       - name: Download synthetic scientific diagnostics
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: nipat-scientific-check-logs
+          name: newpat-scientific-check-logs
           path: build/evidence/scientific
       - name: Download staged Windows client diagnostics
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: nipat-windows-client-logs
+          name: newpat-windows-client-logs
           path: build/evidence/windows
       - name: Download installed Linux diagnostics
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: nipat-linux-installation-logs
+          name: newpat-linux-installation-logs
           path: build/evidence/linux
       - name: Download the identity recorded by the native ARM64 oracle producer
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
@@ -786,7 +763,7 @@ jobs:
       - name: Retain candidate evidence without authorizing publication
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: nipat-installer-set-evidence
+          name: newpat-installer-set-evidence
           path: build/verified-installers/
           retention-days: 14
           if-no-files-found: error
@@ -820,12 +797,12 @@ jobs:
       - name: Download the reviewed Apple Silicon package
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: nipat-macos-setup-arm64
+          name: newpat-macos-setup-arm64
           path: build/macos-arm64
       - name: Download the verified installer set from the same build
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: nipat-installer-set-evidence
+          name: newpat-installer-set-evidence
           path: build/evidence
       - name: Assemble the mini-suite and verify the packaged installer bytes
         run: |
@@ -865,7 +842,7 @@ jobs:
             runner_architecture: ARM64
           - architecture: x86_64
             runner_architecture: X64
-    runs-on: [self-hosted, macOS, '${{ matrix.runner_architecture }}', nipat-runtime]
+    runs-on: [self-hosted, macOS, '${{ matrix.runner_architecture }}', newpat-runtime]
     timeout-minutes: 90
     permissions:
       contents: read
@@ -884,7 +861,7 @@ jobs:
       - name: Download the verified package from this exact build
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: nipat-macos-setup-${{ matrix.architecture }}
+          name: newpat-macos-setup-${{ matrix.architecture }}
           path: build/qualified-macos
       - name: Install and test the dedicated official Lima runtime
         # The runner operator must provision noninteractive sudo and consent to
@@ -901,7 +878,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: nipat-macos-runtime-${{ matrix.architecture }}
+          name: newpat-macos-runtime-${{ matrix.architecture }}
           path: |
             build/macos-runtime-verification.json
             build/macos-runtime-verification-logs/
@@ -913,7 +890,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
-      NIPAT_RUNTIME_IMAGE: nipat-scientific-runtime:installer-test
+      NEWPAT_RUNTIME_IMAGE: newpat-scientific-runtime:installer-test
     steps:
       - name: Check the requested review mode
         if: inputs.qualify_macos_runtime
@@ -930,7 +907,6 @@ jobs:
       - name: Build the WSL filesystem for the Windows ZIP
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with: *rootfs-build
-      - *review-fetch-rootfs
       - name: Stage the exact source and both offline archives
         run: *export-and-stage
       - name: Transfer ZIP inputs to Windows

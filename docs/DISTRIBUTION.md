@@ -1,21 +1,21 @@
 # Distribution and system requirements
 
-For a published version, open **Assets** on the [latest stable release](https://github.com/GregorioDalia/NewPat-Desktop/releases/latest). Match the version in the filename to the release tag and choose your operating system and processor. GitHub's **Source code** downloads are for developers. The table uses the 0.9.10 naming convention.
+For a published version, open **Assets** on the [latest stable release](https://github.com/GregorioDalia/NewPat-Desktop/releases/latest). Match the version in the filename to the release tag and choose your operating system and processor. GitHub's **Source code** downloads are for developers. The table describes the 0.9.99 packages. During qualification, use the package and checksum from the same candidate build.
 
 | System | Package | Scientific environment |
 | --- | --- | --- |
 | Windows 10 22H2 x64 (build 19045) or Windows 11 x64 | `NewPat-Setup.exe` | NewPat-managed WSL2 distribution with Docker Engine |
 | Same Windows systems, local folder installation | `NewPat-<version>-Windows-complete.zip` | Same WSL2 runtime; complete archives included |
-| macOS 14 or later, Apple Silicon | `NewPat-<version>-macos-arm64.pkg` | ARM64 Lima VM, AMD64 image with Rosetta in 0.9.10, native ARM64 image in the 0.9.99 candidate |
+| macOS 14 or later, Apple Silicon | `NewPat-<version>-macos-arm64.pkg` | ARM64 Lima VM and native Linux ARM64 scientific image |
 | macOS 14 or later, Intel | `NewPat-<version>-macos-x86_64.pkg` | AMD64 Lima VM and Docker Engine |
 | Ubuntu 24.04 LTS, x86_64 | `newpat-desktop_<version>_amd64.deb` | Local system Docker Engine and Compose v2 |
 
-Each package includes a Linux image with R, samtools, the analysis scripts and their dependencies. The 0.9.99 candidate uses an image built for the target CPU architecture. Each analysis container runs offline, reads selected inputs through read-only mounts and writes to its own run directory.
+Each package includes a Linux image with R, samtools, the analysis scripts and their dependencies. NewPat 0.9.99 uses an image built for the target CPU architecture. Each analysis container runs offline, reads selected inputs through read-only mounts and writes to its own run directory.
 
 ## Install
 
-- **Windows.** Run the setup from your regular account. It includes bootstrap Python, downloads a verified payload and prepares missing WSL prerequisites. Those steps may require internet access, an administrator and a reboot. When **NewPat: ready** appears, launch the Start menu or desktop shortcut. For the complete ZIP, extract to a permanent local directory, run `1_INSTALL.cmd` and keep the resulting `NIPAT` directory. The older 0.9.9 archive ends in `-Windows-completo.zip` and uses `1_INSTALLA.cmd`. Its `NewPat.lnk` opens the app. The ZIP installation has its own update method and machine-specific WSL registration. [Windows guide](WINDOWS_INSTALLER.md)
-- **macOS.** Open the matching PKG, run Installer and open **NewPat** from Applications. First launch configures the dedicated Lima VM and requires internet access. Native Python and Lima are bundled. macOS may require explicit approval for unsigned, unnotarized software. User data lives in `~/Library/Application Support/NIPAT-Desktop`. [macOS guide](MACOS_INSTALLER.md)
+- **Windows.** Run the setup from your regular account. It includes bootstrap Python, downloads a verified payload and prepares missing WSL prerequisites. Those steps may require internet access, an administrator and a reboot. When **NewPat: ready** appears, launch the Start menu or desktop shortcut. For the complete ZIP, extract to a permanent local directory, run `1_INSTALL.cmd` and keep the resulting `NewPat` directory. The shortcut `NewPat.lnk` inside that directory opens the app. The ZIP installation has its own update method and machine-specific WSL registration. [Windows guide](WINDOWS_INSTALLER.md)
+- **macOS.** Open the matching PKG, run Installer and open **NewPat** from Applications. First launch configures the dedicated Lima VM and requires internet access. Native Python and Lima are bundled. macOS may require explicit approval for unsigned, unnotarized software. User data lives in `~/Library/Application Support/NewPat-Desktop`. [macOS guide](MACOS_INSTALLER.md)
 - **Ubuntu.** Install the downloaded DEB with APT using its exact filename. APT resolves eligible missing dependencies. The administrator must authorize the user's access to the local Docker socket. Start **NewPat** from the applications menu. [Ubuntu guide](LINUX_INSTALLER.md)
 
 ## Development installation on Ubuntu
@@ -38,6 +38,6 @@ The build needs internet access. Keep development files separate from the packag
 
 The application reports physical, VM and container resources separately. The [resource guide](RESOURCES.md) identifies which changes need a restart. Each analysis retains its sample mapping and [run report](RUNS.md). Scientific outputs retain identifiers required by downstream stages; presentation exports include original sample names.
 
-New profiles use the **Stable** update channel. Users may select **Testing** or enable an optional startup notification. Existing preferences are preserved. **Check for updates** offers newer approved releases compatible with the installed system and installation method. The client verifies the package before installation. Finish active analyses before updating. Data and results remain in their configured directories.
+New profiles use the **Stable** update channel. Users may select **Testing** or enable an optional startup notification. **Check for updates** offers newer approved releases compatible with the installed system and installation method. The client verifies the package before installation. Finish active analyses before updating. Data and results remain in their configured directories.
 
 The package manifest, commit, version and SHA-256 identify exact bytes. Windows and Apple trust decisions use separate mechanisms. Release notes describe the checks performed for a particular build. For candidate verification and evidence, see [installer acceptance](INSTALLER_ACCEPTANCE.md), [CI/CD](CI_CD.md) and [domain validation](VALIDATION.md). See also the [license](../LICENSE) and [third-party notices](../THIRD_PARTY_NOTICES.md).

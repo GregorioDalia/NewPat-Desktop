@@ -15,13 +15,13 @@ This guide covers input formats and repeatable commands for the six scientific m
 For a Windows setup installation, open PowerShell and set the launcher variable once for the examples in this guide:
 
 ```powershell
-$appDir = (Get-ItemProperty -LiteralPath 'HKCU:\Software\NIPAT\desktop' -Name app_dir).app_dir
+$appDir = (Get-ItemProperty -LiteralPath 'HKCU:\Software\NewPat\desktop' -Name app_dir).app_dir
 $newpat = Join-Path $appDir 'newpat.cmd'
 & $newpat --version
 & $newpat --help
 ```
 
-For a complete ZIP installation, open the installed `NIPAT` folder in File Explorer. Open PowerShell **in that folder**, alongside `current.json` and `NewPat.lnk`, and run:
+For a complete ZIP installation, open the installed `NewPat` folder in File Explorer. Open PowerShell **in that folder**, alongside `current.json` and `NewPat.lnk`, and run:
 
 ```powershell
 $active = Get-Content -Raw -LiteralPath '.\current.json' | ConvertFrom-Json
@@ -37,10 +37,10 @@ Supply your own data paths in the commands below. Global options such as `--runs
 
 | Installation | Default results directory |
 | --- | --- |
-| Windows, guided EXE | `%LOCALAPPDATA%\NIPAT-Desktop\runs` unless changed in setup |
-| Windows, complete ZIP | `runs\` under the active `NIPAT` folder containing `current.json` |
-| macOS | `~/Library/Application Support/NIPAT-Desktop/runs` |
-| Ubuntu | `$XDG_DATA_HOME/nipat-desktop/runs`, or `~/.local/share/nipat-desktop/runs` when the variable is unset |
+| Windows, guided EXE | `%LOCALAPPDATA%\NewPat-Desktop\runs` unless changed in setup |
+| Windows, complete ZIP | `runs\` under the active `NewPat` folder containing `current.json` |
+| macOS | `~/Library/Application Support/NewPat-Desktop/runs` |
+| Ubuntu | `$XDG_DATA_HOME/newpat-desktop/runs`, or `~/.local/share/newpat-desktop/runs` when the variable is unset |
 | Source checkout | A `runs` directory next to the checkout, unless the workspace or results directory is overridden |
 
 Use the run's open-folder action to find an experiment if a custom directory was selected. Keep data and results in writable locations separate from the installed program. On Windows the runtime uses fixed local drives. On macOS the paths must be accessible to Lima. On Ubuntu they must be accessible to the local Docker Engine. Relative paths on the command line resolve from the current directory. Relative paths inside a BAM list resolve from the list file's directory.
@@ -102,8 +102,6 @@ The desktop labels this analysis **Postnatal CPI**. The CLI command and configur
 ```powershell
 & $newpat cpin --input-dir ".\trios" --trios "A:A:A" --popfreq ".\population.tsv"
 ```
-
-When opening a profile saved under the earlier postnatal model, review the selected genotype groups before comparing results. The migration preserves the previous mismatch weights and selects the union of the earlier mother–child groups. The previous minimum child-allele support has no equivalent trio-wide coverage threshold. Choose a coverage threshold for the new experiment if needed.
 
 See [input validation](INPUT_VALIDATION.md) for file checks and warnings, and the [scientific catalog](SCIENTIFIC_CATALOG.md) for formulas, thresholds and settings.
 

@@ -4,17 +4,17 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $project = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 if ([string]::IsNullOrWhiteSpace($OutputPath)) {
-    $OutputPath = Join-Path $project 'NIPAT.exe'
+    $OutputPath = Join-Path $project 'NewPat.exe'
 }
 $target = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutputPath)
 . (Join-Path $PSScriptRoot 'build-compiler.ps1')
-$compiler = Get-NipatCSharpCompiler
+$compiler = Get-NewPatCSharpCompiler
 # Native component identity changes only with its own implementation/resources.
 # Application version is reported by the verified Python client, not this bridge.
 $version = (Get-Content -LiteralPath (Join-Path $PSScriptRoot 'launcher-version.txt') -Raw -Encoding ASCII).Trim()
 if ($version -cnotmatch '^\d+\.\d+\.\d+$') { throw 'Versione componente launcher non valida.' }
 $numeric = [regex]::Match($version, '^\d+\.\d+\.\d+').Value + '.0'
-$temporary = Join-Path ([IO.Path]::GetTempPath()) ('nipat-launcher-build-' + [Guid]::NewGuid().ToString('N'))
+$temporary = Join-Path ([IO.Path]::GetTempPath()) ('newpat-launcher-build-' + [Guid]::NewGuid().ToString('N'))
 try {
     [IO.Directory]::CreateDirectory($temporary) | Out-Null
     [IO.Directory]::CreateDirectory((Split-Path -Parent $target)) | Out-Null
@@ -33,8 +33,8 @@ using System.Reflection;
     $icon = Join-Path $project 'assets\branding\newpat-icon.ico'
     if (-not (Test-Path -LiteralPath $icon -PathType Leaf)) { throw 'Icona NewPat mancante.' }
     & $compiler /nologo /target:exe /platform:x64 /optimize+ /deterministic+ /debug- "/pathmap:$temporary=/_/generated,$project=/_/src" "/win32manifest:$manifest" "/win32icon:$icon" "/out:$target" $source $assemblyInfo
-    if ($LASTEXITCODE -ne 0) { throw 'Compilazione di NIPAT.exe fallita.' }
-    if (-not (Test-Path -LiteralPath $target -PathType Leaf)) { throw 'NIPAT.exe non e stato prodotto.' }
+    if ($LASTEXITCODE -ne 0) { throw 'Compilazione di NewPat.exe fallita.' }
+    if (-not (Test-Path -LiteralPath $target -PathType Leaf)) { throw 'NewPat.exe non e stato prodotto.' }
     Write-Host "Launcher NewPat $version compilato: $target"
 } finally {
     if (Test-Path -LiteralPath $temporary) {

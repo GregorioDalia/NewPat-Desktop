@@ -17,8 +17,8 @@ $ErrorActionPreference = 'Stop'
 if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_OS -ne 'Windows') {
     throw 'The compiled installer fixture may run only on an isolated Windows Actions runner.'
 }
-$registry = 'HKCU:\Software\NIPAT\desktop'
-if (Test-Path -LiteralPath $registry) { throw 'The fixture refuses an existing NIPAT Desktop registration.' }
+$registry = 'HKCU:\Software\NewPat\desktop'
+if (Test-Path -LiteralPath $registry) { throw 'The fixture refuses an existing NewPat Desktop registration.' }
 $reportRoot = [IO.Path]::GetFullPath($ReportDirectory)
 [IO.Directory]::CreateDirectory($reportRoot) | Out-Null
 $work = [IO.Path]::GetFullPath($WorkDirectory)
@@ -40,7 +40,7 @@ $report = [ordered]@{
     checks = $checks
 }
 if ($LASTEXITCODE -ne 0 -or $report.source_commit -cnotmatch '^[a-f0-9]{40}$') { throw 'Fixture source commit unavailable.' }
-$setupPattern = '(?s)function InitializeSetup\(\): Boolean;.*?(?=function NipatPathHasReparsePoint)'
+$setupPattern = '(?s)function InitializeSetup\(\): Boolean;.*?(?=function NewPatPathHasReparsePoint)'
 if ([regex]::Matches($original, $setupPattern).Count -ne 1) { throw 'The setup gate fixture anchor changed.' }
 $fixtureSource = [regex]::Replace($original, $setupPattern,
     "function InitializeSetup(): Boolean;`nbegin`n  Result := True;`nend;`n`n")
@@ -48,15 +48,15 @@ $uninstallPattern = '(?s)(function InitializeUninstall\(\): Boolean;.*?begin\s*)
 if ([regex]::Matches($fixtureSource, $uninstallPattern).Count -ne 1) { throw 'The uninstall gate fixture anchor changed.' }
 $fixtureSource = [regex]::Replace($fixtureSource, $uninstallPattern, '${1}Result := True;')
 $hostPython = (Get-Command python -CommandType Application).Source.Replace("'", "''")
-$fixtureSource = $fixtureSource.Replace("ExpandConstant('{tmp}\nipat-bootstrap-python\python.exe')", ("'" + $hostPython + "'"))
+$fixtureSource = $fixtureSource.Replace("ExpandConstant('{tmp}\newpat-bootstrap-python\python.exe')", ("'" + $hostPython + "'"))
 [IO.File]::WriteAllText($fixture, $fixtureSource, (New-Object Text.UTF8Encoding($false)))
 $report.fixture_definition_sha256 = (Get-FileHash -LiteralPath $fixture -Algorithm SHA256).Hash.ToLowerInvariant()
 $bootstrap = @'
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-if ($env:NIPAT_SETUP_ACTIVITY_TOKEN -notmatch '^\d+:[a-f0-9]{32}$') { throw 'No live installer lease token.' }
+if ($env:NEWPAT_SETUP_ACTIVITY_TOKEN -notmatch '^\d+:[a-f0-9]{32}$') { throw 'No live installer lease token.' }
 $layout = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\..\.runtime\install-layout.json') -Raw -Encoding UTF8 | ConvertFrom-Json
-$lockPath = Join-Path $env:LOCALAPPDATA 'NIPAT-Desktop\activity.lock'
+$lockPath = Join-Path $env:LOCALAPPDATA 'NewPat-Desktop\activity.lock'
 $blocked = $false
 try {
     $probe = [IO.File]::Open($lockPath, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
@@ -64,7 +64,7 @@ try {
 } catch [IO.IOException] { $blocked = $true }
 if (-not $blocked) { throw 'Inno did not retain its exclusive installation lease during bootstrap.' }
 [IO.File]::WriteAllText((Join-Path $layout.app_dir '.runtime\fixture-bootstrap.txt'), 'lease-held-runtime-not-executed')
-if ($env:NIPAT_FIXTURE_BOOTSTRAP_REBOOT -eq '1') { exit 3010 }
+if ($env:NEWPAT_FIXTURE_BOOTSTRAP_REBOOT -eq '1') { exit 3010 }
 exit 0
 '@
 [IO.File]::WriteAllText((Join-Path $app 'installer\windows\bootstrap.ps1'), $bootstrap,
@@ -73,7 +73,7 @@ $profilePath = Join-Path $StageDirectory 'bootstrap\bootstrap-profile.iss'
 $profile = [IO.File]::ReadAllText($profilePath)
 # A unique uninstall identity prevents the fixture from masquerading as a release.
 $fixtureId = [Guid]::NewGuid().ToString().ToUpperInvariant()
-$profile = [regex]::Replace($profile, '(?m)^#define NipatAppId .*$', '#define NipatAppId "{{' + $fixtureId + '}"')
+$profile = [regex]::Replace($profile, '(?m)^#define NewPatAppId .*$', '#define NewPatAppId "{{' + $fixtureId + '}"')
 $sentinels = @{}
 $createdRegistry = $false
 $zipBuilder = Join-Path $work 'build-fixture-payload.py'
@@ -162,9 +162,9 @@ try {
     [IO.File]::WriteAllText($profilePath, $profile, (New-Object Text.UTF8Encoding($false)))
     & $CompilerPath '/Qp' "/DStageDir=$StageDirectory" "/DRuntimeAssetsDir=$AssetDirectory" "/DOutputDir=$output" $fixture
     if ($LASTEXITCODE -ne 0) { throw 'Frozen fixture compilation failed.' }
-    $setup = Join-Path $output 'NIPAT-Setup.exe'
+    $setup = Join-Path $output 'NewPat-Setup.exe'
     $frozenHash = (Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash.ToLowerInvariant()
-    foreach ($version in @('0.9.10', '0.9.11')) {
+    foreach ($version in @('0.9.99', '0.9.100')) {
         [IO.File]::WriteAllText((Join-Path $app 'fixture-version.txt'), $version)
         Write-FixtureManifest $version
         Write-FixtureInventory
@@ -175,23 +175,23 @@ try {
         $payloadSize = (Get-Item -LiteralPath $payload).Length
         $log = Join-Path $reportRoot ('install-' + $version + '.log')
         $arguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/SP-', '/NORESTART', "/DIR=`"$installed`"", "/LOG=`"$log`"",
-            "/NIPATPACKAGE=`"$payload`"", "/NIPATVERSION=$version", ('/NIPATSOURCE=' + ('0' * 40)),
-            "/NIPATSHA256=$payloadHash", "/NIPATSIZE=$payloadSize")
-        if ($version -eq '0.9.11') {
-            $arguments += '/NIPATUPDATE=1'
-            $env:NIPAT_FIXTURE_BOOTSTRAP_REBOOT = '1'
+            "/NEWPATPACKAGE=`"$payload`"", "/NEWPATVERSION=$version", ('/NEWPATSOURCE=' + ('0' * 40)),
+            "/NEWPATSHA256=$payloadHash", "/NEWPATSIZE=$payloadSize")
+        if ($version -eq '0.9.100') {
+            $arguments += '/NEWPATUPDATE=1'
+            $env:NEWPAT_FIXTURE_BOOTSTRAP_REBOOT = '1'
             try {
                 Invoke-FixtureProcess $setup $arguments "Installation $version" 3010
                 $checks.reboot_exit_code = $true
             } finally {
-                Remove-Item Env:NIPAT_FIXTURE_BOOTSTRAP_REBOOT -ErrorAction SilentlyContinue
+                Remove-Item Env:NEWPAT_FIXTURE_BOOTSTRAP_REBOOT -ErrorAction SilentlyContinue
             }
         } else {
             Invoke-FixtureProcess $setup $arguments "Installation $version"
         }
         $marker = Get-Content -LiteralPath (Join-Path $installed '.runtime\bootstrap-install.json') -Raw | ConvertFrom-Json
         if ($marker.installation_method -cne 'bootstrap' -or $marker.setup_sha256 -cne $frozenHash -or
-            (Get-FileHash -LiteralPath (Join-Path $installed '.runtime\setup\NIPAT-Setup.exe') -Algorithm SHA256).Hash.ToLowerInvariant() -cne $frozenHash -or
+            (Get-FileHash -LiteralPath (Join-Path $installed '.runtime\setup\NewPat-Setup.exe') -Algorithm SHA256).Hash.ToLowerInvariant() -cne $frozenHash -or
             (Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash.ToLowerInvariant() -cne $frozenHash) {
             throw 'The same frozen installer must be retained for both payload versions.'
         }
@@ -224,9 +224,9 @@ try {
         Assert-FixtureSentinels
         $checks[('installed_' + $version)] = $true
     }
-    $history = Join-Path $env:LOCALAPPDATA 'NIPAT-Desktop\installations\backups'
+    $history = Join-Path $env:LOCALAPPDATA 'NewPat-Desktop\installations\backups'
     $oldVersions = @(Get-ChildItem -LiteralPath $history -Filter 'fixture-version.txt' -Recurse -File |
-        Where-Object { [IO.File]::ReadAllText($_.FullName) -ceq '0.9.10' })
+        Where-Object { [IO.File]::ReadAllText($_.FullName) -ceq '0.9.99' })
     if ($oldVersions.Count -lt 1) { throw 'Upgrade did not retain the previous managed file in the repair backup.' }
     $checks.upgrade_backup = $true
     $unknown = Join-Path $installed 'user-note.txt'

@@ -179,7 +179,7 @@ def validate_catalog(document: object, *, source_root: Path | None = None) -> No
                      and type(entry.get("required")) is bool and "unit" in entry
                      and (entry["unit"] is None or _text(entry["unit"])),
                      f"{identifier}: incomplete public parameter.")
-            mapping = entry.get("nipat")
+            mapping = entry.get("newpat")
             _require(isinstance(mapping, dict) and _strings(mapping.get("cli"))
                      and _strings(mapping.get("request_fields"))
                      and isinstance(mapping.get("mapping"), str)

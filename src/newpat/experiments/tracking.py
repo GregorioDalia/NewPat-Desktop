@@ -91,10 +91,10 @@ def verify_input_evidence(
 
 
 def recorded_client_version(source: object) -> str | None:
-    """Read the version in records produced by current and earlier clients."""
+    """Read the NewPat version recorded for this experiment."""
     if not isinstance(source, dict):
         return None
-    return source.get("newpat_version") or source.get("nipat_version")
+    return source.get("newpat_version")
 
 
 def project_evidence(project: Path) -> dict[str, Any]:
@@ -112,7 +112,7 @@ def project_evidence(project: Path) -> dict[str, Any]:
                     handle, "sha256"
                 ).hexdigest()
     result: dict[str, Any] = {
-        "newpat_version": __version__, "nipat_version": __version__,
+        "newpat_version": __version__,
         "file_sha256": hashes, "git": None, "release": None,
     }
     # Do not accidentally report a parent workspace's repository as this project.

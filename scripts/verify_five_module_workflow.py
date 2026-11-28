@@ -143,8 +143,8 @@ def qualify(destination: Path):
                 "popfreq": str(inputs / (marker + "-frequency.tsv")), "markers": str(inputs / (marker + "-panel.tsv"))}, "parameters": {}},
         ])
     helper = PROJECT / "src/newpat_scientific"
-    os.environ.update({"NIPAT_PARALLEL_HELPER": str(helper / "parallel.R"), "NIPAT_PLOTS_HELPER": str(helper / "plots.R"),
-                       "NIPAT_DNP_BLOCKS_HELPER": str(helper / "dnp_blocks.R"), "NIPAT_DNP_PILEUP_HELPER": str(helper / "dnp_pileup.py")})
+    os.environ.update({"NEWPAT_PARALLEL_HELPER": str(helper / "parallel.R"), "NEWPAT_PLOTS_HELPER": str(helper / "plots.R"),
+                       "NEWPAT_DNP_BLOCKS_HELPER": str(helper / "dnp_blocks.R"), "NEWPAT_DNP_PILEUP_HELPER": str(helper / "dnp_pileup.py")})
     scripts = {"dnp-call": PROJECT / "scientific/vendor/DNPcall/DNPcall.R", "snp-call": PROJECT / "scientific/vendor/NEWPAT/SNPcall/SNPcall.R",
                "contamination": PROJECT / "scientific/vendor/NEWPAT/contamination/detect_contamination.R",
                "cpi": PROJECT / "scientific/vendor/NEWPAT/CPI_from_cffDNA/cfDNA_CPI_estimator.R",
@@ -152,7 +152,7 @@ def qualify(destination: Path):
     source_hashes = {str(path): digest(path) for path in [Path(__file__).resolve(), PROJECT / "engine/main.py", *scripts.values(), *helper.glob("*.py"), *helper.glob("*.R"), helper / "settings_data.json"]}
     results, tables = {}, {}
     for mode in ("serial", "capped"):
-        os.environ.update({"NIPAT_EXECUTION_MODE": "serial" if mode == "serial" else "auto", "NIPAT_MAX_WORKERS": "2"})
+        os.environ.update({"NEWPAT_EXECUTION_MODE": "serial" if mode == "serial" else "auto", "NEWPAT_MAX_WORKERS": "2"})
         run = destination / mode
         result = execute_plan(plan, run_dir=run, script_paths=scripts)
         if result["status"] != "succeeded":
@@ -208,7 +208,7 @@ def qualify_image(identifier: str, destination: Path, *, run_container) -> dict:
                            destination / "client results", project / "compose.yaml")
     results, tables = {}, {}
     expected_workflows = {"dnp-call", "snp-call", "contamination", "cpi", "cpin"}
-    with patch.dict(os.environ, {"NIPAT_RUNTIME_IMAGE": identifier, "NIPAT_BACKEND": "native"}):
+    with patch.dict(os.environ, {"NEWPAT_RUNTIME_IMAGE": identifier, "NEWPAT_BACKEND": "native"}):
         for mode in ("serial", "capped"):
             runner = DockerComposeRunner(layout, options=ExecutionOptions(
                 execution_mode="serial" if mode == "serial" else "auto", max_workers=2))

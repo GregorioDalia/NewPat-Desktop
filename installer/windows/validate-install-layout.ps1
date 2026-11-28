@@ -14,8 +14,8 @@ try {
     . (Join-Path $PSScriptRoot 'install-profile.ps1')
     . (Join-Path $PSScriptRoot 'install-layout.ps1')
     if ($PSCmdlet.ParameterSetName -ceq 'Defaults') {
-        $layout = Read-NipatInstallLayout $Project -Historical
-        $lines = @('[NIPAT]')
+        $layout = Read-NewPatInstallLayout $Project -Historical
+        $lines = @('[NewPat]')
         foreach ($name in @('app_dir', 'runtime_dir', 'cache_dir', 'data_dir', 'runs_dir')) {
             $lines += "$name=$($layout.$name)"
         }
@@ -29,15 +29,15 @@ try {
         if (Test-Path -LiteralPath (Join-Path $layout.app_dir '.runtime\zip-install.json')) {
             throw 'Questa cartella e gestita dal canale ZIP. Aggiornare dal menu NewPat ZIP oppure scegliere un altra cartella per il setup EXE.'
         }
-        Assert-NipatInstallLayout $layout
-        $kind = Get-NipatApplicationKind $layout.app_dir
+        Assert-NewPatInstallLayout $layout
+        $kind = Get-NewPatApplicationKind $layout.app_dir
         if ($InfoFile) {
             # A fresh, short-lived setup lease is created by Inno only after validation succeeds.
             $setupNonce = [Guid]::NewGuid().ToString('N')
-            [IO.File]::WriteAllLines($InfoFile, [string[]] @('[NIPAT]', "kind=$kind", "setup_nonce=$setupNonce"),
+            [IO.File]::WriteAllLines($InfoFile, [string[]] @('[NewPat]', "kind=$kind", "setup_nonce=$setupNonce"),
                 [Text.Encoding]::Unicode)
         }
-        Assert-NipatInstallLayout $layout -CheckExisting
+        Assert-NewPatInstallLayout $layout -CheckExisting
     }
     exit 0
 } catch {

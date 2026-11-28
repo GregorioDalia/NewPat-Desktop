@@ -151,7 +151,7 @@
   function normalizeReference(value) {
     if (!value || typeof value !== 'object' || !value.fastaURL || !value.indexURL) throw fail('reference');
     const result = {
-      id: label(value.id, 'nipat-local'), name: label(value.name, language === 'en' ? 'Local reference' : 'Riferimento locale'),
+      id: label(value.id, 'newpat-local'), name: label(value.name, language === 'en' ? 'Local reference' : 'Riferimento locale'),
       fastaURL: localURL(value.fastaURL), indexURL: localURL(value.indexURL)
     };
     if (value.compressedIndexURL) result.compressedIndexURL = localURL(value.compressedIndexURL);
@@ -183,7 +183,7 @@
     if (!Object.hasOwn(FORMATS, format)) throw fail('track');
     if (['bam', 'cram'].includes(format) && !value.indexURL) throw fail('index');
     const result = {
-      id: label(value.id, 'nipat-track-' + index), name: label(value.name, 'Traccia ' + (index + 1)),
+      id: label(value.id, 'newpat-track-' + index), name: label(value.name, 'Traccia ' + (index + 1)),
       format, type: FORMATS[format], url: localURL(value.url),
       height: FORMATS[format] === 'alignment' ? 260 : 140,
       ...displayOptions(value)
@@ -205,8 +205,8 @@
     });
   }
   function localMenus(track) {
-    if (!track || track.__nipatLocalMenus) return;
-    Object.defineProperty(track, '__nipatLocalMenus', {value: true});
+    if (!track || track.__newpatLocalMenus) return;
+    Object.defineProperty(track, '__newpatLocalMenus', {value: true});
     for (const key of ['contextMenuItemList', 'menuItemList']) {
       if (typeof track[key] !== 'function') continue;
       const original = track[key];
@@ -228,10 +228,10 @@
     const root = container.shadowRoot || container;
     const document = container.ownerDocument;
     if (!document?.createElement || !root.querySelector) return;
-    let style = root.querySelector('style[data-nipat-navigation]');
+    let style = root.querySelector('style[data-newpat-navigation]');
     if (!style) {
       style = document.createElement('style');
-      style.setAttribute('data-nipat-navigation', '');
+      style.setAttribute('data-newpat-navigation', '');
       root.appendChild(style);
     }
     style.textContent = '.igv-navbar-genomic-location,.igv-zoom-widget,.igv-zoom-widget-900,.igv-zoom-widget-hidden{display:none!important}';
@@ -391,7 +391,7 @@
     chromosomes = []; history = []; restoringHistory = false; wasDragging = false;
     navigationQueue = Promise.resolve(); notifyNavigation();
   }
-  global.NipatIGV = Object.freeze({version: VERSION, mount, loadTracks, search,
+  global.NewPatIGV = Object.freeze({version: VERSION, mount, loadTracks, search,
     getNavigation, onNavigation, back, wholeGenome, zoomIn, zoomOut,
     exportSession, snapshot: exportSession, exportSVG, resize, dispose,
     setLanguage(value) { language = value === 'en' ? 'en' : 'it'; }});

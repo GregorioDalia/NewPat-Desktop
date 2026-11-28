@@ -21,21 +21,18 @@ class TestingPackageTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.output = Path(self.temporary.name)
         self.manifest = {"version": "0.9.10", "source_commit": "a" * 40}
-        for name in ("NIPAT-Setup.exe", "NIPAT-0.9.10-Windows-payload.zip", "NIPAT-0.9.10-Windows-complete.zip"):
+        for name in ("NewPat-Setup.exe", "NewPat-0.9.10-Windows-payload.zip", "NewPat-0.9.10-Windows-complete.zip"):
             (self.output / name).write_bytes(name.encode())
 
     def test_english_testing_archive_names_and_manifest_use_same_generation(self):
         self.manifest["version"] = "0.9.10"
-        for name in ("NIPAT-0.9.10-Windows-payload.zip", "NIPAT-0.9.10-Windows-complete.zip"):
+        for name in ("NewPat-0.9.10-Windows-payload.zip", "NewPat-0.9.10-Windows-complete.zip"):
             (self.output / name).write_bytes(name.encode())
         record = PACKAGE.build(SOURCE, self.output, self.manifest)
-        self.assertEqual(record["file"], "NIPAT-0.9.10-Testing-installer.zip")
+        self.assertEqual(record["file"], "NewPat-0.9.10-Testing-installer.zip")
         with zipfile.ZipFile(self.output / record["file"]) as archive:
             metadata = json.loads(archive.read("testing-release.json"))
-            self.assertEqual(metadata["complete_zip"]["file"], "NIPAT-0.9.10-Windows-complete.zip")
-        self.assertEqual(PACKAGE.filename("0.9.9"), "NIPAT-0.9.9-Testing-installazione.zip")
-        self.assertEqual(set(PACKAGE.sources("0.9.5")),
-                         {"INSTALLA-NewPat-TESTING.cmd", "LEGGIMI.txt", "install-testing.ps1"})
+            self.assertEqual(metadata["complete_zip"]["file"], "NewPat-0.9.10-Windows-complete.zip")
 
     def test_exact_downloads_and_reviewed_entrypoints_are_bound(self):
         record = PACKAGE.build(SOURCE, self.output, self.manifest)
@@ -66,7 +63,7 @@ class TestingPackageTests(unittest.TestCase):
         archive = self.output / record["file"]
         with self.assertRaisesRegex(ValueError, "payload identity"):
             PACKAGE.verify(archive, SOURCE, self.output, dict(self.manifest, source_commit="b" * 40))
-        (self.output / "NIPAT-0.9.10-Windows-payload.zip").write_bytes(b"replaced payload")
+        (self.output / "NewPat-0.9.10-Windows-payload.zip").write_bytes(b"replaced payload")
         with self.assertRaisesRegex(ValueError, "payload identity"):
             PACKAGE.verify(archive, SOURCE, self.output, self.manifest)
 

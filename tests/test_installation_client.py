@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-from newpat.errors import NipatError
+from newpat.errors import NewPatError
 from newpat.installation import (
     installation_inventory, maintenance_selection, show_installation, start_maintenance,
 )
@@ -49,18 +49,18 @@ class InstallationClientTests(unittest.TestCase):
                 if value == inventory():
                     self.assertEqual(installation_inventory(self.project), value)
                 else:
-                    with self.assertRaises(NipatError):
+                    with self.assertRaises(NewPatError):
                         installation_inventory(self.project)
 
     def test_active_foreign_or_ambiguous_target_cannot_be_removed(self):
         for target in ("active", "foreign"):
-            with self.subTest(target=target), self.assertRaises(NipatError):
+            with self.subTest(target=target), self.assertRaises(NewPatError):
                 maintenance_selection(inventory(), "cleanup", target)
         duplicate = inventory()
         duplicate["cache"] = [dict(duplicate["runtimes"][1])]
-        with self.assertRaises(NipatError):
+        with self.assertRaises(NewPatError):
             maintenance_selection(duplicate, "cleanup", "old")
-        with self.assertRaises(NipatError):
+        with self.assertRaises(NewPatError):
             maintenance_selection(inventory(), "recover", "previous-version")
 
     def test_dry_run_menu_never_queries_inventory(self):
@@ -112,7 +112,7 @@ class InstallationClientTests(unittest.TestCase):
     def test_wrong_target_acknowledgement_cancels_waiting_worker(self):
         process, _ = self.worker(acknowledgement={"schema_version": 1,
             "status": "waiting-for-client", "operation": "cleanup", "target_id": "active"})
-        with self.assertRaisesRegex(NipatError, "non valida"):
+        with self.assertRaisesRegex(NewPatError, "non valida"):
             start_maintenance(self.project, "cleanup", "old")
         process.terminate.assert_called_once()
         process.wait.assert_called_once_with(timeout=10)
@@ -123,7 +123,7 @@ class InstallationClientTests(unittest.TestCase):
         process, _ = self.worker()
         with patch("newpat.installation.time.monotonic", side_effect=[0, 121]), \
                 patch.object(Path, "write_text", side_effect=OSError("disk full")), \
-                self.assertRaisesRegex(NipatError, "non ha confermato"):
+                self.assertRaisesRegex(NewPatError, "non ha confermato"):
             start_maintenance(self.project, "cleanup", "old")
         process.terminate.assert_called_once()
         process.wait.assert_called_once_with(timeout=10)
@@ -133,7 +133,7 @@ class InstallationClientTests(unittest.TestCase):
         updated = inventory()
         updated["runtimes"][1]["removable"] = False
         with patch("newpat.installation.installation_inventory", return_value=updated), \
-                self.assertRaises(NipatError):
+                self.assertRaises(NewPatError):
             start_maintenance(self.project, "cleanup", "old")
         launch.assert_not_called()
         process.terminate.assert_not_called()

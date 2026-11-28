@@ -485,7 +485,7 @@ def execute_plan(document: object, *, run_dir: Path, script_paths: dict[str, Pat
         } for step in plan["steps"]],
     }
     from newpat_scientific.desktop_scheduling import DesktopStepBudget
-    control = os.environ.get("NIPAT_DESKTOP_SCHEDULER")
+    control = os.environ.get("NEWPAT_DESKTOP_SCHEDULER")
     scheduler = DesktopStepBudget(control, _atomic_json) if control else None
     cancellation = _Cancellation()
     previous = {}

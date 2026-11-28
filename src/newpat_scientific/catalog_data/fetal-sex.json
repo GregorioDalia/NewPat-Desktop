@@ -17,7 +17,7 @@
       "default": null,
       "required": true,
       "unit": null,
-      "nipat": {
+      "newpat": {
         "cli": [
           "--autosomes",
           "--dnp"
@@ -47,7 +47,7 @@
       "default": null,
       "required": true,
       "unit": null,
-      "nipat": {
+      "newpat": {
         "cli": [
           "--x",
           "--dnp"
@@ -77,7 +77,7 @@
       "default": null,
       "required": true,
       "unit": null,
-      "nipat": {
+      "newpat": {
         "cli": [
           "--y"
         ],
@@ -105,7 +105,7 @@
       "default": null,
       "required": true,
       "unit": null,
-      "nipat": {
+      "newpat": {
         "cli": [
           "--runs-dir",
           "--run-name"
@@ -134,7 +134,7 @@
       "default": 0.1,
       "required": false,
       "unit": "proporzione",
-      "nipat": {
+      "newpat": {
         "cli": [
           "--set"
         ],
@@ -162,7 +162,7 @@
       "default": 0.9,
       "required": false,
       "unit": "proporzione",
-      "nipat": {
+      "newpat": {
         "cli": [
           "--set"
         ],
@@ -190,7 +190,7 @@
       "default": true,
       "required": false,
       "unit": null,
-      "nipat": {
+      "newpat": {
         "cli": [
           "--set"
         ],
@@ -218,7 +218,7 @@
       "default": null,
       "required": false,
       "unit": "letture",
-      "nipat": {
+      "newpat": {
         "cli": [
           "--set"
         ],
@@ -246,7 +246,7 @@
       "default": null,
       "required": false,
       "unit": "%",
-      "nipat": {
+      "newpat": {
         "cli": [
           "--set"
         ],
@@ -274,7 +274,7 @@
       "default": 0.5,
       "required": false,
       "unit": "rapporto",
-      "nipat": {
+      "newpat": {
         "cli": [
           "--set"
         ],
@@ -302,7 +302,7 @@
       "default": 0.1,
       "required": false,
       "unit": "rapporto",
-      "nipat": {
+      "newpat": {
         "cli": [
           "--set"
         ],
@@ -330,7 +330,7 @@
       "default": 1,
       "required": false,
       "unit": "rapporto",
-      "nipat": {
+      "newpat": {
         "cli": [
           "--set"
         ],
@@ -358,7 +358,7 @@
       "default": 0.1,
       "required": false,
       "unit": "rapporto",
-      "nipat": {
+      "newpat": {
         "cli": [
           "--set"
         ],
@@ -386,7 +386,7 @@
       "default": 2,
       "required": false,
       "unit": "rapporto",
-      "nipat": {
+      "newpat": {
         "cli": [
           "--set"
         ],
@@ -493,7 +493,7 @@
         "dependencies": [
           {
             "path": "src/newpat_scientific/settings.py",
-            "sha256": "5d983923351965fdb3959ca8f0383d2fd880c286ee7dc4a3bde3862289399555",
+            "sha256": "becfd9167cbc3baaa2f72d53f5db837bbea69248805f8b76192b4d584367183d",
             "source_lines": [
               1,
               206
@@ -509,7 +509,7 @@
           },
           {
             "path": "src/newpat_scientific/executor.py",
-            "sha256": "0d87f2a5a4d0a860d7cdde62a6295074c1e0f2859f2c256b477cabe218d10285",
+            "sha256": "aef287c549ded718593627a04b62dc004c2b59c5832c9982a62921561bf65b15",
             "source_lines": [
               355,
               371

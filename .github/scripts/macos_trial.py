@@ -13,7 +13,7 @@ from macos_release import read_json, require
 
 PROJECT = Path(__file__).resolve().parents[2]
 VERSION = "0.9.99"
-PACKAGE = f"NIPAT-{VERSION}-macos-arm64.pkg"
+PACKAGE = f"NewPat-{VERSION}-macos-arm64.pkg"
 LAUNCHER = "Mini-Test-NewPat.command"
 
 

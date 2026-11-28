@@ -52,7 +52,7 @@ WM_MOVE, WM_TIMER, WM_GETMINMAXINFO, WM_DPICHANGED = 3, 275, 36, 736
 WM_DISPATCH = 0x8001
 ERROR_CANCELLED_HRESULT = 0x800704C7
 IID_IUNKNOWN = "00000000-0000-0000-c000-000000000046"
-APP_USER_MODEL_ID = "NIPAT.Desktop"
+APP_USER_MODEL_ID = "NewPat.Desktop"
 
 
 def application_icon() -> Path:
@@ -309,7 +309,7 @@ class _Window:
         self.smoke_test, self.smoke_report = smoke_test, smoke_report
         self.screenshot_path = screenshot_path
         self.user_data_dir = Path(user_data_dir) if user_data_dir else (
-            Path(os.environ.get("LOCALAPPDATA", Path.home())) / "NIPAT-Desktop" / "webview2"
+            Path(os.environ.get("LOCALAPPDATA", Path.home())) / "NewPat-Desktop" / "webview2"
         )
         self.timeout, self.started = timeout, time.monotonic()
         self.hwnd = None
@@ -328,7 +328,7 @@ class _Window:
         self.smoke_requested = False
         self.smoke_result = None
         self.icons = []
-        self.class_name = "NIPATDesktop_" + uuid.uuid4().hex
+        self.class_name = "NewPatDesktop_" + uuid.uuid4().hex
         self.user = C.WinDLL("user32", use_last_error=True)
         self.kernel = C.WinDLL("kernel32", use_last_error=True)
         self.ole = C.WinDLL("ole32", use_last_error=True)
@@ -563,7 +563,7 @@ class _Window:
             except Exception as exc:
                 self.runtime_preparing = False
                 self.fail(exc)
-        threading.Thread(target=install, name="NIPAT-WebView2-setup", daemon=True).start()
+        threading.Thread(target=install, name="NewPat-WebView2-setup", daemon=True).start()
 
     def _create_environment(self):
         self.user_data_dir.mkdir(parents=True, exist_ok=True)

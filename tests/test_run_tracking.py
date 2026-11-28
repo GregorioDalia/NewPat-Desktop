@@ -59,7 +59,7 @@ class RunTrackingTests(unittest.TestCase):
         def fake(command, **kwargs):
             self.assertNotIn("--build", command)
             self.assertEqual(command[command.index("--pull") + 1], "never")
-            self.assertEqual(kwargs["env"]["NIPAT_RUNTIME_IMAGE"], "sha256:" + "1" * 64)
+            self.assertEqual(kwargs["env"]["NEWPAT_RUNTIME_IMAGE"], "sha256:" + "1" * 64)
             return real_popen([sys.executable, "-c", next(pending)], **kwargs)
         return fake
 
@@ -252,7 +252,7 @@ class RunTrackingTests(unittest.TestCase):
 
     def test_cancelled_runtime_probe_is_removed_and_recorded_before_return(self):
         run = self.layout.new_run_dir("test", "cancelled-probe")
-        probe = "nipat-probe-cancel-test"
+        probe = "newpat-probe-cancel-test"
         handler = signal.getsignal(signal.SIGINT)
 
         def execute(command, **kwargs):
@@ -346,7 +346,7 @@ class RuntimeResolutionTests(unittest.TestCase):
         ]
         with patch.object(runner, "_capture", side_effect=answers) as capture:
             runner._prepare_runtime()
-        self.assertEqual(runner._environment()["NIPAT_RUNTIME_IMAGE"], image_id)
+        self.assertEqual(runner._environment()["NEWPAT_RUNTIME_IMAGE"], image_id)
         self.assertEqual(capture.call_args_list[2].args[0][3], "test-runtime:tag")
         self.assertIn(image_id, capture.call_args_list[3].args[0])
         self.assertIn("--pull=never", capture.call_args_list[3].args[0])

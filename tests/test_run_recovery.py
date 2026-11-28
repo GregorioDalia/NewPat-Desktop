@@ -24,7 +24,7 @@ class RunRecoveryTests(unittest.TestCase):
         self.layout = ProjectLayout(project, root, root / "data", root / "runs", project / "compose.yaml")
         self.runner = DockerComposeRunner(self.layout, transport=DockerTransport())
         self.run = self.layout.new_run_dir("test", "incomplete")
-        self.name = "nipat-run-" + "a" * 32
+        self.name = "newpat-run-" + "a" * 32
         self.container_id = "b" * 64
         self.record = {
             "schema_version": 1, "run_id": "c" * 32, "run_name": "incomplete",

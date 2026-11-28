@@ -4,7 +4,7 @@
 2. Nel kit completo, chiudi NewPat e installa il file che termina in **-macos-arm64.pkg** presente nella stessa cartella. È l’installer associato a questa prova. Se hai ricevuto soltanto lo ZIP della mini-suite, usa la candidata 0.9.99 già installata sul Mac.
 3. Fai doppio clic su **Mini-Test-NewPat.command**. Lascia il comando e il file Python nella cartella estratta. NewPat prepara il proprio runtime e avvia tre prove.
 4. Il Terminale mostra l’esito e il percorso del report. In **Download**, apri la nuova cartella **NewPat-Mini-…** e invia **Esito-NewPat.html**, anche in caso di FAIL. Il report si apre offline.
-5. Per il collaudo finale, dopo i tre PASS apri NewPat ed esegui un tuo esperimento dal risultato già noto, preferibilmente con più BAM. Indica se hai ottenuto il risultato atteso e quanto è durata l’analisi.
+5. Dopo i tre PASS apri NewPat da Applicazioni, avvia la demo e riapri i risultati. Per una misura su BAM reali annota il commit dell’installer, i parametri, i tempi e l’esito del confronto con i risultati attesi.
 
 | Prova | Riferimento per il PASS |
 | --- | --- |

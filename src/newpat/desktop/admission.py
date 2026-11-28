@@ -82,7 +82,7 @@ class DesktopAdmission:
         else:
             target = [backend, os.environ.get("DOCKER_CONTEXT"), os.environ.get("DOCKER_HOST")]
         identity = hashlib.sha256(json.dumps(target).encode()).hexdigest()[:24]
-        self.directory = (home or Path.home()) / ".nipat" / "desktop-scheduling" / identity
+        self.directory = (home or Path.home()) / ".newpat" / "desktop-scheduling" / identity
         self.id = job_id
         self.path = self.directory / (job_id + ".json")
         self.guard = self.directory / "admission"
@@ -332,7 +332,7 @@ class CoordinatedComposeRunner(DockerComposeRunner):
         # Docker Compose labels scientific containers with our unique project.
         # Exited containers no longer consume the running quota.
         command = ["docker", "ps", "--all", "--quiet", "--filter",
-                   "label=com.docker.compose.project=nipat-" + job_id]
+                   "label=com.docker.compose.project=newpat-" + job_id]
         for status in ("created", "running", "restarting", "paused", "removing"):
             command.extend(["--filter", "status=" + status])
         environment = self._environment()
@@ -350,7 +350,7 @@ class CoordinatedComposeRunner(DockerComposeRunner):
     def _base_command(self):
         command = super()._base_command()
         if self._admission is not None:
-            command.extend(["--project-name", "nipat-" + self._admission.id])
+            command.extend(["--project-name", "newpat-" + self._admission.id])
         return command
 
     @contextmanager

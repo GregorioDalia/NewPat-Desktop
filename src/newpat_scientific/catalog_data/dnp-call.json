@@ -3,7 +3,7 @@
   "workflow": "dnp-call",
   "source": {
     "path": "scientific/vendor/DNPcall/DNPcall.R",
-    "sha256": "5231ae9fefb1c10f40bd5d51d73864043deccbb757a439d75577bce722c6b262",
+    "sha256": "ffb4baf67908215468a191ad8e50af8a6c99af0ae0be8437a47c3ae1bf6682a0",
     "line_count": 882
   },
   "public_parameters": [
@@ -17,7 +17,7 @@
       "default": null,
       "required": true,
       "unit": null,
-      "nipat": {
+      "newpat": {
         "cli": [
           "--bam",
           "--bamlist"
@@ -46,7 +46,7 @@
       "default": null,
       "required": true,
       "unit": null,
-      "nipat": {
+      "newpat": {
         "cli": [
           "--panel"
         ],
@@ -74,7 +74,7 @@
       "default": null,
       "required": true,
       "unit": null,
-      "nipat": {
+      "newpat": {
         "cli": [
           "--reference"
         ],
@@ -102,7 +102,7 @@
       "default": null,
       "required": true,
       "unit": null,
-      "nipat": {
+      "newpat": {
         "cli": [
           "--runs-dir",
           "--run-name"
@@ -132,7 +132,7 @@
       "default": false,
       "required": false,
       "unit": null,
-      "nipat": {
+      "newpat": {
         "cli": [
           "--parallel"
         ],
@@ -180,7 +180,7 @@
       "value": {
         "serial": 1,
         "automatic": "shared CPU/RAM/process/task budget",
-        "parallel_function": "nipat_parallel_lapply",
+        "parallel_function": "newpat_parallel_lapply",
         "strategy": "one global pool for blocks and samples; optimized I/O backends may read a block for up to four consecutive samples",
         "nested_worker_pools": false
       },
@@ -656,7 +656,7 @@
       },
       "description": {
         "it": "Ogni campione produce una tabella TSV e una cartella di grafici. Nel percorso NewPat il nome campione è l’alias interno; l’associazione al BAM originale è conservata nei metadati del run.",
-        "en": "Each sample produces a TSV table and a plot directory. In NIPAT, the sample name is the internal alias; run metadata retain its association with the original BAM."
+        "en": "Each sample produces a TSV table and a plot directory. In NEWPAT, the sample name is the internal alias; run metadata retain its association with the original BAM."
       },
       "source_lines": [
         754,
@@ -717,7 +717,7 @@
       },
       "description": {
         "it": "Il riepilogo unisce i genotipi dei campioni sulle coordinate e sugli alleli. Il nome nativo incorpora il valore --out; con la convenzione NewPat --out=output il file è output/summary/output_AllGenotypes.txt.",
-        "en": "The summary joins sample genotypes on coordinates and alleles. Its native filename incorporates --out; under NIPAT’s --out=output convention, the file is output/summary/output_AllGenotypes.txt."
+        "en": "The summary joins sample genotypes on coordinates and alleles. Its native filename incorporates --out; under NEWPAT’s --out=output convention, the file is output/summary/output_AllGenotypes.txt."
       },
       "source_lines": [
         820,
@@ -789,7 +789,7 @@
       "value": {
         "pileup": "invocation scratch/mpileup.txt",
         "bed": "bedfile_for_mpileup.bed in R working directory",
-        "retained_test_copy": "mpileup.txt only when NIPAT_DNP_KEEP_PILEUP=1"
+        "retained_test_copy": "mpileup.txt only when NEWPAT_DNP_KEEP_PILEUP=1"
       },
       "description": {
         "it": "Alla fine del calcolo R rimuove il pileup nello scratch e il BED nella directory di lavoro. L’opzione interna di verifica può conservare una copia separata del pileup. La directory temporanea dell’invocazione e il volume del container sono gestiti dal motore e dal client.",
@@ -819,7 +819,7 @@
         "duplicate_coordinates": "rejected"
       },
       "applies_to": "dnp-call",
-      "origin": "NIPAT",
+      "origin": "NEWPAT",
       "description": {
         "it": "NewPat richiede coordinate adiacenti con pos1≥2, dinucleotidi A/C/G/T e coordinate non duplicate; normalizza gli alleli in maiuscolo e scrive una copia TSV senza intestazione. La posizione minima include la base precedente e garantisce che l’offset BED pos1−2 sia non negativo.",
         "en": "NewPat requires adjacent coordinates with pos1≥2, A/C/G/T dinucleotides and no duplicate coordinates; it uppercases alleles and writes a headerless TSV copy. The minimum position includes the preceding base and ensures that BED offset pos1−2 is nonnegative."
@@ -847,7 +847,7 @@
         "compressed_additional_index": ".gzi"
       },
       "applies_to": "dnp-call",
-      "origin": "NIPAT",
+      "origin": "NEWPAT",
       "description": {
         "it": "Il FASTA richiede l’indice .fai; i riferimenti compressi con estensione riconosciuta richiedono anche .gzi. NewPat verifica la presenza dei file senza generarli accanto agli input. Le intere finestre devono rientrare nel contig secondo il file .fai.",
         "en": "The FASTA requires a .fai index; references with a recognized compressed extension also require .gzi. NewPat checks file presence without creating indexes beside inputs. Each complete window must fit within its contig in the .fai file."
@@ -869,7 +869,7 @@
         "bam_indexes": "optional"
       },
       "applies_to": "dnp-call",
-      "origin": "NIPAT",
+      "origin": "NEWPAT",
       "description": {
         "it": "I BAM ricevono alias progressivi sicuri, mantenendo l’ordine della lista per colonne e risultati. BAM ripetuti sono rifiutati; gli indici BAM esistenti vengono montati in sola lettura ma restano facoltativi.",
         "en": "BAMs receive safe sequential aliases, retaining list order for columns and results. Repeated BAMs are rejected; existing BAM indexes are mounted read-only but remain optional."
@@ -893,7 +893,7 @@
         "native_out": "output"
       },
       "applies_to": "dnp-call",
-      "origin": "NIPAT",
+      "origin": "NEWPAT",
       "description": {
         "it": "Preparazione e risultati sono isolati nel run; gli input non possono essere dentro work o output. File di preparazione preesistenti e directory risultati non vuote sono rifiutati prima della scrittura.",
         "en": "Preparation and results are isolated in the run; inputs cannot reside inside work or output. Existing preparation files and nonempty results directories are rejected before writing."
@@ -918,7 +918,7 @@
         ]
       },
       "applies_to": "dnp-call",
-      "origin": "NIPAT",
+      "origin": "NEWPAT",
       "description": {
         "it": "Il client registra alias, nome originale e percorso nel container nei parametri del run. Gli output canonici conservano gli alias; gli export leggibili riportano i nomi originali, distinti in caso di omonimia.",
         "en": "The client records the alias, original name and container path in run parameters. Canonical outputs retain aliases; readable exports use original names and disambiguate duplicates."
@@ -929,7 +929,7 @@
           219,
           269
         ],
-        "sha256": "a87a6eb420b4b2e62381d935b569f726dc97aa9d890d4044b6d4bbb649156316"
+        "sha256": "f617dcdc728cad9444fcfeb507fa663512f72acf7965010bede8ccf61fa6dd39"
       }
     },
     {
@@ -962,7 +962,7 @@
           451,
           495
         ],
-        "sha256": "a2a0ccacef2c1b15f98f81a95cfcb6ac4eaf6ff87aaa56c9322c0df261ca0cb5",
+        "sha256": "82478bb2f0ab95c710eba0dfc591df0a365515fa1ba97e74685ecc8cf0cbed93",
         "dependencies": [
           {
             "path": "src/newpat_scientific/dnp_pileup.py",
@@ -970,7 +970,7 @@
               38,
               38
             ],
-            "sha256": "a2a0ccacef2c1b15f98f81a95cfcb6ac4eaf6ff87aaa56c9322c0df261ca0cb5"
+            "sha256": "82478bb2f0ab95c710eba0dfc591df0a365515fa1ba97e74685ecc8cf0cbed93"
           },
           {
             "path": "src/newpat_scientific/dnp_pileup.py",
@@ -978,7 +978,7 @@
               362,
               448
             ],
-            "sha256": "a2a0ccacef2c1b15f98f81a95cfcb6ac4eaf6ff87aaa56c9322c0df261ca0cb5"
+            "sha256": "82478bb2f0ab95c710eba0dfc591df0a365515fa1ba97e74685ecc8cf0cbed93"
           },
           {
             "path": "docker/scientific-runtime/Dockerfile",
@@ -986,7 +986,7 @@
               5,
               6
             ],
-            "sha256": "e2f3135e7f113f21275375baeec367fb336eb5eecd62fb110de786bdab913f91"
+            "sha256": "0c614ca66e9e32d4f6899d09ea2def7c7a59d5a51fd5e04c2f70f2cd83770a43"
           },
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
@@ -994,11 +994,11 @@
               148,
               178
             ],
-            "sha256": "5231ae9fefb1c10f40bd5d51d73864043deccbb757a439d75577bce722c6b262"
+            "sha256": "ffb4baf67908215468a191ad8e50af8a6c99af0ae0be8437a47c3ae1bf6682a0"
           },
           {
             "path": "src/newpat_scientific/settings.py",
-            "sha256": "5d983923351965fdb3959ca8f0383d2fd880c286ee7dc4a3bde3862289399555",
+            "sha256": "becfd9167cbc3baaa2f72d53f5db837bbea69248805f8b76192b4d584367183d",
             "source_lines": [
               1,
               206
@@ -1085,7 +1085,7 @@
               1,
               163
             ],
-            "sha256": "526eb6609f7b13ff6d6cb74f81f9844861d1e11891798112b53c524cd0d80659"
+            "sha256": "c6b2ef8132e5e32deeae59b59d2cc829103801d1e75a03afbdeedd6470773137"
           }
         ]
       }
@@ -1131,7 +1131,7 @@
           300,
           359
         ],
-        "sha256": "a2a0ccacef2c1b15f98f81a95cfcb6ac4eaf6ff87aaa56c9322c0df261ca0cb5",
+        "sha256": "82478bb2f0ab95c710eba0dfc591df0a365515fa1ba97e74685ecc8cf0cbed93",
         "dependencies": [
           {
             "path": "src/newpat_scientific/dnp_pileup.py",
@@ -1139,7 +1139,7 @@
               451,
               495
             ],
-            "sha256": "a2a0ccacef2c1b15f98f81a95cfcb6ac4eaf6ff87aaa56c9322c0df261ca0cb5"
+            "sha256": "82478bb2f0ab95c710eba0dfc591df0a365515fa1ba97e74685ecc8cf0cbed93"
           },
           {
             "path": "src/newpat_scientific/dnp_pileup.py",
@@ -1147,7 +1147,7 @@
               362,
               448
             ],
-            "sha256": "a2a0ccacef2c1b15f98f81a95cfcb6ac4eaf6ff87aaa56c9322c0df261ca0cb5"
+            "sha256": "82478bb2f0ab95c710eba0dfc591df0a365515fa1ba97e74685ecc8cf0cbed93"
           },
           {
             "path": "src/newpat_scientific/dnp_pileup.py",
@@ -1155,7 +1155,7 @@
               171,
               200
             ],
-            "sha256": "a2a0ccacef2c1b15f98f81a95cfcb6ac4eaf6ff87aaa56c9322c0df261ca0cb5"
+            "sha256": "82478bb2f0ab95c710eba0dfc591df0a365515fa1ba97e74685ecc8cf0cbed93"
           },
           {
             "path": "src/newpat_scientific/dnp_pileup.py",
@@ -1163,7 +1163,7 @@
               77,
               93
             ],
-            "sha256": "a2a0ccacef2c1b15f98f81a95cfcb6ac4eaf6ff87aaa56c9322c0df261ca0cb5"
+            "sha256": "82478bb2f0ab95c710eba0dfc591df0a365515fa1ba97e74685ecc8cf0cbed93"
           },
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
@@ -1171,7 +1171,7 @@
               148,
               178
             ],
-            "sha256": "5231ae9fefb1c10f40bd5d51d73864043deccbb757a439d75577bce722c6b262"
+            "sha256": "ffb4baf67908215468a191ad8e50af8a6c99af0ae0be8437a47c3ae1bf6682a0"
           },
           {
             "path": "src/newpat_scientific/dnp_blocks.R",
@@ -1179,7 +1179,7 @@
               577,
               632
             ],
-            "sha256": "8c04b53a8733dedb2c181e146caed6a99d083bab79500c8a2997698e72359a0a"
+            "sha256": "7d0cefbdec2b0eb97ecf260d56b2e673ba2b0c109933b6a6f26a72ba3c0bbd3d"
           },
           {
             "path": "src/newpat/experiments/runner.py",
@@ -1187,7 +1187,7 @@
               238,
               247
             ],
-            "sha256": "bd39a6b67eb42c05a883492b2314677e96a9ceac26c9a0cda856937a3055c6cc"
+            "sha256": "69e87c6ac9ce026d72638937f83bf5711044b8c276a5baf60c3b8cb1be36c2c0"
           },
           {
             "path": "src/newpat_scientific/dnp_pileup.py",
@@ -1195,7 +1195,7 @@
               235,
               297
             ],
-            "sha256": "a2a0ccacef2c1b15f98f81a95cfcb6ac4eaf6ff87aaa56c9322c0df261ca0cb5"
+            "sha256": "82478bb2f0ab95c710eba0dfc591df0a365515fa1ba97e74685ecc8cf0cbed93"
           }
         ]
       }
@@ -1222,8 +1222,8 @@
             "--dnp-block-loci"
           ],
           "environment": [
-            "NIPAT_DNP_BLOCK_LOCI",
-            "NIPAT_DNP_BLOCK_BYTES"
+            "NEWPAT_DNP_BLOCK_LOCI",
+            "NEWPAT_DNP_BLOCK_BYTES"
           ]
         },
         "read_ranges": "byte-contiguous rows in requested order, without sorting or deduplication",
@@ -1257,7 +1257,7 @@
           1,
           572
         ],
-        "sha256": "8c04b53a8733dedb2c181e146caed6a99d083bab79500c8a2997698e72359a0a",
+        "sha256": "7d0cefbdec2b0eb97ecf260d56b2e673ba2b0c109933b6a6f26a72ba3c0bbd3d",
         "dependencies": [
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
@@ -1265,7 +1265,7 @@
               736,
               756
             ],
-            "sha256": "5231ae9fefb1c10f40bd5d51d73864043deccbb757a439d75577bce722c6b262"
+            "sha256": "ffb4baf67908215468a191ad8e50af8a6c99af0ae0be8437a47c3ae1bf6682a0"
           },
           {
             "path": "src/newpat_scientific/parallel.R",
@@ -1273,7 +1273,7 @@
               1,
               322
             ],
-            "sha256": "7c83def1907d041decf7dd8705aaf1f92bcd401d7b1fba38aaf788962a5dd47a"
+            "sha256": "9267aaa3ec7548727ae3ae7031d6580bd5e1864f61583def5b66930a1e566932"
           },
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
@@ -1281,7 +1281,7 @@
               789,
               817
             ],
-            "sha256": "5231ae9fefb1c10f40bd5d51d73864043deccbb757a439d75577bce722c6b262"
+            "sha256": "ffb4baf67908215468a191ad8e50af8a6c99af0ae0be8437a47c3ae1bf6682a0"
           },
           {
             "path": "src/newpat/experiments/runner.py",
@@ -1289,7 +1289,7 @@
               238,
               247
             ],
-            "sha256": "bd39a6b67eb42c05a883492b2314677e96a9ceac26c9a0cda856937a3055c6cc"
+            "sha256": "69e87c6ac9ce026d72638937f83bf5711044b8c276a5baf60c3b8cb1be36c2c0"
           }
         ]
       }
@@ -1301,7 +1301,7 @@
         "native_fallback": "new directory under writable work directory",
         "scope": "one DNP invocation",
         "large_intermediates": "disk; no default /tmp temporary directory",
-        "environment": "NIPAT_DNP_SCRATCH"
+        "environment": "NEWPAT_DNP_SCRATCH"
       },
       "applies_to": "dnp-call",
       "origin": "NewPat scientific engine",
@@ -1315,7 +1315,7 @@
           18,
           51
         ],
-        "sha256": "bae833a93e08732881fd804aee6c3820629488ba6d8becdd59eab20bc0694488",
+        "sha256": "d29c4dbbc14600089a2605b7be8c9cfcf1091f87ae95c9d90a030fdd946f1b63",
         "dependencies": [
           {
             "path": "src/newpat/experiments/runner.py",
@@ -1323,7 +1323,7 @@
               182,
               241
             ],
-            "sha256": "bd39a6b67eb42c05a883492b2314677e96a9ceac26c9a0cda856937a3055c6cc"
+            "sha256": "69e87c6ac9ce026d72638937f83bf5711044b8c276a5baf60c3b8cb1be36c2c0"
           },
           {
             "path": "src/newpat/experiments/runner.py",
@@ -1331,7 +1331,7 @@
               893,
               958
             ],
-            "sha256": "bd39a6b67eb42c05a883492b2314677e96a9ceac26c9a0cda856937a3055c6cc"
+            "sha256": "69e87c6ac9ce026d72638937f83bf5711044b8c276a5baf60c3b8cb1be36c2c0"
           }
         ]
       }
@@ -1360,7 +1360,7 @@
         "bounded_region_evidence": "indexed-chromosome process records include region when -r is narrowed",
         "partial_report": {
           "path": "work/dnp-block-progress.json",
-          "enabled_when": "NIPAT_PERFORMANCE_DIR is nonempty",
+          "enabled_when": "NEWPAT_PERFORMANCE_DIR is nonempty",
           "scope": "atomically replaced aggregate counters for completed groups only",
           "cadence": "initial, first and final groups, or on group completion at least five seconds after the preceding snapshot"
         }
@@ -1377,7 +1377,7 @@
           854,
           876
         ],
-        "sha256": "5231ae9fefb1c10f40bd5d51d73864043deccbb757a439d75577bce722c6b262",
+        "sha256": "ffb4baf67908215468a191ad8e50af8a6c99af0ae0be8437a47c3ae1bf6682a0",
         "dependencies": [
           {
             "path": "src/newpat_scientific/dnp_pileup.py",
@@ -1385,7 +1385,7 @@
               451,
               495
             ],
-            "sha256": "a2a0ccacef2c1b15f98f81a95cfcb6ac4eaf6ff87aaa56c9322c0df261ca0cb5"
+            "sha256": "82478bb2f0ab95c710eba0dfc591df0a365515fa1ba97e74685ecc8cf0cbed93"
           },
           {
             "path": "src/newpat_scientific/dnp_pileup.py",
@@ -1393,7 +1393,7 @@
               362,
               448
             ],
-            "sha256": "a2a0ccacef2c1b15f98f81a95cfcb6ac4eaf6ff87aaa56c9322c0df261ca0cb5"
+            "sha256": "82478bb2f0ab95c710eba0dfc591df0a365515fa1ba97e74685ecc8cf0cbed93"
           },
           {
             "path": "src/newpat_scientific/dnp_pileup.py",
@@ -1401,7 +1401,7 @@
               211,
               232
             ],
-            "sha256": "a2a0ccacef2c1b15f98f81a95cfcb6ac4eaf6ff87aaa56c9322c0df261ca0cb5"
+            "sha256": "82478bb2f0ab95c710eba0dfc591df0a365515fa1ba97e74685ecc8cf0cbed93"
           },
           {
             "path": "src/newpat_scientific/dnp_pileup.py",
@@ -1409,7 +1409,7 @@
               498,
               635
             ],
-            "sha256": "a2a0ccacef2c1b15f98f81a95cfcb6ac4eaf6ff87aaa56c9322c0df261ca0cb5"
+            "sha256": "82478bb2f0ab95c710eba0dfc591df0a365515fa1ba97e74685ecc8cf0cbed93"
           },
           {
             "path": "src/newpat_scientific/dnp_blocks.R",
@@ -1417,7 +1417,7 @@
               339,
               552
             ],
-            "sha256": "8c04b53a8733dedb2c181e146caed6a99d083bab79500c8a2997698e72359a0a"
+            "sha256": "7d0cefbdec2b0eb97ecf260d56b2e673ba2b0c109933b6a6f26a72ba3c0bbd3d"
           },
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
@@ -1425,7 +1425,7 @@
               148,
               213
             ],
-            "sha256": "5231ae9fefb1c10f40bd5d51d73864043deccbb757a439d75577bce722c6b262"
+            "sha256": "ffb4baf67908215468a191ad8e50af8a6c99af0ae0be8437a47c3ae1bf6682a0"
           }
         ]
       }
@@ -1433,10 +1433,10 @@
     {
       "id": "progress_events",
       "value": {
-        "interface": "nipat-progress-v1",
+        "interface": "newpat-progress-v1",
         "diagnostics_required": false,
         "real_counter": "completed DNP loci / panel loci",
-        "files": "per-process JSONL in NIPAT_PROGRESS_DIR",
+        "files": "per-process JSONL in NEWPAT_PROGRESS_DIR",
         "reporting_failure": "does not change scientific result"
       },
       "applies_to": "dnp-call",
@@ -1451,7 +1451,7 @@
           1,
           53
         ],
-        "sha256": "f8171a8db9d24b057fe859e78b47c03694c512bf2480ca0f09ebf753c65f19e0",
+        "sha256": "4b15904fe5245da04f580fcd7a0eeeb9b94cb2ae8dacd21a2d51024a354f0014",
         "dependencies": [
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
@@ -1459,7 +1459,7 @@
               140,
               146
             ],
-            "sha256": "5231ae9fefb1c10f40bd5d51d73864043deccbb757a439d75577bce722c6b262"
+            "sha256": "ffb4baf67908215468a191ad8e50af8a6c99af0ae0be8437a47c3ae1bf6682a0"
           },
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
@@ -1467,7 +1467,7 @@
               736,
               756
             ],
-            "sha256": "5231ae9fefb1c10f40bd5d51d73864043deccbb757a439d75577bce722c6b262"
+            "sha256": "ffb4baf67908215468a191ad8e50af8a6c99af0ae0be8437a47c3ae1bf6682a0"
           },
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
@@ -1475,7 +1475,7 @@
               795,
               800
             ],
-            "sha256": "5231ae9fefb1c10f40bd5d51d73864043deccbb757a439d75577bce722c6b262"
+            "sha256": "ffb4baf67908215468a191ad8e50af8a6c99af0ae0be8437a47c3ae1bf6682a0"
           }
         ]
       }
@@ -1489,13 +1489,13 @@
           "serial"
         ],
         "environment": [
-          "NIPAT_EXECUTION_MODE",
-          "NIPAT_MAX_WORKERS",
-          "NIPAT_CPU_LIMIT",
-          "NIPAT_MEMORY_LIMIT_MIB",
-          "NIPAT_FIXED_RESOURCE_BUDGET",
-          "NIPAT_DNP_LIMA_ARM64",
-          "NIPAT_DNP_OPTIMIZED_IO"
+          "NEWPAT_EXECUTION_MODE",
+          "NEWPAT_MAX_WORKERS",
+          "NEWPAT_CPU_LIMIT",
+          "NEWPAT_MEMORY_LIMIT_MIB",
+          "NEWPAT_FIXED_RESOURCE_BUDGET",
+          "NEWPAT_DNP_LIMA_ARM64",
+          "NEWPAT_DNP_OPTIMIZED_IO"
         ],
         "cli": [
           "--execution-mode",
@@ -1511,7 +1511,7 @@
         "internal_library_threads": 1,
         "thread_limit_scope": "managed requests, workflow steps and native engine run",
         "processing_tasks": "one pool across all samples and blocks; qualified I/O backends can share one block read among memory-admitted consecutive samples",
-        "resource_policy": "nipat-fixed-resources-v1",
+        "resource_policy": "newpat-fixed-resources-v1",
         "capacity_basis": "assigned-capacity-at-run-start",
         "capacity_memory_fraction": 0.8,
         "concurrency_policy": "fixed-pool-per-phase-within-run-ceiling",
@@ -1546,7 +1546,7 @@
           1,
           322
         ],
-        "sha256": "7c83def1907d041decf7dd8705aaf1f92bcd401d7b1fba38aaf788962a5dd47a",
+        "sha256": "9267aaa3ec7548727ae3ae7031d6580bd5e1864f61583def5b66930a1e566932",
         "dependencies": [
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
@@ -1554,7 +1554,7 @@
               84,
               84
             ],
-            "sha256": "5231ae9fefb1c10f40bd5d51d73864043deccbb757a439d75577bce722c6b262"
+            "sha256": "ffb4baf67908215468a191ad8e50af8a6c99af0ae0be8437a47c3ae1bf6682a0"
           },
           {
             "path": "src/newpat/experiments/options.py",
@@ -1570,7 +1570,7 @@
               212,
               233
             ],
-            "sha256": "bd39a6b67eb42c05a883492b2314677e96a9ceac26c9a0cda856937a3055c6cc"
+            "sha256": "69e87c6ac9ce026d72638937f83bf5711044b8c276a5baf60c3b8cb1be36c2c0"
           },
           {
             "path": "scientific/vendor/DNPcall/DNPcall.R",
@@ -1578,7 +1578,7 @@
               148,
               178
             ],
-            "sha256": "5231ae9fefb1c10f40bd5d51d73864043deccbb757a439d75577bce722c6b262"
+            "sha256": "ffb4baf67908215468a191ad8e50af8a6c99af0ae0be8437a47c3ae1bf6682a0"
           },
           {
             "path": "src/newpat_scientific/dnp_pileup.py",
@@ -1586,7 +1586,7 @@
               171,
               200
             ],
-            "sha256": "a2a0ccacef2c1b15f98f81a95cfcb6ac4eaf6ff87aaa56c9322c0df261ca0cb5"
+            "sha256": "82478bb2f0ab95c710eba0dfc591df0a365515fa1ba97e74685ecc8cf0cbed93"
           },
           {
             "path": "src/newpat_scientific/dnp_pileup.py",
@@ -1594,7 +1594,7 @@
               362,
               448
             ],
-            "sha256": "a2a0ccacef2c1b15f98f81a95cfcb6ac4eaf6ff87aaa56c9322c0df261ca0cb5"
+            "sha256": "82478bb2f0ab95c710eba0dfc591df0a365515fa1ba97e74685ecc8cf0cbed93"
           },
           {
             "path": "src/newpat_scientific/parallel.py",
@@ -1602,7 +1602,7 @@
               8,
               44
             ],
-            "sha256": "bcdf3866e76419ac0b2879bf292be2a45eeb69ec6a590332652423f1aade87f7"
+            "sha256": "ded8a919041c529c9941df7d1ada53e04903afe7d380b7fad42489a596b03c77"
           },
           {
             "path": "engine/main.py",
@@ -1610,7 +1610,7 @@
               473,
               480
             ],
-            "sha256": "5ff088587eddfc440e2e6e45ac7704c14e9e767753f4468364eec8918b84ece9"
+            "sha256": "9a6a7fcccf258c08b5a0f5c4385c9fc7c87bd45911a497facf08252992530f4e"
           },
           {
             "path": "src/newpat_scientific/dnp_blocks.R",
@@ -1618,7 +1618,7 @@
               403,
               551
             ],
-            "sha256": "8c04b53a8733dedb2c181e146caed6a99d083bab79500c8a2997698e72359a0a"
+            "sha256": "7d0cefbdec2b0eb97ecf260d56b2e673ba2b0c109933b6a6f26a72ba3c0bbd3d"
           },
           {
             "path": "src/newpat/resources.py",
@@ -1626,7 +1626,7 @@
               101,
               149
             ],
-            "sha256": "f661408e8859caae8c73d9c5e59e14b0edadf5a585405962bc1739f5a66d3833"
+            "sha256": "37a8f88e50255c125954d973b2856475019b313d9f9d0fbd6c928b58b606be35"
           },
           {
             "path": "src/newpat/experiments/runner.py",
@@ -1634,7 +1634,7 @@
               115,
               136
             ],
-            "sha256": "bd39a6b67eb42c05a883492b2314677e96a9ceac26c9a0cda856937a3055c6cc"
+            "sha256": "69e87c6ac9ce026d72638937f83bf5711044b8c276a5baf60c3b8cb1be36c2c0"
           },
           {
             "path": "src/newpat/experiments/runner.py",
@@ -1642,7 +1642,7 @@
               208,
               233
             ],
-            "sha256": "bd39a6b67eb42c05a883492b2314677e96a9ceac26c9a0cda856937a3055c6cc"
+            "sha256": "69e87c6ac9ce026d72638937f83bf5711044b8c276a5baf60c3b8cb1be36c2c0"
           },
           {
             "path": "src/newpat_scientific/dnp_blocks.R",
@@ -1650,11 +1650,11 @@
               577,
               632
             ],
-            "sha256": "8c04b53a8733dedb2c181e146caed6a99d083bab79500c8a2997698e72359a0a"
+            "sha256": "7d0cefbdec2b0eb97ecf260d56b2e673ba2b0c109933b6a6f26a72ba3c0bbd3d"
           },
           {
             "path": "src/newpat/experiments/runner.py",
-            "sha256": "bd39a6b67eb42c05a883492b2314677e96a9ceac26c9a0cda856937a3055c6cc",
+            "sha256": "69e87c6ac9ce026d72638937f83bf5711044b8c276a5baf60c3b8cb1be36c2c0",
             "source_lines": [
               238,
               247
@@ -1662,7 +1662,7 @@
           },
           {
             "path": "src/newpat_scientific/dnp_blocks.R",
-            "sha256": "8c04b53a8733dedb2c181e146caed6a99d083bab79500c8a2997698e72359a0a",
+            "sha256": "7d0cefbdec2b0eb97ecf260d56b2e673ba2b0c109933b6a6f26a72ba3c0bbd3d",
             "source_lines": [
               79,
               85
@@ -1674,7 +1674,7 @@
               109,
               119
             ],
-            "sha256": "d027a93a0b11895e1173499cc7f80ad8531b0ea6587f91cb97e6fb4d27a4d274"
+            "sha256": "87bb5198df13b70f2f35aec72de6821648ba8a4f6d8891582de6ba842bd9f30f"
           },
           {
             "path": "src/newpat/desktop/admission.py",
@@ -1682,7 +1682,7 @@
               1,
               449
             ],
-            "sha256": "73ebfe7868b2d9c3ea90274d8f31599a8a1fa6674fe974dffbb288b14b10b4c1"
+            "sha256": "6b913d5072da1f6fbdca739ca517acf608fa7d22668dce9919b2c425b7247333"
           },
           {
             "path": "src/newpat_scientific/desktop_scheduling.py",
@@ -1690,7 +1690,7 @@
               1,
               141
             ],
-            "sha256": "f454913d31cdfd5c8f8fd937a7dbe0e4e603495b76ed93a248613043f14e6d4e"
+            "sha256": "2de2c8e0af80a69860fe053b090f5875d6a7a203e221782775b1309696b9aed0"
           },
           {
             "path": "src/newpat_scientific/executor.py",
@@ -1698,7 +1698,7 @@
               462,
               603
             ],
-            "sha256": "0d87f2a5a4d0a860d7cdde62a6295074c1e0f2859f2c256b477cabe218d10285"
+            "sha256": "aef287c549ded718593627a04b62dc004c2b59c5832c9982a62921561bf65b15"
           },
           {
             "path": "src/newpat/experiments/runner.py",
@@ -1706,7 +1706,7 @@
               228,
               231
             ],
-            "sha256": "bd39a6b67eb42c05a883492b2314677e96a9ceac26c9a0cda856937a3055c6cc"
+            "sha256": "69e87c6ac9ce026d72638937f83bf5711044b8c276a5baf60c3b8cb1be36c2c0"
           }
         ]
       }
@@ -1729,7 +1729,7 @@
       },
       "evidence": {
         "path": "src/newpat_scientific/plots.R",
-        "sha256": "714e86d4e080ade63be3a47c0322dae93097d9a4ccef0ef9fadc5cbba7d35d1d",
+        "sha256": "739be2556eb1917d855f327c15604722c9b90995bd593d8f3db8d7e2a37da540",
         "source_lines": [
           1,
           183
@@ -1896,7 +1896,7 @@
         "dependencies": [
           {
             "path": "src/newpat_scientific/settings.py",
-            "sha256": "5d983923351965fdb3959ca8f0383d2fd880c286ee7dc4a3bde3862289399555",
+            "sha256": "becfd9167cbc3baaa2f72d53f5db837bbea69248805f8b76192b4d584367183d",
             "source_lines": [
               1,
               206
@@ -1904,7 +1904,7 @@
           },
           {
             "path": "src/newpat_scientific/settings.R",
-            "sha256": "5237eb7eec90acdcaa2803ef71b1928b70d848818c05e6c4e44585cd715ce867",
+            "sha256": "f89a401eb35536a9d6f2a08282ba6b6227791da8d49f521b9f98aec5528cfe44",
             "source_lines": [
               1,
               104

@@ -1,4 +1,4 @@
-# This filesystem is imported into NIPAT's dedicated WSL distribution.
+# This filesystem is imported into NewPat's dedicated WSL distribution.
 # Use the base and engine versions from the verified 0.4.1 build (run 39686775980).
 ARG DEBIAN_BASE=debian:bookworm-slim@sha256:7ff6ba31527b9e336162fa061746c366c4b2032f4d2cff2078bea43f78efe3f8
 FROM ${DEBIAN_BASE}
@@ -16,7 +16,7 @@ RUN rm -f /etc/dpkg/dpkg.cfg.d/docker \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates curl iptables python3 util-linux \
-    && install -m 0755 -d /etc/apt/keyrings /usr/share/nipat \
+    && install -m 0755 -d /etc/apt/keyrings /usr/share/newpat \
     && curl --proto '=https' --tlsv1.2 -fsSL \
         https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc \
     && chmod 0644 /etc/apt/keyrings/docker.asc \
@@ -34,30 +34,30 @@ RUN rm -f /etc/dpkg/dpkg.cfg.d/docker \
         "containerd.io=${CONTAINERD_VERSION}" "docker-buildx-plugin=${BUILDX_VERSION}" \
         "docker-compose-plugin=${COMPOSE_VERSION}" \
     && dpkg-query -W -f='${Package}\t${Version}\n' \
-        > /usr/share/nipat/apt-versions.tsv \
+        > /usr/share/newpat/apt-versions.tsv \
     && apt-cache show "docker-ce=${DOCKER_ENGINE_VERSION}" "docker-ce-cli=${DOCKER_ENGINE_VERSION}" \
         "containerd.io=${CONTAINERD_VERSION}" "docker-buildx-plugin=${BUILDX_VERSION}" \
         "docker-compose-plugin=${COMPOSE_VERSION}" \
-        > /usr/share/nipat/docker-package-metadata.txt \
+        > /usr/share/newpat/docker-package-metadata.txt \
     && docker --version \
     && docker compose version \
     && rm -f /usr/sbin/policy-rc.d \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /var/lib/docker /var/lib/containerd
 
-COPY installer/runtime/nipat-engine /usr/local/bin/nipat-engine
+COPY installer/runtime/newpat-engine /usr/local/bin/newpat-engine
 COPY installer/runtime/wsl.conf /etc/wsl.conf
-COPY installer/runtime/write-provenance.py /usr/local/lib/nipat/write-provenance.py
-COPY installer/runtime/component.py /usr/local/lib/nipat/component.py
-COPY installer/runtime/Dockerfile installer/runtime/component.py installer/runtime/nipat-engine installer/runtime/write-provenance.py installer/runtime/wsl.conf /usr/share/nipat/runtime-sources/
+COPY installer/runtime/write-provenance.py /usr/local/lib/newpat/write-provenance.py
+COPY installer/runtime/component.py /usr/local/lib/newpat/component.py
+COPY installer/runtime/Dockerfile installer/runtime/component.py installer/runtime/newpat-engine installer/runtime/write-provenance.py installer/runtime/wsl.conf /usr/share/newpat/runtime-sources/
 # Bind this component to its own sources and resolved packages, not to a CLI commit.
-RUN chmod 0755 /usr/local/bin/nipat-engine \
-    && printf 'nipat-runtime-v1\n' > /etc/nipat-runtime-id \
-    && python3 /usr/local/lib/nipat/write-provenance.py "$DEBIAN_BASE" /usr/share/nipat/runtime-sources \
-    && bash -n /usr/local/bin/nipat-engine \
+RUN chmod 0755 /usr/local/bin/newpat-engine \
+    && printf 'newpat-runtime-v1\n' > /etc/newpat-runtime-id \
+    && python3 /usr/local/lib/newpat/write-provenance.py "$DEBIAN_BASE" /usr/share/newpat/runtime-sources \
+    && bash -n /usr/local/bin/newpat-engine \
     && test -s /usr/share/doc/docker-ce/README.md \
     && test -s /usr/share/doc/docker-ce/upstream-LICENSE \
     && test -s /usr/share/doc/docker-ce/upstream-NOTICE \
-    && install -d -m 0700 /var/lib/nipat
+    && install -d -m 0700 /var/lib/newpat
 
 CMD ["/bin/bash"]

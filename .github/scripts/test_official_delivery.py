@@ -74,6 +74,13 @@ class OfficialDeliveryTests(unittest.TestCase):
                 self.assertFalse(contract.reviewable_path(path, version=version, revised_r=True,
                                                           after_sha256=digest, removed=removed))
 
+    def test_archived_benchmarks_can_only_be_removed_from_the_new_installer(self):
+        path = "docs/validation/0.8.14-microbenchmarks.json"
+        contract = source.acceptance
+        self.assertTrue(contract.reviewable_path(path, version="0.9.99", revised_r=True, removed=True))
+        self.assertFalse(contract.reviewable_path(path, version="0.9.99", revised_r=True))
+        self.assertFalse(contract.reviewable_path(path, version="0.9.10", revised_r=True, removed=True))
+
     def test_refactor_keeps_both_historical_and_current_inventory_strict(self):
         acceptance = source.acceptance
         old = set(acceptance.REQUIRED_OPERATIVE_PATHS) | {"distribution-files.txt"}
@@ -104,40 +111,33 @@ class OfficialDeliveryTests(unittest.TestCase):
                 source.historical_baseline("0.9.7", records)
 
     def test_only_explicit_main_or_matching_release_branch_can_build(self):
-        for ref in ("refs/heads/main", "refs/heads/release/0.8.2", "refs/heads/release/0.8.2-usability"):
-            source.validate_dispatch("workflow_dispatch", ref, "0.8.2", source.PROFILE)
-        for event, ref, version in (("push", "refs/heads/main", "0.8.2"),
-                                    ("pull_request", "refs/pull/12/merge", "0.8.2"),
-                                    ("workflow_dispatch", "refs/heads/experiment/0.8-portability", "0.8.2"),
-                                    ("workflow_dispatch", "refs/heads/release/0.8.3", "0.8.2"),
-                                    ("workflow_dispatch", "refs/heads/main", "0.8.0a1")):
+        for ref in ("refs/heads/main", "refs/heads/release/0.9.99", "refs/heads/release/0.9.99-usability"):
+            source.validate_dispatch("workflow_dispatch", ref, "0.9.99", source.PROFILE)
+        for event, ref, version in (("push", "refs/heads/main", "0.9.99"),
+                                    ("pull_request", "refs/pull/12/merge", "0.9.99"),
+                                    ("workflow_dispatch", "refs/heads/experiment/0.8-portability", "0.9.99"),
+                                    ("workflow_dispatch", "refs/heads/release/0.9.101", "0.9.99"),
+                                    ("workflow_dispatch", "refs/heads/main", "0.8.0a1"),
+                                    ("workflow_dispatch", "refs/heads/main", "0.9.10")):
             with self.subTest(event=event, ref=ref, version=version), self.assertRaises(ValueError):
                 source.validate_dispatch(event, ref, version, source.PROFILE)
         with self.assertRaises(ValueError):
-            source.validate_dispatch("workflow_dispatch", "refs/heads/main", "0.8.2",
+            source.validate_dispatch("workflow_dispatch", "refs/heads/main", "0.9.99",
                                      dict(source.PROFILE, channel="experimental08"))
 
     def test_diagnostic_candidate_uses_same_version_source_gate(self):
-        for ref in ("refs/heads/main", "refs/heads/release/0.8.5", "refs/heads/release/0.8.5-diagnostics"):
-            source.validate_dispatch("workflow_dispatch", ref, "0.8.5", source.PROFILE)
-        for ref in ("refs/heads/release/0.8.2", "refs/heads/release/0.8.50",
-                    "refs/heads/release/0.8.5evil", "refs/heads/feature/0.8.5-performance-diagnostics"):
+        for ref in ("refs/heads/main", "refs/heads/release/0.9.100", "refs/heads/release/0.9.100-diagnostics"):
+            source.validate_dispatch("workflow_dispatch", ref, "0.9.100", source.PROFILE)
+        for ref in ("refs/heads/release/0.9.99", "refs/heads/release/0.9.1000",
+                    "refs/heads/release/0.9.100evil", "refs/heads/feature/0.9.100-performance-diagnostics"):
             with self.subTest(ref=ref), self.assertRaises(ValueError):
-                source.validate_dispatch("workflow_dispatch", ref, "0.8.5", source.PROFILE)
+                source.validate_dispatch("workflow_dispatch", ref, "0.9.100", source.PROFILE)
 
-    def test_newpat_brand_starts_at_095_without_changing_installation_identity(self):
-        for version in ("0.8.2", "0.8.99", "0.9.0", "0.9.1", "0.9.4", "0.9.5", "0.9.6"):
-            expected = source.NEWPAT_PROFILE if tuple(map(int, version.split("."))) >= (0, 9, 5) else source.PROFILE
-            other = source.PROFILE if expected is source.NEWPAT_PROFILE else source.NEWPAT_PROFILE
-            for ref in ("refs/heads/main", f"refs/heads/release/{version}"):
-                with self.subTest(version=version, ref=ref):
-                    source.validate_dispatch("workflow_dispatch", ref, version, expected)
-                    with self.assertRaises(ValueError):
-                        source.validate_dispatch("workflow_dispatch", ref, version, other)
-        for key, value in source.NEWPAT_PROFILE.items():
+    def test_source_preflight_enforces_the_clean_installation_identity(self):
+        for key, value in source.PROFILE.items():
             with self.subTest(field=key), self.assertRaises(ValueError):
-                source.validate_dispatch("workflow_dispatch", "refs/heads/main", "0.9.5",
-                                         dict(source.NEWPAT_PROFILE, **{key: f"different-{value}"}))
+                source.validate_dispatch("workflow_dispatch", "refs/heads/main", "0.9.99",
+                                         dict(source.PROFILE, **{key: f"different-{value}"}))
 
     def test_dedicated_runners_require_explicit_true_on_the_owned_manual_branch(self):
         workflow = (Path(__file__).resolve().parents[1] / "workflows/windows-installer.yml").read_text()
@@ -167,7 +167,7 @@ class OfficialDeliveryTests(unittest.TestCase):
             record[key] = {"file": key, "sha256": value * 64}
         rows = downloads.download_rows(record)
         self.assertEqual({row[2] for row in rows}, {
-            "nipat-windows-setup", "nipat-linux-setup", "nipat-macos-setup-arm64", "nipat-macos-setup-x86_64",
+            "newpat-windows-setup", "newpat-linux-setup", "newpat-macos-setup-arm64", "newpat-macos-setup-x86_64",
         })
         for key in ("windows", "linux", "macos_arm64", "macos_x86_64"):
             original = record[key]["sha256"]
@@ -179,17 +179,18 @@ class OfficialDeliveryTests(unittest.TestCase):
         self.assertNotIn("archive: false", workflow)
         self.assertNotIn("Provide Windows as one downloadable installer", workflow)
 
-    def test_review_build_restores_real_ubuntu_upgrade_and_requires_all_platforms(self):
+    def test_review_build_requires_clean_ubuntu_install_and_requires_all_platforms(self):
         workflow = (Path(__file__).resolve().parents[1] / "workflows/windows-installer.yml").read_text()
         self.assertIn("needs: [windows-installer, linux-installer, macos-installer]", workflow)
-        for verifier in ("verify_linux_dependencies.py", "verify_linux_installer.py", "verify_linux_upgrade.py",
+        for verifier in ("verify_linux_dependencies.py", "verify_linux_installer.py",
                          "verify_installer_set.py", "verify_presentation.py", "verify_performance.py"):
             self.assertIn(verifier, workflow)
-        self.assertIn("--tag v0.9.10 --kind deb --output-dir build/upgrade-baseline", workflow)
-        self.assertIn("--previous-package build/upgrade-baseline/nipat-desktop_0.9.10_amd64.deb", workflow)
+        self.assertNotIn("--previous-package", workflow)
+        self.assertNotIn("--reuse-rootfs-directory", workflow)
+        self.assertNotIn("--kind rootfs", workflow)
         self.assertIn("--macos-arm64-dir build/macos-arm64 --macos-x86-64-dir build/macos-x86_64", workflow)
         self.assertNotIn("contents: write", workflow)
-        self.assertIn("${{ runner.temp }}/nipat-performance-check/", workflow)
+        self.assertIn("${{ runner.temp }}/newpat-performance-check/", workflow)
 
     def test_full_build_provides_an_attempt_specific_pending_template_outside_the_evidence(self):
         import acceptance_ci
@@ -197,7 +198,7 @@ class OfficialDeliveryTests(unittest.TestCase):
 
         workflow = (Path(__file__).resolve().parents[1] / "workflows/windows-installer.yml").read_text()
         full = workflow.split("\n  installer-required:\n")[1].split("\n  macos-runtime:")[0]
-        self.assertLess(full.index("name: nipat-installer-set-evidence"), full.index("scripts/release_acceptance.py"))
+        self.assertLess(full.index("name: newpat-installer-set-evidence"), full.index("scripts/release_acceptance.py"))
         self.assertIn('--run-id "$GITHUB_RUN_ID" --output build/acceptance-for-review.json', full)
         self.assertIn("name: newpat-acceptance-template-${{ github.run_attempt }}\n"
                       "          path: build/acceptance-for-review.json", full)
@@ -278,7 +279,7 @@ class OfficialDeliveryTests(unittest.TestCase):
         self.assertLess(native.index("*review-zip"), native.index("name: newpat-windows-review-zip"))
         self.assertIn("installer/windows/zip_package.py build", workflow)
         self.assertIn("installer/windows/test-zip-package.ps1", workflow)
-        for forbidden in ("nipat-installer-set-evidence", "newpat-acceptance-template", "nipat-windows-setup",
+        for forbidden in ("newpat-installer-set-evidence", "newpat-acceptance-template", "newpat-windows-setup",
                           "continue-on-error:", "if: always()"):
             self.assertNotIn(forbidden, runtime + native)
 

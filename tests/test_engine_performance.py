@@ -21,7 +21,7 @@ SPEC.loader.exec_module(engine)
 
 class EnginePerformanceTests(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="nipat-performance-")
+        self.temporary = tempfile.TemporaryDirectory(prefix="newpat-performance-")
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name).resolve()
         self.cgroup = self.root / "cgroup"
@@ -90,7 +90,7 @@ class EnginePerformanceTests(unittest.TestCase):
                     self.metric("memory.events", updated, nested)
                     return 137
                 errors = io.StringIO()
-                with patch.dict(os.environ, {"NIPAT_OOM_TOKEN": token}, clear=True), \
+                with patch.dict(os.environ, {"NEWPAT_OOM_TOKEN": token}, clear=True), \
                         contextlib.redirect_stderr(errors), \
                         patch.object(performance, "oom_kill_counter", side_effect=lambda: real_counter(self.cgroup, self.proc)), \
                         patch("newpat_scientific.contamination.prepare_contamination", return_value=[]), \
@@ -262,7 +262,7 @@ class EnginePerformanceTests(unittest.TestCase):
                                        "out_dir": str(self.root / "output")}))
         recorded = []
         for enabled in (False, True):
-            environment = {"NIPAT_PERFORMANCE_DIR": str(self.root / "enabled")} if enabled else {}
+            environment = {"NEWPAT_PERFORMANCE_DIR": str(self.root / "enabled")} if enabled else {}
             with patch.dict(os.environ, environment, clear=True), \
                     patch("newpat_scientific.contamination.prepare_contamination", return_value=["panel", "inputs", "outputs"]), \
                     patch("newpat_scientific.presentation.prepare_presentation", return_value=["Rscript", "science.R", "panel", "inputs", "outputs"]), \

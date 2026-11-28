@@ -106,8 +106,7 @@ def test_postnatal_trio_excludes_unrelated_sample_and_noncontributing_coordinate
     partial = view(case["id"])
     assert not partial["available"] and partial["site"] == "1:3-3" and "tracks" not in partial
     table(summary, [*fields, "Analysis"], [["family", "SNP", 2, 0.301, 1, 1, 0, 0.001, "heterozygous_child_sites"]])
-    (case,) = report_cases(store, "example")
-    assert "site" not in view(case["id"])
+    assert report_cases(store, "example") == []
 
 
 @pytest.mark.parametrize(("chrom", "expected"), [("X", False), ("chr1", True)])

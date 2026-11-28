@@ -16,16 +16,13 @@ import stat
 import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
-from newpat.branding import windows_complete_filename, windows_package_generation
+from newpat.branding import windows_complete_filename
 
 MAX_BYTES = 2**31 - 1
 MAX_EXPANDED = 3 * 1024**3
 
 
 def root_files(version):
-    if windows_package_generation(version) == 1:
-        return {"1_INSTALLA.cmd": "installer/windows/zip-install.cmd",
-                "LEGGIMI.txt": "installer/windows/zip-readme.txt"}
     return {"1_INSTALL.cmd": "installer/windows/zip-install.cmd",
             "README.txt": "installer/windows/zip-readme.txt"}
 

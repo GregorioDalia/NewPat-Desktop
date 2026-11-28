@@ -20,7 +20,7 @@ SPEC.loader.exec_module(assets)
 class RuntimeComponentTests(unittest.TestCase):
     def marker(self):
         result = {
-            "schema_version": 2, "vendor": "nipat-desktop", "purpose": "dedicated-wsl-runtime",
+            "schema_version": 2, "vendor": "newpat-desktop", "purpose": "dedicated-wsl-runtime",
             "source_sha256": assets.component.source_inventory(PROJECT / "installer/runtime"),
             "apt_packages": {"docker-ce": "29.9.1", "libc6": "2.36"},
             "base_image": "debian@sha256:" + "a" * 64,
@@ -31,29 +31,28 @@ class RuntimeComponentTests(unittest.TestCase):
         return result
 
     def previous(self, root, marker, embedded=None):
-        archive = root / "nipat-wsl-rootfs-0.7.2-amd64.tar.gz"
+        archive = root / "newpat-wsl-rootfs-0.9.99-amd64.tar.gz"
         payload = json.dumps(embedded if embedded is not None else marker).encode()
         with tarfile.open(archive, "w:gz") as stream:
-            info = tarfile.TarInfo("etc/nipat-runtime.json")
+            info = tarfile.TarInfo("etc/newpat-runtime.json")
             info.size = len(payload)
             stream.addfile(info, io.BytesIO(payload))
-        scientific = root / "nipat-scientific-runtime-0.7.2-amd64.tar.gz"
+        scientific = root / "newpat-scientific-runtime-0.9.99-amd64.tar.gz"
         scientific.write_bytes(gzip.compress(b"scientific fixture"))
         manifest = {
-            "schema_version": 1, "version": "0.7.2", "release_tag": "v0.7.2",
+            "schema_version": 1, "version": "0.9.99", "release_tag": "v0.9.99",
             "source_commit": "a" * 40, "runtime_image": "sha256:" + "b" * 64,
-            "installation_profile": dict(assets.EXPECTED_INSTALLATION_PROFILE, display_name="NIPAT Desktop"),
+            "installation_profile": dict(assets.EXPECTED_INSTALLATION_PROFILE),
             "rootfs_provenance": marker,
-            "assets": {"rootfs": assets.asset_metadata(archive, "v0.7.2"),
-                       "scientific_image": assets.asset_metadata(scientific, "v0.7.2")},
+            "assets": {"rootfs": assets.asset_metadata(archive, "v0.9.99"),
+                       "scientific_image": assets.asset_metadata(scientific, "v0.9.99")},
         }
         (root / assets.MANIFEST_NAME).write_text(json.dumps(manifest))
         return archive, manifest
 
-    def test_app_commit_and_export_image_do_not_define_component(self):
+    def test_export_image_does_not_define_component(self):
         marker = self.marker()
-        assets.validate_rootfs_provenance(PROJECT, marker, "a" * 40)
-        assets.validate_rootfs_provenance(PROJECT, marker, "b" * 40)
+        assets.validate_rootfs_provenance(PROJECT, marker)
         marker["rootfs_image_id"] = "sha256:" + "c" * 64
         self.assertEqual(assets.component.component_identity(marker), marker["component_sha256"])
 
@@ -71,10 +70,10 @@ class RuntimeComponentTests(unittest.TestCase):
 
     def test_modified_runtime_source_is_rejected(self):
         marker = self.marker()
-        marker["source_sha256"]["nipat-engine"] = "d" * 64
+        marker["source_sha256"]["newpat-engine"] = "d" * 64
         marker["component_sha256"] = assets.component.component_identity(marker)
         with self.assertRaisesRegex(ValueError, "sorgenti"):
-            assets.validate_rootfs_provenance(PROJECT, marker, "a" * 40)
+            assets.validate_rootfs_provenance(PROJECT, marker)
 
     def test_same_component_reuses_identical_archive_bytes(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -111,7 +110,7 @@ class RuntimeComponentTests(unittest.TestCase):
             self.previous(root, {"schema_version": 1, "source_commit": "a" * 40})
             self.assertIsNone(assets.reuse_rootfs(root, self.marker(), root / "next.tar.gz"))
 
-    def test_newpat_export_reads_historical_profile_and_binds_current_inputs(self):
+    def test_export_binds_current_profile_and_resolved_runtime_inputs(self):
         version = assets.checked_version(PROJECT)
         current_profile = json.loads((PROJECT / assets.PROFILE_PATH).read_bytes())
         self.assertEqual(current_profile["display_name"], "NewPat")
@@ -121,7 +120,7 @@ class RuntimeComponentTests(unittest.TestCase):
                 previous = root / "previous"
                 previous.mkdir()
                 marker = self.marker()
-                archive, historical = self.previous(previous, marker)
+                archive, prior_manifest = self.previous(previous, marker)
                 expected = copy.deepcopy(marker)
                 if not matching_component:
                     expected["apt_packages"]["libc6"] = "2.37"
@@ -164,7 +163,7 @@ class RuntimeComponentTests(unittest.TestCase):
                     self.assertNotEqual(rootfs.read_bytes(), archive.read_bytes())
                     self.assertEqual(exports[1], ["docker", "container", "export", container_id])
                     self.assertIn(["docker", "container", "rm", "--force", container_id], commands)
-                self.assertEqual(json.loads((previous / assets.MANIFEST_NAME).read_bytes()), historical)
+                self.assertEqual(json.loads((previous / assets.MANIFEST_NAME).read_bytes()), prior_manifest)
 
 
 if __name__ == "__main__":

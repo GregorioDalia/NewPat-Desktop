@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation
 
-from newpat.errors import NipatError
+from newpat.errors import NewPatError
 from newpat.experiments.options import ExecutionOptions
 from newpat.wizard_forms import Back, Cancelled, navigation
 
@@ -174,5 +174,5 @@ def configure_resources(ui, layout, options: ExecutionOptions, *, manager=None) 
                 ui.message(str(warning), kind="warning")
         except Back:
             continue
-        except (NipatError, OSError, ValueError) as exc:
+        except (NewPatError, OSError, ValueError) as exc:
             ui.message(f"Impossibile applicare la modifica: {exc}", kind="error")

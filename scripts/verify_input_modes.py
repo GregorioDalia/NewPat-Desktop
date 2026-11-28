@@ -15,7 +15,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from newpat.cli import DEFAULT_ERR_CONST
-from newpat.errors import NipatError, ValidationError
+from newpat.errors import NewPatError, ValidationError
 from newpat.experiments.runner import DockerComposeRunner
 from newpat.experiments.workflows import Workflows
 from newpat.paths import ProjectLayout
@@ -56,7 +56,7 @@ def make_external_directory(layout: ProjectLayout, parent: Path | None) -> Path:
                 "La prova richiede una directory esterna al progetto, a data e a runs. "
                 "Indicarla con --fixture-parent."
             )
-    return Path(tempfile.mkdtemp(prefix="nipat input modes $ ,= ", dir=parent)).resolve()
+    return Path(tempfile.mkdtemp(prefix="newpat input modes $ ,= ", dir=parent)).resolve()
 
 
 def copy_input(source: Path, destination: Path) -> Path:
@@ -238,18 +238,18 @@ def main() -> int:
     try:
         layout = ProjectLayout.discover()
         if layout.project_dir != Path(__file__).resolve().parents[1]:
-            raise ValidationError("Usare il Python del progetto e verificare NIPAT_PROJECT_DIR.")
+            raise ValidationError("Usare il Python del progetto e verificare NEWPAT_PROJECT_DIR.")
         external = make_external_directory(layout, args.fixture_parent)
         print(f"Input esterni conservati per provenienza e diagnosi: {external}", flush=True)
         inputs = prepare_inputs(layout, external)
         originals = {path: path.read_bytes() for path in external.rglob("*") if path.is_file()}
         run_checks(layout, inputs)
         check_originals(originals)
-    except (NipatError, OSError, ValueError, TypeError) as exc:
+    except (NewPatError, OSError, ValueError, TypeError) as exc:
         print(f"Verifica modalita' input fallita: {exc}", file=sys.stderr)
         try:
             check_originals(originals)
-        except (NipatError, OSError) as input_error:
+        except (NewPatError, OSError) as input_error:
             print(str(input_error), file=sys.stderr)
         return 1
     except KeyboardInterrupt:

@@ -33,11 +33,11 @@ def site_label(row, row_number, en):
     return f"Row {row_number}" if en else f"Riga {row_number}"
 
 
-def detail_charts(module, table, language, *, legacy_selection=False):
+def detail_charts(module, table, language):
     """Summarize only the rows actually read for this sample, family and panel."""
     en = language == "en"
     rows = table["rows"]
-    if not rows or legacy_selection:
+    if not rows:
         return []
     total = table["total"]
     positions = list(range(len(rows)))

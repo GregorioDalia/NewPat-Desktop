@@ -127,7 +127,7 @@ def qualify_image(image, destination, full):
                "--mount", mount(PROJECT, "/qualification", readonly=True),
                "--mount", mount(destination, "/evidence"), "--workdir", "/evidence",
                "--entrypoint", "python3", image_id, "/qualification/scripts/verify_five_modules.py",
-               "--installed-root", "/opt/nipat", "--image-id", image_id, "--output", "/evidence"]
+               "--installed-root", "/opt/newpat", "--image-id", image_id, "--output", "/evidence"]
     if full:
         command.append("--full")
     # No candidate bind mount, helper override, host PYTHONPATH, or settings
@@ -434,17 +434,17 @@ def run_case(root, name, workflow, marker, *, candidate=True, minimum=2,
     start = time.monotonic()
     with context:
         environment = dict(os.environ)
-        environment.update({"NIPAT_PARALLEL_HELPER": str(helper / "parallel.R"),
-                            "NIPAT_PLOTS_HELPER": str(helper / "plots.R"),
-                            "NIPAT_SETTINGS_HELPER": str(helper / "settings.R"),
-                            "NIPAT_EXECUTION_MODE": mode,
-                            "NIPAT_PARALLEL_LOG_DIR": str(destination / "parallel")})
-        environment.pop("NIPAT_MAX_WORKERS", None)
-        environment.pop("NIPAT_PARALLEL_CHILD", None)
+        environment.update({"NEWPAT_PARALLEL_HELPER": str(helper / "parallel.R"),
+                            "NEWPAT_PLOTS_HELPER": str(helper / "plots.R"),
+                            "NEWPAT_SETTINGS_HELPER": str(helper / "settings.R"),
+                            "NEWPAT_EXECUTION_MODE": mode,
+                            "NEWPAT_PARALLEL_LOG_DIR": str(destination / "parallel")})
+        environment.pop("NEWPAT_MAX_WORKERS", None)
+        environment.pop("NEWPAT_PARALLEL_CHILD", None)
         if cap is not None:
-            environment["NIPAT_MAX_WORKERS"] = str(cap)
+            environment["NEWPAT_MAX_WORKERS"] = str(cap)
         if not candidate:
-            environment.pop("NIPAT_SCIENTIFIC_SETTINGS", None)
+            environment.pop("NEWPAT_SCIENTIFIC_SETTINGS", None)
         process = subprocess.run(["Rscript", str(script), *arguments], cwd=destination,
                                  env=environment, capture_output=True, text=True, timeout=180)
     (destination / "stdout.log").write_text(process.stdout)
@@ -578,7 +578,7 @@ def main():
         if any(destination.iterdir()):
             parser.error("--output must be empty")
     else:
-        destination = Path(tempfile.mkdtemp(prefix="nipat-0850-qualification-"))
+        destination = Path(tempfile.mkdtemp(prefix="newpat-0850-qualification-"))
     if args.image:
         if args.installed_root or args.image_id:
             parser.error("--image cannot be combined with internal container options")

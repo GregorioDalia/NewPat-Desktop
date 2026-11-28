@@ -22,7 +22,7 @@ import zipfile
 
 PROJECT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
-from newpat.branding import (windows_complete_filename, windows_feed_filename, windows_package_generation,
+from newpat.branding import (windows_complete_filename, windows_feed_filename, WINDOWS_PACKAGE_GENERATION,
                             windows_testing_filename)
 
 from newpat.updates import version_key
@@ -34,10 +34,10 @@ UPDATE_MANIFEST = "update-manifest.json"
 MACOS_UPDATE_MANIFEST = "update-manifest-macos.json"
 WINDOWS_ZIP_UPDATE_MANIFEST = "update-manifest-windows-zip.json"
 WINDOWS_BOOTSTRAP_UPDATE_MANIFEST = "update-manifest-windows-bootstrap.json"
-BOOTSTRAP_VERSION = "1.2.0"
+BOOTSTRAP_VERSION = "2.0.0"
 BOOTSTRAP_SOURCES = (
-    "installer/windows/NIPAT.iss", "installer/windows/bootstrap-profile.iss",
-    "installer/windows/bootstrap_download.py", "LICENSE", "assets/branding/nipat-icon.ico",
+    "installer/windows/NewPat.iss", "installer/windows/bootstrap-profile.iss",
+    "installer/windows/bootstrap_download.py", "LICENSE", "assets/branding/newpat-icon.ico",
     ".github/scripts/install_inno.ps1",
 )
 MAX_ASSET_BYTES = 2 * 1024**3
@@ -50,26 +50,25 @@ INSTALLATION_PROFILE_SOURCE = "installer/windows/install-profile.json"
 PREVIEW_INSTALLATION_PROFILE = {
     "schema_version": 1,
     "channel": "preview-0.5",
-    "display_name": "NIPAT 0.5 Preview",
-    "app_dir_name": "NIPAT-0.5-Preview",
-    "data_dir_name": "NIPAT-0.5-Preview",
-    "distro_prefix": "NIPAT-05-Preview-",
-    "resume_key": "NIPAT-05-Preview-ResumeSetup",
-    "mutex_prefix": "Local\\NIPAT-05-Preview-Setup-",
+    "display_name": "NewPat 0.5 Preview",
+    "app_dir_name": "NewPat-0.5-Preview",
+    "data_dir_name": "NewPat-0.5-Preview",
+    "distro_prefix": "NewPat-05-Preview-",
+    "resume_key": "NewPat-05-Preview-ResumeSetup",
+    "mutex_prefix": "Local\\NewPat-05-Preview-Setup-",
     "app_id": "9E27D451-67B5-4D28-B388-A41CFE2F7D05",
 }
 DESKTOP_INSTALLATION_PROFILE = {
     "schema_version": 1,
     "channel": "desktop",
     "display_name": "NewPat",
-    "app_dir_name": "NIPAT-Desktop",
-    "data_dir_name": "NIPAT-Desktop",
-    "distro_prefix": "NIPAT-Desktop-",
-    "resume_key": "NIPAT-Desktop-ResumeSetup",
-    "mutex_prefix": "Local\\NIPAT-Desktop-Setup-",
-    "app_id": "6B1702B6-F75C-4F8C-956F-86626C60AF45",
+    "app_dir_name": "NewPat-Desktop",
+    "data_dir_name": "NewPat-Desktop",
+    "distro_prefix": "NewPat-Desktop-",
+    "resume_key": "NewPat-Desktop-ResumeSetup",
+    "mutex_prefix": "Local\\NewPat-Desktop-Setup-",
+    "app_id": "B870A3DA-56E8-4F27-A571-86FCEDD83F25",
 }
-LEGACY_DESKTOP_INSTALLATION_PROFILE = dict(DESKTOP_INSTALLATION_PROFILE, display_name="NIPAT Desktop")
 
 
 def require(condition, message):
@@ -78,51 +77,13 @@ def require(condition, message):
 
 
 def requires_macos(version):
-    helper = load_module("nipat_macos_release", PROJECT / ".github/scripts/macos_release.py")
+    helper = load_module("newpat_macos_release", PROJECT / ".github/scripts/macos_release.py")
     return helper.requires_macos(version)
 
 
 def sha256(path):
     with path.open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
-
-
-def uses_newpat_brand(version):
-    components = re.fullmatch(r"([0-9]+)\.([0-9]+)\.([0-9]+)(?:(?:a|b|rc)[0-9]+)?", version or "")
-    return bool(components and tuple(map(int, components.groups())) >= (0, 9, 5))
-
-
-def public_asset_name(name):
-    if name.startswith("NIPAT-"):
-        return "NewPat-" + name[len("NIPAT-"):]
-    if name.startswith("nipat-desktop_"):
-        return "newpat-desktop_" + name[len("nipat-desktop_"):]
-    return name
-
-
-def add_public_asset_aliases(output, version):
-    """Advertise the new brand without changing old clients' verified asset names.
-
-    Called only after the entire installer set has been verified. Both names
-    retain identical bytes and are included in the final SHA256SUMS.
-    """
-    if not uses_newpat_brand(version):
-        return
-    for source in sorted(output.iterdir()):
-        name = source.name
-        public_name = public_asset_name(name)
-        if public_name == name:
-            continue
-        require(source.is_file() and not source.is_symlink(), "Invalid public alias source")
-        alias = output / public_name
-        if alias.exists() or alias.is_symlink():
-            require(alias.is_file() and not alias.is_symlink()
-                    and alias.stat().st_size == source.stat().st_size
-                    and sha256(alias) == sha256(source), "Public asset alias collision")
-        else:
-            shutil.copyfile(source, alias)
-        require(alias.stat().st_size == source.stat().st_size and sha256(alias) == sha256(source),
-                "Public asset alias differs from verified bytes")
 
 
 def requires_gui_contract(version):
@@ -149,7 +110,7 @@ def requires_windows_bootstrap(version):
 
 def verify_windows_payload(setup, manifest):
     """Bind the separate desktop payload to the reviewed inventory and runtime."""
-    helper = load_module("nipat_desktop_payload", PROJECT / "installer/windows/desktop_payload.py")
+    helper = load_module("newpat_desktop_payload", PROJECT / "installer/windows/desktop_payload.py")
     inventory = (setup / "application-files.json").read_bytes()
     value = json.loads(inventory)
     require(isinstance(value, dict) and set(value) == {
@@ -166,8 +127,8 @@ def verify_windows_payload(setup, manifest):
             and hashes[f".distribution/{PYTHON_NAME}"] == PYTHON_SHA256
             and hashes[".distribution/installer-manifest.json"] == sha256(setup / MANIFEST),
             "Desktop payload differs from the reviewed source and embedded Python")
-    require(not ({"NIPAT.exe", "installer/windows/EnableWsl.exe",
-                  "installer/windows/NipatActivityNative.dll"} & set(hashes)),
+    require(not ({"NewPat.exe", "installer/windows/EnableWsl.exe",
+                  "installer/windows/NewPatActivityNative.dll"} & set(hashes)),
             "Desktop payload contains obsolete unsigned native helpers")
     record = helper.verify(setup / helper.filename(manifest["version"]), manifest, inventory)
     require(json.loads((setup / "windows-payload-build.json").read_bytes()) == record,
@@ -176,13 +137,13 @@ def verify_windows_payload(setup, manifest):
 
 
 def verify_windows_zip(setup, manifest):
-    helper = load_module("nipat_zip_package", PROJECT / "installer/windows/zip_package.py")
+    helper = load_module("newpat_zip_package", PROJECT / "installer/windows/zip_package.py")
     inventory = (setup / "application-files.json").read_bytes()
     hashes = {entry["path"]: entry["sha256"] for entry in json.loads(inventory)["files"]}
     for path, digest in manifest["source_sha256"].items():
         require(hashes.get(path) == digest, f"ZIP inventory source mismatch: {path}")
     require((requires_windows_bootstrap(manifest["version"])
-             or hashes.get("NIPAT.exe") == sha256(setup / "NIPAT.exe"))
+             or hashes.get("NewPat.exe") == sha256(setup / "NewPat.exe"))
             and hashes.get(f".distribution/{PYTHON_NAME}") == PYTHON_SHA256
             and hashes.get(".distribution/installer-manifest.json") == sha256(setup / MANIFEST),
             "ZIP generated payload differs from reviewed installer")
@@ -193,7 +154,7 @@ def verify_windows_zip(setup, manifest):
 
 
 def verify_windows_testing(setup, manifest):
-    helper = load_module("nipat_testing_package", PROJECT / "installer/windows/testing_package.py")
+    helper = load_module("newpat_testing_package", PROJECT / "installer/windows/testing_package.py")
     package = setup / helper.filename(manifest["version"])
     require(package.is_file() and not package.is_symlink()
             and 0 < package.stat().st_size < MAX_ASSET_BYTES,
@@ -287,9 +248,6 @@ def verify_installation_profile(manifest, commit, read_source):
     profile = manifest.get("installation_profile")
     expected = (PREVIEW_INSTALLATION_PROFILE if manifest["version"].startswith("0.5.")
                 else DESKTOP_INSTALLATION_PROFILE)
-    if (not uses_newpat_brand(manifest["version"])
-            and profile == LEGACY_DESKTOP_INSTALLATION_PROFILE):
-        expected = LEGACY_DESKTOP_INSTALLATION_PROFILE
     require(isinstance(profile, dict) and type(profile.get("schema_version")) is int
             and profile == expected,
             "Installation profile does not use the required isolated desktop namespace")
@@ -304,7 +262,7 @@ def verify_rootfs_source(provenance, commit, read_source):
     require(schema is None or (type(schema) is int and schema in (1, 2)),
             "Unsupported rootfs provenance schema")
     if schema == 2:
-        component = load_module("nipat_release_runtime_component", PROJECT / "installer/runtime/component.py")
+        component = load_module("newpat_release_runtime_component", PROJECT / "installer/runtime/component.py")
         expected_sources = {
             name: hashlib.sha256(read_source(commit, f"installer/runtime/{name}")).hexdigest()
             for name in component.SOURCE_FILES
@@ -328,7 +286,7 @@ def load_module(name, path):
 def require_publication_supported(version, acceptance=None, commit=None, run_id=None):
     if requires_installation_profile(version):
         require(acceptance is not None, "Publication requires committed desktop acceptance")
-        validator = load_module("nipat_release_acceptance", PROJECT / ".github/scripts/release_acceptance.py")
+        validator = load_module("newpat_release_acceptance", PROJECT / ".github/scripts/release_acceptance.py")
         validator.validate(acceptance, version, commit, run_id)
 
 
@@ -369,13 +327,13 @@ def prepare_installer_set(setup, runtime, linux, evidence, output, commit, accep
                           acceptance_bytes, run_id, publication_commit, source_project,
                           channel="testing", macos=None):
     """Re-verify every package before staging one accepted, immutable installer set."""
-    validator = load_module("nipat_release_acceptance", PROJECT / ".github/scripts/release_acceptance.py")
-    reviewer = load_module("nipat_release_pair", PROJECT / ".github/scripts/verify_installer_set.py")
-    with tempfile.TemporaryDirectory(prefix="nipat-pair-") as temporary:
+    validator = load_module("newpat_release_acceptance", PROJECT / ".github/scripts/release_acceptance.py")
+    reviewer = load_module("newpat_release_pair", PROJECT / ".github/scripts/verify_installer_set.py")
+    with tempfile.TemporaryDirectory(prefix="newpat-pair-") as temporary:
         actual = reviewer.verify_set(setup, linux, runtime, Path(temporary) / "evidence", commit,
                                      project=source_project)
     if requires_macos(actual["version"]):
-        helper = load_module("nipat_macos_release", PROJECT / ".github/scripts/macos_release.py")
+        helper = load_module("newpat_macos_release", PROJECT / ".github/scripts/macos_release.py")
         common = json.loads((runtime / MANIFEST).read_text(encoding="utf-8"))
         actual = helper.extend_installer_set(actual, macos, common)
     else:
@@ -390,7 +348,7 @@ def prepare_installer_set(setup, runtime, linux, evidence, output, commit, accep
         if acceptance.get("schema_version") in (2, 3, 4, 5, 6, 7) else None
     reliability = validator.reliability_contract(actual["version"])
     if reliability:
-        qualification = load_module("nipat_qualification_evidence", PROJECT / ".github/scripts/qualification_evidence.py")
+        qualification = load_module("newpat_qualification_evidence", PROJECT / ".github/scripts/qualification_evidence.py")
         qualification.verify(evidence, actual)
         if acceptance.get("schema_version") in (4, 5, 6, 7):
             require(sha256(evidence / "qualification-evidence.zip") == acceptance["qualification_evidence_sha256"],
@@ -427,8 +385,9 @@ def prepare_installer_set(setup, runtime, linux, evidence, output, commit, accep
             additions[f"macos-{architecture}-package-verification.json"] = directory / "macos-package-verification.json"
             additions[f"macos-{architecture}-installer-build.json"] = directory / "macos-installer-build.json"
     if reliability:
+        if not validator.uses_newpat_layout(manifest["version"]):
+            additions["linux-upgrade-check.json"] = linux / "linux-upgrade-check.json"
         additions.update({
-            "linux-upgrade-check.json": linux / "linux-upgrade-check.json",
             "component-inventory.json": runtime / "component-inventory.json",
             "qualification-evidence.json": evidence / "qualification-evidence.json",
             "qualification-evidence.zip": evidence / "qualification-evidence.zip",
@@ -456,9 +415,8 @@ def prepare_installer_set(setup, runtime, linux, evidence, output, commit, accep
         if "scientific_analysis_qualification" in scientific_check:
             provenance["scientific_analysis_report_sha256"] = scientific_check["scientific_analysis_qualification"]["report_sha256"]
     (output / "release-provenance.json").write_text(json.dumps(provenance, indent=2) + "\n", encoding="utf-8")
-    if manifest.get("installation_profile") in (DESKTOP_INSTALLATION_PROFILE, LEGACY_DESKTOP_INSTALLATION_PROFILE):
+    if manifest.get("installation_profile") == DESKTOP_INSTALLATION_PROFILE:
         write_update_manifest(output, manifest, actual, channel)
-    add_public_asset_aliases(output, manifest["version"])
     digests = {path.name: sha256(path) for path in output.iterdir() if path.name != "SHA256SUMS"}
     (output / "SHA256SUMS").write_text("".join(f"{h}  {n}\n" for n, h in sorted(digests.items())), encoding="ascii")
     return manifest
@@ -484,12 +442,12 @@ def write_update_manifest(output, manifest, verified_pair, channel):
     require(verified_pair["source_commit"] == manifest["source_commit"]
             and verified_pair["version"] == version, "Update source differs from the installer pair")
     deb_version = re.sub(r"(a|b|rc)([0-9]+)$", r"~\1\2", version)
-    expected = {"windows": ("windows-x86_64", "NIPAT-Setup.exe"),
-                "linux": ("linux-x86_64", f"nipat-desktop_{deb_version}_amd64.deb")}
+    expected = {"windows": ("windows-x86_64", "NewPat-Setup.exe"),
+                "linux": ("linux-x86_64", f"newpat-desktop_{deb_version}_amd64.deb")}
     if requires_windows_bootstrap(version):
-        expected["windows_payload"] = ("windows-bootstrap-x86_64", f"NIPAT-{version}-Windows-payload.zip")
+        expected["windows_payload"] = ("windows-bootstrap-x86_64", f"NewPat-{version}-Windows-payload.zip")
     if requires_macos(version):
-        expected.update({f"macos_{arch}": (f"darwin-{arch}", f"NIPAT-{version}-macos-{arch}.pkg")
+        expected.update({f"macos_{arch}": (f"darwin-{arch}", f"NewPat-{version}-macos-{arch}.pkg")
                          for arch in ("arm64", "x86_64")})
     if requires_windows_zip(version):
         expected["windows_zip"] = ("windows-zip-x86_64", windows_complete_filename(version))
@@ -506,22 +464,21 @@ def write_update_manifest(output, manifest, verified_pair, channel):
         entries.append({"platform": platform, "name": filename, "size": path.stat().st_size,
                         "sha256": digest,
                         "url": f"https://github.com/{REPO}/releases/download/{tag}/{filename}"})
-    update = {"schema_version": 1, "product": "nipat-desktop", "version": version,
+    update = {"schema_version": 1, "product": "newpat-desktop", "version": version,
               "release_tag": tag, "channel": channel, "source_commit": manifest["source_commit"],
               "minimum_updater_version": 1,
               "assets": [entry for entry in entries if entry["platform"] in {"windows-x86_64", "linux-x86_64"}],
               "release_notes_url": f"https://github.com/{REPO}/releases/tag/{tag}"}
     (output / UPDATE_MANIFEST).write_text(json.dumps(update, indent=2) + "\n", encoding="utf-8")
-    # The 0.7 updater rejects unknown platforms. Keep its two-platform feed
-    # unchanged; macOS uses a separate manifest with the same release identity.
+    # Platform feeds share the same reviewed release identity.
     if requires_macos(version):
         mac_update = dict(update, assets=[entry for entry in entries if entry["platform"].startswith("darwin-")])
         (output / MACOS_UPDATE_MANIFEST).write_text(json.dumps(mac_update, indent=2) + "\n", encoding="utf-8")
     if requires_windows_zip(version):
-        zip_update = dict(update, minimum_updater_version=windows_package_generation(version), assets=[entry for entry in entries if entry["platform"] == "windows-zip-x86_64"])
+        zip_update = dict(update, minimum_updater_version=WINDOWS_PACKAGE_GENERATION, assets=[entry for entry in entries if entry["platform"] == "windows-zip-x86_64"])
         (output / windows_feed_filename("zip", version)).write_text(json.dumps(zip_update, indent=2) + "\n", encoding="utf-8")
     if requires_windows_bootstrap(version):
-        bootstrap_update = dict(update, minimum_updater_version=windows_package_generation(version), assets=[entry for entry in entries
+        bootstrap_update = dict(update, minimum_updater_version=WINDOWS_PACKAGE_GENERATION, assets=[entry for entry in entries
                                                if entry["platform"] == "windows-bootstrap-x86_64"])
         (output / windows_feed_filename("bootstrap", version)).write_text(
             json.dumps(bootstrap_update, indent=2) + "\n", encoding="utf-8")
@@ -536,7 +493,7 @@ def verify_installer_build(setup, manifest, manifest_bytes, commit):
     require(evidence_path.is_file() and not evidence_path.is_symlink(),
             "Missing self-contained installer build evidence")
     evidence = json.loads(evidence_path.read_text(encoding="utf-8-sig"))
-    installer = setup / "NIPAT-Setup.exe"
+    installer = setup / "NewPat-Setup.exe"
     if requires_windows_bootstrap(manifest["version"]):
         require(0 < installer.stat().st_size < 64 * 1024 * 1024,
                 "Online bootstrap exceeds its 64 MiB size limit")
@@ -546,9 +503,9 @@ def verify_installer_build(setup, manifest, manifest_bytes, commit):
         inputs[f".distribution/{PYTHON_NAME}"] = PYTHON_SHA256
         expected = {
             "schema_version": 2, "distribution": "online-bootstrap",
-            "bootstrap_version": BOOTSTRAP_VERSION if windows_package_generation(manifest["version"]) == 2 else "1.1.0",
+            "bootstrap_version": BOOTSTRAP_VERSION,
             "version": manifest["version"], "source_commit": commit,
-            "file": "NIPAT-Setup.exe", "sha256": sha256(installer), "size": installer.stat().st_size,
+            "file": "NewPat-Setup.exe", "sha256": sha256(installer), "size": installer.stat().st_size,
             "installer_manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
             "application_inventory_sha256": sha256(setup / "application-files.json"),
             "installation_profile": manifest["installation_profile"],
@@ -556,13 +513,13 @@ def verify_installer_build(setup, manifest, manifest_bytes, commit):
         }
         require(evidence == expected, "Online bootstrap/payload build evidence mismatch")
         return
-    launcher = setup / "NIPAT.exe"
+    launcher = setup / "NewPat.exe"
     require(launcher.is_file() and not launcher.is_symlink() and launcher.stat().st_size > 0,
             "Missing WSL build launcher evidence")
     expected = {
         "schema_version": 1, "distribution": "self-contained-wsl",
         "version": manifest["version"], "source_commit": commit,
-        "file": "NIPAT-Setup.exe", "sha256": sha256(installer), "size": installer.stat().st_size,
+        "file": "NewPat-Setup.exe", "sha256": sha256(installer), "size": installer.stat().st_size,
         "installer_manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
         "launcher_sha256": sha256(launcher),
         "embedded_assets": {
@@ -579,14 +536,14 @@ def verify_desktop_bundle(desktop, setup, manifest, manifest_bytes, commit):
     """Verify the portable ZIP without extracting or executing its contents."""
     require(desktop is not None, "Docker Desktop package is required for this release")
     version = manifest["version"]
-    name = f"NIPAT-DockerDesktop-{version}-windows-x64.zip"
+    name = f"NewPat-DockerDesktop-{version}-windows-x64.zip"
     path = desktop / name
     require(path.is_file() and not path.is_symlink() and 0 < path.stat().st_size < MAX_ASSET_BYTES,
             "Missing or invalid Docker Desktop package")
     evidence_path = desktop / "package-build.json"
     require(evidence_path.is_file() and not evidence_path.is_symlink(), "Missing Docker package build evidence")
     evidence = json.loads(evidence_path.read_text(encoding="utf-8-sig"))
-    launcher = setup / "NIPAT.exe"
+    launcher = setup / "NewPat.exe"
     require(launcher.is_file() and not launcher.is_symlink() and launcher.stat().st_size > 0,
             "Missing WSL build launcher evidence")
     launcher_hash = sha256(launcher)
@@ -603,12 +560,12 @@ def verify_desktop_bundle(desktop, setup, manifest, manifest_bytes, commit):
         "archive_sha256": scientific["sha256"], "archive_bytes": scientific["size"],
         "source_commit": commit, "installer_manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
     }
-    expected_launcher = {"file": "NIPAT.exe", "sha256": launcher_hash, "size": launcher.stat().st_size}
+    expected_launcher = {"file": "NewPat.exe", "sha256": launcher_hash, "size": launcher.stat().st_size}
     expected_python = {"version": "3.12.10", "architecture": "amd64", "archive_sha256": PYTHON_SHA256}
-    prefix = "nipat-desktop/"
+    prefix = "newpat-desktop/"
     expected_names = {prefix + source for source in manifest["source_sha256"]}
     expected_names |= {prefix + item for item in (
-        "release.json", "NIPAT.exe", f".distribution/{PYTHON_NAME}",
+        "release.json", "NewPat.exe", f".distribution/{PYTHON_NAME}",
         ".distribution/runtime.tar", ".distribution/runtime.json",
     )}
     with zipfile.ZipFile(path) as archive:
@@ -631,11 +588,11 @@ def verify_desktop_bundle(desktop, setup, manifest, manifest_bytes, commit):
         require(release.get("launcher") == expected_launcher, "Docker launcher metadata mismatch")
         require(release.get("python") == expected_python, "Docker Python metadata mismatch")
         hashes = dict(manifest["source_sha256"])
-        hashes.update({"NIPAT.exe": launcher_hash, f".distribution/{PYTHON_NAME}": PYTHON_SHA256,
+        hashes.update({"NewPat.exe": launcher_hash, f".distribution/{PYTHON_NAME}": PYTHON_SHA256,
                        ".distribution/runtime.tar": scientific["sha256"]})
         require(archive.getinfo(prefix + ".distribution/runtime.tar").file_size == scientific["size"],
                 "Docker runtime archive size differs from WSL runtime")
-        require(archive.getinfo(prefix + "NIPAT.exe").file_size == launcher.stat().st_size,
+        require(archive.getinfo(prefix + "NewPat.exe").file_size == launcher.stat().st_size,
                 "Docker launcher size differs from WSL launcher")
         for item, expected in hashes.items():
             with archive.open(prefix + item) as stream:
@@ -654,7 +611,7 @@ def verify_desktop_installer(desktop, setup, package, staged_hashes, manifest, m
     """Bind the Docker EXE to the verified package and compiler-checked stage."""
     require(not any(path.suffix.casefold() == ".bin" for path in desktop.rglob("*")),
             "Docker installer cannot have companion data slices")
-    installer = desktop / "NIPAT-DockerDesktop-Setup.exe"
+    installer = desktop / "NewPat-DockerDesktop-Setup.exe"
     require(installer.is_file() and not installer.is_symlink()
             and 0 < installer.stat().st_size < MAX_ASSET_BYTES,
             "Missing, invalid or >= 2 GiB Docker installer")
@@ -669,7 +626,7 @@ def verify_desktop_installer(desktop, setup, package, staged_hashes, manifest, m
         "file": installer.name, "sha256": sha256(installer), "size": installer.stat().st_size,
         "package_file": package.name, "package_sha256": sha256(package), "package_bytes": package.stat().st_size,
         "installer_manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
-        "launcher_sha256": sha256(setup / "NIPAT.exe"),
+        "launcher_sha256": sha256(setup / "NewPat.exe"),
         "runtime_archive_sha256": scientific["sha256"], "runtime_archive_bytes": scientific["size"],
         "staged_files_sha256": staged_hashes,
     }
@@ -701,8 +658,8 @@ def prepare_assets(setup, runtime, output, commit, read_source=source_bytes, des
                 f"Source hash mismatch: {name}")
     verify_installation_profile(manifest, commit, read_source)
     require(set(manifest["assets"]) == {"rootfs", "scientific_image"}, "Unexpected runtime asset set")
-    files = {"NIPAT-Setup.exe": setup / "NIPAT-Setup.exe", MANIFEST: setup / MANIFEST}
-    for key, stem in (("rootfs", "nipat-wsl-rootfs"), ("scientific_image", "nipat-scientific-runtime")):
+    files = {"NewPat-Setup.exe": setup / "NewPat-Setup.exe", MANIFEST: setup / MANIFEST}
+    for key, stem in (("rootfs", "newpat-wsl-rootfs"), ("scientific_image", "newpat-scientific-runtime")):
         asset = manifest["assets"][key]
         name = f"{stem}-{version}-amd64.tar.gz"
         require(asset["file"] == name and asset["url"] in
@@ -717,9 +674,9 @@ def prepare_assets(setup, runtime, output, commit, read_source=source_bytes, des
         require(path.is_file() and not path.is_symlink() and 0 < path.stat().st_size < MAX_ASSET_BYTES,
                 f"Missing, invalid or >= 2 GiB file: {path.name}")
     digests = {name: sha256(path) for name, path in files.items()}
-    require(checksums(setup / "SHA256SUMS") == {"NIPAT-Setup.exe": digests["NIPAT-Setup.exe"]},
+    require(checksums(setup / "SHA256SUMS") == {"NewPat-Setup.exe": digests["NewPat-Setup.exe"]},
             "Installer checksum mismatch")
-    require(checksums(runtime / "SHA256SUMS") == {n: h for n, h in digests.items() if n != "NIPAT-Setup.exe"},
+    require(checksums(runtime / "SHA256SUMS") == {n: h for n, h in digests.items() if n != "NewPat-Setup.exe"},
             "Runtime/manifest checksum mismatch")
     if requires_wsl_installer_evidence(version):
         verify_installer_build(setup, manifest, manifest_bytes, commit)
@@ -740,7 +697,7 @@ def prepare_assets(setup, runtime, output, commit, read_source=source_bytes, des
     if requires_installation_profile(version):
         require(desktop is None, "Docker Desktop deliverables are not supported by this release")
         for folder in (setup, runtime):
-            require(not any(path.name.casefold().startswith("nipat-dockerdesktop-")
+            require(not any(path.name.casefold().startswith("newpat-dockerdesktop-")
                             or path.name.casefold() in ("package-build.json", "docker-installer-build.json")
                             for path in folder.rglob("*")),
                     "Docker Desktop deliverables are not supported by this release")
@@ -797,10 +754,7 @@ def find_release(tag):
 
 def create_draft(tag, version, commit, notes, payload_path, channel="testing"):
     publication_channel(version, channel)
-    title = (f"NewPat {version}" + (" Testing" if channel == "testing" else "")
-             if uses_newpat_brand(version) else
-             f"NIPAT Desktop {version} Preview" if requires_gui_prerelease(version) else
-             f"NIPAT CLI {version}")
+    title = f"NewPat {version}" + (" Testing" if channel == "testing" else "")
     payload_path.write_text(json.dumps({
         "tag_name": tag, "target_commitish": commit,
         "name": title + " — Windows con " +
@@ -920,7 +874,7 @@ def main(argv=None):
     publication_channel(version, args.channel)
     acceptance = acceptance_bytes = None
     if requires_installation_profile(version):
-        validator = load_module("nipat_release_acceptance", PROJECT / ".github/scripts/release_acceptance.py")
+        validator = load_module("newpat_release_acceptance", PROJECT / ".github/scripts/release_acceptance.py")
         acceptance, acceptance_bytes = validator.load(version, commit, int(args.run_id), publication_commit, source_bytes)
         if validator.explicit_publication_contract(version):
             require(acceptance["publication_channel"] == args.channel,
@@ -940,36 +894,36 @@ def main(argv=None):
     for name in required_build_jobs(version):
         matches = [job for job in jobs if job["name"] == name]
         require(len(matches) == 1 and matches[0]["conclusion"] == "success", f"Missing successful job: {name}")
-    with tempfile.TemporaryDirectory(prefix="nipat-release-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="newpat-release-") as temporary:
         root = Path(temporary)
         command("gh", "run", "download", args.run_id, "--repo", REPO,
-                "--name", "nipat-windows-setup", "--name", "nipat-runtime-assets", "--dir", str(root / "artifacts"))
-        build_manifest = json.loads((root / "artifacts/nipat-runtime-assets" / MANIFEST).read_text(encoding="utf-8"))
+                "--name", "newpat-windows-setup", "--name", "newpat-runtime-assets", "--dir", str(root / "artifacts"))
+        build_manifest = json.loads((root / "artifacts/newpat-runtime-assets" / MANIFEST).read_text(encoding="utf-8"))
         require(build_manifest["version"] == version, "Manifest version differs from the built commit")
         desktop = None
         if requires_desktop_bundle(build_manifest["version"]):
-            desktop = root / "artifacts/nipat-docker-desktop"
+            desktop = root / "artifacts/newpat-docker-desktop"
             command("gh", "run", "download", args.run_id, "--repo", REPO,
-                    "--name", "nipat-docker-desktop", "--dir", str(desktop))
+                    "--name", "newpat-docker-desktop", "--dir", str(desktop))
         output = root / "release"
         if requires_installation_profile(version):
             command("gh", "run", "download", args.run_id, "--repo", REPO,
-                    "--name", "nipat-linux-setup", "--name", "nipat-installer-set-evidence", "--dir", str(root / "artifacts"))
+                    "--name", "newpat-linux-setup", "--name", "newpat-installer-set-evidence", "--dir", str(root / "artifacts"))
             macos = None
             if requires_macos(version):
                 command("gh", "run", "download", args.run_id, "--repo", REPO,
-                        "--name", "nipat-macos-setup-arm64", "--name", "nipat-macos-setup-x86_64",
+                        "--name", "newpat-macos-setup-arm64", "--name", "newpat-macos-setup-x86_64",
                         "--dir", str(root / "artifacts"))
-                macos = {arch: root / f"artifacts/nipat-macos-setup-{arch}" for arch in ("arm64", "x86_64")}
+                macos = {arch: root / f"artifacts/newpat-macos-setup-{arch}" for arch in ("arm64", "x86_64")}
             source_project = root / "build-source"
             extract_build_source(commit, source_project)
             manifest = prepare_installer_set(
-                root / "artifacts/nipat-windows-setup", root / "artifacts/nipat-runtime-assets",
-                root / "artifacts/nipat-linux-setup", root / "artifacts/nipat-installer-set-evidence",
+                root / "artifacts/newpat-windows-setup", root / "artifacts/newpat-runtime-assets",
+                root / "artifacts/newpat-linux-setup", root / "artifacts/newpat-installer-set-evidence",
                 output, commit, acceptance, acceptance_bytes, int(args.run_id), publication_commit, source_project,
                 channel=args.channel, macos=macos)
         else:
-            manifest = prepare_assets(root / "artifacts/nipat-windows-setup", root / "artifacts/nipat-runtime-assets",
+            manifest = prepare_assets(root / "artifacts/newpat-windows-setup", root / "artifacts/newpat-runtime-assets",
                                       output, commit, desktop=desktop)
         tag = manifest["release_tag"]
         notes = release_notes(commit, publication_commit, manifest["version"], acceptance)
@@ -977,59 +931,53 @@ def main(argv=None):
                   f"[Build verificata]({run['html_url']}): test Linux e Windows, regressioni scientifiche, "
                   "caricamento/esecuzione/ricaricamento nel motore distribuito e compilazione EXE superati.\n")
         if requires_desktop_bundle(manifest["version"]):
-            notes += ("\nPer l'installazione WSL scaricare soltanto **NIPAT-Setup.exe**: include "
-                      "i componenti NIPAT e i due archivi runtime. Dopo l'installazione, avviare NIPAT "
+            notes += ("\nPer l'installazione WSL scaricare soltanto **NewPat-Setup.exe**: include "
+                      "i componenti NewPat e i due archivi runtime. Dopo l'installazione, avviare NewPat "
                       "dal collegamento creato. Non occorre scaricare o disporre manualmente gli archivi "
                       "in una cartella assets. Windows puo' richiedere Internet o un riavvio per WSL.\n\n")
             if requires_desktop_installer(manifest["version"]):
-                notes += ("Per Docker Desktop scaricare soltanto **NIPAT-DockerDesktop-Setup.exe**, "
+                notes += ("Per Docker Desktop scaricare soltanto **NewPat-DockerDesktop-Setup.exe**, "
                           "con Docker Desktop gia' installato e avviato in modalita' Linux. Dopo il setup "
-                          "aprire il collegamento **NIPAT (Docker Desktop)**. Il pacchetto include Python, "
+                          "aprire il collegamento **NewPat (Docker Desktop)**. Il pacchetto include Python, "
                           "l'applicazione e il runtime scientifico; non richiede di estrarre ZIP. ")
             else:
                 notes += "Lo ZIP Docker Desktop e' una distribuzione alternativa per chi dispone gia' di Docker Desktop. "
             notes += "Gli archivi runtime separati sono conservati come asset di recupero e verifica.\n"
         if requires_windows_bootstrap(version):
-            notes += ("\nPer Windows **NIPAT-Setup.exe** e' un installer online: scarica e verifica "
+            notes += ("\nPer Windows **NewPat-Setup.exe** e' un installer online: scarica e verifica "
                       "il pacchetto applicativo separato della release stabile. Include il Python "
                       "necessario al download; non include il motore scientifico. L'installer di base "
                       "ha una propria versione e viene riutilizzato per gli aggiornamenti compatibili. "
-                      "Per Ubuntu 24.04 x86_64 usare **nipat-desktop_*.deb** tramite APT. "
+                      "Per Ubuntu 24.04 x86_64 usare **newpat-desktop_*.deb** tramite APT. "
                       "I risultati dell'accettazione sono in `desktop-acceptance.json`; "
                       "non costituiscono una validazione clinica o di dominio.\n")
         elif requires_installation_profile(manifest["version"]):
-            notes += ("\nPer Windows scaricare **NIPAT-Setup.exe**; per Ubuntu 24.04 x86_64 scaricare "
-                      "il pacchetto **nipat-desktop_*.deb** e installarlo tramite APT. "
+            notes += ("\nPer Windows scaricare **NewPat-Setup.exe**; per Ubuntu 24.04 x86_64 scaricare "
+                      "il pacchetto **newpat-desktop_*.deb** e installarlo tramite APT. "
                       "Entrambi contengono lo stesso archivio scientifico verificato. "
                       "I risultati dell'accettazione dei pacchetti sono in `desktop-acceptance.json`; "
                       "non costituiscono una validazione clinica o di dominio.\n")
         if requires_macos(manifest["version"]):
-            notes += (f"\nPer macOS scaricare **NIPAT-{version}-macos-arm64.pkg** (Apple Silicon) "
-                      f"oppure **NIPAT-{version}-macos-x86_64.pkg** (Intel). I pacchetti applicativi "
+            notes += (f"\nPer macOS scaricare **NewPat-{version}-macos-arm64.pkg** (Apple Silicon) "
+                      f"oppure **NewPat-{version}-macos-x86_64.pkg** (Intel). I pacchetti applicativi "
                       "usano lo stesso archivio scientifico e provengono dallo stesso commit. "
                       "I controlli nativi dei pacchetti macOS sono registrati nei report per architettura; "
                       "non attestano l'esecuzione della macchina virtuale su un Mac fisico. "
                       "Le prove effettivamente effettuate e quelle ancora da svolgere sono distinte "
                       "nel record di accettazione.\n")
         if requires_windows_zip(version):
-            entrypoint = "1_INSTALL.cmd" if windows_package_generation(version) == 2 else "1_INSTALLA.cmd"
+            entrypoint = "1_INSTALL.cmd"
             notes += (f"\nMetodo aggiuntivo Windows: **{windows_complete_filename(version)}**. "
                       f"Estrarre completamente e avviare **{entrypoint}** con doppio clic. "
                       "Include Python, filesystem WSL e motore scientifico; Windows puo' richiedere Internet "
                       "per i propri prerequisiti WSL. " +
-                      ("L'installazione viene creata nella sottocartella **NIPAT** della cartella estratta; "
+                      ("L'installazione viene creata nella sottocartella **NewPat** della cartella estratta; "
                        "avviare il collegamento locale, senza menu Start. Se Windows segnala la provenienza "
                        "Internet, seguire la procedura di verifica e sblocco documentata. "
                        if requires_windows_bootstrap(version) else
                        "Aprire poi **NewPat ZIP** dal menu Start. ") +
                       "Il canale ZIP conserva la propria installazione e usa un feed aggiornamenti separato. "
                       "La compatibilita' con Smart App Control sul dispositivo finale resta da verificare.\n")
-        if uses_newpat_brand(version):
-            # Public download names change; legacy install directories and the
-            # reviewed release notes remain literal to preserve useful paths.
-            notes = notes.replace("**NIPAT-", "**NewPat-").replace("**nipat-desktop_", "**newpat-desktop_")
-            notes += ("\nI download NewPat conservano alias NIPAT con gli stessi byte verificati "
-                      "per consentire gli aggiornamenti dalle installazioni precedenti.\n")
         notes = notes.strip()
         files = {path.name: path for path in output.iterdir()}
         operation = "prepare" if args.operation == "prepare-and-publish" else args.operation

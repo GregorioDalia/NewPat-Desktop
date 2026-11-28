@@ -113,7 +113,7 @@ display_ggsave <- function(filename, plot = ggplot2::last_plot(), ...) {
   relative <- substring(native, nchar(prefix) + 1L)
   item <- config$plots[[relative]]
   if (is.null(item)) stop(paste("No display mapping for scientific plot", relative))
-  page_sources <- if (inherits(plot, "nipat_plot_pages")) unclass(plot) else list(plot)
+  page_sources <- if (inherits(plot, "newpat_plot_pages")) unclass(plot) else list(plot)
   presented <- lapply(page_sources, present_plot)
   grobs <- lapply(presented, function(page) {
     grob <- if (inherits(page$plot, "patchwork")) {
@@ -146,7 +146,7 @@ display_ggsave <- function(filename, plot = ggplot2::last_plot(), ...) {
     if (!is.numeric(options$height)) stop("Scientific plot height is required")
     options$height <- options$height + extra_height
   }
-  displayed <- if (inherits(plot, "nipat_plot_pages")) nipat_plot_pages(grobs) else grobs[[1]]
+  displayed <- if (inherits(plot, "newpat_plot_pages")) newpat_plot_pages(grobs) else grobs[[1]]
   do.call(ggplot2::ggsave, c(list(filename = file.path(config$directory, item$target),
                                  plot = displayed, device = grDevices::cairo_pdf), options))
   invisible(result)
@@ -158,6 +158,6 @@ sys.source(config$script, envir = globalenv(), keep.source = FALSE)
 # SNPcall 2.0 exposes a sourcable core for differential tests; its standalone
 # guard deliberately does not execute when loaded through this adapter.
 if (identical(config$workflow, "snp-call")) {
-  get("nipat_snp_main", envir = globalenv(), inherits = FALSE)()
+  get("newpat_snp_main", envir = globalenv(), inherits = FALSE)()
 }
 })

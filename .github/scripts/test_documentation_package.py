@@ -1,5 +1,4 @@
 """Regression checks for executable examples and packaged documentation."""
-import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -9,30 +8,19 @@ import check_documentation_package as docs
 
 
 class DocumentationPackageTests(unittest.TestCase):
-    def test_installation_guides_link_directly_to_the_same_accepted_packages(self):
-        # A development branch can still advertise the previous stable release.
-        # The acceptance record is available offline; public availability is
-        # checked against GitHub when the documentation links are updated.
-        def downloads(text):
-            return {url for _, url in docs.local_links(text) if "/releases/download/" in url}
-
+    def test_installer_guides_use_the_latest_stable_downloads(self):
+        latest = "https://github.com/GregorioDalia/NewPat-Desktop/releases/latest"
+        stable_urls = {latest, latest + "/download/NewPat-Setup.exe", latest + "/download/SHA256SUMS"}
         readme = (docs.ROOT / "README.md").read_text(encoding="utf-8")
-        section = readme.split("## Download\n", 1)[1].split("\n## ", 1)[0]
-        urls = downloads(section)
-        prefixes = {url.rsplit("/", 1)[0] for url in urls}
-        self.assertEqual(len(prefixes), 1, "The download section must identify one stable release")
-        prefix, = prefixes
-        tag = prefix.rsplit("/", 1)[1]
-        self.assertRegex(tag, r"^v[0-9]+\.[0-9]+\.[0-9]+$")
-        version = tag[1:]
-        receipt = docs.ROOT / ".github/release-acceptance" / (tag + ".json")
-        self.assertEqual(json.loads(receipt.read_text(encoding="utf-8"))["decision"], "accepted-for-research")
-        windows = {f"NewPat-{version}-Windows-complete.zip", "NewPat-Setup.exe", "SHA256SUMS"}
-        packages = windows | {f"NewPat-{version}-macos-arm64.pkg", f"NewPat-{version}-macos-x86_64.pkg",
-                              f"newpat-desktop_{version}_amd64.deb"}
-        self.assertTrue({f"{prefix}/{name}" for name in packages} <= urls)
-        guide = (docs.ROOT / "docs/WINDOWS_INSTALLER.md").read_text(encoding="utf-8")
-        self.assertTrue({f"{prefix}/{name}" for name in windows} <= downloads(guide))
+        download_section = readme.split("## Download\n", 1)[1].split("\n## ", 1)[0]
+        windows_guide = (docs.ROOT / "docs/WINDOWS_INSTALLER.md").read_text(encoding="utf-8")
+        for text in (download_section, windows_guide):
+            release_urls = {url for _, url in docs.local_links(text) if "/releases/" in url}
+            self.assertEqual(release_urls, stable_urls)
+            self.assertIn("NewPat-<version>-Windows-complete.zip", text)
+        for package in ("NewPat-<version>-macos-arm64.pkg", "NewPat-<version>-macos-x86_64.pkg",
+                        "newpat-desktop_<version>_amd64.deb"):
+            self.assertIn(package, download_section)
 
     def test_windows_zip_launcher_is_a_documented_cli_entry(self):
         text = r'''~~~powershell

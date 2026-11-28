@@ -122,15 +122,15 @@ licenses. The NewPat license does not replace those licenses.
   Each component retains its own terms. R package descriptions and their
   associated license files identify the package-specific conditions. The
   samtools release's notices are retained in the scientific image at
-  `/usr/share/doc/nipat-samtools/samtools/LICENSE`,
-  `/usr/share/doc/nipat-samtools/htslib/LICENSE`,
-  `/usr/share/doc/nipat-samtools/htscodecs/LICENSE.md` and
-  `/usr/share/doc/nipat-samtools/lz4/LICENSE` before its build sources are removed.
+  `/usr/share/doc/newpat-samtools/samtools/LICENSE`,
+  `/usr/share/doc/newpat-samtools/htslib/LICENSE`,
+  `/usr/share/doc/newpat-samtools/htscodecs/LICENSE.md` and
+  `/usr/share/doc/newpat-samtools/lz4/LICENSE` before its build sources are removed.
 - **Debian packages and the dedicated Docker Engine:** the WSL filesystem is
   assembled by [installer/runtime/Dockerfile](installer/runtime/Dockerfile).
-  Its package inventory is stored in `/usr/share/nipat/apt-versions.tsv`,
-  package metadata in `/usr/share/nipat/docker-package-metadata.txt`, and
-  provenance in `/etc/nipat-runtime.json`. Package notices are retained under
+  Its package inventory is stored in `/usr/share/newpat/apt-versions.tsv`,
+  package metadata in `/usr/share/newpat/docker-package-metadata.txt`, and
+  provenance in `/etc/newpat-runtime.json`. Package notices are retained under
   `/usr/share/doc`; the exact engine's upstream LICENSE and NOTICE are also
   retained under `/usr/share/doc/docker-ce`.
 

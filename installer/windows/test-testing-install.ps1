@@ -1,7 +1,7 @@
 # Test the real release entrypoint. Only WSL preparation, Desktop registration
 # and the graphical child are fixture boundaries; no network or real data.
 . (Join-Path $PSScriptRoot 'install-testing.ps1') -LibraryOnly
-$temporary = Join-Path ([IO.Path]::GetTempPath()) ('NIPAT Testing & ' + [char]0x00e8 + '-' + [Guid]::NewGuid().ToString('N'))
+$temporary = Join-Path ([IO.Path]::GetTempPath()) ('NewPat Testing & ' + [char]0x00e8 + '-' + [Guid]::NewGuid().ToString('N'))
 $oldLocal = $env:LOCALAPPDATA
 $powershell = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
 function Assert-Test([bool]$Condition, [string]$Message) {
@@ -20,7 +20,7 @@ function Write-Json([string]$Path, $Value) {
 function New-InstalledFixture([string]$Root, [string]$Version = '0.9.0') {
     $source = 'a' * 40
     $project = Join-Path (Join-Path $Root 'versions') ($Version + '-' + $source)
-    Write-Json (Join-Path $Root 'installation.json') @{ schema_version=1; product='nipat-desktop'; installation_method='zip' }
+    Write-Json (Join-Path $Root 'installation.json') @{ schema_version=1; product='newpat-desktop'; installation_method='zip' }
     Write-Json (Join-Path $Root 'current.json') @{ schema_version=1; version=$Version; source_commit=$source; app_dir=$project }
     Write-Json (Join-Path $project '.distribution\installer-manifest.json') @{ version=$Version; source_commit=$source }
     [IO.Directory]::CreateDirectory((Join-Path $Root 'runs\Testgrafico1')) | Out-Null
@@ -30,7 +30,7 @@ function New-InstalledFixture([string]$Root, [string]$Version = '0.9.0') {
 }
 function Prepare-Download([string]$Directory) {
     [IO.Directory]::CreateDirectory($Directory) | Out-Null
-    $archive = Join-Path $Directory 'NIPAT-0.9.1-Windows-completo.zip'
+    $archive = Join-Path $Directory 'NewPat-0.9.1-Windows-complete.zip'
     [IO.Compression.ZipFile]::CreateFromDirectory($script:FixtureBundle, $archive)
     return @{ file=(Split-Path -Leaf $archive); size=(Get-Item -LiteralPath $archive).Length;
         sha256=(Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() }
@@ -63,10 +63,10 @@ if ($Resume) {
     [IO.Directory]::CreateDirectory($project) | Out-Null
     Get-ChildItem -LiteralPath (Join-Path $BundleDirectory 'app') -Force | Copy-Item -Destination $project -Recurse -Force
 }
-Save-Json (Join-Path $root 'installation.json') @{ schema_version=1; product='nipat-desktop'; installation_method='zip' }
+Save-Json (Join-Path $root 'installation.json') @{ schema_version=1; product='newpat-desktop'; installation_method='zip' }
 Save-Json (Join-Path $project '.runtime\zip-install.json') @{ schema_version=1; installation_method='zip'; root=$root }
 $pointer = @{ schema_version=1; version='0.9.1'; source_commit=('b' * 40); app_dir=$project }
-if ($env:NIPAT_TESTING_FIXTURE_PHASE -eq 'reboot') {
+if ($env:NEWPAT_TESTING_FIXTURE_PHASE -eq 'reboot') {
     Save-Json (Join-Path $root 'pending.json') $pointer
     exit 3010
 }
@@ -75,17 +75,17 @@ Remove-Item -LiteralPath (Join-Path $root 'pending.json') -ErrorAction SilentlyC
 exit 0
 '@ | Set-Content -LiteralPath (Join-Path $fixtureApp 'installer\windows\install-zip.ps1') -Encoding UTF8
     @'
-function Assert-NipatZipRoot([string]$Root) {
+function Assert-NewPatZipRoot([string]$Root) {
     if (-not (Test-Path -LiteralPath (Join-Path $Root 'installation.json'))) { throw 'Missing root ownership' }
 }
-function Write-NipatJsonAtomic([string]$Path, $Value) { $Value | ConvertTo-Json | Set-Content -LiteralPath $Path -Encoding UTF8 }
-function Set-NipatZipShortcuts([string]$Root, [string]$Project) {
+function Write-NewPatJsonAtomic([string]$Path, $Value) { $Value | ConvertTo-Json | Set-Content -LiteralPath $Path -Encoding UTF8 }
+function Set-NewPatZipShortcuts([string]$Root, [string]$Project) {
     $Project | Set-Content -LiteralPath (Join-Path $Root 'NewPat.lnk') -Encoding UTF8
 }
 '@ | Set-Content -LiteralPath (Join-Path $fixtureApp 'installer\windows\zip-common.ps1') -Encoding UTF8
     @'
 if ($args.Count -ne 1 -or $args[0] -cne 'gui') { throw 'GUI argument missing' }
-Add-Content -LiteralPath $env:NIPAT_TESTING_FIXTURE_LAUNCHES -Value 'gui'
+Add-Content -LiteralPath $env:NEWPAT_TESTING_FIXTURE_LAUNCHES -Value 'gui'
 exit 0
 '@ | Set-Content -LiteralPath (Join-Path $fixtureApp 'scripts\windows\run.ps1') -Encoding UTF8
     Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -93,52 +93,53 @@ exit 0
     $record = Prepare-Download $destination
     $metadata = @{ schema_version=1; channel='testing'; version='0.9.1'; source_commit=('b' * 40); complete_zip=$record }
     Write-Json (Join-Path $metadataDirectory 'testing-release.json') $metadata
-    $env:NIPAT_TESTING_FIXTURE_LAUNCHES = Join-Path $temporary 'launches.txt'
-    $env:NIPAT_TESTING_FIXTURE_PHASE = 'reboot'
+    $env:NEWPAT_TESTING_FIXTURE_LAUNCHES = Join-Path $temporary 'launches.txt'
+    $env:NEWPAT_TESTING_FIXTURE_PHASE = 'reboot'
     & $powershell -NoProfile -ExecutionPolicy Bypass -File $entry -Destination $destination
     Assert-Test ($LASTEXITCODE -eq 3010) 'first entry reports required reboot'
-    $root = Join-Path $destination 'NIPAT'
+    $root = Join-Path $destination 'NewPat'
     Assert-Test (Test-Path -LiteralPath (Join-Path $root 'pending.json')) 'reboot retains pending installation'
     Assert-Test (Test-Path -LiteralPath (Join-Path $root 'NewPat.lnk')) 'same app entry available before reboot'
-    Assert-Test (-not (Test-Path -LiteralPath $env:NIPAT_TESTING_FIXTURE_LAUNCHES)) 'GUI not started before ready'
+    Assert-Test (-not (Test-Path -LiteralPath $env:NEWPAT_TESTING_FIXTURE_LAUNCHES)) 'GUI not started before ready'
     Remove-Item -LiteralPath (Join-Path $destination 'bundle') -Recurse -Force
     Remove-Item -LiteralPath (Join-Path $destination $record.file)
-    $env:NIPAT_TESTING_FIXTURE_PHASE = 'ready'
+    $env:NEWPAT_TESTING_FIXTURE_PHASE = 'ready'
     & $powershell -NoProfile -ExecutionPolicy Bypass -File $entry -Destination $destination
     Assert-Test ($LASTEXITCODE -eq 0) 'same entry resumes without original bundle or archive'
     Assert-Test (-not (Test-Path -LiteralPath (Join-Path $root 'pending.json'))) 'resume activates ready version'
-    Assert-Test (@(Get-Content -LiteralPath $env:NIPAT_TESTING_FIXTURE_LAUNCHES).Count -eq 1) 'resume opens GUI once'
+    Assert-Test (@(Get-Content -LiteralPath $env:NEWPAT_TESTING_FIXTURE_LAUNCHES).Count -eq 1) 'resume opens GUI once'
     & $powershell -NoProfile -ExecutionPolicy Bypass -File $entry -Destination $destination
     Assert-Test ($LASTEXITCODE -eq 0) 'same entry reopens ready app without download'
-    Assert-Test (@(Get-Content -LiteralPath $env:NIPAT_TESTING_FIXTURE_LAUNCHES).Count -eq 2) 'ready relaunch opens GUI once'
+    Assert-Test (@(Get-Content -LiteralPath $env:NEWPAT_TESTING_FIXTURE_LAUNCHES).Count -eq 2) 'ready relaunch opens GUI once'
 
-    $legacy = Join-Path $env:LOCALAPPDATA 'NIPAT-Testing\0.9.0\pacchetto\NIPAT'
-    New-InstalledFixture $legacy | Out-Null
-    $download = Join-Path $env:LOCALAPPDATA 'NIPAT-Testing\0.9.1'
-    Assert-Test ((Get-TestingInstallRoot $download $true) -ceq $legacy) 'default preview upgrade retains legacy root'
+    $testingRoot = Join-Path $env:LOCALAPPDATA 'NewPat-Testing\NewPat'
+    New-InstalledFixture $testingRoot | Out-Null
+    Write-Json (Join-Path $testingRoot 'testing.json') @{schema_version=1; channel='testing'}
+    $download = Join-Path $env:LOCALAPPDATA 'NewPat-Testing\0.9.1'
+    Assert-Test ((Get-TestingInstallRoot $download $true) -ceq $testingRoot) 'default preview upgrade retains marked Testing root'
     $custom = Join-Path $temporary 'stable ZIP'
-    $stableZip = Join-Path $custom 'NIPAT'
+    $stableZip = Join-Path $custom 'NewPat'
     New-InstalledFixture $stableZip '0.9.9' | Out-Null
     Assert-Rejected { Get-TestingInstallRoot $custom $false '0.9.1' ('b' * 40) } 'custom Testing setup rejects an existing stable 0.9 ZIP'
     Assert-Test (-not (Test-Path -LiteralPath (Join-Path $stableZip 'testing.json'))) 'stable ZIP channel stays unchanged'
     Write-Json (Join-Path $stableZip 'testing.json') @{schema_version=1; channel='stable'}
     Assert-Rejected { Get-TestingInstallRoot $custom $false } 'invalid Testing channel marker cannot be overwritten'
-    $stable = Join-Path $env:LOCALAPPDATA 'NIPAT Desktop'
+    $stable = Join-Path $env:LOCALAPPDATA 'NewPat Desktop'
     New-InstalledFixture $stable '0.8.99' | Out-Null
     Assert-Rejected { Assert-TestingRoot $stable } 'stable application cannot be adopted as Testing'
     $metadata.complete_zip = Prepare-Download $download
     Write-Json (Join-Path $metadataDirectory 'testing-release.json') $metadata
     & $powershell -NoProfile -ExecutionPolicy Bypass -File $entry
-    Assert-Test ($LASTEXITCODE -eq 0) 'default entry upgrades legacy Testing installation'
-    Assert-Test ((Get-Content -LiteralPath (Join-Path $legacy 'current.json') -Raw | ConvertFrom-Json).version -ceq '0.9.1') 'preview upgrade selects0.9.1'
-    Assert-Test ([IO.File]::ReadAllText((Join-Path $legacy 'runs\Testgrafico1\run.json')) -ceq '{"status":"running"}') 'preview experiment files preserved exactly'
-    Assert-Test ([IO.File]::ReadAllText((Join-Path $legacy 'preferences.json')) -ceq '{"language":"it"}') 'preview preferences preserved exactly'
+    Assert-Test ($LASTEXITCODE -eq 0) 'default entry upgrades marked Testing installation'
+    Assert-Test ((Get-Content -LiteralPath (Join-Path $testingRoot 'current.json') -Raw | ConvertFrom-Json).version -ceq '0.9.1') 'preview upgrade selects0.9.1'
+    Assert-Test ([IO.File]::ReadAllText((Join-Path $testingRoot 'runs\Testgrafico1\run.json')) -ceq '{"status":"running"}') 'preview experiment files preserved exactly'
+    Assert-Test ([IO.File]::ReadAllText((Join-Path $testingRoot 'preferences.json')) -ceq '{"language":"it"}') 'preview preferences preserved exactly'
     Assert-Test ((Get-Content -LiteralPath (Join-Path $stable 'current.json') -Raw | ConvertFrom-Json).version -ceq '0.8.99') 'stable application remains selected and untouched'
-    $pointer = Get-Content -LiteralPath (Join-Path $legacy 'current.json') -Raw | ConvertFrom-Json
+    $pointer = Get-Content -LiteralPath (Join-Path $testingRoot 'current.json') -Raw | ConvertFrom-Json
     $pointer.app_dir = $stable
-    Write-Json (Join-Path $legacy 'current.json') $pointer
+    Write-Json (Join-Path $testingRoot 'current.json') $pointer
     Assert-Rejected { Get-TestingInstallRoot $download $true } 'foreign current pointer is rejected before executing any worker'
-    $foreign = Join-Path $temporary 'unowned\NIPAT'
+    $foreign = Join-Path $temporary 'unowned\NewPat'
     [IO.Directory]::CreateDirectory($foreign) | Out-Null
     [IO.File]::WriteAllText((Join-Path $foreign 'keep.txt'), 'keep')
     Assert-Rejected { Get-TestingInstallRoot (Split-Path -Parent $foreign) $false } 'foreign custom destination is not adopted'
@@ -158,6 +159,6 @@ exit 0
     Assert-Rejected { Assert-TestingBundle $unsafeArchive $bundle } 'source traversal rejected before file access'
 } finally {
     $env:LOCALAPPDATA = $oldLocal
-    Remove-Item Env:NIPAT_TESTING_FIXTURE_PHASE, Env:NIPAT_TESTING_FIXTURE_LAUNCHES -ErrorAction SilentlyContinue
+    Remove-Item Env:NEWPAT_TESTING_FIXTURE_PHASE, Env:NEWPAT_TESTING_FIXTURE_LAUNCHES -ErrorAction SilentlyContinue
     if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary -Recurse -Force }
 }

@@ -15,16 +15,16 @@ class WindowsTrustTests(unittest.TestCase):
         self.manifest = {"version": "0.8.20", "source_commit": "a" * 40}
         self.archive = "app/.distribution/python-3.12.10-embed-amd64.zip"
         self.inventory = json.dumps({"source_commit": "a" * 40, "files": [
-            {"path": "NIPAT.exe", "sha256": "b" * 64},
-            {"path": "installer/windows/NipatActivityNative.dll", "sha256": "c" * 64},
+            {"path": "NewPat.exe", "sha256": "b" * 64},
+            {"path": "installer/windows/NewPatActivityNative.dll", "sha256": "c" * 64},
             {"path": "installer/windows/bootstrap.ps1", "sha256": "d" * 64},
             {"path": self.archive[4:], "sha256": PYTHON_INPUT["sha256"]},
         ]}).encode()
         files = []
-        for path, digest in (("app/NIPAT.exe", "b"),
-                             ("app/installer/windows/NipatActivityNative.dll", "c"),
+        for path, digest in (("app/NewPat.exe", "b"),
+                             ("app/installer/windows/NewPatActivityNative.dll", "c"),
                              ("app/installer/windows/bootstrap.ps1", "d"),
-                             ("setup/NIPAT-Setup.exe", "f")):
+                             ("setup/NewPat-Setup.exe", "f")):
             files.append({"path": path, "sha256": digest * 64, "size": 12,
                           "signature_status": "NotSigned", "signer": None})
         for entry in PYTHON_INPUT["executable_files"]:

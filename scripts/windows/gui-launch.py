@@ -11,7 +11,7 @@ import traceback
 def main() -> int:
     stream = None
     original = sys.stdout, sys.stderr
-    log_path = Path(os.environ.get("NIPAT_WORKSPACE_DIR", Path.home())) / "logs" / "gui-launch.log"
+    log_path = Path(os.environ.get("NEWPAT_WORKSPACE_DIR", Path.home())) / "logs" / "gui-launch.log"
     try:
         log_path.parent.mkdir(parents=True, exist_ok=True)
         # Each launch appends diagnostics; nothing is silently sent to a closed

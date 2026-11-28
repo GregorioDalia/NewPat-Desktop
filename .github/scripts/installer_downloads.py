@@ -11,10 +11,10 @@ def download_rows(record):
     if record.get("publication_authorized") is not False:
         raise ValueError("Candidate downloads cannot authorize publication.")
     rows = []
-    for key, artifact, label in (("windows", "nipat-windows-setup", "Windows 10/11 x64"),
-                                  ("linux", "nipat-linux-setup", "Ubuntu 24.04 amd64"),
-                                  ("macos_arm64", "nipat-macos-setup-arm64", "macOS Apple Silicon"),
-                                  ("macos_x86_64", "nipat-macos-setup-x86_64", "macOS Intel")):
+    for key, artifact, label in (("windows", "newpat-windows-setup", "Windows 10/11 x64"),
+                                  ("linux", "newpat-linux-setup", "Ubuntu 24.04 amd64"),
+                                  ("macos_arm64", "newpat-macos-setup-arm64", "macOS Apple Silicon"),
+                                  ("macos_x86_64", "newpat-macos-setup-x86_64", "macOS Intel")):
         package = record[key]
         digest = package["sha256"]
         if not isinstance(digest, str) or not re.fullmatch(r"[a-f0-9]{64}", digest):

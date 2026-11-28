@@ -101,7 +101,7 @@ class DnpWorkflowTests(unittest.TestCase):
         self.assertEqual(len(self.runner.calls), 1)
         command, working_dir = self.runner.calls[0]
         self.assertEqual(command, [
-            "python3", "/opt/nipat/engine/main.py", "execute", "dnp-call", "--request",
+            "python3", "/opt/newpat/engine/main.py", "execute", "dnp-call", "--request",
             str(self.layout.container_path(run / "work" / "engine-request.json")),
         ])
         self.assertEqual(working_dir, str(self.layout.container_path(run)))

@@ -76,7 +76,7 @@ class WorkflowClientTests(unittest.TestCase):
         self.assertEqual(len(self.runner.calls), 1)
         command, working_dir = self.runner.calls[0]
         self.assertEqual(command, [
-            "python3", "/opt/nipat/engine/main.py", "execute-plan", "--plan",
+            "python3", "/opt/newpat/engine/main.py", "execute-plan", "--plan",
             str(self.layout.container_path(run / "work" / "engine-plan.json")),
             "--run-dir", str(self.layout.container_path(run / "output" / "workflow")),
         ])

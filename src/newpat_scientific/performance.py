@@ -279,7 +279,7 @@ class PerformanceSession:
 
     @classmethod
     def from_environment(cls):
-        value = os.environ.get("NIPAT_PERFORMANCE_DIR")
+        value = os.environ.get("NEWPAT_PERFORMANCE_DIR")
         return cls(Path(value)) if value else None
 
     def _error(self, reason):
@@ -312,7 +312,7 @@ class PerformanceSession:
             self._save_summary()
             _ACTIVE = self
             self._sample()
-            self.thread = threading.Thread(target=self._loop, name="nipat-engine-observer", daemon=True)
+            self.thread = threading.Thread(target=self._loop, name="newpat-engine-observer", daemon=True)
             self.thread.start()
         except Exception as exc:
             self._error(type(exc).__name__)

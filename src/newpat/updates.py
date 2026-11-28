@@ -5,7 +5,7 @@ downloads. These checks do not claim that an executable has a code-signing certi
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 import hashlib
 from http.client import HTTPException
 import json
@@ -23,13 +23,11 @@ from urllib.parse import urljoin, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from newpat import __version__
-from newpat.errors import NipatError
-from newpat.repository import RENAMED_REPOSITORY, OFFICIAL_REPOSITORIES, REPOSITORY_ID, REPOSITORY_INFO_URL, release_urls
-from newpat.distribution import is_experimental_version
-from newpat.branding import PRODUCT_NAME, canonical_asset_name, windows_complete_filename, windows_feed_filename
+from newpat.errors import NewPatError
+from newpat.repository import REPOSITORY, REPOSITORY_ID, REPOSITORY_INFO_URL, release_urls
+from newpat.branding import PRODUCT_NAME, TECHNICAL_PRODUCT_ID, windows_complete_filename, windows_feed_filename
 
 
-REPOSITORY = RENAMED_REPOSITORY
 API = f"https://api.github.com/repos/{REPOSITORY}"
 WEB = f"https://github.com/{REPOSITORY}"
 UPDATER_VERSION = 2
@@ -46,7 +44,7 @@ _HOSTS = frozenset({"api.github.com", "github.com", "release-assets.githubuserco
                     "github-production-release-asset-2e65be.s3.amazonaws.com"})
 
 
-class UpdateError(NipatError):
+class UpdateError(NewPatError):
     def __init__(self, message: str, *, status: str = "invalid_metadata"):
         super().__init__(message)
         self.status = status
@@ -72,7 +70,6 @@ def detect_platform() -> str:
 
 
 def manifest_filename(platform: str, version: str = __version__) -> str:
-    # Existing Windows/Linux clients reject unknown platforms. Preserve their feed.
     if platform == "windows-zip-x86_64":
         return windows_feed_filename("zip", version)
     if platform == "windows-bootstrap-x86_64":
@@ -83,16 +80,16 @@ def manifest_filename(platform: str, version: str = __version__) -> str:
 def _installer_name(version: str, platform: str) -> str:
     version_key(version)
     if platform == "windows-x86_64":
-        return "NIPAT-Setup.exe"
+        return "NewPat-Setup.exe"
     if platform == "windows-zip-x86_64":
         return windows_complete_filename(version)
     if platform == "windows-bootstrap-x86_64":
-        return f"NIPAT-{version}-Windows-payload.zip"
+        return f"NewPat-{version}-Windows-payload.zip"
     if platform == "linux-x86_64":
         debian_version = re.sub(r"(a|b|rc)([0-9]+)$", r"~\1\2", version)
-        return f"nipat-desktop_{debian_version}_amd64.deb"
+        return f"newpat-desktop_{debian_version}_amd64.deb"
     if platform in {"darwin-arm64", "darwin-x86_64"}:
-        return f"NIPAT-{version}-macos-{platform.removeprefix('darwin-')}.pkg"
+        return f"NewPat-{version}-macos-{platform.removeprefix('darwin-')}.pkg"
     raise UpdateError("Piattaforma aggiornamenti non supportata.", status="unsupported_platform")
 
 
@@ -176,42 +173,14 @@ def _validated_asset(data: object, version: str, tag: str) -> UpdateAsset:
               "Descrizione del pacchetto di aggiornamento non valida.")
     platform = data["platform"]
     _required(isinstance(platform, str) and platform in PLATFORMS, "Piattaforma del pacchetto non valida.")
-    legacy_name = _installer_name(version, platform)
-    names = {legacy_name}
-    if version_key(version) >= version_key("0.9.5"):
-        names.add(canonical_asset_name(legacy_name))
     name = data["name"]
-    _required(isinstance(name, str) and name in names, "Nome del pacchetto diverso dalla versione dichiarata.")
+    _required(name == _installer_name(version, platform), "Nome del pacchetto diverso dalla versione dichiarata.")
     _required(type(data["size"]) is int and 0 < data["size"] <= MAX_ASSET_SIZE,
               "Dimensione del pacchetto non valida.")
     _required(isinstance(data["sha256"], str) and bool(_HASH.fullmatch(data["sha256"])),
               "Checksum del pacchetto non valido.")
     _required(data["url"] in release_urls(f"/releases/download/{tag}/{name}"), f"Il pacchetto non appartiene alla release {PRODUCT_NAME} dichiarata.")
     return UpdateAsset(platform, name, data["size"], data["sha256"], data["url"])
-
-
-def _public_asset(asset: UpdateAsset, version: str, published: list[dict], web: str = WEB) -> UpdateAsset:
-    """Prefer a verified NewPat alias while keeping legacy manifests consumable.
-
-    Older clients require the NIPAT filenames in their feeds. The public alias
-    must identify exactly the same bytes; its presence never weakens validation.
-    """
-    if version_key(version) < version_key("0.9.5"):
-        return asset
-    name = canonical_asset_name(asset.name)
-    if name == asset.name:
-        return asset
-    candidates = [item for item in published if item.get("name") == name]
-    if not candidates:
-        return asset
-    url = f"{web}/releases/download/v{version}/{name}"
-    _required(len(candidates) == 1, "Alias NewPat duplicato nella release.")
-    candidate = candidates[0]
-    _required(candidate.get("state") == "uploaded" and candidate.get("size") == asset.size
-              and type(candidate.get("size")) is int and candidate.get("browser_download_url") == url
-              and candidate.get("digest") == "sha256:" + asset.sha256,
-              "Il pacchetto NewPat non corrisponde ai byte verificati del manifest.")
-    return UpdateAsset(asset.platform, name, asset.size, asset.sha256, url)
 
 
 def _validate_offer(offer: UpdateOffer) -> None:
@@ -245,7 +214,7 @@ class UpdateClient:
             timeout = min(timeout, deadline - self.clock())
             if timeout <= 0:
                 raise UpdateError("Controllo aggiornamenti incompleto: tempo disponibile esaurito.", status="incomplete")
-        request = Request(url, headers={"User-Agent": f"NIPAT-Updater/{UPDATER_VERSION}", "Accept": "application/vnd.github+json"
+        request = Request(url, headers={"User-Agent": f"NewPat-Updater/{UPDATER_VERSION}", "Accept": "application/vnd.github+json"
                                        if urlsplit(url).hostname == "api.github.com" else "application/octet-stream",
                                        "Accept-Encoding": "identity", "X-GitHub-Api-Version": "2022-11-28"})
         try:
@@ -299,7 +268,7 @@ class UpdateClient:
         # Resolve the immutable ID before constructing repository, tag and asset URLs.
         info = self._json(REPOSITORY_INFO_URL, deadline=deadline)
         _required(isinstance(info, dict) and info.get("id") == int(REPOSITORY_ID)
-                  and info.get("full_name") in OFFICIAL_REPOSITORIES,
+                  and info.get("full_name") == REPOSITORY,
                   "Identità della repository GitHub ufficiale non verificata.")
         return info["full_name"]
 
@@ -348,7 +317,7 @@ class UpdateClient:
         required = {"schema_version", "product", "version", "release_tag", "channel", "source_commit",
                     "minimum_updater_version", "assets", "release_notes_url"}
         _required(isinstance(data, dict) and data.keys() == required and type(data["schema_version"]) is int
-                  and data["schema_version"] == 1 and data["product"] == "nipat-desktop",
+                  and data["schema_version"] == 1 and data["product"] == TECHNICAL_PRODUCT_ID,
                   "Formato del manifest di aggiornamento non supportato.")
         _required(data["version"] == version and data["release_tag"] == tag, "Versione del manifest diversa dalla release.")
         expected_channel = "testing" if release["prerelease"] else "stable"
@@ -380,15 +349,9 @@ class UpdateClient:
             raise UpdateError(f"Una nuova release richiede un updater piu' recente. Consultare le release ufficiali {PRODUCT_NAME}.",
                               status="unsupported_updater")
         self._verify_source(f"https://api.github.com/repos/{repository}", tag, source, deadline)
-        # Verified repository metadata supplies the current URL for historical manifests.
-        selected = replace(selected, url=f"{web}/releases/download/{tag}/{selected.name}")
-        selected = _public_asset(selected, version, assets, web)
         return UpdateOffer(version, tag, expected_channel, source, minimum, selected, release["html_url"])
 
     def check(self, current_version: str, channel: str, platform: str) -> UpdateCheck:
-        if is_experimental_version(current_version):
-            return UpdateCheck("manual_update", "Questa versione sperimentale usa installer dedicati. "
-                               "Gli aggiornamenti automatici sono disabilitati; la versione stabile resta separata.")
         try:
             current = version_key(current_version)
             _required(isinstance(channel, str) and channel in {"stable", "testing"}, "Canale aggiornamenti non valido.")
@@ -410,9 +373,6 @@ class UpdateClient:
                 if channel == "stable" and release["prerelease"]:
                     continue
                 _required(release.get("html_url") == f"https://github.com/{repository}/releases/tag/{tag}", "Release appartenente a un altro progetto.")
-                if feed != manifest_filename(platform, tag[1:]):
-                    # Windows ZIP and retained setups can only apply their own layout generation.
-                    continue
                 has_manifest = isinstance(release.get("assets"), list) and any(
                     isinstance(asset, dict) and asset.get("name") == feed for asset in release["assets"])
                 if not has_manifest:

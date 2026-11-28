@@ -31,7 +31,7 @@ class MacLauncherSignalTests(unittest.TestCase):
             app = root / "Applications/NewPat.app/Contents/Resources/app"
             app.mkdir(parents=True)
             user = root / "user"
-            state = user / "Library/Application Support/NIPAT-Desktop/.runtime/macos/runtime.json"
+            state = user / "Library/Application Support/NewPat-Desktop/.runtime/macos/runtime.json"
             state.parent.mkdir(parents=True)
             state.write_text(json.dumps({"runtime_image": "sha256:" + "a" * 64}))
             lock = root / "activity.lock"
@@ -58,11 +58,11 @@ class MacLauncherSignalTests(unittest.TestCase):
                 calls.append(preparing)
                 with lock.open("rb") as competing:
                     if preparing:
-                        self.assertEqual(env["NIPAT_RUNTIME_MAINTENANCE"], "1")
+                        self.assertEqual(env["NEWPAT_RUNTIME_MAINTENANCE"], "1")
                         with self.assertRaises(BlockingIOError):
                             fcntl.flock(competing, fcntl.LOCK_SH | fcntl.LOCK_NB)
                     else:
-                        self.assertNotIn("NIPAT_RUNTIME_MAINTENANCE", env)
+                        self.assertNotIn("NEWPAT_RUNTIME_MAINTENANCE", env)
                         fcntl.flock(competing, fcntl.LOCK_SH | fcntl.LOCK_NB)
                         with self.assertRaises(BlockingIOError):
                             fcntl.flock(competing, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -88,8 +88,8 @@ class MacLauncherSignalTests(unittest.TestCase):
             with self.subTest(arguments=args), self.relocated_launch() as (app, lock, leases):
                 def run(command, *, env, cwd=None):
                     if command[-1] == "prepare":
-                        return 0 if env.get("NIPAT_RUNTIME_MAINTENANCE") == "1" else os.EX_TEMPFAIL
-                    self.assertNotIn("NIPAT_RUNTIME_MAINTENANCE", env)
+                        return 0 if env.get("NEWPAT_RUNTIME_MAINTENANCE") == "1" else os.EX_TEMPFAIL
+                    self.assertNotIn("NEWPAT_RUNTIME_MAINTENANCE", env)
                     return 0
 
                 with (patch.object(launcher, "mount_repair_required", return_value=False),
@@ -114,7 +114,7 @@ class MacLauncherSignalTests(unittest.TestCase):
             [sys.executable, "-c", "raise SystemExit(17)"], env=dict(os.environ)), 17)
         self.assertIs(signal.getsignal(signal.SIGINT), previous)
         with self.assertRaises(OSError):
-            launcher.run_foreground(["/nonexistent/nipat-child"], env=dict(os.environ))
+            launcher.run_foreground(["/nonexistent/newpat-child"], env=dict(os.environ))
         self.assertIs(signal.getsignal(signal.SIGINT), previous)
 
     def test_cli_survives_terminal_ctrl_c_until_explicit_exit(self):
@@ -133,7 +133,7 @@ class MacLauncherSignalTests(unittest.TestCase):
                 "lease=(root/'activity.lock').open('rb'); "
                 "fcntl.flock(lease,fcntl.LOCK_SH); "
                 "env=m.environment(p,p.parent,dict(os.environ,TERM='dumb')); "
-                "env.update(NIPAT_DATA_DIR=str(root/'data'),NIPAT_RUNS_DIR=str(root/'runs')); "
+                "env.update(NEWPAT_DATA_DIR=str(root/'data'),NEWPAT_RUNS_DIR=str(root/'runs')); "
                 "command=[sys.executable,'-I','-B','-c',m.CLI_CODE,str(p/'src'),'--dry-run','wizard']; "
                 "code=m.run_foreground(command,env=env); "
                 "print('CLIENT_RETURNED',code,flush=True); raise SystemExit(code)"

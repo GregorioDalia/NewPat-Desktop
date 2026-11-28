@@ -124,10 +124,10 @@ class FiveModuleQualificationTests(unittest.TestCase):
         command = commands[1]
         assert "mutable-tag" not in command and image_id in command
         assert "--network=none" in command and "--full" in command
-        assert command[command.index("--installed-root") + 1] == "/opt/nipat"
+        assert command[command.index("--installed-root") + 1] == "/opt/newpat"
         mounts = [command[index + 1] for index, value in enumerate(command) if value == "--mount"]
         assert len(mounts) == 2
-        assert all("/opt/nipat" not in mount for mount in mounts)
+        assert all("/opt/newpat" not in mount for mount in mounts)
         assert any("target=/qualification" in mount and "readonly" in mount for mount in mounts)
         # Private (0600) settings must belong to the runner that uploads the
         # evidence, while only fixed scratch locations enter the environment.

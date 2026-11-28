@@ -18,15 +18,15 @@ from test_native_r_edge_cases import HELPERS, PAYLOAD, table
 @unittest.skipUnless(NATIVE_R_AVAILABLE, NATIVE_R_REASON)
 class NativeCallerInputs(unittest.TestCase):
     def setUp(self):
-        temporary = tempfile.TemporaryDirectory(prefix="nipat-audit-")
+        temporary = tempfile.TemporaryDirectory(prefix="newpat-audit-")
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
-        self.env = dict(os.environ, NIPAT_EXECUTION_MODE="serial",
-                        NIPAT_PARALLEL_HELPER=str(HELPERS / "parallel.R"),
-                        NIPAT_SETTINGS_HELPER=str(HELPERS / "settings.R"),
-                        NIPAT_SETTINGS_REGISTRY=str(HELPERS / "settings_data.json"),
-                        NIPAT_PLOTS_HELPER=str(HELPERS / "plots.R"))
-        self.env.pop("NIPAT_SCIENTIFIC_SETTINGS", None)
+        self.env = dict(os.environ, NEWPAT_EXECUTION_MODE="serial",
+                        NEWPAT_PARALLEL_HELPER=str(HELPERS / "parallel.R"),
+                        NEWPAT_SETTINGS_HELPER=str(HELPERS / "settings.R"),
+                        NEWPAT_SETTINGS_REGISTRY=str(HELPERS / "settings_data.json"),
+                        NEWPAT_PLOTS_HELPER=str(HELPERS / "plots.R"))
+        self.env.pop("NEWPAT_SCIENTIFIC_SETTINGS", None)
 
     def run_r(self, script, arguments, *, root=None):
         return subprocess.run(
@@ -197,14 +197,14 @@ class NativeCallerInputs(unittest.TestCase):
     def test_dnp_rejects_wrong_reference_and_represents_empty_sample(self):
         self.assertIsNotNone(shutil.which("samtools"), "Native DNP checks require samtools")
         self.env.update(PYTHONPATH=str(HELPERS.parent),
-                        NIPAT_DNP_KEEP_PILEUP="1",
-                        NIPAT_DNP_BLOCKS_HELPER=str(HELPERS / "dnp_blocks.R"),
-                        NIPAT_DNP_PILEUP_HELPER=str(HELPERS / "dnp_pileup.py"))
+                        NEWPAT_DNP_KEEP_PILEUP="1",
+                        NEWPAT_DNP_BLOCKS_HELPER=str(HELPERS / "dnp_blocks.R"),
+                        NEWPAT_DNP_PILEUP_HELPER=str(HELPERS / "dnp_pileup.py"))
         settings = self.root / "dnp-settings.json"
         settings.write_text(json.dumps({"schema_version": 1, "workflow": "dnp-call",
                                         "parameters": normalize_settings("dnp-call", {"baq": False}),
                                         "constants": describe_settings("dnp-call")["constants"]}))
-        self.env["NIPAT_SCIENTIFIC_SETTINGS"] = str(settings)
+        self.env["NEWPAT_SCIENTIFIC_SETTINGS"] = str(settings)
         reference = self.root / "reference.fa"
         reference.write_text(">01\n" + "A" * 100 + "\n")
         subprocess.run(["samtools", "faidx", str(reference)], check=True, capture_output=True)

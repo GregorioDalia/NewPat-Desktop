@@ -18,13 +18,13 @@ class CpiPackageStagingTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         spec = importlib.util.spec_from_file_location(
-            "nipat_cpi_package_staging", PROJECT / "scripts/verify_cpi_engine.py")
+            "newpat_cpi_package_staging", PROJECT / "scripts/verify_cpi_engine.py")
         cls.helper = importlib.util.module_from_spec(spec)
         with patch.object(sys, "path", [str(PROJECT / "scripts"), *sys.path]):
             spec.loader.exec_module(cls.helper)
 
     def setUp(self):
-        temporary = tempfile.TemporaryDirectory(prefix="nipat CPI staging gate ")
+        temporary = tempfile.TemporaryDirectory(prefix="newpat CPI staging gate ")
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
         (self.root / "work/inputs").mkdir(parents=True)

@@ -13,7 +13,7 @@ from newpat_scientific.errors import PlanExecutionError
 
 INTERFACE = "step-budget-v1"
 _GRANT_TIMEOUT = 60
-_ENVIRONMENT = ("NIPAT_FIXED_RESOURCE_BUDGET", "NIPAT_CPU_LIMIT", "NIPAT_MEMORY_LIMIT_MIB")
+_ENVIRONMENT = ("NEWPAT_FIXED_RESOURCE_BUDGET", "NEWPAT_CPU_LIMIT", "NEWPAT_MEMORY_LIMIT_MIB")
 
 
 def _error(detail):
@@ -47,19 +47,19 @@ def _limit(budget, field, *, whole=False):
 def _effective_budget(initial, grant, environment):
     for value in (initial, grant):
         if (not isinstance(value, dict) or value.get("schema_version") != 1
-                or value.get("interface") != "nipat-fixed-resources-v1"):
+                or value.get("interface") != "newpat-fixed-resources-v1"):
             raise _error("Invalid fixed desktop resource budget.")
     cpu = min(_limit(initial, "cpu_limit"), _limit(grant, "cpu_limit"))
     memory = min(_limit(initial, "memory_capacity_mib", whole=True), _limit(grant, "memory_capacity_mib", whole=True))
-    for key in ("NIPAT_CPU_LIMIT", "NIPAT_MEMORY_LIMIT_MIB"):
+    for key in ("NEWPAT_CPU_LIMIT", "NEWPAT_MEMORY_LIMIT_MIB"):
         if environment[key] is not None:
             try:
                 hard = float(environment[key])
             except ValueError as exc:
                 raise _error(f"Invalid initial desktop limit {key}.") from exc
-            if not math.isfinite(hard) or hard <= 0 or (key == "NIPAT_MEMORY_LIMIT_MIB" and not hard.is_integer()):
+            if not math.isfinite(hard) or hard <= 0 or (key == "NEWPAT_MEMORY_LIMIT_MIB" and not hard.is_integer()):
                 raise _error(f"Invalid initial desktop limit {key}.")
-            if key == "NIPAT_CPU_LIMIT":
+            if key == "NEWPAT_CPU_LIMIT":
                 cpu = min(cpu, hard)
             else:
                 memory = min(memory, int(hard))
@@ -117,13 +117,13 @@ class DesktopStepBudget:
             grant = _read(self.directory / "grant.json")
             if grant is not None and grant["token"] == token:
                 try:
-                    initial = json.loads(self.initial_environment["NIPAT_FIXED_RESOURCE_BUDGET"] or "null")
+                    initial = json.loads(self.initial_environment["NEWPAT_FIXED_RESOURCE_BUDGET"] or "null")
                 except ValueError as exc:
                     raise _error("Invalid initial desktop resource budget.") from exc
                 budget = _effective_budget(initial, grant.get("budget"), self.initial_environment)
                 encoded = json.dumps(budget, allow_nan=False, separators=(",", ":"))
-                os.environ.update(NIPAT_FIXED_RESOURCE_BUDGET=encoded, NIPAT_CPU_LIMIT=str(budget["cpu_limit"]),
-                                  NIPAT_MEMORY_LIMIT_MIB=str(budget["memory_capacity_mib"]))
+                os.environ.update(NEWPAT_FIXED_RESOURCE_BUDGET=encoded, NEWPAT_CPU_LIMIT=str(budget["cpu_limit"]),
+                                  NEWPAT_MEMORY_LIMIT_MIB=str(budget["memory_capacity_mib"]))
                 self.applied.add(token)
                 return {"token": token, "cpu_limit": budget["cpu_limit"],
                         "memory_capacity_mib": budget["memory_capacity_mib"], "worker_ceiling": budget["worker_ceiling"]}

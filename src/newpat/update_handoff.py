@@ -15,7 +15,7 @@ import time
 import uuid
 
 from .activity import _safe_parent
-from .errors import NipatError
+from .errors import NewPatError
 from .distribution import CHANNEL, UNIX_DIRECTORY
 
 HANDOFF_EXIT_CODE = 85
@@ -47,7 +47,7 @@ def windows_zip_root(project_dir: Path) -> Path | None:
         ownership = root / "installation.json"
         _safe_parent(ownership)
         owner = json.loads(ownership.read_text(encoding="utf-8-sig"))
-        if (owner != {"schema_version": 1, "product": "nipat-desktop", "installation_method": "zip"}
+        if (owner != {"schema_version": 1, "product": "newpat-desktop", "installation_method": "zip"}
                 or type(owner["schema_version"]) is not int):
             raise ValueError("radice ZIP non appartenente a NewPat")
         project = Path(project_dir).resolve()
@@ -57,7 +57,7 @@ def windows_zip_root(project_dir: Path) -> Path | None:
             raise ValueError("identita ZIP non valida")
         return root.resolve()
     except (OSError, ValueError, KeyError, TypeError) as exc:
-        raise NipatError("Configurazione del canale ZIP non valida: riprendere la preparazione ZIP.") from exc
+        raise NewPatError("Configurazione del canale ZIP non valida: riprendere la preparazione ZIP.") from exc
 
 
 def windows_installation_platform(project_dir: Path) -> str:
@@ -67,12 +67,12 @@ def windows_installation_platform(project_dir: Path) -> str:
     root = windows_zip_root(project_dir)
     if root is not None:
         if bootstrap.exists():
-            raise NipatError("Configurazione installazione ambigua: presenti due canali Windows.")
+            raise NewPatError("Configurazione installazione ambigua: presenti due canali Windows.")
         return "windows-zip-x86_64"
     if bootstrap.exists():
         _windows_bootstrap(project_dir)
         return "windows-bootstrap-x86_64"
-    return "windows-x86_64"
+    raise NewPatError("Installazione Windows NewPat non riconosciuta. Per aggiornare, usare il setup o il pacchetto ZIP ufficiale.")
 
 
 def _windows_bootstrap(project_dir: Path) -> tuple[Path, str]:
@@ -87,13 +87,13 @@ def _windows_bootstrap(project_dir: Path) -> tuple[Path, str]:
                 or not isinstance(value["setup_sha256"], str)
                 or not re.fullmatch(r"[a-f0-9]{64}", value["setup_sha256"])):
             raise ValueError("identita bootstrap non valida")
-        setup = Path(project_dir) / ".runtime/setup/NIPAT-Setup.exe"
+        setup = Path(project_dir) / ".runtime/setup/NewPat-Setup.exe"
         _safe_parent(setup)
         if not setup.is_file():
             raise ValueError("setup stabile mancante")
         return setup, value["setup_sha256"]
     except (OSError, ValueError, KeyError, TypeError) as exc:
-        raise NipatError("Configurazione del setup stabile non valida: riparare con NewPat-Setup.exe.") from exc
+        raise NewPatError("Configurazione del setup stabile non valida: riparare con NewPat-Setup.exe.") from exc
 
 
 def _windows_layout(project_dir: Path) -> dict:
@@ -130,25 +130,25 @@ def _windows_layout(project_dir: Path) -> dict:
                     raise ValueError("destinazioni sovrapposte")
         return dict(layout, **dict(zip(fields, roots)))
     except (OSError, ValueError, TypeError, KeyError) as exc:
-        raise NipatError("Configurazione installata non valida: riaprire il setup NewPat Desktop prima di aggiornare.") from exc
+        raise NewPatError("Configurazione installata non valida: riaprire il setup NewPat Desktop prima di aggiornare.") from exc
 
 
 def update_cache_directory(project_dir: Path) -> Path:
     if sys.platform == "win32":
         path = _windows_layout(project_dir)["cache_dir"] / "updates"
     elif sys.platform == "darwin":
-        path = Path.home() / "Library/Caches/NIPAT-Desktop/updates"
+        path = Path.home() / "Library/Caches/NewPat-Desktop/updates"
     else:
         base = os.environ.get("XDG_CACHE_HOME")
         if base and not Path(base).is_absolute():
-            raise NipatError("XDG_CACHE_HOME deve essere un percorso assoluto prima di scaricare aggiornamenti.")
+            raise NewPatError("XDG_CACHE_HOME deve essere un percorso assoluto prima di scaricare aggiornamenti.")
         root = Path(base) if base else Path.home() / ".cache"
         path = root / UNIX_DIRECTORY / "updates"
     _safe_parent(path)
     try:
         path.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
-        raise NipatError("La cache degli aggiornamenti non e scrivibile.") from exc
+        raise NewPatError("La cache degli aggiornamenti non e scrivibile.") from exc
     _safe_parent(path)
     return path
 
@@ -157,13 +157,13 @@ def _verify_package(package: Path, sha256: str, size: int) -> None:
     _safe_parent(package)
     if (not re.fullmatch(r"[a-f0-9]{64}", sha256) or type(size) is not int or size <= 0
             or not package.is_file() or package.stat().st_size != size):
-        raise NipatError("Il pacchetto scaricato non corrisponde all'aggiornamento verificato.")
+        raise NewPatError("Il pacchetto scaricato non corrisponde all'aggiornamento verificato.")
     digest = hashlib.sha256()
     with package.open("rb") as stream:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     if digest.hexdigest() != sha256:
-        raise NipatError("SHA-256 del pacchetto non valido. Ripetere il download prima di installare.")
+        raise NewPatError("SHA-256 del pacchetto non valido. Ripetere il download prima di installare.")
 
 
 def _canonical_package(package: Path) -> Path:
@@ -174,18 +174,21 @@ def _canonical_package(package: Path) -> Path:
     try:
         return package.resolve(strict=True)
     except OSError as exc:
-        raise NipatError("Il pacchetto scaricato non e piu disponibile.") from exc
+        raise NewPatError("Il pacchetto scaricato non e piu disponibile.") from exc
 
 
 def _start_windows_update(offer, package: Path, project_dir: Path) -> bool:
+    platform = windows_installation_platform(project_dir)
+    if offer.asset.platform != platform:
+        raise NewPatError("Il pacchetto selezionato non corrisponde al metodo di installazione Windows.")
     package = _canonical_package(package)
     layout = _windows_layout(project_dir)
     cache = update_cache_directory(project_dir)
     if cache not in package.parents:
-        raise NipatError("Il pacchetto deve trovarsi nella cache aggiornamenti dell'installazione.")
+        raise NewPatError("Il pacchetto deve trovarsi nella cache aggiornamenti dell'installazione.")
     worker = project_dir / "installer/windows/update-handoff.ps1"
     if not worker.is_file() or worker.is_symlink():
-        raise NipatError("Componente di aggiornamento mancante. Riparare NewPat con il suo installer.")
+        raise NewPatError("Componente di aggiornamento mancante. Riparare NewPat con il suo installer.")
     directory = cache / ("handoff-" + uuid.uuid4().hex)
     directory.mkdir()
     copied_worker = directory / "update-handoff.ps1"
@@ -197,9 +200,9 @@ def _start_windows_update(offer, package: Path, project_dir: Path) -> bool:
         "sha256": offer.asset.sha256, "size": offer.asset.size,
         "version": offer.version, "source_commit": offer.source_commit, "data_dir": str(layout["data_dir"]),
     }
-    if offer.asset.platform == "windows-zip-x86_64":
+    if platform == "windows-zip-x86_64":
         record["installation_method"] = "zip"
-    elif offer.asset.platform == "windows-bootstrap-x86_64":
+    else:
         _, setup_sha256 = _windows_bootstrap(project_dir)
         record["installation_method"] = "bootstrap"
         record["setup_sha256"] = setup_sha256
@@ -221,20 +224,20 @@ def _start_windows_update(offer, package: Path, project_dir: Path) -> bool:
                 if value == {"schema_version": 1, "worker_pid": process.pid, "parent_pid": os.getpid()}:
                     acknowledged = True
                     return True
-                raise NipatError("Conferma del componente di aggiornamento non valida.")
+                raise NewPatError("Conferma del componente di aggiornamento non valida.")
             if process.poll() is not None:
                 break
             if (directory / "error.txt").is_file():
                 break
             time.sleep(0.05)
     except (OSError, ValueError, TypeError) as exc:
-        raise NipatError("Windows non ha avviato l'aggiornamento. NewPat rimane aperto; consultare la cache aggiornamenti.") from exc
+        raise NewPatError("Windows non ha avviato l'aggiornamento. NewPat rimane aperto; consultare la cache aggiornamenti.") from exc
     finally:
         if not acknowledged:
             (directory / "cancel").write_text("handoff canceled\n", encoding="ascii")
     error = directory / "error.txt"
     detail = error.read_text(encoding="utf-8-sig").strip() if error.is_file() else "Avvio del componente non confermato."
-    raise NipatError(detail + f" Diagnostica: {directory}")
+    raise NewPatError(detail + f" Diagnostica: {directory}")
 
 
 def begin_update(offer, downloaded: Path, project_dir: Path) -> bool:
@@ -242,17 +245,15 @@ def begin_update(offer, downloaded: Path, project_dir: Path) -> bool:
     package = _canonical_package(downloaded)
     project_dir = Path(project_dir).resolve()
     if sys.platform == "win32":
-        if offer.asset.platform != windows_installation_platform(project_dir):
-            raise NipatError("Il pacchetto selezionato non e destinato a Windows x64.")
         _verify_package(package, offer.asset.sha256, offer.asset.size)
         return _start_windows_update(offer, package, project_dir)
     from .linux_update import LinuxUpdateError, start_linux_update
     if offer.asset.platform != "linux-x86_64":
-        raise NipatError("Il pacchetto selezionato non e destinato a Linux x86_64.")
+        raise NewPatError("Il pacchetto selezionato non e destinato a Linux x86_64.")
     try:
         # The Linux entry point verifies the file itself, including regular-file
         # and hardlink checks. Do not hash the same package twice in this process.
         return start_linux_update(package, offer.asset.sha256, offer.asset.size,
                                   parent_pid=os.getpid(), project_dir=project_dir)
     except LinuxUpdateError as exc:
-        raise NipatError(str(exc)) from exc
+        raise NewPatError(str(exc)) from exc

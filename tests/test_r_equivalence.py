@@ -182,7 +182,7 @@ class REquivalenceTests(unittest.TestCase):
                          {"auto", "manual-2", "manual-4", "manual-4-repeat"})
 
     def parallel_events(self, *, workers=2, mode="auto", overlap=True, children=True):
-        budget = {"schema_version": 1, "interface": "nipat-parallel-v1", "label": "real-module",
+        budget = {"schema_version": 1, "interface": "newpat-parallel-v1", "label": "real-module",
                   "coordinator_pid": 100, "workers": workers, "tasks": 2,
                   "mode": mode, "max_workers": None, "cpu_limit": 4,
                   "memory_worker_limit": 3}
@@ -346,28 +346,28 @@ class REquivalenceTests(unittest.TestCase):
         case = verification.cases()[0]
         reference = verification.case_environment(case, "reference", verification.BASELINE / verification.SCRIPTS[case.workflow],
                                                    verification.PARALLEL_VARIANTS["manual-4"])
-        self.assertNotIn("NIPAT_EXECUTION_MODE", reference)
-        self.assertNotIn("NIPAT_MAX_WORKERS", reference)
-        self.assertNotIn("NIPAT_PARALLEL_LOG_DIR", reference)
+        self.assertNotIn("NEWPAT_EXECUTION_MODE", reference)
+        self.assertNotIn("NEWPAT_MAX_WORKERS", reference)
+        self.assertNotIn("NEWPAT_PARALLEL_LOG_DIR", reference)
         candidate = verification.case_environment(case, "candidate", Path(verification.SCRIPTS[case.workflow]))
-        self.assertEqual(candidate["NIPAT_EXECUTION_MODE"], "serial")
+        self.assertEqual(candidate["NEWPAT_EXECUTION_MODE"], "serial")
         parallel = verification.case_environment(case, "candidate", Path(verification.SCRIPTS[case.workflow]),
                                                    verification.PARALLEL_VARIANTS["manual-2"])
-        self.assertEqual(parallel["NIPAT_EXECUTION_MODE"], "auto")
-        self.assertEqual(parallel["NIPAT_MAX_WORKERS"], "2")
+        self.assertEqual(parallel["NEWPAT_EXECUTION_MODE"], "auto")
+        self.assertEqual(parallel["NEWPAT_MAX_WORKERS"], "2")
 
     def test_block_settings_do_not_change_the_reference_execution(self):
         cases = [case for case in verification.cases() if case.compare_pileup]
-        self.assertEqual({dict(case.candidate_environment)["NIPAT_DNP_BLOCK_LOCI"] for case in cases}, {"1", "2", "3"})
+        self.assertEqual({dict(case.candidate_environment)["NEWPAT_DNP_BLOCK_LOCI"] for case in cases}, {"1", "2", "3"})
         for case in cases:
             script = Path(verification.SCRIPTS[case.workflow])
             reference = verification.case_environment(case, "reference", verification.BASELINE / script)
             candidate = verification.case_environment(case, "candidate", script)
-            self.assertNotIn("NIPAT_DNP_BLOCK_LOCI", reference)
-            self.assertNotIn("NIPAT_DNP_KEEP_PILEUP", reference)
-            self.assertEqual(reference["NIPAT_EQ_KEEP_PILEUP"], "1")
-            self.assertEqual(candidate["NIPAT_DNP_KEEP_PILEUP"], "1")
-            self.assertEqual(candidate["NIPAT_DNP_BLOCK_LOCI"], dict(case.candidate_environment)["NIPAT_DNP_BLOCK_LOCI"])
+            self.assertNotIn("NEWPAT_DNP_BLOCK_LOCI", reference)
+            self.assertNotIn("NEWPAT_DNP_KEEP_PILEUP", reference)
+            self.assertEqual(reference["NEWPAT_EQ_KEEP_PILEUP"], "1")
+            self.assertEqual(candidate["NEWPAT_DNP_KEEP_PILEUP"], "1")
+            self.assertEqual(candidate["NEWPAT_DNP_BLOCK_LOCI"], dict(case.candidate_environment)["NEWPAT_DNP_BLOCK_LOCI"])
 
     def test_archive_links_each_case_to_its_verified_pileup(self):
         cases = []

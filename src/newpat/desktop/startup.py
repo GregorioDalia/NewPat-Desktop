@@ -57,8 +57,8 @@ def main():
         while True:
             host.request_close()
             time.sleep(.1)
-    threading.Thread(target=read_end, name="NIPAT-preparation-control", daemon=True).start()
-    with tempfile.TemporaryDirectory(prefix="nipat-startup-") as directory:
+    threading.Thread(target=read_end, name="NewPat-preparation-control", daemon=True).start()
+    with tempfile.TemporaryDirectory(prefix="newpat-startup-") as directory:
         assets = Path(directory)
         shutil.copyfile(Path(__file__).with_name("web") / "newpat-wordmark.svg", assets / "newpat-wordmark.svg")
         content = """<!doctype html><html lang="it"><meta charset="utf-8"><title>NewPat</title><style>

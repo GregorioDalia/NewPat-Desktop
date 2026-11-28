@@ -44,7 +44,7 @@ class NativeFetalSex(unittest.TestCase):
         ).returncode == 0:
             return
         message = "R with optparse and dplyr is required for fetal-sex regressions"
-        if "NIPAT_NATIVE_TEST_PAYLOAD_ROOT" in os.environ:
+        if "NEWPAT_NATIVE_TEST_PAYLOAD_ROOT" in os.environ:
             raise RuntimeError(message)
         raise unittest.SkipTest(message)
 
@@ -144,7 +144,7 @@ class NativeFetalSex(unittest.TestCase):
         result = subprocess.run(
             [sys.executable, str(PAYLOAD / "engine/main.py"), "execute-plan",
              "--plan", str(manifest), "--run-dir", str(run)],
-            env=dict(os.environ, NIPAT_PARALLEL_HELPER=str(HELPERS / "parallel.R")),
+            env=dict(os.environ, NEWPAT_PARALLEL_HELPER=str(HELPERS / "parallel.R")),
             capture_output=True, text=True, timeout=90)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         state = json.loads((run / "workflow-state.json").read_text(encoding="utf-8"))
@@ -201,9 +201,9 @@ class NativeFetalSex(unittest.TestCase):
         run = self.root / "generated"
         result = subprocess.run([sys.executable, str(PAYLOAD / "engine/main.py"), "execute-plan",
                                  "--plan", str(manifest), "--run-dir", str(run)],
-                                env=dict(os.environ, NIPAT_PARALLEL_HELPER=str(HELPERS / "parallel.R"),
-                                         NIPAT_PLOTS_HELPER=str(HELPERS / "plots.R"),
-                                         NIPAT_DNP_BLOCKS_HELPER=str(HELPERS / "dnp_blocks.R")),
+                                env=dict(os.environ, NEWPAT_PARALLEL_HELPER=str(HELPERS / "parallel.R"),
+                                         NEWPAT_PLOTS_HELPER=str(HELPERS / "plots.R"),
+                                         NEWPAT_DNP_BLOCKS_HELPER=str(HELPERS / "dnp_blocks.R")),
                                 capture_output=True, text=True, timeout=120)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr +
                          "".join(log.read_text()[-2000:] for log in run.glob("steps/*/command.log")))

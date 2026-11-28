@@ -29,7 +29,7 @@ class LinuxUpdateTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
-        self.package = self.root / "nipat-desktop_0.6.1_amd64.deb"
+        self.package = self.root / "newpat-desktop_0.6.1_amd64.deb"
         self.package.write_bytes(b"verified package fixture")
         self.checksum = hashlib.sha256(self.package.read_bytes()).hexdigest()
         self.size = self.package.stat().st_size
@@ -58,13 +58,11 @@ class LinuxUpdateTests(unittest.TestCase):
         with self.assertRaises(update.LinuxUpdateError):
             update.verify_package(self.package, self.checksum, self.size)
 
-    def test_newpat_package_alias_uses_same_integrity_checks(self):
-        alias = self.root / "newpat-desktop_0.9.5_amd64.deb"
-        alias.write_bytes(self.package.read_bytes())
-        update.verify_package(alias, self.checksum, self.size)
-        alias.write_bytes(b"changed")
+    def test_only_newpat_deb_names_are_eligible(self):
+        unexpected = self.root / "other-desktop_0.9.99_amd64.deb"
+        unexpected.write_bytes(self.package.read_bytes())
         with self.assertRaises(update.LinuxUpdateError):
-            update.verify_package(alias, self.checksum, self.size)
+            update.verify_package(unexpected, self.checksum, self.size)
 
     def test_unsupported_distro_is_rejected(self):
         with patch.object(update.platform, "freedesktop_os_release", return_value={"ID": "debian", "VERSION_ID": "12"}), \
@@ -85,7 +83,7 @@ class LinuxUpdateTests(unittest.TestCase):
                 patch.object(update, "LOCK", self.lock), patch.object(update, "MARKER", self.marker), \
                 patch.object(update, "_cache_directory", return_value=self.root), \
                 patch.object(update, "_process_identity", return_value="123"), \
-                patch.dict(os.environ, {"NIPAT_LAUNCHER_PID": "5678"}), \
+                patch.dict(os.environ, {"NEWPAT_LAUNCHER_PID": "5678"}), \
                 patch.object(update.subprocess, "Popen", side_effect=acknowledge) as launch:
             result = update.start_linux_update(self.package, self.checksum, self.size,
                                                 parent_pid=1234, project_dir=update.APP)
@@ -117,7 +115,7 @@ class LinuxUpdateTests(unittest.TestCase):
                 patch.object(update, "LOCK", self.lock), patch.object(update, "MARKER", self.marker), \
                 patch.object(update, "_cache_directory", return_value=self.root), \
                 patch.object(update, "_process_identity", return_value="123"), \
-                patch.dict(os.environ, {"NIPAT_LAUNCHER_PID": ""}), \
+                patch.dict(os.environ, {"NEWPAT_LAUNCHER_PID": ""}), \
                 patch.object(update.subprocess, "Popen", return_value=Mock(poll=Mock(return_value=1))), \
                 self.assertRaisesRegex(update.LinuxUpdateError, "NewPat rimane aperto"):
             update.start_linux_update(self.package, self.checksum, self.size,
@@ -139,7 +137,7 @@ class LinuxUpdateTests(unittest.TestCase):
                         patch.object(update, "LOCK", self.lock), patch.object(update, "MARKER", self.marker), \
                         patch.object(update, "_cache_directory", return_value=self.root), \
                         patch.object(update, "_process_identity", return_value="123"), \
-                        patch.dict(os.environ, {"NIPAT_LAUNCHER_PID": ""}), \
+                        patch.dict(os.environ, {"NEWPAT_LAUNCHER_PID": ""}), \
                         patch.object(update.subprocess, "Popen"), \
                         patch.object(update, "_wait_for_acknowledgement", side_effect=outcome if isinstance(outcome, BaseException) else None,
                                      return_value=False), \
@@ -256,9 +254,9 @@ class LinuxUpdateTests(unittest.TestCase):
         commands = [call.args[0] for call in run.call_args_list]
         self.assertEqual(commands, [
             [str(update.PKEXEC), str(update.APT), "install", "--", str(self.package)],
-            ["/usr/bin/nipat", "--setup"],
+            ["/usr/bin/newpat", "--setup"],
         ])
-        reopen.assert_called_once_with("/usr/bin/nipat", ["/usr/bin/nipat"])
+        reopen.assert_called_once_with("/usr/bin/newpat", ["/usr/bin/newpat"])
         self.assertEqual(json.loads((self.root / "state.json").read_text())["phase"], "ready")
 
     def test_reopened_session_keeps_running_and_holds_lease_after_terminal_sigint(self):
@@ -285,10 +283,10 @@ class LinuxUpdateTests(unittest.TestCase):
             "m._other_sessions_running=lambda:False; m.MARKER=root/'activity/update-in-progress'; "
             "realrun=subprocess.run; realexec=os.execv; "
             "command=[sys.executable,str(root/'client.py')]; "
-            "subprocess.run=lambda args,**kw: realrun(command,**kw) if args==['/usr/bin/nipat'] "
+            "subprocess.run=lambda args,**kw: realrun(command,**kw) if args==['/usr/bin/newpat'] "
             "else subprocess.CompletedProcess(args,0); "
             "os.execv=lambda path,args: realexec(command[0],command) if "
-            "(path,args)==('/usr/bin/nipat',['/usr/bin/nipat']) else realexec(path,args); "
+            "(path,args)==('/usr/bin/newpat',['/usr/bin/newpat']) else realexec(path,args); "
             "raise SystemExit(m.run_handoff(root/'request.json'))"
         )
         process = subprocess.Popen([sys.executable, "-c", script], start_new_session=True,
@@ -368,7 +366,7 @@ class PackageCoordinationTests(unittest.TestCase):
         for name, raw in builder.maintainer_scripts().items():
             # Only fixture destination/owner are changed; actual transaction and
             # lock operations are executed by /bin/sh in separate processes.
-            text = raw.decode().replace("state=/var/lib/nipat-desktop", f"state={self.state}")
+            text = raw.decode().replace("state=/var/lib/newpat-desktop", f"state={self.state}")
             text = text.replace('!= 0 ]', f'!= {os.getuid()} ]')
             path = self.root / name
             path.write_text(text)

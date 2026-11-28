@@ -16,18 +16,18 @@ class ScientificScratchTests(unittest.TestCase):
         self.enterContext(patch.dict(os.environ, {}, clear=True))
 
     def test_native_execution_uses_unique_run_disk_directories_and_restores_environment(self):
-        os.environ["NIPAT_DNP_SCRATCH"] = "original"
+        os.environ["NEWPAT_DNP_SCRATCH"] = "original"
         created = []
         for _ in range(2):
             with dnp_environment("dnp-call", self.work) as directory:
                 created.append(directory)
                 self.assertEqual(directory.parent, self.work)
-                self.assertEqual(os.environ["NIPAT_DNP_SCRATCH"], str(directory))
-                self.assertEqual(Path(os.environ["NIPAT_DNP_PILEUP_HELPER"]).name, "dnp_pileup.py")
+                self.assertEqual(os.environ["NEWPAT_DNP_SCRATCH"], str(directory))
+                self.assertEqual(Path(os.environ["NEWPAT_DNP_PILEUP_HELPER"]).name, "dnp_pileup.py")
                 (directory / "intermediate").write_bytes(b"temporary scientific data")
             self.assertFalse(directory.exists())
-            self.assertEqual(os.environ["NIPAT_DNP_SCRATCH"], "original")
-            self.assertNotIn("NIPAT_DNP_PILEUP_HELPER", os.environ)
+            self.assertEqual(os.environ["NEWPAT_DNP_SCRATCH"], "original")
+            self.assertNotIn("NEWPAT_DNP_PILEUP_HELPER", os.environ)
         self.assertNotEqual(*created)
 
     def test_packaged_execution_uses_configured_volume_and_removes_only_its_directory(self):
@@ -35,7 +35,7 @@ class ScientificScratchTests(unittest.TestCase):
         volume.mkdir()
         sentinel = volume / "preserve"
         sentinel.write_text("keep")
-        os.environ["NIPAT_SCRATCH_ROOT"] = str(volume)
+        os.environ["NEWPAT_SCRATCH_ROOT"] = str(volume)
         with self.assertRaises(KeyboardInterrupt):
             with dnp_environment("dnp-call", self.work) as directory:
                 self.assertEqual(directory.parent, volume)
@@ -43,10 +43,10 @@ class ScientificScratchTests(unittest.TestCase):
                 raise KeyboardInterrupt
         self.assertFalse(directory.exists())
         self.assertEqual(sentinel.read_text(), "keep")
-        self.assertNotIn("NIPAT_DNP_SCRATCH", os.environ)
+        self.assertNotIn("NEWPAT_DNP_SCRATCH", os.environ)
 
     def test_configured_missing_root_never_falls_back_to_run_or_tmp(self):
-        os.environ["NIPAT_SCRATCH_ROOT"] = str(self.root / "missing")
+        os.environ["NEWPAT_SCRATCH_ROOT"] = str(self.root / "missing")
         with self.assertRaises(ValidationError):
             with dnp_environment("dnp-call", self.work):
                 self.fail("must not enter")
@@ -56,7 +56,7 @@ class ScientificScratchTests(unittest.TestCase):
         for workflow in ("snp-call", "cpi", "contamination"):
             with dnp_environment(workflow, self.work) as directory:
                 self.assertIsNone(directory)
-                self.assertNotIn("NIPAT_DNP_SCRATCH", os.environ)
+                self.assertNotIn("NEWPAT_DNP_SCRATCH", os.environ)
         self.assertEqual(list(self.work.iterdir()), [])
 
 

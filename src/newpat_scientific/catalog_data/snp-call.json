@@ -3,7 +3,7 @@
   "workflow": "snp-call",
   "source": {
     "path": "scientific/vendor/NEWPAT/SNPcall/SNPcall.R",
-    "sha256": "936d0f1819e8f17c3829577e276767a1abdeac6d9104a299b2ccb462e57fe70f",
+    "sha256": "4904848d01723f329b419452caaa58f86cf281528e9a2a19256791bdee43b662",
     "line_count": 516
   },
   "public_parameters": [
@@ -18,7 +18,7 @@
       "default": null,
       "required": true,
       "unit": null,
-      "nipat": {
+      "newpat": {
         "cli": [
           "--pileup",
           "--bam",
@@ -52,7 +52,7 @@
       "default": null,
       "required": true,
       "unit": null,
-      "nipat": {
+      "newpat": {
         "cli": [
           "--panel"
         ],
@@ -81,7 +81,7 @@
       "default": "SNPcall_output.txt",
       "required": false,
       "unit": null,
-      "nipat": {
+      "newpat": {
         "cli": [
           "--runs-dir",
           "--run-name"
@@ -111,7 +111,7 @@
       "default": false,
       "required": false,
       "unit": null,
-      "nipat": {
+      "newpat": {
         "cli": [
           "--help"
         ],
@@ -523,7 +523,7 @@
         "pileup"
       ],
       "applies_to": "all",
-      "origin": "nipat_engine",
+      "origin": "newpat_engine",
       "description": {
         "it": "BAM richiede FASTA e genera il pileup. Il pileup esistente esclude BAM e riferimento e viene usato direttamente.",
         "en": "BAM requires a FASTA and generates the pileup. Existing-pileup mode excludes BAM and reference and uses the supplied file directly."
@@ -534,7 +534,7 @@
           193,
           291
         ],
-        "sha256": "d8bf3be84ba3e82140fdcb64b95d49abb20950d850b8a263f303e1b99f674dcf"
+        "sha256": "150566c6915da40ab4428945ebe5a13f3f1649f4ff7aa423be67a8e04c672fc5"
       }
     },
     {
@@ -545,7 +545,7 @@
         "coordinate_system": "zero-based half-open"
       },
       "applies_to": "bam",
-      "origin": "nipat_engine",
+      "origin": "newpat_engine",
       "description": {
         "it": "La finestra BED comprende il sito SNP e una base adiacente su ciascun lato. Gli offset sono parte del contratto con l'estrazione della base centrale in R.",
         "en": "The BED window covers the SNP and one adjacent base on each side. These offsets are part of the contract with central-base extraction in R."
@@ -580,7 +580,7 @@
         ]
       },
       "applies_to": "all",
-      "origin": "nipat_engine",
+      "origin": "newpat_engine",
       "description": {
         "it": "Il pannello nuovo a quattro colonne o precedente a tre colonne viene normalizzato in chr/pos/ref/alt. Le coordinate sono uniche, con posizione da 2 a 2147483646 e cromosoma privo di spazi e due punti. Gli alleli A/C/G/T sono distinti e convertiti in maiuscolo nella copia di lavoro; l'originale resta invariato.",
         "en": "New four-column or legacy three-column panels are normalized to chr/pos/ref/alt. Coordinates are unique, positions range from 2 to 2147483646 and chromosomes contain no whitespace or colon. A/C/G/T alleles are distinct and uppercased in the working copy; the original is unchanged."
@@ -605,7 +605,7 @@
         ]
       },
       "applies_to": "bam",
-      "origin": "nipat_engine",
+      "origin": "newpat_engine",
       "description": {
         "it": "Gli indici FASTA richiesti vengono forniti come input; gli indici BAM presenti vengono conservati come file associati. La preparazione non crea indici accanto agli originali. Le intere finestre devono rientrare nel contig secondo il file .fai. I contig del pannello devono essere presenti con lo stesso nome nel BAM e nel FASTA. Anche fuori pannello, i contig presenti in entrambi devono avere la stessa lunghezza.",
         "en": "Required FASTA indexes are supplied as inputs; existing BAM indexes are retained as sidecars. Preparation does not create indexes beside original inputs. Each complete window must fit within its contig in the .fai file. Every panel contig must be present by exact name in the BAM and the FASTA. Shared contigs must have matching lengths even outside the panel."
@@ -616,7 +616,7 @@
           193,
           291
         ],
-        "sha256": "d8bf3be84ba3e82140fdcb64b95d49abb20950d850b8a263f303e1b99f674dcf"
+        "sha256": "150566c6915da40ab4428945ebe5a13f3f1649f4ff7aa423be67a8e04c672fc5"
       }
     },
     {
@@ -632,7 +632,7 @@
         "-o"
       ],
       "applies_to": "bam",
-      "origin": "nipat_engine",
+      "origin": "newpat_engine",
       "description": {
         "it": "Il comando usa FASTA e regioni BED, include QNAME e normalizza indel e fine lettura. -d 0 disattiva il limite di profondità per file e posizione, come SNPcall 2.0; le qualità sono conservate per le likelihood. In modalità automatica, un BAM ordinato e indicizzato con almeno due cromosomi target idonei permette di eseguire un mpileup per cromosoma con lo stesso BED e gli stessi parametri. Le porzioni vengono unite nell’ordine del dizionario BAM. Il pool riceve al massimo metà del budget residuo dopo il coordinatore. Se l’indice manca o è meno recente del BAM, il pool è limitato a un processo o la sua RSS supera la quota, viene usata la scansione sequenziale.",
         "en": "The command uses the FASTA and BED regions, includes QNAME and normalizes indels and read ends. -d 0 disables the depth cap per file and position, matching SNPcall 2.0; qualities are retained for likelihoods. In automatic mode, a sorted, indexed BAM with at least two eligible target chromosomes permits one mpileup per chromosome with the same BED and options. The pieces are joined in BAM dictionary order. The pool may use up to half of the work budget remaining after coordinator memory. A missing or older index, a single-worker budget, or a pool exceeding its RSS allowance selects the sequential scan."
@@ -643,7 +643,7 @@
           193,
           291
         ],
-        "sha256": "d8bf3be84ba3e82140fdcb64b95d49abb20950d850b8a263f303e1b99f674dcf",
+        "sha256": "150566c6915da40ab4428945ebe5a13f3f1649f4ff7aa423be67a8e04c672fc5",
         "dependencies": [
           {
             "path": "src/newpat_scientific/snp.py",
@@ -651,7 +651,7 @@
               45,
               179
             ],
-            "sha256": "d8bf3be84ba3e82140fdcb64b95d49abb20950d850b8a263f303e1b99f674dcf"
+            "sha256": "150566c6915da40ab4428945ebe5a13f3f1649f4ff7aa423be67a8e04c672fc5"
           }
         ]
       }
@@ -687,7 +687,7 @@
           291
         ],
         "url": "https://www.htslib.org/doc/1.21/samtools-mpileup.html",
-        "sha256": "d8bf3be84ba3e82140fdcb64b95d49abb20950d850b8a263f303e1b99f674dcf",
+        "sha256": "150566c6915da40ab4428945ebe5a13f3f1649f4ff7aa423be67a8e04c672fc5",
         "dependencies": [
           {
             "path": "docker/scientific-runtime/Dockerfile",
@@ -695,11 +695,11 @@
               5,
               6
             ],
-            "sha256": "e2f3135e7f113f21275375baeec367fb336eb5eecd62fb110de786bdab913f91"
+            "sha256": "0c614ca66e9e32d4f6899d09ea2def7c7a59d5a51fd5e04c2f70f2cd83770a43"
           },
           {
             "path": "src/newpat_scientific/settings.py",
-            "sha256": "5d983923351965fdb3959ca8f0383d2fd880c286ee7dc4a3bde3862289399555",
+            "sha256": "becfd9167cbc3baaa2f72d53f5db837bbea69248805f8b76192b4d584367183d",
             "source_lines": [
               1,
               206
@@ -727,7 +727,7 @@
         "generated_empty": "accepted as zero coverage"
       },
       "applies_to": "pileup",
-      "origin": "nipat_engine",
+      "origin": "newpat_engine",
       "description": {
         "it": "Il controllo preliminare scorre ogni riga non vuota e verifica almeno sette colonne, cromosoma, posizione intera positiva e profondità intera non negativa. Un file importato vuoto è rifiutato; il pileup vuoto prodotto con successo da samtools rappresenta assenza di copertura. Non vengono ricostruiti i filtri applicati a monte; il core R verifica l'allineamento delle qualità usate.",
         "en": "Preflight streams every nonempty row and checks at least seven columns, chromosome, positive integer position and nonnegative integer depth. An empty imported file is rejected; an empty pileup successfully generated by samtools represents zero coverage. Upstream filters are not reconstructed; the R core validates the alignment of qualities it uses."
@@ -745,7 +745,7 @@
       "id": "managed_output",
       "value": "output/SNPcall_output.txt",
       "applies_to": "all",
-      "origin": "nipat_engine",
+      "origin": "newpat_engine",
       "description": {
         "it": "Il nome del file scientifico è fisso all'interno della cartella del run scelta dall'utente.",
         "en": "The scientific filename is fixed within the user-selected run directory."
@@ -756,7 +756,7 @@
           193,
           291
         ],
-        "sha256": "d8bf3be84ba3e82140fdcb64b95d49abb20950d850b8a263f303e1b99f674dcf"
+        "sha256": "150566c6915da40ab4428945ebe5a13f3f1649f4ff7aa423be67a8e04c672fc5"
       }
     },
     {
@@ -767,7 +767,7 @@
         "panel"
       ],
       "applies_to": "wizard",
-      "origin": "nipat_preferences",
+      "origin": "newpat_preferences",
       "description": {
         "it": "Le preferenze del menu conservano modalità, riferimento e pannello; i campioni vengono selezionati per ciascuna analisi.",
         "en": "Menu preferences retain mode, reference and panel; samples are selected for each analysis."
@@ -778,7 +778,7 @@
           32,
           39
         ],
-        "sha256": "0e3fd69ddddc1c08a29f23c7472abf24d311d5fc7799587fd14ff228303fed40"
+        "sha256": "465e93897b0061d1186cdaa6f753c94e9f6c695b54280b1258600633ec7cd3ad"
       }
     },
     {
@@ -856,7 +856,7 @@
               1,
               163
             ],
-            "sha256": "526eb6609f7b13ff6d6cb74f81f9844861d1e11891798112b53c524cd0d80659"
+            "sha256": "c6b2ef8132e5e32deeae59b59d2cc829103801d1e75a03afbdeedd6470773137"
           }
         ]
       }
@@ -870,11 +870,11 @@
           "serial"
         ],
         "environment": [
-          "NIPAT_EXECUTION_MODE",
-          "NIPAT_MAX_WORKERS",
-          "NIPAT_CPU_LIMIT",
-          "NIPAT_MEMORY_LIMIT_MIB",
-          "NIPAT_FIXED_RESOURCE_BUDGET"
+          "NEWPAT_EXECUTION_MODE",
+          "NEWPAT_MAX_WORKERS",
+          "NEWPAT_CPU_LIMIT",
+          "NEWPAT_MEMORY_LIMIT_MIB",
+          "NEWPAT_FIXED_RESOURCE_BUDGET"
         ],
         "cli": [
           "--execution-mode",
@@ -887,7 +887,7 @@
         "internal_library_threads": 1,
         "thread_limit_scope": "managed requests, workflow steps and native engine run",
         "panel_reader_threads": 1,
-        "resource_policy": "nipat-fixed-resources-v1",
+        "resource_policy": "newpat-fixed-resources-v1",
         "capacity_basis": "assigned-capacity-at-run-start",
         "capacity_memory_fraction": 0.8,
         "concurrency_policy": "fixed-pool-per-phase-within-run-ceiling",
@@ -913,7 +913,7 @@
           1,
           322
         ],
-        "sha256": "7c83def1907d041decf7dd8705aaf1f92bcd401d7b1fba38aaf788962a5dd47a",
+        "sha256": "9267aaa3ec7548727ae3ae7031d6580bd5e1864f61583def5b66930a1e566932",
         "dependencies": [
           {
             "path": "scientific/vendor/NEWPAT/SNPcall/SNPcall.R",
@@ -921,7 +921,7 @@
               11,
               11
             ],
-            "sha256": "936d0f1819e8f17c3829577e276767a1abdeac6d9104a299b2ccb462e57fe70f"
+            "sha256": "4904848d01723f329b419452caaa58f86cf281528e9a2a19256791bdee43b662"
           },
           {
             "path": "src/newpat/experiments/options.py",
@@ -937,7 +937,7 @@
               212,
               233
             ],
-            "sha256": "bd39a6b67eb42c05a883492b2314677e96a9ceac26c9a0cda856937a3055c6cc"
+            "sha256": "69e87c6ac9ce026d72638937f83bf5711044b8c276a5baf60c3b8cb1be36c2c0"
           },
           {
             "path": "src/newpat_scientific/parallel.py",
@@ -945,7 +945,7 @@
               8,
               44
             ],
-            "sha256": "bcdf3866e76419ac0b2879bf292be2a45eeb69ec6a590332652423f1aade87f7"
+            "sha256": "ded8a919041c529c9941df7d1ada53e04903afe7d380b7fad42489a596b03c77"
           },
           {
             "path": "engine/main.py",
@@ -953,7 +953,7 @@
               473,
               480
             ],
-            "sha256": "5ff088587eddfc440e2e6e45ac7704c14e9e767753f4468364eec8918b84ece9"
+            "sha256": "9a6a7fcccf258c08b5a0f5c4385c9fc7c87bd45911a497facf08252992530f4e"
           },
           {
             "path": "scientific/vendor/NEWPAT/SNPcall/SNPcall.R",
@@ -961,7 +961,7 @@
               77,
               77
             ],
-            "sha256": "936d0f1819e8f17c3829577e276767a1abdeac6d9104a299b2ccb462e57fe70f"
+            "sha256": "4904848d01723f329b419452caaa58f86cf281528e9a2a19256791bdee43b662"
           },
           {
             "path": "src/newpat/resources.py",
@@ -969,7 +969,7 @@
               101,
               149
             ],
-            "sha256": "f661408e8859caae8c73d9c5e59e14b0edadf5a585405962bc1739f5a66d3833"
+            "sha256": "37a8f88e50255c125954d973b2856475019b313d9f9d0fbd6c928b58b606be35"
           },
           {
             "path": "src/newpat/experiments/runner.py",
@@ -977,7 +977,7 @@
               115,
               136
             ],
-            "sha256": "bd39a6b67eb42c05a883492b2314677e96a9ceac26c9a0cda856937a3055c6cc"
+            "sha256": "69e87c6ac9ce026d72638937f83bf5711044b8c276a5baf60c3b8cb1be36c2c0"
           },
           {
             "path": "src/newpat/experiments/runner.py",
@@ -985,7 +985,7 @@
               208,
               233
             ],
-            "sha256": "bd39a6b67eb42c05a883492b2314677e96a9ceac26c9a0cda856937a3055c6cc"
+            "sha256": "69e87c6ac9ce026d72638937f83bf5711044b8c276a5baf60c3b8cb1be36c2c0"
           },
           {
             "path": "src/newpat_scientific/snp_parallel.py",
@@ -993,7 +993,7 @@
               45,
               251
             ],
-            "sha256": "79fbef353abc936fe2d513bc14c94b6a817cbbc8405ed93ec29d4f4e424ab11b"
+            "sha256": "c00e688e99faa3846c0261a327ccc84b18e09f18047368c7ecd5073dce6f978d"
           },
           {
             "path": "scientific/vendor/NEWPAT/SNPcall/SNPcall.R",
@@ -1001,7 +1001,7 @@
               401,
               426
             ],
-            "sha256": "936d0f1819e8f17c3829577e276767a1abdeac6d9104a299b2ccb462e57fe70f"
+            "sha256": "4904848d01723f329b419452caaa58f86cf281528e9a2a19256791bdee43b662"
           },
           {
             "path": "src/newpat/desktop/jobs.py",
@@ -1009,7 +1009,7 @@
               109,
               119
             ],
-            "sha256": "d027a93a0b11895e1173499cc7f80ad8531b0ea6587f91cb97e6fb4d27a4d274"
+            "sha256": "87bb5198df13b70f2f35aec72de6821648ba8a4f6d8891582de6ba842bd9f30f"
           },
           {
             "path": "src/newpat/desktop/admission.py",
@@ -1017,7 +1017,7 @@
               1,
               449
             ],
-            "sha256": "73ebfe7868b2d9c3ea90274d8f31599a8a1fa6674fe974dffbb288b14b10b4c1"
+            "sha256": "6b913d5072da1f6fbdca739ca517acf608fa7d22668dce9919b2c425b7247333"
           },
           {
             "path": "src/newpat_scientific/desktop_scheduling.py",
@@ -1025,7 +1025,7 @@
               1,
               141
             ],
-            "sha256": "f454913d31cdfd5c8f8fd937a7dbe0e4e603495b76ed93a248613043f14e6d4e"
+            "sha256": "2de2c8e0af80a69860fe053b090f5875d6a7a203e221782775b1309696b9aed0"
           },
           {
             "path": "src/newpat_scientific/executor.py",
@@ -1033,7 +1033,7 @@
               462,
               603
             ],
-            "sha256": "0d87f2a5a4d0a860d7cdde62a6295074c1e0f2859f2c256b477cabe218d10285"
+            "sha256": "aef287c549ded718593627a04b62dc004c2b59c5832c9982a62921561bf65b15"
           },
           {
             "path": "src/newpat/experiments/runner.py",
@@ -1041,7 +1041,7 @@
               228,
               231
             ],
-            "sha256": "bd39a6b67eb42c05a883492b2314677e96a9ceac26c9a0cda856937a3055c6cc"
+            "sha256": "69e87c6ac9ce026d72638937f83bf5711044b8c276a5baf60c3b8cb1be36c2c0"
           }
         ]
       }
@@ -1070,7 +1070,7 @@
       },
       "evidence": {
         "path": "src/newpat_scientific/snp_parallel.py",
-        "sha256": "79fbef353abc936fe2d513bc14c94b6a817cbbc8405ed93ec29d4f4e424ab11b",
+        "sha256": "c00e688e99faa3846c0261a327ccc84b18e09f18047368c7ecd5073dce6f978d",
         "source_lines": [
           1,
           489
@@ -1078,7 +1078,7 @@
         "dependencies": [
           {
             "path": "src/newpat_scientific/parallel.R",
-            "sha256": "7c83def1907d041decf7dd8705aaf1f92bcd401d7b1fba38aaf788962a5dd47a",
+            "sha256": "9267aaa3ec7548727ae3ae7031d6580bd5e1864f61583def5b66930a1e566932",
             "source_lines": [
               1,
               322
@@ -1086,7 +1086,7 @@
           },
           {
             "path": "src/newpat_scientific/parallel.py",
-            "sha256": "bcdf3866e76419ac0b2879bf292be2a45eeb69ec6a590332652423f1aade87f7",
+            "sha256": "ded8a919041c529c9941df7d1ada53e04903afe7d380b7fad42489a596b03c77",
             "source_lines": [
               1,
               44
@@ -1094,7 +1094,7 @@
           },
           {
             "path": "src/newpat_scientific/executor.py",
-            "sha256": "0d87f2a5a4d0a860d7cdde62a6295074c1e0f2859f2c256b477cabe218d10285",
+            "sha256": "aef287c549ded718593627a04b62dc004c2b59c5832c9982a62921561bf65b15",
             "source_lines": [
               1,
               603
@@ -1121,7 +1121,7 @@
       },
       "evidence": {
         "path": "src/newpat_scientific/plots.R",
-        "sha256": "714e86d4e080ade63be3a47c0322dae93097d9a4ccef0ef9fadc5cbba7d35d1d",
+        "sha256": "739be2556eb1917d855f327c15604722c9b90995bd593d8f3db8d7e2a37da540",
         "source_lines": [
           1,
           183
@@ -1332,7 +1332,7 @@
         "dependencies": [
           {
             "path": "src/newpat_scientific/settings.py",
-            "sha256": "5d983923351965fdb3959ca8f0383d2fd880c286ee7dc4a3bde3862289399555",
+            "sha256": "becfd9167cbc3baaa2f72d53f5db837bbea69248805f8b76192b4d584367183d",
             "source_lines": [
               1,
               206
@@ -1340,7 +1340,7 @@
           },
           {
             "path": "src/newpat_scientific/settings.R",
-            "sha256": "5237eb7eec90acdcaa2803ef71b1928b70d848818c05e6c4e44585cd715ce867",
+            "sha256": "f89a401eb35536a9d6f2a08282ba6b6227791da8d49f521b9f98aec5528cfe44",
             "source_lines": [
               1,
               104

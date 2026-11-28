@@ -21,7 +21,7 @@ _WINDOW_FLANK = 60
 
 def _site(store, case, group, entry, run):
     module, marker = case["module"], case["marker"]
-    if entry.get("analysis") or marker not in {"SNP", "DNP"}:
+    if marker not in {"SNP", "DNP"}:
         return None
     if module == "cpi" and entry["row"].get("Include_homozygous_child") != "TRUE":
         # Only the new HOM audit locates prenatal contributing variants.

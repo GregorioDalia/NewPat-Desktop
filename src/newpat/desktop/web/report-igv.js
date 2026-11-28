@@ -54,7 +54,7 @@
 
   async function snapshot(frame, config, prepared, language) {
     const local = frame.contentWindow;
-    const browser = await local.NipatIGV.mount(local.document.getElementById('viewer'), config.options);
+    const browser = await local.NewPatIGV.mount(local.document.getElementById('viewer'), config.options);
     if (!frame.isConnected) return null;
     const views = browser.trackViews.filter(view => view.track.type === 'alignment');
     const actual = browser.referenceFrameList[0];
@@ -111,7 +111,7 @@
         signal?.removeEventListener('abort', cancel);
         frame.onload = null;
         frame.onerror = null;
-        try { frame.contentWindow?.NipatIGV?.dispose(); } catch { /* The frame may already be unloading. */ }
+        try { frame.contentWindow?.NewPatIGV?.dispose(); } catch { /* The frame may already be unloading. */ }
         frame.remove();
         resolve(value);
       }

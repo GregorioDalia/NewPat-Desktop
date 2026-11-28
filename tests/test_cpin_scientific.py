@@ -32,11 +32,11 @@ def run_native(tmp_path, marker="SNP", settings=None, inputs=None, trios="M1:F1:
     work.mkdir(parents=True)
     inputs = inputs or FIXTURE / marker
     env = os.environ.copy()
-    env.update(NIPAT_EXECUTION_MODE="serial",
-               NIPAT_PARALLEL_HELPER=str(ROOT / "src/newpat_scientific/parallel.R"),
-               NIPAT_PLOTS_HELPER=str(ROOT / "src/newpat_scientific/plots.R"))
+    env.update(NEWPAT_EXECUTION_MODE="serial",
+               NEWPAT_PARALLEL_HELPER=str(ROOT / "src/newpat_scientific/parallel.R"),
+               NEWPAT_PLOTS_HELPER=str(ROOT / "src/newpat_scientific/plots.R"))
     with settings_context("cpin", settings or {}, work):
-        for name in ("NIPAT_SCIENTIFIC_SETTINGS", "NIPAT_SETTINGS_HELPER", "NIPAT_SETTINGS_REGISTRY"):
+        for name in ("NEWPAT_SCIENTIFIC_SETTINGS", "NEWPAT_SETTINGS_HELPER", "NEWPAT_SETTINGS_REGISTRY"):
             env[name] = os.environ[name]
         result = subprocess.run([
             "Rscript", str(ROOT / "scientific/vendor/NEWPAT/CPI_postnatal/Postnatal_CPI.R"),

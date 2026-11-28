@@ -1,7 +1,7 @@
 """Run the pinned synthetic acceptance suite against an installed Windows client.
 
 This driver is external evidence tooling. It never installs, upgrades or edits
-NIPAT and never selects user biological input files.
+NewPat and never selects user biological input files.
 """
 from __future__ import annotations
 
@@ -152,13 +152,12 @@ class SuiteStopped(RuntimeError):
 
 
 class Suite:
-    def __init__(self, app, session, commit, *, installation_version="0.8.50", installation_commit=BASE_COMMIT):
+    def __init__(self, app, session, commit, *, installation_version="0.9.99", installation_commit=None):
         self.app, self.session, self.commit = app.resolve(), session.resolve(), commit
-        # An external harness may verify the installed historical baseline or the refactored client.
-        legacy_client = ((self.app / "src/nipat/__init__.py").is_file()
-                         and not (self.app / "src/newpat/__init__.py").is_file())
-        self.client_package = "nipat" if legacy_client else "newpat"
-        self.experiments_package = self.client_package + (".experiments" if self.client_package == "newpat" else ".execution")
+        if installation_commit is None:
+            installation_commit = commit
+        self.client_package = "newpat"
+        self.experiments_package = "newpat.experiments"
         if (not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", installation_version)
                 or not re.fullmatch(r"[a-f0-9]{40}", installation_commit)):
             raise ValueError("Identita attesa dell'installazione non valida.")
@@ -170,8 +169,8 @@ class Suite:
         self.powershell = str(Path(os.environ.get("WINDIR", "C:/Windows")) /
                               "System32/WindowsPowerShell/v1.0/powershell.exe")
         self.environment = {key: value for key, value in os.environ.items()
-                            if not key.upper().startswith(("NEWPAT_", "NIPAT_")) and key.upper() not in {"PYTHONPATH", "PYTHONHOME"}}
-        self.report = {"schema_version": 1, "suite": f"NIPAT installed synthetic acceptance {installation_version}",
+                            if not key.upper().startswith("NEWPAT_") and key.upper() not in {"PYTHONPATH", "PYTHONHOME"}}
+        self.report = {"schema_version": 1, "suite": f"NewPat installed synthetic acceptance {installation_version}",
                        "expected_installation": {"version": installation_version, "source_commit": installation_commit},
                        "started_utc": utc(), "harness_source_commit": commit,
                        "status": "RUNNING", "app_dir": str(self.app), "session": str(self.session),
@@ -276,7 +275,7 @@ class Suite:
 
     def preflight(self):
         if sys.platform != "win32":
-            raise ValueError("Questo collaudo va eseguito sul PC Windows con NIPAT installato.")
+            raise ValueError("Questo collaudo va eseguito sul PC Windows con NewPat installato.")
         if not re.fullmatch(r"[a-f0-9]{40}", self.commit):
             raise ValueError("Commit del collaudo non valido.")
         state = read_json(self.app / ".runtime/installer/state.json")
@@ -307,10 +306,10 @@ class Suite:
         self.report["harness_sha256"] = {name: digest(HARNESS / name) for name in
                                          ("installed_suite.py", "installed_models.py", "installed_workflows.py", "fixtures.json")}
         self.harness_before = snapshot([HARNESS / name for name in self.report["harness_sha256"]] + [self.defaults])
-        self.environment.update(NIPAT_PROJECT_DIR=str(self.app), NIPAT_BACKEND="wsl",
-                                NIPAT_WSL_DISTRO=backend["wsl_distro"], NIPAT_RUNTIME_IMAGE=self.image,
-                                NIPAT_DATA_DIR=str(self.inputs), NIPAT_RUNS_DIR=str(self.runs),
-                                NIPAT_WORKSPACE_DIR=str(self.session))
+        self.environment.update(NEWPAT_PROJECT_DIR=str(self.app), NEWPAT_BACKEND="wsl",
+                                NEWPAT_WSL_DISTRO=backend["wsl_distro"], NEWPAT_RUNTIME_IMAGE=self.image,
+                                NEWPAT_DATA_DIR=str(self.inputs), NEWPAT_RUNS_DIR=str(self.runs),
+                                NEWPAT_WORKSPACE_DIR=str(self.session))
         return self.report["installation"]
 
     def snapshot_installation(self):
@@ -335,7 +334,7 @@ class Suite:
         mount = io.StringIO()
         csv.writer(mount, lineterminator="").writerow(
             ["type=bind", "src=" + self.transport.host_path(self.inputs), "dst=/inputs"])
-        name = "nipat-acceptance-" + uuid.uuid4().hex
+        name = "newpat-acceptance-" + uuid.uuid4().hex
         command = ["docker", "run", "--rm", "--pull=never", "--name", name, "--network=none", "--read-only",
                    "--tmpfs", "/tmp:rw,nosuid,nodev,size=128m", "--mount", mount.getvalue(),
                    "--entrypoint", "samtools", self.image, *mapped]
@@ -366,7 +365,7 @@ class Suite:
                 entry["details"] = {"rejection": "motivo atteso, nessun run dichiarato riuscito"}
             else:
                 if result["returncode"]:
-                    raise ValueError(f"NIPAT ha restituito il codice {result['returncode']}; consultare stdout/stderr.")
+                    raise ValueError(f"NewPat ha restituito il codice {result['returncode']}; consultare stdout/stderr.")
                 entry["execution"] = verify_run(run, self.image)
                 entry["details"] = specification["validate"](run)
                 if specification.get("compare_group"):
@@ -437,7 +436,7 @@ class Suite:
                 rows.append("<tr><td>" + escape(kind) + "</td><td>" + escape(entry["id"]) +
                             "</td><td class='" + escape(entry["status"]) + "'>" + escape(entry["status"]) +
                             "</td><td>" + escape(entry.get("error", entry.get("mode", ""))) + "</td></tr>")
-        title = "Collaudo NIPAT " + escape(self.installation_version)
+        title = "Collaudo NewPat " + escape(self.installation_version)
         document = '<!doctype html><html lang="it"><meta charset="utf-8"><title>' + title + "</title>"
         document += """<style>body{font:16px system-ui,sans-serif;max-width:1200px;margin:40px auto;padding:0 24px;color:#24313b;background:#f7f8fa}h1{font-size:28px}table{border-collapse:collapse;width:100%;background:white}td,th{padding:10px;text-align:left;border-bottom:1px solid #ddd;vertical-align:top;overflow-wrap:anywhere}td:first-child,th:first-child{min-width:8em}td:nth-child(3),th:nth-child(3){white-space:nowrap;min-width:6em}.PASS{color:#187448}.FAIL,.INTERRUPTED{color:#b42318}.BLOCKED{color:#875700}code{overflow-wrap:anywhere}p{line-height:1.55}</style>"""
         document += "<h1>" + title + "</h1>"
@@ -556,8 +555,8 @@ def main(argv=None):
     parser.add_argument("--app-dir", type=Path, required=True)
     parser.add_argument("--session", type=Path, required=True)
     parser.add_argument("--harness-source-commit", required=True)
-    parser.add_argument("--installation-version", default="0.8.50")
-    parser.add_argument("--installation-source-commit", default=BASE_COMMIT)
+    parser.add_argument("--installation-version", required=True)
+    parser.add_argument("--installation-source-commit", required=True)
     args = parser.parse_args(argv)
     return Suite(args.app_dir, args.session, args.harness_source_commit,
                  installation_version=args.installation_version,

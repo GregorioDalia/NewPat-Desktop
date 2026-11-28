@@ -281,7 +281,7 @@ def run_suite(project, output, expected_commit=None):
             launch(launcher, ["--runtime", "prepare"], output / "preparazione.log")
         finally:
             report["prepare"] = time.monotonic() - before
-        state = read(Path.home() / "Library/Application Support/NIPAT-Desktop/.runtime/macos/runtime.json")
+        state = read(Path.home() / "Library/Application Support/NewPat-Desktop/.runtime/macos/runtime.json")
         require(state.get("phase") == "ready" and state.get("source_commit") == report["commit"]
                 and re.fullmatch(r"sha256:[0-9a-f]{64}", state.get("runtime_image") or ""),
                 "Il runtime preparato non corrisponde alla build installata.")

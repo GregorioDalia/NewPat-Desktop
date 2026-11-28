@@ -74,7 +74,7 @@ class ProjectLayout:
     def container_path(self, host_path: Path) -> PurePosixPath:
         resolved = host_path.expanduser().resolve()
         mounts = (
-            (self.project_dir, PurePosixPath("/workspace/nipat-desktop")),
+            (self.project_dir, PurePosixPath("/workspace/newpat-desktop")),
             (self.data_dir, PurePosixPath("/workspace/data")),
             (self.runs_dir, PurePosixPath("/workspace/runs")),
         )

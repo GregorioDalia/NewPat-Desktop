@@ -83,11 +83,6 @@ def _archive_entry(entry, language):
     # The Results view names an entry independently of the report's case selector.
     label = entry.get("label") or entry.get("sample_label") or entry.get("family_id") or _text(language, "Riepilogo", "Overview")
     parts = [_public_label(label)]
-    if selection := entry.get("analysis"):
-        selection = {"all": "all_compatible_sites", "heterozygous": "heterozygous_child_sites",
-                     "other_allele": "heterozygous_child_sites"}.get(selection, selection)
-        parts.append(_text(language, "Entrambe le selezioni di siti", "Both site selections") if selection == "both"
-                     else _display(selection, column_description("Analysis", language=language), language))
     if cutoff := entry.get("cutoff"):
         parts.append(_public_label(cutoff))
     return " · ".join(parts)
@@ -213,6 +208,10 @@ def _cases(store, run_id, *, notes=None):
                 continue
             source = files[entry["file_id"]]
             row = entry.get("row", {})
+            # A postnatal case is one scalar result per trio. Subset summaries
+            # cannot identify the contributing rows of its per-site table.
+            if group["module"] == "cpin" and ("Mismatch_probability" not in row or "Analysis" in row):
+                continue
             marker = group["marker"] or row.get("Marker_type") or ""
             if row.get("Marker_type") and marker != row["Marker_type"]:
                 continue
@@ -224,8 +223,6 @@ def _cases(store, run_id, *, notes=None):
             selection = []
             if entry.get("cutoff") not in (None, *MISSING):
                 selection.append(_text(lang, "Pannello", "Panel") + " " + _public_label(entry["cutoff"]))
-            if entry.get("analysis"):
-                selection.append(_display(entry["analysis"], column_description("Analysis", language=lang), lang))
             step_id = source.get("step_id") or entry.get("step_id")
             identity = [run_id, group["module"], marker, step_id, source["id"], entry.get("row_number"),
                         family, entry.get("sample_id"), subject, row, summary.get("guide_band"),
@@ -466,14 +463,7 @@ def _details(store, run_id, case, entry, result):
             title = t("Genotipi osservati", "Observed genotypes") if module.endswith("-call") else t("Confronto dei siti paterni", "Paternal site comparison")
             result["chart"] = _chart(title, "bar", "", t("Numero di siti", "Site count"),
                                      [(m["label"], i, _number(m["value"])) for i, m in enumerate(counts)])
-    if module == "cpin" and entry.get("analysis"):
-        # A legacy sites file can cover more than the selection printed above.
-        # Use the selection-specific native intervals, without plotting a new curve.
-        if len(entry.get("curve_file_ids", [])) != 1:
-            return
-        table = _detail_table(store, run_id, entry["curve_file_ids"][0], curve=True)
-        keys = ("Min_child_reads", "Through_min_child_reads", "Log10_CPI", "N_sites")
-    elif module == "cpi" and len(entry.get("curve_file_ids", [])) == 1:
+    if module == "cpi" and len(entry.get("curve_file_ids", [])) == 1:
         curve = _detail_table(store, run_id, entry["curve_file_ids"][0], curve=True)
         rows = curve["rows"]
         points = [(r.get("Iteration"), _number(r.get("Iteration")), _number(r.get("log_CPI"))) for r in rows]
@@ -511,7 +501,6 @@ def _details(store, run_id, case, entry, result):
     if not keys or not rows:
         return
     title = (t("Soglie della curva", "Curve thresholds") if "Iteration" in keys else
-             t("Intervalli di lettura archiviati", "Archived read intervals") if "Through_min_child_reads" in keys else
              t("Dettaglio dei siti", "Site details"))
     result["table"] = {"title": title, "columns": [columns[k]["label"] for k in keys],
                        "rows": [[_display(row.get(k), columns[k], lang) for k in keys] for row in rows],
@@ -523,7 +512,7 @@ def _details(store, run_id, case, entry, result):
             if value is not None and 0 <= value <= 1:
                 points.append((site_label(row, i + 1, lang == "en"), i, value * 100))
         result["chart"] = _chart(t("Contaminazione nei siti mostrati", "Contamination at the sites shown"), "bar", "", "%", points)
-    result["charts"] = detail_charts(module, table, lang, legacy_selection=bool(entry.get("analysis")))
+    result["charts"] = detail_charts(module, table, lang)
 
 
 def build_report(store, run_id, case_id, *, detailed=False):

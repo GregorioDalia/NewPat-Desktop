@@ -22,11 +22,11 @@ def verify(app: Path, python: Path, workspace: Path, report: Path, screenshot: P
     report.parent.mkdir(parents=True, exist_ok=True)
     screenshot.parent.mkdir(parents=True, exist_ok=True)
     environment = {name: value for name, value in os.environ.items()
-                   if not name.startswith(("NEWPAT_", "NIPAT_", "PYTHON", "DOCKER", "COMPOSE"))}
+                   if not name.startswith(("NEWPAT_", "PYTHON", "DOCKER", "COMPOSE"))}
     environment.update({
-        "NIPAT_GUI_VERIFY_PDF": "1", "NIPAT_PROJECT_DIR": str(app), "NIPAT_WORKSPACE_DIR": str(workspace),
-        "NIPAT_DATA_DIR": str(workspace / "data"), "NIPAT_RUNS_DIR": str(workspace / "runs"),
-        "NIPAT_SETTINGS_FILE": str(workspace / "preferences.json"),
+        "NEWPAT_GUI_VERIFY_PDF": "1", "NEWPAT_PROJECT_DIR": str(app), "NEWPAT_WORKSPACE_DIR": str(workspace),
+        "NEWPAT_DATA_DIR": str(workspace / "data"), "NEWPAT_RUNS_DIR": str(workspace / "runs"),
+        "NEWPAT_SETTINGS_FILE": str(workspace / "preferences.json"),
     })
     code = ("import sys;sys.path.insert(0,sys.argv.pop(1));"
             "from newpat.cli import main;raise SystemExit(main())")

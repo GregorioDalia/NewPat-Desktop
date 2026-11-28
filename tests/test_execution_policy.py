@@ -52,8 +52,8 @@ class ExecutionPolicyTests(unittest.TestCase):
         self.assertIsNone(record["input_hash_limit_bytes"])
         self.assertEqual(len(record["run_id"]), 32)
         command = record["commands"][0]["argv"]
-        self.assertIn("org.nipat.run-id=" + record["run_id"], command)
-        self.assertIn("org.nipat.product=nipat-desktop", command)
+        self.assertIn("org.newpat.run-id=" + record["run_id"], command)
+        self.assertIn("org.newpat.product=newpat-desktop", command)
 
     def test_large_inputs_full_mode_really_hashes_and_reports_progress(self):
         path = Path(self.temp) / "large.bam"

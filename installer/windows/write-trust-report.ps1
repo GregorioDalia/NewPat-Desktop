@@ -7,7 +7,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-function Get-NipatTrustFile {
+function Get-NewPatTrustFile {
     param([string]$Path, [string]$RelativePath)
     $file = Get-Item -LiteralPath $Path -Force
     if ($file.PSIsContainer -or ($file.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
@@ -38,7 +38,7 @@ function Get-NipatTrustFile {
     }
 }
 
-function Get-NipatTrustTreeFiles {
+function Get-NewPatTrustTreeFiles {
     param([string]$Directory)
     # Enumerate explicitly: Get-ChildItem -Recurse can follow a junction before
     # its target is checked. No externally linked content belongs to the stage.
@@ -46,12 +46,12 @@ function Get-NipatTrustTreeFiles {
         if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
             throw 'A trust inventory cannot traverse reparse points.'
         }
-        if ($item.PSIsContainer) { Get-NipatTrustTreeFiles $item.FullName }
+        if ($item.PSIsContainer) { Get-NewPatTrustTreeFiles $item.FullName }
         elseif ($item.Extension -iin @('.exe', '.dll', '.pyd', '.ps1', '.psm1')) { $item }
     }
 }
 
-function Write-NipatTrustReport {
+function Write-NewPatTrustReport {
     param([string]$ApplicationDirectory, [string]$InstallerPath, [string]$OutputPath)
     $app = (Resolve-Path -LiteralPath $ApplicationDirectory).Path.TrimEnd('\', '/')
     $installer = (Resolve-Path -LiteralPath $InstallerPath).Path
@@ -69,11 +69,11 @@ function Write-NipatTrustReport {
         throw 'Invalid source identity in installer manifest.'
     }
     $files = New-Object 'Collections.Generic.List[object]'
-    foreach ($file in Get-NipatTrustTreeFiles $app) {
+    foreach ($file in Get-NewPatTrustTreeFiles $app) {
         $relative = $file.FullName.Substring($app.Length + 1).Replace('\', '/')
-        $files.Add((Get-NipatTrustFile $file.FullName ('app/' + $relative)))
+        $files.Add((Get-NewPatTrustFile $file.FullName ('app/' + $relative)))
     }
-    $setup = Get-NipatTrustFile $installer 'setup/NIPAT-Setup.exe'
+    $setup = Get-NewPatTrustFile $installer 'setup/NewPat-Setup.exe'
     $files.Add($setup)
 
     # Embedded CPython is shipped as a verified ZIP. Inspect its executable
@@ -87,7 +87,7 @@ function Write-NipatTrustReport {
         sha256 = (Get-FileHash -LiteralPath $archives[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
         size = $archives[0].Length
     }
-    $temporary = Join-Path ([IO.Path]::GetTempPath()) ('nipat-trust-' + [Guid]::NewGuid().ToString('N'))
+    $temporary = Join-Path ([IO.Path]::GetTempPath()) ('newpat-trust-' + [Guid]::NewGuid().ToString('N'))
     [IO.Directory]::CreateDirectory($temporary) | Out-Null
     $zip = $null
     try {
@@ -109,7 +109,7 @@ function Write-NipatTrustReport {
                 # A generated local name avoids ZIP path traversal entirely.
                 $member = Join-Path $temporary (([string]$count) + [IO.Path]::GetExtension($entry.FullName))
                 [IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $member, $false)
-                $files.Add((Get-NipatTrustFile $member ('app/.distribution/' + $archives[0].Name + '!/' + $entry.FullName)))
+                $files.Add((Get-NewPatTrustFile $member ('app/.distribution/' + $archives[0].Name + '!/' + $entry.FullName)))
                 $count++
             }
         }
@@ -145,5 +145,5 @@ if ($MyInvocation.InvocationName -ne '.') {
     if (-not $ApplicationDirectory -or -not $InstallerPath -or -not $OutputPath) {
         throw 'ApplicationDirectory, InstallerPath and OutputPath are required.'
     }
-    Write-NipatTrustReport $ApplicationDirectory $InstallerPath $OutputPath
+    Write-NewPatTrustReport $ApplicationDirectory $InstallerPath $OutputPath
 }

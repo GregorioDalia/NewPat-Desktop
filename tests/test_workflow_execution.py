@@ -40,7 +40,7 @@ class UnsupportedExecutionTests(unittest.TestCase):
 @unittest.skipUnless(os.name == "posix", "scientific execution runs inside the Linux image")
 class WorkflowExecutionTests(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="nipat-execution-")
+        self.temporary = tempfile.TemporaryDirectory(prefix="newpat-execution-")
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name).resolve()
         self.inputs = self.root / "inputs"
@@ -77,7 +77,7 @@ class WorkflowExecutionTests(unittest.TestCase):
     def fake_r(self, command, cwd, log_path):
         self.calls.append(command)
         log_path.write_text("scientific output\n", encoding="utf-8")
-        settings_path = Path(os.environ["NIPAT_SCIENTIFIC_SETTINGS"])
+        settings_path = Path(os.environ["NEWPAT_SCIENTIFIC_SETTINGS"])
         settings = json.loads(settings_path.read_text())["parameters"]
         (settings_path.parent.parent / "output/scientific-settings.json").write_bytes(settings_path.read_bytes())
         if Path(command[1]).name == "dnp-call.R":
@@ -188,11 +188,11 @@ class WorkflowExecutionTests(unittest.TestCase):
         events_dir = self.root / "progress"
         child_scopes = []
         def record_scope(command, cwd, log_path):
-            child_scopes.append((os.environ["NIPAT_PROGRESS_STEP_ID"],
-                                 json.loads(os.environ["NIPAT_PROGRESS_SAMPLE_IDS"]),
-                                 json.loads(os.environ["NIPAT_PROGRESS_SAMPLE_MAP"])))
+            child_scopes.append((os.environ["NEWPAT_PROGRESS_STEP_ID"],
+                                 json.loads(os.environ["NEWPAT_PROGRESS_SAMPLE_IDS"]),
+                                 json.loads(os.environ["NEWPAT_PROGRESS_SAMPLE_MAP"])))
             return self.fake_r(command, cwd, log_path)
-        with patch.dict(os.environ, {"NIPAT_PROGRESS_DIR": str(events_dir), "NIPAT_PERFORMANCE_DIR": ""}):
+        with patch.dict(os.environ, {"NEWPAT_PROGRESS_DIR": str(events_dir), "NEWPAT_PERFORMANCE_DIR": ""}):
             result = self.execute(record_scope)
         self.assertEqual(result["status"], "succeeded")
         self.assertEqual(child_scopes[0], ("dnp", ["donor_a", "donor_b"],

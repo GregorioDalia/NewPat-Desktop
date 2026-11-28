@@ -34,9 +34,6 @@ class WindowsPayloadTests(unittest.TestCase):
     def package(self):
         source = "src/newpat/__init__.py"
         self.write(source, '__version__ = "0.7.0a1"\n')
-        self.write("NIPAT.exe", "fixture launcher")
-        self.write("installer/windows/EnableWsl.exe", "fixture helper")
-        self.write("installer/windows/NipatActivityNative.dll", "fixture activity helper")
         archive = self.write(f".distribution/{check.PYTHON_ARCHIVE}", "fixture archive")
         self.addCleanup(patch.stopall)
         patch.object(check, "PYTHON_SHA256", check.digest(archive)).start()
@@ -133,7 +130,7 @@ class WindowsPayloadTests(unittest.TestCase):
 
         def native_run(*args, **kwargs):
             environment = kwargs["env"].copy()
-            environment["NIPAT_BACKEND"] = "native"
+            environment["NEWPAT_BACKEND"] = "native"
             environment["PYTHONPATH"] = str(self.app / "src")
             return original_run(*args, **{**kwargs, "env": environment})
 

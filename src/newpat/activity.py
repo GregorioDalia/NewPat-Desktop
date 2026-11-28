@@ -10,23 +10,23 @@ import re
 import sys
 from typing import Iterator
 
-from .errors import NipatError
+from .errors import NewPatError
 from .distribution import WINDOWS_DIRECTORY
 
 _BUSY = "NewPat e in aggiornamento. Attendere la fine dell'installazione prima di avviare una sessione."
-_TOKEN = "NIPAT_SETUP_ACTIVITY_TOKEN"
+_TOKEN = "NEWPAT_SETUP_ACTIVITY_TOKEN"
 
 
 def _safe_parent(path: Path) -> None:
     for entry in (path, *path.parents):
         if entry.is_symlink() or (hasattr(entry, "is_junction") and entry.is_junction()):
-            raise NipatError("Il percorso di coordinamento NewPat non puo attraversare collegamenti.")
+            raise NewPatError("Il percorso di coordinamento NewPat non puo attraversare collegamenti.")
 
 
 def windows_activity_path() -> Path:
     base = os.environ.get("LOCALAPPDATA", "")
     if not base or not Path(base).is_absolute():
-        raise NipatError("LOCALAPPDATA non disponibile per coordinare le sessioni NewPat.")
+        raise NewPatError("LOCALAPPDATA non disponibile per coordinare le sessioni NewPat.")
     path = Path(base) / WINDOWS_DIRECTORY / "activity.lock"
     _safe_parent(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -116,31 +116,31 @@ def activity_session(*, project_dir: Path) -> Iterator[None]:
                                     0x00000080 | 0x00200000, None)
         if handle == ctypes.c_void_p(-1).value:
             error = ctypes.get_last_error()
-            raise NipatError(_BUSY if error in (32, 33) else
+            raise NewPatError(_BUSY if error in (32, 33) else
                              f"Impossibile coordinare la sessione NewPat (errore Windows {error}).")
         try:
             yield
         finally:
             kernel.CloseHandle(handle)
         return
-    if Path(project_dir).resolve() != Path("/opt/nipat-desktop"):
+    if Path(project_dir).resolve() != Path("/opt/newpat-desktop"):
         yield
         return
     import fcntl
 
-    lock = Path("/var/lib/nipat-desktop/activity.lock")
+    lock = Path("/var/lib/newpat-desktop/activity.lock")
     _safe_parent(lock)
     try:
         with lock.open("rb") as stream:
             try:
                 fcntl.flock(stream, fcntl.LOCK_SH | fcntl.LOCK_NB)
             except BlockingIOError as exc:
-                raise NipatError(_BUSY) from exc
+                raise NewPatError(_BUSY) from exc
             try:
                 if lock.with_name("update-in-progress").exists():
-                    raise NipatError(_BUSY)
+                    raise NewPatError(_BUSY)
                 yield
             finally:
                 fcntl.flock(stream, fcntl.LOCK_UN)
     except OSError as exc:
-        raise NipatError("Coordinamento NewPat non disponibile: completare o riparare l'installazione.") from exc
+        raise NewPatError("Coordinamento NewPat non disponibile: completare o riparare l'installazione.") from exc

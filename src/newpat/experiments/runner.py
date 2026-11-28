@@ -199,19 +199,19 @@ class DockerComposeRunner:
         volumes.append({"type": "volume", "target": "/scratch", "read_only": False})
         service = {
             "image": image,
-            "user": "${NIPAT_UID:-0}:${NIPAT_GID:-0}",
+            "user": "${NEWPAT_UID:-0}:${NEWPAT_GID:-0}",
             "read_only": True, "network_mode": "none",
             "tmpfs": ["/tmp:rw,nosuid,nodev,size=128m"],
             "working_dir": str(self.layout.container_path(run_dir / "work")),
             "volumes": volumes,
             "environment": {"HOME": "/tmp", "TMPDIR": "/tmp", "LANG": "C.UTF-8",
                             "LC_ALL": "C.UTF-8", "TZ": "Europe/Rome",
-                            "NIPAT_SCRATCH_ROOT": "/scratch"},
+                            "NEWPAT_SCRATCH_ROOT": "/scratch"},
         }
         service["environment"].update({
-            "NIPAT_EXECUTION_MODE": self.options.execution_mode,
-            "NIPAT_DNP_BLOCK_BYTES": str(self.options.dnp_block_mib * 1024 * 1024),
-            "NIPAT_DNP_BLOCK_LOCI": str(self.options.dnp_block_loci),
+            "NEWPAT_EXECUTION_MODE": self.options.execution_mode,
+            "NEWPAT_DNP_BLOCK_BYTES": str(self.options.dnp_block_mib * 1024 * 1024),
+            "NEWPAT_DNP_BLOCK_LOCI": str(self.options.dnp_block_loci),
             "OMP_NUM_THREADS": "1", "OPENBLAS_NUM_THREADS": "1", "MKL_NUM_THREADS": "1",
             "VECLIB_MAXIMUM_THREADS": "1", "NUMEXPR_NUM_THREADS": "1", "BLIS_NUM_THREADS": "1",
             "VROOM_THREADS": "1",
@@ -222,19 +222,19 @@ class DockerComposeRunner:
             if budget is None:
                 budget = fixed_execution_budget(self._record.data.get("resource_snapshot", {}), self.options)
                 self._record.data["resource_budget"] = budget
-            service["environment"]["NIPAT_FIXED_RESOURCE_BUDGET"] = json.dumps(
+            service["environment"]["NEWPAT_FIXED_RESOURCE_BUDGET"] = json.dumps(
                 budget, ensure_ascii=True, allow_nan=False, separators=(",", ":"),
             )
         scheduling = self._record.data.get("concurrent_execution", {}).get("step_scheduling")
         if scheduling and scheduling.get("interface") == "step-budget-v1":
-            service["environment"]["NIPAT_DESKTOP_SCHEDULER"] = str(
+            service["environment"]["NEWPAT_DESKTOP_SCHEDULER"] = str(
                 self.layout.container_path(run_dir / "work" / "desktop-scheduling")).replace("$", "$$")
         if self.options.max_workers is not None:
-            service["environment"]["NIPAT_MAX_WORKERS"] = str(self.options.max_workers)
+            service["environment"]["NEWPAT_MAX_WORKERS"] = str(self.options.max_workers)
         if self.options.cpus is not None:
-            service["environment"]["NIPAT_CPU_LIMIT"] = str(self.options.cpus)
+            service["environment"]["NEWPAT_CPU_LIMIT"] = str(self.options.cpus)
         if self.options.memory_mb is not None:
-            service["environment"]["NIPAT_MEMORY_LIMIT_MIB"] = str(self.options.memory_mb)
+            service["environment"]["NEWPAT_MEMORY_LIMIT_MIB"] = str(self.options.memory_mb)
         backend = self._transport.backend
         architecture = platform.machine().lower()
         arm_lima = backend == "lima" and architecture == "arm64"
@@ -242,13 +242,13 @@ class DockerComposeRunner:
             from newpat.macos_runtime import scientific_platform
             service["platform"] = scientific_platform(architecture)
         if arm_lima:
-            service["environment"]["NIPAT_DNP_LIMA_ARM64"] = "1"
+            service["environment"]["NEWPAT_DNP_LIMA_ARM64"] = "1"
         if arm_lima or (backend == "native" and sys.platform == "linux" and architecture == "x86_64"):
-            service["environment"]["NIPAT_DNP_OPTIMIZED_IO"] = "1"
+            service["environment"]["NEWPAT_DNP_OPTIMIZED_IO"] = "1"
         service.update(self.options.compose_limits())
         destination = run_dir / "work" / "engine-compose.json"
         with destination.open("x", encoding="utf-8", newline="\n") as handle:
-            json.dump({"name": "nipat", "services": {"scientific": service}}, handle,
+            json.dump({"name": "newpat", "services": {"scientific": service}}, handle,
                       ensure_ascii=False, indent=2)
             handle.write("\n")
         self._engine_compose_file = destination
@@ -368,7 +368,7 @@ class DockerComposeRunner:
                 and isinstance(settings.get("workflows"), list)
                 and all(isinstance(name, str) for name in settings["workflows"])
                 and required_workflows.issubset(settings["workflows"])
-                and parallel.get("interface") == "nipat-parallel-v1"
+                and parallel.get("interface") == "newpat-parallel-v1"
                 and type(parallel.get("schema_version")) is int
                 and parallel.get("schema_version") == 1
                 and parallel.get("default_mode") == "auto"
@@ -418,20 +418,20 @@ class DockerComposeRunner:
                 "Usare un runtime costruito per questa versione di NewPat."
                 " Sono richiesti i controlli scientific-validation-v1 sugli input e sugli output."
                 " Il runtime deve includere il supporto ai nomi originali nei risultati."
-                " E' richiesto il parallelismo configurabile nipat-parallel-v1."
+                " E' richiesto il parallelismo configurabile newpat-parallel-v1."
             )
         return description
 
     def _describe_bundled_engine(self) -> dict[str, Any]:
         if self._image_id is None:
             raise RuntimeExecutionError("Il runtime incorporato non è stato preparato.")
-        probe_name = "nipat-probe-" + uuid.uuid4().hex
+        probe_name = "newpat-probe-" + uuid.uuid4().hex
         try:
             output = self._capture([
                 "docker", "run", "--rm", "--pull=never", "--name", probe_name,
                 "--network", "none", "--read-only", "--tmpfs", "/tmp:rw,nosuid,nodev,size=128m",
                 "--env", "HOME=/tmp", "--env", "TMPDIR=/tmp", self._image_id,
-                "python3", "/opt/nipat/engine/main.py", "describe", "--json",
+                "python3", "/opt/newpat/engine/main.py", "describe", "--json",
             ], container_name=probe_name)
             description = json.loads(output)
         except (RuntimeExecutionError, ValueError) as exc:
@@ -462,16 +462,16 @@ class DockerComposeRunner:
 
     def _environment(self) -> dict[str, str]:
         environment = os.environ.copy()
-        environment["NIPAT_WORKSPACE_DIR"] = str(self.layout.workspace_dir)
-        environment["NIPAT_PROJECT_DIR"] = str(self.layout.project_dir)
-        environment["NIPAT_DATA_DIR"] = str(self.layout.data_dir)
-        environment["NIPAT_RUNS_DIR"] = str(self.layout.runs_dir)
+        environment["NEWPAT_WORKSPACE_DIR"] = str(self.layout.workspace_dir)
+        environment["NEWPAT_PROJECT_DIR"] = str(self.layout.project_dir)
+        environment["NEWPAT_DATA_DIR"] = str(self.layout.data_dir)
+        environment["NEWPAT_RUNS_DIR"] = str(self.layout.runs_dir)
         image = self._image_id or setting("RUNTIME_IMAGE")
         if image:
-            environment["NIPAT_RUNTIME_IMAGE"] = image
+            environment["NEWPAT_RUNTIME_IMAGE"] = image
         if hasattr(os, "getuid") and hasattr(os, "getgid"):
-            environment["NIPAT_UID"] = str(os.getuid())
-            environment["NIPAT_GID"] = str(os.getgid())
+            environment["NEWPAT_UID"] = str(os.getuid())
+            environment["NEWPAT_GID"] = str(os.getgid())
         return environment
 
     def _write(self, text: str, *, terminal: bool = True, log: bool = True) -> None:
@@ -576,7 +576,7 @@ class DockerComposeRunner:
             }
             self._record.save()
         # Pin execution to this image ID; later changes to its tag cannot change this run.
-        probe_name = "nipat-probe-" + uuid.uuid4().hex
+        probe_name = "newpat-probe-" + uuid.uuid4().hex
         isolation = [
             "--network", "none", "--read-only", "--tmpfs", "/tmp:rw,nosuid,nodev,size=128m",
             "--env", "HOME=/tmp", "--env", "TMPDIR=/tmp",
@@ -663,7 +663,7 @@ class DockerComposeRunner:
                     if bundled_workflow is not None:
                         if self.dry_run:
                             record.data["engine_verification"] = "not_run_dry_run"
-                            image = f"${{NIPAT_RUNTIME_IMAGE:-nipat-scientific-runtime:{__version__}}}"
+                            image = f"${{NEWPAT_RUNTIME_IMAGE:-newpat-scientific-runtime:{__version__}}}"
                         else:
                             self._describe_bundled_engine()
                             record.data["engine_verification"] = "verified"
@@ -725,14 +725,14 @@ class DockerComposeRunner:
         if not self.dry_run:
             self._ensure_backend()
         self._verify_inputs("before_execution")
-        container_name = "nipat-run-" + uuid.uuid4().hex
+        container_name = "newpat-run-" + uuid.uuid4().hex
         docker_command = self._base_command() + [
             # Retain the stopped container until state/limits have been recorded;
             # finally removes only its verified immutable ID on every outcome.
             "run", "-T", "--pull", "never", "--name", container_name,
         ]
-        expected_labels = {"org.nipat.execution-token": uuid.uuid4().hex}
-        oom_token = expected_labels["org.nipat.execution-token"]
+        expected_labels = {"org.newpat.execution-token": uuid.uuid4().hex}
+        oom_token = expected_labels["org.newpat.execution-token"]
         if self._record is not None:
             expected_labels.update(ownership_labels(
                 self._record.run_dir, self._record.data["run_id"],
@@ -748,8 +748,8 @@ class DockerComposeRunner:
             if number > 1:
                 progress_directory = progress_directory / f"command-{number:03d}"
             docker_command.extend([
-                "--env", "NIPAT_PROGRESS_DIR=" + str(self.layout.container_path(progress_directory)),
-                "--env", "NIPAT_OOM_TOKEN=" + oom_token,
+                "--env", "NEWPAT_PROGRESS_DIR=" + str(self.layout.container_path(progress_directory)),
+                "--env", "NEWPAT_OOM_TOKEN=" + oom_token,
             ])
         performance_directory = None
         fresh_samples = False
@@ -760,7 +760,7 @@ class DockerComposeRunner:
                 performance_directory = performance_directory / f"command-{number:03d}"
             fresh_samples = not os.path.lexists(performance_directory / "engine")
             docker_command.extend([
-                "--env", "NIPAT_PERFORMANCE_DIR=" + str(
+                "--env", "NEWPAT_PERFORMANCE_DIR=" + str(
                     self.layout.container_path(performance_directory / "engine")),
             ])
         docker_command.append("scientific")
@@ -773,7 +773,7 @@ class DockerComposeRunner:
             "status": "planned" if self.dry_run else "running",
         }
         if progress_directory is not None:
-            stage["progress"] = {"interface": "nipat-progress-v1", "directory":
+            stage["progress"] = {"interface": "newpat-progress-v1", "directory":
                                  progress_directory.relative_to(self._record.run_dir).as_posix()}
         if self._record:
             self._record.data["commands"].append(stage)

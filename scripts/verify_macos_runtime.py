@@ -83,7 +83,7 @@ def verify(app: Path, output: Path) -> dict:
     output.parent.mkdir(parents=True, exist_ok=True)
     log_root = output.parent / (output.stem + "-logs")
     log_root.mkdir()
-    workspace = Path.home() / "Library/Application Support/NIPAT-Desktop"
+    workspace = Path.home() / "Library/Application Support/NewPat-Desktop"
     run_root = workspace / "runs" / ("acceptance-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S") + f"-{time.time_ns()}")
     records = []
     report = {
@@ -119,12 +119,12 @@ def verify(app: Path, output: Path) -> dict:
         execute("doctor", ["doctor", "--runtime"], 600)
         project = app / "Contents/Resources/app"
         sys.path.insert(0, str(project / "src"))
-        from newpat.errors import NipatError
+        from newpat.errors import NewPatError
         from newpat.macos_runtime import LimaRuntime
         runtime = LimaRuntime(project, workspace, app / "Contents/Resources/lima/bin/limactl")
         try:
             native = runtime.native_evidence(first_state["runtime_image"])
-        except NipatError as exc:
+        except NewPatError as exc:
             raise ValueError(str(exc)) from exc
         if first_state.get("scientific_platform") != native["scientific_platform"]:
             raise ValueError("The prepared guest platform differs from the installed scientific image")
@@ -134,7 +134,7 @@ def verify(app: Path, output: Path) -> dict:
         sys.path.insert(0, str(project / "scripts/acceptance"))
         try:
             cold_check = check_cold_start(execute, runtime, project, run_root, first_state["runtime_image"])
-        except (NipatError, AssertionError) as exc:
+        except (NewPatError, AssertionError) as exc:
             raise ValueError(str(exc)) from exc
         records.append({"name": "cold-start-scientific-results", "passed": True, **cold_check})
         execute("doctor-after-restart", ["doctor", "--runtime"], 600)

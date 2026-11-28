@@ -37,7 +37,7 @@ class ResultsTests(unittest.TestCase):
             "schema_version": 1, "workflow": "dnp-call", "status": "succeeded",
             "started_at": "2026-10-21T15:00:00Z", "finished_at": "2026-10-21T15:01:00Z",
             "inputs": [{"path": "sample.bam"}, {"path": "reference.fa"}],
-            "source": {"nipat_version": "0.4.1"},
+            "source": {"newpat_version": "0.4.1"},
         }
         self.save_metadata()
 

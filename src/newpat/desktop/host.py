@@ -21,7 +21,7 @@ def smoke_probe_script():
     """Poll native readiness; the full-app qualification also renders a synthetic PDF in memory."""
     verify_pdf = "true" if setting("GUI_VERIFY_PDF") == "1" else "false"
     return """(() => {
-        const ready = document.documentElement.dataset.nipatReady === 'true';
+        const ready = document.documentElement.dataset.newpatReady === 'true';
         if (VERIFY_PDF && ready && !window.__newpatPdfSmoke) {
             const state = window.__newpatPdfSmoke = {status: 'pending'};
             (async () => {

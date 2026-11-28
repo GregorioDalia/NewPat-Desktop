@@ -5,12 +5,13 @@ import io
 import subprocess
 import tempfile
 import unittest
+from zipfile import ZipFile
 from pathlib import Path
 from unittest.mock import patch
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "distribution_support.py"
-SPEC = importlib.util.spec_from_file_location("nipat_distribution_support", SCRIPT)
+SPEC = importlib.util.spec_from_file_location("newpat_distribution_support", SCRIPT)
 distribution = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(distribution)
 
@@ -30,6 +31,20 @@ class DistributionTests(unittest.TestCase):
                     if helper.is_file():
                         with self.subTest(script=source.name, helper=helper.name):
                             self.assertIn(helper, selected)
+
+    def test_fresh_install_contains_only_current_product_names(self):
+        project = SCRIPT.parents[1]
+        retired = b"nipat"
+        for path in distribution.source_files(project):
+            relative = path.relative_to(project).as_posix()
+            with self.subTest(path=relative):
+                self.assertNotIn(retired.decode(), relative.casefold())
+                self.assertNotIn(retired, path.read_bytes().lower())
+                if path.suffix == ".zip":
+                    with ZipFile(path) as archive:
+                        for name in archive.namelist():
+                            self.assertNotIn(retired.decode(), name.casefold())
+                            self.assertNotIn(retired, archive.read(name).lower())
 
     def make_project(self, root):
         project = root / "project"
@@ -105,7 +120,7 @@ class DistributionTests(unittest.TestCase):
             project = self.make_project(Path(directory))
             subprocess.run(["git", "init", "--quiet", str(project)], check=True)
             subprocess.run(["git", "add", "."], cwd=project, check=True)
-            subprocess.run(["git", "-c", "user.name=NIPAT Test", "-c", "user.email=test@example.invalid",
+            subprocess.run(["git", "-c", "user.name=NewPat Test", "-c", "user.email=test@example.invalid",
                             "commit", "--quiet", "-m", "Fixture"], cwd=project, check=True)
             clean = distribution.git_source(project)
             self.assertTrue(clean["available"])

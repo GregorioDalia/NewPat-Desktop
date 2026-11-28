@@ -4,10 +4,10 @@ Two suites check the R code in the packaged scientific image. One compares calle
 
 ```sh
 python scripts/verify_r_equivalence.py \
-  --image nipat-scientific-runtime:ci-test \
+  --image newpat-scientific-runtime:ci-test \
   --output-dir build/r-equivalence
 python scripts/verify_five_modules.py \
-  --image nipat-scientific-runtime:ci-test \
+  --image newpat-scientific-runtime:ci-test \
   --full --output build/five-modules
 ```
 
@@ -15,13 +15,13 @@ Use separate new/empty output directories. Docker is required; the caller gate
 also requires Poppler's `pdftoppm` and `pdfinfo`. Containers have no network,
 read-only source/oracle mounts, four CPUs and 8 GiB. Source and helper hashes
 must match the checkout before candidate science can run. The downstream gate
-runs the installed code in `/opt/nipat`, never host candidate overrides. Its
+runs the installed code in `/opt/newpat`, never host candidate overrides. Its
 local-R mode snapshots candidate code to prevent concurrent development edits
 from changing an Rscript that is already running.
 
 ## DNP and SNP calling
 
-`verify_r_equivalence.py` compares DNP defaults against immutable NIPAT 0.8.5
+`verify_r_equivalence.py` compares DNP defaults against immutable 0.8.5
 commit `eafadf7002a9c7d7c1b9af9ccafc47d698a059e5`, and SNP against the complete
 scientific core of SNPcall 2.0 from NEWPAT commit
 `ce59f4beeeec710b1b42d425cb87d7aad729f71d`. The complete historical six-file

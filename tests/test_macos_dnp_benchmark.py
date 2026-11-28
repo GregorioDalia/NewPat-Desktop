@@ -16,7 +16,7 @@ def test_startup_report_separates_existing_checks_without_timing_additional_comm
         "checks": [
             {"argv": ["python", "-c", "runpy...", "/app/src", "ensure"],
              "started_at": stamp(2), "finished_at": stamp(6)},
-            {"argv": ["limactl", "shell", "docker", "run", "python3", "/opt/nipat/engine/main.py", "describe", "--json"],
+            {"argv": ["limactl", "shell", "docker", "run", "python3", "/opt/newpat/engine/main.py", "describe", "--json"],
              "started_at": stamp(7), "finished_at": stamp(9)},
             {"argv": ["docker", "inspect"], "started_at": stamp(9), "finished_at": stamp(11)},
         ],

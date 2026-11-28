@@ -150,7 +150,7 @@ class ProgressObserver:
             self._stop.wait(self.interval)
 
     def start(self):
-        self._thread = threading.Thread(target=self._observe, name="nipat-progress", daemon=True)
+        self._thread = threading.Thread(target=self._observe, name="newpat-progress", daemon=True)
         self._thread.start()
 
     def stop(self, outcome="succeeded"):

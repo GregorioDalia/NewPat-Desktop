@@ -7,7 +7,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from newpat.errors import NipatError, ValidationError
+from newpat.errors import NewPatError, ValidationError
 from newpat.scientific_options import edit_scientific_settings, settings_lines
 from newpat.experiments.options import ExecutionOptions
 from newpat.paths import ProjectLayout
@@ -111,7 +111,7 @@ class GuidedSettings:
         if store is not None:
             try:
                 self.preferences = store.load()
-            except (NipatError, OSError, ValueError) as exc:
+            except (NewPatError, OSError, ValueError) as exc:
                 self.load_error = str(exc)
         self.refresh_layout()
 
@@ -123,7 +123,7 @@ class GuidedSettings:
         try:
             self.layout = self.preferences.effective_layout(self.base_layout, self.directory_overrides)
             self.layout_error = None
-        except (NipatError, OSError, ValueError) as exc:
+        except (NewPatError, OSError, ValueError) as exc:
             self.layout = self.base_layout
             self.layout_error = str(exc)
 
@@ -182,7 +182,7 @@ class GuidedSettings:
                 try:
                     self._save(self.preferences.with_directories(
                         **{key: value for key, value in values.items() if value != initial[key]}))
-                except (NipatError, OSError, ValueError) as exc:
+                except (NewPatError, OSError, ValueError) as exc:
                     ui.message(str(exc), kind="error")
                     continue
                 self._saved_message(ui)
@@ -222,7 +222,7 @@ class GuidedSettings:
                     values = {key: value for key, value in form.values.items()
                               if value is not None and not (key in {"cutoffs", "cutoff_map"} and not value)}
                     self._save(self.preferences.with_workflow(choice, values))
-                except (NipatError, OSError, ValueError) as exc:
+                except (NewPatError, OSError, ValueError) as exc:
                     ui.message(str(exc), kind="error")
                     continue
                 self._saved_message(ui)
@@ -384,7 +384,7 @@ class GuidedSettings:
                 values = candidate
             except Back:
                 continue
-            except (NipatError, ValueError) as exc:
+            except (NewPatError, ValueError) as exc:
                 ui.message(f"Valore non valido: {exc}", kind="error")
 
     def configure(self, ui: Terminal, *, err_const: float) -> ProjectLayout:
@@ -429,5 +429,5 @@ class GuidedSettings:
                     self._workflow(ui, str(int(action) - 1), err_const)
                 else:
                     ui.message("Scegliere una delle opzioni indicate (0-9).", kind="muted")
-            except (NipatError, OSError, ValueError) as exc:
+            except (NewPatError, OSError, ValueError) as exc:
                 ui.message(str(exc), kind="error")

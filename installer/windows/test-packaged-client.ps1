@@ -27,7 +27,7 @@ if (Test-Path -LiteralPath $output) {
 # the independently distributed payload. This is not an installed-Windows/SAC test.
 New-Item -ItemType Directory -Path $work | Out-Null
 $manifest = Get-Content -LiteralPath (Join-Path $sourceApp '.distribution\installer-manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
-$payload = Join-Path (Split-Path -Parent $installer) ('NIPAT-' + $manifest.version + '-Windows-payload.zip')
+$payload = Join-Path (Split-Path -Parent $installer) ('NewPat-' + $manifest.version + '-Windows-payload.zip')
 $payloadHash = (Get-FileHash -LiteralPath $payload -Algorithm SHA256).Hash.ToLowerInvariant()
 $payloadSize = (Get-Item -LiteralPath $payload).Length
 $extracted = Join-Path $work 'downloaded payload'
@@ -46,12 +46,12 @@ if ((Get-FileHash -LiteralPath $inventoryPath -Algorithm SHA256).Hash -cne
 $app = Join-Path $work 'app'
 Copy-Item -LiteralPath (Join-Path $extracted 'app') -Destination $app -Recurse
 . (Join-Path $app 'scripts\windows\common.ps1')
-$python = Install-NipatPython $app
+$python = Install-NewPatPython $app
 # Exercise the production setup supervisor with the exact embedded interpreter
 # and relocated payload. Host Python tests cannot establish this dependency path.
 . (Join-Path $app 'installer\windows\bootstrap-common.ps1')
 $checkLogs = Join-Path $work 'setup checks'
-Invoke-NipatSetupCheck $python @('-c', 'print("embedded setup check")') $checkLogs 'doctor' -TimeoutSeconds 10
+Invoke-NewPatSetupCheck $python @('-c', 'print("embedded setup check")') $checkLogs 'doctor' -TimeoutSeconds 10
 if (([IO.File]::ReadAllText((Join-Path $checkLogs 'doctor.stdout.log'))).Trim() -cne 'embedded setup check') {
     throw 'Il controllo incorporato non ha conservato il suo output.'
 }
@@ -61,7 +61,7 @@ foreach ($case in @(
 )) {
     $failed = $false
     try {
-        Invoke-NipatSetupCheck $python @('-c', $case.Script) $checkLogs 'self-test' -TimeoutSeconds $case.Limit
+        Invoke-NewPatSetupCheck $python @('-c', $case.Script) $checkLogs 'self-test' -TimeoutSeconds $case.Limit
     } catch {
         $failed = $_.Exception.Message.Contains(('codice ' + $case.Code))
     }

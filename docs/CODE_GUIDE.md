@@ -40,4 +40,4 @@ At the root, [pyproject.toml](../pyproject.toml) defines the Python package and 
 
 Open `src/newpat` for the desktop client and `src/newpat_scientific` for input contracts and the local engine. From a development environment with the project installed, `python -m newpat` invokes the same client as the `newpat` command.
 
-Installed copies of 0.9.10 already own experiment folders, preferences and a WSL or Lima environment. Upgrade and discovery code looks up those existing locations. Their historical names can therefore appear in a saved run, on disk or in a diagnostic report. The uppercase `NEWPAT` under `scientific/vendor/` identifies the upstream R project.
+NewPat 0.9.99 initializes a separate workspace for its preferences, runtime and experiments. The [installation guide](DISTRIBUTION.md) links to the default paths for each platform. The uppercase `NEWPAT` under `scientific/vendor/` identifies the upstream R project.

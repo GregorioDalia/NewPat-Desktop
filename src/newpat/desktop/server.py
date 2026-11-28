@@ -20,7 +20,7 @@ import tempfile
 import threading
 from urllib.parse import unquote, urlsplit
 
-from newpat.errors import NipatError
+from newpat.errors import NewPatError
 from newpat.experiments.tracking import input_stat_snapshot
 
 MAX_RPC_BYTES = 2 * 1024 * 1024
@@ -141,7 +141,7 @@ class DesktopServer:
                     self._json(404, {"error": "Not found"})
                     return
                 if route == "health":
-                    self._json(200, {"status": "ready", "application": "NIPAT"})
+                    self._json(200, {"status": "ready", "application": "NewPat"})
                     return
                 if route.startswith("web/"):
                     relative = route[4:] or "index.html"
@@ -226,7 +226,7 @@ class DesktopServer:
                             length -= len(chunk)
                         result = pdf_export(params, stream)
                     self._json(200, {"result": result})
-                except (NipatError, ValueError, KeyError, OSError) as exc:
+                except (NewPatError, ValueError, KeyError, OSError) as exc:
                     self._json(400, {"error": {"message": str(exc)}})
 
             def do_POST(self):
@@ -269,7 +269,7 @@ class DesktopServer:
                 try:
                     result = owner.dispatcher(payload["method"], params)
                     self._json(200, {"id": identifier, "result": result})
-                except (NipatError, ValueError, KeyError, OSError, RuntimeError) as exc:
+                except (NewPatError, ValueError, KeyError, OSError, RuntimeError) as exc:
                     self._json(200, {"id": identifier, "error": {"code": type(exc).__name__, "message": str(exc)}})
                 except Exception:
                     import logging
@@ -282,7 +282,7 @@ class DesktopServer:
         self.origin = "http://" + self.host
         self.base_url = self.origin + "/" + self.token + "/"
         self.url = self.base_url + "web/index.html"
-        self.thread = threading.Thread(target=self.httpd.serve_forever, name="NIPAT-local-ui", daemon=True)
+        self.thread = threading.Thread(target=self.httpd.serve_forever, name="NewPat-local-ui", daemon=True)
 
     def register(self, path: Path | str, *, mime: str | None = None, attachment=False, expected_identity=None) -> dict:
         path = Path(path).expanduser().resolve(strict=True)

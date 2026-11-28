@@ -38,8 +38,8 @@ class DesktopTransportTests(unittest.TestCase):
         self.root = Path(temporary.name)
         self.assets = self.root / "web"
         self.assets.mkdir()
-        (self.assets / "index.html").write_text("<!doctype html><title>NIPAT</title>", encoding="utf-8")
-        (self.assets / "app.js").write_text("window.app = 'NIPAT';", encoding="utf-8")
+        (self.assets / "index.html").write_text("<!doctype html><title>NewPat</title>", encoding="utf-8")
+        (self.assets / "app.js").write_text("window.app = 'NewPat';", encoding="utf-8")
         self.secret = self.root / "private.txt"
         self.secret.write_bytes(b"private genomic bytes")
         self.calls = []
@@ -79,7 +79,7 @@ class DesktopTransportTests(unittest.TestCase):
             self.assertNotEqual(self.server.token, second.token)
         status, headers, body = self.request("GET", self.path("web/index.html"))
         self.assertEqual(status, 200)
-        self.assertIn(b"NIPAT", body)
+        self.assertIn(b"NewPat", body)
         self.assertIn("text/html", headers["Content-Type"])
         self.assertEqual(headers["Cache-Control"], "no-store")
         self.assertEqual(headers["X-Content-Type-Options"], "nosniff")

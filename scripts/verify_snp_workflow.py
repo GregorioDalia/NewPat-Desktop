@@ -296,7 +296,7 @@ def check_snp_execution_policy(run: Path, state: dict, *, options: ExecutionOpti
                 or any(event.get("label") != "snp-samples" for event in events)
                 or any(outer.get(key) != value or plans[0].get(key) != value
                        for key, value in budget.items())
-                or budget.get("resource_policy") != "nipat-fixed-resources-v1"
+                or budget.get("resource_policy") != "newpat-fixed-resources-v1"
                 or type(budget.get("tasks")) is not int or budget["tasks"] != count
                 or type(budget.get("workers")) is not int or budget.get("mode") != "auto"):
             raise ValueError("Inconsistent SNP sample admission evidence.")
@@ -427,8 +427,8 @@ def _failed_snp_plan(identifier: str, root: Path, inputs: Path, *, run_container
         destination = root / f"failed SNP plan {mode} results"
         (destination / "work").mkdir(parents=True)
         (destination / "work/plan.json").write_text(json.dumps(plan), encoding="utf-8")
-        run_container(identifier, ["env", f"NIPAT_EXECUTION_MODE={mode}", "NIPAT_MAX_WORKERS=2",
-            "python3", "/opt/nipat/engine/main.py", "execute-plan", "--plan", "/results/work/plan.json",
+        run_container(identifier, ["env", f"NEWPAT_EXECUTION_MODE={mode}", "NEWPAT_MAX_WORKERS=2",
+            "python3", "/opt/newpat/engine/main.py", "execute-plan", "--plan", "/results/work/plan.json",
             "--run-dir", "/results/workflow"], inputs=broken,
             results=destination, expected_returncode=1)
         run = destination / "workflow"
@@ -466,7 +466,7 @@ def check_snp_plans(identifier: str, root: Path, inputs: Path, expected: Path,
     selected = [(third, third_expected), (second, second_expected), (inputs / "sample.bam", expected)]
     originals = {path: path.read_bytes() for directory in (inputs, dnp_inputs, second.parent, third.parent)
                  for path in directory.rglob("*") if path.is_file()}
-    with patch.dict(os.environ, {"NIPAT_RUNTIME_IMAGE": identifier, "NIPAT_BACKEND": "native"}):
+    with patch.dict(os.environ, {"NEWPAT_RUNTIME_IMAGE": identifier, "NEWPAT_BACKEND": "native"}):
         workflows = Workflows(layout, DockerComposeRunner(layout))
         batch = workflows.snp_batch(bams=[source for source, _ in selected],
                                     reference=inputs / "reference.fa", panel=inputs / "SNPlist.tsv",

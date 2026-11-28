@@ -491,7 +491,7 @@ def check_cpi_chains(identifier: str, root: Path, dnp_inputs: Path, *, run_image
         maternal = source / "maternal.bam" if full_chain else source / "bams/sample_0001.bam"
         paternal = source / "paternal.bam" if full_chain else source / "bams/sample_0002.bam"
         label = "positive-full-chain" if full_chain else "no-sites-dnp-cpi"
-        with patch.dict(os.environ, {"NIPAT_RUNTIME_IMAGE": identifier, "NIPAT_BACKEND": "native"}):
+        with patch.dict(os.environ, {"NEWPAT_RUNTIME_IMAGE": identifier, "NEWPAT_BACKEND": "native"}):
             parent = Workflows(layout, DockerComposeRunner(layout)).dnp_cpi(
                 pairs=[("family_a", maternal, paternal)], reference=source / "reference.fa",
                 panel=source / "DNP_list.txt", popfreq=population, include_contamination=full_chain,

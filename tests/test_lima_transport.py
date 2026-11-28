@@ -21,10 +21,10 @@ class LimaTransportTests(unittest.TestCase):
         self.project = self.home / "application"
         self.project.mkdir()
         self.environment = {
-            "NIPAT_BACKEND": "lima", "NIPAT_PROJECT_DIR": str(self.project),
-            "NIPAT_WORKSPACE_DIR": str(self.home / "Library/Application Support/NIPAT-Desktop"),
-            "NIPAT_LIMA_EXECUTABLE": str(self.home / "bundle/lima/bin/limactl"),
-            "LIMA_HOME": str(self.home / ".nipat/lima"),
+            "NEWPAT_BACKEND": "lima", "NEWPAT_PROJECT_DIR": str(self.project),
+            "NEWPAT_WORKSPACE_DIR": str(self.home / "Library/Application Support/NewPat-Desktop"),
+            "NEWPAT_LIMA_EXECUTABLE": str(self.home / "bundle/lima/bin/limactl"),
+            "LIMA_HOME": str(self.home / ".newpat/lima"),
         }
         self.enterContext(patch.dict(os.environ, self.environment, clear=True))
         self.enterContext(patch("newpat.macos_runtime.Path.home", return_value=self.home))
@@ -33,7 +33,7 @@ class LimaTransportTests(unittest.TestCase):
         transport = DockerTransport.from_environment(dry_run=True)
         self.assertIsInstance(transport, LimaDockerTransport)
         self.assertTrue(transport.dry_run)
-        self.assertEqual(transport.metadata["lima_instance"], "nipat")
+        self.assertEqual(transport.metadata["lima_instance"], "newpat")
         with patch.dict(os.environ, {"LIMA_HOME": str(self.home / ".lima")}):
             with self.assertRaisesRegex(ValidationError, "LIMA_HOME"):
                 DockerTransport.from_environment()
@@ -44,7 +44,7 @@ class LimaTransportTests(unittest.TestCase):
             transport.command(["sh", "-c", "echo bad"], {})
         command = transport.command(["docker", "compose", "version"], {
             "DOCKER_CONTEXT": "unrelated", "DOCKER_HOST": "tcp://example:2375", "SSH": "evil",
-            "NIPAT_RUNTIME_IMAGE": "sha256:" + "a" * 64,
+            "NEWPAT_RUNTIME_IMAGE": "sha256:" + "a" * 64,
         })
         self.assertFalse(any("unrelated" in item or "example:" in item or "evil" in item for item in command))
         self.assertIn("SSH=/usr/bin/ssh", command)

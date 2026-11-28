@@ -43,10 +43,10 @@ def built(tmp_path):
 
 def test_payload_is_distinct_and_round_trips(built, tmp_path):
     package, manifest, inventory, record = built
-    destination = tmp_path / "NIPAT payload è & files"
+    destination = tmp_path / "NewPat payload è & files"
     assert payload.verify(package, manifest, inventory, extract_to=destination) == record
     assert record["distribution"] == "windows-bootstrap-payload"
-    assert record["file"] == "NIPAT-0.9.10-Windows-payload.zip"
+    assert record["file"] == "NewPat-0.9.10-Windows-payload.zip"
     assert (destination / "app/2_LAUNCH.cmd").read_bytes() == b"echo launcher\n"
     assert not (destination / "1_INSTALL.cmd").exists()
     assert (destination / "assets/rootfs.tar.gz").is_file()

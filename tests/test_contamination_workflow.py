@@ -61,7 +61,7 @@ class ContaminationWorkflowTests(unittest.TestCase):
             self.assertFalse((run / "work" / "DNPpanel.txt").exists())
             self.assertEqual(len(runner.calls), 1)
             self.assertEqual(runner.calls[0][0], [
-                "python3", "/opt/nipat/engine/main.py", "execute", "contamination",
+                "python3", "/opt/newpat/engine/main.py", "execute", "contamination",
                 "--request", str(layout.container_path(request_file)),
             ])
             self.assertEqual(runner.records[0]["bundled_workflow"], "contamination")

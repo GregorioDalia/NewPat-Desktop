@@ -24,22 +24,22 @@ class UpdateUITests(unittest.TestCase):
         app.mkdir()
         self.layout = ProjectLayout(app, self.root, self.root / "data", self.root / "runs", app / "compose.yaml")
         self.offer = SimpleNamespace(
-            version="0.6.1", channel="testing", release_tag="v0.6.1",
-            release_notes_url="https://github.com/GregorioDalia/nipat-desktop/releases/tag/v0.6.1",
-            asset=SimpleNamespace(platform="windows-x86_64", name="NIPAT-Setup.exe", size=1024,
+            version="0.9.100", channel="testing", release_tag="v0.9.100",
+            release_notes_url="https://github.com/GregorioDalia/NewPat-Desktop/releases/tag/v0.9.100",
+            asset=SimpleNamespace(platform="windows-bootstrap-x86_64", name="NewPat-0.9.100-Windows-payload.zip", size=1024,
                                   sha256="a" * 64, url="https://example.invalid/not-used"))
         self.client = Mock()
         self.client.check.return_value = SimpleNamespace(status="available", message="Disponibile", offer=self.offer)
-        self.client.download.return_value = self.root / "updates" / "NIPAT-Setup.exe"
+        self.client.download.return_value = self.root / "updates" / "NewPat-0.9.100-Windows-payload.zip"
         self.handoff = Mock(return_value=True)
         self.messages = []
 
     def invoke(self, answers=(), **kwargs):
-        kwargs.setdefault("current_version", "0.7.2")
+        kwargs.setdefault("current_version", "0.9.99")
         ui = Terminal(read=Mock(side_effect=list(answers)), write=self.messages.append)
         return run_updates(ui, self.layout, Preferences(), client=self.client,
                            download_directory=self.root / "updates", handoff=self.handoff,
-                           platform="windows-x86_64", **kwargs)
+                           platform="windows-bootstrap-x86_64", **kwargs)
 
     def test_manual_check_offers_version_notes_size_but_enter_never_downloads(self):
         self.assertFalse(self.invoke([""]))
@@ -47,20 +47,20 @@ class UpdateUITests(unittest.TestCase):
         self.client.download.assert_not_called()
         self.handoff.assert_not_called()
         text = "\n".join(self.messages)
-        self.assertIn("0.6.1", text)
+        self.assertIn("0.9.100", text)
         self.assertIn(self.offer.release_notes_url, text)
         self.assertIn("Dimensione:", text)
 
     def test_download_confirmation_does_not_authorize_installation(self):
         self.assertFalse(self.invoke(["1", ""]))
         self.client.download.assert_called_once()
-        self.assertEqual(self.client.download.call_args.args[1], self.root / "updates" / "0.6.1")
+        self.assertEqual(self.client.download.call_args.args[1], self.root / "updates" / "0.9.100")
         self.handoff.assert_not_called()
         self.assertIn("versione installata non e' stata modificata", "\n".join(self.messages))
 
     def test_mac_download_explains_manual_close_and_installer_without_unsupported_handoff(self):
         self.offer.asset.platform = "darwin-arm64"
-        self.offer.asset.name = "NIPAT-0.8.2-macos-arm64.pkg"
+        self.offer.asset.name = "NewPat-0.8.2-macos-arm64.pkg"
         self.client.download.return_value = self.root / self.offer.asset.name
         ui = Terminal(read=Mock(side_effect=["1"]), write=self.messages.append)
         self.assertFalse(run_updates(ui, self.layout, Preferences(), client=self.client,
@@ -85,7 +85,7 @@ class UpdateUITests(unittest.TestCase):
         ui = Terminal(read=Mock(side_effect=["1", "1"]), write=write)
         started = run_updates(ui, self.layout, Preferences(), client=self.client,
                               download_directory=self.root / "updates", handoff=self.handoff,
-                              platform="windows-x86_64", current_version="0.7.2")
+                              platform="windows-bootstrap-x86_64", current_version="0.9.99")
         self.assertTrue(started)
         self.handoff.assert_called_once()
         self.assertNotIn("annullata", "\n".join(self.messages))

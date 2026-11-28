@@ -22,11 +22,11 @@ class NativeCPIContaminationSettings(unittest.TestCase):
         work, output = root / "work", root / "output"
         work.mkdir()
         with settings_context(workflow, settings, work):
-            env = dict(os.environ, NIPAT_EXECUTION_MODE="serial",
-                       NIPAT_SETTINGS_HELPER=str(HELPERS / "settings.R"),
-                       NIPAT_SETTINGS_REGISTRY=str(HELPERS / "settings_data.json"),
-                       NIPAT_PARALLEL_HELPER=str(HELPERS / "parallel.R"),
-                       NIPAT_PLOTS_HELPER=str(HELPERS / "plots.R"))
+            env = dict(os.environ, NEWPAT_EXECUTION_MODE="serial",
+                       NEWPAT_SETTINGS_HELPER=str(HELPERS / "settings.R"),
+                       NEWPAT_SETTINGS_REGISTRY=str(HELPERS / "settings_data.json"),
+                       NEWPAT_PARALLEL_HELPER=str(HELPERS / "parallel.R"),
+                       NEWPAT_PLOTS_HELPER=str(HELPERS / "plots.R"))
             if workflow == "cpi":
                 arguments = [SCRIPTS / "CPI_from_cffDNA/cfDNA_CPI_estimator.R",
                              "--pileup_dir", inputs or FIXTURE / "cpi", "--out_dir", output,

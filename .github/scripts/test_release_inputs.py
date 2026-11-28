@@ -106,22 +106,23 @@ class ReleaseInputTests(unittest.TestCase):
                 release.official_release("latest")
         fetch.assert_called_once_with(release.REPOSITORY_INFO_URL)
 
-    def test_pinned_072_upgrade_input_records_source_and_exact_github_digest(self):
-        tag = "v0.7.2"
-        source = "5bc05e00c7e231f7f3d501ace91131dae3bd1458"
-        deb_name = "nipat-desktop_0.7.2_amd64.deb"
-        deb_hash = "e623897ffa46698250b1ee32216b1ab392607b6f7e3082a1932a164ef4992675"
-        manifest = json.dumps({"version": "0.7.2", "release_tag": tag, "source_commit": source}).encode()
+    def test_package_input_records_source_and_exact_github_digest(self):
+        tag = "v0.9.99"
+        source = "c" * 40
+        deb_name = "newpat-desktop_0.9.99_amd64.deb"
+        contents = b"NewPat DEB fixture"
+        deb_hash = hashlib.sha256(contents).hexdigest()
+        manifest = json.dumps({"version": "0.9.99", "release_tag": tag, "source_commit": source}).encode()
         records = [{"name": "installer-manifest.json", "size": len(manifest),
                     "digest": "sha256:" + hashlib.sha256(manifest).hexdigest()},
-                   {"name": deb_name, "size": 603740352, "digest": "sha256:" + deb_hash}]
+                   {"name": deb_name, "size": len(contents), "digest": "sha256:" + deb_hash}]
         for item in records:
             item["browser_download_url"] = f"https://github.com/{release.REPOSITORY}/releases/download/{tag}/{item['name']}"
         metadata = {"draft": False, "tag_name": tag, "id": 123, "assets": records}
         calls = []
         def download(url, path, digest, size):
             calls.append((url, digest, size))
-            path.write_bytes(manifest if path.name == "installer-manifest.json" else b"fixture; downloader tested separately")
+            path.write_bytes(manifest if path.name == "installer-manifest.json" else contents)
             return path
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -130,13 +131,13 @@ class ReleaseInputTests(unittest.TestCase):
                     patch.object(release, "checked_download", side_effect=download):
                 paths = release.release_inputs(tag, ["deb"], root)
             self.assertEqual(fetch.call_args_list, [call(release.REPOSITORY_INFO_URL),
-                call(f"https://api.github.com/repos/{release.REPOSITORY}/releases/tags/v0.7.2", repository=release.REPOSITORY)])
+                call(f"https://api.github.com/repos/{release.REPOSITORY}/releases/tags/v0.9.99", repository=release.REPOSITORY)])
             self.assertEqual(paths["deb"].name, deb_name)
-            self.assertEqual(calls[-1][1:], (deb_hash, 603740352))
+            self.assertEqual(calls[-1][1:], (deb_hash, len(contents)))
             provenance = json.loads((root / "release-inputs.json").read_text())
             self.assertEqual(provenance["source_commit"], source)
             self.assertEqual(provenance["files"]["deb"]["sha256"], deb_hash)
-            records[-1]["name"] = "nipat-desktop_0.7.1_amd64.deb"
+            records[-1]["name"] = "newpat-desktop_0.9.100_amd64.deb"
             with patch.object(release, "fetch_json", side_effect=[identity, metadata]), \
                     patch.object(release, "checked_download", side_effect=download), \
                     self.assertRaisesRegex(ValueError, "matching the requested"):

@@ -53,7 +53,7 @@ def verify(root: Path, *, signatures: bool = False) -> dict:
             raise ValueError("Authenticode signatures must be checked on Windows")
         # Names are JSON data in a private environment variable, never shell source.
         command = r'''$ErrorActionPreference='Stop'
-$items = ConvertFrom-Json -InputObject $env:NIPAT_GUI_SIGNATURE_INPUT
+$items = ConvertFrom-Json -InputObject $env:NEWPAT_GUI_SIGNATURE_INPUT
 $observations = @(foreach ($path in $items) {
   $s = Get-AuthenticodeSignature -LiteralPath $path
   if ($s.Status -ne 'Valid' -or $null -eq $s.SignerCertificate -or
@@ -65,7 +65,7 @@ $observations = @(foreach ($path in $items) {
 })
 ConvertTo-Json -InputObject $observations -Compress
 '''
-        environment = dict(os.environ, NIPAT_GUI_SIGNATURE_INPUT=json.dumps([str(path) for path in files]))
+        environment = dict(os.environ, NEWPAT_GUI_SIGNATURE_INPUT=json.dumps([str(path) for path in files]))
         result = subprocess.run([
             os.path.join(os.environ["SystemRoot"], "System32", "WindowsPowerShell", "v1.0", "powershell.exe"),
             "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command,

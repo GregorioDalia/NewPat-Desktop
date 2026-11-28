@@ -10,7 +10,7 @@ import re
 import sys
 from pathlib import Path
 
-from newpat.errors import NipatError, ValidationError
+from newpat.errors import NewPatError, ValidationError
 from newpat.experiments.runner import DockerComposeRunner
 from newpat.experiments.workflows import Workflows
 from newpat.paths import ProjectLayout
@@ -143,7 +143,7 @@ def check_bundled_run(run_dir: Path, layout: ProjectLayout, *, workflow: str = "
     compose_paths = [argv[index + 1].replace("\\", "/")
                      for index, value in enumerate(argv[:-1]) if value == "-f"]
     if (len(compose_paths) != 1 or not compose_paths[0].endswith("/engine-compose.json")
-            or "/opt/nipat/engine/main.py" not in argv or "execute" not in argv
+            or "/opt/newpat/engine/main.py" not in argv or "execute" not in argv
             or argv[argv.index("execute") + 1:argv.index("execute") + 2] != [workflow]):
         raise ValidationError("La CLI non sta usando esclusivamente il motore incorporato.")
 
@@ -156,7 +156,7 @@ def main() -> int:
     try:
         if layout.project_dir != Path(__file__).resolve().parents[1]:
             raise ValidationError(
-                "Usare la venv di questa repository e verificare NIPAT_PROJECT_DIR."
+                "Usare la venv di questa repository e verificare NEWPAT_PROJECT_DIR."
             )
         fixture = layout.project_dir / "tests" / "fixtures" / "contamination"
         inputs = [
@@ -173,7 +173,7 @@ def main() -> int:
                 raise ValidationError(f"Input originale modificato: {path.name}")
         check_outputs(run_dir)
         check_bundled_run(run_dir, layout)
-    except (NipatError, OSError) as exc:
+    except (NewPatError, OSError) as exc:
         print(f"Verifica Contamination fallita: {exc}", file=sys.stderr)
         return 1
     print("Verifica Contamination superata: riepilogo e valori per sito attesi.")

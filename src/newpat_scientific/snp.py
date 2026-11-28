@@ -67,9 +67,9 @@ class SnpPreparation:
         indices = [p for ext in (".bai", ".csi") for p in (Path(str(self.bam) + ext), self.bam.with_suffix(ext))
                    if p.is_file()]
         reason = None
-        if os.getenv("NIPAT_EXECUTION_MODE") == "serial":
+        if os.getenv("NEWPAT_EXECUTION_MODE") == "serial":
             reason = "requested-serial"
-        elif os.getenv("NIPAT_PARALLEL_CHILD") == "1" or os.getenv("NIPAT_MAX_WORKERS") == "1":
+        elif os.getenv("NEWPAT_PARALLEL_CHILD") == "1" or os.getenv("NEWPAT_MAX_WORKERS") == "1":
             reason = "shared-worker-limit"
         elif not sorted_header or len(contigs) < 2:
             reason = "non-coordinate-header" if not sorted_header else "single-chromosome"
@@ -94,7 +94,7 @@ class SnpPreparation:
 _R_BUDGET = """
 a <- commandArgs(trailingOnly=TRUE)
 source(a[[1]])
-p <- nipat_parallel_budget(as.integer(a[[2]]), memory_mib=as.numeric(a[[3]]))
+p <- newpat_parallel_budget(as.integer(a[[2]]), memory_mib=as.numeric(a[[3]]))
 cat(jsonlite::toJSON(p, auto_unbox=TRUE, null="null"))
 """
 

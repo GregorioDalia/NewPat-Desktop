@@ -30,7 +30,7 @@ class FixedResourceBudgetTests(unittest.TestCase):
         self.assertEqual(policy["memory_budget_mib"], 3276)
         self.assertEqual(policy["worker_ceiling"], 2)
         self.assertEqual(policy["memory_allocation_per_worker_mib"], 1638)
-        self.assertEqual(policy["interface"], "nipat-fixed-resources-v1")
+        self.assertEqual(policy["interface"], "newpat-fixed-resources-v1")
         state["host"]["memory_mib"] = 2048
         self.assertEqual(fixed_execution_budget(state)["memory_capacity_mib"], 2048)
 
@@ -83,7 +83,7 @@ class FixedResourceBudgetTests(unittest.TestCase):
                 runner._write_engine_compose("sha256:" + "a" * 64)
             inspect.assert_not_called()
             env = json.loads((run / "work/engine-compose.json").read_text())["services"]["scientific"]["environment"]
-            self.assertEqual(json.loads(env["NIPAT_FIXED_RESOURCE_BUDGET"]), frozen)
+            self.assertEqual(json.loads(env["NEWPAT_FIXED_RESOURCE_BUDGET"]), frozen)
 
 
 if __name__ == "__main__":

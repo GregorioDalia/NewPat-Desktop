@@ -11,7 +11,7 @@ def test_lease_requires_actual_parent_live_ancestor_and_named_event():
     parents = {os.getpid(): 200, 200: 100, 100: 1, 1: 0}
     assert authorized(token, 200, kernel=kernel, parents=parents)
     kernel.OpenEventW.assert_called_once_with(0x00100000, False,
-                                            "Local\\NIPAT-Desktop-SetupLease-" + "a" * 32)
+                                            "Local\\NewPat-Desktop-SetupLease-" + "a" * 32)
     kernel.CloseHandle.assert_called_once_with(42)
     assert not authorized(token, 300, kernel=kernel, parents=parents)
     assert not authorized("200:" + "a" * 32, 200, kernel=kernel, parents=parents)

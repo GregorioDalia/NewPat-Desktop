@@ -1,30 +1,30 @@
 # Optional presentation events. These functions never modify scientific objects.
-nipat_progress <- local({
+newpat_progress <- local({
   sequences <- new.env(parent = emptyenv())
   written <- new.env(parent = emptyenv())
   function(event, phase, sample_ids = character(), completed = NULL, total = NULL,
            unit = NULL, outcome = NULL) {
     tryCatch({
-      directory <- Sys.getenv("NIPAT_PROGRESS_DIR")
+      directory <- Sys.getenv("NEWPAT_PROGRESS_DIR")
       if (!nzchar(directory) || !dir.exists(directory)) return(invisible(NULL))
-      token <- Sys.getenv("NIPAT_PROGRESS_SOURCE")
+      token <- Sys.getenv("NEWPAT_PROGRESS_SOURCE")
       if (!grepl("^[a-f0-9]{32}$", token)) return(invisible(NULL))
-      workflow <- Sys.getenv("NIPAT_PROGRESS_WORKFLOW", "dnp-call")
-      step_id <- Sys.getenv("NIPAT_PROGRESS_STEP_ID")
+      workflow <- Sys.getenv("NEWPAT_PROGRESS_WORKFLOW", "dnp-call")
+      step_id <- Sys.getenv("NEWPAT_PROGRESS_STEP_ID")
       # Invocation nonce and PID distinguish parallel workers. The Python
       # coordinator provides a new nonce for each workflow step.
       source_id <- paste0(token, "-", Sys.getpid(), "-000000000000")
       sequence <- if (exists(source_id, sequences, inherits = FALSE)) sequences[[source_id]] + 1L else 1L
       sequences[[source_id]] <- sequence
       if (!length(sample_ids)) {
-        sample_ids <- jsonlite::fromJSON(Sys.getenv("NIPAT_PROGRESS_SAMPLE_IDS", "[]"))
+        sample_ids <- jsonlite::fromJSON(Sys.getenv("NEWPAT_PROGRESS_SAMPLE_IDS", "[]"))
       }
-      sample_map <- jsonlite::fromJSON(Sys.getenv("NIPAT_PROGRESS_SAMPLE_MAP", "{}"))
+      sample_map <- jsonlite::fromJSON(Sys.getenv("NEWPAT_PROGRESS_SAMPLE_MAP", "{}"))
       sample_ids <- vapply(as.character(sample_ids), function(value) {
         mapped <- sample_map[[value]]
         if (is.null(mapped)) value else as.character(mapped)
       }, character(1))
-      document <- list(schema_version = 1L, interface = "nipat-progress-v1",
+      document <- list(schema_version = 1L, interface = "newpat-progress-v1",
                        source_id = source_id, sequence = sequence, event = event,
                        workflow = workflow, step_id = if (nzchar(step_id)) step_id else NULL,
                        phase = phase, sample_ids = as.list(as.character(sample_ids)))

@@ -126,7 +126,7 @@ def validate_settings_document(document: object, workflow: str) -> dict:
 
 def settings_from_environment(workflow: str) -> dict:
     """Read a verified run's effective settings (also used by the pileup helper)."""
-    path = os.environ.get("NIPAT_SCIENTIFIC_SETTINGS")
+    path = os.environ.get("NEWPAT_SCIENTIFIC_SETTINGS")
     if not path:
         return normalize_settings(workflow)
     try:
@@ -170,9 +170,9 @@ def settings_context(workflow: str, overrides: dict | None, workdir: Path):
                 raise ValidationError("Parametri scientifici diversi già presenti nella cartella di lavoro.")
     finally:
         Path(temporary).unlink(missing_ok=True)
-    values = {"NIPAT_SCIENTIFIC_SETTINGS": str(target),
-              "NIPAT_SETTINGS_HELPER": str(Path(__file__).with_suffix(".R")),
-              "NIPAT_SETTINGS_REGISTRY": str(REGISTRY)}
+    values = {"NEWPAT_SCIENTIFIC_SETTINGS": str(target),
+              "NEWPAT_SETTINGS_HELPER": str(Path(__file__).with_suffix(".R")),
+              "NEWPAT_SETTINGS_REGISTRY": str(REGISTRY)}
     previous = {key: os.environ.get(key) for key in values}
     os.environ.update(values)
     try:

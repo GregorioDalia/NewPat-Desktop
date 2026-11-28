@@ -344,7 +344,7 @@ def _chromosomes(bams, samples, bed, reference, staging, samtools, cancellation,
     if "parallel" in document:
         _verify_depth_budget(bams, samples, bed, windows, targets, samtools, cancellation, document["parallel"])
     regions = {}
-    if "parallel" in document and os.environ.get("NIPAT_DNP_OPTIMIZED_IO") == "1":
+    if "parallel" in document and os.environ.get("NEWPAT_DNP_OPTIMIZED_IO") == "1":
         # One bounding interval retains every BED window for this contig without
         # splitting depth/overlap handling across tasks or staging new BAMs.
         bounds = {}
@@ -486,7 +486,7 @@ def _budgeted_acquisition(bams, samples, bed, reference, staging, output, cancel
     with progress.phase("dnp-indexed-pileup" if contigs else "dnp-pileup",
                         workflow="dnp-call", sample_ids=sample_ids):
         if contigs:
-            stream_serial = os.environ.get("NIPAT_DNP_OPTIMIZED_IO") == "1" and parallel["workers"] == 1
+            stream_serial = os.environ.get("NEWPAT_DNP_OPTIMIZED_IO") == "1" and parallel["workers"] == 1
             if stream_serial:
                 parallel["output_strategy"] = "direct-dictionary-order"
             _parallel_chromosomes(contigs, command, staging, output, cancellation, document,

@@ -11,7 +11,7 @@ from newpat.run_report import sample_rows, write_run_report
 class RunReportTests(unittest.TestCase):
     def parallel_events(self, directory, *, label="dnp-blocks", workers=3):
         directory.mkdir(parents=True)
-        base = {"schema_version": 1, "interface": "nipat-parallel-v1",
+        base = {"schema_version": 1, "interface": "newpat-parallel-v1",
                 "label": label, "coordinator_pid": 8, "workers": workers}
         (directory / "worker-8.jsonl").write_text(json.dumps({**base, "event": "plan"}) + "\n")
         for pid, index, start, finish in ((23, 1, 10, 15), (24, 2, 11, 14), (25, 3, 16, 20)):
@@ -230,7 +230,7 @@ class RunReportTests(unittest.TestCase):
         self.metadata = {
             "schema_version": 1, "run_name": "Prova <&>", "workflow": "dnp-call", "status": "failed",
             "error": "Comando terminato con codice 137; causa non confermata",
-            "source": {"nipat_version": "0.8.2"},
+            "source": {"newpat_version": "0.8.2"},
             "parameters": {"parallel": False, "sample_mapping": [
                 {"sample_id": "sample_0001", "original_path": r'C:\ricerca\mamma <&> è.bam',
                  "container_path": "/workspace/inputs/bams/sample_0001.bam"},

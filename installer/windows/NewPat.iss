@@ -10,18 +10,18 @@
 #include BootstrapDir + "\bootstrap-profile.iss"
 
 [Setup]
-AppId={#NipatAppId}
-AppName={#NipatDisplayName}
-AppVersion={#NipatBootstrapVersion}
-AppVerName={#NipatDisplayName}
+AppId={#NewPatAppId}
+AppName={#NewPatDisplayName}
+AppVersion={#NewPatBootstrapVersion}
+AppVerName={#NewPatDisplayName}
 AppPublisher=NewPat contributors
 AppPublisherURL=https://github.com/GregorioDalia
 LicenseFile={#StageDir}\app\LICENSE
-DefaultDirName={code:GetNipatDefaultAppDir}
+DefaultDirName={code:GetNewPatDefaultAppDir}
 DisableDirPage=no
 UsePreviousAppDir=yes
-SetupMutex=Local\NIPAT-Desktop-Installer
-DefaultGroupName={#NipatDisplayName}
+SetupMutex=Local\NewPat-Desktop-Installer
+DefaultGroupName={#NewPatDisplayName}
 UsePreviousGroup=no
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
@@ -29,68 +29,68 @@ ArchitecturesAllowed=x64compatible and not arm64
 ArchitecturesInstallIn64BitMode=x64os
 MinVersion=10.0.19045
 OutputDir={#OutputDir}
-OutputBaseFilename=NIPAT-Setup
+OutputBaseFilename=NewPat-Setup
 Compression=lzma2
 SolidCompression=yes
 DiskSpanning=no
 WizardStyle=modern
 SetupIconFile={#StageDir}\app\assets\branding\newpat-icon.ico
-UninstallDisplayName={#NipatDisplayName}
+UninstallDisplayName={#NewPatDisplayName}
 UninstallDisplayIcon={app}\assets\branding\newpat-icon.ico
 CloseApplications=no
 RestartApplications=no
 
 [Files]
 ; Only this independently versioned bootstrap and official Python are embedded.
-Source: "{#BootstrapDir}\python\*"; DestDir: "{tmp}\nipat-bootstrap-python"; Flags: dontcopy noencryption recursesubdirs createallsubdirs
+Source: "{#BootstrapDir}\python\*"; DestDir: "{tmp}\newpat-bootstrap-python"; Flags: dontcopy noencryption recursesubdirs createallsubdirs
 Source: "{#BootstrapDir}\bootstrap_download.py"; DestDir: "{tmp}"; Flags: dontcopy noencryption
 ; Downloaded members are inventoried and hashed before the wizard opens.
-Source: "{tmp}\nipat-payload\app\*"; DestDir: "{app}"; Flags: external ignoreversion recursesubdirs createallsubdirs
+Source: "{tmp}\newpat-payload\app\*"; DestDir: "{app}"; Flags: external ignoreversion recursesubdirs createallsubdirs
 ; Both archives survive reboot in the verified cache, with content-addressed names.
-Source: "{tmp}\nipat-payload\runtime-cache\*"; DestDir: "{code:GetNipatCacheDir}"; Flags: external ignoreversion uninsneveruninstall
+Source: "{tmp}\newpat-payload\runtime-cache\*"; DestDir: "{code:GetNewPatCacheDir}"; Flags: external ignoreversion uninsneveruninstall
 ; Reuse these exact setup bytes for later guided payload updates.
-Source: "{srcexe}"; DestDir: "{app}\.runtime\setup"; DestName: "NIPAT-Setup.exe"; Flags: external ignoreversion
+Source: "{srcexe}"; DestDir: "{app}\.runtime\setup"; DestName: "NewPat-Setup.exe"; Flags: external ignoreversion
 
 [Dirs]
 ; Shortcuts have a valid working directory even before WSL setup/reboot completes.
-Name: "{code:GetNipatDataDir}"; Flags: uninsneveruninstall
-Name: "{code:GetNipatRunsDir}"; Flags: uninsneveruninstall
-Name: "{code:GetNipatRuntimeDir}"; Flags: uninsneveruninstall
-Name: "{code:GetNipatCacheDir}"; Flags: uninsneveruninstall
+Name: "{code:GetNewPatDataDir}"; Flags: uninsneveruninstall
+Name: "{code:GetNewPatRunsDir}"; Flags: uninsneveruninstall
+Name: "{code:GetNewPatRuntimeDir}"; Flags: uninsneveruninstall
+Name: "{code:GetNewPatCacheDir}"; Flags: uninsneveruninstall
 
 [INI]
 ; Ownership markers persist so a later setup can reuse deliberately retained directories.
-Filename: "{app}\.nipat-app.ini"; Section: "NIPAT"; Key: "schema_version"; String: "1"
-Filename: "{app}\.nipat-app.ini"; Section: "NIPAT"; Key: "installation_channel"; String: "desktop"
-Filename: "{app}\.nipat-app.ini"; Section: "NIPAT"; Key: "role"; String: "application"
-Filename: "{code:GetNipatRuntimeDir}\.nipat-storage.ini"; Section: "NIPAT"; Key: "schema_version"; String: "1"
-Filename: "{code:GetNipatRuntimeDir}\.nipat-storage.ini"; Section: "NIPAT"; Key: "installation_channel"; String: "desktop"
-Filename: "{code:GetNipatRuntimeDir}\.nipat-storage.ini"; Section: "NIPAT"; Key: "role"; String: "runtime"
-Filename: "{code:GetNipatCacheDir}\.nipat-storage.ini"; Section: "NIPAT"; Key: "schema_version"; String: "1"
-Filename: "{code:GetNipatCacheDir}\.nipat-storage.ini"; Section: "NIPAT"; Key: "installation_channel"; String: "desktop"
-Filename: "{code:GetNipatCacheDir}\.nipat-storage.ini"; Section: "NIPAT"; Key: "role"; String: "cache"
+Filename: "{app}\.newpat-app.ini"; Section: "NewPat"; Key: "schema_version"; String: "1"
+Filename: "{app}\.newpat-app.ini"; Section: "NewPat"; Key: "installation_channel"; String: "desktop"
+Filename: "{app}\.newpat-app.ini"; Section: "NewPat"; Key: "role"; String: "application"
+Filename: "{code:GetNewPatRuntimeDir}\.newpat-storage.ini"; Section: "NewPat"; Key: "schema_version"; String: "1"
+Filename: "{code:GetNewPatRuntimeDir}\.newpat-storage.ini"; Section: "NewPat"; Key: "installation_channel"; String: "desktop"
+Filename: "{code:GetNewPatRuntimeDir}\.newpat-storage.ini"; Section: "NewPat"; Key: "role"; String: "runtime"
+Filename: "{code:GetNewPatCacheDir}\.newpat-storage.ini"; Section: "NewPat"; Key: "schema_version"; String: "1"
+Filename: "{code:GetNewPatCacheDir}\.newpat-storage.ini"; Section: "NewPat"; Key: "installation_channel"; String: "desktop"
+Filename: "{code:GetNewPatCacheDir}\.newpat-storage.ini"; Section: "NewPat"; Key: "role"; String: "cache"
 
 [Registry]
 ; Preferences survive app removal; no analysis directory is deleted by Uninstall.
-Root: HKCU; Subkey: "Software\NIPAT\desktop"; ValueType: string; ValueName: "app_dir"; ValueData: "{app}"
-Root: HKCU; Subkey: "Software\NIPAT\desktop"; ValueType: string; ValueName: "runtime_dir"; ValueData: "{code:GetNipatRuntimeDir}"
-Root: HKCU; Subkey: "Software\NIPAT\desktop"; ValueType: string; ValueName: "cache_dir"; ValueData: "{code:GetNipatCacheDir}"
-Root: HKCU; Subkey: "Software\NIPAT\desktop"; ValueType: string; ValueName: "data_dir"; ValueData: "{code:GetNipatDataDir}"
-Root: HKCU; Subkey: "Software\NIPAT\desktop"; ValueType: string; ValueName: "runs_dir"; ValueData: "{code:GetNipatRunsDir}"
+Root: HKCU; Subkey: "Software\NewPat\desktop"; ValueType: string; ValueName: "app_dir"; ValueData: "{app}"
+Root: HKCU; Subkey: "Software\NewPat\desktop"; ValueType: string; ValueName: "runtime_dir"; ValueData: "{code:GetNewPatRuntimeDir}"
+Root: HKCU; Subkey: "Software\NewPat\desktop"; ValueType: string; ValueName: "cache_dir"; ValueData: "{code:GetNewPatCacheDir}"
+Root: HKCU; Subkey: "Software\NewPat\desktop"; ValueType: string; ValueName: "data_dir"; ValueData: "{code:GetNewPatDataDir}"
+Root: HKCU; Subkey: "Software\NewPat\desktop"; ValueType: string; ValueName: "runs_dir"; ValueData: "{code:GetNewPatRunsDir}"
 
 [Tasks]
-Name: "desktopicon"; Description: "Crea un collegamento {#NipatDisplayName} sul desktop"
+Name: "desktopicon"; Description: "Crea un collegamento {#NewPatDisplayName} sul desktop"
 
 [Icons]
-Name: "{autodesktop}\{#NipatDisplayName}"; Filename: "{app}\2_LAUNCH.cmd"; WorkingDir: "{code:GetNipatDataDir}"; IconFilename: "{app}\assets\branding\newpat-icon.ico"; Tasks: desktopicon
-Name: "{group}\{#NipatDisplayName}"; Filename: "{app}\2_LAUNCH.cmd"; WorkingDir: "{code:GetNipatDataDir}"; IconFilename: "{app}\assets\branding\newpat-icon.ico"
-Name: "{group}\{#NipatDisplayName} - Resume Setup"; Filename: "{app}\1_SETUP.cmd"; WorkingDir: "{app}"; IconFilename: "{app}\assets\branding\newpat-icon.ico"
-Name: "{group}\{#NipatDisplayName} Folder"; Filename: "{app}"
-Name: "{group}\{#NipatDisplayName} User Guide"; Filename: "{app}\docs\USER_GUIDE.md"
-Name: "{group}\Uninstall {#NipatDisplayName}"; Filename: "{uninstallexe}"
+Name: "{autodesktop}\{#NewPatDisplayName}"; Filename: "{app}\2_LAUNCH.cmd"; WorkingDir: "{code:GetNewPatDataDir}"; IconFilename: "{app}\assets\branding\newpat-icon.ico"; Tasks: desktopicon
+Name: "{group}\{#NewPatDisplayName}"; Filename: "{app}\2_LAUNCH.cmd"; WorkingDir: "{code:GetNewPatDataDir}"; IconFilename: "{app}\assets\branding\newpat-icon.ico"
+Name: "{group}\{#NewPatDisplayName} - Resume Setup"; Filename: "{app}\1_SETUP.cmd"; WorkingDir: "{app}"; IconFilename: "{app}\assets\branding\newpat-icon.ico"
+Name: "{group}\{#NewPatDisplayName} Folder"; Filename: "{app}"
+Name: "{group}\{#NewPatDisplayName} User Guide"; Filename: "{app}\docs\USER_GUIDE.md"
+Name: "{group}\Uninstall {#NewPatDisplayName}"; Filename: "{uninstallexe}"
 
 [Run]
-Filename: "{app}\2_LAUNCH.cmd"; Description: "Avvia {#NipatDisplayName}"; WorkingDir: "{code:GetNipatDataDir}"; Flags: postinstall nowait skipifsilent; Check: CanLaunchNipat
+Filename: "{app}\2_LAUNCH.cmd"; Description: "Avvia {#NewPatDisplayName}"; WorkingDir: "{code:GetNewPatDataDir}"; Flags: postinstall nowait skipifsilent; Check: CanLaunchNewPat
 
 [Code]
 var
@@ -112,72 +112,72 @@ var
   PayloadPackage: String;
   PayloadHandles: array of THandle;
 
-function NipatGetDriveType(RootPath: String): Cardinal;
+function NewPatGetDriveType(RootPath: String): Cardinal;
   external 'GetDriveTypeW@kernel32.dll stdcall';
 
 { Inno Setup 6.7.3 uses a 32-bit process, also in 64-bit install mode.
   UINT_PTR is its pointer-width unsigned type; BOOL maps to WinAPI LongBool. }
-function NipatCreateFile(FileName: String; DesiredAccess, ShareMode: Cardinal;
+function NewPatCreateFile(FileName: String; DesiredAccess, ShareMode: Cardinal;
   SecurityAttributes: UINT_PTR; CreationDisposition, Flags: Cardinal;
   TemplateFile: THandle): THandle;
   external 'CreateFileW@kernel32.dll stdcall';
 
-function NipatCloseHandle(Handle: THandle): BOOL;
+function NewPatCloseHandle(Handle: THandle): BOOL;
   external 'CloseHandle@kernel32.dll stdcall';
 
-function NipatCreateEvent(SecurityAttributes: UINT_PTR; ManualReset, InitialState: BOOL;
+function NewPatCreateEvent(SecurityAttributes: UINT_PTR; ManualReset, InitialState: BOOL;
   Name: String): THandle;
   external 'CreateEventW@kernel32.dll stdcall';
 
-function NipatGetLastError(): Cardinal;
+function NewPatGetLastError(): Cardinal;
   external 'GetLastError@kernel32.dll stdcall';
 
-function NipatGetCurrentProcessId(): Cardinal;
+function NewPatGetCurrentProcessId(): Cardinal;
   external 'GetCurrentProcessId@kernel32.dll stdcall';
 
-function NipatSetEnvironmentVariable(Name, Value: String): BOOL;
+function NewPatSetEnvironmentVariable(Name, Value: String): BOOL;
   external 'SetEnvironmentVariableW@kernel32.dll stdcall';
 
-function NipatDeleteEnvironmentVariable(Name: String; Value: UINT_PTR): BOOL;
+function NewPatDeleteEnvironmentVariable(Name: String; Value: UINT_PTR): BOOL;
   external 'SetEnvironmentVariableW@kernel32.dll stdcall';
 
-function NipatRememberedPath(Name, DefaultPath: String): String;
+function NewPatRememberedPath(Name, DefaultPath: String): String;
 begin
   Result := DefaultPath;
-  RegQueryStringValue(HKCU, 'Software\NIPAT\desktop', Name, Result);
+  RegQueryStringValue(HKCU, 'Software\NewPat\desktop', Name, Result);
   if Trim(Result) = '' then Result := DefaultPath;
 end;
 
-function GetNipatDefaultAppDir(Param: String): String;
+function GetNewPatDefaultAppDir(Param: String): String;
 begin
-  Result := NipatRememberedPath('app_dir',
-    ExpandConstant('{localappdata}\Programs\{#NipatAppDirectory}'));
+  Result := NewPatRememberedPath('app_dir',
+    ExpandConstant('{localappdata}\Programs\{#NewPatAppDirectory}'));
 end;
 
-function GetNipatRuntimeDir(Param: String): String;
+function GetNewPatRuntimeDir(Param: String): String;
 begin
   Result := StoragePage.Values[0];
 end;
 
-function GetNipatCacheDir(Param: String): String;
+function GetNewPatCacheDir(Param: String): String;
 begin
   Result := StoragePage.Values[1];
 end;
 
-function GetNipatDataDir(Param: String): String;
+function GetNewPatDataDir(Param: String): String;
 begin
   Result := StoragePage.Values[2];
 end;
 
-function GetNipatRunsDir(Param: String): String;
+function GetNewPatRunsDir(Param: String): String;
 begin
   Result := StoragePage.Values[3];
 end;
 
-function CanLaunchNipat(): Boolean;
+function CanLaunchNewPat(): Boolean;
 begin
   Result := BootstrapCompleted and (BootstrapResult = 0) and not WslRebootRequired and
-    (ExpandConstant('{param:NIPATUPDATE|}') <> '1');
+    (ExpandConstant('{param:NEWPATUPDATE|}') <> '1');
 end;
 
 function InitializeSetup(): Boolean;
@@ -199,7 +199,7 @@ begin
       'Applicazione e distribuzione Linux appartengono al tuo utente Windows.', mbError, MB_OK);
 end;
 
-function NipatPathHasReparsePoint(Path: String): Boolean;
+function NewPatPathHasReparsePoint(Path: String): Boolean;
 var
   Parent: String;
   Entry: TFindRec;
@@ -221,43 +221,43 @@ begin
   end;
 end;
 
-procedure ReleaseNipatChildLease;
+procedure ReleaseNewPatChildLease;
 begin
-  NipatDeleteEnvironmentVariable('NIPAT_SETUP_ACTIVITY_TOKEN', 0);
+  NewPatDeleteEnvironmentVariable('NEWPAT_SETUP_ACTIVITY_TOKEN', 0);
   if SetupLeaseEvent <> 0 then begin
-    NipatCloseHandle(SetupLeaseEvent);
+    NewPatCloseHandle(SetupLeaseEvent);
     SetupLeaseEvent := 0;
   end;
   SetupNonce := '';
 end;
 
-procedure ReleaseNipatActivityLock;
+procedure ReleaseNewPatActivityLock;
 begin
-  ReleaseNipatChildLease;
+  ReleaseNewPatChildLease;
   if ActivityLock <> 0 then begin
-    NipatCloseHandle(ActivityLock);
+    NewPatCloseHandle(ActivityLock);
     ActivityLock := 0;
   end;
 end;
 
-procedure ReleaseNipatPayloadLocks;
+procedure ReleaseNewPatPayloadLocks;
 var
   I: Integer;
 begin
   for I := 0 to GetArrayLength(PayloadHandles) - 1 do
-    NipatCloseHandle(PayloadHandles[I]);
+    NewPatCloseHandle(PayloadHandles[I]);
   SetArrayLength(PayloadHandles, 0);
 end;
 
-procedure LockNipatPayloadFile(Path: String);
+procedure LockNewPatPayloadFile(Path: String);
 var
   Handle: THandle;
   Count: Integer;
 begin
-  if NipatPathHasReparsePoint(Path) then
+  if NewPatPathHasReparsePoint(Path) then
     RaiseException('Il pacchetto temporaneo contiene un collegamento. Nessun file viene installato.');
   { Read sharing only: source files cannot be changed/deleted between verification and copy. }
-  Handle := NipatCreateFile(Path, $80000000, 1, 0, 3, $80, 0);
+  Handle := NewPatCreateFile(Path, $80000000, 1, 0, 3, $80, 0);
   if Handle = UINT_PTR(-1) then
     RaiseException('Impossibile proteggere il pacchetto temporaneo da modifiche: ' + Path);
   Count := GetArrayLength(PayloadHandles);
@@ -265,7 +265,7 @@ begin
   PayloadHandles[Count] := Handle;
 end;
 
-procedure LockNipatPayloadTree(Path: String);
+procedure LockNewPatPayloadTree(Path: String);
 var
   Entry: TFindRec;
 begin
@@ -277,8 +277,8 @@ begin
         if (Entry.Attributes and FILE_ATTRIBUTE_REPARSE_POINT) <> 0 then
           RaiseException('Collegamento non consentito nel pacchetto temporaneo.');
         if (Entry.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0 then
-          LockNipatPayloadTree(AddBackslash(Path) + Entry.Name)
-        else LockNipatPayloadFile(AddBackslash(Path) + Entry.Name);
+          LockNewPatPayloadTree(AddBackslash(Path) + Entry.Name)
+        else LockNewPatPayloadFile(AddBackslash(Path) + Entry.Name);
       end;
     until not FindNext(Entry);
   finally
@@ -286,23 +286,23 @@ begin
   end;
 end;
 
-function AcquireNipatActivityLock(): String;
+function AcquireNewPatActivityLock(): String;
 var
   LockPath, LockDirectory: String;
   ErrorCode: Cardinal;
 begin
   Result := '';
   if ActivityLock <> 0 then Exit;
-  LockPath := ExpandConstant('{localappdata}\NIPAT-Desktop\activity.lock');
+  LockPath := ExpandConstant('{localappdata}\NewPat-Desktop\activity.lock');
   LockDirectory := ExtractFileDir(LockPath);
-  if NipatPathHasReparsePoint(LockPath) or not ForceDirectories(LockDirectory) or
-    NipatPathHasReparsePoint(LockPath) then begin
+  if NewPatPathHasReparsePoint(LockPath) or not ForceDirectories(LockDirectory) or
+    NewPatPathHasReparsePoint(LockPath) then begin
     Result := 'Impossibile verificare le sessioni NewPat: la cartella di coordinamento non e accessibile o attraversa un collegamento.';
     Exit;
   end;
   { No sharing and no inheritable handle: sessions hold compatible shared read handles. }
-  ActivityLock := NipatCreateFile(LockPath, $80000000, 0, 0, 4, $80, 0);
-  ErrorCode := NipatGetLastError;
+  ActivityLock := NewPatCreateFile(LockPath, $80000000, 0, 0, 4, $80, 0);
+  ErrorCode := NewPatGetLastError;
   if ActivityLock = UINT_PTR(-1) then begin
     ActivityLock := 0;
     if (ErrorCode = 32) or (ErrorCode = 33) then
@@ -312,7 +312,7 @@ begin
   end;
 end;
 
-function CreateNipatSetupLease(): String;
+function CreateNewPatSetupLease(): String;
 var
   I: Integer;
   ErrorCode: Cardinal;
@@ -323,7 +323,7 @@ begin
     Exit;
   end;
   if SetupLeaseEvent <> 0 then begin
-    NipatCloseHandle(SetupLeaseEvent);
+    NewPatCloseHandle(SetupLeaseEvent);
     SetupLeaseEvent := 0;
   end;
   if Length(SetupNonce) <> 32 then begin
@@ -335,11 +335,11 @@ begin
       Result := 'Identificativo temporaneo della preparazione non valido.';
       Exit;
     end;
-  SetupLeaseEvent := NipatCreateEvent(0, True, False,
-    'Local\NIPAT-Desktop-SetupLease-' + SetupNonce);
-  ErrorCode := NipatGetLastError;
+  SetupLeaseEvent := NewPatCreateEvent(0, True, False,
+    'Local\NewPat-Desktop-SetupLease-' + SetupNonce);
+  ErrorCode := NewPatGetLastError;
   if (SetupLeaseEvent = 0) or (ErrorCode = 183) then begin
-    if SetupLeaseEvent <> 0 then NipatCloseHandle(SetupLeaseEvent);
+    if SetupLeaseEvent <> 0 then NewPatCloseHandle(SetupLeaseEvent);
     SetupLeaseEvent := 0;
     Result := 'Impossibile creare il coordinamento temporaneo della preparazione NewPat. Riprovare.';
   end;
@@ -347,16 +347,16 @@ end;
 
 procedure DeinitializeSetup;
 begin
-  ReleaseNipatActivityLock;
-  ReleaseNipatPayloadLocks;
+  ReleaseNewPatActivityLock;
+  ReleaseNewPatPayloadLocks;
 end;
 
 procedure DeinitializeUninstall;
 begin
-  ReleaseNipatActivityLock;
+  ReleaseNewPatActivityLock;
 end;
 
-function NipatTreeHasReparsePoint(Path: String): Boolean;
+function NewPatTreeHasReparsePoint(Path: String): Boolean;
 var
   Entry: TFindRec;
 begin
@@ -370,7 +370,7 @@ begin
           Exit;
         end;
         if (Entry.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0 then
-          if NipatTreeHasReparsePoint(AddBackslash(Path) + Entry.Name) then begin
+          if NewPatTreeHasReparsePoint(AddBackslash(Path) + Entry.Name) then begin
             Result := True;
             Exit;
           end;
@@ -381,7 +381,7 @@ begin
   end;
 end;
 
-function NipatPathsOverlap(LeftPath, RightPath: String): Boolean;
+function NewPatPathsOverlap(LeftPath, RightPath: String): Boolean;
 begin
   LeftPath := AddBackslash(RemoveBackslashUnlessRoot(LeftPath));
   RightPath := AddBackslash(RemoveBackslashUnlessRoot(RightPath));
@@ -389,7 +389,7 @@ begin
     (CompareText(Copy(RightPath, 1, Length(LeftPath)), LeftPath) = 0);
 end;
 
-function NipatValidatePath(var Path: String; LabelText: String): String;
+function NewPatValidatePath(var Path: String; LabelText: String): String;
 var
   I: Integer;
   Letter: String;
@@ -416,7 +416,7 @@ begin
     Result := LabelText + ': la radice del disco non e una cartella dedicata.';
     Exit;
   end;
-  if NipatGetDriveType(Copy(Path, 1, 3)) <> 3 then begin
+  if NewPatGetDriveType(Copy(Path, 1, 3)) <> 3 then begin
     Result := LabelText + ': scegliere un disco locale fisso disponibile. Unita di rete e rimovibili non sono supportate.';
     Exit;
   end;
@@ -424,25 +424,19 @@ begin
     Result := LabelText + ': il percorso identifica un file, non una cartella.';
     Exit;
   end;
-  if NipatPathsOverlap(Path, ExpandConstant('{win}')) or
-     NipatPathsOverlap(Path, ExpandConstant('{commonpf32}')) or
-     NipatPathsOverlap(Path, ExpandConstant('{commonpf64}')) or
-     NipatPathsOverlap(Path, ExpandConstant('{localappdata}\Programs\NIPAT')) or
-     NipatPathsOverlap(Path, ExpandConstant('{localappdata}\NIPAT')) or
-     NipatPathsOverlap(Path, ExpandConstant('{localappdata}\Programs\NIPAT-0.5-Preview')) or
-     NipatPathsOverlap(Path, ExpandConstant('{localappdata}\NIPAT-0.5-Preview')) or
-     NipatPathsOverlap(Path, ExpandConstant('{localappdata}\Programs\NIPAT-Experimental08')) or
-     NipatPathsOverlap(Path, ExpandConstant('{localappdata}\NIPAT-Experimental08')) or
-     NipatPathsOverlap(Path, ExpandConstant('{localappdata}\NIPAT-Desktop\preferences.json')) or
-     NipatPathsOverlap(Path, ExpandConstant('{localappdata}\NIPAT-Desktop\activity.lock')) then begin
+  if NewPatPathsOverlap(Path, ExpandConstant('{win}')) or
+     NewPatPathsOverlap(Path, ExpandConstant('{commonpf32}')) or
+     NewPatPathsOverlap(Path, ExpandConstant('{commonpf64}')) or
+     NewPatPathsOverlap(Path, ExpandConstant('{localappdata}\NewPat-Desktop\preferences.json')) or
+     NewPatPathsOverlap(Path, ExpandConstant('{localappdata}\NewPat-Desktop\activity.lock')) then begin
     Result := LabelText + ': scegliere una cartella separata da Windows, Program Files e dalle altre installazioni NewPat.';
     Exit;
   end;
-  if NipatPathHasReparsePoint(Path) then
+  if NewPatPathHasReparsePoint(Path) then
     Result := LabelText + ': il percorso attraversa un collegamento o una junction. Scegliere la cartella fisica.';
 end;
 
-function NipatValidateSelection(): String;
+function NewPatValidateSelection(): String;
 var
   Paths: TArrayOfString;
   Labels: TArrayOfString;
@@ -464,16 +458,16 @@ begin
   Labels[4] := 'Risultati';
   for I := 1 to 4 do Paths[I] := StoragePage.Values[I - 1];
   for I := 0 to 4 do begin
-    Result := NipatValidatePath(Paths[I], Labels[I]);
+    Result := NewPatValidatePath(Paths[I], Labels[I]);
     if Result <> '' then Exit;
     for J := 0 to I - 1 do
-      if NipatPathsOverlap(Paths[I], Paths[J]) then begin
+      if NewPatPathsOverlap(Paths[I], Paths[J]) then begin
         Result := Labels[I] + ' e ' + Labels[J] + ': scegliere cartelle distinte, senza includerne una dentro l''altra.';
         Exit;
       end;
   end;
   for I := 0 to 2 do
-    if NipatTreeHasReparsePoint(Paths[I]) then begin
+    if NewPatTreeHasReparsePoint(Paths[I]) then begin
       Result := Labels[I] + ': la cartella contiene collegamenti o junction. Nessun file viene copiato.';
       Exit;
     end;
@@ -492,7 +486,7 @@ var
 begin
   ModeText := 'Installazione';
   PreservationText := 'Dati e risultati gia presenti vengono conservati.';
-  if (ApplicationKind = 'installed') or (ApplicationKind = 'residual') then begin
+  if ApplicationKind = 'installed' then begin
     ModeText := 'Aggiornamento e riparazione';
     PreservationText := PreservationText + ' Prima della copia viene salvato un backup dei file applicativi ' +
       'che saranno sostituiti. Gli altri file presenti restano nella cartella. ' +
@@ -500,14 +494,14 @@ begin
   end;
   Result := 'NewPat ' + PayloadVersion + NewLine + 'Operazione: ' + ModeText + NewLine + NewLine + PreservationText + NewLine + NewLine +
     MemoDirInfo + NewLine + NewLine +
-    'Ambiente di calcolo WSL:' + NewLine + Space + GetNipatRuntimeDir('') + NewLine + NewLine +
-    'Cache dei componenti:' + NewLine + Space + GetNipatCacheDir('') + NewLine + NewLine +
-    'Dati predefiniti:' + NewLine + Space + GetNipatDataDir('') + NewLine + NewLine +
-    'Risultati predefiniti:' + NewLine + Space + GetNipatRunsDir('') + NewLine + NewLine +
+    'Ambiente di calcolo WSL:' + NewLine + Space + GetNewPatRuntimeDir('') + NewLine + NewLine +
+    'Cache dei componenti:' + NewLine + Space + GetNewPatCacheDir('') + NewLine + NewLine +
+    'Dati predefiniti:' + NewLine + Space + GetNewPatDataDir('') + NewLine + NewLine +
+    'Risultati predefiniti:' + NewLine + Space + GetNewPatRunsDir('') + NewLine + NewLine +
     MemoGroupInfo + NewLine + MemoTasksInfo;
 end;
 
-function NipatJsonString(Value: String): String;
+function NewPatJsonString(Value: String): String;
 var
   I: Integer;
 begin
@@ -520,7 +514,7 @@ begin
   Result := Result + '"';
 end;
 
-procedure WriteNipatInstallLayoutAt(LayoutPath: String);
+procedure WriteNewPatInstallLayoutAt(LayoutPath: String);
 var
   Lines: TArrayOfString;
   LayoutDir: String;
@@ -532,17 +526,17 @@ begin
   Lines[0] := '{';
   Lines[1] := '  "schema_version": 1,';
   Lines[2] := '  "installation_channel": "desktop",';
-  Lines[3] := '  "app_dir": ' + NipatJsonString(ExpandConstant('{app}')) + ',';
-  Lines[4] := '  "runtime_dir": ' + NipatJsonString(GetNipatRuntimeDir('')) + ',';
-  Lines[5] := '  "cache_dir": ' + NipatJsonString(GetNipatCacheDir('')) + ',';
-  Lines[6] := '  "data_dir": ' + NipatJsonString(GetNipatDataDir('')) + ',';
-  Lines[7] := '  "runs_dir": ' + NipatJsonString(GetNipatRunsDir(''));
+  Lines[3] := '  "app_dir": ' + NewPatJsonString(ExpandConstant('{app}')) + ',';
+  Lines[4] := '  "runtime_dir": ' + NewPatJsonString(GetNewPatRuntimeDir('')) + ',';
+  Lines[5] := '  "cache_dir": ' + NewPatJsonString(GetNewPatCacheDir('')) + ',';
+  Lines[6] := '  "data_dir": ' + NewPatJsonString(GetNewPatDataDir('')) + ',';
+  Lines[7] := '  "runs_dir": ' + NewPatJsonString(GetNewPatRunsDir(''));
   Lines[8] := '}';
   if not SaveStringsToUTF8File(LayoutPath, Lines, False) then
     RaiseException('Impossibile salvare le cartelle selezionate: ' + LayoutPath);
 end;
 
-function QuoteNipatArgument(Value: String): String;
+function QuoteNewPatArgument(Value: String): String;
 var
   I, J, Backslashes: Integer;
 begin
@@ -566,16 +560,16 @@ begin
   Result := Result + '"';
 end;
 
-procedure ExtractNipatLayoutHelpers;
+procedure ExtractNewPatLayoutHelpers;
 begin
   if LayoutHelpersExtracted then Exit;
   { Invoke the verified, read-locked helpers in place; do not create unlocked copies. }
-  if not FileExists(ExpandConstant('{tmp}\nipat-payload\app\installer\windows\validate-install-layout.ps1')) then
+  if not FileExists(ExpandConstant('{tmp}\newpat-payload\app\installer\windows\validate-install-layout.ps1')) then
     RaiseException('Componente del pacchetto verificato non disponibile.');
   LayoutHelpersExtracted := True;
 end;
 
-function NipatReadValidationError(ErrorFile, Fallback: String): String;
+function NewPatReadValidationError(ErrorFile, Fallback: String): String;
 var
   Lines: TArrayOfString;
   I: Integer;
@@ -587,7 +581,7 @@ begin
   if Trim(Result) = '' then Result := Fallback;
 end;
 
-function NipatValidateWithSharedRules(): String;
+function NewPatValidateWithSharedRules(): String;
 var
   LayoutFile, ErrorFile, InfoFile, Parameters: String;
   ValidationResult: Integer;
@@ -595,38 +589,37 @@ begin
   Result := '';
   ApplicationKind := '';
   SetupNonce := '';
-  LayoutFile := ExpandConstant('{tmp}\nipat-layout-selection.json');
-  ErrorFile := ExpandConstant('{tmp}\nipat-layout-error.txt');
-  InfoFile := ExpandConstant('{tmp}\nipat-layout-info.ini');
+  LayoutFile := ExpandConstant('{tmp}\newpat-layout-selection.json');
+  ErrorFile := ExpandConstant('{tmp}\newpat-layout-error.txt');
+  InfoFile := ExpandConstant('{tmp}\newpat-layout-info.ini');
   try
-    ExtractNipatLayoutHelpers;
-    WriteNipatInstallLayoutAt(LayoutFile);
+    ExtractNewPatLayoutHelpers;
+    WriteNewPatInstallLayoutAt(LayoutFile);
     DeleteFile(ErrorFile);
     DeleteFile(InfoFile);
     Parameters := '-NoLogo -NoProfile -ExecutionPolicy Bypass -File ' +
-      QuoteNipatArgument(ExpandConstant('{tmp}\nipat-payload\app\installer\windows\validate-install-layout.ps1')) +
-      ' -LayoutFile ' + QuoteNipatArgument(LayoutFile) +
-      ' -InfoFile ' + QuoteNipatArgument(InfoFile) +
-      ' -ErrorFile ' + QuoteNipatArgument(ErrorFile);
+      QuoteNewPatArgument(ExpandConstant('{tmp}\newpat-payload\app\installer\windows\validate-install-layout.ps1')) +
+      ' -LayoutFile ' + QuoteNewPatArgument(LayoutFile) +
+      ' -InfoFile ' + QuoteNewPatArgument(InfoFile) +
+      ' -ErrorFile ' + QuoteNewPatArgument(ErrorFile);
     if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
       Parameters, ExpandConstant('{tmp}'), SW_HIDE, ewWaitUntilTerminated, ValidationResult) then
       ValidationResult := 1;
-    ApplicationKind := GetIniString('NIPAT', 'kind', '', InfoFile);
+    ApplicationKind := GetIniString('NewPat', 'kind', '', InfoFile);
     if ValidationResult = 0 then
-      SetupNonce := GetIniString('NIPAT', 'setup_nonce', '', InfoFile);
+      SetupNonce := GetIniString('NewPat', 'setup_nonce', '', InfoFile);
     if ValidationResult <> 0 then
-      Result := NipatReadValidationError(ErrorFile,
+      Result := NewPatReadValidationError(ErrorFile,
         'Impossibile verificare le cartelle selezionate. Nessun file viene copiato. ' +
         'Verificare che Windows consenta l''esecuzione di PowerShell e riprovare.')
-    else if (ApplicationKind <> 'empty') and (ApplicationKind <> 'installed') and
-      (ApplicationKind <> 'residual') then
+    else if (ApplicationKind <> 'empty') and (ApplicationKind <> 'installed') then
       Result := 'La verifica non ha riconosciuto la destinazione applicativa. Nessun file viene copiato.';
   except
     Result := 'Verifica delle cartelle non completata: ' + GetExceptionMessage;
   end;
 end;
 
-function NipatDirectoryIsEmpty(Path: String): Boolean;
+function NewPatDirectoryIsEmpty(Path: String): Boolean;
 var
   Entry: TFindRec;
 begin
@@ -655,23 +648,23 @@ begin
   Result := True;
   if CurPageID <> StoragePage.ID then Exit;
   ApplicationKind := '';
-  MessageText := NipatValidateSelection;
-  if MessageText = '' then MessageText := NipatValidateWithSharedRules;
+  MessageText := NewPatValidateSelection;
+  if MessageText = '' then MessageText := NewPatValidateWithSharedRules;
   if (GuidedUpdateProject = '') and (MessageText <> '') and
     (ApplicationKind = 'unknown') and not WizardSilent then begin
     ParentPath := WizardDirValue;
-    ChildPath := AddBackslash(ParentPath) + '{#NipatAppDirectory}';
+    ChildPath := AddBackslash(ParentPath) + '{#NewPatAppDirectory}';
     if (CompareText(ProposedParent, ParentPath) <> 0) and
-      (CompareText(ExtractFileName(ParentPath), '{#NipatAppDirectory}') <> 0) and
-      NipatDirectoryIsEmpty(ChildPath) then begin
+      (CompareText(ExtractFileName(ParentPath), '{#NewPatAppDirectory}') <> 0) and
+      NewPatDirectoryIsEmpty(ChildPath) then begin
       ProposedParent := ParentPath;
       if MsgBox('La cartella selezionata contiene file che non identificano un''installazione NewPat. ' +
         'Vuoi usare questa sottocartella dedicata e vuota?' + #13#10#13#10 + ChildPath + #13#10#13#10 +
         'Nessun file esistente verra spostato o eliminato. Scegli No per tornare indietro e indicare un''altra destinazione.',
         mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then begin
         WizardForm.DirEdit.Text := ChildPath;
-        MessageText := NipatValidateSelection;
-        if MessageText = '' then MessageText := NipatValidateWithSharedRules;
+        MessageText := NewPatValidateSelection;
+        if MessageText = '' then MessageText := NewPatValidateWithSharedRules;
       end;
     end;
   end;
@@ -687,36 +680,36 @@ begin
   Result := (GuidedUpdateProject <> '') and (PageID = wpSelectDir);
 end;
 
-function NipatPrepareApplication(): String;
+function NewPatPrepareApplication(): String;
 var
   LayoutFile, ErrorFile, ReportFile, Parameters, Mode, BackupDir: String;
   RepairResult: Integer;
 begin
   Result := '';
-  LayoutFile := ExpandConstant('{tmp}\nipat-layout-selection.json');
-  ErrorFile := ExpandConstant('{tmp}\nipat-repair-error.txt');
-  ReportFile := ExpandConstant('{tmp}\nipat-repair-report.ini');
+  LayoutFile := ExpandConstant('{tmp}\newpat-layout-selection.json');
+  ErrorFile := ExpandConstant('{tmp}\newpat-repair-error.txt');
+  ReportFile := ExpandConstant('{tmp}\newpat-repair-report.ini');
   try
-    ExtractNipatLayoutHelpers;
-    WriteNipatInstallLayoutAt(LayoutFile);
+    ExtractNewPatLayoutHelpers;
+    WriteNewPatInstallLayoutAt(LayoutFile);
     DeleteFile(ErrorFile);
     DeleteFile(ReportFile);
     Parameters := '-NoLogo -NoProfile -ExecutionPolicy Bypass -File ' +
-      QuoteNipatArgument(ExpandConstant('{tmp}\nipat-payload\app\installer\windows\repair-installation.ps1')) +
-      ' -LayoutFile ' + QuoteNipatArgument(LayoutFile) +
-      ' -PayloadFile ' + QuoteNipatArgument(ExpandConstant('{tmp}\nipat-payload\app\.distribution\application-files.json')) +
-      ' -ReportFile ' + QuoteNipatArgument(ReportFile) +
-      ' -ErrorFile ' + QuoteNipatArgument(ErrorFile);
+      QuoteNewPatArgument(ExpandConstant('{tmp}\newpat-payload\app\installer\windows\repair-installation.ps1')) +
+      ' -LayoutFile ' + QuoteNewPatArgument(LayoutFile) +
+      ' -PayloadFile ' + QuoteNewPatArgument(ExpandConstant('{tmp}\newpat-payload\app\.distribution\application-files.json')) +
+      ' -ReportFile ' + QuoteNewPatArgument(ReportFile) +
+      ' -ErrorFile ' + QuoteNewPatArgument(ErrorFile);
     if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
       Parameters, ExpandConstant('{tmp}'), SW_HIDE, ewWaitUntilTerminated, RepairResult) then
       RepairResult := 1;
     if RepairResult <> 0 then begin
-      Result := NipatReadValidationError(ErrorFile,
+      Result := NewPatReadValidationError(ErrorFile,
         'Preparazione o backup dell''applicazione non completati. Nessun file applicativo viene copiato.');
       Exit;
     end;
-    Mode := GetIniString('NIPAT', 'mode', '', ReportFile);
-    BackupDir := GetIniString('NIPAT', 'backup_dir', '', ReportFile);
+    Mode := GetIniString('NewPat', 'mode', '', ReportFile);
+    BackupDir := GetIniString('NewPat', 'backup_dir', '', ReportFile);
     if (Mode <> 'install') and (Mode <> 'repair') then
       Result := 'Rapporto di preparazione non valido. Nessun file applicativo viene copiato.'
     else if (Mode = 'repair') and ((BackupDir = '') or not DirExists(BackupDir)) then
@@ -728,26 +721,26 @@ begin
   end;
 end;
 
-function VerifyNipatExtractedPayload(): String;
+function VerifyNewPatExtractedPayload(): String;
 var
   Parameters, ErrorFile: String;
   VerifyResult: Integer;
 begin
-  ErrorFile := ExpandConstant('{tmp}\nipat-payload-error.txt');
+  ErrorFile := ExpandConstant('{tmp}\newpat-payload-error.txt');
   DeleteFile(ErrorFile);
-  Parameters := '-I ' + QuoteNipatArgument(ExpandConstant('{tmp}\bootstrap_download.py')) +
-    ' --check-extracted ' + QuoteNipatArgument(ExpandConstant('{tmp}\nipat-payload')) +
-    ' --package ' + QuoteNipatArgument(PayloadPackage) +
-    ' --version ' + QuoteNipatArgument(PayloadVersion) +
-    ' --source ' + QuoteNipatArgument(PayloadSource) +
-    ' --sha256 ' + QuoteNipatArgument(PayloadHash) +
-    ' --size ' + QuoteNipatArgument(PayloadSize) +
-    ' --error-file ' + QuoteNipatArgument(ErrorFile);
-  if not Exec(ExpandConstant('{tmp}\nipat-bootstrap-python\python.exe'), Parameters,
+  Parameters := '-I ' + QuoteNewPatArgument(ExpandConstant('{tmp}\bootstrap_download.py')) +
+    ' --check-extracted ' + QuoteNewPatArgument(ExpandConstant('{tmp}\newpat-payload')) +
+    ' --package ' + QuoteNewPatArgument(PayloadPackage) +
+    ' --version ' + QuoteNewPatArgument(PayloadVersion) +
+    ' --source ' + QuoteNewPatArgument(PayloadSource) +
+    ' --sha256 ' + QuoteNewPatArgument(PayloadHash) +
+    ' --size ' + QuoteNewPatArgument(PayloadSize) +
+    ' --error-file ' + QuoteNewPatArgument(ErrorFile);
+  if not Exec(ExpandConstant('{tmp}\newpat-bootstrap-python\python.exe'), Parameters,
     ExpandConstant('{tmp}'), SW_HIDE, ewWaitUntilTerminated, VerifyResult) then VerifyResult := 1;
   Result := '';
   if VerifyResult <> 0 then
-    Result := NipatReadValidationError(ErrorFile,
+    Result := NewPatReadValidationError(ErrorFile,
       'Il contenuto temporaneo e cambiato. Nessun file applicativo viene modificato.');
 end;
 
@@ -756,114 +749,114 @@ var
   CheckResult: Integer;
   Parameters, ErrorFile: String;
 begin
-  Result := AcquireNipatActivityLock;
+  Result := AcquireNewPatActivityLock;
   if Result <> '' then Exit;
   try
     { Recheck membership after time spent in the wizard, immediately before any backup/copy. }
-    Result := VerifyNipatExtractedPayload;
-    if Result = '' then Result := NipatValidateSelection;
+    Result := VerifyNewPatExtractedPayload;
+    if Result = '' then Result := NewPatValidateSelection;
     if Result = '' then begin
-      ErrorFile := ExpandConstant('{tmp}\nipat-version-error.txt');
+      ErrorFile := ExpandConstant('{tmp}\newpat-version-error.txt');
       DeleteFile(ErrorFile);
-      Parameters := '-I ' + QuoteNipatArgument(ExpandConstant('{tmp}\bootstrap_download.py')) +
-        ' --check-installed ' + QuoteNipatArgument(ExpandConstant('{app}')) +
-        ' --version ' + QuoteNipatArgument(PayloadVersion) +
-        ' --source ' + QuoteNipatArgument(PayloadSource) +
-        ' --error-file ' + QuoteNipatArgument(ErrorFile);
-      if not Exec(ExpandConstant('{tmp}\nipat-bootstrap-python\python.exe'), Parameters,
+      Parameters := '-I ' + QuoteNewPatArgument(ExpandConstant('{tmp}\bootstrap_download.py')) +
+        ' --check-installed ' + QuoteNewPatArgument(ExpandConstant('{app}')) +
+        ' --version ' + QuoteNewPatArgument(PayloadVersion) +
+        ' --source ' + QuoteNewPatArgument(PayloadSource) +
+        ' --error-file ' + QuoteNewPatArgument(ErrorFile);
+      if not Exec(ExpandConstant('{tmp}\newpat-bootstrap-python\python.exe'), Parameters,
         ExpandConstant('{tmp}'), SW_HIDE, ewWaitUntilTerminated, CheckResult) then CheckResult := 1;
-      if CheckResult <> 0 then Result := NipatReadValidationError(ErrorFile,
+      if CheckResult <> 0 then Result := NewPatReadValidationError(ErrorFile,
         'Impossibile verificare la versione installata. Nessun file viene sostituito.');
     end;
-    if (Result = '') and (CompareText(WizardGroupValue, '{#NipatDisplayName}') <> 0) then
+    if (Result = '') and (CompareText(WizardGroupValue, '{#NewPatDisplayName}') <> 0) then
       Result := 'Il gruppo Start di NewPat deve restare separato dalle altre installazioni. Riavviare senza /GROUP.';
-    if Result = '' then Result := NipatValidateWithSharedRules;
-    if Result = '' then Result := CreateNipatSetupLease;
-    if Result = '' then Result := NipatPrepareApplication;
+    if Result = '' then Result := NewPatValidateWithSharedRules;
+    if Result = '' then Result := CreateNewPatSetupLease;
+    if Result = '' then Result := NewPatPrepareApplication;
   except
     Result := 'Preparazione NewPat non completata: ' + GetExceptionMessage;
   end;
-  if Result <> '' then ReleaseNipatActivityLock;
+  if Result <> '' then ReleaseNewPatActivityLock;
 end;
 
-procedure ReadNipatPreviousDefaults(Project, DefaultsFile: String);
+procedure ReadNewPatPreviousDefaults(Project, DefaultsFile: String);
 var
   Parameters, ErrorFile: String;
   ValidationResult: Integer;
 begin
-  ExtractNipatLayoutHelpers;
-  ErrorFile := ExpandConstant('{tmp}\nipat-defaults-error.txt');
+  ExtractNewPatLayoutHelpers;
+  ErrorFile := ExpandConstant('{tmp}\newpat-defaults-error.txt');
   DeleteFile(ErrorFile);
   Parameters := '-NoLogo -NoProfile -ExecutionPolicy Bypass -File ' +
-    QuoteNipatArgument(ExpandConstant('{tmp}\nipat-payload\app\installer\windows\validate-install-layout.ps1')) +
-    ' -Project ' + QuoteNipatArgument(Project) +
-    ' -DefaultsFile ' + QuoteNipatArgument(DefaultsFile) +
-    ' -ErrorFile ' + QuoteNipatArgument(ErrorFile);
+    QuoteNewPatArgument(ExpandConstant('{tmp}\newpat-payload\app\installer\windows\validate-install-layout.ps1')) +
+    ' -Project ' + QuoteNewPatArgument(Project) +
+    ' -DefaultsFile ' + QuoteNewPatArgument(DefaultsFile) +
+    ' -ErrorFile ' + QuoteNewPatArgument(ErrorFile);
   if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
     Parameters, ExpandConstant('{tmp}'), SW_HIDE, ewWaitUntilTerminated, ValidationResult) then
     ValidationResult := 1;
   if ValidationResult <> 0 then
-    RaiseException(NipatReadValidationError(ErrorFile,
+    RaiseException(NewPatReadValidationError(ErrorFile,
       'Impossibile leggere le cartelle della precedente installazione. ' +
       'Conservare la configurazione esistente e verificare che Windows consenta PowerShell.'));
 end;
 
-procedure PrepareNipatPayload;
+procedure PrepareNewPatPayload;
 var
   Parameters, ErrorFile, ReportFile: String;
   DownloadResult: Integer;
 begin
-  if (ExpandConstant('{param:NIPATUPDATE|}') = '1') and
-    (ExpandConstant('{param:NIPATVERSION|}') = '') then
+  if (ExpandConstant('{param:NEWPATUPDATE|}') = '1') and
+    (ExpandConstant('{param:NEWPATVERSION|}') = '') then
     RaiseException('Questo aggiornamento non specifica la versione del pacchetto. ' +
       'Chiudi NewPat e avvia manualmente NewPat-Setup.exe. Nessun file e stato modificato.');
-  ExtractTemporaryFiles('{tmp}\nipat-bootstrap-python\*');
+  ExtractTemporaryFiles('{tmp}\newpat-bootstrap-python\*');
   ExtractTemporaryFile('bootstrap_download.py');
-  LockNipatPayloadTree(ExpandConstant('{tmp}\nipat-bootstrap-python'));
-  LockNipatPayloadFile(ExpandConstant('{tmp}\bootstrap_download.py'));
-  ErrorFile := ExpandConstant('{tmp}\nipat-download-error.txt');
-  ReportFile := ExpandConstant('{tmp}\nipat-payload.ini');
-  Parameters := '-I ' + QuoteNipatArgument(ExpandConstant('{tmp}\bootstrap_download.py')) +
-    ' --destination ' + QuoteNipatArgument(ExpandConstant('{tmp}\nipat-payload')) +
-    ' --error-file ' + QuoteNipatArgument(ErrorFile) +
-    ' --report-file ' + QuoteNipatArgument(ReportFile);
-  if ExpandConstant('{param:NIPATPACKAGE|}') <> '' then
-    Parameters := Parameters + ' --package ' + QuoteNipatArgument(ExpandConstant('{param:NIPATPACKAGE|}'));
-  if ExpandConstant('{param:NIPATVERSION|}') <> '' then
-    Parameters := Parameters + ' --version ' + QuoteNipatArgument(ExpandConstant('{param:NIPATVERSION|}'));
-  if ExpandConstant('{param:NIPATSOURCE|}') <> '' then
-    Parameters := Parameters + ' --source ' + QuoteNipatArgument(ExpandConstant('{param:NIPATSOURCE|}'));
-  if ExpandConstant('{param:NIPATSHA256|}') <> '' then
-    Parameters := Parameters + ' --sha256 ' + QuoteNipatArgument(ExpandConstant('{param:NIPATSHA256|}'));
-  if ExpandConstant('{param:NIPATSIZE|}') <> '' then
-    Parameters := Parameters + ' --size ' + QuoteNipatArgument(ExpandConstant('{param:NIPATSIZE|}'));
-  if not Exec(ExpandConstant('{tmp}\nipat-bootstrap-python\python.exe'), Parameters,
+  LockNewPatPayloadTree(ExpandConstant('{tmp}\newpat-bootstrap-python'));
+  LockNewPatPayloadFile(ExpandConstant('{tmp}\bootstrap_download.py'));
+  ErrorFile := ExpandConstant('{tmp}\newpat-download-error.txt');
+  ReportFile := ExpandConstant('{tmp}\newpat-payload.ini');
+  Parameters := '-I ' + QuoteNewPatArgument(ExpandConstant('{tmp}\bootstrap_download.py')) +
+    ' --destination ' + QuoteNewPatArgument(ExpandConstant('{tmp}\newpat-payload')) +
+    ' --error-file ' + QuoteNewPatArgument(ErrorFile) +
+    ' --report-file ' + QuoteNewPatArgument(ReportFile);
+  if ExpandConstant('{param:NEWPATPACKAGE|}') <> '' then
+    Parameters := Parameters + ' --package ' + QuoteNewPatArgument(ExpandConstant('{param:NEWPATPACKAGE|}'));
+  if ExpandConstant('{param:NEWPATVERSION|}') <> '' then
+    Parameters := Parameters + ' --version ' + QuoteNewPatArgument(ExpandConstant('{param:NEWPATVERSION|}'));
+  if ExpandConstant('{param:NEWPATSOURCE|}') <> '' then
+    Parameters := Parameters + ' --source ' + QuoteNewPatArgument(ExpandConstant('{param:NEWPATSOURCE|}'));
+  if ExpandConstant('{param:NEWPATSHA256|}') <> '' then
+    Parameters := Parameters + ' --sha256 ' + QuoteNewPatArgument(ExpandConstant('{param:NEWPATSHA256|}'));
+  if ExpandConstant('{param:NEWPATSIZE|}') <> '' then
+    Parameters := Parameters + ' --size ' + QuoteNewPatArgument(ExpandConstant('{param:NEWPATSIZE|}'));
+  if not Exec(ExpandConstant('{tmp}\newpat-bootstrap-python\python.exe'), Parameters,
     ExpandConstant('{tmp}'), SW_SHOW, ewWaitUntilTerminated, DownloadResult) then DownloadResult := 1;
   if DownloadResult <> 0 then
-    RaiseException(NipatReadValidationError(ErrorFile,
+    RaiseException(NewPatReadValidationError(ErrorFile,
       'Download o verifica del pacchetto non riusciti. Verifica la connessione e riprova. Nessun file applicativo e stato modificato.'));
-  PayloadVersion := GetIniString('NIPAT', 'version', '', ReportFile);
-  PayloadSource := GetIniString('NIPAT', 'source_commit', '', ReportFile);
-  PayloadHash := GetIniString('NIPAT', 'sha256', '', ReportFile);
-  PayloadSize := GetIniString('NIPAT', 'size', '', ReportFile);
+  PayloadVersion := GetIniString('NewPat', 'version', '', ReportFile);
+  PayloadSource := GetIniString('NewPat', 'source_commit', '', ReportFile);
+  PayloadHash := GetIniString('NewPat', 'sha256', '', ReportFile);
+  PayloadSize := GetIniString('NewPat', 'size', '', ReportFile);
   if (PayloadVersion = '') or (Length(PayloadSource) <> 40) then
     RaiseException('Il pacchetto verificato non contiene una versione valida.');
-  PayloadPackage := ExpandConstant('{param:NIPATPACKAGE|}');
-  if PayloadPackage = '' then PayloadPackage := ExpandConstant('{tmp}\nipat-payload-download.zip');
-  LockNipatPayloadFile(PayloadPackage);
-  LockNipatPayloadTree(ExpandConstant('{tmp}\nipat-payload'));
-  Parameters := '-I ' + QuoteNipatArgument(ExpandConstant('{tmp}\bootstrap_download.py')) +
-    ' --check-extracted ' + QuoteNipatArgument(ExpandConstant('{tmp}\nipat-payload')) +
-    ' --package ' + QuoteNipatArgument(PayloadPackage) +
-    ' --version ' + QuoteNipatArgument(PayloadVersion) +
-    ' --source ' + QuoteNipatArgument(PayloadSource) +
-    ' --sha256 ' + QuoteNipatArgument(PayloadHash) +
-    ' --size ' + QuoteNipatArgument(PayloadSize) +
-    ' --error-file ' + QuoteNipatArgument(ErrorFile);
-  if not Exec(ExpandConstant('{tmp}\nipat-bootstrap-python\python.exe'), Parameters,
+  PayloadPackage := ExpandConstant('{param:NEWPATPACKAGE|}');
+  if PayloadPackage = '' then PayloadPackage := ExpandConstant('{tmp}\newpat-payload-download.zip');
+  LockNewPatPayloadFile(PayloadPackage);
+  LockNewPatPayloadTree(ExpandConstant('{tmp}\newpat-payload'));
+  Parameters := '-I ' + QuoteNewPatArgument(ExpandConstant('{tmp}\bootstrap_download.py')) +
+    ' --check-extracted ' + QuoteNewPatArgument(ExpandConstant('{tmp}\newpat-payload')) +
+    ' --package ' + QuoteNewPatArgument(PayloadPackage) +
+    ' --version ' + QuoteNewPatArgument(PayloadVersion) +
+    ' --source ' + QuoteNewPatArgument(PayloadSource) +
+    ' --sha256 ' + QuoteNewPatArgument(PayloadHash) +
+    ' --size ' + QuoteNewPatArgument(PayloadSize) +
+    ' --error-file ' + QuoteNewPatArgument(ErrorFile);
+  if not Exec(ExpandConstant('{tmp}\newpat-bootstrap-python\python.exe'), Parameters,
     ExpandConstant('{tmp}'), SW_SHOW, ewWaitUntilTerminated, DownloadResult) then DownloadResult := 1;
   if DownloadResult <> 0 then
-    RaiseException(NipatReadValidationError(ErrorFile,
+    RaiseException(NewPatReadValidationError(ErrorFile,
       'Il contenuto temporaneo e cambiato. Nessun file applicativo e stato modificato.'));
 end;
 
@@ -874,15 +867,15 @@ var
   I: Integer;
   NeedPrevious, GuidedUpdate: Boolean;
 begin
-  PrepareNipatPayload;
-  Base := ExpandConstant('{localappdata}\{#NipatDataDirectory}');
+  PrepareNewPatPayload;
+  Base := ExpandConstant('{localappdata}\{#NewPatDataDirectory}');
   SetArrayLength(Names, 4);
   SetArrayLength(Defaults, 4);
   Names[0] := 'runtime_dir'; Defaults[0] := AddBackslash(Base) + 'wsl';
   Names[1] := 'cache_dir'; Defaults[1] := AddBackslash(Base) + 'cache';
   Names[2] := 'data_dir'; Defaults[2] := AddBackslash(Base) + 'data';
   Names[3] := 'runs_dir'; Defaults[3] := AddBackslash(Base) + 'runs';
-  GuidedUpdate := ExpandConstant('{param:NIPATUPDATE|}') = '1';
+  GuidedUpdate := ExpandConstant('{param:NEWPATUPDATE|}') = '1';
   Project := WizardDirValue;
   if GuidedUpdate then begin
     GuidedUpdateProject := RemoveBackslashUnlessRoot(ExpandFileName(Project));
@@ -892,16 +885,16 @@ begin
     RaiseException('Il layout dell''applicazione da aggiornare non e disponibile. Riaprire il setup NewPat per riparare l''installazione.');
   NeedPrevious := False;
   for I := 0 to 3 do
-    if not RegQueryStringValue(HKCU, 'Software\NIPAT\desktop', Names[I], Stored) then
+    if not RegQueryStringValue(HKCU, 'Software\NewPat\desktop', Names[I], Stored) then
       NeedPrevious := True
     else if Trim(Stored) = '' then NeedPrevious := True;
   if GuidedUpdate or (NeedPrevious and
     (FileExists(AddBackslash(Project) + '.runtime\install-layout.json') or
      FileExists(AddBackslash(Project) + '.runtime\backend.json'))) then begin
-    DefaultsFile := ExpandConstant('{tmp}\nipat-previous-paths.ini');
-    ReadNipatPreviousDefaults(Project, DefaultsFile);
+    DefaultsFile := ExpandConstant('{tmp}\newpat-previous-paths.ini');
+    ReadNewPatPreviousDefaults(Project, DefaultsFile);
     for I := 0 to 3 do begin
-      Defaults[I] := GetIniString('NIPAT', Names[I], '', DefaultsFile);
+      Defaults[I] := GetIniString('NewPat', Names[I], '', DefaultsFile);
       if Trim(Defaults[I]) = '' then
         RaiseException('La configurazione precedente non contiene tutte le destinazioni. Nessun aggiornamento e stato applicato.');
     end;
@@ -919,7 +912,7 @@ begin
     if GuidedUpdate then
       StoragePage.Values[I] := Defaults[I]
     else
-      StoragePage.Values[I] := NipatRememberedPath(Names[I], Defaults[I]);
+      StoragePage.Values[I] := NewPatRememberedPath(Names[I], Defaults[I]);
 end;
 
 function InitializeUninstall(): Boolean;
@@ -931,13 +924,13 @@ begin
     MsgBox('Eseguire la disinstallazione dal proprio account senza elevazione. ' +
       'L''ambiente WSL appartiene all''utente che ha installato NewPat.', mbError, MB_OK);
   if Result then begin
-    MessageText := AcquireNipatActivityLock;
+    MessageText := AcquireNewPatActivityLock;
     Result := MessageText = '';
     if not Result then MsgBox(MessageText, mbError, MB_OK);
   end;
 end;
 
-procedure RemoveNipatRuntimeBeforeUninstall;
+procedure RemoveNewPatRuntimeBeforeUninstall;
 var
   CleanupResult, NonceResult: Integer;
   Parameters, MessageText: String;
@@ -952,60 +945,25 @@ begin
     if (NonceResult <> 0) or NonceOutput.Error or (GetArrayLength(NonceOutput.StdOut) <> 1) then
       RaiseException('Impossibile ottenere l''identificativo temporaneo della rimozione NewPat.');
     SetupNonce := Trim(NonceOutput.StdOut[0]);
-    MessageText := CreateNipatSetupLease;
+    MessageText := CreateNewPatSetupLease;
     if MessageText <> '' then RaiseException(MessageText);
-    if not NipatSetEnvironmentVariable('NIPAT_SETUP_ACTIVITY_TOKEN',
-      IntToStr(NipatGetCurrentProcessId) + ':' + SetupNonce) then
+    if not NewPatSetEnvironmentVariable('NEWPAT_SETUP_ACTIVITY_TOKEN',
+      IntToStr(NewPatGetCurrentProcessId) + ':' + SetupNonce) then
       RaiseException('Impossibile autorizzare la rimozione del runtime NewPat.');
     Parameters := '-NoLogo -NoProfile -ExecutionPolicy Bypass -File ' +
-      QuoteNipatArgument(ExpandConstant('{app}\installer\windows\uninstall-runtime.ps1')) +
-      ' -Project ' + QuoteNipatArgument(ExpandConstant('{app}'));
+      QuoteNewPatArgument(ExpandConstant('{app}\installer\windows\uninstall-runtime.ps1')) +
+      ' -Project ' + QuoteNewPatArgument(ExpandConstant('{app}'));
     if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
       Parameters, ExpandConstant('{app}'), SW_SHOW, ewWaitUntilTerminated, CleanupResult) then
       CleanupResult := 1;
   finally
-    ReleaseNipatChildLease;
+    ReleaseNewPatChildLease;
   end;
   if CleanupResult <> 0 then
     RaiseException('La pulizia dell''ambiente non e stata completata. L''applicazione non viene rimossa, ' +
-      'Consulta i log in ' + ExpandConstant('{localappdata}\{#NipatDataDirectory}\installations\logs') + '. ' +
+      'Consulta i log in ' + ExpandConstant('{localappdata}\{#NewPatDataDirectory}\installations\logs') + '. ' +
       'Per rimuovere soltanto l''applicazione, ' +
       'riapri la disinstallazione e scegli No alla pulizia dell''ambiente.');
-end;
-
-procedure RemoveLegacyNipatShortcut(Path, ExpectedTarget: String);
-var
-  Shell, Link: Variant;
-begin
-  if not FileExists(Path) then Exit;
-  try
-    Shell := CreateOleObject('WScript.Shell');
-    Link := Shell.CreateShortcut(Path);
-    if CompareText(Link.TargetPath, ExpectedTarget) = 0 then
-      DeleteFile(Path);
-  except
-    Log('Could not inspect a legacy shortcut; left it unchanged: ' + Path);
-  end;
-end;
-
-procedure MigrateNipatShortcuts;
-var
-  LegacyGroup: String;
-begin
-  { Only links targeting this installation are replaced. Other installations
-    and user-created links retain their target and files. }
-  LegacyGroup := ExpandConstant('{userprograms}\NIPAT Desktop');
-  RemoveLegacyNipatShortcut(ExpandConstant('{autodesktop}\NIPAT Desktop.lnk'), ExpandConstant('{app}\2_AVVIA.cmd'));
-  RemoveLegacyNipatShortcut(LegacyGroup + '\NIPAT Desktop.lnk', ExpandConstant('{app}\2_AVVIA.cmd'));
-  RemoveLegacyNipatShortcut(LegacyGroup + '\NIPAT Desktop - completa preparazione.lnk', ExpandConstant('{app}\1_SETUP.cmd'));
-  RemoveLegacyNipatShortcut(LegacyGroup + '\Cartella NIPAT Desktop.lnk', ExpandConstant('{app}'));
-  RemoveLegacyNipatShortcut(LegacyGroup + '\Guida NIPAT Desktop.lnk', ExpandConstant('{app}\docs\GUIDA_UTILIZZO.md'));
-  RemoveLegacyNipatShortcut(LegacyGroup + '\Disinstalla NIPAT Desktop.lnk', ExpandConstant('{uninstallexe}'));
-  RemoveLegacyNipatShortcut(ExpandConstant('{group}\{#NipatDisplayName} - completa preparazione.lnk'), ExpandConstant('{app}\1_SETUP.cmd'));
-  RemoveLegacyNipatShortcut(ExpandConstant('{group}\Cartella {#NipatDisplayName}.lnk'), ExpandConstant('{app}'));
-  RemoveLegacyNipatShortcut(ExpandConstant('{group}\Guida {#NipatDisplayName}.lnk'), ExpandConstant('{app}\docs\GUIDA_UTILIZZO.md'));
-  RemoveLegacyNipatShortcut(ExpandConstant('{group}\Disinstalla {#NipatDisplayName}.lnk'), ExpandConstant('{uninstallexe}'));
-  RemoveDir(LegacyGroup);
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
@@ -1014,28 +972,27 @@ var
   Started: Boolean;
 begin
   if CurStep = ssPostInstall then begin
-    MigrateNipatShortcuts;
     BootstrapResult := 1;
     try
-      WriteNipatInstallLayoutAt(ExpandConstant('{app}\.runtime\install-layout.json'));
+      WriteNewPatInstallLayoutAt(ExpandConstant('{app}\.runtime\install-layout.json'));
       Marker := '{"schema_version":1,"installation_method":"bootstrap","setup_sha256":' +
-        NipatJsonString(Lowercase(GetSHA256OfFile(ExpandConstant('{app}\.runtime\setup\NIPAT-Setup.exe')))) + '}';
+        NewPatJsonString(Lowercase(GetSHA256OfFile(ExpandConstant('{app}\.runtime\setup\NewPat-Setup.exe')))) + '}';
       if not SaveStringToFile(ExpandConstant('{app}\.runtime\bootstrap-install.json'), Marker, False) then
         RaiseException('Impossibile registrare il canale di aggiornamento del setup.');
       { Windows lists the installed application version, independently of the frozen setup. }
       if not RegWriteStringValue(HKCU,
-        'Software\Microsoft\Windows\CurrentVersion\Uninstall\' + ExpandConstant('{#NipatAppId}_is1'),
+        'Software\Microsoft\Windows\CurrentVersion\Uninstall\' + ExpandConstant('{#NewPatAppId}_is1'),
         'DisplayVersion', PayloadVersion) then
         RaiseException('Impossibile registrare la versione installata di NewPat.');
       AssetDir := ExpandConstant('{param:ASSETDIR|}');
       Parameters := '-NoLogo -NoProfile -ExecutionPolicy Bypass -File ' +
-        QuoteNipatArgument(ExpandConstant('{app}\installer\windows\bootstrap.ps1'));
+        QuoteNewPatArgument(ExpandConstant('{app}\installer\windows\bootstrap.ps1'));
       if AssetDir <> '' then
-        Parameters := Parameters + ' -AssetDirectory ' + QuoteNipatArgument(AssetDir);
+        Parameters := Parameters + ' -AssetDirectory ' + QuoteNewPatArgument(AssetDir);
       if (ActivityLock = 0) or (SetupLeaseEvent = 0) then
         RaiseException('Coordinamento della preparazione NewPat non disponibile.');
-      if not NipatSetEnvironmentVariable('NIPAT_SETUP_ACTIVITY_TOKEN',
-        IntToStr(NipatGetCurrentProcessId) + ':' + SetupNonce) then
+      if not NewPatSetEnvironmentVariable('NEWPAT_SETUP_ACTIVITY_TOKEN',
+        IntToStr(NewPatGetCurrentProcessId) + ':' + SetupNonce) then
         RaiseException('Impossibile autorizzare gli autotest della preparazione NewPat.');
       { Setup is non-elevated; Exec preserves the lease owner's environment and ancestry. }
       Started := Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
@@ -1044,12 +1001,12 @@ begin
       BootstrapCompleted := True;
       WslRebootRequired := BootstrapResult = 3010;
     finally
-      ReleaseNipatActivityLock;
+      ReleaseNewPatActivityLock;
     end;
     if (BootstrapResult <> 0) and not WslRebootRequired then
       MsgBox('I file NewPat sono installati, ma la preparazione non e'' completata. ' +
-        'Apri "{#NipatDisplayName} - Resume Setup" dal menu Start. ' +
-        'Dettagli nel file .runtime\installer\setup.log della cartella NIPAT.', mbError, MB_OK);
+        'Apri "{#NewPatDisplayName} - Resume Setup" dal menu Start. ' +
+        'Dettagli nel file .runtime\installer\setup.log della cartella NewPat.', mbError, MB_OK);
   end;
 end;
 
@@ -1062,7 +1019,7 @@ function GetCustomSetupExitCode(): Integer;
 begin
   Result := 0;
   { An older updater may pass /NORESTART without an explicit reboot code. }
-  if WslRebootRequired and (ExpandConstant('{param:NIPATUPDATE|}') = '1') then
+  if WslRebootRequired and (ExpandConstant('{param:NEWPATUPDATE|}') = '1') then
     Result := 3010
   else if (BootstrapResult <> 0) and not WslRebootRequired then Result := 1;
 end;
@@ -1081,8 +1038,8 @@ begin
         'Dati e risultati delle analisi su Windows, Docker Desktop e altre distribuzioni Linux vengono conservati.',
         mbConfirmation, MB_YESNOCANCEL or MB_DEFBUTTON2);
       if Choice = IDCANCEL then Abort;
-      if Choice = IDYES then RemoveNipatRuntimeBeforeUninstall;
+      if Choice = IDYES then RemoveNewPatRuntimeBeforeUninstall;
     end;
-    RegDeleteValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\RunOnce', '{#NipatResumeKey}');
+    RegDeleteValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\RunOnce', '{#NewPatResumeKey}');
   end;
 end;

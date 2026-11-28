@@ -22,13 +22,13 @@ class LinuxInstallationEvidenceTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
         self.manifest = {
-            "version": "0.6.0", "source_commit": "1" * 40,
+            "version": "0.9.99", "source_commit": "1" * 40,
             "runtime_image": "sha256:" + "2" * 64,
             "assets": {"scientific_image": {"sha256": "3" * 64}},
         }
         self.state = {
             "schema_version": 1, "phase": "ready", "channel": "desktop",
-            "version": "0.6.0", "source_commit": "1" * 40,
+            "version": "0.9.99", "source_commit": "1" * 40,
             "installer_manifest_sha256": "4" * 64,
             "runtime_archive_sha256": "3" * 64,
             "source_runtime_image": "sha256:" + "2" * 64,
@@ -50,31 +50,25 @@ class LinuxInstallationEvidenceTests(unittest.TestCase):
             with self.subTest(field=name), self.assertRaises(RuntimeError):
                 check.check_state({**self.state, name: value}, self.manifest, "4" * 64)
 
-    def test_plan_checks_are_required_for_07_without_reinterpreting_06_evidence(self):
-        previous = set(check.checks_for_version("0.6.0"))
-        current = set(check.checks_for_version("0.7.0a1"))
-        self.assertEqual(current - previous, {"automatic_workflow_plan", "preferences_preserved"})
-        self.assertEqual(set(check.checks_for_version("0.7.0")), current)
-        self.assertEqual(set(check.checks_for_version("0.8.2")), current)
-        for version in ("0.5.0a1", "0.8.0", "0.7.0dev1"):
+    def test_installed_evidence_rejects_old_and_invalid_versions(self):
+        for version in ("0.9.98", "0.9.99a1", "1.0.0dev1", "1.0"):
             with self.subTest(version=version), self.assertRaises(RuntimeError):
                 check.checks_for_version(version)
 
     def test_gui_and_current_release_require_complete_installed_package_checks(self):
         expected = {
             "package_installation", "initial_setup", "immutable_runtime_binding",
-            "all_five_workflows", "private_inputs_unchanged", "user_owned_results",
+            "all_six_workflows", "private_inputs_unchanged", "user_owned_results",
             "repeated_launch", "package_reinstallation",
             "package_removal_preserves_user_data", "shared_docker_unchanged",
-            "automatic_workflow_plan", "preferences_preserved",
+            "automatic_workflow_plan", "preferences_preserved", "fetal_sex_example",
         }
-        for version in ("0.9.0", newpat.__version__):
+        for version in (newpat.__version__, "1.0.0"):
             with self.subTest(version=version):
-                self.assertEqual(set(check.checks_for_version(version)),
-                                 expected | ({"fetal_sex_example"} if version == newpat.__version__ else set()))
+                self.assertEqual(set(check.checks_for_version(version)), expected)
 
-    def test_all_five_workflows_must_have_successful_run_records(self):
-        for workflow in ("dnp-call", "snp-call", "contamination", "cpi", "cpin"):
+    def test_all_six_workflows_must_have_successful_run_records(self):
+        for workflow in ("dnp-call", "snp-call", "contamination", "cpi", "cpin", "fetal-sex"):
             directory = self.root / workflow
             directory.mkdir()
             (directory / "run.json").write_text(json.dumps({
@@ -83,11 +77,11 @@ class LinuxInstallationEvidenceTests(unittest.TestCase):
         uid = (self.root / "cpi/run.json").stat().st_uid
         check.check_workflows(self.root, uid)
         (self.root / "cpi/run.json").write_text(json.dumps({"workflow": "cpi", "status": "failed"}))
-        with self.assertRaisesRegex(RuntimeError, "all five"):
+        with self.assertRaisesRegex(RuntimeError, "all six"):
             check.check_workflows(self.root, uid)
 
     def test_foreign_owned_result_is_rejected(self):
-        for workflow in ("dnp-call", "snp-call", "contamination", "cpi", "cpin"):
+        for workflow in ("dnp-call", "snp-call", "contamination", "cpi", "cpin", "fetal-sex"):
             directory = self.root / workflow
             directory.mkdir()
             (directory / "run.json").write_text(json.dumps({
@@ -116,16 +110,16 @@ class InstalledAutomaticPlanEvidenceTests(unittest.TestCase):
         self.workflow = self.run / "output/workflow"
         self.workflow.mkdir(parents=True)
         self.fixture = Path(__file__).resolve().parent / "fixtures/dnp_engine"
-        self.manifest = {"version": "0.7.0a1", "source_commit": "1" * 40}
+        self.manifest = {"version": "0.9.99", "source_commit": "1" * 40}
         self.image = "sha256:" + "2" * 64
         # Match the canonical paths recorded by the client, including Windows
         # short-name temporary directories expanded by Path.resolve().
         self.sources = [(self.root / name).resolve() for name in ("maternal.bam", "paternal.bam")]
         self.record = {
             "workflow": "dnp-contamination-cpi", "status": "succeeded", "bundled_workflow": "workflow-plan-with-snp",
-            "source": {"role": "client", "nipat_version": "0.7.0a1", "release": {"source_git": {"commit": "1" * 40}}},
+            "source": {"role": "client", "newpat_version": "0.9.99", "release": {"source_git": {"commit": "1" * 40}}},
             "runtime": {"image_id": self.image, "engine": {"plan_execution": {
-                "workflows": ["dnp-call", "snp-call", "contamination", "cpi"]}}},
+                "workflows": ["dnp-call", "snp-call", "contamination", "cpi", "cpin", "fetal-sex"]}}},
             "commands": [{"argv": ["python3", "main.py", "execute-plan"]}],
             "parameters": {"sample_mapping": [{"original_path": str(path)} for path in self.sources]},
         }
@@ -148,7 +142,7 @@ class InstalledAutomaticPlanEvidenceTests(unittest.TestCase):
         steps["dnp"]["artifacts"]["dnp-tables"] = dnp
         contamination = steps["contamination"]["artifacts"]
         contamination["summary"] = self.table("steps/contamination/output/summary.txt", [
-            {"individuo": f"table_{number:04d}", "informative_DNPs": "2", "mean_contamination": "0", "sd_contamination": "0"}
+            {"individuo": f"table_{number:04d}", "informative_sites": "2", "mean_contamination": "0", "sd_contamination": "0"}
             for number in (1, 2)])
         contamination["contamination-tables"] = [
             {"sample": f"sample_{number:04d}", **self.table(f"steps/contamination/output/table{number}.txt", [
@@ -168,10 +162,20 @@ class InstalledAutomaticPlanEvidenceTests(unittest.TestCase):
             name = f"snp_{number:04d}"
             step = steps[name]
             step["sample_mapping"] = {"sample": f"sample_{number:04d}", "mode": "bam"}
-            step["artifacts"]["snp-tables"] = [{"sample": f"sample_{number:04d}", **self.table(f"steps/{name}/output/SNPcall_output.txt", [
-                {"chr": "chrDnpSynthetic", "pos": str(position), "Reference": ref, "Alternative": alt,
-                 "N_Reference": str(ref_count), "N_Alternative": str(alt_count), "N_Altro": "0", "total_count": "21", "ratio": str(ref_count / 21)}
-                for (position, ref, alt), (ref_count, alt_count) in zip(((50, "A", "G"), (140, "T", "C"), (230, "G", "A")), counts)])}]
+            rows = []
+            for position, ref, alt, (nr, na) in zip((50, 140, 230), "ATG", "GCA", counts, strict=True):
+                likelihoods = [nr * math.log(0.9999) + na * math.log(0.0001),
+                               21 * math.log(0.5), nr * math.log(0.0001) + na * math.log(0.9999)]
+                observed = {base: count for base, count in sorted(((ref, nr), (alt, na))) if count}
+                rows.append({"chr": "chrDnpSynthetic", "pos": str(position), "REF": ref, "ALT": alt,
+                    "N_REF": str(nr), "N_ALT": str(na), "N_Other": "0", "total_count": "21",
+                    "ratio": str(nr / 21), **{f"GL{index}": str(value) for index, value in enumerate(likelihoods)},
+                    "GT": ("0/0", "0/1", "1/1")[max(range(3), key=likelihoods.__getitem__)],
+                    "reads_discarded_for_indels": "0", "ratio_reads_discarded_for_indels": "0",
+                    "combined_bases": "-".join(observed),
+                    "combined_counts": "-".join(str(count) for count in observed.values())})
+            step["artifacts"]["snp-tables"] = [{"sample": f"sample_{number:04d}",
+                **self.table(f"steps/{name}/output/SNPcall_output.txt", rows)}]
             step["preparation_exit_code"] = 0
             step["preparation_log"] = f"steps/{name}/preparation.log"
             self.artifact(step["preparation_log"], "samtools\n")
@@ -214,56 +218,15 @@ class InstalledAutomaticPlanEvidenceTests(unittest.TestCase):
                 artifacts["contamination-tables"] = tables
                 self.verify()
 
-    def current_snp2_outputs(self):
-        self.manifest["version"] = "0.8.30"
-        self.record["source"]["nipat_version"] = "0.8.30"
-        for step in self.state["steps"]:
-            if not step["id"].startswith("snp_"):
-                continue
-            artifact = step["artifacts"]["snp-tables"][0]
-            rows = check.read_table(self.workflow / artifact["path"])
-            values = []
-            for row in rows:
-                ref, alt = row["Reference"], row["Alternative"]
-                nr, na = int(row["N_Reference"]), int(row["N_Alternative"])
-                likelihoods = [nr * math.log(0.9999) + na * math.log(0.0001),
-                               21 * math.log(0.5), nr * math.log(0.0001) + na * math.log(0.9999)]
-                observed = {base: count for base, count in sorted(((ref, nr), (alt, na))) if count}
-                values.append({"chr": row["chr"], "pos": row["pos"], "REF": ref, "ALT": alt,
-                    "N_REF": str(nr), "N_ALT": str(na), "N_Other": "0", "total_count": "21",
-                    "ratio": str(nr / 21), **{f"GL{index}": str(value) for index, value in enumerate(likelihoods)},
-                    "GT": ("0/0", "0/1", "1/1")[max(range(3), key=likelihoods.__getitem__)],
-                    "reads_discarded_for_indels": "0", "ratio_reads_discarded_for_indels": "0",
-                    "combined_bases": "-".join(observed),
-                    "combined_counts": "-".join(str(count) for count in observed.values())})
-            artifact.update(self.table(artifact["path"], values))
-
-    def test_current_package_requires_complete_snp2_scientific_results(self):
-        self.current_snp2_outputs()
-        self.verify()
-
-    def test_0850_requires_five_modules_and_marker_neutral_contamination(self):
-        self.current_snp2_outputs()
-        self.manifest["version"] = "0.8.50"
-        self.record["source"]["nipat_version"] = "0.8.50"
-        self.record["runtime"]["engine"]["plan_execution"]["workflows"].append("cpin")
-        artifact = next(step for step in self.state["steps"] if step["id"] == "contamination")["artifacts"]["summary"]
-        rows = check.read_table(self.workflow / artifact["path"])
-        for row in rows:
-            row["informative_sites"] = row.pop("informative_DNPs")
-        artifact.update(self.table(artifact["path"], rows))
-        self.verify()
-        self.record["runtime"]["engine"]["plan_execution"]["workflows"].remove("cpin")
-        with self.assertRaisesRegex(RuntimeError, "complete plan interface"):
-            self.verify()
-
-    def test_0850_evidence_does_not_reinterpret_old_release_checks(self):
-        self.assertIn("all_five_workflows", check.checks_for_version("0.8.50"))
-        self.assertIn("all_four_workflows", check.checks_for_version("0.8.35"))
-        self.assertNotIn("all_four_workflows", check.checks_for_version("0.8.50"))
+    def test_installed_plan_rejects_missing_postnatal_or_fetal_modules(self):
+        workflows = self.record["runtime"]["engine"]["plan_execution"]["workflows"]
+        for missing in ("cpin", "fetal-sex"):
+            workflows.remove(missing)
+            with self.subTest(missing=missing), self.assertRaisesRegex(RuntimeError, "complete plan interface"):
+                self.verify()
+            workflows.append(missing)
 
     def test_current_package_rejects_changed_likelihood_genotype_and_observations(self):
-        self.current_snp2_outputs()
         artifact = self.state["steps"][-1]["artifacts"]["snp-tables"][0]
         original = check.read_table(self.workflow / artifact["path"])
         for field, value in {"GL0": "0", "GL1": "0", "GL2": "0", "GT": "9/9",
@@ -275,11 +238,6 @@ class InstalledAutomaticPlanEvidenceTests(unittest.TestCase):
                 artifact.update(self.table(artifact["path"], rows))
                 with self.assertRaisesRegex(RuntimeError, "Installed SNP2"):
                     self.verify()
-
-    def test_last_stable_package_retains_its_legacy_snp_oracle(self):
-        self.manifest["version"] = "0.8.20"
-        self.record["source"]["nipat_version"] = "0.8.20"
-        self.verify()
 
     def test_successful_parent_does_not_hide_an_incomplete_scientific_step(self):
         self.state["steps"][-1]["status"] = "failed"

@@ -44,7 +44,7 @@ def manager(backend="wsl", running=True):
     result.preview.return_value.as_dict.return_value = {
         "backend": backend, "config_path": "/user/.wslconfig", "before": {"memory_mib": 4096, "cpus": 2},
         "after": {"memory_mib": 8192, "cpus": 4}, "warnings": ["Impatto globale WSL2"],
-        "affected_running": ["Ubuntu", "NIPAT"] if running else [],
+        "affected_running": ["Ubuntu", "NewPat"] if running else [],
     }
     result.apply.return_value = {"backup": "/user/.wslconfig.backup", "status": "saved-restart-required", "warnings": []}
     return result
@@ -139,7 +139,7 @@ class ResourceUITests(unittest.TestCase):
         backend.preview.assert_called_once_with(memory_mib=8192, cpus=4)
         backend.apply.assert_called_once_with(backend.preview.return_value, confirmed=True, restart_confirmed=False)
         text = "\n".join(ui.lines)
-        self.assertIn("Ubuntu, NIPAT", text)
+        self.assertIn("Ubuntu, NewPat", text)
         self.assertIn("Riavvio da completare", text)
         self.assertIn("Backup:", text)
         self.assertIn("non aumenta", text)

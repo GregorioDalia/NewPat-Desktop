@@ -34,7 +34,7 @@ def _utc():
 
 
 def _event(directory, event, budget, coordinator, index=None, outcome=None):
-    payload = {"schema_version": 1, "interface": "nipat-parallel-v1", "event": event,
+    payload = {"schema_version": 1, "interface": "newpat-parallel-v1", "event": event,
                "label": "snp-samples", "coordinator_pid": coordinator, "pid": os.getpid(),
                "task_index": index, "outcome": outcome, "observed_at_unix": time.time(),
                "elapsed_seconds": time.monotonic() - _STARTED, **budget}
@@ -202,7 +202,7 @@ def _query_budget(steps, samples, directory, cancellation):
     tasks = len(steps)
     expression = ('a <- commandArgs(TRUE); source(a[[1]]); observed <- a[[3]] != "unknown"; '
                   'm <- if (observed) as.numeric(a[[3]]) else NULL; '
-                  'cat(jsonlite::toJSON(nipat_parallel_budget(as.integer(a[[2]]), '
+                  'cat(jsonlite::toJSON(newpat_parallel_budget(as.integer(a[[2]]), '
                   'memory_mib=m, workload_observed=observed), auto_unbox=TRUE, null="null", digits=NA))')
     target = directory / "budget.json"
     code = _run_process(["Rscript", "-e", expression, str(Path(__file__).with_name("parallel.R")), str(tasks), memory],
@@ -313,9 +313,9 @@ def execute_independent_snp_steps(plan, state, root, scripts, cancellation, *, a
     records = {record["id"]: record for record in state["steps"]}
     steps = [step for step in plan["steps"] if step["workflow"] == "snp-call" and records[step["id"]]["status"] == "pending"]
     if (os.name != "posix" or len(steps) < 2
-            or os.environ.get("NIPAT_EXECUTION_MODE", "auto") == "serial"
-            or os.environ.get("NIPAT_MAX_WORKERS") == "1"
-            or os.environ.get("NIPAT_PARALLEL_CHILD") == "1"):
+            or os.environ.get("NEWPAT_EXECUTION_MODE", "auto") == "serial"
+            or os.environ.get("NEWPAT_MAX_WORKERS") == "1"
+            or os.environ.get("NEWPAT_PARALLEL_CHILD") == "1"):
         return False
     if cancellation.signum is not None:
         raise KeyboardInterrupt
@@ -323,7 +323,7 @@ def execute_independent_snp_steps(plan, state, root, scripts, cancellation, *, a
     directory.mkdir(parents=True)
     samples = {sample["id"]: sample["path"] for sample in plan["samples"]}
     budget, costs = _query_budget(steps, samples, directory, cancellation)
-    state["snp_parallel"] = {"interface": "nipat-parallel-v1", **budget,
+    state["snp_parallel"] = {"interface": "newpat-parallel-v1", **budget,
                              "diagnostics": "parallel/snp"}
     _event(directory, "plan", budget, os.getpid())
     atomic_json(root / "workflow-state.json", state)
@@ -332,7 +332,7 @@ def execute_independent_snp_steps(plan, state, root, scripts, cancellation, *, a
     environment = {**os.environ, **THREAD_LIMITS}
     module_root = str(Path(__file__).resolve().parent.parent)
     environment["PYTHONPATH"] = module_root + (os.pathsep + environment["PYTHONPATH"] if environment.get("PYTHONPATH") else "")
-    shared_environment = {**environment, "NIPAT_PARALLEL_CHILD": "1", "NIPAT_MAX_WORKERS": "1"}
+    shared_environment = {**environment, "NEWPAT_PARALLEL_CHILD": "1", "NEWPAT_MAX_WORKERS": "1"}
     pending = {step["id"]: index for index, step in enumerate(steps, 1)}
     active = {}
     try:
@@ -460,7 +460,7 @@ def _worker(job_path):
         signal.signal(signum, cancellation.receive)
     os.environ.update(THREAD_LIMITS)
     if not job["exclusive"]:
-        os.environ.update(NIPAT_PARALLEL_CHILD="1", NIPAT_MAX_WORKERS="1")
+        os.environ.update(NEWPAT_PARALLEL_CHILD="1", NEWPAT_MAX_WORKERS="1")
     _event(job_path.parent, "task-start", job["budget"], job["coordinator_pid"], job["task_index"])
     try:
         _execute_step(plan, step, record, root, {key: Path(value) for key, value in job["scripts"].items()},

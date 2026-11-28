@@ -45,7 +45,7 @@ fixture <- function(count) {
 
 check <- function(data, loci, bytes) {
   expected <- do.call(reference_plan,c(data,list(max_loci=loci,max_bytes=bytes)))
-  actual <- do.call(nipat_dnp_plan,c(data,list(max_loci=loci,max_bytes=bytes)))
+  actual <- do.call(newpat_dnp_plan,c(data,list(max_loci=loci,max_bytes=bytes)))
   stopifnot(identical(actual,expected))
 }
 
@@ -71,7 +71,7 @@ if (length(arguments) > 1L) {
     order <- if (iteration %% 2L) c("reference","indexed") else c("indexed","reference")
     elapsed <- numeric(); results <- list()
     for (name in order) {
-      fun <- if (name == "reference") reference_plan else nipat_dnp_plan
+      fun <- if (name == "reference") reference_plan else newpat_dnp_plan
       elapsed[name] <- unname(system.time(results[[name]] <- do.call(fun,data))["elapsed"])
     }
     stopifnot(identical(results$reference,results$indexed))

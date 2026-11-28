@@ -18,7 +18,7 @@ SPEC.loader.exec_module(release)
 def native_fixture(root, architecture, manifest):
     directory = root / architecture
     directory.mkdir()
-    name = f"NIPAT-{manifest['version']}-macos-{architecture}.pkg"
+    name = f"NewPat-{manifest['version']}-macos-{architecture}.pkg"
     package = directory / name
     package.write_bytes(b"verified native package fixture " + architecture.encode())
     common = {
@@ -120,8 +120,7 @@ class MacosReleaseTests(unittest.TestCase):
                 record["scientific_platform"] = "linux/arm64" if arch == "arm64" else "linux/amd64"
                 if "checks" in record:
                     record["checks"] += ["docker-archive-architecture", "rosetta-disabled"]
-                    if arch == "arm64":
-                        record["checks"].append("stopped-0.9.10-lima-upgrade")
+                    record["checks"].append("newpat-clean-install-identity")
                 path.write_text(json.dumps(record))
         identity = directories["arm64"] / "arm64-scientific.json"
         identity.write_text(json.dumps(arm))

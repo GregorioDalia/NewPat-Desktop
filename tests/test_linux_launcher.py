@@ -19,7 +19,7 @@ from newpat import __version__
 
 
 PROJECT = Path(__file__).resolve().parents[1]
-SPEC = importlib.util.spec_from_file_location("nipat_linux_launcher", PROJECT / "installer/linux/launch.py")
+SPEC = importlib.util.spec_from_file_location("newpat_linux_launcher", PROJECT / "installer/linux/launch.py")
 launcher = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(launcher)
 SOURCE_ID = "sha256:" + "a" * 64
@@ -41,7 +41,7 @@ class LinuxLauncherTests(unittest.TestCase):
         self.archive = self.distribution / "scientific.tar.gz"
         self.archive.write_bytes(b"verified-export")
         self.manifest = {
-            "schema_version": 1, "version": "0.6.0", "release_tag": "v0.6.0",
+            "schema_version": 1, "version": "0.9.99", "release_tag": "v0.9.99",
             "installation_profile": {"channel": "desktop"},
             "source_commit": "a" * 40, "runtime_image": SOURCE_ID,
             "source_sha256": {"source.txt": launcher.digest(self.source)},
@@ -77,7 +77,7 @@ class LinuxLauncherTests(unittest.TestCase):
         self.assertEqual(load.call_args.args[0], ["image", "load", "--input", str(self.archive)])
         self.assertEqual([call.args[1] for call in cli.call_args_list],
                          [["doctor", "--runtime"], ["self-test"]])
-        self.assertTrue(all(call.args[2]["NIPAT_RUNTIME_IMAGE"] == LOADED_ID
+        self.assertTrue(all(call.args[2]["NEWPAT_RUNTIME_IMAGE"] == LOADED_ID
                             for call in cli.call_args_list))
         record = json.loads((self.state / "state.json").read_text())
         self.assertEqual(record["phase"], "ready")
@@ -108,14 +108,14 @@ class LinuxLauncherTests(unittest.TestCase):
                      "XDG_STATE_HOME": str(self.root / "private state")}
         previous = []
         for base in inherited.values():
-            marker = Path(base) / "nipat-05-preview" / "preserved.txt"
+            marker = Path(base) / "newpat-05-preview" / "preserved.txt"
             marker.parent.mkdir(parents=True)
             marker.write_bytes(b"previous installation")
             previous.append(marker)
         data, state = launcher.user_paths(inherited)
         self.assertEqual(data, self.data)
         self.assertEqual(state, self.state)
-        self.assertEqual(data.name, "nipat-desktop")
+        self.assertEqual(data.name, "newpat-desktop")
         self.preparation()
         self.assertTrue(all(marker.read_bytes() == b"previous installation" for marker in previous))
         self.assertEqual(json.loads((state / "state.json").read_text())["channel"], "desktop")
@@ -200,9 +200,9 @@ class LinuxLauncherTests(unittest.TestCase):
 
     def test_environment_does_not_inherit_docker_or_application_overrides(self):
         inherited = {
-            "NIPAT_BACKEND": "wsl", "NIPAT_WSL_DISTRO": "unexpected",
-            "NIPAT_RUNTIME_IMAGE": "arbitrary:tag", "NIPAT_DATA_DIR": "/private/other",
-            "NIPAT_UID": "0", "DOCKER_HOST": "tcp://remote:2375", "DOCKER_CONTEXT": "remote",
+            "NEWPAT_BACKEND": "wsl", "NEWPAT_WSL_DISTRO": "unexpected",
+            "NEWPAT_RUNTIME_IMAGE": "arbitrary:tag", "NEWPAT_DATA_DIR": "/private/other",
+            "NEWPAT_UID": "0", "DOCKER_HOST": "tcp://remote:2375", "DOCKER_CONTEXT": "remote",
             "DOCKER_CONFIG": "/private/config", "DOCKER_TLS_VERIFY": "1",
             "COMPOSE_FILE": "malicious.yaml", "COMPOSE_PROJECT_NAME": "unexpected",
             "PYTHONPATH": "/private/injected", "PYTHONHOME": "/private/python",
@@ -212,9 +212,9 @@ class LinuxLauncherTests(unittest.TestCase):
         self.assertEqual(inherited["DOCKER_CONTEXT"], "remote")
         self.assertEqual(result["DOCKER_HOST"], launcher.SOCKET)
         self.assertEqual(result["DOCKER_CONFIG"], str(self.state / "docker-config"))
-        self.assertEqual(result["NIPAT_BACKEND"], "native")
-        self.assertEqual(result["NIPAT_DATA_DIR"], str(self.data / "data"))
-        for key in ("NIPAT_UID", "NIPAT_RUNTIME_IMAGE", "NIPAT_WSL_DISTRO", "DOCKER_CONTEXT",
+        self.assertEqual(result["NEWPAT_BACKEND"], "native")
+        self.assertEqual(result["NEWPAT_DATA_DIR"], str(self.data / "data"))
+        for key in ("NEWPAT_UID", "NEWPAT_RUNTIME_IMAGE", "NEWPAT_WSL_DISTRO", "DOCKER_CONTEXT",
                     "DOCKER_TLS_VERIFY", "COMPOSE_FILE", "COMPOSE_PROJECT_NAME", "PYTHONPATH", "PYTHONHOME"):
             self.assertNotIn(key, result)
         self.assertEqual(result["TERM"], "xterm")
@@ -246,22 +246,20 @@ class LinuxLauncherTests(unittest.TestCase):
                 launcher.load_manifest(self.app)
 
     def test_manifest_rejects_other_release_families(self):
-        for version in ("0.4.1", "0.5.0a1", "0.8.0a1", "0.8.0", "0.8.1", "0.8.2rc1",
-                        "0.10.0", "1.0.0", "0.7.0dev1", "0.7.0a"):
+        for version in ("0.9.10", "0.9.98", "0.9.99rc1", "1.0.0dev1", "01.0.0"):
             self.manifest.update(version=version, release_tag="v" + version)
             self.write_manifest()
             with self.subTest(version=version), self.assertRaises(launcher.SetupError):
                 launcher.load_manifest(self.app)
 
     def test_manifest_accepts_supported_desktop_series_with_exact_tag(self):
-        for version in ("0.6.0", "0.6.1rc2", "0.7.0a1", "0.7.0b2", "0.7.0rc1", "0.7.0",
-                        "0.8.2", "0.8.3", "0.8.10", "0.8.99", "0.9.0"):
+        for version in ("0.9.99", "0.9.100", "0.10.0", "1.0.0"):
             self.manifest.update(version=version, release_tag="v" + version)
             self.write_manifest()
             with self.subTest(version=version):
                 actual, _ = launcher.load_manifest(self.app)
                 self.assertEqual(actual["version"], version)
-                self.manifest["release_tag"] = "v0.6.0" if version != "0.6.0" else "v0.7.0"
+                self.manifest["release_tag"] = "v1.2.3"
                 self.write_manifest()
                 with self.assertRaises(launcher.SetupError):
                     launcher.load_manifest(self.app)
@@ -326,7 +324,7 @@ class LinuxLauncherTests(unittest.TestCase):
         prepare.assert_not_called()
         docker.assert_not_called()
         self.assertEqual(cli.call_args.args[1], ["--dry-run", "wizard"])
-        self.assertEqual(cli.call_args.args[2]["NIPAT_RUNTIME_IMAGE"], SOURCE_ID)
+        self.assertEqual(cli.call_args.args[2]["NEWPAT_RUNTIME_IMAGE"], SOURCE_ID)
         self.assertFalse(self.state.exists())
 
     def test_cli_arguments_remain_separate_and_python_is_isolated(self):
@@ -356,8 +354,8 @@ class LinuxLauncherTests(unittest.TestCase):
 
     def test_child_receives_real_launcher_pid_not_inherited_value(self):
         environment = launcher.clean_environment(self.app, self.data, self.state,
-                                                   {"NIPAT_LAUNCHER_PID": "1"})
-        self.assertEqual(environment["NIPAT_LAUNCHER_PID"], str(os.getpid()))
+                                                   {"NEWPAT_LAUNCHER_PID": "1"})
+        self.assertEqual(environment["NEWPAT_LAUNCHER_PID"], str(os.getpid()))
 
     @unittest.skipUnless(sys.platform == "linux", "Linux file locking")
     def test_concurrent_setup_fails_without_modifying_existing_state(self):

@@ -2,7 +2,7 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-function Resolve-NipatInstallPath([string] $Path, [switch] $AllowUnavailable) {
+function Resolve-NewPatInstallPath([string] $Path, [switch] $AllowUnavailable) {
     if ([string]::IsNullOrWhiteSpace($Path) -or $Path -cnotmatch '^[A-Za-z]:[\\/]' -or
         $Path.Substring(2) -match '[<>:"|?*\x00-\x1f]') {
         throw "Usare un percorso assoluto su un disco locale: $Path"
@@ -23,7 +23,7 @@ function Resolve-NipatInstallPath([string] $Path, [switch] $AllowUnavailable) {
     return $value
 }
 
-function Test-NipatInstallPathOverlap([string] $First, [string] $Second) {
+function Test-NewPatInstallPathOverlap([string] $First, [string] $Second) {
     $a = [IO.Path]::GetFullPath($First).TrimEnd('\')
     $b = [IO.Path]::GetFullPath($Second).TrimEnd('\')
     return $a.Equals($b, [StringComparison]::OrdinalIgnoreCase) -or
@@ -31,7 +31,7 @@ function Test-NipatInstallPathOverlap([string] $First, [string] $Second) {
         $b.StartsWith($a + '\', [StringComparison]::OrdinalIgnoreCase)
 }
 
-function Assert-NipatInstallPathWithoutLinks([string] $Path, [switch] $Tree) {
+function Assert-NewPatInstallPathWithoutLinks([string] $Path, [switch] $Tree) {
     $current = [IO.Path]::GetFullPath($Path)
     while ($current) {
         if (Test-Path -LiteralPath $current) {
@@ -51,13 +51,13 @@ function Assert-NipatInstallPathWithoutLinks([string] $Path, [switch] $Tree) {
             if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
                 throw "La cartella gestita contiene un collegamento o junction: $($item.FullName)"
             }
-            if ($item.PSIsContainer) { Assert-NipatInstallPathWithoutLinks $item.FullName -Tree }
+            if ($item.PSIsContainer) { Assert-NewPatInstallPathWithoutLinks $item.FullName -Tree }
         }
     }
 }
 
-function Test-NipatStorageMarker([string] $Path, [string] $Role) {
-    $name = if ($Role -ceq 'application') { '.nipat-app.ini' } else { '.nipat-storage.ini' }
+function Test-NewPatStorageMarker([string] $Path, [string] $Role) {
+    $name = if ($Role -ceq 'application') { '.newpat-app.ini' } else { '.newpat-storage.ini' }
     $marker = Join-Path $Path $name
     if (-not (Test-Path -LiteralPath $marker)) { return $false }
     if (-not (Test-Path -LiteralPath $marker -PathType Leaf) -or
@@ -65,7 +65,7 @@ function Test-NipatStorageMarker([string] $Path, [string] $Role) {
         throw "Marcatore NewPat non valido: $marker"
     }
     $lines = @(Get-Content -LiteralPath $marker -Encoding UTF8 | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-    if ($lines.Count -ne 4 -or $lines[0] -cne '[NIPAT]') { throw "Marcatore NewPat non valido: $marker" }
+    if ($lines.Count -ne 4 -or $lines[0] -cne '[NewPat]') { throw "Marcatore NewPat non valido: $marker" }
     $values = @{}
     foreach ($line in $lines[1..3]) {
         $parts = $line.Split('=', 2)
@@ -74,13 +74,13 @@ function Test-NipatStorageMarker([string] $Path, [string] $Role) {
         $values[$parts[0]] = $parts[1]
     }
     if ($values.Count -ne 3 -or $values['schema_version'] -cne '1' -or
-        $values['installation_channel'] -cne (Get-NipatInstallationProfile).channel -or
+        $values['installation_channel'] -cne (Get-NewPatInstallationProfile).channel -or
         $values['role'] -cne $Role) { throw "Cartella appartenente a un altro ambiente: $Path" }
     return $true
 }
 
-function Get-NipatDefaultInstallLayout([string] $Project = '') {
-    $profile = Get-NipatInstallationProfile
+function Get-NewPatDefaultInstallLayout([string] $Project = '') {
+    $profile = Get-NewPatInstallationProfile
     if ([string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) { throw 'LOCALAPPDATA non disponibile.' }
     $base = Join-Path $env:LOCALAPPDATA $profile.data_dir_name
     if (-not $Project) { $Project = Join-Path (Join-Path $env:LOCALAPPDATA 'Programs') $profile.app_dir_name }
@@ -91,13 +91,13 @@ function Get-NipatDefaultInstallLayout([string] $Project = '') {
     }
 }
 
-function Assert-NipatInstallWritableParent([string] $Path) {
+function Assert-NewPatInstallWritableParent([string] $Path) {
     $parent = $Path
     while (-not (Test-Path -LiteralPath $parent -PathType Container)) {
         $parent = [IO.Path]::GetDirectoryName($parent)
         if (-not $parent) { throw "Destinazione non disponibile: $Path" }
     }
-    $probe = Join-Path $parent ('.nipat-install-check-' + [Guid]::NewGuid().ToString('N'))
+    $probe = Join-Path $parent ('.newpat-install-check-' + [Guid]::NewGuid().ToString('N'))
     $created = $false
     try {
         $stream = [IO.File]::Open($probe, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
@@ -107,140 +107,37 @@ function Assert-NipatInstallWritableParent([string] $Path) {
     finally { if ($created) { [IO.File]::Delete($probe) } }
 }
 
-function Get-NipatApplicationKind([string] $Path) {
-    $Path = Resolve-NipatInstallPath $Path
-    Assert-NipatInstallPathWithoutLinks $Path -Tree
+function Get-NewPatApplicationKind([string] $Path) {
+    $Path = Resolve-NewPatInstallPath $Path
+    Assert-NewPatInstallPathWithoutLinks $Path -Tree
     if (-not (Test-Path -LiteralPath $Path) -or @(Get-ChildItem -LiteralPath $Path -Force).Count -eq 0) { return 'empty' }
     if (Test-Path -LiteralPath (Join-Path $Path '.git')) { throw 'Selezionare una cartella di installazione, non il checkout del progetto.' }
-    if (Test-NipatStorageMarker $Path 'application') { return 'installed' }
+    if (Test-NewPatStorageMarker $Path 'application') { return 'installed' }
     $profileFile = Join-Path $Path 'installer\windows\install-profile.json'
     if (Test-Path -LiteralPath $profileFile -PathType Leaf) {
-        Assert-NipatInstallationProfile (Get-Content -LiteralPath $profileFile -Raw -Encoding UTF8 | ConvertFrom-Json)
+        Assert-NewPatInstallationProfile (Get-Content -LiteralPath $profileFile -Raw -Encoding UTF8 | ConvertFrom-Json)
         return 'installed'
-    }
-    # Uninstallers can leave generated Python, bytecode and metadata alongside
-    # user-added files. Identity establishes the installation, not ownership of
-    # every file: pre-copy repair preserves unrelated files and backs up collisions.
-    $layoutFile = Join-Path $Path '.runtime\install-layout.json'
-    if (Test-Path -LiteralPath $layoutFile -PathType Leaf) {
-        Read-NipatInstallLayout $Path -Historical | Out-Null
-        return 'residual'
-    }
-    $defaults = Get-NipatDefaultInstallLayout
-    if ($Path -ieq $defaults.app_dir) {
-        foreach ($relative in @('.runtime\backend.json', '.runtime\installer\state.json')) {
-            $file = Join-Path $Path $relative
-            if (Test-Path -LiteralPath $file -PathType Leaf) {
-                $record = Get-Content -LiteralPath $file -Raw -Encoding UTF8 | ConvertFrom-Json
-                Assert-NipatInstallationChannel $record 'I file della precedente installazione'
-                if ($null -eq $record.PSObject.Properties['schema_version'] -or
-                    -not (($record.schema_version -is [int]) -or ($record.schema_version -is [long])) -or
-                    $record.schema_version -ne 1) { throw 'Stato precedente non riconosciuto.' }
-                if ($null -eq $record.PSObject.Properties['rootfs_sha256'] -or
-                    $record.rootfs_sha256 -cnotmatch '^[a-f0-9]{64}$') { continue }
-                if ($relative -ceq '.runtime\backend.json') {
-                    if ($null -eq $record.PSObject.Properties['backend'] -or $record.backend -cne 'wsl' -or
-                        $null -eq $record.PSObject.Properties['wsl_distro']) { continue }
-                    Assert-NipatRuntimeNamespace $record.wsl_distro $record.rootfs_sha256
-                    Read-NipatInstallLayout $Path -Historical | Out-Null
-                    return 'residual'
-                }
-                if ($null -ne $record.PSObject.Properties['source_commit'] -and
-                    $record.source_commit -cmatch '^[a-f0-9]{40}$') { return 'residual' }
-            }
-        }
     }
     return 'unknown'
 }
 
-function Assert-NipatExistingApplication([string] $Path) {
-    if ((Get-NipatApplicationKind $Path) -ceq 'unknown') {
+function Assert-NewPatExistingApplication([string] $Path) {
+    if ((Get-NewPatApplicationKind $Path) -ceq 'unknown') {
         throw "La cartella applicativa contiene file non riconosciuti. Scegliere una cartella vuota: $Path"
     }
 }
 
-function Read-NipatForeignLayoutPaths([string] $File, [string] $Channel) {
-    if (-not (Test-Path -LiteralPath $File)) { return @() }
-    Assert-NipatInstallPathWithoutLinks ([IO.Path]::GetDirectoryName($File))
-    $item = Get-Item -LiteralPath $File -Force
-    if ($item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
-        throw "Metadati di una precedente installazione non leggibili in sicurezza: $File"
-    }
-    $record = Get-Content -LiteralPath $File -Raw -Encoding UTF8 | ConvertFrom-Json
-    if ($null -eq $record -or $null -eq $record.PSObject.Properties['schema_version'] -or
-        -not (($record.schema_version -is [int]) -or ($record.schema_version -is [long])) -or
-        $record.schema_version -ne 1) { throw "Metadati di una precedente installazione non validi: $File" }
-    $hasChannel = $null -ne $record.PSObject.Properties['installation_channel']
-    if (($Channel -in @('preview-0.5', 'experimental08') -and (-not $hasChannel -or $record.installation_channel -cne $Channel)) -or
-        ($Channel -ceq 'stable' -and $hasChannel -and $record.installation_channel -cne 'stable')) {
-        throw "Identita della precedente installazione non riconosciuta: $File"
-    }
-    $paths = @()
-    foreach ($field in @('app_dir', 'runtime_dir', 'cache_dir', 'data_dir', 'runs_dir')) {
-        if ($null -ne $record.PSObject.Properties[$field]) {
-            if (-not ($record.$field -is [string])) { throw "Destinazione precedente non valida: $File ($field)" }
-            $paths += Resolve-NipatInstallPath $record.$field -AllowUnavailable
-        }
-    }
-    return $paths
-}
-
-function Get-NipatForeignInstallationPaths {
-    # Read-only protection, including custom experimental locations retained after
-    # uninstall. Foreign paths never become defaults or ownership receipts.
-    $stableApp = Join-Path $env:LOCALAPPDATA 'Programs\NIPAT'
-    $paths = @($stableApp, (Join-Path $env:LOCALAPPDATA 'NIPAT'))
-    foreach ($foreign in @(
-        @{ Channel = 'preview-0.5'; Directory = 'NIPAT-0.5-Preview' },
-        @{ Channel = 'experimental08'; Directory = 'NIPAT-Experimental08' }
-    )) {
-        $foreignApp = Join-Path (Join-Path $env:LOCALAPPDATA 'Programs') $foreign.Directory
-        $foreignBase = Join-Path $env:LOCALAPPDATA $foreign.Directory
-        $paths += @($foreignApp, $foreignBase)
-        $projects = @($foreignApp)
-        $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Software\NIPAT\' + $foreign.Channel)
-        if ($null -ne $key) {
-            try {
-                foreach ($field in @('app_dir', 'runtime_dir', 'cache_dir', 'data_dir', 'runs_dir')) {
-                    $value = $key.GetValue($field, $null)
-                    if ($null -ne $value) {
-                        if (-not ($value -is [string])) { throw 'Una precedente installazione contiene una destinazione non valida.' }
-                        $resolved = Resolve-NipatInstallPath $value -AllowUnavailable
-                        $paths += $resolved
-                        if ($field -ceq 'app_dir') { $projects += $resolved }
-                    }
-                }
-            } finally { $key.Dispose() }
-        }
-        $history = Join-Path $foreignBase 'installations'
-        Assert-NipatInstallPathWithoutLinks $history
-        if (Test-Path -LiteralPath $history -PathType Container) {
-            foreach ($file in Get-ChildItem -LiteralPath $history -Filter '*.json' -File) {
-                $paths += Read-NipatForeignLayoutPaths $file.FullName $foreign.Channel
-            }
-        }
-        foreach ($project in $projects | Select-Object -Unique) {
-            foreach ($relative in @('.runtime\install-layout.json', '.runtime\backend.json')) {
-                $paths += Read-NipatForeignLayoutPaths (Join-Path $project $relative) $foreign.Channel
-            }
-        }
-    }
-    $paths += Read-NipatForeignLayoutPaths (Join-Path $stableApp '.runtime\backend.json') 'stable'
-    return @($paths | Select-Object -Unique)
-}
-
-function Assert-NipatInstallLayout($Layout, [switch] $CheckExisting, [switch] $Historical) {
+function Assert-NewPatInstallLayout($Layout, [switch] $CheckExisting, [switch] $Historical) {
     if ($Historical -and $CheckExisting) { throw 'Le destinazioni storiche non possono autorizzare una nuova installazione.' }
     if ($Layout -is [Collections.IDictionary]) { $Layout = [pscustomobject]$Layout }
     $fields = @('app_dir', 'runtime_dir', 'cache_dir', 'data_dir', 'runs_dir')
     if ($null -eq $Layout -or @($Layout.PSObject.Properties).Count -ne 7 -or
         -not (($Layout.schema_version -is [int]) -or ($Layout.schema_version -is [long])) -or
         $Layout.schema_version -ne 1) { throw 'Configurazione delle cartelle NewPat non valida.' }
-    Assert-NipatInstallationChannel $Layout 'Le cartelle selezionate'
-    $protected = @((Join-Path $env:LOCALAPPDATA 'NIPAT-Desktop\installations'),
-        (Join-Path $env:LOCALAPPDATA 'NIPAT-Desktop\preferences.json'),
-        (Join-Path $env:LOCALAPPDATA 'NIPAT-Desktop\activity.lock'))
-    $protected += @(Get-NipatForeignInstallationPaths)
+    Assert-NewPatInstallationChannel $Layout 'Le cartelle selezionate'
+    $protected = @((Join-Path $env:LOCALAPPDATA 'NewPat-Desktop\installations'),
+        (Join-Path $env:LOCALAPPDATA 'NewPat-Desktop\preferences.json'),
+        (Join-Path $env:LOCALAPPDATA 'NewPat-Desktop\activity.lock'))
     foreach ($name in @('WINDIR', 'ProgramFiles', 'ProgramFiles(x86)', 'ProgramW6432')) {
         $value = [Environment]::GetEnvironmentVariable($name)
         if ($value) { $protected += $value }
@@ -249,37 +146,37 @@ function Assert-NipatInstallLayout($Layout, [switch] $CheckExisting, [switch] $H
         if ($null -eq $Layout.PSObject.Properties[$field] -or -not ($Layout.$field -is [string])) {
             throw "Destinazione NewPat mancante: $field"
         }
-        $resolved = Resolve-NipatInstallPath $Layout.$field -AllowUnavailable:$Historical
+        $resolved = Resolve-NewPatInstallPath $Layout.$field -AllowUnavailable:$Historical
         if ($resolved -ine $Layout.$field.TrimEnd('\')) { throw "Usare un percorso completo senza componenti relativi: $($Layout.$field)" }
         foreach ($path in $protected) {
-            if (Test-NipatInstallPathOverlap $resolved $path) { throw "Destinazione riservata al sistema o a un altro ambiente NewPat: $resolved" }
+            if (Test-NewPatInstallPathOverlap $resolved $path) { throw "Destinazione riservata al sistema o a un altro ambiente NewPat: $resolved" }
         }
         if (-not $Historical) {
-            Assert-NipatInstallPathWithoutLinks $resolved -Tree:($field -in @('app_dir', 'runtime_dir', 'cache_dir'))
+            Assert-NewPatInstallPathWithoutLinks $resolved -Tree:($field -in @('app_dir', 'runtime_dir', 'cache_dir'))
         }
     }
     for ($i = 0; $i -lt $fields.Count; $i++) {
         for ($j = $i + 1; $j -lt $fields.Count; $j++) {
-            if (Test-NipatInstallPathOverlap $Layout.($fields[$i]) $Layout.($fields[$j])) {
+            if (Test-NewPatInstallPathOverlap $Layout.($fields[$i]) $Layout.($fields[$j])) {
                 throw "Le cartelle $($fields[$i]) e $($fields[$j]) devono essere separate e non contenersi a vicenda."
             }
         }
     }
     if ($CheckExisting) {
-        Assert-NipatExistingApplication $Layout.app_dir
+        Assert-NewPatExistingApplication $Layout.app_dir
         # Retained analysis folders remain protected when the user changes the
         # destinations of an installation or reinstalls after removing the app.
-        foreach ($known in @(Get-NipatKnownInstallLayouts '')) {
+        foreach ($known in @(Get-NewPatKnownInstallLayouts '')) {
             foreach ($managed in @('app_dir', 'runtime_dir', 'cache_dir')) {
                 foreach ($previousManaged in @('app_dir', 'runtime_dir', 'cache_dir')) {
                     if ($managed -cne $previousManaged -and
-                        (Test-NipatInstallPathOverlap $Layout.$managed $known.$previousManaged)) {
+                        (Test-NewPatInstallPathOverlap $Layout.$managed $known.$previousManaged)) {
                         throw 'Una destinazione si sovrappone a componenti conservati con un altro ruolo. Scegliere cartelle separate per applicazione, runtime e cache.'
                     }
                 }
                 foreach ($research in @('data_dir', 'runs_dir')) {
-                    if ((Test-NipatInstallPathOverlap $Layout.$managed $known.$research) -or
-                        (Test-NipatInstallPathOverlap $Layout.$research $known.$managed)) {
+                    if ((Test-NewPatInstallPathOverlap $Layout.$managed $known.$research) -or
+                        (Test-NewPatInstallPathOverlap $Layout.$research $known.$managed)) {
                         throw 'Una destinazione si sovrappone a cartelle di analisi o componenti conservati da una precedente installazione. Scegliere cartelle separate.'
                     }
                 }
@@ -289,81 +186,73 @@ function Assert-NipatInstallLayout($Layout, [switch] $CheckExisting, [switch] $H
             $path = $Layout.$field
             $role = if ($field -ceq 'runtime_dir') { 'runtime' } else { 'cache' }
             if (Test-Path -LiteralPath $path -PathType Container) {
-                $marked = Test-NipatStorageMarker $path $role
+                $marked = Test-NewPatStorageMarker $path $role
                 if (-not $marked -and @(Get-ChildItem -LiteralPath $path -Force).Count -gt 0) {
                     throw "La cartella $role contiene file non riconosciuti. Scegliere una cartella vuota: $path"
                 }
             }
         }
-        foreach ($field in $fields) { Assert-NipatInstallWritableParent $Layout.$field }
+        foreach ($field in $fields) { Assert-NewPatInstallWritableParent $Layout.$field }
     }
 }
 
-function Read-NipatInstallLayout([string] $Project, [switch] $Historical) {
+function Read-NewPatInstallLayout([string] $Project, [switch] $Historical) {
     $file = Join-Path $Project '.runtime\install-layout.json'
     if (Test-Path -LiteralPath $file -PathType Leaf) {
         $layout = Get-Content -LiteralPath $file -Raw -Encoding UTF8 | ConvertFrom-Json
     } else {
-        $layout = Get-NipatDefaultInstallLayout $Project
-        $backend = Join-Path $Project '.runtime\backend.json'
-        if (Test-Path -LiteralPath $backend -PathType Leaf) {
-            $configuration = Get-Content -LiteralPath $backend -Raw -Encoding UTF8 | ConvertFrom-Json
-            Assert-NipatInstallationChannel $configuration 'La configurazione precedente'
-            if ($configuration.schema_version -ne 1 -or $configuration.backend -cne 'wsl') { throw 'Configurazione precedente non valida.' }
-            $layout.data_dir = $configuration.data_dir
-            $layout.runs_dir = $configuration.runs_dir
-        }
+        $layout = Get-NewPatDefaultInstallLayout $Project
     }
-    Assert-NipatInstallLayout $layout -Historical:$Historical
-    if ((Resolve-NipatInstallPath $Project -AllowUnavailable:$Historical) -ine $layout.app_dir) {
+    Assert-NewPatInstallLayout $layout -Historical:$Historical
+    if ((Resolve-NewPatInstallPath $Project -AllowUnavailable:$Historical) -ine $layout.app_dir) {
         throw 'La cartella dell applicazione non corrisponde alla configurazione. Reinstallare nella destinazione scelta.'
     }
     return $layout
 }
 
-function Get-NipatRuntimeDistroName([string] $RootfsSha256, [string] $RuntimeDirectory) {
+function Get-NewPatRuntimeDistroName([string] $RootfsSha256, [string] $RuntimeDirectory) {
     if ($RootfsSha256 -cnotmatch '^[a-f0-9]{64}$') { throw 'Identita rootfs non valida.' }
-    $canonical = (Resolve-NipatInstallPath $RuntimeDirectory).ToLowerInvariant()
+    $canonical = (Resolve-NewPatInstallPath $RuntimeDirectory).ToLowerInvariant()
     $sha = [Security.Cryptography.SHA256]::Create()
     try { $digest = [BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($canonical))).Replace('-', '').ToLowerInvariant() }
     finally { $sha.Dispose() }
-    # Preserve the supported Desktop namespace so existing runtimes can be reused.
-    return (Get-NipatInstallationProfile).distro_prefix + $RootfsSha256.Substring(0, 32) + '-' + $digest.Substring(0, 12)
+    # Bind each runtime to its rootfs bytes and storage destination.
+    return (Get-NewPatInstallationProfile).distro_prefix + $RootfsSha256.Substring(0, 32) + '-' + $digest.Substring(0, 12)
 }
 
-function Get-NipatInstallLayoutHistoryDirectory {
-    return Join-Path (Join-Path $env:LOCALAPPDATA (Get-NipatInstallationProfile).data_dir_name) 'installations'
+function Get-NewPatInstallLayoutHistoryDirectory {
+    return Join-Path (Join-Path $env:LOCALAPPDATA (Get-NewPatInstallationProfile).data_dir_name) 'installations'
 }
 
-function Save-NipatInstallLayoutHistory($Layout) {
-    Assert-NipatInstallLayout $Layout
-    $directory = Get-NipatInstallLayoutHistoryDirectory
-    Assert-NipatInstallPathWithoutLinks $directory -Tree
+function Save-NewPatInstallLayoutHistory($Layout) {
+    Assert-NewPatInstallLayout $Layout
+    $directory = Get-NewPatInstallLayoutHistoryDirectory
+    Assert-NewPatInstallPathWithoutLinks $directory -Tree
     [IO.Directory]::CreateDirectory($directory) | Out-Null
     $json = $Layout | ConvertTo-Json -Depth 4
     $sha = [Security.Cryptography.SHA256]::Create()
     try { $digest = [BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($json))).Replace('-', '').ToLowerInvariant() }
     finally { $sha.Dispose() }
-    Write-NipatJsonAtomic (Join-Path $directory ($digest + '.json')) $Layout
+    Write-NewPatJsonAtomic (Join-Path $directory ($digest + '.json')) $Layout
 }
 
-function Get-NipatKnownInstallLayouts([string] $Project) {
+function Get-NewPatKnownInstallLayouts([string] $Project) {
     $layouts = @()
-    $directory = Get-NipatInstallLayoutHistoryDirectory
-    Assert-NipatInstallPathWithoutLinks $directory -Tree
+    $directory = Get-NewPatInstallLayoutHistoryDirectory
+    Assert-NewPatInstallPathWithoutLinks $directory -Tree
     if (Test-Path -LiteralPath $directory -PathType Container) {
         foreach ($file in Get-ChildItem -LiteralPath $directory -Filter '*.json' -File) {
             $layout = Get-Content -LiteralPath $file.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
-            Assert-NipatInstallLayout $layout -Historical
+            Assert-NewPatInstallLayout $layout -Historical
             $layouts += $layout
         }
     }
-    $defaults = Get-NipatDefaultInstallLayout
-    Assert-NipatInstallLayout $defaults -Historical
+    $defaults = Get-NewPatDefaultInstallLayout
+    Assert-NewPatInstallLayout $defaults -Historical
     $layouts += $defaults
     if (Test-Path -LiteralPath (Join-Path $defaults.app_dir '.runtime\backend.json') -PathType Leaf) {
-        $layouts += Read-NipatInstallLayout $defaults.app_dir -Historical
+        $layouts += Read-NewPatInstallLayout $defaults.app_dir -Historical
     }
-    if ($Project -and (Test-Path -LiteralPath $Project -PathType Container)) { $layouts += Read-NipatInstallLayout $Project -Historical }
+    if ($Project -and (Test-Path -LiteralPath $Project -PathType Container)) { $layouts += Read-NewPatInstallLayout $Project -Historical }
     return $layouts
 }

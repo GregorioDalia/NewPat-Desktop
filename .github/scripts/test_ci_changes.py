@@ -216,7 +216,7 @@ class ScientificSelection(unittest.TestCase):
                 self.base = self.git("rev-parse", "HEAD")
 
     def test_runtime_and_packaging_paths_select_their_real_integration(self):
-        for path in ("installer/runtime/Dockerfile", "installer/runtime/nipat-engine",
+        for path in ("installer/runtime/Dockerfile", "installer/runtime/newpat-engine",
                      "installer/runtime/component.py"):
             with self.subTest(path=path):
                 self.assertTrue({"runtime", "packaging"} <= changes.layers_for_path(path))
@@ -230,9 +230,9 @@ class ScientificSelection(unittest.TestCase):
     def test_unknown_comparison_and_deleted_runtime_cover_every_required_layer(self):
         decision, _ = changes.layer_decision("", self.base, repository=self.root)
         self.assertEqual(decision, dict.fromkeys(changes.LAYERS, True))
-        self.write("installer/runtime/nipat-engine", "old helper")
+        self.write("installer/runtime/newpat-engine", "old helper")
         self.base = self.commit()
-        (self.root / "installer/runtime/nipat-engine").unlink()
+        (self.root / "installer/runtime/newpat-engine").unlink()
         decision, _ = changes.layer_decision(self.base, self.commit(), repository=self.root)
         self.assertTrue(decision["runtime"])
         self.assertTrue(decision["packaging"])

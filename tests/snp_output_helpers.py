@@ -8,7 +8,7 @@ def write_snp_auxiliary(output):
     import os
     from pathlib import Path
 
-    settings_path = os.environ.get("NIPAT_SCIENTIFIC_SETTINGS")
+    settings_path = os.environ.get("NEWPAT_SCIENTIFIC_SETTINGS")
     if settings_path:
         (output / "scientific-settings.json").write_bytes(Path(settings_path).read_bytes())
     else:

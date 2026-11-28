@@ -25,7 +25,7 @@ def engine_metadata():
     return {
         "schema_version": 1, "interface": "native-r-v1",
         "parallel_execution": {
-            "interface": "nipat-parallel-v1", "schema_version": 1,
+            "interface": "newpat-parallel-v1", "schema_version": 1,
             "default_mode": "auto", "modes": ["auto", "serial"], "max_workers": True,
             "workflows": ["dnp-call", "snp-call", "contamination", "cpi", "cpin"],
         },
@@ -115,7 +115,7 @@ class BundledRunnerTests(unittest.TestCase):
         # platform.platform() may spawn a process on Linux; keep that host probe
         # separate from the Docker subprocesses controlled by these tests.
         self.enterContext(patch("newpat.experiments.tracking.platform.platform", return_value="test-host"))
-        self.temp = tempfile.TemporaryDirectory(prefix="nipat bundled ")
+        self.temp = tempfile.TemporaryDirectory(prefix="newpat bundled ")
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name).resolve()
         self.project = self.root / "client"
@@ -181,7 +181,7 @@ class BundledRunnerTests(unittest.TestCase):
             self.assertNotIn("--mount", command)
             self.assertNotIn("--volume", command)
             self.assertNotIn("-v", command)
-        self.assertEqual(probes[-1][-4:], ["python3", "/opt/nipat/engine/main.py", "describe", "--json"])
+        self.assertEqual(probes[-1][-4:], ["python3", "/opt/newpat/engine/main.py", "describe", "--json"])
 
     def plan_metadata(self):
         description = engine_metadata()
@@ -200,7 +200,7 @@ class BundledRunnerTests(unittest.TestCase):
             self.runner, "_capture", side_effect=self.captured(description),
         ), patch("newpat.experiments.runner.subprocess.Popen", return_value=self.process()) as popen:
             with context:
-                self.runner.run(["python3", "/opt/nipat/engine/main.py", "execute-plan"])
+                self.runner.run(["python3", "/opt/newpat/engine/main.py", "execute-plan"])
         self.assertEqual(popen.call_count, 1)
         record = json.loads((run / "run.json").read_text(encoding="utf-8"))
         self.assertEqual(record["runtime"]["engine"]["plan_execution"], description["plan_execution"])
@@ -240,7 +240,7 @@ class BundledRunnerTests(unittest.TestCase):
             self.runner, "_capture", side_effect=self.captured(description),
         ), patch("newpat.experiments.runner.subprocess.Popen", return_value=self.process()) as popen:
             with context:
-                self.runner.run(["python3", "/opt/nipat/engine/main.py", "execute-plan"])
+                self.runner.run(["python3", "/opt/newpat/engine/main.py", "execute-plan"])
         self.assertEqual(popen.call_count, 1)
         record = json.loads((run / "run.json").read_text(encoding="utf-8"))
         self.assertEqual(record["status"], "succeeded")
@@ -251,9 +251,9 @@ class BundledRunnerTests(unittest.TestCase):
         self.runner._bundled_workflow = "workflow-plan-cpi"
         result = subprocess.CompletedProcess([], 0, stdout="", stderr="")
         with patch("newpat.experiments.runner.subprocess.run", return_value=result) as execute:
-            self.runner._stop_container("nipat-run-cpi")
+            self.runner._stop_container("newpat-run-cpi")
         self.assertEqual(execute.call_args_list[0].args[0],
-                         ["docker", "stop", "--time", "10", "nipat-run-cpi"])
+                         ["docker", "stop", "--time", "10", "newpat-run-cpi"])
 
     def test_snp_plan_rejects_image_with_only_standalone_snp_support(self):
         for marker in ("workflow-plan-snp", "workflow-plan-with-snp"):
@@ -283,7 +283,7 @@ class BundledRunnerTests(unittest.TestCase):
                     self.runner, "_capture", side_effect=self.captured(description),
                 ), patch("newpat.experiments.runner.subprocess.Popen", return_value=self.process()) as popen:
                     with context:
-                        self.runner.run(["python3", "/opt/nipat/engine/main.py", "execute-plan"])
+                        self.runner.run(["python3", "/opt/newpat/engine/main.py", "execute-plan"])
                 self.assertEqual(popen.call_count, 1)
                 record = json.loads((run / "run.json").read_text(encoding="utf-8"))
                 self.assertEqual(record["status"], "succeeded")
@@ -309,9 +309,9 @@ class BundledRunnerTests(unittest.TestCase):
                 self.runner._bundled_workflow = marker
                 result = subprocess.CompletedProcess([], 0, stdout="", stderr="")
                 with patch("newpat.experiments.runner.subprocess.run", return_value=result) as execute:
-                    self.runner._stop_container("nipat-run-snp")
+                    self.runner._stop_container("newpat-run-snp")
                 self.assertEqual(execute.call_args_list[0].args[0],
-                                 ["docker", "stop", "--time", "10", "nipat-run-snp"])
+                                 ["docker", "stop", "--time", "10", "newpat-run-snp"])
 
     def test_plan_rejects_legacy_or_partial_runtime_before_analysis(self):
         variants = [engine_metadata()]
@@ -348,11 +348,11 @@ class BundledRunnerTests(unittest.TestCase):
         self.runner._bundled_workflow = "workflow-plan"
         result = subprocess.CompletedProcess([], 0, stdout="", stderr="")
         with patch("newpat.experiments.runner.subprocess.run", return_value=result) as execute:
-            cleanup = self.runner._stop_container("nipat-run-plan")
+            cleanup = self.runner._stop_container("newpat-run-plan")
         self.assertEqual(execute.call_args_list[0].args[0],
-                         ["docker", "stop", "--time", "10", "nipat-run-plan"])
+                         ["docker", "stop", "--time", "10", "newpat-run-plan"])
         self.assertEqual(execute.call_args_list[1].args[0],
-                         ["docker", "rm", "--force", "--volumes", "nipat-run-plan"])
+                         ["docker", "rm", "--force", "--volumes", "newpat-run-plan"])
         self.assertEqual(cleanup["graceful_stop"]["returncode"], 0)
 
     def test_plan_stop_timeout_still_removes_container(self):
@@ -361,7 +361,7 @@ class BundledRunnerTests(unittest.TestCase):
             subprocess.TimeoutExpired("docker stop", 20),
             subprocess.CompletedProcess([], 0, stdout="", stderr=""),
         ]) as execute:
-            cleanup = self.runner._stop_container("nipat-run-plan")
+            cleanup = self.runner._stop_container("newpat-run-plan")
         self.assertEqual(execute.call_count, 2)
         self.assertEqual(cleanup["status"], "removed")
         self.assertIsNone(cleanup["graceful_stop"]["returncode"])
@@ -369,10 +369,10 @@ class BundledRunnerTests(unittest.TestCase):
     def test_plan_auto_removal_after_stop_is_not_reported_as_failed_stop(self):
         self.runner._bundled_workflow = "workflow-plan"
         with redirect_stdout(self.stdout), patch("newpat.experiments.runner.subprocess.run", side_effect=[
-            subprocess.CompletedProcess([], 0, stdout="nipat-run-plan", stderr=""),
-            subprocess.CompletedProcess([], 1, stdout="", stderr="No such container: nipat-run-plan"),
+            subprocess.CompletedProcess([], 0, stdout="newpat-run-plan", stderr=""),
+            subprocess.CompletedProcess([], 1, stdout="", stderr="No such container: newpat-run-plan"),
         ]):
-            cleanup = self.runner._stop_container("nipat-run-plan")
+            cleanup = self.runner._stop_container("newpat-run-plan")
         self.assertEqual(cleanup["status"], "stopped")
         self.assertNotIn("non confermato", self.stdout.getvalue())
 
@@ -418,7 +418,7 @@ class BundledRunnerTests(unittest.TestCase):
             "newpat.experiments.runner.subprocess.Popen", return_value=self.process(),
         ) as popen:
             with context:
-                self.runner.run(["python3", "/opt/nipat/engine/main.py", "execute",
+                self.runner.run(["python3", "/opt/newpat/engine/main.py", "execute",
                                  "contamination", "--request", "/workspace/request.json"])
         document = json.loads((run / "work/engine-compose.json").read_text(encoding="utf-8"))
         service = document["services"]["scientific"]
@@ -429,7 +429,7 @@ class BundledRunnerTests(unittest.TestCase):
         self.assertEqual(service["environment"]["TMPDIR"], "/tmp")
         volumes = service["volumes"]
         self.assertEqual(len(volumes), 3)
-        self.assertEqual(service["environment"]["NIPAT_SCRATCH_ROOT"], "/scratch")
+        self.assertEqual(service["environment"]["NEWPAT_SCRATCH_ROOT"], "/scratch")
         scratch = [v for v in volumes if v["type"] == "volume"]
         self.assertEqual(scratch, [{"type": "volume", "target": "/scratch", "read_only": False}])
         volumes = [v for v in volumes if v["type"] == "bind"]
@@ -442,8 +442,8 @@ class BundledRunnerTests(unittest.TestCase):
         argv = popen.call_args.args[0]
         self.assertEqual([argv[i + 1] for i, arg in enumerate(argv) if arg == "-f"],
                          [str(run / "work/engine-compose.json")])
-        self.assertIn("NIPAT_RUNTIME_IMAGE", popen.call_args.kwargs["env"])
-        self.assertEqual(popen.call_args.kwargs["env"]["NIPAT_RUNTIME_IMAGE"], IMAGE_ID)
+        self.assertIn("NEWPAT_RUNTIME_IMAGE", popen.call_args.kwargs["env"])
+        self.assertEqual(popen.call_args.kwargs["env"]["NEWPAT_RUNTIME_IMAGE"], IMAGE_ID)
         self.assertEqual(capture.call_args_list[1].args[0][:4],
                          ["docker", "compose", "-f", str(self.layout.compose_file)])
         self.assertIn("configured:custom", capture.call_args_list[2].args[0])
@@ -507,7 +507,7 @@ class BundledRunnerTests(unittest.TestCase):
                     self.runner, "_capture", side_effect=self.captured(),
                 ), patch("newpat.experiments.runner.subprocess.Popen", return_value=self.process()) as popen:
                     with context:
-                        self.runner.run(["python3", "/opt/nipat/engine/main.py", "execute",
+                        self.runner.run(["python3", "/opt/newpat/engine/main.py", "execute",
                                          workflow, "--request", "/workspace/request.json"])
                 self.assertFalse((self.project / "scientific").exists())
                 record = json.loads((run / "run.json").read_text(encoding="utf-8"))
@@ -579,7 +579,7 @@ class BundledRunnerTests(unittest.TestCase):
         ) as stop:
             with self.assertRaisesRegex(RuntimeExecutionError, "codice 7"):
                 with context:
-                    self.runner.run(["python3", "/opt/nipat/engine/main.py", "execute"])
+                    self.runner.run(["python3", "/opt/newpat/engine/main.py", "execute"])
         record = json.loads((run / "run.json").read_text(encoding="utf-8"))
         self.assertEqual(record["status"], "failed")
         self.assertEqual(record["commands"][0]["returncode"], 7)
@@ -599,7 +599,7 @@ class BundledRunnerTests(unittest.TestCase):
         ) as stop:
             with self.assertRaises(KeyboardInterrupt):
                 with context:
-                    self.runner.run(["python3", "/opt/nipat/engine/main.py", "execute"])
+                    self.runner.run(["python3", "/opt/newpat/engine/main.py", "execute"])
         stop.assert_called_once()
         record = json.loads((run / "run.json").read_text(encoding="utf-8"))
         self.assertEqual(record["status"], "interrupted")
@@ -607,12 +607,12 @@ class BundledRunnerTests(unittest.TestCase):
 
     def test_wsl_dry_run_translates_and_escapes_mounts_without_launching_processes(self):
         self.runner.dry_run = True
-        self.runner._transport = WslDockerTransport("NIPAT-Test", dry_run=True)
+        self.runner._transport = WslDockerTransport("NewPat-Test", dry_run=True)
 
         def windows_path(path):
             value = Path(path)
             if value.is_relative_to(self.root):
-                return PureWindowsPath(r"D:\NIPAT test $ENV, è").joinpath(*value.relative_to(self.root).parts)
+                return PureWindowsPath(r"D:\NewPat test $ENV, è").joinpath(*value.relative_to(self.root).parts)
             return _windows_path(path)
 
         run, context = self.begin("planned")
@@ -622,18 +622,18 @@ class BundledRunnerTests(unittest.TestCase):
             "newpat.experiments.runner.subprocess.run",
         ) as execute, patch("newpat.experiments.runner.subprocess.Popen") as popen:
             with context:
-                self.runner.run(["python3", "/opt/nipat/engine/main.py", "execute"])
+                self.runner.run(["python3", "/opt/newpat/engine/main.py", "execute"])
         execute.assert_not_called()
         popen.assert_not_called()
         document = json.loads((run / "work/engine-compose.json").read_text(encoding="utf-8"))
         service = document["services"]["scientific"]
-        self.assertEqual(service["image"], "${NIPAT_RUNTIME_IMAGE:-nipat-scientific-runtime:"
+        self.assertEqual(service["image"], "${NEWPAT_RUNTIME_IMAGE:-newpat-scientific-runtime:"
                          + __version__ + "}")
         for volume in service["volumes"]:
             if volume["type"] == "volume":
                 self.assertNotIn("source", volume)
                 continue
-            self.assertTrue(volume["source"].startswith("/mnt/d/NIPAT test $$ENV, è/"))
+            self.assertTrue(volume["source"].startswith("/mnt/d/NewPat test $$ENV, è/"))
         self.assertIn("$$VALUE", service["volumes"][0]["source"])
         record = json.loads((run / "run.json").read_text(encoding="utf-8"))
         self.assertEqual(record["status"], "planned")
@@ -642,7 +642,7 @@ class BundledRunnerTests(unittest.TestCase):
         argv = record["commands"][0]["argv"]
         self.assertEqual(argv[0], "wsl.exe")
         self.assertEqual([argv[i + 1] for i, arg in enumerate(argv) if arg == "-f"],
-                         ["/mnt/d/NIPAT test $ENV, è/runs/planned/work/engine-compose.json"])
+                         ["/mnt/d/NewPat test $ENV, è/runs/planned/work/engine-compose.json"])
 
 
 if __name__ == "__main__":

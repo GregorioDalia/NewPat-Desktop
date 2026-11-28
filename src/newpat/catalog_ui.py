@@ -71,9 +71,9 @@ def catalog_lines(catalog: dict, *, language: str = "it", section: str = "all") 
                         native += f" ({text['position']} {entry['position']})"
                     lines.extend([f"  R: {native}; {text['default']}: {default}; "
                                   f"{text['required']}: {text['yes'] if entry['required'] else text['no']}",
-                                  f"  {text['mapping']}: {text[entry['nipat']['mapping']]}; "
-                                  f"{text['cli']}: {', '.join(entry['nipat']['cli']) or '-'}",
-                                  f"  {text['request']}: {', '.join(entry['nipat']['request_fields']) or '-'}"])
+                                  f"  {text['mapping']}: {text[entry['newpat']['mapping']]}; "
+                                  f"{text['cli']}: {', '.join(entry['newpat']['cli']) or '-'}",
+                                  f"  {text['request']}: {', '.join(entry['newpat']['request_fields']) or '-'}"])
                 else:
                     lines.append(f"  {text['value']}: {_value(entry['value'])}")
                 if label == "preparation":

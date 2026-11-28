@@ -61,7 +61,7 @@ def startup_timings(record, launched_at):
         argv = check.get("argv", [])
         if argv[-1:] == ["ensure"]:
             field = "runtime_ensure_seconds"
-        elif argv[-3:] == ["/opt/nipat/engine/main.py", "describe", "--json"]:
+        elif argv[-3:] == ["/opt/newpat/engine/main.py", "describe", "--json"]:
             field = "engine_describe_seconds"
         else:
             continue

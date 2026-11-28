@@ -78,7 +78,7 @@ class ExecutionDiagnosticsTests(unittest.TestCase):
             launched.extend(argv)
             self.assertNotIn("--rm", argv)
             if cgroup_line is not None:
-                token = next(arg.split("=")[1] for arg in argv if arg.startswith("NIPAT_OOM_TOKEN="))
+                token = next(arg.split("=")[1] for arg in argv if arg.startswith("NEWPAT_OOM_TOKEN="))
                 process.stdout = io.StringIO(cgroup_line.format(token=token) + "\n")
             if sample_counts is not None:
                 engine_dir.mkdir(parents=True, exist_ok=True)
@@ -101,7 +101,7 @@ class ExecutionDiagnosticsTests(unittest.TestCase):
                 labels = dict(item.split("=", 1) for index, item in enumerate(launched)
                               if index and launched[index - 1] == "--label")
                 if mismatched:
-                    labels["org.nipat.execution-token"] = "unrelated"
+                    labels["org.newpat.execution-token"] = "unrelated"
                 value = payload(argv[3], labels, oom=oom, code=code,
                                 status="running" if interrupt else "exited")
                 return subprocess.CompletedProcess(argv, 0, json.dumps(value), "")
@@ -338,14 +338,14 @@ class ExecutionDiagnosticsTests(unittest.TestCase):
         self.assertEqual(operations[-1], ["docker", "rm", "--force", "--volumes", CONTAINER])
 
     def test_inspection_rejects_untrusted_or_incomplete_data(self):
-        name, labels = "nipat-run-" + "c" * 32, {"org.nipat.execution-token": "d" * 32}
+        name, labels = "newpat-run-" + "c" * 32, {"org.newpat.execution-token": "d" * 32}
         for alteration in ("image", "token", "boolean", "invalid-json"):
             with self.subTest(alteration=alteration):
                 value = payload(name, labels.copy())
                 if alteration == "image":
                     value["image"] = "sha256:" + "f" * 64
                 elif alteration == "token":
-                    value["labels"]["org.nipat.execution-token"] = "other"
+                    value["labels"]["org.newpat.execution-token"] = "other"
                 elif alteration == "boolean":
                     value["state"]["oom_killed"] = "false"
                 raw = "invalid" if alteration == "invalid-json" else json.dumps(value)
@@ -357,7 +357,7 @@ class ExecutionDiagnosticsTests(unittest.TestCase):
                 self.assertNotEqual(diagnose(observation, 137, interrupted=False)["kind"], "oom_confirmed")
 
     def test_extra_docker_fields_and_unrelated_labels_are_not_persisted(self):
-        name, labels = "nipat-run-" + "c" * 32, {"org.nipat.execution-token": "d" * 32}
+        name, labels = "newpat-run-" + "c" * 32, {"org.newpat.execution-token": "d" * 32}
         value = payload(name, {**labels, "secret": "do-not-store"})
         value.update(env=["TOKEN=do-not-store"], mounts=["/private/unrelated"])
         value["state"]["unexpected"] = "do-not-store"

@@ -83,7 +83,7 @@ def authorized(token: str, parent_pid: int, *, kernel=None, parents=None) -> boo
     if not is_live_ancestor(parents, parent_pid, int(match[1])):
         return False
     event = kernel.OpenEventW(0x00100000, False,
-                             "Local\\NIPAT-Desktop-SetupLease-" + match[2])
+                             "Local\\NewPat-Desktop-SetupLease-" + match[2])
     if not event:
         return False
     kernel.CloseHandle(event)
@@ -94,7 +94,7 @@ def main() -> int:
     if sys.platform != "win32" or len(sys.argv) != 2 or not sys.argv[1].isdigit():
         return 2
     try:
-        return 0 if authorized(os.environ.get("NIPAT_SETUP_ACTIVITY_TOKEN", ""),
+        return 0 if authorized(os.environ.get("NEWPAT_SETUP_ACTIVITY_TOKEN", ""),
                                int(sys.argv[1])) else 1
     except (OSError, ValueError) as error:
         print(f"Coordinamento NewPat non verificabile: {error}", file=sys.stderr)

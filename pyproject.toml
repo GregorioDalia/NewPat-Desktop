@@ -23,14 +23,14 @@ dev = [
 
 [project.scripts]
 newpat = "newpat.cli:main"
-nipat = "newpat.cli:main"
 
 [tool.setuptools]
-py-modules = ["nipat"]
 license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md", "scientific/vendor/*/LICENSE"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+include = ["newpat", "newpat.*", "newpat_scientific", "newpat_scientific.*"]
+namespaces = false
 
 [tool.setuptools.package-data]
 "newpat.desktop" = ["web/*", "web/vendor/*", "web/vendor/licenses/*", "web/vendor/pdfmake/*", "native/windows/*", "native/windows/x64/*"]

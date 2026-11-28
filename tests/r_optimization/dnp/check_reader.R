@@ -11,11 +11,11 @@ compare_reader <- function(lines) {
                         header = FALSE, sep = "\t", na.strings = NULL,
                         colClasses = c("character", "integer", "character", "integer",
                                        "character", "character", "character"))
-  index <- nipat_dnp_index(path)
+  index <- newpat_dnp_index(path)
   con <- file(path, "rb")
   on.exit(close(con), add = TRUE)
   for (rows in list(seq_len(nrow(reference)), rev(seq_len(nrow(reference))), 1L, nrow(reference))) {
-    actual <- nipat_dnp_read(index, rows, con)
+    actual <- newpat_dnp_read(index, rows, con)
     expected <- reference[rows, , drop = FALSE]
     rownames(expected) <- NULL
     stopifnot(identical(actual, expected))
@@ -39,7 +39,7 @@ for (a in lexemes) for (b in lexemes) {
 large <- compare_reader(paste("chr1", 99999:100002, "A", 1, "A", "I", "read", sep = "\t"))
 stopifnot(is.integer(large$positions))
 large_labels <- data.frame(df.chr = paste0("chr1:", 99999:100002), uniq = 1L)
-large_plan <- nipat_dnp_plan(large, large_labels,
+large_plan <- newpat_dnp_plan(large, large_labels,
                            data.frame(POS = "chr1:100000|chr1:100001"))
 stopifnot(identical(large_plan$blocks[[1L]]$row_ids, 1:4))
 checks <- checks + 1L
@@ -51,7 +51,7 @@ index <- list(chromosomes = "chr1", chromosome = rep(1L, 6), positions = 9:14,
 labels <- data.frame(df.chr = paste0("chr1:", c(9:12, 11:14, 9:12)),
                      uniq = rep(1:3, each = 4))
 refs <- data.frame(POS = c("chr1:10|chr1:11", "chr1:12|chr1:13", "chr1:10|chr1:11"))
-plan <- nipat_dnp_plan(index, labels, refs, max_loci = 1, max_bytes = 1)
+plan <- newpat_dnp_plan(index, labels, refs, max_loci = 1, max_bytes = 1)
 stopifnot(length(plan$blocks) == 2L,
           identical(plan$blocks[[1L]]$locus_ids, c(1L, 3L)),
           identical(plan$blocks[[1L]]$row_ids, 1:4),
@@ -61,20 +61,20 @@ checks <- checks + 1L
 # Compatibility guards retain every raw row and global ID when the legacy
 # grouping has cross-window dependencies. Ordinary planning above still split.
 index$repeated_qname_rows <- 1L
-compat <- nipat_dnp_plan(index, labels, refs, max_loci = 1, max_bytes = 1)
+compat <- newpat_dnp_plan(index, labels, refs, max_loci = 1, max_bytes = 1)
 stopifnot(length(compat$blocks) == 1L,
           identical(compat$blocks[[1L]]$row_ids, 1:6),
           identical(compat$blocks[[1L]]$locus_ids, 1:3),
           "legacy-repeated-qname-within-position" %in% compat$compatibility_reasons)
 index$repeated_qname_rows <- 0L
 index$positions[[1L]] <- 1000L
-compat <- nipat_dnp_plan(index, labels, refs, max_loci = 1, max_bytes = 1)
+compat <- newpat_dnp_plan(index, labels, refs, max_loci = 1, max_bytes = 1)
 stopifnot(length(compat$blocks) == 1L, compat$unmatched_rows == 1L,
           "legacy-unmatched-coordinate-groups" %in% compat$compatibility_reasons)
 # Combining must sort by the original merge keys rather than doubles printed
 # in scientific notation (100000 becomes 1e+05).
 parts <- list(list(final = data.frame(pos1 = 100001), sort_keys = "chr1:100001|chr1:100002"),
               list(final = data.frame(pos1 = 100000), sort_keys = "chr1:100000|chr1:100001"))
-stopifnot(identical(nipat_dnp_combine(parts)$pos1, c(100000, 100001)))
+stopifnot(identical(newpat_dnp_combine(parts)$pos1, c(100000, 100001)))
 checks <- checks + 3L
 cat("DNP bounded reader/planner:", checks, "strict checks passed.\n")

@@ -30,7 +30,7 @@ class LinuxInstallerTests(unittest.TestCase):
         self.project = self.root / "project"
         self.project.mkdir()
         files = {
-            "pyproject.toml": '[project]\nversion = "0.6.0"\n',
+            "pyproject.toml": '[project]\nversion = "0.9.99"\n',
             "README.md": "Approved documentation\n",
             "LICENSE": "License fixture\n",
             "THIRD_PARTY_NOTICES.md": "Third-party notices fixture\n",
@@ -49,10 +49,21 @@ class LinuxInstallerTests(unittest.TestCase):
         self.archive.write_bytes(gzip.compress(b"exact scientific image fixture", mtime=0))
         self.rootfs = self.root / "rootfs.tar.gz"
         self.rootfs.write_bytes(gzip.compress(b"WSL only fixture", mtime=0))
+        runtime = self.project / "installer/runtime"
+        runtime.mkdir()
+        for name in linux.assets.component.SOURCE_FILES:
+            (runtime / name).write_text(f"fixture {name}")
+        self.provenance = {
+            "schema_version": 2, "vendor": "newpat-desktop", "purpose": "dedicated-wsl-runtime",
+            "base_image": "debian@sha256:" + "d" * 64, "apt_packages": {"libc6": "2.41"},
+            "docker_engine_version": "29.0.0", "compose_version": "2.40.0",
+            "source_sha256": linux.assets.component.source_inventory(runtime),
+        }
+        self.provenance["component_sha256"] = linux.assets.component.component_identity(self.provenance)
         self.manifest = linux.assets.make_manifest(
             self.project, source_commit=COMMIT, runtime_image="sha256:" + "b" * 64,
             rootfs=self.rootfs, scientific_image=self.archive,
-            rootfs_provenance={"schema_version": 1, "vendor": "nipat-desktop", "source_commit": COMMIT},
+            rootfs_provenance=self.provenance,
         )
         self.manifest_path = self.root / "installer-manifest.json"
         self.write_manifest(self.manifest)
@@ -69,11 +80,10 @@ class LinuxInstallerTests(unittest.TestCase):
     def inputs(self):
         return linux.verified_inputs(self.project, self.manifest_path)
 
-    def test_debian_versions_sort_prereleases_before_stable(self):
-        for value, expected in (("0.5.0a1", "0.5.0~a1"), ("0.5.0b2", "0.5.0~b2"),
-                                ("0.5.0rc3", "0.5.0~rc3"), ("0.5.0", "0.5.0")):
-            self.assertEqual(linux.debian_version(value), expected)
-        for value in ("../0.5.0", "0.5.0\nDepends: anything", "0.5", "0.5.0+local"):
+    def test_debian_versions_require_canonical_official_newpat_versions(self):
+        for value in ("0.9.99", "0.10.0", "1.0.0"):
+            self.assertEqual(linux.debian_version(value), value)
+        for value in ("0.9.98", "../1.0.0", "1.0.0\nDepends: anything", "1.0", "1.0.0+local", "1.0.0b1"):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 linux.debian_version(value)
 
@@ -106,20 +116,20 @@ class LinuxInstallerTests(unittest.TestCase):
     def test_rejects_foreign_channel_and_wrong_provenance(self):
         for field, value in (("installation_profile", {"channel": "stable"}),
                              ("installation_profile", {"channel": "preview-0.5"}),
-                             ("rootfs_provenance", {"schema_version": 1, "vendor": "nipat-desktop", "source_commit": "e" * 40})):
+                             ("rootfs_provenance", {"schema_version": 1, "vendor": "newpat-desktop", "source_commit": "e" * 40})):
             manifest = dict(self.manifest, **{field: value})
             self.write_manifest(manifest)
             with self.subTest(field=field), self.assertRaises(ValueError):
                 self.inputs()
 
     def test_rejects_other_release_families_before_packaging(self):
-        for version in ("0.4.1", "0.5.0a1", "0.8.0a1", "1.0.0"):
+        for version in ("0.9.10", "0.9.98", "0.9.99rc1"):
             manifest = copy.deepcopy(self.manifest)
             manifest.update(version=version, release_tag="v" + version)
             for asset in manifest["assets"].values():
-                asset["url"] = asset["url"].replace("/v0.6.0/", "/v" + version + "/")
+                asset["url"] = asset["url"].replace("/v0.9.99/", "/v" + version + "/")
             self.write_manifest(manifest)
-            with self.subTest(version=version), self.assertRaisesRegex(ValueError, "Desktop ufficiale|Preview 0.5"):
+            with self.subTest(version=version), self.assertRaises(ValueError):
                 self.inputs()
 
     def set_version(self, version):
@@ -129,38 +139,38 @@ class LinuxInstallerTests(unittest.TestCase):
         self.manifest = linux.assets.make_manifest(
             self.project, source_commit=COMMIT, runtime_image="sha256:" + "b" * 64,
             rootfs=self.rootfs, scientific_image=self.archive,
-            rootfs_provenance={"schema_version": 1, "vendor": "nipat-desktop", "source_commit": COMMIT},
+            rootfs_provenance=self.provenance,
         )
         self.write_manifest(self.manifest)
 
-    def test_accepts_07_versions_only_with_matching_source_and_profile(self):
-        for version in ("0.7.0a1", "0.7.0b2", "0.7.0rc1", "0.7.0", "0.7.5"):
+    def test_current_and_future_versions_require_matching_source_and_profile(self):
+        for version in ("0.9.99", "0.10.0", "1.0.0"):
             with self.subTest(version=version):
                 self.set_version(version)
                 self.assertEqual(self.inputs()[0]["version"], version)
                 (self.project / "pyproject.toml").write_text(
-                    '[project]\nversion = "0.6.0"\n', encoding="utf-8",
+                    '[project]\nversion = "1.2.3"\n', encoding="utf-8",
                 )
                 with self.assertRaisesRegex(ValueError, "Versione dei sorgenti diversa"):
                     self.inputs()
 
     @unittest.skipUnless(HAS_DPKG, "Requires the Linux dpkg-deb tool")
-    def test_07_candidate_build_keeps_prerelease_identity_and_shared_runtime(self):
-        self.set_version("0.7.0a1")
+    def test_next_major_build_keeps_version_and_verified_runtime(self):
+        self.set_version("1.0.0")
         package = linux.build_installer(self.project, self.manifest_path, self.output)
-        self.assertEqual(package.name, "nipat-desktop_0.7.0~a1_amd64.deb")
+        self.assertEqual(package.name, "newpat-desktop_1.0.0_amd64.deb")
         record = linux.verify_package(package, self.manifest_path, self.project)
-        self.assertEqual(record["version"], "0.7.0a1")
+        self.assertEqual(record["version"], "1.0.0")
         self.assertEqual(record["source_commit"], COMMIT)
         self.assertEqual(record["embedded_scientific_asset"]["sha256"],
                          hashlib.sha256(self.archive.read_bytes()).hexdigest())
         self.assertEqual(subprocess.check_output(
             ["dpkg-deb", "-f", str(package), "Version"], text=True,
-        ).strip(), "0.7.0~a1")
+        ).strip(), "1.0.0")
 
     def test_rejects_malformed_manifest_and_unsafe_asset_names(self):
         for value in ([], None, {"schema_version": True}, dict(self.manifest, assets=[]),
-                      dict(self.manifest, version=["0.6.0"])):
+                      dict(self.manifest, version=["0.9.99"])):
             self.write_manifest(value)
             with self.subTest(value=value), self.assertRaises(ValueError):
                 self.inputs()
@@ -189,7 +199,7 @@ class LinuxInstallerTests(unittest.TestCase):
     def test_build_extract_and_verify_exact_single_package(self):
         self.rootfs.unlink()
         package = linux.build_installer(self.project, self.manifest_path, self.output)
-        self.assertEqual(package.name, "nipat-desktop_0.6.0_amd64.deb")
+        self.assertEqual(package.name, "newpat-desktop_0.9.99_amd64.deb")
         self.assertEqual({path.name for path in self.output.iterdir()}, {
             package.name, "installer-manifest.json", "linux-installer-build.json", "SHA256SUMS",
         })
@@ -206,11 +216,10 @@ class LinuxInstallerTests(unittest.TestCase):
         self.assertFalse((app / "private.txt").exists())
         self.assertFalse((app / ".distribution" / self.rootfs.name).exists())
         self.assertEqual((extracted / "usr/bin" / linux.COMMAND).stat().st_mode & 0o777, 0o755)
-        self.assertIn("Terminal=false", (extracted / "usr/share/applications/nipat-desktop.desktop").read_text())
-        desktop = (extracted / "usr/share/applications/nipat-desktop.desktop").read_text()
+        self.assertIn("Terminal=false", (extracted / "usr/share/applications/newpat-desktop.desktop").read_text())
+        desktop = (extracted / "usr/share/applications/newpat-desktop.desktop").read_text()
         self.assertIn("Name=NewPat\n", desktop)
-        self.assertEqual((extracted / "usr/bin/newpat").read_bytes(),
-                         (extracted / "usr/bin/nipat").read_bytes())
+        self.assertEqual([path.name for path in (extracted / "usr/bin").iterdir()], ["newpat"])
         self.assertIn("Exec=/usr/bin/newpat --desktop\nTryExec=/usr/bin/newpat\n", desktop)
         self.assertIn(f"Icon={linux.PACKAGE}\n", desktop)
         for size, source in linux.THEME_ICONS.items():
@@ -219,9 +228,9 @@ class LinuxInstallerTests(unittest.TestCase):
         self.assertEqual((app / linux.ICON_SOURCE).read_bytes(), (self.project / linux.ICON_SOURCE).read_bytes())
         dependencies = subprocess.check_output(["dpkg-deb", "-f", str(package), "Depends"], text=True).strip()
         self.assertEqual(dependencies, linux.DEPENDENCIES)
-        self.assertEqual(linux.APP_PATH.as_posix(), "opt/nipat-desktop")
-        self.assertFalse((extracted / "opt/nipat-05-preview").exists())
-        self.assertFalse((extracted / "usr/bin/nipat-05-preview").exists())
+        self.assertEqual(linux.APP_PATH.as_posix(), "opt/newpat-desktop")
+        self.assertFalse((extracted / "opt/newpat-05-preview").exists())
+        self.assertFalse((extracted / "usr/bin/newpat-05-preview").exists())
         controls = subprocess.check_output(["dpkg-deb", "-f", str(package)], text=True)
         self.assertNotIn("Replaces:", controls)
         self.assertNotIn("Conflicts:", controls)

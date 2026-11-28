@@ -50,7 +50,7 @@ def verify_package(directory, architecture, manifest):
     require(requires_macos(manifest.get("version")), "The official macOS release contract starts at 0.8.2")
     require(manifest.get("installation_profile", {}).get("channel") == "desktop",
             "Official macOS releases require the desktop installation channel")
-    name = f"NIPAT-{manifest['version']}-macos-{architecture}.pkg"
+    name = f"NewPat-{manifest['version']}-macos-{architecture}.pkg"
     package = directory / name
     package_hash = digest(package)
     size = package.stat().st_size
@@ -95,8 +95,7 @@ def verify_package(directory, architecture, manifest):
     checks = CHECKS
     if native:
         checks = checks | {"docker-archive-architecture", "rosetta-disabled"}
-        if architecture == "arm64":
-            checks = checks | {"stopped-0.9.10-lima-upgrade"}
+        checks = checks | {"newpat-clean-install-identity"}
     for key, values in (("checks", checks), ("not_tested", NOT_TESTED)):
         items = report[key]
         require(isinstance(items, list) and all(isinstance(item, str) for item in items)

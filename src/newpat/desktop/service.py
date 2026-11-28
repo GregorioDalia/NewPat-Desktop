@@ -26,7 +26,7 @@ from newpat.desktop.plan import prepare_analysis
 from newpat.paths import ProjectLayout
 from newpat.preferences import Preferences, PreferencesStore
 from newpat.resources import ResourceManager
-from newpat.scientific_options import effective_config, migrate_saved_settings
+from newpat.scientific_options import effective_config, normalize_config
 from newpat_scientific.catalog import load_catalog
 from newpat_scientific.settings import describe_settings
 
@@ -223,7 +223,7 @@ class GuiService:
         if isinstance(draft, dict):
             draft = deepcopy(draft)
             if "scientific_settings" in draft:
-                draft["scientific_settings"] = migrate_saved_settings(draft["scientific_settings"])
+                draft["scientific_settings"] = normalize_config(draft["scientific_settings"])
             draft["name"] = self._derived_name(draft.get("name", run_id))
             return draft
         metadata = self._results().metadata(run_id)
@@ -232,7 +232,7 @@ class GuiService:
         if metadata.get("workflow") != "analysis":
             raise ValidationError("Per questo esperimento precedente creare una nuova analisi e selezionare i file. I risultati restano consultabili.")
         try:
-            return self._draft_from_legacy(metadata)
+            return self._draft_from_run_parameters(metadata)
         except (KeyError, TypeError, ValueError) as exc:
             raise ValidationError("La configurazione precedente non contiene tutti i collegamenti ai file. Creare un nuovo esperimento.") from exc
 
@@ -313,7 +313,7 @@ class GuiService:
         source = run.get("draft")
         if not isinstance(source, dict):
             try:
-                source = self._draft_from_legacy(metadata) if metadata.get("workflow") == "analysis" else {}
+                source = self._draft_from_run_parameters(metadata) if metadata.get("workflow") == "analysis" else {}
             except (KeyError, TypeError, ValueError):
                 source = {}
         source = deepcopy(source)
@@ -324,7 +324,7 @@ class GuiService:
             fetal = previous_fetal or self._recorded_fetal_inputs(recorded_fetal)
             draft = {"name": self._derived_name(run.get("name") or run_id, module),
                      "caller": "tables", "samples": [], "fetal_sex": fetal,
-                     "scientific_settings": effective_config(migrate_saved_settings(settings)),
+                     "scientific_settings": effective_config(normalize_config(settings)),
                      "execution": source.get("execution", self._requested_execution(metadata))}
             if fetal.get("source") == "bam":
                 draft.update(caller="both", samples=[row for row in source.get("samples", [])
@@ -382,7 +382,7 @@ class GuiService:
             return {"name": self._derived_name(run.get("name") or run_id, module),
                     "caller": "tables", "samples": list(samples.values()),
                     "fetal_sex": {"source": "sample-tables", "id": "", "dnp": "", "y": ""},
-                    "scientific_settings": effective_config(migrate_saved_settings(settings)),
+                    "scientific_settings": effective_config(normalize_config(settings)),
                     "execution": source.get("execution", self._requested_execution(metadata))}
         if not samples:
             raise ValidationError("Non sono disponibili conteggi completi associati ai campioni. Creare un nuovo esperimento da tabelle esistenti e selezionare i file; i calcoli precedenti non saranno ripetuti.")
@@ -390,16 +390,16 @@ class GuiService:
         resources = {"DNP": {}, "SNP": {}}
         for marker in markers:
             previous = source.get("resources", {}).get(marker, {})
-            legacy_marker = "SNP" if str(metadata.get("workflow", "")).startswith("snp") else parameters.get("marker_type", "DNP")
-            legacy = parameters if marker == legacy_marker else {}
+            parameter_marker = "SNP" if str(metadata.get("workflow", "")).startswith("snp") else parameters.get("marker_type", "DNP")
+            recorded = parameters if marker == parameter_marker else {}
             if module == "contamination":
                 resources[marker] = {"contamination_panel": previous.get("contamination_panel") or previous.get("panel")
-                                     or legacy.get("contamination_panel") or legacy.get("panel")}
+                                     or recorded.get("contamination_panel") or recorded.get("panel")}
             elif module == "cpi":
-                resources[marker] = {"popfreq": previous.get("popfreq") or legacy.get("popfreq"),
+                resources[marker] = {"popfreq": previous.get("popfreq") or recorded.get("popfreq"),
                                      "cpi_cutoffs": previous.get("cpi_cutoffs", [])}
             else:
-                resources[marker] = {"popfreq": previous.get("popfreq") or legacy.get("popfreq"),
+                resources[marker] = {"popfreq": previous.get("popfreq") or recorded.get("popfreq"),
                                      "cpin_panel": previous.get("cpin_panel")}
         families = {"cpi": [], "cpin": []}
         if module in families:
@@ -421,10 +421,10 @@ class GuiService:
                 "caller": "tables", "samples": list(samples.values()), "reference": None,
                 "branches": {marker: [module] if marker in markers else [] for marker in ("DNP", "SNP")},
                 "resources": resources, "families": families,
-                "scientific_settings": effective_config(migrate_saved_settings(settings)),
+                "scientific_settings": effective_config(normalize_config(settings)),
                 "execution": source.get("execution", self._requested_execution(metadata))}
 
-    def _draft_from_legacy(self, metadata: dict) -> dict:
+    def _draft_from_run_parameters(self, metadata: dict) -> dict:
         p = metadata["parameters"]
         plan = p["plan"]
         mounts = {item["container_path"]: item["host_path"] for item in metadata["input_mounts"]}
@@ -441,7 +441,7 @@ class GuiService:
         draft = {"name": self._derived_name(metadata.get("run_name", "NewPat")),
                  "caller": p["caller"], "samples": samples, "branches": p["analyses_by_marker"],
                  "resources": {"DNP": {}, "SNP": {}}, "families": {"cpi": [], "cpin": []},
-                 "scientific_settings": migrate_saved_settings(p.get("scientific_settings_effective", {})),
+                 "scientific_settings": normalize_config(p.get("scientific_settings_effective", {})),
                  "execution": self._requested_execution(metadata)}
         for step in plan["steps"]:
             workflow, inputs, parameters = step["workflow"], step["inputs"], step["parameters"]

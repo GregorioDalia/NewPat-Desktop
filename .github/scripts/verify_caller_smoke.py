@@ -114,7 +114,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--image", required=True, help="Locally loaded scientific runtime image")
     args = parser.parse_args()
-    os.environ.update(NIPAT_RUNTIME_IMAGE=args.image, NIPAT_BACKEND="native")
+    os.environ.update(NEWPAT_RUNTIME_IMAGE=args.image, NEWPAT_BACKEND="native")
     with tempfile.TemporaryDirectory(prefix="newpat-caller-smoke-") as directory:
         root = Path(directory)
         layout = ProjectLayout(ROOT, root, root / "data", root / "runs", ROOT / "compose.yaml")

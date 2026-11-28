@@ -1,24 +1,24 @@
 # Scientific configuration shared with the Python client and engine.
 # The registry is the single source of defaults, constraints and documentation.
-.nipat_settings_source <- tryCatch(sys.frame(1)$ofile, error=function(e) NULL)
-.nipat_settings_helper <- Sys.getenv("NIPAT_SETTINGS_HELPER", unset="")
-if (!nzchar(.nipat_settings_helper)) {
-  .nipat_parallel_helper <- Sys.getenv("NIPAT_PARALLEL_HELPER", unset="")
-  .nipat_settings_helper <- if (nzchar(.nipat_parallel_helper))
-    file.path(dirname(.nipat_parallel_helper), "settings.R") else
-      if (!is.null(.nipat_settings_source)) .nipat_settings_source else
-        "/opt/nipat/lib/newpat_scientific/settings.R"
+.newpat_settings_source <- tryCatch(sys.frame(1)$ofile, error=function(e) NULL)
+.newpat_settings_helper <- Sys.getenv("NEWPAT_SETTINGS_HELPER", unset="")
+if (!nzchar(.newpat_settings_helper)) {
+  .newpat_parallel_helper <- Sys.getenv("NEWPAT_PARALLEL_HELPER", unset="")
+  .newpat_settings_helper <- if (nzchar(.newpat_parallel_helper))
+    file.path(dirname(.newpat_parallel_helper), "settings.R") else
+      if (!is.null(.newpat_settings_source)) .newpat_settings_source else
+        "/opt/newpat/lib/newpat_scientific/settings.R"
 }
-.nipat_settings_registry <- Sys.getenv("NIPAT_SETTINGS_REGISTRY",
-  unset=file.path(dirname(.nipat_settings_helper), "settings_data.json"))
+.newpat_settings_registry <- Sys.getenv("NEWPAT_SETTINGS_REGISTRY",
+  unset=file.path(dirname(.newpat_settings_helper), "settings_data.json"))
 
-nipat_settings <- function(workflow) {
-  registry <- jsonlite::fromJSON(.nipat_settings_registry, simplifyVector=FALSE)
+newpat_settings <- function(workflow) {
+  registry <- jsonlite::fromJSON(.newpat_settings_registry, simplifyVector=FALSE)
   if (!identical(registry$schema_version, 1L) || is.null(registry$workflows[[workflow]]))
     stop("Unknown scientific settings workflow: ", workflow)
   definitions <- registry$workflows[[workflow]]$parameters
   values <- lapply(definitions, function(x) x$default)
-  path <- Sys.getenv("NIPAT_SCIENTIFIC_SETTINGS", unset="")
+  path <- Sys.getenv("NEWPAT_SCIENTIFIC_SETTINGS", unset="")
   if (nzchar(path)) {
     supplied <- jsonlite::fromJSON(path, simplifyVector=FALSE)
     if (!identical(supplied$schema_version, 1L) || !identical(supplied$workflow, workflow) ||
@@ -27,11 +27,11 @@ nipat_settings <- function(workflow) {
     if (length(unknown)) stop("Unknown scientific parameter: ", paste(unknown, collapse=", "))
     values[names(supplied$parameters)] <- supplied$parameters
   }
-  nipat_validate_settings(workflow, values)
+  newpat_validate_settings(workflow, values)
 }
 
-nipat_validate_settings <- function(workflow, values) {
-  registry <- jsonlite::fromJSON(.nipat_settings_registry, simplifyVector=FALSE)
+newpat_validate_settings <- function(workflow, values) {
+  registry <- jsonlite::fromJSON(.newpat_settings_registry, simplifyVector=FALSE)
   if (!identical(registry$schema_version, 1L) || is.null(registry$workflows[[workflow]]))
     stop("Unknown scientific settings workflow: ", workflow)
   definitions <- registry$workflows[[workflow]]$parameters
@@ -78,9 +78,9 @@ nipat_validate_settings <- function(workflow, values) {
 
 # Native R invocations may explicitly override values from the engine settings
 # file. Write the final values after applying those arguments, before analysis.
-nipat_write_settings <- function(workflow, values, out_dir) {
-  values <- nipat_validate_settings(workflow, values)
-  registry <- jsonlite::fromJSON(.nipat_settings_registry, simplifyVector=FALSE)
+newpat_write_settings <- function(workflow, values, out_dir) {
+  values <- newpat_validate_settings(workflow, values)
+  registry <- jsonlite::fromJSON(.newpat_settings_registry, simplifyVector=FALSE)
   document <- list(schema_version=1L, workflow=workflow, parameters=values,
                    constants=registry$workflows[[workflow]]$constants)
   dir.create(out_dir, recursive=TRUE, showWarnings=FALSE)
@@ -106,7 +106,7 @@ nipat_write_settings <- function(workflow, values, out_dir) {
 # Read NEWPAT marker tables while retaining base R's numeric NA handling.
 # Callers pin the chromosome column to character. With that class read.table
 # represents the token "NA" as NA_character_, and an empty field as "".
-nipat_read_marker_table <- function(..., chromosome_column="chr") {
+newpat_read_marker_table <- function(..., chromosome_column="chr") {
   x <- read.table(..., tryLogical=FALSE)
   if (chromosome_column %in% names(x)) {
     chromosome <- x[[chromosome_column]]

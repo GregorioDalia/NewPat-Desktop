@@ -53,7 +53,7 @@ class FiveModulePackageTests(unittest.TestCase):
         for change in ("extra-source", "writable-input", "writable-root", "network", "different-image"):
             service = deepcopy(self.service)
             if change == "extra-source":
-                service["volumes"].append({"type": "bind", "source": "/checkout", "target": "/opt/nipat"})
+                service["volumes"].append({"type": "bind", "source": "/checkout", "target": "/opt/newpat"})
             elif change == "writable-input":
                 service["volumes"][0]["read_only"] = False
             elif change == "writable-root":
@@ -61,7 +61,7 @@ class FiveModulePackageTests(unittest.TestCase):
             elif change == "network":
                 service["network_mode"] = "host"
             else:
-                service["image"] = "nipat-scientific-runtime:mutable-tag"
+                service["image"] = "newpat-scientific-runtime:mutable-tag"
             with self.subTest(change=change), self.assertRaises(AssertionError):
                 self.verify(service=service)
 

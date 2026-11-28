@@ -51,8 +51,8 @@ Independent SNP calls can share one bounded pool in mixed plans. Serial mode run
 
 | Host | Execution environment |
 | --- | --- |
-| Windows | User-account Python and launchers call `wsl.exe` for the configured, dedicated WSL2 distribution. `nipat-engine ensure` starts its Docker Engine as needed. Checks, execution and cancellation use that engine. |
-| macOS | The host-native client uses the dedicated Lima VM and its Docker Engine. Python and Lima are bundled. Intel uses an AMD64 guest. The 0.9.99 Apple Silicon candidate runs native R and samtools in its ARM64 guest. The published 0.9.10 package uses Rosetta for the AMD64 image. Preflight checks engine identity and interfaces. |
+| Windows | User-account Python and launchers call `wsl.exe` for the configured, dedicated WSL2 distribution. `newpat-engine ensure` starts its Docker Engine as needed. Checks, execution and cancellation use that engine. |
+| macOS | The host-native client uses the dedicated Lima VM and its Docker Engine. Python and Lima are bundled. Intel uses an AMD64 guest. Apple Silicon runs native R and samtools in an ARM64 guest. Preflight checks engine identity and interfaces. |
 | Linux | Ubuntu 24.04 LTS x86_64 uses the local Docker Engine and Compose with a `linux/amd64` container. The installed package uses `unix:///var/run/docker.sock`. It requires a system daemon without rootless mode or user namespace remapping. Results use the caller's UID/GID. |
 
 The WSL transport runs with UID/GID 0 inside its dedicated environment. The Windows account that starts WSL determines access to Windows files.
@@ -71,7 +71,7 @@ DNPcall receives ordered aliases such as `sample_0001.bam`. The run record in `r
 
 ## Preferences and provenance
 
-The guided menu stores data/results roots, reference and workflow defaults, checksum policy, worker limits, DNP block settings, optional container limits and scientific overrides. The user selects run names, samples and families per experiment. **Configure** saves changes explicitly. A direct CLI command uses its arguments, environment and distributed defaults. Windows desktop preferences are in `%LOCALAPPDATA%\NIPAT-Desktop\preferences.json`. macOS uses `~/Library/Application Support/NIPAT-Desktop/preferences.json`. Installation configuration separately owns the program, cache and VM paths.
+The guided menu stores data/results roots, reference and workflow defaults, checksum policy, worker limits, DNP block settings, optional container limits and scientific overrides. The user selects run names, samples and families per experiment. **Configure** saves changes explicitly. A direct CLI command uses its arguments, environment and distributed defaults. Windows desktop preferences are in `%LOCALAPPDATA%\NewPat-Desktop\preferences.json`. macOS uses `~/Library/Application Support/NewPat-Desktop/preferences.json`. Installation configuration separately owns the program, cache and VM paths.
 
 `newpat settings` lists defaults, types, bounds and constants. `--scientific-config PATH` and `--set module.parameter=value` apply validated overrides. Duplicate keys and inconsistent parameters are rejected. Each scientific step stores effective settings in `work/effective-scientific-settings.json`.
 
@@ -83,7 +83,7 @@ Cancelling requests termination of the active process and removal of its contain
 
 ## Installation, updates and maintenance
 
-Release manifests associate version, commit and checksums. Windows and Ubuntu provide manifests compatible with existing clients. macOS uses a feed for its two host architectures. The updater verifies a download before installer handoff. New preferences default to the stable channel. Users can select testing and opt into startup checks.
+Release manifests associate version, commit and checksums. The updater uses the release manifest for the installed platform and selects the matching architecture for macOS. The updater verifies a download before installer handoff. New preferences default to the stable channel. Users can select testing and opt into startup checks.
 
 The Windows desktop installer manages separate local roots for the program, WSL, cache, user data and results. Roots must be writable, fixed, independent and free of path links. Repair and update identify the existing package by inventory, then back up changed components, recovery metadata and generated Python before replacement. Unknown files remain in place. Obsolete files are removed only when they match the previous inventory. A modified obsolete component stays in place and is backed up. Account preferences, destination records, data and results survive uninstall.
 
@@ -91,7 +91,7 @@ WSL ownership depends on the registered distribution and destination. A missing 
 
 The launcher activates configuration after diagnostics and self-test succeed. Maintenance acquires an exclusive lock after the client exits and rechecks inventories, owned distributions, cache archives and backup records before changing anything. Selective backups support recovery of individual items. [Windows installer](WINDOWS_INSTALLER.md)
 
-The macOS packages install `/Applications/NewPat.app` with host-native portable Python and Lima plus the bundled scientific archive for that package and version. The user workspace is `~/Library/Application Support/NIPAT-Desktop` and `LIMA_HOME` is `~/.nipat/lima`. First launch provisions the dedicated guest and verifies the bundled archive. Provisioning may use the network. Analysis runs offline in an isolated container. The bundle includes a separate terminal launcher for CLI use. [macOS installer](MACOS_INSTALLER.md)
+The macOS packages install `/Applications/NewPat.app` with host-native portable Python and Lima plus the bundled scientific archive for that package and version. The user workspace is `~/Library/Application Support/NewPat-Desktop` and `LIMA_HOME` is `~/.newpat/lima`. First launch provisions the dedicated guest and verifies the bundled archive. Provisioning may use the network. Analysis runs offline in an isolated container. The bundle includes a separate terminal launcher for CLI use. [macOS installer](MACOS_INSTALLER.md)
 
 The Ubuntu package includes the scientific archive and uses the host's Docker daemon directly. APT installs missing dependencies. Granting daemon access is an administrative decision. [Linux installer](LINUX_INSTALLER.md)
 

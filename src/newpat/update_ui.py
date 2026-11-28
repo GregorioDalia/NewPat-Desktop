@@ -7,8 +7,7 @@ import time
 from typing import Any, Callable
 
 from newpat import __version__
-from newpat.distribution import EXPERIMENT_URL, is_experimental_version
-from newpat.errors import NipatError
+from newpat.errors import NewPatError
 from newpat.paths import ProjectLayout
 from newpat.preferences import Preferences
 from newpat.terminal import Terminal
@@ -78,15 +77,6 @@ def run_updates(
             ui.heading("Verifica aggiornamenti")
             ui.message("Modalita' simulazione (--dry-run): nessuna connessione, download o installazione viene eseguita.", kind="muted")
         return False
-    if is_experimental_version(current_version):
-        if not startup:
-            ui.heading("Aggiornamenti della versione sperimentale")
-            ui.message(f"Versione installata: NewPat {current_version}")
-            ui.message("Questa installazione sperimentale e' separata dalla versione stabile. "
-                       "Gli aggiornamenti automatici sono disabilitati per evitare il cambio di distribuzione.")
-            ui.message("I nuovi installer sperimentali saranno disponibili su GitHub: " + EXPERIMENT_URL,
-                       kind="muted")
-        return False
     handoff_started = False
     try:
         if startup:
@@ -155,7 +145,7 @@ def run_updates(
             return True
         ui.message("Operazione di aggiornamento annullata. La versione installata resta disponibile.", kind="muted")
         return False
-    except (NipatError, OSError, ValueError) as exc:
+    except (NewPatError, OSError, ValueError) as exc:
         if handoff_started:
             return True
         ui.message(f"Aggiornamento non completato: {exc}", kind="warning")

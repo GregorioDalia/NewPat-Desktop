@@ -21,7 +21,7 @@ The full scientific qualification also compares the candidate with frozen script
 
 | Analysis | Reference used in full scientific qualification |
 | --- | --- |
-| DNPcall | NIPAT 0.8.5 commit `eafadf7002a9c7d7c1b9af9ccafc47d698a059e5`, frozen in `tests/reference_r/0.8.5`. |
+| DNPcall | Version `v0.8.5`, commit `eafadf7002a9c7d7c1b9af9ccafc47d698a059e5`, archived in `tests/reference_r/0.8.5`. |
 | SNPcall | [Upstream SNPcall 2.0](https://github.com/lpistacchia/NEWPAT/tree/ce59f4beeeec710b1b42d425cb87d7aad729f71d/SNPcall), Git blob `7a2e01e94c9e278af52aa861646fec3b16df8b1c`. Local reference `tests/reference_r/2.0/SNPcall.R` has SHA-256 `855a96c897d1bcb8ce30b725baecfa739d01be323252da07554a63aa66965da4`. |
 | Contamination, prenatal and postnatal CPI | [NEWPAT snapshot](https://github.com/lpistacchia/NEWPAT/tree/c753afc4be62dfc0b81b8cb683a6e850516f5ffd), frozen in `tests/reference_r/NEWPAT_20261126`, plus independent analytical expectations. The [20-marker prenatal examples](../tests/fixtures/prenatal_cpi/README.md) include expected results for both SNPs and DNPs. |
 
@@ -39,7 +39,7 @@ Large intermediates use the runtime's Linux scratch storage. The client manages 
 
 ## SNPcall
 
-SNPcall 2.0 takes a panel and a pileup with reference, quality and QNAME fields. In BAM mode the engine creates three-base BED windows and calls samtools before R. For a compatible indexed BAM, concurrent tasks cover disjoint chromosomes and reassemble the pileup in header order. A failed partition or a pool that exceeds its memory allowance triggers a fresh sequential scan. A failed sequential scan stops execution. The default `-d 0` removes the depth cap. A four-column panel uses `chr,pos,ref,alt`. A three-column panel with `pos=chr:position` is normalized to the same format. Both accept positions from 2 through 2147483646 inclusive.
+SNPcall 2.0 takes a panel and a pileup with reference, quality and QNAME fields. In BAM mode the engine creates three-base BED windows and calls samtools before R. For a compatible indexed BAM, concurrent tasks cover disjoint chromosomes and reassemble the pileup in header order. A failed partition or a pool that exceeds its memory allowance triggers a fresh sequential scan. A failed sequential scan stops execution. The default maximum depth is 2147483647 reads per position in each BAM. NewPat passes the equivalent `-d 0` to samtools 1.21. A four-column panel uses `chr,pos,ref,alt`. A three-column panel with `pos=chr:position` is normalized to the same format. Both accept positions from 2 through 2147483646 inclusive.
 
 `output/SNPcall_output.txt` contains 17 columns covering coordinates and alleles, REF/ALT/Other counts, total, REF fraction, `GL0`/`GL1`/`GL2`, `GT`, indel statistics and observed bases with counts. GL values are natural log likelihoods using central-base Phred scores for REF/ALT observations. The default Other fraction threshold of 0.1 makes `GT` missing at or above the threshold. Central indels are counted before filtering. A flanking indel can also exclude a read. The ratio is `N_REF / (N_REF + N_ALT)`.
 

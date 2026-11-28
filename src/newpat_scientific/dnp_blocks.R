@@ -1,7 +1,7 @@
 # Bounded DNP input handling. Scientific transformations remain in DNPcall.R.
 # Byte limits describe raw input, not a guarantee about R's resident memory.
 
-nipat_dnp_number <- function(name, default) {
+newpat_dnp_number <- function(name, default) {
   text <- Sys.getenv(name, unset = as.character(default))
   value <- suppressWarnings(as.numeric(text))
   if (length(value) != 1L || !is.finite(value) || value < 1 || value != floor(value)) {
@@ -10,7 +10,7 @@ nipat_dnp_number <- function(name, default) {
   value
 }
 
-nipat_dnp_index <- function(path, empty_samples = NULL) {
+newpat_dnp_index <- function(path, empty_samples = NULL) {
   started <- proc.time()[["elapsed"]]
   con <- file(path, open = "rb")
   on.exit(close(con))
@@ -76,35 +76,35 @@ nipat_dnp_index <- function(path, empty_samples = NULL) {
 # Two R workers outperformed four on translated AMD64 in a 3,905 MiB
 # guest. Apply that ceiling to similar run allocations, including tighter
 # container or cgroup limits. Acquisition has a separate workload model.
-nipat_dnp_r_workers <- function() {
-  if (!identical(Sys.getenv("NIPAT_DNP_LIMA_ARM64"), "1") ||
-      nzchar(Sys.getenv("NIPAT_MAX_WORKERS"))) return(NULL)
-  capacity <- nipat_parallel_capacity()$memory_capacity_mib
+newpat_dnp_r_workers <- function() {
+  if (!identical(Sys.getenv("NEWPAT_DNP_LIMA_ARM64"), "1") ||
+      nzchar(Sys.getenv("NEWPAT_MAX_WORKERS"))) return(NULL)
+  capacity <- newpat_parallel_capacity()$memory_capacity_mib
   if (!is.null(capacity) && capacity <= 4096) 2L else NULL
 }
 
-nipat_dnp_target_bytes <- function(requested, tasks = .Machine$integer.max, share_samples = 1L) {
-  if (identical(Sys.getenv("NIPAT_EXECUTION_MODE", "auto"), "serial") ||
-      !exists("nipat_parallel_budget", mode = "function")) return(requested)
+newpat_dnp_target_bytes <- function(requested, tasks = .Machine$integer.max, share_samples = 1L) {
+  if (identical(Sys.getenv("NEWPAT_EXECUTION_MODE", "auto"), "serial") ||
+      !exists("newpat_parallel_budget", mode = "function")) return(requested)
   # Keep useful work in each fork: an additional parallel lane can justify
   # smaller blocks, but never size every block for the machine's CPU ceiling.
   # Half the requested grain bounds the fragmentation incurred for parallelism.
-  budget <- nipat_parallel_budget(tasks, memory_mib = nipat_dnp_estimate_mib(requested / 2),
-                                  workers = nipat_dnp_r_workers())
+  budget <- newpat_parallel_budget(tasks, memory_mib = newpat_dnp_estimate_mib(requested / 2),
+                                  workers = newpat_dnp_r_workers())
   remaining <- budget$memory_budget_mib - budget$coordinator_rss_mib
   if (!length(remaining) || !is.finite(remaining)) return(requested)
-  full_block <- nipat_dnp_estimate_mib(requested)
+  full_block <- newpat_dnp_estimate_mib(requested)
   workers <- min(budget$workers, max(1, ceiling(remaining / full_block)))
   # The optimized reader can share a block across samples. Size its lanes for
   # useful blocks (at least half the requested grain when it fits). Estimating
   # lanes at one byte could split every locus into a separate read and fork.
-  if (remaining < 2 * full_block && !identical(Sys.getenv("NIPAT_DNP_OPTIMIZED_IO"), "1")) {
+  if (remaining < 2 * full_block && !identical(Sys.getenv("NEWPAT_DNP_OPTIMIZED_IO"), "1")) {
     # When memory is tight, smaller blocks can keep more cores busy.
     # Use this division only if the job has enough independent tasks.
     # A short job can still use the coarser plan when it has too few tasks
     # at the requested size to keep the finer-grained pool busy.
-    fine <- nipat_parallel_budget(.Machine$integer.max, memory_mib = nipat_dnp_estimate_mib(1),
-                                  workers = nipat_dnp_r_workers())
+    fine <- newpat_parallel_budget(.Machine$integer.max, memory_mib = newpat_dnp_estimate_mib(1),
+                                  workers = newpat_dnp_r_workers())
     if (tasks >= fine$workers) {
       workers <- fine$workers
       remaining <- fine$memory_budget_mib - fine$coordinator_rss_mib
@@ -121,9 +121,9 @@ nipat_dnp_target_bytes <- function(requested, tasks = .Machine$integer.max, shar
   max(1, min(requested, floor((allocation - 512) / expansion * 1024^2)))
 }
 
-nipat_dnp_plan <- function(index, labels, ref_alt,
-                           max_loci = nipat_dnp_number("NIPAT_DNP_BLOCK_LOCI", 64),
-                           max_bytes = nipat_dnp_number("NIPAT_DNP_BLOCK_BYTES", 32 * 1024^2)) {
+newpat_dnp_plan <- function(index, labels, ref_alt,
+                           max_loci = newpat_dnp_number("NEWPAT_DNP_BLOCK_LOCI", 64),
+                           max_bytes = newpat_dnp_number("NEWPAT_DNP_BLOCK_BYTES", 32 * 1024^2)) {
   requested_max_bytes <- max_bytes
   # Approximate the number of tasks before reducing any blocks. Independent
   # samples share the pool. The final partition enforces complete locus groups.
@@ -137,9 +137,9 @@ nipat_dnp_plan <- function(index, labels, ref_alt,
   if (!is.null(index$repeated_qname_rows) && index$repeated_qname_rows > 0L) {
     reasons <- c(reasons, "legacy-repeated-qname-within-position")
   }
-  share_samples <- if (!length(reasons) && identical(Sys.getenv("NIPAT_DNP_OPTIMIZED_IO"), "1"))
+  share_samples <- if (!length(reasons) && identical(Sys.getenv("NEWPAT_DNP_OPTIMIZED_IO"), "1"))
     samples else 1L
-  max_bytes <- nipat_dnp_target_bytes(requested_max_bytes, coarse_blocks * samples, share_samples)
+  max_bytes <- newpat_dnp_target_bytes(requested_max_bytes, coarse_blocks * samples, share_samples)
   if (length(reasons)) {
     return(list(blocks = list(list(locus_ids = seq_len(nrow(ref_alt)),
       row_ids = seq_along(keys), raw_bytes = sum(index$lengths))),
@@ -187,7 +187,7 @@ nipat_dnp_plan <- function(index, labels, ref_alt,
        compatibility_reasons = character(), unmatched_rows = 0L)
 }
 
-nipat_dnp_read_ranges <- function(index, rows, max_bytes = 8 * 1024^2) {
+newpat_dnp_read_ranges <- function(index, rows, max_bytes = 8 * 1024^2) {
   # Merge only byte-adjacent rows in the REQUESTED order. Sorting or unique()
   # here would change callers that repeat or reverse rows. Keep each temporary
   # read bounded, except for an indivisible line already larger than the target.
@@ -220,7 +220,7 @@ nipat_dnp_read_ranges <- function(index, rows, max_bytes = 8 * 1024^2) {
 # spends substantial time on deep joint pileups even when most columns are
 # skipped. Decode ordinary rows one read range at a time and retain only the
 # requested columns. NULL hands all other input back to the original scanner.
-nipat_dnp_parse_tabs <- function(chunks, row_count, classes, column_names) {
+newpat_dnp_parse_tabs <- function(chunks, row_count, classes, column_names) {
   selected <- which(classes != "NULL")
   if (anyNA(classes) || !length(selected) ||
       !all(classes[selected] %in% c("character", "integer"))) return(NULL)
@@ -255,7 +255,7 @@ nipat_dnp_parse_tabs <- function(chunks, row_count, classes, column_names) {
   as.data.frame(values, stringsAsFactors = FALSE)
 }
 
-nipat_dnp_read <- function(index, rows, connection, columns = NULL) {
+newpat_dnp_read <- function(index, rows, connection, columns = NULL) {
   classes <- index$classes
   column_names <- paste0("V", seq_along(classes))
   if (!is.null(columns)) {
@@ -288,7 +288,7 @@ nipat_dnp_read <- function(index, rows, connection, columns = NULL) {
     # direct path instead of allocating one range descriptor for every row.
     lines <- vapply(rows, read_row, character(1), USE.NAMES = FALSE)
   } else {
-    ranges <- nipat_dnp_read_ranges(index, rows)
+    ranges <- newpat_dnp_read_ranges(index, rows)
     lines <- vapply(seq_along(ranges$offsets), function(number) {
       first <- ranges$first[[number]]
       last <- ranges$last[[number]]
@@ -314,9 +314,9 @@ nipat_dnp_read <- function(index, rows, connection, columns = NULL) {
   }
   # Indivisible compatibility windows may exceed the ordinary 32 MiB grain.
   # Keep their existing parser and memory behavior.
-  if (identical(Sys.getenv("NIPAT_DNP_OPTIMIZED_IO"), "1") &&
+  if (identical(Sys.getenv("NEWPAT_DNP_OPTIMIZED_IO"), "1") &&
       length(index$classes) > 7L && sum(index$lengths[rows]) <= 32 * 1024^2) {
-    parsed <- nipat_dnp_parse_tabs(lines, length(rows), classes, column_names)
+    parsed <- newpat_dnp_parse_tabs(lines, length(rows), classes, column_names)
     if (!is.null(parsed)) return(parsed)
   }
   read.csv(text = paste0(lines, collapse = ""), quote = "", row.names = NULL,
@@ -327,16 +327,16 @@ nipat_dnp_read <- function(index, rows, connection, columns = NULL) {
 # Scheduling estimate, not an allocation limit: expanded observations, joins
 # and R's own heap are larger than the raw pileup. Account for indivisible
 # oversize/compatibility blocks instead of assuming the configured target held.
-nipat_dnp_estimate_mib <- function(raw_bytes) ceiling(512 + 48 * raw_bytes / 1024^2)
+newpat_dnp_estimate_mib <- function(raw_bytes) ceiling(512 + 48 * raw_bytes / 1024^2)
 
-nipat_dnp_worker_memory_mib <- function(plan) {
+newpat_dnp_worker_memory_mib <- function(plan) {
   largest <- max(c(0, vapply(plan$blocks, function(block) block$raw_bytes, numeric(1))))
-  nipat_dnp_estimate_mib(largest)
+  newpat_dnp_estimate_mib(largest)
 }
 
 # Each task holds at most one parsed block. Keep the input descriptor local
 # to the worker and release each sample's scientific workspace before the next.
-nipat_dnp_run_sample_group <- function(index, block, labels, ref_alt, computations,
+newpat_dnp_run_sample_group <- function(index, block, labels, ref_alt, computations,
                                        columns, sample_numbers, block_number) {
   started_at <- as.numeric(Sys.time())
   read_start <- proc.time()[["elapsed"]]
@@ -344,7 +344,7 @@ nipat_dnp_run_sample_group <- function(index, block, labels, ref_alt, computatio
   on.exit(close(connection))
   selected <- if (length(sample_numbers) == 1L) columns[[sample_numbers]] else
     sort(unique(unlist(columns[sample_numbers])))
-  pileup <- nipat_dnp_read(index, block$row_ids, connection, selected)
+  pileup <- newpat_dnp_read(index, block$row_ids, connection, selected)
   read_seconds <- proc.time()[["elapsed"]] - read_start
   block_labels <- labels[labels$uniq %in% block$locus_ids, , drop = FALSE]
   block_refs <- ref_alt[block$locus_ids, , drop = FALSE]
@@ -372,24 +372,24 @@ nipat_dnp_run_sample_group <- function(index, block, labels, ref_alt, computatio
   })
 }
 
-nipat_dnp_run_block <- function(index, block, labels, ref_alt, compute, columns = NULL) {
-  nipat_dnp_run_sample_group(index, block, labels, ref_alt, list(compute),
+newpat_dnp_run_block <- function(index, block, labels, ref_alt, compute, columns = NULL) {
+  newpat_dnp_run_sample_group(index, block, labels, ref_alt, list(compute),
                             if (is.null(columns)) NULL else list(columns), 1L, 1L)[[1L]]
 }
 
-nipat_dnp_process_blocks <- function(index, plan, labels, ref_alt, compute,
+newpat_dnp_process_blocks <- function(index, plan, labels, ref_alt, compute,
                                      progress = function(...) invisible(NULL),
-                                     workers = nipat_dnp_r_workers()) {
+                                     workers = newpat_dnp_r_workers()) {
   started <- proc.time()[["elapsed"]]
   run_block <- function(number) {
-    nipat_dnp_run_block(index, plan$blocks[[number]], labels, ref_alt, compute)
+    newpat_dnp_run_block(index, plan$blocks[[number]], labels, ref_alt, compute)
   }
   # Scientific values and metrics retain the plan's order regardless of which
   # worker completed first. Only this coordinating process publishes progress.
   completed <- 0L
-  values <- nipat_parallel_lapply(seq_along(plan$blocks), run_block,
+  values <- newpat_parallel_lapply(seq_along(plan$blocks), run_block,
     label = "dnp-blocks", workers = workers,
-    memory_mib = nipat_dnp_worker_memory_mib(plan),
+    memory_mib = newpat_dnp_worker_memory_mib(plan),
     on_result = function(number, value) {
       completed <<- completed + value$metric$loci
       progress(completed, nrow(ref_alt))
@@ -403,9 +403,9 @@ nipat_dnp_process_blocks <- function(index, plan, labels, ref_alt, compute,
 # One process pool spans every sample and block. A sample does not reserve one
 # worker and serialize all of its blocks: available workers take the next task,
 # including when the sample count is smaller or larger than the shared budget.
-nipat_dnp_process_samples <- function(index, plan, labels, ref_alt, computations,
+newpat_dnp_process_samples <- function(index, plan, labels, ref_alt, computations,
                                       progress = function(...) invisible(NULL),
-                                      workers = nipat_dnp_r_workers(), columns = NULL) {
+                                      workers = newpat_dnp_r_workers(), columns = NULL) {
   started <- proc.time()[["elapsed"]]
   sample_count <- length(computations)
   block_count <- length(plan$blocks)
@@ -418,13 +418,13 @@ nipat_dnp_process_samples <- function(index, plan, labels, ref_alt, computations
   }
   sample_block_count <- sample_count * block_count
   group_sizes <- rep(1L, block_count)
-  memory_mib <- nipat_dnp_worker_memory_mib(plan)
+  memory_mib <- newpat_dnp_worker_memory_mib(plan)
   if (sample_count > 1L && !length(plan$compatibility_reasons) &&
-      identical(Sys.getenv("NIPAT_DNP_OPTIMIZED_IO"), "1") && !is.null(columns) &&
+      identical(Sys.getenv("NEWPAT_DNP_OPTIMIZED_IO"), "1") && !is.null(columns) &&
       all(vapply(columns, function(ids) is.numeric(ids) && length(ids) > 0L &&
           all(is.finite(ids)) && all(ids == trunc(ids) & ids >= 1L & ids <= length(index$classes)) &&
           !anyDuplicated(ids), logical(1)))) {
-    budget <- nipat_parallel_budget(sample_block_count, memory_mib, workers)
+    budget <- newpat_parallel_budget(sample_block_count, memory_mib, workers)
     remaining <- budget$memory_budget_mib - budget$coordinator_rss_mib
     if (length(remaining) == 1L && is.finite(remaining)) {
       # Leave enough independently schedulable work for all admitted workers.
@@ -438,7 +438,7 @@ nipat_dnp_process_samples <- function(index, plan, labels, ref_alt, computations
         # for the retained projection, conservatively using all input columns.
         columns_total <- length(index$classes)
         extra_bytes <- 4 * block$raw_bytes + columns_total * (128 + 96 * length(block$row_ids))
-        estimate <- nipat_dnp_estimate_mib(block$raw_bytes) + ceiling(extra_bytes / 1024^2)
+        estimate <- newpat_dnp_estimate_mib(block$raw_bytes) + ceiling(extra_bytes / 1024^2)
         if (estimate <= remaining / budget$workers) {
           group_sizes[[i]] <- as.integer(max_samples)
           memory_mib <- max(memory_mib, estimate)
@@ -468,22 +468,22 @@ nipat_dnp_process_samples <- function(index, plan, labels, ref_alt, computations
       block_number <- as.integer((number - 1L) %/% sample_count + 1L)
       samples <- as.integer((number - 1L) %% sample_count + 1L)
     }
-    nipat_dnp_run_sample_group(index, plan$blocks[[block_number]], labels, ref_alt,
+    newpat_dnp_run_sample_group(index, plan$blocks[[block_number]], labels, ref_alt,
                               computations, columns, samples, block_number)
   }
   totals <- c(block_read_seconds = 0, block_compute_seconds = 0, block_read_count = 0,
               block_logical_bytes_read = 0, sample_block_count = 0)
   completed_groups <- 0L
-  record_progress <- nzchar(Sys.getenv("NIPAT_PERFORMANCE_DIR"))
+  record_progress <- nzchar(Sys.getenv("NEWPAT_PERFORMANCE_DIR"))
   last_snapshot <- -Inf
   snapshot <- function() {
     now <- proc.time()[["elapsed"]]
     if (completed_groups > 1L && completed_groups < task_count && now - last_snapshot < 5) return()
-    record_progress <<- nipat_dnp_write_block_progress(completed_groups, task_count, totals)
+    record_progress <<- newpat_dnp_write_block_progress(completed_groups, task_count, totals)
     last_snapshot <<- now
   }
   if (record_progress) snapshot()
-  groups <- nipat_parallel_lapply(seq_len(task_count), run_task,
+  groups <- newpat_parallel_lapply(seq_len(task_count), run_task,
     label = "dnp-sample-blocks", workers = workers, memory_mib = memory_mib,
     on_result = function(number, group) {
       for (value in group) {
@@ -538,7 +538,7 @@ nipat_dnp_process_samples <- function(index, plan, labels, ref_alt, computations
 
 # The coordinator publishes aggregate counters beside this step's block report.
 # Replace the snapshot atomically, so an interruption leaves a complete record.
-nipat_dnp_write_block_progress <- function(completed, planned, totals) {
+newpat_dnp_write_block_progress <- function(completed, planned, totals) {
   tryCatch({
     path <- file.path("work", "dnp-block-progress.json")
     temporary <- tempfile(".dnp-block-progress-", tmpdir = dirname(path))
@@ -550,7 +550,7 @@ nipat_dnp_write_block_progress <- function(completed, planned, totals) {
   }, error = function(error) FALSE, warning = function(warning) FALSE)
 }
 
-nipat_dnp_combine <- function(values) {
+newpat_dnp_combine <- function(values) {
   final <- do.call(rbind, lapply(values, function(value) value$final))
   # Numeric final coordinates can use scientific notation. Retain the exact
   # original DNPs strings used by the legacy merge instead of recreating keys.
@@ -561,7 +561,7 @@ nipat_dnp_combine <- function(values) {
   final
 }
 
-nipat_dnp_write_metrics <- function(path, value) {
+newpat_dnp_write_metrics <- function(path, value) {
   # Metrics do not participate in the calculation, and an unwritable diagnostic
   # destination must not discard otherwise valid scientific output.
   tryCatch({
@@ -574,9 +574,9 @@ nipat_dnp_write_metrics <- function(path, value) {
 # Single-BAM runs with bounded depth measured up to 283 MiB RSS per samtools
 # on GRCh37 (largest target ~238 MiB as sequence). The container budget is
 # fixed at run start, independent of free RAM.
-nipat_dnp_acquisition_budget <- function(chromosomes, samples, settings, reference) {
+newpat_dnp_acquisition_budget <- function(chromosomes, samples, settings, reference) {
   chromosomes <- unique(chromosomes)
-  plan <- nipat_parallel_budget(length(chromosomes), workload_observed = FALSE)
+  plan <- newpat_parallel_budget(length(chromosomes), workload_observed = FALSE)
   if (!identical(plan$reason, "workload-not-observed") || samples < 1L ||
       length(chromosomes) < 2L ||
       !settings$baq || settings$redo_baq || settings$mapping_quality_adjustment > 0L ||
@@ -605,7 +605,7 @@ nipat_dnp_acquisition_budget <- function(chromosomes, samples, settings, referen
     # Admit at most one extra pair using the padded reference-specific cost.
     # Other backends retain their qualified GRCh37-sized envelope.
     pair <- 2 * estimate
-    qualified <- identical(Sys.getenv("NIPAT_DNP_OPTIMIZED_IO"), "1") || estimate == 2 * measured_rss_mib
+    qualified <- identical(Sys.getenv("NEWPAT_DNP_OPTIMIZED_IO"), "1") || estimate == 2 * measured_rss_mib
     if (qualified && plan$worker_ceiling >= 2L && pair <= 0.4 * remaining) {
       available <- max(available, pair)
     }

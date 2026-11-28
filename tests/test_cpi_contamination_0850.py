@@ -14,7 +14,7 @@ from newpat_scientific.errors import ValidationError
 
 class MarkerAwareAdaptersTests(unittest.TestCase):
     def setUp(self):
-        directory = tempfile.TemporaryDirectory(prefix="nipat-marker-controls-")
+        directory = tempfile.TemporaryDirectory(prefix="newpat-marker-controls-")
         self.addCleanup(directory.cleanup)
         self.root = Path(directory.name)
 

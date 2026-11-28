@@ -26,13 +26,13 @@ import unicodedata
 import uuid
 
 from newpat.environment import setting
-from newpat.errors import NipatError, RuntimeExecutionError, ValidationError
+from newpat.errors import NewPatError, RuntimeExecutionError, ValidationError
 
 
 CHANNEL = "desktop"
-INSTANCE = "nipat"
+INSTANCE = "newpat"
 LIMA_VERSION = "2.2.1"
-WORKSPACE_NAME = "NIPAT-Desktop"
+WORKSPACE_NAME = "NewPat-Desktop"
 _DIGEST = re.compile(r"[0-9a-f]{64}\Z")
 _IMAGE = re.compile(r"sha256:[0-9a-f]{64}\Z")
 _LINUX_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
@@ -74,7 +74,7 @@ if ! command -v docker >/dev/null 2>&1 || ! docker compose version >/dev/null 2>
     apt-get install -y --no-install-recommends docker.io docker-compose-v2
 fi
 systemctl enable --now docker
-printf '%s\\n' "$PARAM_NipatOwner" > /etc/nipat-owner
+printf '%s\\n' "$PARAM_NewPatOwner" > /etc/newpat-owner
 """
 
 
@@ -87,8 +87,8 @@ class _ExclusivePreparationRequired(RuntimeExecutionError):
 
 
 def _exclusive_maintenance() -> bool:
-    return (os.environ.get("NIPAT_RUNTIME_MAINTENANCE") == "1"
-            and os.environ.get("NIPAT_LAUNCHER_PID") == str(os.getppid()))
+    return (os.environ.get("NEWPAT_RUNTIME_MAINTENANCE") == "1"
+            and os.environ.get("NEWPAT_LAUNCHER_PID") == str(os.getppid()))
 
 
 def absolute_path(value: str | Path) -> Path:
@@ -189,7 +189,8 @@ def read_manifest(project: Path) -> dict:
     valid = (
         manifest.get("schema_version") == 1
         and manifest.get("channel") == CHANNEL
-        and re.fullmatch(r"0\.[89]\.[0-9]+(?:[ab][0-9]+|rc[0-9]+)?", str(manifest.get("version", "")))
+        and manifest.get("bundle_identifier") == "org.newpat.desktop"
+        and re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", str(manifest.get("version", "")))
         and re.fullmatch(r"[0-9a-f]{40}", str(manifest.get("source_commit", "")))
         and manifest.get("architecture") in _BASE_IMAGES
         and manifest.get("scientific_platform") == scientific_platform(manifest["architecture"])
@@ -231,7 +232,7 @@ class LimaRuntime:
             raise ValidationError(f"Il runtime macOS richiede la cartella dedicata {expected}.")
         # macOS Unix sockets have a 104-byte pathname limit. Application Support
         # is deliberately reserved for state/data, not Lima's SSH socket paths.
-        self.lima_home = self.home / ".nipat" / "lima"
+        self.lima_home = self.home / ".newpat" / "lima"
         if len(os.fsencode(self.lima_home / INSTANCE / "ssh.sock.1234567890123456")) >= 104:
             raise ValidationError("Il percorso della cartella personale è troppo lungo per i socket Lima su macOS.")
         self.directory = self.workspace / ".runtime" / "macos"
@@ -269,14 +270,14 @@ class LimaRuntime:
         values = {
             "HOME": "/root", "PATH": _LINUX_PATH, "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8",
             "DOCKER_HOST": "unix:///var/run/docker.sock", "DOCKER_CONFIG": "/root/.docker",
-            "DOCKER_DEFAULT_PLATFORM": scientific_platform(platform.machine()), "NIPAT_UID": str(os.getuid()),
-            "NIPAT_GID": str(os.getgid()),
+            "DOCKER_DEFAULT_PLATFORM": scientific_platform(platform.machine()), "NEWPAT_UID": str(os.getuid()),
+            "NEWPAT_GID": str(os.getgid()),
         }
-        for key in ("NIPAT_PROJECT_DIR", "NIPAT_WORKSPACE_DIR", "NIPAT_DATA_DIR", "NIPAT_RUNS_DIR"):
+        for key in ("NEWPAT_PROJECT_DIR", "NEWPAT_WORKSPACE_DIR", "NEWPAT_DATA_DIR", "NEWPAT_RUNS_DIR"):
             if environment and key in environment:
                 values[key] = self.host_path(environment[key])
-        if environment and environment.get("NIPAT_RUNTIME_IMAGE"):
-            values["NIPAT_RUNTIME_IMAGE"] = environment["NIPAT_RUNTIME_IMAGE"]
+        if environment and environment.get("NEWPAT_RUNTIME_IMAGE"):
+            values["NEWPAT_RUNTIME_IMAGE"] = environment["NEWPAT_RUNTIME_IMAGE"]
         return self.shell_command([
             "sudo", "-n", "/usr/bin/env", "-i", *(f"{key}={value}" for key, value in values.items()),
             "docker", "--host", "unix:///var/run/docker.sock", *argv,
@@ -318,7 +319,7 @@ class LimaRuntime:
             path = Path(item["location"])
             if (item["writable"] is False and len(path.parts) >= 4
                     and path.parts[-3:] == ("Contents", "Resources", "app")
-                    and path.parts[-4] in {"NIPAT Desktop.app", "NewPat.app"}
+                    and path.parts[-4] == "NewPat.app"
                     and not path.exists()):
                 obsolete.append(str(path))
         return obsolete
@@ -350,7 +351,7 @@ class LimaRuntime:
             self._assert_owned()
             earliest = _lifecycle_time(since) if since is not None else ""
             latest = datetime.now(UTC).isoformat(timespec="microseconds")
-        except (NipatError, OSError, ValueError, OverflowError, TypeError, RecursionError):
+        except (NewPatError, OSError, ValueError, OverflowError, TypeError, RecursionError):
             return result
         seen = set()
 
@@ -446,11 +447,11 @@ class LimaRuntime:
         params = actual.get("param")
         provisions = actual.get("provision")
         # The token alone does not establish origin without owner.json. Recognize
-        # the exact provisioning script used by previous NewPat distributions too.
+        # the provisioning script that created this NewPat instance.
         if (info.get("dir") != str(self.instance_dir) or info.get("status") != "Stopped"
                 or info.get("errors") or info.get("protected") or info.get("hostAgentPID") or info.get("driverPID")
                 or info.get("additionalDisks") or actual.get("additionalDisks") or actual.get("vmType") != "vz"
-                or not isinstance(params, dict) or not re.fullmatch(r"[0-9a-f]{32}", str(params.get("NipatOwner", "")))
+                or not isinstance(params, dict) or not re.fullmatch(r"[0-9a-f]{32}", str(params.get("NewPatOwner", "")))
                 or not isinstance(provisions, list) or not any(
                     isinstance(step, dict) and step.get("mode") == "system"
                     and isinstance(step.get("script"), str) and step["script"].rstrip("\n") == _PROVISION.rstrip("\n")
@@ -464,7 +465,7 @@ class LimaRuntime:
                 or before.st_ctime_ns != after.st_ctime_ns):
             raise ValidationError("La configurazione Lima è cambiata durante il ripristino. Riaprire NewPat.")
         # A single rename preserves all guest disk data. No copy/delete fallback on EXDEV.
-        backup = Path(tempfile.mkdtemp(prefix="recovered-nipat-", dir=self.lima_home.parent))
+        backup = Path(tempfile.mkdtemp(prefix="recovered-newpat-", dir=self.lima_home.parent))
         saved = backup / INSTANCE
         try:
             self.instance_dir.rename(saved)
@@ -541,7 +542,7 @@ class LimaRuntime:
         """
         if not _exclusive_maintenance():
             raise ValidationError(
-                "La configurazione della VM richiede un aggiornamento. Chiudere tutte le sessioni NewPat/NIPAT "
+                "La configurazione della VM richiede un aggiornamento. Chiudere tutte le sessioni NewPat "
                 "e riaprire NewPat da Applicazioni per completare il ripristino automatico."
             )
         self._assert_owned()
@@ -594,7 +595,7 @@ class LimaRuntime:
             self.start_existing()
             self._verify_application()
             return updated
-        except (NipatError, OSError, ValueError, KeyboardInterrupt) as exc:
+        except (NewPatError, OSError, ValueError, KeyboardInterrupt) as exc:
             # Do not overwrite a configuration while the guest is using it.
             try:
                 if self._instance_info()["status"] == "Running":
@@ -603,7 +604,7 @@ class LimaRuntime:
                 _write_bytes(self.owner_path, original_owner, mode=owner_mode)
                 if running:
                     self.start_existing()
-            except (NipatError, OSError, ValueError) as restore_error:
+            except (NewPatError, OSError, ValueError) as restore_error:
                 raise RuntimeExecutionError(
                     f"Ripristino della configurazione Lima non completato. Conservati VM, dati e backup {backup}. "
                     f"Recupero della configurazione da verificare: {restore_error}. Errore iniziale: {exc}"
@@ -638,10 +639,10 @@ class LimaRuntime:
         try:
             parsed = json.loads(contents)
             parameters = parsed.get("param") if isinstance(parsed, dict) else None
-            matched = isinstance(parameters, dict) and parameters.get("NipatOwner") == owner["token"]
+            matched = isinstance(parameters, dict) and parameters.get("NewPatOwner") == owner["token"]
         except ValueError:
             # Lima can preserve the original JSON or rewrite it as YAML.
-            matched = re.search(r"(?m)^\s*NipatOwner:\s*['\"]?" + owner["token"] + r"['\"]?\s*$", contents) is not None
+            matched = re.search(r"(?m)^\s*NewPatOwner:\s*['\"]?" + owner["token"] + r"['\"]?\s*$", contents) is not None
         if not matched:
             raise ValidationError("La VM Lima esistente non appartiene a questa installazione; operazione interrotta.")
         return owner
@@ -714,10 +715,10 @@ class LimaRuntime:
             "ssh": {"loadDotSSHPubKeys": False, "forwardAgent": False, "forwardX11": False},
             "vmOpts": {"vz": {"rosetta": {"enabled": False, "binfmt": False}}},
             "provision": [{"mode": "system", "script": _PROVISION}],
-            "probes": [{"script": "#!/bin/sh\nset -eu\ntest \"$(cat /etc/nipat-owner)\" = \"$PARAM_NipatOwner\"\nsudo -n docker info >/dev/null\nsudo -n docker compose version\n",
+            "probes": [{"script": "#!/bin/sh\nset -eu\ntest \"$(cat /etc/newpat-owner)\" = \"$PARAM_NewPatOwner\"\nsudo -n docker info >/dev/null\nsudo -n docker compose version\n",
                         "hint": "Consultare /var/log/cloud-init-output.log nella VM NewPat."}],
             "portForwards": [{"guestIP": "0.0.0.0", "guestPortRange": [1, 65535], "proto": "any", "ignore": True}],
-            "param": {"NipatOwner": owner["token"]},
+            "param": {"NewPatOwner": owner["token"]},
         }
 
     def _bindings(self, manifest: dict) -> dict:
@@ -741,12 +742,12 @@ class LimaRuntime:
         ]))
         if inspected != image + " " + manifest["scientific_platform"].replace("/", " "):
             raise RuntimeExecutionError("Identità o architettura dell'immagine scientifica non valida.")
-        name = "nipat-verify-" + uuid.uuid4().hex
+        name = "newpat-verify-" + uuid.uuid4().hex
         try:
             description = json.loads(self._run(self.docker_command([
                 "run", "--rm", "--pull=never", "--platform=" + manifest["scientific_platform"], "--name", name,
                 "--network", "none", "--read-only", "--tmpfs", "/tmp:rw,nosuid,nodev,size=128m",
-                "--env", "HOME=/tmp", image, "python3", "/opt/nipat/engine/main.py", "describe", "--json",
+                "--env", "HOME=/tmp", image, "python3", "/opt/newpat/engine/main.py", "describe", "--json",
             ])))
         except (ValueError, RuntimeExecutionError):
             try:
@@ -822,7 +823,7 @@ class LimaRuntime:
                     self._run(self.host_prefix() + ["start", "--tty=false", "--name=" + INSTANCE, str(config)], timeout=1800)
                     self._assert_owned()
                     self._verify_application()
-                except (NipatError, OSError, ValueError) as exc:
+                except (NewPatError, OSError, ValueError) as exc:
                     state.update(phase="failed", last_error=str(exc))
                     _write_json(self.state_path, state)
                     raise
@@ -841,7 +842,7 @@ class LimaRuntime:
                 state.update(phase="ready", runtime_image=image, last_error=None)
                 _write_json(self.state_path, state)
                 return state
-            except (NipatError, OSError, ValueError) as exc:
+            except (NewPatError, OSError, ValueError) as exc:
                 state.update(phase="failed", last_error=str(exc))
                 _write_json(self.state_path, state)
                 raise
@@ -910,11 +911,11 @@ def main(argv: list[str] | None = None) -> int:
             print("Runtime NewPat rimosso. Dati e risultati sono stati conservati.")
         return 0
     except _ExclusivePreparationRequired as exc:
-        if os.environ.get("NIPAT_LAUNCHER_PID") == str(os.getppid()):
+        if os.environ.get("NEWPAT_LAUNCHER_PID") == str(os.getppid()):
             return os.EX_TEMPFAIL
         print(f"ERRORE: {exc}", file=sys.stderr)
         return 1
-    except (NipatError, OSError, ValueError) as exc:
+    except (NewPatError, OSError, ValueError) as exc:
         print(f"ERRORE: {exc}", file=sys.stderr)
         return 1
 

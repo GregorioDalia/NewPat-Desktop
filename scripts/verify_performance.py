@@ -139,7 +139,7 @@ def verify(root: Path, identifier: str) -> dict:
     original = {path: hashlib.sha256(path.read_bytes()).hexdigest()
                 for path in inputs.rglob("*") if path.is_file()}
     runs = []
-    with patch.dict(os.environ, {"NIPAT_RUNTIME_IMAGE": identifier, "NIPAT_BACKEND": "native"}):
+    with patch.dict(os.environ, {"NEWPAT_RUNTIME_IMAGE": identifier, "NEWPAT_BACKEND": "native"}):
         for enabled in (False, True):
             runner = DockerComposeRunner(layout, options=ExecutionOptions(performance_diagnostics=enabled))
             run = Workflows(layout, runner).dnp_call(
@@ -216,7 +216,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output-dir", type=Path)
     args = parser.parse_args(argv)
     if args.output_dir is None:
-        root = Path(tempfile.mkdtemp(prefix="nipat-performance-check-")).resolve()
+        root = Path(tempfile.mkdtemp(prefix="newpat-performance-check-")).resolve()
     else:
         root = args.output_dir.resolve()
         root.mkdir(parents=True, exist_ok=False)

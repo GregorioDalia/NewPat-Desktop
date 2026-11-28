@@ -1,5 +1,5 @@
 /* UI translations never change scientific values, persisted keys or source files. */
-window.NipatI18n = (() => {
+window.NewPatI18n = (() => {
 const strings = {
  fetalSex:['Sesso fetale','Fetal sex'],
  maternalBam:['BAM del campione materno di cfDNA','Maternal cfDNA BAM'],

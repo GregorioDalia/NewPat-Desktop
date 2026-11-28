@@ -106,7 +106,7 @@ class RunObserver:
             if key not in self._pending and len(self._pending) < 2:
                 self._pending.add(key)
                 threading.Thread(target=self._observe, args=(key, path, deepcopy(metadata)),
-                                 name="nipat-run-observation", daemon=True).start()
+                                 name="newpat-run-observation", daemon=True).start()
         return self._result("unknown", recorded, "checking")
 
     def _observe(self, key, path, metadata):

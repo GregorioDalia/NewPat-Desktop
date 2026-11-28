@@ -307,6 +307,14 @@ def verify_multibam_variants(case):
 
 def reviewable_path(path, *, reliability=False, multiplatform=False, revised_r=False, version=None,
                     removed=False, after_sha256=None):
+    # These records stay in Git. The clean installer no longer bundles the
+    # four historical measurements present in the observed source inventory.
+    archived_reports = {
+        "docs/validation/0.8.12-rootless.json", "docs/validation/0.8.13-rootless.json",
+        "docs/validation/0.8.14-microbenchmarks.json", "docs/validation/0.8.14-rootless.json",
+    }
+    if path in archived_reports:
+        return bool(removed and revised_r and version and uses_newpat_layout(version))
     if path == MAC_TIMING_BASELINE:
         return bool(revised_r and version and uses_newpat_layout(version) and not removed
                     and after_sha256 == MAC_TIMING_SHA256)
@@ -392,6 +400,10 @@ def identity(installer_set):
     return result
 
 
+def linux_evidence_key(version):
+    return "linux_clean_install_check" if uses_newpat_layout(version) else "linux_upgrade_check"
+
+
 def template(installer_set, run_id):
     require(type(run_id) is int and run_id > 0, "Invalid build run ID")
     fields = identity(installer_set)
@@ -410,7 +422,7 @@ def template(installer_set, run_id):
                                   "source_comparison_scope": MULTIPLATFORM_SOURCE_SCOPE},
             "reviewed_source_changes": [], "deferred_desktop_scenarios": sorted(SCENARIOS),
             "domain_validation": "pending-domain-researchers", "qualification_evidence_sha256": "",
-            "linux_upgrade_check_sha256": installer_set.get("linux_upgrade_check", {}).get("sha256", ""),
+            linux_evidence_key(fields["version"]) + "_sha256": installer_set.get(linux_evidence_key(fields["version"]), {}).get("sha256", ""),
             "macos_validation": {architecture: {"status": "not-performed", "evidence": []}
                                  for architecture in ("arm64", "x86_64")},
         }
@@ -532,6 +544,11 @@ def validate_research(record, version, commit, run_id, installer_set=None):
                 "Research releases from 0.7.2 require reliability acceptance schema 4")
     expected_fields = (FIVE_MODULE_RESEARCH_FIELDS if five_modules else SCIENTIFIC_RESEARCH_FIELDS if revised_r else MULTIPLATFORM_RESEARCH_FIELDS if multiplatform else RELIABILITY_RESEARCH_FIELDS if reliability else
                        REVIEWED_RESEARCH_FIELDS if reviewed_delta else RESEARCH_FIELDS)
+    reliability_digests = RELIABILITY_DIGESTS
+    if reliability and uses_newpat_layout(version):
+        clean_digest = linux_evidence_key(version) + "_sha256"
+        expected_fields = (expected_fields - {"linux_upgrade_check_sha256"}) | {clean_digest}
+        reliability_digests = (reliability_digests - {"linux_upgrade_check_sha256"}) | {clean_digest}
     require(isinstance(record, dict) and set(record) == expected_fields | publication_fields(version) | zip_fields(version) | payload_fields(version) | testing_entrypoint_fields(version)
             and type(record["schema_version"]) is int and record["schema_version"] == schema,
             "Research acceptance record fields are invalid")
@@ -540,7 +557,7 @@ def validate_research(record, version, commit, run_id, installer_set=None):
             and type(record["build_run_id"]) is int and type(run_id) is int
             and run_id > 0 and record["build_run_id"] == run_id,
             "Acceptance belongs to a different version, source or build run")
-    for field in DIGESTS | (RELIABILITY_DIGESTS if reliability else set()) | (MACOS_DIGESTS if multiplatform else set()) | zip_fields(version) | payload_fields(version) | testing_entrypoint_fields(version):
+    for field in DIGESTS | (reliability_digests if reliability else set()) | (MACOS_DIGESTS if multiplatform else set()) | zip_fields(version) | payload_fields(version) | testing_entrypoint_fields(version):
         require(isinstance(record[field], str) and re.fullmatch(r"[0-9a-f]{64}", record[field]),
                 f"Invalid acceptance digest: {field}")
     require(record["decision"] == "accepted-for-research" and record["scope"] == "pre-1.0-research",
@@ -548,7 +565,7 @@ def validate_research(record, version, commit, run_id, installer_set=None):
     if explicit_publication_contract(version):
         channel = record["publication_channel"]
         require(not gui_prerelease_contract(version) or channel == "testing",
-                "NIPAT GUI previews must use the testing publication channel")
+                "NewPat GUI previews must use the testing publication channel")
         require(channel == "testing" or (channel == "stable" and re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version)),
                 "Acceptance must authorize an explicit compatible publication channel")
     review = record["review"]
@@ -637,9 +654,9 @@ def validate_research(record, version, commit, run_id, installer_set=None):
         require(all(record[field] == value for field, value in identity(installer_set).items()),
                 "Acceptance hashes do not identify these verified installers")
         if reliability:
-            upgrade = installer_set.get("linux_upgrade_check", {})
-            require(upgrade.get("sha256") == record["linux_upgrade_check_sha256"],
-                    "Acceptance does not identify the verified cross-version upgrade report")
+            key = linux_evidence_key(version)
+            require(installer_set.get(key, {}).get("sha256") == record[key + "_sha256"],
+                    "Acceptance does not identify the verified Linux installation report")
 
 
 
@@ -1038,7 +1055,7 @@ def verify_caller_parallel_qualification(archive, image, *, version, source):
     filename = "caller-parallel-qualification.json"
     with zipfile.ZipFile(archive) as handle:
         matches = [item for item in handle.infolist() if item.filename.startswith("scientific/")
-                   and item.filename.endswith("/nipat-engine-check/" + filename)]
+                   and item.filename.endswith("/newpat-engine-check/" + filename)]
         require(len(matches) == 1 and 0 < matches[0].file_size <= 8 * 1024 * 1024,
                 "Missing, duplicate or oversized caller parallel qualification")
         report = json.loads(handle.read(matches[0]))
@@ -1247,7 +1264,7 @@ def verify_scientific_equivalence(record, evidence_directory, manifest, read_sou
                 and (case["case"] not in required_cases or case["workflow"] == required_cases[case["case"]]),
                 "A scientific differential case failed or has a different workflow")
         if snp2:
-            expected_reference = "SNPcall 2.0" if case["workflow"] == "snp-call" else "NIPAT 0.8.5"
+            expected_reference = "SNPcall 2.0" if case["workflow"] == "snp-call" else "v0.8.5"
             require(case.get("scientific_reference") == expected_reference,
                     "Scientific differential case used the wrong algorithm reference")
         tables = case.get("table_sha256")

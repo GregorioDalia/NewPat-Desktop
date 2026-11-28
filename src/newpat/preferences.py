@@ -20,7 +20,7 @@ from typing import Any, Callable, Mapping
 
 from newpat.environment import setting
 from newpat.errors import ValidationError
-from newpat.scientific_options import effective_config, migrate_saved_settings, normalize_config
+from newpat.scientific_options import effective_config, normalize_config
 from newpat.distribution import WINDOWS_DIRECTORY, UNIX_DIRECTORY
 from newpat.experiments.options import ExecutionOptions
 from newpat.paths import ProjectLayout
@@ -178,7 +178,7 @@ def _parameter_profiles(profiles: Any) -> dict[str, dict]:
             raise ValidationError("Un profilo deve contenere parametri scientifici e di esecuzione.")
         execution = _execution_options(profile["execution"]).as_dict()
         del execution["performance_diagnostics"]
-        overrides = migrate_saved_settings(profile["scientific_settings"])
+        overrides = normalize_config(profile["scientific_settings"])
         scientific = effective_config(overrides)
         # A profile stores editable filters. Resolve the two-read fallback at
         # execution time so that setting only a percentage remains possible.
@@ -309,7 +309,7 @@ class Preferences:
                    update_channel=document.get("update_channel", "stable"),
                    check_updates_on_startup=document.get("check_updates_on_startup", False),
                    execution=document.get("execution", {}),
-                   scientific_settings=migrate_saved_settings(document.get("scientific_settings", {})),
+                   scientific_settings=normalize_config(document.get("scientific_settings", {})),
                    parameter_profiles=document.get("parameter_profiles", {}),
                    default_profile=document.get("default_profile", ""))
 

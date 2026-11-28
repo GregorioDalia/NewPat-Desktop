@@ -1,16 +1,16 @@
 # Prova della candidata Apple Silicon
 
-Per il collaudo breve installare il pacchetto e fare doppio clic su **Mini-Test-NewPat.command** nella cartella estratta. Condividere il file **Esito-NewPat.html** che si trova in Download, nella nuova cartella `NewPat-Mini-…`. Il pacchetto di prova include anche la guida in italiano `MINI_SUITE_MAC.md`.
+Per il collaudo breve installare il pacchetto e fare doppio clic su **Mini-Test-NewPat.command** nella cartella estratta. Condividere il file **Esito-NewPat.html** che si trova in Download, nella nuova cartella `NewPat-Mini-…`. Nel kit completo la guida in italiano è nel file `LEGGIMI.txt`.
 
 ## Extended timing comparison
 
-1. Let current analyses finish and quit NewPat. Leave the existing installation, Lima VM and results in place.
-2. Install the Apple Silicon `.pkg` in this folder. Open `Run-Mac-Comparison.command` before opening NewPat for the first time. It prepares the app through its installed launcher and records the upgrade. If NewPat already prepared the new runtime, it can still measure performance.
+1. Let current analyses finish and quit NewPat. Use a fresh NewPat workspace for the first-launch check.
+2. Install the Apple Silicon `.pkg` from the candidate build. For the extended comparison kit, open `Run-Mac-Comparison.command` before opening NewPat for the first time. It prepares the app through its installed launcher and records the preparation. If NewPat already prepared the new runtime, it can still measure performance.
 3. Wait for the path to `comparison.json` in Terminal. Share that file. It is in a new `NewPat-Mac-Comparison-…` folder in Downloads. Logs and synthetic runs are alongside it if a check fails.
 
 The test uses the same six synthetic input files, sample IDs, automatic concurrency and input hashing as the 0.9.10 Mac timing run. It runs DNPcall and SNPcall together with 1, 2 and 4 BAMs, once to warm up and three more times per size. Only the test pins DNP depth to 8000 to reproduce the previous settings. The application default is 2147483647.
 
-The original Apple M1 run used battery power and a four-CPU guest exposing 3905 MiB. Keep the same power source if practical, leave the existing VM allocation in place and close other workloads. The report shows absolute times for every run. It calculates percentage differences only when the recorded hardware, macOS, guest capacity and power conditions match. Preparation time is outside the timing comparison. Each result table must match its 0.9.10 checksum.
+The original Apple M1 run used battery power and a four-CPU guest exposing 3905 MiB. Keep the same power source if practical, match the recorded VM allocation and close other workloads. The report shows absolute times for every run. It calculates percentage differences only when the recorded hardware, macOS, guest capacity and power conditions match. Preparation time is outside the timing comparison. Each result table must match its 0.9.10 checksum.
 
 ## Measured on Apple M1
 
@@ -22,4 +22,4 @@ Candidate `f106f3e` completed all 12 runs on a MacBook Air M1 with 8 GiB of RAM,
 | 2 | 59.872 s | 40.479 s | 32.4% | 1 | 2 |
 | 4 | 106.122 s | 67.241 s | 36.6% | 1 | 2 |
 
-The times are medians of three measured experiments per size after warm-up. The process counts are observed peaks for each phase. This Mac had already prepared the 0.9.99 runtime before the benchmark. Direct upgrade from 0.9.10 and completion time on representative multi-BAM inputs require separate tests.
+The times are medians of three measured experiments per size after warm-up. The process counts are observed peaks for each phase. This Mac had already prepared the 0.9.99 runtime before the benchmark. For 0.9.99 release qualification, record a fresh installation of the final PKG separately. Associate field timings with their actual commit and inputs.

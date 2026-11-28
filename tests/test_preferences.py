@@ -103,21 +103,12 @@ class PreferencesTests(unittest.TestCase):
                 self.store.save(Preferences.from_dict({**saved.to_dict(), **fields}), baseline=saved)
         self.assertEqual(self.store.load(), saved)
 
-    def test_previous_postnatal_profiles_retain_compatible_settings(self):
-        legacy = {"cpin": {"site_selection": "other_allele", "min_child_reads": 7,
-                           "err_const_snp": .02}, "cpi": {"other_fraction_max": .10}}
-        self.write_document({"schema_version": 1, "scientific_settings": legacy,
-                             "parameter_profiles": {"Trio": {"scientific_settings": legacy, "execution": {}}}})
-        prefs = self.store.load()
-        self.assertEqual(prefs.scientific_settings["cpin"], {
-            "mismatch_probability_snp": .02, "include_hom_hom": False, "include_hom_het": True,
-            "include_het_hom": False, "include_het_het": False})
-        saved = prefs.parameter_profiles["Trio"]["scientific_settings"]
-        self.assertIsNone(saved["cpin"]["min_coverage"])
-        self.assertIsNone(saved["cpi"]["min_fetal_reads"])
-        self.assertTrue(saved["cpin"]["include_hom_het"])
-        self.assertFalse(saved["cpin"]["include_het_het"])
-        self.assertEqual(Preferences.from_dict(prefs.to_dict()), prefs)
+    def test_retired_postnatal_parameters_are_rejected_in_saved_profiles(self):
+        settings = {"cpin": {"min_child_reads": 7}}
+        for document in ({"scientific_settings": settings}, {"parameter_profiles": {
+            "Trio": {"scientific_settings": settings, "execution": {}}}}):
+            with self.subTest(document=document), self.assertRaises(ValidationError):
+                Preferences.from_dict({"schema_version": 1, **document})
 
     def test_invalid_legacy_postnatal_profiles_are_rejected(self):
         for parameters in ({"min_child_reads": True}, {"site_selection": "unknown"},
@@ -306,7 +297,7 @@ class PreferencesTests(unittest.TestCase):
         except OSError:
             self.skipTest("Symbolic links are not available to this test user.")
         original = target.read_bytes()
-        with patch.dict(os.environ, {"NIPAT_SETTINGS_FILE": str(self.store.path)}):
+        with patch.dict(os.environ, {"NEWPAT_SETTINGS_FILE": str(self.store.path)}):
             store = PreferencesStore()
             with self.assertRaisesRegex(ValidationError, "collegamento"):
                 store.load()
@@ -410,12 +401,12 @@ class PreferencesTests(unittest.TestCase):
         with patch.dict(os.environ, {"LOCALAPPDATA": str(self.root),
                                      "XDG_CONFIG_HOME": str(self.root / "xdg")}, clear=True):
             with patch("newpat.preferences.sys.platform", "win32"):
-                self.assertEqual(preferences_path(), self.root / "NIPAT-Desktop" / "preferences.json")
+                self.assertEqual(preferences_path(), self.root / "NewPat-Desktop" / "preferences.json")
             with patch("newpat.preferences.sys.platform", "linux"):
-                self.assertEqual(preferences_path(), self.root / "xdg" / "nipat-desktop" / "preferences.json")
-        self.assertFalse((self.root / "NIPAT-Desktop").exists())
+                self.assertEqual(preferences_path(), self.root / "xdg" / "newpat-desktop" / "preferences.json")
+        self.assertFalse((self.root / "NewPat-Desktop").exists())
         self.assertFalse((self.root / "xdg").exists())
-        with patch.dict(os.environ, {"NIPAT_SETTINGS_FILE": str(self.store.path)}, clear=True):
+        with patch.dict(os.environ, {"NEWPAT_SETTINGS_FILE": str(self.store.path)}, clear=True):
             self.assertEqual(preferences_path(), self.store.path)
 
     def test_guided_cli_passes_explicit_directory_overrides_to_preferences_layer(self):
@@ -433,7 +424,7 @@ class PreferencesTests(unittest.TestCase):
     def test_direct_cli_is_not_affected_by_saved_scientific_preferences(self):
         self.write_document({"schema_version": 1, "workflows": {"4": {"err_const": 0.5}}})
         workflows = Mock()
-        with patch.dict(os.environ, {"NIPAT_SETTINGS_FILE": str(self.store.path)}), \
+        with patch.dict(os.environ, {"NEWPAT_SETTINGS_FILE": str(self.store.path)}), \
                 patch("newpat.cli.ProjectLayout.discover", return_value=self.layout), \
                 patch("newpat.cli.DockerComposeRunner"), \
                 patch("newpat.cli.Workflows", return_value=workflows), \

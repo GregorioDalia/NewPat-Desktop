@@ -18,7 +18,7 @@ def test_postnatal_site_indices_show_only_eligible_sites_including_true_zero():
     (chart,) = detail_charts("cpin", source, "it")
     assert [(p["label"], p["y"]) for p in chart["points"]] == [("chr1:20–21", 2), ("chr2:40–41", 0)]
     assert "prime 4 su 80" in chart["caption"]
-    assert detail_charts("cpin", source, "it", legacy_selection=True) == []
+    assert detail_charts("cpin", {"rows": [rows[1]], "total": 1}, "it") == []
 
 
 @pytest.mark.parametrize("module", ["dnp-call", "snp-call"])

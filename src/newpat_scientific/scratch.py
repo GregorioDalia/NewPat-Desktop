@@ -1,6 +1,6 @@
 """Own disk-backed temporary files for one scientific invocation.
 
-The desktop supplies an anonymous Docker volume at NIPAT_SCRATCH_ROOT. Native
+The desktop supplies an anonymous Docker volume at NEWPAT_SCRATCH_ROOT. Native
 source-tree execution uses the explicitly supplied writable work directory;
 large intermediates never use Python's default temporary directory or /tmp.
 """
@@ -27,17 +27,17 @@ def dnp_environment(workflow: str, work_dir: Path) -> Iterator[Path | None]:
     if workflow != "dnp-call":
         yield None
         return
-    configured = os.environ.get("NIPAT_SCRATCH_ROOT")
+    configured = os.environ.get("NEWPAT_SCRATCH_ROOT")
     root = Path(configured) if configured else Path(work_dir)
     if not root.is_absolute() or root.is_symlink() or not root.is_dir():
         raise ValidationError("DNP scratch requires an existing absolute writable disk directory.")
     root = root.resolve()
     # No RAM-backed fallback: failure to create scratch is an execution error.
-    with tempfile.TemporaryDirectory(prefix="nipat-dnp-", dir=root, ignore_cleanup_errors=True) as temporary:
+    with tempfile.TemporaryDirectory(prefix="newpat-dnp-", dir=root, ignore_cleanup_errors=True) as temporary:
         directory = Path(temporary)
         values = {
-            "NIPAT_DNP_SCRATCH": str(directory),
-            "NIPAT_DNP_PILEUP_HELPER": str(Path(__file__).resolve().with_name("dnp_pileup.py")),
+            "NEWPAT_DNP_SCRATCH": str(directory),
+            "NEWPAT_DNP_PILEUP_HELPER": str(Path(__file__).resolve().with_name("dnp_pileup.py")),
         }
         previous = {name: os.environ.get(name) for name in values}
         try:

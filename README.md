@@ -11,16 +11,16 @@ Analyses run on your computer. NewPat packages R and samtools with the scientifi
 
 ## Download
 
-Choose your **NewPat 0.9.10** download. For a fresh Windows 11 installation from a ZIP, extract the complete archive and run `1_INSTALL.cmd`.
+Open **Assets** on the [latest stable release](https://github.com/GregorioDalia/NewPat-Desktop/releases/latest) and choose the package for your system. Match the version in the filename to the release tag. If you are testing 0.9.99 before publication, use the installer supplied with the candidate kit. Check its commit and checksum when reporting results.
 
-| System | Download | Installation guide |
+| System | Release asset | Installation guide |
 | --- | --- | --- |
-| Windows 11 x64 or Windows 10 22H2 x64 (build 19045) | [Complete Windows ZIP](https://github.com/GregorioDalia/NewPat-Desktop/releases/download/v0.9.10/NewPat-0.9.10-Windows-complete.zip) · [Guided setup (EXE)](https://github.com/GregorioDalia/NewPat-Desktop/releases/download/v0.9.10/NewPat-Setup.exe) | [Windows and WSL2](docs/WINDOWS_INSTALLER.md) |
-| macOS 14 or later, Apple Silicon (M-series) | [Apple Silicon installer (PKG)](https://github.com/GregorioDalia/NewPat-Desktop/releases/download/v0.9.10/NewPat-0.9.10-macos-arm64.pkg) | [macOS and Lima](docs/MACOS_INSTALLER.md) |
-| macOS 14 or later, Intel | [Intel installer (PKG)](https://github.com/GregorioDalia/NewPat-Desktop/releases/download/v0.9.10/NewPat-0.9.10-macos-x86_64.pkg) | [macOS and Lima](docs/MACOS_INSTALLER.md) |
-| Ubuntu 24.04 LTS, x86_64 | [Ubuntu installer (DEB)](https://github.com/GregorioDalia/NewPat-Desktop/releases/download/v0.9.10/newpat-desktop_0.9.10_amd64.deb) | [Ubuntu and Docker Engine](docs/LINUX_INSTALLER.md) |
+| Windows 11 x64 or Windows 10 22H2 x64 (build 19045) | `NewPat-<version>-Windows-complete.zip` or [NewPat-Setup.exe](https://github.com/GregorioDalia/NewPat-Desktop/releases/latest/download/NewPat-Setup.exe) | [Windows and WSL2](docs/WINDOWS_INSTALLER.md) |
+| macOS 14 or later, Apple Silicon (M-series) | `NewPat-<version>-macos-arm64.pkg` | [macOS and Lima](docs/MACOS_INSTALLER.md) |
+| macOS 14 or later, Intel | `NewPat-<version>-macos-x86_64.pkg` | [macOS and Lima](docs/MACOS_INSTALLER.md) |
+| Ubuntu 24.04 LTS, x86_64 | `newpat-desktop_<version>_amd64.deb` | [Ubuntu and Docker Engine](docs/LINUX_INSTALLER.md) |
 
-[SHA-256 checksums](https://github.com/GregorioDalia/NewPat-Desktop/releases/download/v0.9.10/SHA256SUMS) · [0.9.10 release notes](docs/RELEASE_0.9.10.md) · [All 0.9.10 release assets](https://github.com/GregorioDalia/NewPat-Desktop/releases/tag/v0.9.10)
+[Stable release checksums](https://github.com/GregorioDalia/NewPat-Desktop/releases/latest/download/SHA256SUMS) · [NewPat 0.9.99 release notes](docs/RELEASE_0.9.99.md)
 
 ## What you can analyze
 
@@ -33,7 +33,7 @@ Choose your **NewPat 0.9.10** download. For a fresh Windows 11 installation from
 | **Postnatal CPI** | Mother, alleged father and child count tables, sample trios, and population allele frequencies | One CPI per trio, its base-10 logarithm and a table of included and excluded sites |
 | **Fetal sex** | Maternal DNP counts for autosomes and X (one file or two), plus maternal Y SNP counts | F, M or Undetermined, three ratios and three site tables |
 
-The stable 0.9.10 package uses separate autosomal and X DNP tables for fetal sex. The development version also accepts a combined autosomal and X DNP table or runs both callers directly on the maternal BAM.
+For fetal sex, NewPat 0.9.99 accepts separate autosomal and X DNP tables, a combined autosomal/X table, or input from both callers running directly on the maternal BAM.
 
 Run a module on its own or build a workflow. DNPcall and SNPcall can share BAM inputs and feed separate analyses. Each branch uses its own panels and population frequencies. For parentage analyses, assign samples to family roles explicitly.
 

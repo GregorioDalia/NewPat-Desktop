@@ -14,7 +14,7 @@ class EngineProgressTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name) / "progress"
-        self.env = patch.dict(os.environ, {"NIPAT_PROGRESS_DIR": str(self.root)}, clear=False)
+        self.env = patch.dict(os.environ, {"NEWPAT_PROGRESS_DIR": str(self.root)}, clear=False)
         self.env.start()
         self.addCleanup(self.env.stop)
 
@@ -46,7 +46,7 @@ class EngineProgressTests(unittest.TestCase):
                          ["cancelled", "failed"])
 
     def test_disabled_unavailable_and_malformed_never_affect_science(self):
-        with patch.dict(os.environ, {"NIPAT_PROGRESS_DIR": ""}):
+        with patch.dict(os.environ, {"NEWPAT_PROGRESS_DIR": ""}):
             with progress.phase("r-execution"):
                 pass
         self.assertFalse(self.root.exists())
@@ -103,8 +103,8 @@ class StandaloneProgressTests(unittest.TestCase):
         spec.loader.exec_module(self.engine)
         self.root = Path(self.enterContext(tempfile.TemporaryDirectory())).resolve()
         self.events_dir = self.root / "progress"
-        self.enterContext(patch.dict(os.environ, {"NIPAT_PROGRESS_DIR": str(self.events_dir),
-                                                 "NIPAT_PERFORMANCE_DIR": ""}))
+        self.enterContext(patch.dict(os.environ, {"NEWPAT_PROGRESS_DIR": str(self.events_dir),
+                                                 "NEWPAT_PERFORMANCE_DIR": ""}))
         self.enterContext(patch.object(self.engine, "verify_bundle", return_value={"workflows": {
             name: {"script": name + ".R"} for name in self.engine.SCRIPT_PATHS}}))
         self.enterContext(patch.object(self.engine, "preparation_root", return_value=self.root))
@@ -136,8 +136,8 @@ class StandaloneProgressTests(unittest.TestCase):
                 prepared = (SimpleNamespace(native_arguments=[], working_dir=Path.cwd(), preparation_command=None)
                             if workflow in {"snp-call", "dnp-call"} else [])
                 def execute(*args):
-                    self.assertEqual(os.environ["NIPAT_PROGRESS_WORKFLOW"], workflow)
-                    self.assertEqual(json.loads(os.environ["NIPAT_PROGRESS_SAMPLE_IDS"]), ["sample_0001"])
+                    self.assertEqual(os.environ["NEWPAT_PROGRESS_WORKFLOW"], workflow)
+                    self.assertEqual(json.loads(os.environ["NEWPAT_PROGRESS_SAMPLE_IDS"]), ["sample_0001"])
                     return 0
                 with patch("newpat_scientific." + function, return_value=prepared), \
                         patch.object(self.engine, "run_validated_request", side_effect=execute):

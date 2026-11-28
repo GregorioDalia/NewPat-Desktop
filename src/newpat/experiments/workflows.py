@@ -262,7 +262,7 @@ class Workflows:
             request_file = run_dir / "work" / "engine-request.json"
             self._write_request(request_file, request)
             self.runner.run(
-                ["python3", "/opt/nipat/engine/main.py", "execute", "dnp-call",
+                ["python3", "/opt/newpat/engine/main.py", "execute", "dnp-call",
                  "--request", self.layout.container_path(request_file)],
                 working_dir=self.layout.container_path(run_dir),
             )
@@ -343,7 +343,7 @@ class Workflows:
             plan_file = run_dir / "work" / "engine-plan.json"
             self._write_request(plan_file, plan)
             self.runner.run(
-                ["python3", "/opt/nipat/engine/main.py", "execute-plan",
+                ["python3", "/opt/newpat/engine/main.py", "execute-plan",
                  "--plan", self.layout.container_path(plan_file),
                  "--run-dir", self.layout.container_path(run_dir / "output" / "workflow")],
                 working_dir=self.layout.container_path(run_dir / "work"),
@@ -485,7 +485,7 @@ class Workflows:
             plan_file = run_dir / "work" / "engine-plan.json"
             self._write_request(plan_file, plan)
             self.runner.run(
-                ["python3", "/opt/nipat/engine/main.py", "execute-plan",
+                ["python3", "/opt/newpat/engine/main.py", "execute-plan",
                  "--plan", self.layout.container_path(plan_file),
                  "--run-dir", self.layout.container_path(run_dir / "output" / "workflow")],
                 working_dir=self.layout.container_path(run_dir / "work"),
@@ -561,7 +561,7 @@ class Workflows:
             plan_file = run_dir / "work" / "engine-plan.json"
             self._write_request(plan_file, plan)
             self.runner.run(
-                ["python3", "/opt/nipat/engine/main.py", "execute-plan",
+                ["python3", "/opt/newpat/engine/main.py", "execute-plan",
                  "--plan", self.layout.container_path(plan_file),
                  "--run-dir", self.layout.container_path(run_dir / "output" / "workflow")],
                 working_dir=self.layout.container_path(run_dir / "work"),
@@ -624,7 +624,7 @@ class Workflows:
             request_file = run_dir / "work" / "engine-request.json"
             self._write_request(request_file, request)
             self.runner.run(
-                ["python3", "/opt/nipat/engine/main.py", "execute", "snp-call",
+                ["python3", "/opt/newpat/engine/main.py", "execute", "snp-call",
                  "--request", self.layout.container_path(request_file)],
                 working_dir=self.layout.container_path(run_dir / "work"),
             )
@@ -697,7 +697,7 @@ class Workflows:
             request_file = run_dir / "work" / "engine-request.json"
             self._write_request(request_file, request)
             self.runner.run(
-                ["python3", "/opt/nipat/engine/main.py", "execute", "contamination",
+                ["python3", "/opt/newpat/engine/main.py", "execute", "contamination",
                  "--request", self.layout.container_path(request_file)],
                 working_dir=self.layout.container_path(run_dir / "work"),
             )
@@ -771,7 +771,7 @@ class Workflows:
             request_file = run_dir / "work" / "engine-request.json"
             self._write_request(request_file, request)
             self.runner.run(
-                ["python3", "/opt/nipat/engine/main.py", "execute", "cpi",
+                ["python3", "/opt/newpat/engine/main.py", "execute", "cpi",
                  "--request", self.layout.container_path(request_file)],
                 working_dir=self.layout.container_path(run_dir / "work"),
             )
@@ -805,7 +805,7 @@ class Workflows:
             plan_file = run_dir / "work" / "engine-plan.json"
             self._write_request(plan_file, plan)
             self.runner.run(
-                ["python3", "/opt/nipat/engine/main.py", "execute-plan", "--plan",
+                ["python3", "/opt/newpat/engine/main.py", "execute-plan", "--plan",
                  self.layout.container_path(plan_file), "--run-dir",
                  self.layout.container_path(run_dir / "output" / "workflow")],
                 working_dir=self.layout.container_path(run_dir / "work"))
@@ -829,7 +829,7 @@ class Workflows:
                 "work_dir": str(self.layout.container_path(run_dir / "work")),
                 "out_dir": str(self.layout.container_path(run_dir / "output")),
             })
-            self.runner.run(["python3", "/opt/nipat/engine/main.py", "execute", "fetal-sex",
+            self.runner.run(["python3", "/opt/newpat/engine/main.py", "execute", "fetal-sex",
                              "--request", self.layout.container_path(request_file)],
                             working_dir=self.layout.container_path(run_dir / "work"))
         return run_dir
@@ -878,7 +878,7 @@ class Workflows:
                        "out_dir": str(self.layout.container_path(run_dir / "output"))}
             request_file = run_dir / "work" / "engine-request.json"
             self._write_request(request_file, request)
-            self.runner.run(["python3", "/opt/nipat/engine/main.py", "execute", "cpin", "--request",
+            self.runner.run(["python3", "/opt/newpat/engine/main.py", "execute", "cpin", "--request",
                              self.layout.container_path(request_file)],
                             working_dir=self.layout.container_path(run_dir / "work"))
         return run_dir

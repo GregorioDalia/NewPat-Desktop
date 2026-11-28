@@ -15,4 +15,4 @@ The [dark wordmark](newpat-logo-dark.svg) uses the icon’s white and mint colou
 
 With Inkscape 1.4 on PATH and Pillow installed, run `python assets/branding/build_assets.py` from the repository root. It creates the web copy, dark wordmark and raster icons from the committed vectors. Installation and application startup use the packaged artwork directly.
 
-The outlined letters `ewPat` derive from the [0.9.9 wordmark](https://github.com/GregorioDalia/nipat-desktop/tree/v0.9.9/assets/branding). The project’s [license](../../LICENSE) covers the artwork.
+The outlined letters `ewPat` derive from the [0.9.9 wordmark](https://github.com/GregorioDalia/NewPat-Desktop/tree/v0.9.9/assets/branding). The project’s [license](../../LICENSE) covers the artwork.

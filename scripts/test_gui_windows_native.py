@@ -23,9 +23,9 @@ def main(run_native_window=run_window, expected_host="win32-webview2"):
     parser.add_argument("--timeout", type=int, default=90)
     args = parser.parse_args()
     token = secrets.token_urlsafe(32)
-    body = ("<!doctype html><html><head><meta charset=utf-8><title>NIPAT native smoke</title>"
-            "</head><body><main id=app>NIPAT desktop · native embedded view</main>"
-            "<script>document.documentElement.dataset.nipatReady='true'</script></body></html>").encode()
+    body = ("<!doctype html><html><head><meta charset=utf-8><title>NewPat native smoke</title>"
+            "</head><body><main id=app>NewPat desktop · native embedded view</main>"
+            "<script>document.documentElement.dataset.newpatReady='true'</script></body></html>").encode()
 
     class Fixture(BaseHTTPRequestHandler):
         def do_GET(self):
@@ -48,8 +48,8 @@ def main(run_native_window=run_window, expected_host="win32-webview2"):
             server = ThreadingHTTPServer(("127.0.0.1", 0), Fixture)
             threading.Thread(target=server.serve_forever, daemon=True).start()
             url = f"http://127.0.0.1:{server.server_port}/{token}/web/index.html"
-        with tempfile.TemporaryDirectory(prefix="nipat-webview2-smoke-", ignore_cleanup_errors=True) as profile:
-            run_native_window(url, title="NIPAT native desktop smoke", smoke_test=True,
+        with tempfile.TemporaryDirectory(prefix="newpat-webview2-smoke-", ignore_cleanup_errors=True) as profile:
+            run_native_window(url, title="NewPat native desktop smoke", smoke_test=True,
                        smoke_report=args.report, timeout=args.timeout, user_data_dir=profile,
                        screenshot_path=args.screenshot)
         data = json.loads(args.report.read_text(encoding="utf-8"))
@@ -59,7 +59,7 @@ def main(run_native_window=run_window, expected_host="win32-webview2"):
         if args.screenshot:
             assert args.screenshot.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
         if not args.url:
-            assert "NIPAT desktop" in data["bodyText"]
+            assert "NewPat desktop" in data["bodyText"]
         print(json.dumps({"status": "passed", "host": data["host"],
                           "runtime_version": data.get("runtime_version", "system WKWebView")}))
     finally:

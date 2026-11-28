@@ -10,7 +10,7 @@ param(
 # Dot-sourced libraries declare their own Project/LibraryOnly parameters. Preserve
 # this invocation before importing them so an ordinary command is not silently
 # converted into a library import (or redirected to the default installation).
-$nipatMaintenanceInvocation = @{
+$newpatMaintenanceInvocation = @{
     Project = $Project; Operation = $Operation; TargetId = $TargetId
     WaitForProcessId = $WaitForProcessId; ReadyFile = $ReadyFile
     LibraryOnly = [bool]$LibraryOnly
@@ -19,14 +19,14 @@ $nipatMaintenanceInvocation = @{
 # the active and most recent previous runtime. No general Docker/WSL prune exists.
 . (Join-Path $PSScriptRoot 'uninstall-runtime.ps1') -LibraryOnly
 . (Join-Path $PSScriptRoot 'repair-installation.ps1') -LibraryOnly
-$Project = $nipatMaintenanceInvocation.Project
-$Operation = $nipatMaintenanceInvocation.Operation
-$TargetId = $nipatMaintenanceInvocation.TargetId
-$WaitForProcessId = $nipatMaintenanceInvocation.WaitForProcessId
-$ReadyFile = $nipatMaintenanceInvocation.ReadyFile
-$LibraryOnly = $nipatMaintenanceInvocation.LibraryOnly
+$Project = $newpatMaintenanceInvocation.Project
+$Operation = $newpatMaintenanceInvocation.Operation
+$TargetId = $newpatMaintenanceInvocation.TargetId
+$WaitForProcessId = $newpatMaintenanceInvocation.WaitForProcessId
+$ReadyFile = $newpatMaintenanceInvocation.ReadyFile
+$LibraryOnly = $newpatMaintenanceInvocation.LibraryOnly
 
-function Get-NipatMaintenanceId([string] $Kind, [string] $Value) {
+function Get-NewPatMaintenanceId([string] $Kind, [string] $Value) {
     $hasher = [Security.Cryptography.SHA256]::Create()
     try {
         $hash = [BitConverter]::ToString($hasher.ComputeHash([Text.Encoding]::UTF8.GetBytes($Value.ToLowerInvariant()))).Replace('-', '').ToLowerInvariant()
@@ -34,8 +34,8 @@ function Get-NipatMaintenanceId([string] $Kind, [string] $Value) {
     } finally { $hasher.Dispose() }
 }
 
-function Get-NipatMaintenanceSize([string] $Path) {
-    Assert-NipatRemovalTree $Path
+function Get-NewPatMaintenanceSize([string] $Path) {
+    Assert-NewPatRemovalTree $Path
     if (-not (Test-Path -LiteralPath $Path)) { return [long]0 }
     $item = Get-Item -LiteralPath $Path -Force
     if (-not $item.PSIsContainer) { return [long]$item.Length }
@@ -44,25 +44,25 @@ function Get-NipatMaintenanceSize([string] $Path) {
     return $total
 }
 
-function Assert-NipatRepairableInstallation([string] $Project) {
-    $manifest = Read-NipatInstallerManifest (Join-Path $Project '.distribution\installer-manifest.json')
+function Assert-NewPatRepairableInstallation([string] $Project) {
+    $manifest = Read-NewPatInstallerManifest (Join-Path $Project '.distribution\installer-manifest.json')
     $inventoryPath = Join-Path $Project '.distribution\application-files.json'
     $payload = Get-Content -LiteralPath $inventoryPath -Raw -Encoding UTF8 | ConvertFrom-Json
-    Assert-NipatApplicationPayload $payload
+    Assert-NewPatApplicationPayload $payload
     if ($payload.source_commit -cne $manifest.source_commit) { throw 'Inventario e manifest appartengono a versioni diverse; reinstallare il pacchetto.' }
     foreach ($entry in $payload.files) {
-        $path = Get-NipatRepairTarget $Project $entry.path
+        $path = Get-NewPatRepairTarget $Project $entry.path
         if (-not (Test-Path -LiteralPath $path -PathType Leaf) -or
-            (Get-NipatRepairFileHash $path) -cne $entry.sha256) {
+            (Get-NewPatRepairFileHash $path) -cne $entry.sha256) {
             throw ('File applicativo mancante o modificato: ' + $entry.path + '. Reinstallare lo stesso pacchetto verificato.')
         }
     }
     return $manifest
 }
 
-function Get-NipatMaintenanceBackups([string] $Project) {
-    $root = Join-Path (Get-NipatInstallLayoutHistoryDirectory) 'backups'
-    Assert-NipatInstallPathWithoutLinks $root -Tree
+function Get-NewPatMaintenanceBackups([string] $Project) {
+    $root = Join-Path (Get-NewPatInstallLayoutHistoryDirectory) 'backups'
+    Assert-NewPatInstallPathWithoutLinks $root -Tree
     $records = @()
     if (Test-Path -LiteralPath $root -PathType Container) {
         foreach ($directory in @(Get-ChildItem -LiteralPath $root -Directory)) {
@@ -70,7 +70,7 @@ function Get-NipatMaintenanceBackups([string] $Project) {
             if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { continue }
             try {
                 $journal = Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json
-                Assert-NipatInstallationChannel $journal 'Il backup'
+                Assert-NewPatInstallationChannel $journal 'Il backup'
                 if ($journal.schema_version -ne 1 -or $journal.app_dir -ine $Project) { continue }
                 $records += [pscustomobject]@{
                     id = $directory.Name; path = $directory.FullName; status = $journal.status
@@ -83,14 +83,14 @@ function Get-NipatMaintenanceBackups([string] $Project) {
     return @($records | Sort-Object created_utc -Descending)
 }
 
-function Get-NipatMaintenanceInventory([string] $Project, $Plan = $null) {
+function Get-NewPatMaintenanceInventory([string] $Project, $Plan = $null) {
     $warnings = @()
-    if ($null -eq $Plan) { $Plan = Get-NipatRuntimeRemovalPlan $Project -InspectOnly }
+    if ($null -eq $Plan) { $Plan = Get-NewPatRuntimeRemovalPlan $Project -InspectOnly }
     $backendPath = Join-Path $Project '.runtime\backend.json'
     $active = ''
     if (Test-Path -LiteralPath $backendPath -PathType Leaf) {
         $backend = Get-Content -LiteralPath $backendPath -Raw -Encoding UTF8 | ConvertFrom-Json
-        Assert-NipatInstallationChannel $backend 'La configurazione attiva'
+        Assert-NewPatInstallationChannel $backend 'La configurazione attiva'
         $active = [string]$backend.wsl_distro
         if (@($Plan.Targets | Where-Object { $_.Distro -ceq $active }).Count -ne 1) {
             throw 'Il runtime attivo non corrisponde a un registro verificato; nessuna pulizia viene proposta.'
@@ -100,16 +100,16 @@ function Get-NipatMaintenanceInventory([string] $Project, $Plan = $null) {
         Sort-Object @{Expression = { (Get-Item -LiteralPath $_.OwnershipPath).LastWriteTimeUtc }; Descending = $true}, Distro |
         Select-Object -First 1)
     $previousName = if ($previous.Count) { $previous[0].Distro } else { '' }
-    $manifest = Read-NipatInstallerManifest (Join-Path $Project '.distribution\installer-manifest.json')
+    $manifest = Read-NewPatInstallerManifest (Join-Path $Project '.distribution\installer-manifest.json')
     $keepHashes = @($manifest.assets.rootfs.sha256, $manifest.assets.scientific_image.sha256)
-    $backups = @(Get-NipatMaintenanceBackups $Project)
+    $backups = @(Get-NewPatMaintenanceBackups $Project)
     # Preserve the archives referenced by the most recent saved manifest as well.
     foreach ($backup in @($backups | Select-Object -First 1)) {
         $oldManifestPath = Join-Path $backup.path 'files\.distribution\installer-manifest.json'
         if (Test-Path -LiteralPath $oldManifestPath -PathType Leaf) {
             try {
                 $old = Get-Content -LiteralPath $oldManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
-                Assert-NipatInstallationProfile $old.installation_profile
+                Assert-NewPatInstallationProfile $old.installation_profile
                 $keepHashes += @($old.assets.rootfs.sha256, $old.assets.scientific_image.sha256)
             } catch { $warnings += 'Manifest precedente non leggibile: gli archivi della cache saranno conservati.' }
         }
@@ -120,8 +120,8 @@ function Get-NipatMaintenanceInventory([string] $Project, $Plan = $null) {
         $removable = [bool]$active -and -not $isActive -and -not $retained
         if ($isActive -or $retained) { $keepHashes += $_.RootfsSha256 }
         [pscustomobject]@{
-            id = (Get-NipatMaintenanceId 'runtime' $_.Distro); name = $_.Distro
-            path = $_.Directory; size_bytes = (Get-NipatMaintenanceSize $_.Directory)
+            id = (Get-NewPatMaintenanceId 'runtime' $_.Distro); name = $_.Distro
+            path = $_.Directory; size_bytes = (Get-NewPatMaintenanceSize $_.Directory)
             active = $isActive; retained = $retained; removable = $removable
             reason = if ($isActive) { 'Ambiente attivo.' } elseif ($retained) { 'Ambiente precedente piu recente conservato.' }
                 elseif (-not $active) { 'Nessun ambiente attivo verificato; completare prima la preparazione.' }
@@ -131,15 +131,15 @@ function Get-NipatMaintenanceInventory([string] $Project, $Plan = $null) {
     $cache = @($Plan.CacheFiles | ForEach-Object {
         $removable = [bool]$active -and $_.Sha256 -notin $keepHashes -and $warnings.Count -eq 0
         [pscustomobject]@{
-            id = (Get-NipatMaintenanceId 'cache' $_.Path); name = [IO.Path]::GetFileName($_.Path)
-            path = $_.Path; size_bytes = (Get-NipatMaintenanceSize $_.Path); removable = $removable
+            id = (Get-NewPatMaintenanceId 'cache' $_.Path); name = [IO.Path]::GetFileName($_.Path)
+            path = $_.Path; size_bytes = (Get-NewPatMaintenanceSize $_.Path); removable = $removable
             reason = if ($removable) { 'Archivio precedente; integrita ricontrollata prima della rimozione.' }
                 else { 'Archivio conservato per installazione o recupero.' }
         }
     })
     $canRepair = $true
     $repairReason = 'Ripete preparazione e autotest della versione installata; conserva dati e risultati.'
-    try { Assert-NipatRepairableInstallation $Project | Out-Null }
+    try { Assert-NewPatRepairableInstallation $Project | Out-Null }
     catch { $canRepair = $false; $repairReason = $_.Exception.Message }
     return [pscustomobject]@{
         schema_version = 1; platform = 'windows'; runtimes = $runtimes; cache = $cache; backups = $backups
@@ -148,7 +148,7 @@ function Get-NipatMaintenanceInventory([string] $Project, $Plan = $null) {
     }
 }
 
-function Assert-NipatMaintenanceSelection($Inventory, [string] $Operation, [string] $TargetId) {
+function Assert-NewPatMaintenanceSelection($Inventory, [string] $Operation, [string] $TargetId) {
     if ($Operation -ceq 'recover') {
         if ($TargetId -cne 'current-installation' -or -not $Inventory.recovery.recoverable) {
             throw 'La riparazione richiesta non e disponibile. Reinstallare il pacchetto verificato.'
@@ -161,46 +161,46 @@ function Assert-NipatMaintenanceSelection($Inventory, [string] $Operation, [stri
     }
 }
 
-function Assert-NipatMaintenanceNotCancelled([string] $ReadyFile) {
+function Assert-NewPatMaintenanceNotCancelled([string] $ReadyFile) {
     if ($ReadyFile -and (Test-Path -LiteralPath (Join-Path (Split-Path -Parent $ReadyFile) 'cancelled.json'))) {
         throw 'Passaggio alla manutenzione annullato. Nessuna nuova operazione viene avviata.'
     }
 }
 
-function Wait-NipatMaintenanceClient($Process, [string] $ReadyFile, [int] $TimeoutSeconds = 300) {
+function Wait-NewPatMaintenanceClient($Process, [string] $ReadyFile, [int] $TimeoutSeconds = 300) {
     $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
     while (-not $Process.WaitForExit(100)) {
-        Assert-NipatMaintenanceNotCancelled $ReadyFile
+        Assert-NewPatMaintenanceNotCancelled $ReadyFile
         if ([DateTime]::UtcNow -gt $deadline) { throw 'NewPat non e stato chiuso; nessuna manutenzione eseguita.' }
     }
-    Assert-NipatMaintenanceNotCancelled $ReadyFile
+    Assert-NewPatMaintenanceNotCancelled $ReadyFile
     if ($Process.ExitCode -ne 85) {
         throw 'La sessione non ha confermato il passaggio alla manutenzione. Nessuna modifica viene eseguita.'
     }
 }
 
-function Invoke-NipatMaintenanceCleanup([string] $Project, [string] $TargetId, [string] $ReadyFile = '') {
-    $plan = Get-NipatRuntimeRemovalPlan $Project
-    $inventory = Get-NipatMaintenanceInventory $Project $plan
-    Assert-NipatMaintenanceSelection $inventory 'cleanup' $TargetId
-    $targets = @($plan.Targets | Where-Object { (Get-NipatMaintenanceId 'runtime' $_.Distro) -ceq $TargetId })
-    $cache = @($plan.CacheFiles | Where-Object { (Get-NipatMaintenanceId 'cache' $_.Path) -ceq $TargetId })
+function Invoke-NewPatMaintenanceCleanup([string] $Project, [string] $TargetId, [string] $ReadyFile = '') {
+    $plan = Get-NewPatRuntimeRemovalPlan $Project
+    $inventory = Get-NewPatMaintenanceInventory $Project $plan
+    Assert-NewPatMaintenanceSelection $inventory 'cleanup' $TargetId
+    $targets = @($plan.Targets | Where-Object { (Get-NewPatMaintenanceId 'runtime' $_.Distro) -ceq $TargetId })
+    $cache = @($plan.CacheFiles | Where-Object { (Get-NewPatMaintenanceId 'cache' $_.Path) -ceq $TargetId })
     $selection = [pscustomobject]@{
         Targets = $targets; CacheFiles = $cache; RuntimeRoots = @(); CacheRoots = @(); ProtectedRoots = $plan.ProtectedRoots
     }
-    Assert-NipatMaintenanceNotCancelled $ReadyFile
-    Invoke-NipatRuntimeRemoval $selection
+    Assert-NewPatMaintenanceNotCancelled $ReadyFile
+    Invoke-NewPatRuntimeRemoval $selection
 }
 
-function Write-NipatMaintenanceReady([string] $Project, [string] $Path, [string] $Operation, [string] $TargetId) {
+function Write-NewPatMaintenanceReady([string] $Project, [string] $Path, [string] $Operation, [string] $TargetId) {
     $root = [IO.Path]::GetFullPath((Join-Path $Project '.runtime\maintenance')).TrimEnd('\')
     $full = [IO.Path]::GetFullPath($Path)
     if (-not $full.StartsWith($root + '\', [StringComparison]::OrdinalIgnoreCase) -or
         [IO.Path]::GetFileName($full) -cne 'ready.json' -or (Test-Path -LiteralPath $full)) {
         throw 'Percorso della conferma di manutenzione non valido o gia utilizzato.'
     }
-    Assert-NipatInstallPathWithoutLinks ([IO.Path]::GetDirectoryName($full)) -Tree
-    Write-NipatJsonAtomic $full ([ordered]@{
+    Assert-NewPatInstallPathWithoutLinks ([IO.Path]::GetDirectoryName($full)) -Tree
+    Write-NewPatJsonAtomic $full ([ordered]@{
         schema_version = 1; status = 'waiting-for-client'; operation = $Operation; target_id = $TargetId
     })
 }
@@ -214,20 +214,20 @@ if (-not $LibraryOnly) {
     $readyWritten = $false
     $parent = $null
     try {
-        Assert-NipatWindowsUser
+        Assert-NewPatWindowsUser
         if (-not $Project) { $Project = Split-Path -Parent (Split-Path -Parent $PSScriptRoot) }
-        $Project = Resolve-NipatInstallPath $Project
-        Assert-NipatInstallationLocation $Project
-        $script:NipatWsl = Join-Path $env:WINDIR 'System32\wsl.exe'
-        $inventory = Get-NipatMaintenanceInventory $Project
+        $Project = Resolve-NewPatInstallPath $Project
+        Assert-NewPatInstallationLocation $Project
+        $script:NewPatWsl = Join-Path $env:WINDIR 'System32\wsl.exe'
+        $inventory = Get-NewPatMaintenanceInventory $Project
         if ($Operation -ceq 'inventory') {
             [Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)
             $inventory | ConvertTo-Json -Depth 12
             exit 0
         }
-        Assert-NipatMaintenanceSelection $inventory $Operation $TargetId
-        $logDirectory = Join-Path (Get-NipatInstallLayoutHistoryDirectory) 'logs'
-        Assert-NipatInstallPathWithoutLinks $logDirectory -Tree
+        Assert-NewPatMaintenanceSelection $inventory $Operation $TargetId
+        $logDirectory = Join-Path (Get-NewPatInstallLayoutHistoryDirectory) 'logs'
+        Assert-NewPatInstallPathWithoutLinks $logDirectory -Tree
         [IO.Directory]::CreateDirectory($logDirectory) | Out-Null
         $logPath = Join-Path $logDirectory ('maintenance-' + [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffZ') + '-' + [Guid]::NewGuid().ToString('N') + '.log')
         Start-Transcript -LiteralPath $logPath -ErrorAction Stop | Out-Null
@@ -238,27 +238,27 @@ if (-not $LibraryOnly) {
             # Retain the exact process before acknowledgement; a reused PID must
             # never authorize maintenance after an unrelated process exits.
             $null = $parent.Handle
-            Write-NipatMaintenanceReady $Project $ReadyFile $Operation $TargetId
+            Write-NewPatMaintenanceReady $Project $ReadyFile $Operation $TargetId
             $readyWritten = $true
-            Wait-NipatMaintenanceClient $parent $ReadyFile
+            Wait-NewPatMaintenanceClient $parent $ReadyFile
         } elseif ($ReadyFile) { throw 'La conferma richiede un processo NewPat da attendere.' }
-        $lease = Enter-NipatInstallationActivity
-        Assert-NipatMaintenanceNotCancelled $ReadyFile
+        $lease = Enter-NewPatInstallationActivity
+        Assert-NewPatMaintenanceNotCancelled $ReadyFile
         if ($Operation -ceq 'cleanup') {
-            Invoke-NipatMaintenanceCleanup $Project $TargetId $ReadyFile
+            Invoke-NewPatMaintenanceCleanup $Project $TargetId $ReadyFile
         } else {
-            Assert-NipatRepairableInstallation $Project | Out-Null
-            Assert-NipatMaintenanceNotCancelled $ReadyFile
+            Assert-NewPatRepairableInstallation $Project | Out-Null
+            Assert-NewPatMaintenanceNotCancelled $ReadyFile
             # The child inherits the authenticated setup lease; it still performs
             # its own mutex, ownership, manifest, image and scientific checks.
             $worker = Join-Path $Project 'installer\windows\bootstrap.ps1'
             if (Test-Path -LiteralPath (Join-Path $Project '.runtime\zip-install.json')) {
                 . (Join-Path $Project 'installer\windows\zip-common.ps1')
-                $zipRoot = Get-NipatZipRoot
-                $zipPointer = Read-NipatZipPointer $zipRoot
-                if ($zipPointer.app_dir -ine $Project) { throw 'Riprendere la versione ZIP attiva dal collegamento locale nella cartella NIPAT.' }
-                Assert-NipatActivityPathWithoutLinks (Join-Path $zipRoot 'pending.json')
-                Write-NipatJsonAtomic (Join-Path $zipRoot 'pending.json') $zipPointer
+                $zipRoot = Get-NewPatZipRoot
+                $zipPointer = Read-NewPatZipPointer $zipRoot
+                if ($zipPointer.app_dir -ine $Project) { throw 'Riprendere la versione ZIP attiva dal collegamento locale nella cartella NewPat.' }
+                Assert-NewPatActivityPathWithoutLinks (Join-Path $zipRoot 'pending.json')
+                Write-NewPatJsonAtomic (Join-Path $zipRoot 'pending.json') $zipPointer
                 $worker = Join-Path $Project 'installer\windows\install-zip.ps1'
             }
             & (Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe') -NoProfile -ExecutionPolicy Bypass -File $worker -Resume
@@ -269,12 +269,12 @@ if (-not $LibraryOnly) {
         $failure = $_.Exception.Message
         [Console]::Error.WriteLine('Manutenzione interrotta: ' + $failure)
     } finally {
-        Exit-NipatInstallationActivity $lease
+        Exit-NewPatInstallationActivity $lease
         if ($null -ne $parent) { $parent.Dispose() }
         if ($transcript) { try { Stop-Transcript | Out-Null } catch { } }
         if ($readyWritten) {
             try {
-                Write-NipatJsonAtomic (Join-Path (Split-Path -Parent $ReadyFile) 'result.json') ([ordered]@{
+                Write-NewPatJsonAtomic (Join-Path (Split-Path -Parent $ReadyFile) 'result.json') ([ordered]@{
                     schema_version = 1; operation = $Operation; target_id = $TargetId
                     status = if ($result -eq 0) { 'succeeded' } else { 'failed' }
                     error = $failure; log_path = $logPath; finished_utc = [DateTime]::UtcNow.ToString('o')

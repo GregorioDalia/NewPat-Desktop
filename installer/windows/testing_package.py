@@ -10,13 +10,10 @@ import sys
 import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
-from newpat.branding import windows_complete_filename, windows_package_generation, windows_testing_filename
+from newpat.branding import windows_complete_filename, windows_testing_filename
 
 
 def sources(version):
-    if windows_package_generation(version) == 1:
-        return {"INSTALLA-NewPat-TESTING.cmd": "testing-install.cmd", "LEGGIMI.txt": "testing-readme.txt",
-                "install-testing.ps1": "install-testing.ps1"}
     return {"INSTALL-NewPat-Testing.cmd": "testing-install.cmd", "README.txt": "testing-readme.txt",
             "install-testing.ps1": "install-testing.ps1", "install-profile.ps1": "install-profile.ps1",
             "install-layout.ps1": "install-layout.ps1"}
@@ -41,8 +38,8 @@ def metadata(output, manifest):
     value = {"schema_version": 1, "channel": "testing", "version": version,
              "source_commit": manifest["source_commit"]}
     for role, name in {"complete_zip": windows_complete_filename(version),
-                       "payload": f"NIPAT-{version}-Windows-payload.zip",
-                       "setup": "NIPAT-Setup.exe"}.items():
+                       "payload": f"NewPat-{version}-Windows-payload.zip",
+                       "setup": "NewPat-Setup.exe"}.items():
         path = output / name
         value[role] = {"file": name, "size": path.stat().st_size, "sha256": digest(path)}
     return value

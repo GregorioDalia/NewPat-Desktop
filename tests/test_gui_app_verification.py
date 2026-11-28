@@ -24,7 +24,7 @@ class NativeAppVerificationTests(unittest.TestCase):
         self.app = self.root / "packaged app"
         assets = self.app / "src/newpat/desktop/web"
         assets.mkdir(parents=True)
-        (assets / "index.html").write_text("<title>NIPAT</title>")
+        (assets / "index.html").write_text("<title>NewPat</title>")
         self.workspace = self.root / "isolated workspace"
         self.report, self.png = self.root / "report.json", self.root / "window.png"
 
@@ -37,8 +37,8 @@ class NativeAppVerificationTests(unittest.TestCase):
         self.png.write_bytes(b"\x89PNG\r\n\x1a\n")
 
     def test_isolates_user_preferences_and_uses_actual_packaged_entrypoint(self):
-        with patch.dict(os.environ, {"NIPAT_SETTINGS_FILE": "/existing/research/settings.json",
-                                     "NIPAT_PROJECT_DIR": "/wrong/app", "PYTHONPATH": "/wrong/import"}), \
+        with patch.dict(os.environ, {"NEWPAT_SETTINGS_FILE": "/existing/research/settings.json",
+                                     "NEWPAT_PROJECT_DIR": "/wrong/app", "PYTHONPATH": "/wrong/import"}), \
                 patch.object(VERIFY.subprocess, "run", side_effect=lambda *_a, **_k: self.produce()) as child:
             self.assertTrue(self.invoke()["appReady"])
         command = child.call_args.args[0]
@@ -46,10 +46,10 @@ class NativeAppVerificationTests(unittest.TestCase):
         self.assertIn(str(self.app / "src"), command)
         self.assertIn("gui", command)
         self.assertNotIn("test_gui_windows_native.py", " ".join(command))
-        self.assertEqual(environment["NIPAT_SETTINGS_FILE"], str(self.workspace / "preferences.json"))
-        self.assertEqual(environment["NIPAT_DATA_DIR"], str(self.workspace / "data"))
+        self.assertEqual(environment["NEWPAT_SETTINGS_FILE"], str(self.workspace / "preferences.json"))
+        self.assertEqual(environment["NEWPAT_DATA_DIR"], str(self.workspace / "data"))
         self.assertNotIn("PYTHONPATH", environment)
-        self.assertEqual(environment["NIPAT_GUI_VERIFY_PDF"], "1")
+        self.assertEqual(environment["NEWPAT_GUI_VERIFY_PDF"], "1")
         self.assertEqual(json.loads(self.report.read_text())["scope"], "packaged-native-application")
 
     def test_source_smoke_has_distinct_scope_without_claiming_packaged_validation(self):

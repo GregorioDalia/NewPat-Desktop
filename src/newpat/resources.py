@@ -136,7 +136,7 @@ def fixed_execution_budget(snapshot: dict, options=None) -> dict:
     reserve = 0.20
     memory_budget = math.floor(memory * (1 - reserve)) if memory is not None else None
     return {
-        "schema_version": 1, "interface": "nipat-fixed-resources-v1",
+        "schema_version": 1, "interface": "newpat-fixed-resources-v1",
         "source_version": __version__, "basis": "assigned-capacity-at-run-start",
         "memory_capacity_mib": memory, "memory_budget_mib": memory_budget,
         "memory_reserve_fraction": reserve, "cpu_limit": cpu,
@@ -162,7 +162,7 @@ class ResourceLockBusy(RuntimeExecutionError):
 
 @contextmanager
 def _resource_lock(home: Path, backend: str, *, exclusive: bool):
-    directory = home / ".nipat"
+    directory = home / ".newpat"
     if directory.is_symlink():
         raise ValidationError("La cartella di coordinamento delle risorse non può essere un collegamento.")
     directory.mkdir(parents=True, exist_ok=True)
@@ -473,7 +473,7 @@ class ResourceManager:
             warnings.append("Il limite RAM del container supera la memoria del runtime; aumentarlo non aumenta la RAM della VM.")
         return {"schema_version": 1, "backend": self.backend, "host": host,
                 "runtime": {"configured": configured, "effective": effective, "running": running,
-                            "scope": {"wsl": "all-wsl2-distributions", "lima": "nipat-lima", "native": "host"}[self.backend],
+                            "scope": {"wsl": "all-wsl2-distributions", "lima": "newpat-lima", "native": "host"}[self.backend],
                             "config_path": str(path) if path else None},
                 "container": container, "suggested": suggested_resources(host), "warnings": warnings}
 
@@ -505,19 +505,19 @@ class ResourceManager:
                               {"memory_mib": memory_mib, "cpus": cpus}, instances, tuple(warnings), replacement)
 
     def _assert_idle(self) -> None:
-        raw = self._docker(["ps", "--filter", "label=org.nipat.product=nipat-desktop", "--format", "{{.Names}}"])
+        raw = self._docker(["ps", "--filter", "label=org.newpat.product=newpat-desktop", "--format", "{{.Names}}"])
         if raw.strip():
             raise RuntimeExecutionError("Sono presenti analisi NewPat attive: attendere il completamento prima di modificare le risorse.")
-        # Older packages might not carry ownership labels. Never stop them either.
-        raw = self._docker(["ps", "--filter", "name=nipat-run-", "--format", "{{.Names}}"])
+        # Check both the product label and active analysis names before a runtime restart.
+        raw = self._docker(["ps", "--filter", "name=newpat-run-", "--format", "{{.Names}}"])
         if raw.strip():
             raise RuntimeExecutionError("Sono presenti container NewPat attivi: modifica delle risorse interrotta.")
 
     def _assert_other_wsl_idle(self, instances: tuple[str, ...]) -> None:
-        """Older NIPAT installs may not participate in the new shared lock."""
+        """Check other NewPat environments before a system-wide WSL restart."""
         from newpat.experiments.transport import WslDockerTransport
         for name in instances:
-            if name == self.transport.distro or not name.casefold().startswith("nipat"):
+            if name == self.transport.distro or not name.casefold().startswith("newpat"):
                 continue
             other = ResourceManager(WslDockerTransport(name), home=self.home)
             try:
@@ -529,7 +529,7 @@ class ResourceManager:
                 ) from exc
 
     def _backup(self, path: Path, contents: bytes | None) -> Path:
-        directory = self.home / ".nipat" / "resource-backups"
+        directory = self.home / ".newpat" / "resource-backups"
         if directory.is_symlink():
             raise ValidationError("La cartella dei backup risorse non può essere un collegamento.")
         directory.mkdir(parents=True, exist_ok=True)
@@ -547,7 +547,7 @@ class ResourceManager:
 
     @staticmethod
     def _replace(path: Path, contents: bytes) -> None:
-        temporary = path.with_name(path.name + ".nipat-" + uuid.uuid4().hex + ".tmp")
+        temporary = path.with_name(path.name + ".newpat-" + uuid.uuid4().hex + ".tmp")
         try:
             with temporary.open("xb") as stream:
                 stream.write(contents)
@@ -597,9 +597,9 @@ class ResourceManager:
                             result["warnings"].append("Configurazione salvata. Le VM attive sono cambiate: riavvio non eseguito, richiedere una nuova anteprima.")
                             return result
                         self._wsl(["--shutdown"])
-                        # Start only NIPAT, never another distribution stopped by shutdown.
+                        # Start only NewPat, never another distribution stopped by shutdown.
                         self._wsl(["--distribution", self.transport.distro, "--user", "root", "--exec",
-                                   "/usr/local/bin/nipat-engine", "ensure"])
+                                   "/usr/local/bin/newpat-engine", "ensure"])
                     except RuntimeExecutionError as exc:
                         result["status"] = "verification-required"
                         result["warnings"].append(f"Configurazione salvata, riavvio non completato: {exc}")

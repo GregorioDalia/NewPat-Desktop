@@ -96,7 +96,7 @@ class FiveModuleAcceptanceTests(unittest.TestCase):
         self.record["observed_baseline"]["source_comparison_scope"] = acceptance.FIVE_MODULE_SOURCE_SCOPE
         self.record["scientific_analysis_qualification"] = {
             "reference_source_commit": acceptance.ANALYSIS_REFERENCE_COMMIT,
-            "report_path": "scientific/nipat-five-modules-check/artifacts/five-module-qualification.json",
+            "report_path": "scientific/newpat-five-modules-check/artifacts/five-module-qualification.json",
             "report_sha256": "e" * 64, "runtime_image": IMAGE,
         }
         sources = self.legacy.sources[COMMIT]
@@ -202,7 +202,7 @@ class FiveModuleAcceptanceTests(unittest.TestCase):
         archive = self.legacy.directory / "qualification-evidence.zip"
         with zipfile.ZipFile(archive, "w") as handle:
             if self.caller_parallel is not None:
-                handle.writestr("scientific/_temp/nipat-engine-check/caller-parallel-qualification.json",
+                handle.writestr("scientific/_temp/newpat-engine-check/caller-parallel-qualification.json",
                                 json.dumps(self.caller_parallel))
             base = Path(self.record["scientific_analysis_qualification"]["report_path"]).parent
             for path, raw in self.summaries.items():
@@ -305,6 +305,18 @@ class FiveModuleAcceptanceTests(unittest.TestCase):
         for version in ("0.9.0", "0.9.1"):
             with self.subTest(version=version):
                 self.check_gui_template(version)
+
+    def test_clean_install_receipt_cannot_reuse_historical_upgrade_evidence(self):
+        digest = "a" * 64
+        installers = dict(self.legacy.installer_set, version="0.9.99",
+                          windows_zip={"sha256": "e" * 64}, windows_payload={"sha256": "f" * 64},
+                          linux_upgrade_check={"sha256": "b" * 64},
+                          linux_clean_install_check={"sha256": digest})
+        record = acceptance.template(installers, 123)
+        self.assertEqual(record["linux_clean_install_check_sha256"], digest)
+        self.assertNotIn("linux_upgrade_check_sha256", record)
+        del installers["linux_clean_install_check"]
+        self.assertEqual(acceptance.template(installers, 123)["linux_clean_install_check_sha256"], "")
 
     def check_gui_template(self, version):
         installers = dict(self.legacy.installer_set, version=version,
@@ -482,7 +494,7 @@ class FiveModuleAcceptanceTests(unittest.TestCase):
         def verify(version="0.9.10"):
             archive = io.BytesIO()
             with zipfile.ZipFile(archive, "w") as handle:
-                handle.writestr("scientific/_temp/nipat-engine-check/caller-parallel-qualification.json",
+                handle.writestr("scientific/_temp/newpat-engine-check/caller-parallel-qualification.json",
                                 json.dumps(report))
             return acceptance.verify_caller_parallel_qualification(
                 archive, IMAGE, version=version, source=lambda path: (ROOT / path).read_bytes())
@@ -533,7 +545,7 @@ class FiveModuleAcceptanceTests(unittest.TestCase):
 
         def add_report(prefix):
             with zipfile.ZipFile(archive, "a") as handle:
-                handle.writestr(prefix + "/nipat-native-r-check/native-r.json",
+                handle.writestr(prefix + "/newpat-native-r-check/native-r.json",
                                 json.dumps({"status": "completed", "passed": False, "tests_run": 0}))
             self.record["qualification_evidence_sha256"] = digest(archive.read_bytes())
 

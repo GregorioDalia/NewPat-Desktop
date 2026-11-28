@@ -1,6 +1,6 @@
 # Lifecycle guards with real local files; no WSL, registry or menu modifications.
 . (Join-Path $PSScriptRoot 'zip-common.ps1')
-$temporary = Join-Path ([IO.Path]::GetTempPath()) ('NIPAT ZIP lifecycle & ' + [char]0x00e8 + '-' + [Guid]::NewGuid().ToString('N'))
+$temporary = Join-Path ([IO.Path]::GetTempPath()) ('NewPat ZIP lifecycle & ' + [char]0x00e8 + '-' + [Guid]::NewGuid().ToString('N'))
 $oldLocal = $env:LOCALAPPDATA
 function Assert-Test([bool] $Condition, [string] $Message) {
     if (-not $Condition) { throw "FAIL: $Message" }
@@ -34,70 +34,70 @@ function Write-FixtureManifest([string] $App, [string] $Assets, [string] $Versio
         [IO.File]::WriteAllText($path, "fixture bytes for $key")
         $assetsRecord[$key] = [ordered]@{ file = ($key + '.tar.gz'); size = (Get-Item -LiteralPath $path).Length
             sha256 = (Get-FileHash -LiteralPath $path).Hash.ToLowerInvariant()
-            url = ('https://github.com/GregorioDalia/nipat-desktop/releases/download/v' + $Version + '/' + $key + '.tar.gz') }
+            url = ('https://github.com/GregorioDalia/NewPat-Desktop/releases/download/v' + $Version + '/' + $key + '.tar.gz') }
     }
-    Write-NipatJsonAtomic (Join-Path $distribution 'installer-manifest.json') ([ordered]@{
+    Write-NewPatJsonAtomic (Join-Path $distribution 'installer-manifest.json') ([ordered]@{
         schema_version = 1; version = $Version; release_tag = ('v' + $Version); source_commit = $Commit
-        runtime_image = ('sha256:' + ('d' * 64)); installation_profile = (Get-NipatInstallationProfile)
+        runtime_image = ('sha256:' + ('d' * 64)); installation_profile = (Get-NewPatInstallationProfile)
         assets = $assetsRecord; source_sha256 = $sourceHashes
     })
     $files = @()
     foreach ($file in Get-ChildItem -LiteralPath $App -Recurse -Force -File) {
         $files += [ordered]@{ path = $file.FullName.Substring($App.Length + 1).Replace('\', '/'); sha256 = (Get-FileHash -LiteralPath $file.FullName).Hash.ToLowerInvariant() }
     }
-    Write-NipatJsonAtomic (Join-Path $distribution 'application-files.json') ([ordered]@{ schema_version = 1; installation_channel = 'desktop'; source_commit = $Commit; files = $files })
+    Write-NewPatJsonAtomic (Join-Path $distribution 'application-files.json') ([ordered]@{ schema_version = 1; installation_channel = 'desktop'; source_commit = $Commit; files = $files })
 }
 try {
     $env:LOCALAPPDATA = $temporary
-    $root = Join-Path $temporary "Cartella estratta & locale\NIPAT"
+    $root = Join-Path $temporary "Cartella estratta & locale\NewPat"
     [IO.Directory]::CreateDirectory($root) | Out-Null
     [IO.File]::WriteAllText((Join-Path $root 'foreign.txt'), 'keep')
-    Assert-Rejected { Assert-NipatZipRoot $root -Create } 'nonempty unowned directory rejected'
+    Assert-Rejected { Assert-NewPatZipRoot $root -Create } 'nonempty unowned directory rejected'
     Assert-Test ([IO.File]::ReadAllText((Join-Path $root 'foreign.txt')) -ceq 'keep') 'foreign file retained'
     Remove-Item -LiteralPath (Join-Path $root 'foreign.txt')
-    Assert-NipatZipRoot $root -Create
-    Assert-NipatZipRoot $root
-    $old = [pscustomobject]@{ schema_version = 1; version = '0.8.99'; source_commit = ('a' * 40); app_dir = (Get-NipatZipProject $root '0.8.99' ('a' * 40)) }
-    $next = [pscustomobject]@{ schema_version = 1; version = '0.9.0'; source_commit = ('b' * 40); app_dir = (Get-NipatZipProject $root '0.9.0' ('b' * 40)) }
-    Write-NipatJsonAtomic (Join-Path $old.app_dir '.runtime\zip-install.json') ([ordered]@{ schema_version = 1; installation_method = 'zip'; root = $root })
-    Assert-Test ((Get-NipatZipRoot $old.app_dir) -ceq $root) 'installed ZIP resolves its local root'
+    Assert-NewPatZipRoot $root -Create
+    Assert-NewPatZipRoot $root
+    $old = [pscustomobject]@{ schema_version = 1; version = '0.8.99'; source_commit = ('a' * 40); app_dir = (Get-NewPatZipProject $root '0.8.99' ('a' * 40)) }
+    $next = [pscustomobject]@{ schema_version = 1; version = '0.9.0'; source_commit = ('b' * 40); app_dir = (Get-NewPatZipProject $root '0.9.0' ('b' * 40)) }
+    Write-NewPatJsonAtomic (Join-Path $old.app_dir '.runtime\zip-install.json') ([ordered]@{ schema_version = 1; installation_method = 'zip'; root = $root })
+    Assert-Test ((Get-NewPatZipRoot $old.app_dir) -ceq $root) 'installed ZIP resolves its local root'
     $foreignRoot = Join-Path $temporary 'foreign-owned-root'
-    Assert-NipatZipRoot $foreignRoot -Create
-    Write-NipatJsonAtomic (Join-Path $old.app_dir '.runtime\zip-install.json') ([ordered]@{ schema_version = 1; installation_method = 'zip'; root = $foreignRoot })
-    Assert-Rejected { Get-NipatZipRoot $old.app_dir } 'ZIP marker cannot select another owned root'
-    Write-NipatJsonAtomic (Join-Path $old.app_dir '.runtime\zip-install.json') ([ordered]@{ schema_version = 1; installation_method = 'zip'; root = $root })
-    Write-NipatJsonAtomic (Join-Path $root 'current.json') $old
-    Assert-Test ((Get-NipatZipInstallRoot (Join-Path $temporary 'new extraction') '') -ceq (Join-Path $temporary 'new extraction\NIPAT')) 'fresh extraction chooses adjacent NIPAT directory'
-    Assert-Test ((Get-NipatZipInstallRoot (Join-Path $temporary 'download') $root) -ceq $root) 'explicit update retains installed root'
-    Assert-Rejected { Get-NipatZipInstallRoot (Join-Path $temporary 'download') (Join-Path $temporary 'unowned') } 'explicit update rejects unowned destination'
-    Write-NipatJsonAtomic (Join-Path $root 'pending.json') $next
+    Assert-NewPatZipRoot $foreignRoot -Create
+    Write-NewPatJsonAtomic (Join-Path $old.app_dir '.runtime\zip-install.json') ([ordered]@{ schema_version = 1; installation_method = 'zip'; root = $foreignRoot })
+    Assert-Rejected { Get-NewPatZipRoot $old.app_dir } 'ZIP marker cannot select another owned root'
+    Write-NewPatJsonAtomic (Join-Path $old.app_dir '.runtime\zip-install.json') ([ordered]@{ schema_version = 1; installation_method = 'zip'; root = $root })
+    Write-NewPatJsonAtomic (Join-Path $root 'current.json') $old
+    Assert-Test ((Get-NewPatZipInstallRoot (Join-Path $temporary 'new extraction') '') -ceq (Join-Path $temporary 'new extraction\NewPat')) 'fresh extraction chooses adjacent NewPat directory'
+    Assert-Test ((Get-NewPatZipInstallRoot (Join-Path $temporary 'download') $root) -ceq $root) 'explicit update retains installed root'
+    Assert-Rejected { Get-NewPatZipInstallRoot (Join-Path $temporary 'download') (Join-Path $temporary 'unowned') } 'explicit update rejects unowned destination'
+    Write-NewPatJsonAtomic (Join-Path $root 'pending.json') $next
     $stateFile = Join-Path $next.app_dir '.runtime\installer\state.json'
     foreach ($phase in @('starting', 'awaiting_reboot', 'failed')) {
-        Write-NipatJsonAtomic $stateFile ([ordered]@{ phase = $phase; version = $next.version; source_commit = $next.source_commit; installation_channel = 'desktop' })
-        Assert-Rejected { Complete-NipatZipActivation $root $next } "no activation when $phase"
-        Assert-Test ((Read-NipatZipPointer $root).app_dir -ceq $old.app_dir) "previous version preserved when $phase"
-        Assert-Test ((Read-NipatZipPointer $root 'pending.json').app_dir -ceq $next.app_dir) "resume pointer retained when $phase"
+        Write-NewPatJsonAtomic $stateFile ([ordered]@{ phase = $phase; version = $next.version; source_commit = $next.source_commit; installation_channel = 'desktop' })
+        Assert-Rejected { Complete-NewPatZipActivation $root $next } "no activation when $phase"
+        Assert-Test ((Read-NewPatZipPointer $root).app_dir -ceq $old.app_dir) "previous version preserved when $phase"
+        Assert-Test ((Read-NewPatZipPointer $root 'pending.json').app_dir -ceq $next.app_dir) "resume pointer retained when $phase"
     }
-    Write-NipatJsonAtomic $stateFile ([ordered]@{ phase = 'ready'; version = $next.version; source_commit = ('c' * 40); installation_channel = 'desktop' })
-    Assert-Rejected { Complete-NipatZipActivation $root $next } 'ready state from another source rejected'
-    Write-NipatJsonAtomic $stateFile ([ordered]@{ phase = 'ready'; version = $next.version; source_commit = $next.source_commit; installation_channel = 'desktop' })
-    Complete-NipatZipActivation $root $next
-    Assert-Test ((Read-NipatZipPointer $root).app_dir -ceq $next.app_dir) 'ready version activated atomically'
+    Write-NewPatJsonAtomic $stateFile ([ordered]@{ phase = 'ready'; version = $next.version; source_commit = ('c' * 40); installation_channel = 'desktop' })
+    Assert-Rejected { Complete-NewPatZipActivation $root $next } 'ready state from another source rejected'
+    Write-NewPatJsonAtomic $stateFile ([ordered]@{ phase = 'ready'; version = $next.version; source_commit = $next.source_commit; installation_channel = 'desktop' })
+    Complete-NewPatZipActivation $root $next
+    Assert-Test ((Read-NewPatZipPointer $root).app_dir -ceq $next.app_dir) 'ready version activated atomically'
     Assert-Test (-not (Test-Path -LiteralPath (Join-Path $root 'pending.json'))) 'pending pointer removed after activation'
     $bad = [pscustomobject]@{ schema_version = 1; version = $next.version; source_commit = $next.source_commit; app_dir = (Join-Path $temporary 'foreign-app') }
-    Write-NipatJsonAtomic (Join-Path $root 'current.json') $bad
-    Assert-Rejected { Read-NipatZipPointer $root } 'pointer outside managed versions rejected'
-    Assert-Rejected { Get-NipatZipProject $root '../outside' ('a' * 40) } 'version traversal rejected'
+    Write-NewPatJsonAtomic (Join-Path $root 'current.json') $bad
+    Assert-Rejected { Read-NewPatZipPointer $root } 'pointer outside managed versions rejected'
+    Assert-Rejected { Get-NewPatZipProject $root '../outside' ('a' * 40) } 'version traversal rejected'
     $link = Join-Path $temporary 'linked-root'
     New-Item -ItemType Junction -Path $link -Target $root | Out-Null
-    Assert-Rejected { Assert-NipatZipRoot $link } 'junction root rejected'
+    Assert-Rejected { Assert-NewPatZipRoot $link } 'junction root rejected'
     [IO.Directory]::Delete($link)
 
     # Real installer processes and real activity lease. Only OS prerequisites,
     # WSL/bootstrap operations and Python runtime selection are fixture boundaries.
     Remove-Item -LiteralPath $root -Recurse -Force
     $bundle = Join-Path $temporary 'extracted & space'
-    $root = Join-Path $bundle 'NIPAT'
+    $root = Join-Path $bundle 'NewPat'
     $app = Join-Path $bundle 'app'
     $assets = Join-Path $bundle 'assets'
     [IO.Directory]::CreateDirectory($assets) | Out-Null
@@ -113,9 +113,9 @@ try {
         [IO.Directory]::CreateDirectory((Split-Path -Parent $target)) | Out-Null
         Copy-Item -LiteralPath (Join-Path $sourceRoot $relative) -Destination $target
     }
-    Set-FixtureFunction (Join-Path $app 'installer/windows/bootstrap-common.ps1') 'Assert-NipatWindowsUser' 'function Assert-NipatWindowsUser { }'
-    Set-FixtureFunction (Join-Path $app 'installer/windows/activity-lock.ps1') 'Get-NipatActivityRuntime' @'
-function Get-NipatActivityRuntime([string] $Directory = $PSScriptRoot) {
+    Set-FixtureFunction (Join-Path $app 'installer/windows/bootstrap-common.ps1') 'Assert-NewPatWindowsUser' 'function Assert-NewPatWindowsUser { }'
+    Set-FixtureFunction (Join-Path $app 'installer/windows/activity-lock.ps1') 'Get-NewPatActivityRuntime' @'
+function Get-NewPatActivityRuntime([string] $Directory = $PSScriptRoot) {
     return [pscustomobject]@{
         Python = (Get-Command python.exe -CommandType Application).Source
         Helper = (Join-Path (Split-Path -Parent (Split-Path -Parent $Directory)) 'src\newpat\windows_install_activity.py')
@@ -128,67 +128,43 @@ param([switch] $ManualResume, [switch] $Resume)
 . (Join-Path $PSScriptRoot 'zip-common.ps1')
 if (-not $ManualResume) { throw 'ZIP must not register or remove the EXE RunOnce key.' }
 $project = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$manifest = Read-NipatInstallerManifest (Join-Path $project '.distribution\installer-manifest.json')
-$lease = Enter-NipatInstallationActivity
+$manifest = Read-NewPatInstallerManifest (Join-Path $project '.distribution\installer-manifest.json')
+$lease = Enter-NewPatInstallationActivity
 try {
     if (-not $lease.Borrowed) { throw 'Bootstrap must inherit the live installer lease.' }
-    Write-NipatJsonAtomic (Join-Path $project '.runtime\installer\state.json') ([ordered]@{
-        phase = $env:NIPAT_ZIP_FIXTURE_PHASE; version = $manifest.version; source_commit = $manifest.source_commit; installation_channel = 'desktop'
+    Write-NewPatJsonAtomic (Join-Path $project '.runtime\installer\state.json') ([ordered]@{
+        phase = $env:NEWPAT_ZIP_FIXTURE_PHASE; version = $manifest.version; source_commit = $manifest.source_commit; installation_channel = 'desktop'
     })
-} finally { Exit-NipatInstallationActivity $lease }
-if ($env:NIPAT_ZIP_FIXTURE_PHASE -ceq 'ready') { exit 0 }
-if ($env:NIPAT_ZIP_FIXTURE_PHASE -ceq 'awaiting_reboot') { exit 3010 }
+} finally { Exit-NewPatInstallationActivity $lease }
+if ($env:NEWPAT_ZIP_FIXTURE_PHASE -ceq 'ready') { exit 0 }
+if ($env:NEWPAT_ZIP_FIXTURE_PHASE -ceq 'awaiting_reboot') { exit 3010 }
 exit 1
 '@ | Set-Content -LiteralPath (Join-Path $app 'installer/windows/bootstrap.ps1') -Encoding UTF8
     $powershell = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
     Write-FixtureManifest $app $assets '0.9.9' ('a' * 40)
-    $env:NIPAT_ZIP_FIXTURE_PHASE = 'awaiting_reboot'
+    $env:NEWPAT_ZIP_FIXTURE_PHASE = 'awaiting_reboot'
     & $powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $app 'installer/windows/install-zip.ps1') -BundleDirectory $bundle
     Assert-Test ($LASTEXITCODE -eq 3010) 'first ZIP installation returns reboot code'
     Assert-Test (-not (Test-Path -LiteralPath (Join-Path $root 'current.json'))) 'reboot does not activate incomplete installation'
     Assert-Test (@(Get-ChildItem -LiteralPath (Join-Path $root 'cache') -Filter '*.tar.gz').Count -eq 2) 'both scientific archives cached before reboot'
-    $pending = Read-NipatZipPointer $root 'pending.json'
-    $env:NIPAT_ZIP_FIXTURE_PHASE = 'ready'
+    $pending = Read-NewPatZipPointer $root 'pending.json'
+    $env:NEWPAT_ZIP_FIXTURE_PHASE = 'ready'
     [IO.Directory]::Move($app, ($app + '-removed'))
     [IO.Directory]::Move($assets, ($assets + '-removed'))
     & $powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $pending.app_dir 'installer/windows/install-zip.ps1') -Resume
     Assert-Test ($LASTEXITCODE -eq 0) 'installed resume completes without extracted bundle'
     [IO.Directory]::Move(($app + '-removed'), $app)
     [IO.Directory]::Move(($assets + '-removed'), $assets)
-    Assert-Test ((Read-NipatZipPointer $root).version -ceq '0.9.9') 'first ready installation activated'
-    Assert-Test ((Get-NipatZipRoot (Read-NipatZipPointer $root).app_dir) -ceq $root) 'local root persisted in installed marker'
+    Assert-Test ((Read-NewPatZipPointer $root).version -ceq '0.9.9') 'first ready installation activated'
+    Assert-Test ((Get-NewPatZipRoot (Read-NewPatZipPointer $root).app_dir) -ceq $root) 'local root persisted in installed marker'
     foreach ($launcher in @('2_LAUNCH.cmd', '1_RESUME_SETUP.cmd', 'NewPat.lnk')) {
         Assert-Test (Test-Path -LiteralPath (Join-Path $root $launcher)) ("local launcher created: $launcher")
     }
     $appShortcut = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path $root 'NewPat.lnk'))
     Assert-Test ($appShortcut.TargetPath -ieq $powershell) 'normal shortcut uses the system PowerShell interpreter'
     Assert-Test ($appShortcut.Arguments.Contains('-WindowStyle Hidden') -and $appShortcut.Arguments.EndsWith('-Mode auto')) 'normal shortcut hides the bridge and selects automatic setup/launch'
-    # Upgrading the old brand replaces its owned shortcut, but never a link
-    # belonging to another installation or chosen by the user.
-    $legacyShortcut = Join-Path $root 'NIPAT.lnk'
-    Copy-Item -LiteralPath (Join-Path $root 'NewPat.lnk') -Destination $legacyShortcut
-    Set-NipatZipShortcuts $root (Read-NipatZipPointer $root).app_dir
-    Assert-Test (-not (Test-Path -LiteralPath $legacyShortcut)) 'owned legacy shortcut replaced by NewPat'
-    $unrelated = (New-Object -ComObject WScript.Shell).CreateShortcut($legacyShortcut)
-    $unrelated.TargetPath = $powershell
-    $unrelated.WorkingDirectory = $temporary
-    $unrelated.Arguments = '-NoProfile'
-    $unrelated.Save()
-    Set-NipatZipShortcuts $root (Read-NipatZipPointer $root).app_dir
-    Assert-Test (Test-Path -LiteralPath $legacyShortcut) 'unrelated legacy shortcut retained'
-    # Reproduce the wrapper emitted by the published v0.9.9 zip-common.ps1.
-    # Write it after testing the shortcuts, so only the upgrade can remove it.
-    $oldLauncher = Join-Path $root '2_AVVIA.cmd'
-    $oldResume = Join-Path $root '1_COMPLETA_PREPARAZIONE.cmd'
-    $oldFolder = Split-Path -Leaf (Read-NipatZipPointer $root).app_dir
-    $oldLines = @('@echo off', 'setlocal DisableDelayedExpansion',
-        ('"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0versions\' + $oldFolder + '\installer\windows\zip-entry.ps1" -Mode launch'),
-        'exit /b %ERRORLEVEL%')
-    [IO.File]::WriteAllText($oldLauncher, (($oldLines -join "`r`n") + "`r`n"), [Text.Encoding]::ASCII)
-    [IO.File]::WriteAllText($oldResume, 'echo custom action')
-    Remove-Item -LiteralPath (Join-Path $root '2_LAUNCH.cmd'), (Join-Path $root '1_RESUME_SETUP.cmd')
     $history = Join-Path $root 'runs\previous-analysis'
-    Write-NipatJsonAtomic (Join-Path $history 'run.json') ([ordered]@{
+    Write-NewPatJsonAtomic (Join-Path $history 'run.json') ([ordered]@{
         schema_version = 1; run_name = 'previous-analysis'; run_id = 'a' * 32; workflow = 'analysis'; status = 'interrupted'
     })
     [IO.Directory]::CreateDirectory((Join-Path $history 'output')) | Out-Null
@@ -205,33 +181,30 @@ exit 1
     $app = Join-Path $bundle 'app'
     $assets = Join-Path $bundle 'assets'
     Write-FixtureManifest $app $assets '0.9.10' ('b' * 40)
-    $env:NIPAT_ZIP_FIXTURE_PHASE = 'failed'
+    $env:NEWPAT_ZIP_FIXTURE_PHASE = 'failed'
     & $powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $app 'installer/windows/install-zip.ps1') -BundleDirectory $bundle -InstallRoot $root
     Assert-Test ($LASTEXITCODE -eq 1) 'failed upgrade reported as failure'
-    Assert-Test ((Read-NipatZipPointer $root).version -ceq '0.9.9') 'failed upgrade retains previous active version'
+    Assert-Test ((Read-NewPatZipPointer $root).version -ceq '0.9.9') 'failed upgrade retains previous active version'
     Assert-Test ((Get-Content -LiteralPath (Join-Path $root '2_LAUNCH.cmd') -Raw).Contains('0.9.9-' + ('a' * 40))) 'failed upgrade launcher retains previous worker'
-    Assert-Test (Test-Path -LiteralPath $oldLauncher -PathType Leaf) 'failed upgrade retains the working 0.9.9 launcher'
-    Assert-Test (-not (Test-Path -LiteralPath (Join-Path $bundle 'NIPAT'))) 'update extraction does not create another installation'
-    $pending = Read-NipatZipPointer $root 'pending.json'
-    $env:NIPAT_ZIP_FIXTURE_PHASE = 'ready'
+    Assert-Test (-not (Test-Path -LiteralPath (Join-Path $bundle 'NewPat'))) 'update extraction does not create another installation'
+    $pending = Read-NewPatZipPointer $root 'pending.json'
+    $env:NEWPAT_ZIP_FIXTURE_PHASE = 'ready'
     & $powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $pending.app_dir 'installer/windows/install-zip.ps1') -Resume
-    Assert-Test ($LASTEXITCODE -eq 0 -and (Read-NipatZipPointer $root).version -ceq '0.9.10') 'successful upgrade activates the new app directory'
-    Assert-Test (-not (Test-Path -LiteralPath $oldLauncher)) 'owned Italian entry point removed'
-    Assert-Test ([IO.File]::ReadAllText($oldResume) -ceq 'echo custom action') 'custom command preserved'
+    Assert-Test ($LASTEXITCODE -eq 0 -and (Read-NewPatZipPointer $root).version -ceq '0.9.10') 'successful upgrade activates the new app directory'
     Assert-Test ((Get-Content -LiteralPath (Join-Path $root '2_LAUNCH.cmd') -Raw).Contains('0.9.10-' + ('b' * 40))) 'successful upgrade refreshes local launcher'
     $appShortcut = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path $root 'NewPat.lnk'))
     Assert-Test ($appShortcut.Arguments.Contains('0.9.10-' + ('b' * 40))) 'app shortcut follows the activated version'
-    $activated = (Read-NipatZipPointer $root).app_dir
+    $activated = (Read-NewPatZipPointer $root).app_dir
     $icon = Join-Path $activated 'assets\branding\newpat-icon.ico'
     $shortcutIcon = ($appShortcut.IconLocation -replace ',\s*0$', '').Trim('"')
     Assert-Test ($shortcutIcon -ieq $icon -and (Test-Path -LiteralPath $icon -PathType Leaf)) 'shortcut uses the icon in the activated installation'
-    $layout = Read-NipatInstallLayout $activated
+    $layout = Read-NewPatInstallLayout $activated
     Assert-Test ($layout.runs_dir -ieq (Join-Path $root 'runs') -and $layout.data_dir -ieq (Join-Path $root 'data')) 'candidate still opens the historical results and inputs directories'
     Assert-Test ((Get-FileHash -LiteralPath (Join-Path $history 'run.json')).Hash -ceq $historyHash) 'upgrade retains the interrupted experiment record byte for byte'
     Assert-Test ((Get-FileHash -LiteralPath $previousOutput).Hash -ceq $outputHash) 'upgrade retains the existing scientific output byte for byte'
     Assert-Test ([IO.File]::ReadAllText((Join-Path $root 'data\preserve.txt')) -ceq 'research data') 'update retains research data'
 } finally {
     $env:LOCALAPPDATA = $oldLocal
-    Remove-Item Env:NIPAT_ZIP_FIXTURE_PHASE -ErrorAction SilentlyContinue
+    Remove-Item Env:NEWPAT_ZIP_FIXTURE_PHASE -ErrorAction SilentlyContinue
     if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary -Recurse -Force }
 }

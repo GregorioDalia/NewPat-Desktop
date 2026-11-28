@@ -23,7 +23,7 @@ from newpat.processes import background_process_options
 _DISTRO_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}\Z")
 _DRIVE = re.compile(r"[A-Za-z]:\Z")
 _HOST_PATH_VARIABLES = (
-    "NIPAT_WORKSPACE_DIR", "NIPAT_PROJECT_DIR", "NIPAT_DATA_DIR", "NIPAT_RUNS_DIR",
+    "NEWPAT_WORKSPACE_DIR", "NEWPAT_PROJECT_DIR", "NEWPAT_DATA_DIR", "NEWPAT_RUNS_DIR",
 )
 _LINUX_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
@@ -157,13 +157,13 @@ class WslDockerTransport(DockerTransport):
         values = {
             "PATH": _LINUX_PATH, "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8",
             "DOCKER_HOST": "unix:///var/run/docker.sock", "DOCKER_CONFIG": "/root/.docker",
-            "NIPAT_UID": "0", "NIPAT_GID": "0",
+            "NEWPAT_UID": "0", "NEWPAT_GID": "0",
         }
         for name in _HOST_PATH_VARIABLES:
             if name in environment:
                 values[name] = self.host_path(environment[name])
-        if environment.get("NIPAT_RUNTIME_IMAGE"):
-            values["NIPAT_RUNTIME_IMAGE"] = environment["NIPAT_RUNTIME_IMAGE"]
+        if environment.get("NEWPAT_RUNTIME_IMAGE"):
+            values["NEWPAT_RUNTIME_IMAGE"] = environment["NEWPAT_RUNTIME_IMAGE"]
         return [f"{name}={value}" for name, value in values.items()]
 
     def host_path(self, path: Path | str) -> str:
@@ -210,7 +210,7 @@ class WslDockerTransport(DockerTransport):
 
     def ensure_command(self) -> list[str]:
         return self._prefix() + [
-            "env", "-i", *self._linux_environment({}), "/usr/local/bin/nipat-engine", "ensure",
+            "env", "-i", *self._linux_environment({}), "/usr/local/bin/newpat-engine", "ensure",
         ]
 
 
