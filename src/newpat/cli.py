@@ -11,7 +11,7 @@ from newpat.branding import PRODUCT_NAME, CLI_NAME
 from newpat.activity import activity_session
 from newpat.errors import NipatError
 from newpat.experiments.options import ExecutionOptions
-from newpat.experiments.runner import DockerComposeRunner
+from newpat.desktop.admission import CoordinatedComposeRunner as DockerComposeRunner
 from newpat.experiments.workflows import Workflows
 from newpat.paths import ProjectLayout
 from newpat.preferences import PreferencesStore

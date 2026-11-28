@@ -1010,8 +1010,8 @@
       "applies_to": "all",
       "origin": "NewPat scientific runtime",
       "description": {
-        "it": "Il tetto dei processi è fissato all’avvio dalle capacità assegnate a hardware, ambiente e container e dal massimo richiesto; non segue la memoria libera istantanea. Ogni fase fissa il proprio pool entro quel tetto, con riserva proporzionale del 20%, memoria residente del coordinatore conteggiata separatamente e stima del carico. Non esiste un minimo universale di 2 GiB per worker: la stima usa il maggiore fra il doppio della RSS del coordinatore caricato e il modello del modulo, quando disponibile. La stima non è una prenotazione di memoria né una garanzia contro OOM. Capacità o carico non misurabili mantengono la fase seriale. I pool annidati restano seriali, i thread interni sono limitati e i risultati mantengono l’ordine delle attività. Esecuzione seriale o automatica con limite configurabile ai processi, budget di CPU/RAM e riunione ordinata; i pool interni di un worker sono seriali. Su Linux il motore legge i cgroup del processo e le radici dei mount, inclusi i controller v1 combinati, e applica i limiti visibili più restrittivi del processo e dei suoi antenati. Se non riesce ad associare un controller montato al processo, usa un solo worker. Se mancano i dati dei mount, controlla i percorsi standard dei controller. Le sessioni desktop dello stesso utente condividono CPU e memoria disponibili sullo stesso runtime. Con un motore compatibile un piano di analisi può cambiare la quota tra passaggi o gruppi di campioni SNP indipendenti. Ogni passaggio o gruppo attivo mantiene la quota fino al termine dei suoi processi scientifici. I nuovi budget di calcolo rispettano i tetti iniziali e i limiti impostati dall’utente. Il container conserva i limiti definiti all’avvio. Se le risorse sono insufficienti, l’esperimento attende. I motori privi di questo supporto mantengono la quota iniziale. Se la capacità è sconosciuta viene eseguito un calcolo desktop alla volta.",
-        "en": "The run-wide process ceiling is fixed at startup from assigned hardware, environment and container capacities and the requested maximum; it does not track transient free memory. Each phase fixes its pool within that ceiling, reserving 20% proportionally, accounting separately for coordinator RSS and estimating its workload. There is no universal 2GiB floor per worker: the estimate is the larger of twice the loaded coordinator RSS and a module workload estimate when available. This is neither a memory reservation nor an OOM guarantee. Unknown capacity or workload keeps the phase serial. Nested pools stay serial, internal threads are limited and results retain task order. Serial or automatic execution with configurable process ceiling, CPU/RAM budget and ordered collection; nested worker pools remain serial. On Linux the engine reads the process’s cgroup memberships and mount roots, including combined v1 controllers, and applies the strictest visible quotas from the process and its ancestors. An unmappable mounted controller restricts the pool to one worker. If mount metadata is unavailable, the engine checks the standard controller paths. Desktop sessions of the same user share the CPU and memory available on one runtime. With compatible engine support, a workflow plan can change its allocation between steps or groups of independent SNP samples. Each active step or group keeps its quota until its scientific processes finish. New scheduler budgets stay within the original ceilings and user limits. The container keeps its launch limits. An experiment waits if capacity is insufficient. Engines without this support retain the initial allocation. With unknown capacity, one desktop calculation runs at a time."
+        "it": "Il tetto dei processi è fissato all’avvio dalle capacità assegnate a hardware, ambiente e container e dal massimo richiesto; non segue la memoria libera istantanea. Ogni fase fissa il proprio pool entro quel tetto, con riserva proporzionale del 20%, memoria residente del coordinatore conteggiata separatamente e stima del carico. Non esiste un minimo universale di 2 GiB per worker: la stima usa il maggiore fra il doppio della RSS del coordinatore caricato e il modello del modulo, quando disponibile. La stima non è una prenotazione di memoria né una garanzia contro OOM. Capacità o carico non misurabili mantengono la fase seriale. I pool annidati restano seriali, i thread interni sono limitati e i risultati mantengono l’ordine delle attività. Esecuzione seriale o automatica con limite configurabile ai processi, budget di CPU/RAM e riunione ordinata; i pool interni di un worker sono seriali. Su Linux il motore legge i cgroup del processo e le radici dei mount, inclusi i controller v1 combinati, e applica i limiti visibili più restrittivi del processo e dei suoi antenati. Se non riesce ad associare un controller montato al processo, usa un solo worker. Se mancano i dati dei mount, controlla i percorsi standard dei controller. Le sessioni grafiche e da riga di comando dello stesso utente condividono CPU e memoria disponibili sullo stesso runtime. Con un motore compatibile un piano di analisi può cambiare la quota tra passaggi o gruppi di campioni SNP indipendenti. Ogni passaggio o gruppo attivo mantiene la quota fino al termine dei suoi processi scientifici. I nuovi budget di calcolo rispettano i tetti iniziali e i limiti impostati dall’utente. Il container conserva i limiti definiti all’avvio. Se le risorse sono insufficienti, l’esperimento attende. I motori privi di questo supporto mantengono la quota iniziale. Se la capacità è sconosciuta viene eseguito un calcolo alla volta.",
+        "en": "The run-wide process ceiling is fixed at startup from assigned hardware, environment and container capacities and the requested maximum; it does not track transient free memory. Each phase fixes its pool within that ceiling, reserving 20% proportionally, accounting separately for coordinator RSS and estimating its workload. There is no universal 2GiB floor per worker: the estimate is the larger of twice the loaded coordinator RSS and a module workload estimate when available. This is neither a memory reservation nor an OOM guarantee. Unknown capacity or workload keeps the phase serial. Nested pools stay serial, internal threads are limited and results retain task order. Serial or automatic execution with configurable process ceiling, CPU/RAM budget and ordered collection; nested worker pools remain serial. On Linux the engine reads the process’s cgroup memberships and mount roots, including combined v1 controllers, and applies the strictest visible quotas from the process and its ancestors. An unmappable mounted controller restricts the pool to one worker. If mount metadata is unavailable, the engine checks the standard controller paths. Desktop and command-line sessions of the same user share the CPU and memory available on one runtime. With compatible engine support, a workflow plan can change its allocation between steps or groups of independent SNP samples. Each active step or group keeps its quota until its scientific processes finish. New scheduler budgets stay within the original ceilings and user limits. The container keeps its launch limits. An experiment waits if capacity is insufficient. Engines without this support retain the initial allocation. With unknown capacity, one calculation runs at a time."
       },
       "evidence": {
         "path": "src/newpat_scientific/parallel.R",
@@ -1040,34 +1040,34 @@
           {
             "path": "src/newpat/experiments/runner.py",
             "source_lines": [
-              113,
-              134
+              115,
+              136
             ],
-            "sha256": "504247544688788fcc6fb152eefe9f4994adf308f3933645573a3fd76aa28faf"
+            "sha256": "bd39a6b67eb42c05a883492b2314677e96a9ceac26c9a0cda856937a3055c6cc"
           },
           {
             "path": "src/newpat/experiments/runner.py",
             "source_lines": [
-              206,
-              231
+              208,
+              233
             ],
-            "sha256": "504247544688788fcc6fb152eefe9f4994adf308f3933645573a3fd76aa28faf"
+            "sha256": "bd39a6b67eb42c05a883492b2314677e96a9ceac26c9a0cda856937a3055c6cc"
           },
           {
             "path": "src/newpat/desktop/jobs.py",
             "source_lines": [
-              185,
-              240
+              109,
+              119
             ],
-            "sha256": "42a68bdf59f4090cd765459fa4d03bb88ea5a4f1f2698599b8b747bf8ec593e0"
+            "sha256": "d027a93a0b11895e1173499cc7f80ad8531b0ea6587f91cb97e6fb4d27a4d274"
           },
           {
             "path": "src/newpat/desktop/admission.py",
             "source_lines": [
               1,
-              313
+              449
             ],
-            "sha256": "1611778cd3d76b8381f53799d9908c848f3d43a06a626b615de2c5dd4eb406d9"
+            "sha256": "73ebfe7868b2d9c3ea90274d8f31599a8a1fa6674fe974dffbb288b14b10b4c1"
           },
           {
             "path": "src/newpat_scientific/desktop_scheduling.py",
@@ -1088,10 +1088,10 @@
           {
             "path": "src/newpat/experiments/runner.py",
             "source_lines": [
-              226,
-              229
+              228,
+              231
             ],
-            "sha256": "504247544688788fcc6fb152eefe9f4994adf308f3933645573a3fd76aa28faf"
+            "sha256": "bd39a6b67eb42c05a883492b2314677e96a9ceac26c9a0cda856937a3055c6cc"
           }
         ]
       }

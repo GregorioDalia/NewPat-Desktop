@@ -43,6 +43,8 @@ Use `--data-dir` or `--runs-dir` before an analysis command to select destinatio
 
 The launcher also checks mounts when the application moves. It verifies VM ownership, preserves custom mounts and existing resource allocations, and can stop and restart the idle VM. A `mount-backup-*.json` file in `.runtime/macos` records the previous configuration and ownership information for recovery. Preparation verifies the current app manifest through the VM before marking it ready.
 
+After an update under the same application path, a running VM can still see the previous bundle. If the installed manifest is valid on the Mac and missing or stale inside the VM, preparation requests exclusive access, checks for running containers, and restarts the idle VM once to refresh the share. If another NewPat session is using the runtime, finish its work, close it and reopen NewPat.
+
 <a id="cli-e-diagnostica"></a>
 
 ## Command line and diagnostics

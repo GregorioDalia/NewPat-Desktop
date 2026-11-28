@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 
 from newpat.errors import RuntimeExecutionError
 from newpat.experiments.diagnostics import diagnose, inspect_container, settle_oom_observation
+from newpat.experiments.options import ExecutionOptions
 from newpat.experiments.runner import DockerComposeRunner
 from newpat.experiments.transport import DockerTransport, LimaDockerTransport
 from newpat.paths import ProjectLayout
@@ -64,15 +65,28 @@ class ExecutionDiagnosticsTests(unittest.TestCase):
         return process
 
     def run_case(self, code, *, oom=False, missing=False, inspect_failure=False, mismatched=False, interrupt=False,
-                 cleanup_failure=False, run_name="case"):
+                 cleanup_failure=False, run_name="case", cgroup_line=None, sample_counts=None, preexisting=False):
         run = self.layout.new_run_dir("test", run_name)
         process = self.process(code, interrupt=interrupt)
         operations = []
         launched = []
+        engine_dir = run / "performance" / "engine"
+        if preexisting:
+            engine_dir.mkdir(parents=True)
 
         def start(argv, **kwargs):
             launched.extend(argv)
             self.assertNotIn("--rm", argv)
+            if cgroup_line is not None:
+                token = next(arg.split("=")[1] for arg in argv if arg.startswith("NIPAT_OOM_TOKEN="))
+                process.stdout = io.StringIO(cgroup_line.format(token=token) + "\n")
+            if sample_counts is not None:
+                engine_dir.mkdir(parents=True, exist_ok=True)
+                with (engine_dir / "samples.jsonl").open("wb") as samples:
+                    for count in sample_counts:
+                        row = {"cgroup": {"version": 2, "memory_events": {"oom_kill": count}}}
+                        samples.write(json.dumps(row).encode() + b"\n")
+                    samples.write(b'{"partial"')
             return process
 
         def execute(argv, **kwargs):
@@ -139,6 +153,52 @@ class ExecutionDiagnosticsTests(unittest.TestCase):
         self.assertEqual(record["commands"][0]["container_diagnostics"]["diagnosis"]["kind"],
                          "sigkill_unconfirmed")
         self.assertEqual(sum(argv[:3] == ["docker", "container", "inspect"] for argv in operations), 6)
+
+    def test_child_oom_evidence_is_preserved_in_run_error_and_report(self):
+        run, record, error, _ = self.run_case(137, cgroup_line="NewPat cgroup oom_kill {token} 5 6")
+        evidence = record["commands"][0]["container_diagnostics"]
+        self.assertFalse(evidence["state"]["oom_killed"])
+        self.assertEqual(evidence["cgroup_oom_kill"], {"before": 5, "after": 6, "source": "engine"})
+        self.assertEqual(evidence["diagnosis"]["kind"], "cgroup_oom_kill")
+        self.assertIn("oom_kill da 5 a 6", str(error))
+        self.assertIn("oom_kill da 5 a 6", (run / "run-report.html").read_text(encoding="utf-8"))
+
+    def test_only_an_increase_in_this_command_can_corroborate_137(self):
+        for index, line in enumerate(("NewPat cgroup oom_kill {token} 4 4", "NewPat cgroup oom_kill {token} 4 2",
+                                      "NewPat cgroup oom_kill stale 4 5", "NewPat cgroup oom_kill {token} 4 bad")):
+            with self.subTest(line=line):
+                _, record, _, _ = self.run_case(137, cgroup_line=line, run_name=f"unconfirmed-{index}")
+                evidence = record["commands"][0]["container_diagnostics"]
+                self.assertNotIn("cgroup_oom_kill", evidence)
+                self.assertEqual(evidence["diagnosis"]["kind"], "sigkill_unconfirmed")
+
+    def test_cgroup_event_does_not_overwrite_docker_oom_or_another_exit_status(self):
+        for code, docker_oom, kind in ((137, True, "oom_confirmed"), (23, False, "failed"), (0, False, "completed")):
+            with self.subTest(code=code):
+                _, record, _, _ = self.run_case(code, oom=docker_oom, run_name=f"code-{code}",
+                                                 cgroup_line="NewPat cgroup oom_kill {token} 5 7")
+                evidence = record["commands"][0]["container_diagnostics"]
+                self.assertEqual(evidence["cgroup_oom_kill"], {"before": 5, "after": 7, "source": "engine"})
+                self.assertEqual(evidence["diagnosis"]["kind"], kind)
+                self.assertEqual(diagnose(evidence, code, interrupted=True)["kind"], "interrupted")
+
+    def test_partial_command_samples_corroborate_137_only_for_a_fresh_observed_increase(self):
+        self.runner.options = ExecutionOptions(performance_diagnostics=True)
+        observer = self.enterContext(patch("newpat.experiments.runner.ContainerPerformanceObserver"))
+        observer.return_value.stop.return_value = {"status": "partial", "summary": None}
+        for index, (counts, preexisting, confirmed) in enumerate((
+            ([5, None, 6], False, True), ([6, 6], False, False), ([6, 3, 7], False, False),
+            ([6], False, False), ([False, 2], False, False), ([5, 6], True, False),
+        )):
+            with self.subTest(counts=counts, preexisting=preexisting):
+                _, record, _, _ = self.run_case(137, run_name=f"samples-{index}", sample_counts=counts,
+                                                preexisting=preexisting)
+                evidence = record["commands"][0]["container_diagnostics"]
+                if confirmed:
+                    self.assertEqual(evidence["cgroup_oom_kill"], {"before": 5, "after": 6, "source": "engine_samples"})
+                    self.assertEqual(evidence["diagnosis"]["kind"], "cgroup_oom_kill")
+                else:
+                    self.assertEqual(evidence["diagnosis"]["kind"], "sigkill_unconfirmed")
 
     def test_delayed_oom_flag_is_retained_before_cleanup_and_error_reporting(self):
         def delayed(runner, name, labels, *, timeout):

@@ -2,27 +2,24 @@
 from __future__ import annotations
 
 from collections import OrderedDict, deque
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager
 from copy import deepcopy
-from dataclasses import asdict, replace
+from dataclasses import asdict
 from datetime import datetime, timezone
 import json
 from itertools import islice
 from pathlib import Path
-import subprocess
 import threading
 import time
 import uuid
 
-from newpat.errors import RuntimeExecutionError, RuntimeInterruptedError, ValidationError
+from newpat.errors import RuntimeInterruptedError, ValidationError
 from newpat.experiments.progress import ProgressSnapshot
 from newpat.experiments.recovery import reconcile_run
-from newpat.experiments.runner import DockerComposeRunner
 from newpat.experiments.tracking import read_run_status
 from newpat.experiments.workflows import Workflows
-from newpat.desktop.admission import DesktopAdmission, DesktopStepScheduler
+from newpat.desktop.admission import CoordinatedComposeRunner, DesktopAdmission
 from newpat.desktop.plan import PreparedAnalysis
-from newpat.processes import background_process_options
 
 _TERMINAL = {"succeeded", "failed", "interrupted", "planned"}
 
@@ -109,44 +106,21 @@ class Job:
             self.status = outcome.status
 
 
-class GuiRunner(DockerComposeRunner):
+class GuiRunner(CoordinatedComposeRunner):
     _startup_lock = threading.Lock()
 
     def __init__(self, prepared: PreparedAnalysis, job: Job):
         self.job = job
         super().__init__(prepared.layout, options=prepared.execution,
-                         progress_callback=job.progressed, run_finished_callback=job.outcome)
+                         progress_callback=job.progressed, run_finished_callback=job.outcome,
+                         queued_siblings=job.queued_siblings, after_admission=job.admission_ready,
+                         language=job.prepared.language)
 
         self._admission = DesktopAdmission(self._transport.metadata, job.id)
-        self._step_scheduler = None
-
-    def _project_idle(self, job_id):
-        # Docker Compose labels scientific containers with our unique project.
-        # Exited containers no longer consume the running quota.
-        command = ["docker", "ps", "--all", "--quiet", "--filter",
-                   "label=com.docker.compose.project=nipat-" + job_id]
-        for status in ("created", "running", "restarting", "paused", "removing"):
-            command.extend(["--filter", "status=" + status])
-        environment = self._environment()
-        try:
-            result = subprocess.run(self._transport.command(command, environment), env=environment,
-                                    stdin=subprocess.DEVNULL, capture_output=True, check=True,
-                                    timeout=8, **background_process_options())
-        except (OSError, subprocess.SubprocessError) as exc:
-            message = ("Cannot confirm that the previous experiment has stopped. Check the runtime and retry."
-                       if self.job.prepared.language == "en" else
-                       "Impossibile verificare l’arresto dell’esperimento precedente. Controlla il runtime e riprova.")
-            raise RuntimeExecutionError(message) from exc
-        return not result.stdout.strip()
 
     def _cancel_point(self) -> None:
         if self.job.cancel_event.is_set():
             raise KeyboardInterrupt("Analisi annullata dall’utente.")
-
-    def _base_command(self):
-        # Compose project-scoped operations must never treat another run's
-        # scientific container as an orphan, even with custom Compose settings.
-        return [*super()._base_command(), "--project-name", "nipat-" + self.job.id]
 
     def _ensure_backend(self) -> None:
         if self.dry_run or self._backend_ready or self._transport.backend == "native":
@@ -183,60 +157,17 @@ class GuiRunner(DockerComposeRunner):
         return result
 
     def _describe_bundled_engine(self):
-        self._step_scheduler = None
         self._cancel_point()
         self._preparation_progress("verifying-engine")
         result = super()._describe_bundled_engine()
         self._cancel_point()
-        if (self._bundled_workflow == "workflow-plan-all" and self._record is not None
-                and result.get("desktop_scheduling") == DesktopStepScheduler.interface):
-            data = self._record.data
-            assigned = data["concurrent_execution"]
-            if assigned["assigned_cpus"] is not None and assigned["assigned_memory_mib"] is not None:
-                directory = self._record.run_dir / "work" / "desktop-scheduling"
-                directory.mkdir()
-                self._step_scheduler = DesktopStepScheduler(
-                    self._admission, directory, data["resource_snapshot"], self.options,
-                    queued=self.job.queued_siblings, runtime_idle=self._project_idle,
-                )
-                assigned["step_scheduling"] = {"interface": DesktopStepScheduler.interface,
-                                               "grants": "work/desktop-scheduling/grants.jsonl"}
         return result
 
-    def _record_resource_snapshot(self):
-        super()._record_resource_snapshot()
-        if self.dry_run or self._record is None:
-            return
-        from newpat.resources import fixed_execution_budget
-
-        data = self._record.data
-        snapshot = data["resource_snapshot"]
-        capacity = fixed_execution_budget(snapshot)
-        cpu, memory = capacity["cpu_limit"], capacity["memory_capacity_mib"]
-        requested = self.options
-        waiting = False
-        while True:
-            self._cancel_point()
-            allocation = self._admission.try_admit(cpu, memory, requested, self._project_idle,
-                                                   queued=self.job.queued_siblings())
-            if allocation is not None:
-                break
-            if not waiting:
-                self._preparation_progress("waiting-for-resources")
-                waiting = True
-            self.job.cancel_event.wait(0.3)
-        self.job.admission_ready()
-        if allocation.participants > 1:
-            self.options = replace(requested, cpus=allocation.cpus, memory_mb=allocation.memory_mib)
-        data["concurrent_execution"] = {"participants_at_admission": allocation.participants,
-                                        "requested_options": requested.as_dict(),
-                                        "assigned_cpus": allocation.cpus,
-                                        "assigned_memory_mib": allocation.memory_mib,
-                                        "waited": waiting}
-        data["execution_options"] = self.options.as_dict()
-        snapshot["container"] = {"memory_mib": self.options.memory_mb, "cpus": self.options.cpus}
-        data["resource_budget"] = fixed_execution_budget(snapshot, self.options)
-        self._record.save()
+    def _wait_for_admission(self, first_wait):
+        if first_wait:
+            self._preparation_progress("waiting-for-resources")
+        self.job.cancel_event.wait(0.3)
+        self._cancel_point()
 
     def _hash_progress(self, path, completed, total):
         self._cancel_point()
@@ -263,8 +194,7 @@ class GuiRunner(DockerComposeRunner):
         with (Path(run_dir) / "gui.json").open("x", encoding="utf-8", newline="\n") as stream:
             json.dump(gui, stream, ensure_ascii=False, allow_nan=False, indent=2)
             stream.write("\n")
-        registration = nullcontext() if self.dry_run else self._admission.registration()
-        with registration, super().record_run(run_dir, *args, **kwargs) as record:
+        with super().record_run(run_dir, *args, **kwargs) as record:
             self._cancel_point()
             self.job.prepared.assert_inputs_unchanged()
             yield record
@@ -272,27 +202,13 @@ class GuiRunner(DockerComposeRunner):
 
     def run(self, *args, **kwargs):
         self._cancel_point()
-        observer = nullcontext()
-        if self._step_scheduler is not None:
-            def report_error(exc):
-                prefix = ("Desktop step scheduling interrupted" if self.job.prepared.language == "en"
-                          else "Coordinamento delle risorse tra i passi interrotto")
-                self._write(f"{prefix}: {exc}\n")
-            observer = self._step_scheduler.observing(report_error)
         try:
-            with observer:
-                result = super().run(*args, **kwargs)
+            result = super().run(*args, **kwargs)
         except Exception:
             # Stopping the positively identified container unblocks stdout. Keep
             # the same interrupted status as the CLI's KeyboardInterrupt path.
             self._cancel_point()
             raise
-        finally:
-            if self._record is not None and self._record.data.get("commands"):
-                stage = self._record.data["commands"][-1]
-                cleanup = stage.get("container_cleanup", {}).get("status")
-                if stage.get("started_at") and cleanup not in {"removed", "stopped", "absent"}:
-                    self._admission.unconfirmed_cleanup = True
         self._cancel_point()
         return result
 

@@ -17,7 +17,9 @@ from typing import Any, Callable, Iterable, Iterator, TextIO
 from newpat import __version__
 from newpat.environment import setting
 from newpat.errors import RuntimeExecutionError, RuntimeInterruptedError, ValidationError
-from newpat.experiments.diagnostics import diagnose, inspect_container, observe_lima_failure, settle_oom_observation
+from newpat.experiments.diagnostics import (
+    diagnose, inspect_container, observe_lima_failure, sampled_oom_kills, settle_oom_observation,
+)
 from newpat.experiments.mounts import InputMounts
 from newpat.experiments.options import ExecutionOptions
 from newpat.experiments.performance import ContainerPerformanceObserver
@@ -730,6 +732,7 @@ class DockerComposeRunner:
             "run", "-T", "--pull", "never", "--name", container_name,
         ]
         expected_labels = {"org.nipat.execution-token": uuid.uuid4().hex}
+        oom_token = expected_labels["org.nipat.execution-token"]
         if self._record is not None:
             expected_labels.update(ownership_labels(
                 self._record.run_dir, self._record.data["run_id"],
@@ -746,13 +749,16 @@ class DockerComposeRunner:
                 progress_directory = progress_directory / f"command-{number:03d}"
             docker_command.extend([
                 "--env", "NIPAT_PROGRESS_DIR=" + str(self.layout.container_path(progress_directory)),
+                "--env", "NIPAT_OOM_TOKEN=" + oom_token,
             ])
         performance_directory = None
+        fresh_samples = False
         if self.options.performance_diagnostics and self._record is not None:
             number = len(self._record.data["commands"]) + 1
             performance_directory = self._record.run_dir / "performance"
             if number > 1:
                 performance_directory = performance_directory / f"command-{number:03d}"
+            fresh_samples = not os.path.lexists(performance_directory / "engine")
             docker_command.extend([
                 "--env", "NIPAT_PERFORMANCE_DIR=" + str(
                     self.layout.container_path(performance_directory / "engine")),
@@ -781,6 +787,7 @@ class DockerComposeRunner:
         process = None
         observer = None
         progress_observer = None
+        oom_evidence = None
         interrupted = False
         try:
             process = subprocess.Popen(
@@ -819,12 +826,25 @@ class DockerComposeRunner:
             with process.stdout:
                 for line in process.stdout:
                     self._write(line)
+                    if progress_directory is not None and line.startswith("NewPat cgroup oom_kill "):
+                        event = re.fullmatch(rf"NewPat cgroup oom_kill {oom_token} ([0-9]{{1,30}}) ([0-9]{{1,30}})",
+                                             line.rstrip("\r\n"))
+                        if event and int(event[2]) > int(event[1]):
+                            oom_evidence = {"before": int(event[1]), "after": int(event[2]), "source": "engine"}
             stage["returncode"] = process.wait()
             with _finish_cleanup():
                 stage["container_diagnostics"] = inspect_container(self, container_name, expected_labels)
                 stage["container_diagnostics"] = settle_oom_observation(
                     self, container_name, expected_labels, stage["container_diagnostics"], stage["returncode"],
                 )
+                observed = stage["container_diagnostics"]
+                if (oom_evidence is None and fresh_samples and stage["returncode"] in (137, -9)
+                        and observed.get("owned") is True and observed["state"].get("exit_code") == 137
+                        and observed["state"].get("status") in {"exited", "dead"}):
+                    samples = (performance_directory / "engine" / "samples.jsonl").relative_to(self._record.run_dir)
+                    oom_evidence = sampled_oom_kills(self._record.run_dir, samples.as_posix())
+                if oom_evidence is not None:
+                    stage["container_diagnostics"]["cgroup_oom_kill"] = oom_evidence
                 observe_lima_failure(self._transport, stage["container_diagnostics"], stage["returncode"],
                                      started_at=stage["started_at"])
                 stage["container_diagnostics"]["diagnosis"] = diagnose(
@@ -873,6 +893,8 @@ class DockerComposeRunner:
                         if "container_diagnostics" not in stage:
                             stage["container_diagnostics"] = inspect_container(self, container_name, expected_labels)
                         observed = stage["container_diagnostics"]
+                        if oom_evidence is not None:
+                            observed["cgroup_oom_kill"] = oom_evidence
                         observed["diagnosis"] = diagnose(observed, stage["returncode"], interrupted=interrupted)
                         if observed.get("owned") is True:
                             # Never pass a reusable name after an inspection. A

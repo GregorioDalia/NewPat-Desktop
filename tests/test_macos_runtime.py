@@ -16,7 +16,7 @@ from unittest.mock import patch
 from newpat.errors import RuntimeExecutionError, ValidationError
 from newpat.macos_runtime import (
     CHANNEL, INSTANCE, LIMA_VERSION, LimaRuntime, _write_json, file_sha256,
-    loaded_image_id, read_manifest,
+    loaded_image_id, main, read_manifest,
 )
 from test_bundled_runner import engine_metadata
 
@@ -609,7 +609,7 @@ class MacRuntimeTests(unittest.TestCase):
                 return ""
             if "sha256sum" in argv:
                 if state["fail_probe"]:
-                    return "0" * 64 + "  manifest"
+                    return "0" * 64 + "  " + argv[-1]
                 return file_sha256(Path(argv[-1])) + "  " + argv[-1]
             self.fail(f"Unexpected relocation command: {argv}")
         return runtime, state, execute, config
@@ -707,11 +707,77 @@ class MacRuntimeTests(unittest.TestCase):
     def test_guest_visibility_failure_prevents_ready_and_image_reimport(self):
         self.owned_vm()
         self.ready_state()
-        with patch.object(self.runtime, "_host_check"), patch.object(self.runtime, "requires_mount_repair", return_value=False), patch.object(self.runtime, "_run", side_effect=["", "0" * 64 + "  stale-manifest"]) as execute, patch.object(self.runtime, "_verify_image") as image:
+        stale_manifest = "0" * 64 + self.application_digest()[64:]
+        with patch.object(self.runtime, "_host_check"), patch.object(self.runtime, "requires_mount_repair", return_value=False), patch.object(self.runtime, "_run", side_effect=["", stale_manifest]) as execute, patch.object(self.runtime, "_verify_image") as image:
             with self.assertRaisesRegex(RuntimeExecutionError, "copia diversa"):
                 self.runtime.prepare()
         image.assert_not_called()
         self.assertFalse(any("load" in call.args[0] for call in execute.call_args_list))
+
+    def test_replaced_app_at_same_path_recovers_only_an_idle_guest_under_exclusive_lease(self):
+        self.owned_vm()
+        self.ready_state()
+        manifest_path = self.project / ".distribution/macos-manifest.json"
+        missing = (1, "", f"sha256sum: {manifest_path}: No such file or directory")
+        mismatch = (0, "0" * 64 + "  " + str(manifest_path), "")
+        success = (0, self.application_digest(), "")
+        for failure in (missing, mismatch):
+            with self.subTest(failure=failure):
+                checks = iter([failure, failure, failure, success, success])
+                actions = []
+                active = "running-experiment"
+
+                def guest(argv, **kwargs):
+                    if "sha256sum" in argv:
+                        return subprocess.CompletedProcess(argv, *next(checks))
+                    if "ps" in argv:
+                        return subprocess.CompletedProcess(argv, 0, active, "")
+                    action = argv[len(self.runtime.host_prefix())]
+                    self.assertIn(action, {"start", "stop"})
+                    actions.append(action)
+                    return subprocess.CompletedProcess(argv, 0, "", "")
+
+                environment = {"NIPAT_LAUNCHER_PID": str(os.getppid()), "NIPAT_RUNTIME_MAINTENANCE": ""}
+                with (patch.dict(os.environ, environment), patch.object(LimaRuntime, "from_environment", return_value=self.runtime),
+                      patch.object(self.runtime, "_host_check"), patch.object(self.runtime, "_verify_image"),
+                      patch.object(self.runtime, "_instance_info", return_value=self.instance_info()),
+                      patch("newpat.macos_runtime.subprocess.run", side_effect=guest)):
+                    self.assertEqual(main(["prepare"]), os.EX_TEMPFAIL)
+                    self.assertNotIn("stop", actions)
+                    os.environ["NIPAT_RUNTIME_MAINTENANCE"] = "1"
+                    with self.assertRaisesRegex(ValidationError, "container attivi"):
+                        self.runtime.prepare()
+                    self.assertNotIn("stop", actions)
+                    active = ""
+                    self.assertEqual(main(["prepare"]), 0)
+                    self.assertEqual(actions[-2:], ["stop", "start"])
+                    os.environ["NIPAT_RUNTIME_MAINTENANCE"] = ""
+                    self.assertEqual(main(["prepare"]), 0)
+                    self.assertEqual(actions.count("stop"), 1)
+
+    def test_guest_manifest_failures_do_not_authorize_unbounded_or_speculative_restarts(self):
+        self.owned_vm()
+        path = self.project / ".distribution/macos-manifest.json"
+        cases = [
+            (255, "", "ssh: connection refused", 0),
+            (1, "", f"sha256sum: {path}: Permission denied", 0),
+            (1, "", "sha256sum: /other: No such file or directory", 0),
+            (0, "not a valid digest", "", 0),
+            (0, "0" * 64 + "  wrong-path", "", 0),
+            (1, "", f"sha256sum: {path}: No such file or directory", 1),
+        ]
+        for code, stdout, stderr, expected_stops in cases:
+            with self.subTest(code=code, stdout=stdout, stderr=stderr):
+                def guest(argv, **kwargs):
+                    if "sha256sum" in argv:
+                        return subprocess.CompletedProcess(argv, code, stdout, stderr)
+                    return subprocess.CompletedProcess(argv, 0, "", "")
+
+                with (patch.dict(os.environ, {"NIPAT_RUNTIME_MAINTENANCE": "1", "NIPAT_LAUNCHER_PID": str(os.getppid())}),
+                      patch.object(self.runtime, "_host_check"), patch.object(self.runtime, "_instance_info", return_value=self.instance_info()),
+                      patch("newpat.macos_runtime.subprocess.run", side_effect=guest) as runner, self.assertRaises(RuntimeExecutionError)):
+                    self.runtime.prepare()
+                self.assertEqual(sum("stop" in call.args[0] for call in runner.call_args_list), expected_stops)
 
     def test_owner_claim_alone_does_not_hide_missing_live_mount(self):
         runtime, state, execute, before = self.relocated_runtime()

@@ -118,14 +118,31 @@ def gui_startup(app: Path):
     return startup
 
 
+def validate_host_installation(app: Path) -> None:
+    if platform.machine() != load_manifest(app)["architecture"]:
+        raise ValueError("Installare il pacchetto NewPat per l'architettura di questo Mac.")
+
+
+class _RetryWithExclusiveLease(Exception):
+    """The guest still sees the previous installation at the same path."""
+
+
 def launch(arguments: list[str], app: Path) -> int:
+    try:
+        return _launch(arguments, app, refresh_mount=False)
+    except _RetryWithExclusiveLease:
+        # Release the shared session first. Validate the installation again in
+        # case a package transaction intervened before we reacquire the lease.
+        return _launch(arguments, app, refresh_mount=True)
+
+
+def _launch(arguments: list[str], app: Path, *, refresh_mount: bool) -> int:
     if sys.platform != "darwin" or os.geteuid() == 0:
         raise ValueError("Avviare NewPat su macOS con il proprio utente, senza sudo.")
     if int(platform.mac_ver()[0].split(".")[0]) < 14:
         raise ValueError("NewPat richiede macOS 14 o successivo.")
-    manifest = load_manifest(app)
-    if platform.machine() != manifest["architecture"]:
-        raise ValueError("Installare il pacchetto NewPat per l'architettura di questo Mac.")
+    if not refresh_mount:
+        validate_host_installation(app)
     resources = app.parent
     env = environment(app, resources, dict(os.environ))
     python = resources / "python/bin/python3.12"
@@ -135,21 +152,29 @@ def launch(arguments: list[str], app: Path) -> int:
     runtime = [str(python), "-I", "-B", "-c", RUNTIME_CODE, str(app / "src")]
     maintenance = len(arguments) >= 2 and arguments[0] == "--runtime" and arguments[1] in {"stop", "remove-runtime"}
     prepare = not arguments or arguments[0] != "--runtime" or arguments[1:2] == ["prepare"]
-    relocation = prepare and ("--mount" in arguments or any(value.startswith("--mount=") for value in arguments)
-                              or mount_repair_required(app, resources, workspace))
+    relocation = refresh_mount or (prepare and (
+        "--mount" in arguments or any(value.startswith("--mount=") for value in arguments)
+        or mount_repair_required(app, resources, workspace)))
     with installation_session(exclusive=maintenance or relocation) as lease:
+        if refresh_mount:
+            validate_host_installation(app)
         if relocation:
             env["NIPAT_RUNTIME_MAINTENANCE"] = "1"
-        if arguments and arguments[0] == "--runtime":
+        runtime_only = bool(arguments and arguments[0] == "--runtime")
+        if runtime_only and not prepare:
             return run_foreground([*runtime, *arguments[1:]], env=env)
         graphical = not arguments or arguments == ["gui"]
         with (gui_startup(app).preparation_notice(app) if graphical else nullcontext()):
-            prepared = run_foreground([*runtime, "prepare"], env=env)
+            prepared = run_foreground([*runtime, *(arguments[1:] if runtime_only else ["prepare"])], env=env)
+        if prepared == os.EX_TEMPFAIL and not relocation:
+            raise _RetryWithExclusiveLease
         if prepared:
             if graphical:
                 gui_startup(app).show_startup_error(app,
                     "Preparazione dell’ambiente non completata. Consultare il log in " + str(workspace))
             return prepared
+        if runtime_only:
+            return 0
         if relocation:
             import fcntl
             # Migration has completed. Normal execution keeps a shared lease,

@@ -105,6 +105,20 @@ for (locale in unique(c(original_locale, "C", "C.UTF-8"))) {
     results[[name]] <- expected$result
   }
 }
+# Force adjacent loci into separate blocks; read windows can overlap and arrive
+# out of panel order. The uncovered site must retain the same zeros and NAs.
+shuffled <- panel(c(120L, 51L, 700L, 50L))
+snplist <- file.path(root, "shuffled-blocks.tsv")
+pileup <- file.path(root, "shuffled-blocks.pileup")
+write.table(shuffled, snplist, quote = FALSE, sep = "\t", row.names = FALSE)
+writeLines(base_cases$interleaved_groups[[2L]], pileup)
+expected <- evaluate(reference, pileup, snplist)
+stopifnot(expected$ok)
+for (configuration in configurations) {
+  Sys.setenv(NIPAT_EXECUTION_MODE = configuration[[1L]], NIPAT_MAX_WORKERS = configuration[[2L]])
+  small_blocks <- candidate$call_sample(pileup, snplist, block_observations = 10)
+  stopifnot(identical(small_blocks, expected$result))
+}
 Sys.setlocale("LC_COLLATE", original_locale)
 # Independent assertions prevent an accidentally empty oracle comparison.
 stopifnot(results$shared_distant_windows$total_count == c(4L, 4L))

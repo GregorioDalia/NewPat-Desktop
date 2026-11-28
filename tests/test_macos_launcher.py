@@ -83,6 +83,31 @@ class MacLauncherSignalTests(unittest.TestCase):
                 run.assert_not_called()
             self.assertEqual(leases, [True])
 
+    def test_runtime_prepare_retries_stale_mount_once_with_exclusive_access(self):
+        for args in (["--runtime", "prepare"], ["doctor", "--runtime"]):
+            with self.subTest(arguments=args), self.relocated_launch() as (app, lock, leases):
+                def run(command, *, env, cwd=None):
+                    if command[-1] == "prepare":
+                        return 0 if env.get("NIPAT_RUNTIME_MAINTENANCE") == "1" else os.EX_TEMPFAIL
+                    self.assertNotIn("NIPAT_RUNTIME_MAINTENANCE", env)
+                    return 0
+
+                with (patch.object(launcher, "mount_repair_required", return_value=False),
+                      patch.object(launcher, "run_foreground", side_effect=run)):
+                    self.assertEqual(launcher.launch(args, app), 0)
+                self.assertEqual(leases, [False, True])
+
+    def test_stale_mount_retry_does_not_interrupt_another_session(self):
+        import fcntl
+        with self.relocated_launch() as (app, lock, leases), lock.open("rb") as existing:
+            fcntl.flock(existing, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            with (patch.object(launcher, "mount_repair_required", return_value=False),
+                  patch.object(launcher, "run_foreground", return_value=os.EX_TEMPFAIL) as run):
+                with self.assertRaises(BlockingIOError):
+                    launcher.launch(["--runtime", "prepare"], app)
+                self.assertEqual(run.call_count, 1)
+            self.assertEqual(leases, [False, True])
+
     def test_restores_signal_handler_after_child_exit_and_spawn_failure(self):
         previous = signal.getsignal(signal.SIGINT)
         self.assertEqual(launcher.run_foreground(

@@ -1,7 +1,7 @@
-"""Coordinate desktop CPU and memory grants across sessions on one runtime."""
+"""Coordinate CPU and memory grants across NewPat clients on one runtime."""
 from __future__ import annotations
 
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass, replace
 import errno
 import hashlib
@@ -9,12 +9,15 @@ import json
 import math
 import os
 from pathlib import Path
+import subprocess
 import threading
 import time
 import uuid
 
 from newpat.errors import RuntimeExecutionError, ValidationError
+from newpat.experiments.runner import DockerComposeRunner, PLAN_WORKFLOWS
 from newpat.preferences import settings_file_lock
+from newpat.processes import background_process_options
 from newpat.resources import ResourceLockBusy, fixed_execution_budget, resource_file_lock
 
 
@@ -311,3 +314,136 @@ class DesktopStepScheduler:
         finally:
             stopped.set()
             watcher.join()
+
+
+class CoordinatedComposeRunner(DockerComposeRunner):
+    """Register CLI and GUI experiments in the same per-runtime admission queue."""
+
+    def __init__(self, *args, queued_siblings=lambda: 0, after_admission=lambda: None,
+                 language="it", **kwargs):
+        super().__init__(*args, **kwargs)
+        self._admission = None
+        self._step_scheduler = None
+        self._queued_siblings = queued_siblings
+        self._after_admission = after_admission
+        self._scheduling_language = language
+
+    def _project_idle(self, job_id):
+        # Docker Compose labels scientific containers with our unique project.
+        # Exited containers no longer consume the running quota.
+        command = ["docker", "ps", "--all", "--quiet", "--filter",
+                   "label=com.docker.compose.project=nipat-" + job_id]
+        for status in ("created", "running", "restarting", "paused", "removing"):
+            command.extend(["--filter", "status=" + status])
+        environment = self._environment()
+        try:
+            result = subprocess.run(self._transport.command(command, environment), env=environment,
+                                    stdin=subprocess.DEVNULL, capture_output=True, check=True,
+                                    timeout=8, **background_process_options())
+        except (OSError, subprocess.SubprocessError) as exc:
+            message = ("Cannot confirm that the previous experiment has stopped. Check the runtime and retry."
+                       if self._scheduling_language == "en" else
+                       "Impossibile verificare l’arresto dell’esperimento precedente. Controlla il runtime e riprova.")
+            raise RuntimeExecutionError(message) from exc
+        return not result.stdout.strip()
+
+    def _base_command(self):
+        command = super()._base_command()
+        if self._admission is not None:
+            command.extend(["--project-name", "nipat-" + self._admission.id])
+        return command
+
+    @contextmanager
+    def record_run(self, *args, **kwargs):
+        if self._record is not None:
+            raise RuntimeExecutionError("Questo runner sta già registrando un’esecuzione.")
+        requested = self.options
+        previous = self._admission
+        if previous is None and not self.dry_run:
+            self._admission = DesktopAdmission(self._transport.metadata, uuid.uuid4().hex)
+        try:
+            registration = nullcontext() if self.dry_run else self._admission.registration()
+            with registration, super().record_run(*args, **kwargs) as record:
+                yield record
+        finally:
+            # A wizard can reuse this runner for several experiments. A prior
+            # allocation must not become a user limit or an orphan's identity.
+            self.options = requested
+            self._step_scheduler = None
+            self._admission = previous
+
+    def _wait_for_admission(self, first_wait):
+        if first_wait:
+            self._write("In attesa delle risorse condivise con gli altri esperimenti.\n")
+        time.sleep(0.3)
+
+    def _describe_bundled_engine(self):
+        self._step_scheduler = None
+        result = super()._describe_bundled_engine()
+        if (self._bundled_workflow in PLAN_WORKFLOWS and self._record is not None
+                and result.get("desktop_scheduling") == DesktopStepScheduler.interface):
+            data = self._record.data
+            assigned = data["concurrent_execution"]
+            if assigned["assigned_cpus"] is not None and assigned["assigned_memory_mib"] is not None:
+                directory = self._record.run_dir / "work" / "desktop-scheduling"
+                directory.mkdir()
+                self._step_scheduler = DesktopStepScheduler(
+                    self._admission, directory, data["resource_snapshot"], self.options,
+                    queued=self._queued_siblings, runtime_idle=self._project_idle,
+                )
+                assigned["step_scheduling"] = {"interface": DesktopStepScheduler.interface,
+                                               "grants": "work/desktop-scheduling/grants.jsonl"}
+        return result
+
+    def _record_resource_snapshot(self):
+        super()._record_resource_snapshot()
+        if self.dry_run or self._record is None:
+            return
+
+        data = self._record.data
+        snapshot = data["resource_snapshot"]
+        capacity = fixed_execution_budget(snapshot)
+        cpu, memory = capacity["cpu_limit"], capacity["memory_capacity_mib"]
+        requested = self.options
+        waiting = False
+        while True:
+            allocation = self._admission.try_admit(cpu, memory, requested, self._project_idle,
+                                                   queued=self._queued_siblings())
+            if allocation is not None:
+                break
+            self._wait_for_admission(not waiting)
+            waiting = True
+        self._after_admission()
+        if allocation.participants > 1:
+            self.options = replace(requested, cpus=allocation.cpus, memory_mb=allocation.memory_mib)
+        data["concurrent_execution"] = {"participants_at_admission": allocation.participants,
+                                        "requested_options": requested.as_dict(),
+                                        "assigned_cpus": allocation.cpus,
+                                        "assigned_memory_mib": allocation.memory_mib,
+                                        "waited": waiting}
+        data["execution_options"] = self.options.as_dict()
+        snapshot["container"] = {"memory_mib": self.options.memory_mb, "cpus": self.options.cpus}
+        data["resource_budget"] = fixed_execution_budget(snapshot, self.options)
+        if allocation.participants > 1:
+            message = ("Assigned to this experiment" if self._scheduling_language == "en"
+                       else "Risorse assegnate a questo esperimento")
+            self._write(f"{message}: {allocation.cpus:g} CPU, {allocation.memory_mib} MiB.\n")
+        self._record.save()
+
+    def run(self, *args, **kwargs):
+        observer = nullcontext()
+        if self._step_scheduler is not None:
+            def report_error(exc):
+                prefix = ("Desktop step scheduling interrupted" if self._scheduling_language == "en"
+                          else "Coordinamento delle risorse tra i passi interrotto")
+                self._write(f"{prefix}: {exc}\n")
+            observer = self._step_scheduler.observing(report_error)
+        try:
+            with observer:
+                return super().run(*args, **kwargs)
+        finally:
+            if self._admission is not None and self._record is not None and self._record.data.get("commands"):
+                stage = self._record.data["commands"][-1]
+                cleanup = stage.get("container_cleanup", {}).get("status")
+                if stage.get("started_at") and cleanup not in {"removed", "stopped", "absent"}:
+                    self._admission.unconfirmed_cleanup = True

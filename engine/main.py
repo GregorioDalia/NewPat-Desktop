@@ -334,14 +334,18 @@ def run_validated_request(request: dict, script: Path, native_arguments: list[st
 def main(argv: list[str] | None = None) -> int:
     arguments = build_parser().parse_args(argv)
     observer = None
+    initial_oom_count = None
     try:
         description = verify_bundle(BUNDLE_ROOT)
         if arguments.command in {"execute", "execute-plan"}:
             library = preparation_root(BUNDLE_ROOT).resolve()
             sys.path.insert(0, str(library))
-            from newpat_scientific.performance import PerformanceSession
+            from newpat_scientific.performance import PerformanceSession, oom_kill_counter, report_oom_kills
             from newpat_scientific import progress
             from newpat_scientific.progress import observed_phase as phase
+            oom_token = os.environ.get("NIPAT_OOM_TOKEN", "")
+            if re.fullmatch(r"[a-f0-9]{32}", oom_token):
+                initial_oom_count = oom_kill_counter()
             observer = PerformanceSession.from_environment()
             if observer is not None:
                 observer.start()
@@ -479,6 +483,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"NewPat scientific engine: {exc}", file=sys.stderr)
         return 2
     finally:
+        if initial_oom_count is not None:
+            report_oom_kills(oom_token, initial_oom_count)
         if observer is not None:
             observer.stop()
 

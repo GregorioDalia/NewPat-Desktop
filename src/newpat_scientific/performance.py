@@ -104,6 +104,39 @@ def _controller_paths(root: Path, proc_root: Path) -> dict[str, Path]:
     return resolved
 
 
+def oom_kill_counter(root: Path = Path("/sys/fs/cgroup"), proc_root: Path = Path("/proc")):
+    """Read only the OOM kill count in the engine's own memory cgroup."""
+    try:
+        controllers = _controller_paths(root, proc_root)
+        if "unified" in controllers:
+            path = controllers["unified"] / "memory.events"
+        elif "memory" in controllers:
+            path = controllers["memory"] / "memory.oom_control"
+        else:
+            return None
+        with path.open("r", encoding="ascii") as stream:
+            # Keep the kernel file identity too. A change of cgroup must never
+            # turn a different group's cumulative count into a run-time delta.
+            identity = os.fstat(stream.fileno())
+            value = stream.read(4097)
+            if len(value) > 4096:
+                return None
+            count = _key_values(value, frozenset({"oom_kill"})).get("oom_kill")
+            if count is not None:
+                return (identity.st_dev, identity.st_ino), count
+    except (OSError, ValueError):
+        pass
+    return None
+
+
+def report_oom_kills(token, baseline):
+    last = oom_kill_counter()
+    if last is not None and last[0] == baseline[0] and last[1] > baseline[1]:
+        # This standalone line travels over the launched command's own stderr.
+        # The desktop accepts only its random token and two increasing counts.
+        _warn(f"\nNewPat cgroup oom_kill {token} {baseline[1]} {last[1]}")
+
+
 def cgroup_sample(root: Path = Path("/sys/fs/cgroup"), proc_root: Path = Path("/proc")) -> dict:
     """Read fixed metric files; an absent or inaccessible metric remains unknown."""
     try:

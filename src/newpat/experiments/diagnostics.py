@@ -1,20 +1,21 @@
 """Small, explicit Docker observations retained before a run container is removed.
 
-An exit status of 137 is not an OOM diagnosis.  Only Docker's OOMKilled flag is
-reported as confirmed OOM; missing observations remain unknown.  This module
+An exit status of 137 needs corroboration from Docker or a same-command cgroup
+OOM kill counter. The latter identifies a group, not a particular PID. This module
 never reads container environment variables, mount paths or full Docker info.
 """
 
 from __future__ import annotations
 
 import json
+from pathlib import Path
 import re
 import subprocess
 import time
 from typing import Any
 
 from newpat.errors import RuntimeExecutionError, ValidationError
-from newpat.experiments.tracking import utc_now
+from newpat.experiments.tracking import MAX_RUN_METADATA_BYTES, run_owned_path, utc_now
 from newpat.experiments.transport import DockerTransport, LimaDockerTransport, cleanup_process_options
 
 
@@ -146,6 +147,42 @@ def observe_lima_failure(transport: DockerTransport, observation: dict[str, Any]
         observation["lima_instance"]["lifecycle"] = transport.runtime.hostagent_lifecycle(since=started_at)
 
 
+def sampled_oom_kills(run_dir: Path, relative_file: str) -> dict | None:
+    """Recover an increase from one command's flushed scientific samples (including older engines)."""
+    first = last = None
+    try:
+        path = run_owned_path(run_dir, relative_file)
+        if not path.is_file() or path.stat().st_size > MAX_RUN_METADATA_BYTES:
+            return None
+        with path.open("rb") as stream:
+            while line := stream.readline(256 * 1024):
+                if stream.tell() > MAX_RUN_METADATA_BYTES:
+                    return None
+                if not line.endswith(b"\n"):
+                    # Only a torn final record may be ignored.
+                    if stream.read(1):
+                        return None
+                    break
+                sample = json.loads(line)
+                group = sample.get("cgroup") if isinstance(sample, dict) else None
+                if not isinstance(group, dict) or group.get("version") != 2:
+                    continue
+                events = group.get("memory_events")
+                count = events.get("oom_kill") if isinstance(events, dict) else None
+                if type(count) is not int or count < 0:
+                    continue
+                if last is not None and count < last:
+                    return None
+                if first is None:
+                    first = count
+                last = count
+    except (OSError, ValueError, RecursionError):
+        return None
+    if first is not None and last > first:
+        return {"before": first, "after": last, "source": "engine_samples"}
+    return None
+
+
 def diagnose(observation: dict[str, Any], returncode: int | None, *, interrupted: bool) -> dict[str, str]:
     if interrupted:
         return {"kind": "interrupted", "message": "Esecuzione annullata dall'utente."}
@@ -158,6 +195,14 @@ def diagnose(observation: dict[str, Any], returncode: int | None, *, interrupted
                        "del container; la modalita parallela puo richiedere piu memoria.",
         }
     if returncode in (137, -9):
+        events = observation.get("cgroup_oom_kill")
+        if events is not None:
+            return {
+                "kind": "cgroup_oom_kill",
+                "message": "Durante il calcolo il kernel ha terminato almeno un processo del container "
+                           f"per memoria insufficiente (oom_kill da {events['before']} a {events['after']}). "
+                           "Il contatore riguarda l’intero container e non identifica il processo terminato.",
+            }
         return {
             "kind": "sigkill_unconfirmed",
             "message": "Il codice di uscita e compatibile con una terminazione forzata (SIGKILL). "

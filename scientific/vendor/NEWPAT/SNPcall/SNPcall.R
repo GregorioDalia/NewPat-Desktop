@@ -69,7 +69,7 @@ validate_panel <- function(x) {
   invisible(TRUE)
 }
 
-call_sample <- function(pileup_file, snplist_file) {
+call_sample <- function(pileup_file, snplist_file, block_observations = 131072L) {
 cat(">> reading snp list...\n")
 snp_input <- readr::read_tsv(
   snplist_file,
@@ -139,17 +139,46 @@ if (length(mismatch)) {
   i <- mismatch[[1L]]
   stop("SNP panel REF differs from pileup at ", df$V1[i], ":", df$V2[i])
 }
-# A QNAME alone cannot distinguish overlapping mates in a pileup. Detect the
-# ambiguity before combining neighbouring observations by name.
-window_keys <- c(paste(snp_input$chr, as.integer(positions_numeric) - 1L, sep=":"),
-                 fake_DNP$pos, paste(snp_input$chr, as.integer(positions_numeric) + 1L, sep=":"))
-# Imported pileups may cover the whole genome. Expand only reads within panel windows.
-df <- df[paste(df$V1, df$V2, sep=":") %in% window_keys, , drop=FALSE]
-qnames <- strsplit(df$V7, ",", fixed=TRUE)
-if (any(vapply(qnames, anyDuplicated, integer(1)) > 0L))
-  stop("SNP pileup repeats a QNAME at one coordinate. Generate it with overlap removal enabled.")
-rm(qnames)
+# Keep windows whole when batching. Overlapping SNPs may reuse the same coordinate.
+windows <- cbind(paste(snp_input$chr, as.integer(positions_numeric) - 1L, sep = ":"),
+                 fake_DNP$pos,
+                 paste(snp_input$chr, as.integer(positions_numeric) + 1L, sep = ":"))
+df$chr <- paste(df$V1, df$V2, sep = ":")
+df <- df[df$chr %in% windows, , drop = FALSE]
 cat(">> input loaded correctly\n")
+if (!nrow(df)) return(nipat_snp_call_block(df, snp_input, fake_DNP))
+# Weight each window by the reads which would be expanded into observation rows.
+depth_by_position <- rowsum(as.double(df$V4), df$chr, reorder = FALSE)
+window_depth <- matrix(depth_by_position[match(windows, rownames(depth_by_position)), 1L],
+                       nrow = nrow(snp_input))
+weights <- rowSums(window_depth, na.rm = TRUE)
+if (sum(weights) <= block_observations || length(weights) == 1L)
+  return(nipat_snp_call_block(df, snp_input, fake_DNP))
+
+block <- integer(length(weights))
+group <- 1L
+used <- 0
+for (i in seq_along(weights)) {
+  if (used > 0 && used + weights[i] > block_observations) {
+    group <- group + 1L
+    used <- 0
+  }
+  block[i] <- group
+  used <- used + weights[i]
+}
+parts <- lapply(split(seq_along(block), block), function(sites) {
+  belongs <- df$chr %in% windows[sites, , drop = FALSE]
+  nipat_snp_call_block(df[belongs, , drop = FALSE], snp_input[sites, , drop = FALSE],
+                       fake_DNP[sites, , drop = FALSE])
+})
+result <- bind_rows(parts)
+# The original full-panel merge sorts the composite keys using the active locale.
+result <- result[order(paste(result$chr, result$pos, sep = ":")), , drop = FALSE]
+rownames(result) <- NULL
+result
+}
+
+nipat_snp_call_block <- function(df, snp_input, fake_DNP) {
 # In mpileup, a dot or comma is a match to the reference on either strand.
 df$V5 <- mapply(
   function(reference, bases) {
@@ -165,7 +194,6 @@ fake_DNP <- fake_DNP %>%
     ref = toupper(ref),
     alt = toupper(alt)
   )
-df$chr <- paste(df$V1, df$V2, sep = ":")
 df2 <- data.frame(
   df.chr = df$chr,
   df.V5 = df$V5,
@@ -177,6 +205,9 @@ marked_bases <- gsub('\\*', '@', df2$df.V5)
 marked_bases <- gsub('[.,actgACTG]([+-]\\d+)+', '@', marked_bases)
 base_parts <- strsplit(marked_bases, "", fixed = TRUE)
 name_parts <- strsplit(as.character(df2$df.V7), ",", fixed = TRUE)
+# One QNAME cannot distinguish overlapping mates at the same coordinate.
+if (any(vapply(name_parts, anyDuplicated, integer(1)) > 0L))
+  stop("SNP pileup repeats a QNAME at one coordinate. Generate it with overlap removal enabled.")
 quality_parts <- strsplit(as.character(df2$df.qual), "", fixed = TRUE)
 sizes <- lengths(base_parts)
 direct <- all(!is.na(marked_bases) & !is.na(df2$df.V7) & !is.na(df2$df.qual)) &&
@@ -228,7 +259,7 @@ rm(df, df2, base_parts, name_parts, quality_parts, marked_bases, sizes)
 snp_coordinates <- tibble(
   SNP_id = seq_len(nrow(snp_input)),
   snp_chr = snp_input$chr,
-  snp_pos = as.integer(positions_numeric)
+  snp_pos = as.integer(snp_input$pos)
 )
 position_map <- bind_rows(
   snp_coordinates %>%

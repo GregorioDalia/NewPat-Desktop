@@ -52,7 +52,7 @@ Check overlapping worker events in `work/parallel/*.jsonl` for actual concurrenc
 | Process RSS | Resident memory for an R, samtools or supervising process. Summing RSS can double-count shared pages. |
 | CPU and I/O | Counters visible inside the container. Host filesystems, caching and virtualization affect attribution. |
 
-Use the same memory source across runs. Periodic samples can miss short peaks. A kernel peak reflects activity up to the last successful counter read. Leave missing measurements unavailable. Exit code 137 indicates termination. Check `OOMKilled`, cgroup events and resource diagnostics before attributing it to memory.
+Use the same memory source across runs. Periodic samples can miss short peaks. A kernel peak reflects activity up to the last successful counter read. Leave missing measurements unavailable. For exit code 137, check the diagnosis in `run.json`. Docker can flag an out-of-memory termination of the container. When a child process is killed and the engine survives, an increase in the Linux cgroup `oom_kill` counter during the command confirms that the kernel killed a process in that group for lack of memory. Use the scientific step log and the per-process samples to identify the affected phase. Exit code 137 alone leaves the cause open.
 
 <a id="consultazione-dei-risultati"></a>
 

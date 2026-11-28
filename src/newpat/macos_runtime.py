@@ -78,6 +78,19 @@ printf '%s\\n' "$PARAM_NipatOwner" > /etc/nipat-owner
 """
 
 
+class _StaleApplicationMount(RuntimeExecutionError):
+    """The guest cannot see the current host manifest on a configured mount."""
+
+
+class _ExclusivePreparationRequired(RuntimeExecutionError):
+    """The launcher must repeat prepare under an exclusive installation lease."""
+
+
+def _exclusive_maintenance() -> bool:
+    return (os.environ.get("NIPAT_RUNTIME_MAINTENANCE") == "1"
+            and os.environ.get("NIPAT_LAUNCHER_PID") == str(os.getppid()))
+
+
 def absolute_path(value: str | Path) -> Path:
     raw = os.fspath(value)
     if not raw or any(unicodedata.category(c) == "Cc" for c in raw):
@@ -422,8 +435,7 @@ class LimaRuntime:
                 raise ValidationError(f"Percorso del ripristino Lima non sicuro: {path}")
 
     def _preserve_stopped_instance(self) -> None:
-        if (os.environ.get("NIPAT_RUNTIME_MAINTENANCE") != "1"
-                or os.environ.get("NIPAT_LAUNCHER_PID") != str(os.getppid())):
+        if not _exclusive_maintenance():
             raise ValidationError("La VM non gestita richiede il ripristino esclusivo. Chiudere le sessioni e riaprire NewPat.")
         self._check_recovery_paths()
         config = self.instance_dir / "lima.yaml"
@@ -483,23 +495,51 @@ class LimaRuntime:
         """A healthy image is insufficient: the current app must be visible too."""
         path = self.project / ".distribution" / "macos-manifest.json"
         self.host_path(path)
+        expected = file_sha256(path)
         try:
-            digest = self._run(self.shell_command(["sha256sum", "--", str(path)]), timeout=30)
+            digest = self._run(self.shell_command(["env", "LC_ALL=C", "sha256sum", "--", str(path)]), timeout=30)
         except RuntimeExecutionError as exc:
+            command = exc.__cause__
+            if isinstance(command, subprocess.CalledProcessError) and command.returncode == 1:
+                missing = {f"sha256sum: {name}: No such file or directory" for name in (str(path), f"'{path}'")}
+                if any(line in missing for line in (command.stderr or "").splitlines()):
+                    raise _StaleApplicationMount(f"La VM non trova il manifesto dell'applicazione: {path}") from exc
             raise RuntimeExecutionError(
-                f"La VM non può leggere l'applicazione in {self.project}. "
-                "Chiudere le altre sessioni NewPat/NIPAT e riaprire NewPat da Applicazioni per aggiornare le cartelle condivise."
+                f"La VM non può leggere l'applicazione in {self.project}. {exc}"
             ) from exc
-        if digest.split(maxsplit=1)[0:1] != [file_sha256(path)]:
-            raise RuntimeExecutionError("La VM vede una copia diversa dell'applicazione. Chiudere le altre sessioni e riaprire NewPat da Applicazioni.")
+        value, _, name = digest.partition("  ")
+        if not _DIGEST.fullmatch(value) or name != str(path):
+            raise RuntimeExecutionError("La VM non ha restituito un checksum del manifesto valido.")
+        if value != expected:
+            raise _StaleApplicationMount("La VM vede una copia diversa dell'applicazione.")
+
+    def _require_idle_guest(self) -> None:
+        if self._run(self.docker_command(["ps", "--quiet"]), timeout=30).strip():
+            raise ValidationError("Sono presenti analisi o container attivi. Attendere la conclusione e riaprire NewPat; il runtime non è stato arrestato.")
+
+    def _verify_existing_mount(self) -> None:
+        try:
+            self._verify_application()
+        except _StaleApplicationMount as exc:
+            if not _exclusive_maintenance():
+                raise _ExclusivePreparationRequired(
+                    f"{exc} Chiudere le altre sessioni NewPat e riaprire l'applicazione."
+                ) from exc
+            self._assert_owned()
+            if self._instance_info()["status"] != "Running":
+                raise
+            self._require_idle_guest()
+            print("Aggiornamento della condivisione dell'applicazione: riavvio della VM NewPat.", flush=True)
+            self._run(self.host_prefix() + ["stop", INSTANCE], timeout=180)
+            self.start_existing()
+            self._verify_application()
 
     def _repair_mounts(self, owner: dict, additions: list[dict]) -> dict:
         """Update the owned VM under the launcher's exclusive lease.
 
         Lima 2.2.1 edit refuses running instances. The edit preserves resource settings, disks and existing mount options. No VM, image, data or result directory is removed.
         """
-        if (os.environ.get("NIPAT_RUNTIME_MAINTENANCE") != "1"
-                or os.environ.get("NIPAT_LAUNCHER_PID") != str(os.getppid())):
+        if not _exclusive_maintenance():
             raise ValidationError(
                 "La configurazione della VM richiede un aggiornamento. Chiudere tutte le sessioni NewPat/NIPAT "
                 "e riaprire NewPat da Applicazioni per completare il ripristino automatico."
@@ -507,8 +547,8 @@ class LimaRuntime:
         self._assert_owned()
         info = self._instance_info()
         running = info["status"] == "Running"
-        if running and self._run(self.docker_command(["ps", "--quiet"]), timeout=30).strip():
-            raise ValidationError("Sono presenti analisi o container attivi. Attendere la conclusione e riaprire NewPat; il runtime non è stato arrestato.")
+        if running:
+            self._require_idle_guest()
         config = self.instance_dir / "lima.yaml"
         original_config = config.read_bytes()
         original_owner = self.owner_path.read_bytes()
@@ -639,7 +679,8 @@ class LimaRuntime:
             log.write(result.stdout + result.stderr + "\n")
         if result.returncode:
             message = (result.stderr or result.stdout).strip()[-2000:]
-            raise RuntimeExecutionError(f"Runtime macOS non disponibile (codice {result.returncode}): {message}")
+            failure = subprocess.CalledProcessError(result.returncode, argv, output=result.stdout, stderr=result.stderr)
+            raise RuntimeExecutionError(f"Runtime macOS non disponibile (codice {result.returncode}): {message}") from failure
         return result.stdout.strip()
 
     def _host_check(self, manifest: dict) -> None:
@@ -759,9 +800,7 @@ class LimaRuntime:
                     owner = self._repair_mounts(owner, additions)
                 else:
                     self.start_existing()
-                # Keep this outside the image-reimport fallback: an inaccessible
-                # app cannot be repaired by reloading an otherwise valid image.
-                self._verify_application()
+                    self._verify_existing_mount()
                 try:
                     state = self._state(manifest)
                     self._verify_image(manifest, state["runtime_image"])
@@ -870,6 +909,11 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print("Runtime NewPat rimosso. Dati e risultati sono stati conservati.")
         return 0
+    except _ExclusivePreparationRequired as exc:
+        if os.environ.get("NIPAT_LAUNCHER_PID") == str(os.getppid()):
+            return os.EX_TEMPFAIL
+        print(f"ERRORE: {exc}", file=sys.stderr)
+        return 1
     except (NipatError, OSError, ValueError) as exc:
         print(f"ERRORE: {exc}", file=sys.stderr)
         return 1
