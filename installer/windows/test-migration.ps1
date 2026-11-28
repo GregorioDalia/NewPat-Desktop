@@ -223,14 +223,16 @@ try {
     Assert-Test ($pendingRepair.Ownership.status -ceq 'owned' -and $pendingRepair.Ownership.owner_id -ceq $pendingOwner -and
         @(Get-ChildItem -LiteralPath $receiptHistory -Filter ($repair.Distro + '-*.json') -File).Count -eq 2) 'retry completes the pending import without replacing its owner or duplicating recovery history'
 
-    # The earlier, path-independent Desktop namespace is also repairable with
-    # its own valid receipt; the stable namespace is never accepted.
+    # An unbound receipt remains unrelated even after its WSL registration disappears.
     $registrations.Remove($previousDesktopName)
-    $missingEarlierDesktop = Get-NewPatRuntimeTarget $wsl $previousDesktopHash @($registrations.Keys)
-    Initialize-NewPatRuntimeTarget $missingEarlierDesktop ([pscustomobject]@{ sha256 = $previousDesktopHash }) '' ''
-    $earlierBackups = @(Get-ChildItem -LiteralPath $receiptHistory -Filter ($previousDesktopName + '-*.json') -File)
-    Assert-Test ($missingEarlierDesktop.Distro -ceq $previousDesktopName -and $earlierBackups.Count -eq 1 -and
-        [Convert]::ToBase64String([IO.File]::ReadAllBytes($earlierBackups[0].FullName)) -ceq $previousDesktopBefore) 'repair preserves an owned earlier Desktop receipt and namespace'
+    $newDesktop = Get-NewPatRuntimeTarget $wsl $previousDesktopHash @($registrations.Keys)
+    Initialize-NewPatRuntimeTarget $newDesktop ([pscustomobject]@{ sha256 = $previousDesktopHash }) '' ''
+    $unboundBackups = @(Get-ChildItem -LiteralPath $receiptHistory -Filter ($previousDesktopName + '-*.json') -File)
+    Assert-Test ($newDesktop.Distro -ceq (Get-NewPatRuntimeDistroName $previousDesktopHash $wsl) -and
+        $registrations.ContainsKey($newDesktop.Distro) -and -not $registrations.ContainsKey($previousDesktopName) -and
+        $newDesktop.Ownership.owner_id -cne $previousDesktopOwner.owner_id) 'fresh import uses the location-bound registration and a new owner'
+    Assert-Test ($unboundBackups.Count -eq 0 -and
+        [Convert]::ToBase64String([IO.File]::ReadAllBytes($previousDesktopReceipt)) -ceq $previousDesktopBefore) 'fresh import leaves the unrelated ownership receipt in place'
 
     foreach ($foreignName in @('NewPat-Runtime', 'NewPat-Unknown', ('NewPat-05-Preview-' + ('6' * 40)))) {
         $foreignReceiptPath = Join-Path (Join-Path $wsl 'registrations') ($foreignName + '.json')
@@ -238,7 +240,7 @@ try {
         Write-NewPatJsonAtomic $foreignReceiptPath $foreignReceipt
         $foreignTarget = [pscustomobject]@{
             Distro = $foreignName; Directory = (Join-Path $wsl $foreignName); OwnershipPath = $foreignReceiptPath
-            Ownership = $foreignReceipt; Registered = $false; Legacy = $false; RootfsSha256 = ('6' * 64)
+            Ownership = $foreignReceipt; Registered = $false; RootfsSha256 = ('6' * 64)
         }
         $foreignBytes = [Convert]::ToBase64String([IO.File]::ReadAllBytes($foreignReceiptPath))
         $beforeForeignImports = @($calls | Where-Object { $_[0] -ceq '--import' }).Count
